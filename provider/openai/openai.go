@@ -71,6 +71,14 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Accept", "text/event-stream")
 
+		// Session affinity headers for prompt caching
+		compat := goai.DetectCompat(model.BaseURL)
+		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" {
+			req.Header.Set("x-session-id", opts.SessionID)
+			req.Header.Set("x-client-request-id", opts.SessionID)
+			req.Header.Set("x-session-affinity", opts.SessionID)
+		}
+
 		// Apply custom headers
 		if opts != nil {
 			for k, v := range opts.Headers {
@@ -117,14 +125,16 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 // --- Request building ---
 
 type chatRequest struct {
-	Model            string         `json:"model"`
-	Messages         []chatMessage  `json:"messages"`
-	Stream           bool           `json:"stream"`
-	StreamOptions    *streamOpts    `json:"stream_options,omitempty"`
-	Temperature      *float64       `json:"temperature,omitempty"`
-	MaxTokens        *int           `json:"max_tokens,omitempty"`
-	Tools            []toolDef      `json:"tools,omitempty"`
-	ReasoningEffort  string         `json:"reasoning_effort,omitempty"`
+	Model              string         `json:"model"`
+	Messages           []chatMessage  `json:"messages"`
+	Stream             bool           `json:"stream"`
+	StreamOptions      *streamOpts    `json:"stream_options,omitempty"`
+	Temperature        *float64       `json:"temperature,omitempty"`
+	MaxTokens          *int           `json:"max_tokens,omitempty"`
+	MaxCompletionToks  *int           `json:"max_completion_tokens,omitempty"`
+	Tools              []toolDef      `json:"tools,omitempty"`
+	ReasoningEffort    string         `json:"reasoning_effort,omitempty"`
+	Store              *bool          `json:"store,omitempty"`
 }
 
 type streamOpts struct {
@@ -188,7 +198,18 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxTokens = opts.MaxTokens
+		// Max tokens field depends on provider
+		if compat.MaxTokensField == "max_completion_tokens" {
+			req.MaxCompletionToks = opts.MaxTokens
+		} else {
+			req.MaxTokens = opts.MaxTokens
+		}
+	}
+
+	// Store field
+	if compat.SupportsStore != nil && *compat.SupportsStore {
+		t := true
+		req.Store = &t
 	}
 
 	// Reasoning effort

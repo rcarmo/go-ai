@@ -67,7 +67,8 @@ for f in \
     provider/google/google.go \
     provider/mistral/mistral.go \
     provider/openairesponses/responses.go \
-    provider/geminicli/geminicli.go; do
+    provider/geminicli/geminicli.go \
+    provider/openaicodex/codex.go; do
     check_provider "$f" $MIN_HTTP_PROVIDER
 done
 

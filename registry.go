@@ -31,11 +31,36 @@ func RegisterApi(p *ApiProvider) {
 	apiProviders[p.Api] = p
 }
 
+// UnregisterApi removes a provider by API name.
+func UnregisterApi(api Api) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	delete(apiProviders, api)
+}
+
+// ClearApiProviders removes all registered API providers.
+func ClearApiProviders() {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	for k := range apiProviders {
+		delete(apiProviders, k)
+	}
+}
+
 // GetApiProvider returns the registered provider for an API, or nil.
 func GetApiProvider(api Api) *ApiProvider {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 	return apiProviders[api]
+}
+
+// ClearModels removes all registered models.
+func ClearModels() {
+	modelsMu.Lock()
+	defer modelsMu.Unlock()
+	for k := range models {
+		delete(models, k)
+	}
 }
 
 // --- Model Registry ---

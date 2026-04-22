@@ -110,7 +110,7 @@ go-ai/
 | Mistral | `mistral-conversations` | ✅ Implemented |
 | Amazon Bedrock | `bedrock-converse-stream` | ✅ Implemented |
 | Google Gemini CLI | `google-gemini-cli` | ✅ Implemented |
-| OpenAI Codex | `openai-codex-responses` | 🔲 Planned |
+| OpenAI Codex | `openai-codex-responses` | ✅ Implemented |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
 
 ## OAuth
@@ -118,9 +118,9 @@ go-ai/
 | Provider | Status |
 |---|---|
 | GitHub Copilot (device flow) | ✅ Implemented |
-| Google Gemini CLI | 🔲 Planned |
-| Anthropic | 🔲 Planned |
-| OpenAI Codex | 🔲 Planned |
+| Google Gemini CLI (auth code + PKCE) | ✅ Implemented |
+| Anthropic (auth code + PKCE) | ✅ Implemented |
+| OpenAI Codex (device flow) | ✅ Implemented |
 | Antigravity | 🔲 Planned |
 
 ## Compatibility with pi-ai
