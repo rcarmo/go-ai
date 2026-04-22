@@ -167,10 +167,17 @@ type toolCallFunction struct {
 }
 
 func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) chatRequest {
+	// Detect compat flags from base URL
+	compat := goai.DetectCompat(model.BaseURL)
+
 	req := chatRequest{
 		Model:  model.ID,
 		Stream: true,
-		StreamOptions: &streamOpts{IncludeUsage: true},
+	}
+
+	// Stream options — some providers don't support include_usage
+	if compat.SupportsUsageInStreaming == nil || *compat.SupportsUsageInStreaming {
+		req.StreamOptions = &streamOpts{IncludeUsage: true}
 	}
 
 	if opts != nil {
@@ -178,11 +185,17 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		req.MaxTokens = opts.MaxTokens
 	}
 
-	// Convert messages
-	req.Messages = convertMessages(convCtx)
+	// Reasoning effort
+	if opts != nil && opts.Reasoning != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+		req.ReasoningEffort = string(*opts.Reasoning)
+	}
+
+	// Convert messages with compat awareness
+	req.Messages = convertMessages(model, convCtx, &compat)
 
 	// Convert tools
 	if len(convCtx.Tools) > 0 {
+		strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
 		for _, t := range convCtx.Tools {
 			req.Tools = append(req.Tools, toolDef{
 				Type: "function",
@@ -190,6 +203,7 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 					Name:        t.Name,
 					Description: t.Description,
 					Parameters:  t.Parameters,
+					Strict:      strictMode,
 				},
 			})
 		}
@@ -198,30 +212,88 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	return req
 }
 
-func convertMessages(convCtx *goai.Context) []chatMessage {
+func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.OpenAICompletionsCompat) []chatMessage {
 	var msgs []chatMessage
 
-	// System prompt
+	// System prompt — use developer role for reasoning models if supported
 	if convCtx.SystemPrompt != "" {
+		role := "system"
+		if model.Reasoning && compat.SupportsDeveloperRole != nil && *compat.SupportsDeveloperRole {
+			role = "developer"
+		}
 		msgs = append(msgs, chatMessage{
-			Role:    "system",
-			Content: convCtx.SystemPrompt,
+			Role:    role,
+			Content: goai.SanitizeSurrogates(convCtx.SystemPrompt),
 		})
 	}
 
-	for _, m := range convCtx.Messages {
+	transformed := goai.TransformMessages(convCtx.Messages, model)
+	var lastRole goai.Role
+
+	for i := 0; i < len(transformed); i++ {
+		m := transformed[i]
+
+		// Insert synthetic assistant message after tool results if required
+		if compat.RequiresAssistantAfterToolResult != nil && *compat.RequiresAssistantAfterToolResult &&
+			lastRole == goai.RoleToolResult && m.Role == goai.RoleUser {
+			msgs = append(msgs, chatMessage{Role: "assistant", Content: "I have processed the tool results."})
+		}
+
 		switch m.Role {
 		case goai.RoleUser:
-			content := extractTextContent(m.Content)
-			msgs = append(msgs, chatMessage{Role: "user", Content: content})
+			// Check for image content
+			hasImages := false
+			for _, b := range m.Content {
+				if b.Type == "image" {
+					hasImages = true
+					break
+				}
+			}
+
+			if hasImages {
+				// Multi-modal content array
+				var parts []contentPart
+				for _, b := range m.Content {
+					switch b.Type {
+					case "text":
+						parts = append(parts, contentPart{
+							Type: "text",
+							Text: goai.SanitizeSurrogates(b.Text),
+						})
+					case "image":
+						parts = append(parts, contentPart{
+							Type: "image_url",
+							ImageURL: &imageURL{
+								URL: fmt.Sprintf("data:%s;base64,%s", b.MimeType, b.Data),
+							},
+						})
+					}
+				}
+				if len(parts) > 0 {
+					msgs = append(msgs, chatMessage{Role: "user", Content: parts})
+				}
+			} else {
+				// Plain text
+				text := extractTextContent(m.Content)
+				msgs = append(msgs, chatMessage{Role: "user", Content: goai.SanitizeSurrogates(text)})
+			}
 
 		case goai.RoleAssistant:
 			msg := chatMessage{Role: "assistant"}
+
+			// Collect text and thinking
 			var textParts []string
+			var thinkingParts []string
 			for _, c := range m.Content {
 				switch c.Type {
 				case "text":
-					textParts = append(textParts, c.Text)
+					if c.Text != "" {
+						textParts = append(textParts, c.Text)
+					}
+				case "thinking":
+					if c.Thinking != "" {
+						thinkingParts = append(thinkingParts, c.Thinking)
+					}
 				case "toolCall":
 					argsJSON, _ := json.Marshal(c.Arguments)
 					msg.ToolCalls = append(msg.ToolCalls, toolCallPart{
@@ -234,25 +306,69 @@ func convertMessages(convCtx *goai.Context) []chatMessage {
 					})
 				}
 			}
-			if len(textParts) > 0 {
-				msg.Content = joinStrings(textParts)
+
+			// Handle thinking blocks
+			if len(thinkingParts) > 0 && compat.RequiresThinkingAsText != nil && *compat.RequiresThinkingAsText {
+				// Convert thinking to text content
+				allText := joinStrings(thinkingParts)
+				if len(textParts) > 0 {
+					allText += "\n\n" + joinStrings(textParts)
+				}
+				msg.Content = goai.SanitizeSurrogates(allText)
+			} else if len(textParts) > 0 {
+				msg.Content = goai.SanitizeSurrogates(joinStrings(textParts))
+			}
+
+			// Skip empty assistant messages with no tool calls
+			if msg.Content == nil && len(msg.ToolCalls) == 0 {
+				continue
+			}
+			if msg.Content == nil {
+				msg.Content = ""
 			}
 			msgs = append(msgs, msg)
 
 		case goai.RoleToolResult:
-			content := extractTextContent(m.Content)
-			msgs = append(msgs, chatMessage{
+			text := extractTextContent(m.Content)
+			toolMsg := chatMessage{
 				Role:       "tool",
-				Content:    content,
+				Content:    goai.SanitizeSurrogates(text),
 				ToolCallID: m.ToolCallID,
-				Name:       m.ToolName,
-			})
+			}
+			// Some providers require the name field
+			if compat.RequiresToolResultName != nil && *compat.RequiresToolResultName && m.ToolName != "" {
+				toolMsg.Name = m.ToolName
+			}
+			msgs = append(msgs, toolMsg)
+
+			// If tool result has images, add them as a follow-up user message
+			var imageBlocks []contentPart
+			for _, b := range m.Content {
+				if b.Type == "image" {
+					imageBlocks = append(imageBlocks, contentPart{
+						Type: "image_url",
+						ImageURL: &imageURL{
+							URL: fmt.Sprintf("data:%s;base64,%s", b.MimeType, b.Data),
+						},
+					})
+				}
+			}
+			if len(imageBlocks) > 0 {
+				if compat.RequiresAssistantAfterToolResult != nil && *compat.RequiresAssistantAfterToolResult {
+					msgs = append(msgs, chatMessage{Role: "assistant", Content: "I have processed the tool results."})
+				}
+				msgs = append(msgs, chatMessage{
+					Role: "user",
+					Content: append([]contentPart{{Type: "text", Text: "Tool result image:"}}, imageBlocks...),
+				})
+			}
 		}
+
+		lastRole = m.Role
 	}
 
 	return msgs
 }
-
 func extractTextContent(blocks []goai.ContentBlock) string {
 	for _, b := range blocks {
 		if b.Type == "text" {
@@ -264,7 +380,10 @@ func extractTextContent(blocks []goai.ContentBlock) string {
 
 func joinStrings(parts []string) string {
 	result := ""
-	for _, p := range parts {
+	for i, p := range parts {
+		if i > 0 {
+			result += "\n"
+		}
 		result += p
 	}
 	return result

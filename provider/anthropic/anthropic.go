@@ -159,10 +159,38 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	for _, m := range convCtx.Messages {
 		switch m.Role {
 		case goai.RoleUser:
-			req.Messages = append(req.Messages, anthropicMessage{
-				Role:    "user",
-				Content: extractText(m.Content),
-			})
+			// Check for image content
+			hasImages := false
+			for _, b := range m.Content {
+				if b.Type == "image" {
+					hasImages = true
+					break
+				}
+			}
+			if hasImages {
+				var blocks []anthropicContentBlock
+				for _, b := range m.Content {
+					switch b.Type {
+					case "text":
+						blocks = append(blocks, anthropicContentBlock{Type: "text", Text: goai.SanitizeSurrogates(b.Text)})
+					case "image":
+						blocks = append(blocks, anthropicContentBlock{
+							Type: "image",
+							Source: &anthropicImageSource{
+								Type:      "base64",
+								MediaType: b.MimeType,
+								Data:      b.Data,
+							},
+						})
+					}
+				}
+				req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: blocks})
+			} else {
+				req.Messages = append(req.Messages, anthropicMessage{
+					Role:    "user",
+					Content: goai.SanitizeSurrogates(extractText(m.Content)),
+				})
+			}
 		case goai.RoleAssistant:
 			var blocks []anthropicContentBlock
 			for _, c := range m.Content {
