@@ -20,3 +20,4 @@
 ## Reference
 
 - [Gap Analysis](GAP_ANALYSIS.md) — closed parity tracking vs pi-ai
+- [Test Matrix](TEST_MATRIX.md) — current automated coverage and known gaps
