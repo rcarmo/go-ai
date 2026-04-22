@@ -2,8 +2,27 @@
 
 A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
-> **⚠️ Work in progress.** This is an active port — not all providers are implemented yet.
-> The TypeScript original is the source of truth; this library tracks it.
+> **⚠️ Experimental.** This library tracks the TypeScript original and is under
+> active development. The API surface may change. Use in production at your own risk.
+
+## Why
+
+I needed a Go library for talking to LLMs that was at least as good as
+[pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified
+streaming, tool calling, multi-provider, proper cost tracking — and couldn't
+find anything I liked. Everything was either OpenAI-only, didn't stream
+properly, or required pulling in half the internet as dependencies.
+
+So I ported pi-ai to Go. Same types (JSON-serialization-compatible), same
+event protocol, same provider coverage. If you know pi-ai, you know this.
+
+## Credits
+
+This project is a derivative work of
+[**@mariozechner/pi-ai**](https://github.com/nicobailon/pi-mcp-adapter) by
+[Mario Zechner](https://github.com/nicobailon). The type system, event
+protocol, provider implementations, model registry, and OAuth flows are all
+ported from his TypeScript library. All credit for the design goes to him.
 
 ## Features
 
