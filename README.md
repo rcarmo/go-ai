@@ -165,4 +165,4 @@ API keys are resolved in order: explicit option → model config → environment
 
 ## License
 
-Apache-2.0
+MIT
