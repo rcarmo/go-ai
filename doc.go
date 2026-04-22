@@ -25,7 +25,7 @@
 //	    case *goai.DoneEvent:
 //	        // final message in e.Message
 //	    case *goai.ErrorEvent:
-//	        log.Fatal(e.Error)
+//	        log.Fatal(e.Err)
 //	    }
 //	}
 //

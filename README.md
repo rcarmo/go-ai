@@ -25,8 +25,8 @@ event protocol, same provider coverage. If you know pi-ai, you know this.
 ## Credits
 
 This project is a derivative work of
-[**@mariozechner/pi-ai**](https://github.com/nicobailon/pi-mcp-adapter) by
-[Mario Zechner](https://github.com/nicobailon). The type system, event
+[**@mariozechner/pi-ai**](https://www.npmjs.com/package/@mariozechner/pi-ai) by
+[Mario Zechner](https://github.com/mariozechner). The type system, event
 protocol, provider implementations, model registry, and OAuth flows are all
 ported from his TypeScript library. All credit for the design goes to him.
 
@@ -200,7 +200,7 @@ API keys are resolved in order: explicit option → model config → environment
 |---|---|
 | OpenAI | `OPENAI_API_KEY` |
 | Anthropic | `ANTHROPIC_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
+| Google | `GEMINI_API_KEY` |
 | Mistral | `MISTRAL_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | Groq | `GROQ_API_KEY` |

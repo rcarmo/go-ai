@@ -4,6 +4,7 @@ package goai
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -75,6 +76,8 @@ func (cfg *RetryConfig) applyDefaults() {
 func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 	cfg.applyDefaults()
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{Timeout: cfg.ConnectTimeout}).DialContext
+	transport.TLSHandshakeTimeout = cfg.ConnectTimeout
 	transport.ResponseHeaderTimeout = cfg.ConnectTimeout
 	return &http.Client{
 		Timeout:   cfg.RequestTimeout,
@@ -85,6 +88,15 @@ func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 // DoWithRetry executes an HTTP request with retry logic.
 func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
 	cfg.applyDefaults()
+	if client == nil {
+		client = cfg.NewHTTPClient()
+	}
+	if req == nil {
+		return nil, fmt.Errorf("nil request")
+	}
+	if req.Body != nil && req.GetBody == nil && cfg.MaxRetries > 0 {
+		return nil, fmt.Errorf("retry requires request.GetBody for replayable request body")
+	}
 
 	var lastErr error
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
@@ -92,7 +104,16 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 			return nil, ctx.Err()
 		}
 
-		resp, err := client.Do(req)
+		attemptReq := req.Clone(ctx)
+		if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("clone request body: %w", err)
+			}
+			attemptReq.Body = body
+		}
+
+		resp, err := client.Do(attemptReq)
 		if err != nil {
 			lastErr = err
 			if ctx.Err() != nil {

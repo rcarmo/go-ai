@@ -185,11 +185,17 @@ func AppendToolResult(ctx *Context, toolCallID, toolName, text string, isError b
 
 // AppendAssistantMessage adds a completed assistant message to the context.
 func AppendAssistantMessage(ctx *Context, msg *Message) {
+	if ctx == nil || msg == nil {
+		return
+	}
 	ctx.Messages = append(ctx.Messages, *msg)
 }
 
 // GetToolCalls extracts all tool calls from an assistant message.
 func GetToolCalls(msg *Message) []ToolCall {
+	if msg == nil {
+		return nil
+	}
 	var calls []ToolCall
 	for _, b := range msg.Content {
 		if b.Type == "toolCall" {
@@ -206,6 +212,9 @@ func GetToolCalls(msg *Message) []ToolCall {
 
 // GetTextContent extracts all text from a message's content blocks.
 func GetTextContent(msg *Message) string {
+	if msg == nil {
+		return ""
+	}
 	var text string
 	for _, b := range msg.Content {
 		if b.Type == "text" {
@@ -217,6 +226,9 @@ func GetTextContent(msg *Message) string {
 
 // HasToolCalls returns true if the message contains any tool calls.
 func HasToolCalls(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
 	for _, b := range msg.Content {
 		if b.Type == "toolCall" {
 			return true
@@ -228,6 +240,9 @@ func HasToolCalls(msg *Message) bool {
 // NeedsToolExecution returns true if the message is an assistant message
 // with tool calls that need to be executed before the next LLM turn.
 func NeedsToolExecution(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
 	return msg.Role == RoleAssistant && msg.StopReason == StopReasonToolUse && HasToolCalls(msg)
 }
 // --- Provider hook helpers ---

@@ -119,6 +119,15 @@ func ListProviders() []Provider {
 // Read all events until the channel is closed. The final event is either
 // DoneEvent or ErrorEvent.
 func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
+	if model == nil {
+		ch := make(chan Event, 1)
+		ch <- &ErrorEvent{Reason: StopReasonError, Err: fmt.Errorf("nil model")}
+		close(ch)
+		return ch
+	}
+	if convCtx == nil {
+		convCtx = &Context{}
+	}
 	p := GetApiProvider(model.Api)
 	if p == nil {
 		logError("no provider registered", "api", model.Api, "provider", model.Provider, "model", model.ID)
@@ -147,8 +156,16 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 		switch e := event.(type) {
 		case *DoneEvent:
 			result = e.Message
+			input, output := 0, 0
+			stop := StopReason("")
+			if result != nil {
+				stop = result.StopReason
+				if result.Usage != nil {
+					input, output = result.Usage.Input, result.Usage.Output
+				}
+			}
 			logInfo("complete done", "provider", model.Provider, "model", model.ID,
-				"stop", result.StopReason, "input", result.Usage.Input, "output", result.Usage.Output)
+				"stop", stop, "input", input, "output", output)
 		case *ErrorEvent:
 			result = e.Error
 			resultErr = e.Err
