@@ -44,7 +44,12 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		body := buildRequest(model, convCtx, opts)
-		bodyJSON, err := json.Marshal(body)
+		payload, err := goai.InvokeOnPayload(opts, body, model)
+		if err != nil {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			return
+		}
+		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return

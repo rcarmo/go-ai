@@ -118,7 +118,11 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 	// Build request body
 	body := buildCodexRequest(model, convCtx, opts)
-	bodyJSON, err := json.Marshal(body)
+	payload, err := goai.InvokeOnPayload(opts, body, model)
+	if err != nil {
+		return err
+	}
+	bodyJSON, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
@@ -319,7 +323,12 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event) {
 	body := buildCodexRequest(model, convCtx, opts)
-	bodyJSON, _ := json.Marshal(body)
+	payload, err := goai.InvokeOnPayload(opts, body, model)
+	if err != nil {
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+		return
+	}
+	bodyJSON, _ := json.Marshal(payload)
 
 	url := resolveCodexURL(model.BaseURL)
 	goai.GetLogger().Debug("HTTP request", "url", url, "provider", model.Provider, "model", model.ID)

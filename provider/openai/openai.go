@@ -53,8 +53,13 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		// Build request body
 		body := buildRequestBody(model, convCtx, opts)
+		payload, err := goai.InvokeOnPayload(opts, body, model)
+		if err != nil {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			return
+		}
 
-		bodyJSON, err := json.Marshal(body)
+		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return
