@@ -5,12 +5,11 @@
 //
 // # Quick Start
 //
-//	model := goai.GetModel("openai", "gpt-4o-mini")
+//	goai.RegisterBuiltinModels()
+//	model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
 //	ctx := &goai.Context{
 //	    SystemPrompt: "You are a helpful assistant.",
-//	    Messages: []goai.Message{
-//	        {Role: goai.RoleUser, Content: goai.TextContent("What time is it?")},
-//	    },
+//	    Messages: []goai.Message{goai.UserMessage("What time is it?")},
 //	    Tools: []goai.Tool{timeTool},
 //	}
 //	result, err := goai.Complete(context.Background(), model, ctx, nil)
@@ -34,4 +33,7 @@
 // OpenAI, Anthropic, Google, Google Vertex AI, Google Gemini CLI, Mistral,
 // Amazon Bedrock, Azure OpenAI, OpenAI Codex, GitHub Copilot, xAI, Groq,
 // Cerebras, OpenRouter, Vercel AI Gateway, MiniMax, and any OpenAI-compatible API.
+//
+// Retries are opt-in per request via StreamOptions.RetryConfig. By default,
+// providers do not retry.
 package goai

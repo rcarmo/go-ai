@@ -36,6 +36,8 @@ model := goai.GetModel(goai.ProviderGoogle, "gemini-2.5-pro")
 model := goai.GetModel(goai.ProviderMistral, "mistral-large-latest")
 ```
 
+> Built-in models may use different APIs under the same provider. For example, some OpenAI models use `openai-responses` instead of `openai-completions`. Import the provider package that matches `model.Api`.
+
 ## Listing available models
 
 ```go
@@ -179,10 +181,10 @@ msg2, _ := goai.Complete(ctx, model2, convCtx, &goai.StreamOptions{Reasoning: &l
 
 `TransformMessages()` automatically:
 - Converts thinking blocks to text when switching providers
-- Normalizes tool call ID formats
 - Strips provider-specific signatures
 - Replaces images with placeholders for non-vision models
 - Skips errored/aborted assistant messages
+- Inserts synthetic errored tool results for orphaned tool calls
 
 ## Cost tracking
 

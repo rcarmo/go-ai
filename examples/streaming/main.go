@@ -17,6 +17,10 @@ import (
 )
 
 func main() {
+	if os.Getenv("ANTHROPIC_API_KEY") == "" && os.Getenv("ANTHROPIC_OAUTH_TOKEN") == "" {
+		log.Fatal("set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_TOKEN to run this example")
+	}
+
 	goai.RegisterBuiltinModels()
 
 	model := goai.GetModel(goai.ProviderAnthropic, "claude-sonnet-4-20250514")

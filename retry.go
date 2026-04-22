@@ -85,6 +85,29 @@ func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 	}
 }
 
+// RetryConfigFromOptions resolves per-request retry behavior from StreamOptions.
+//
+// By default, requests do not retry unless RetryConfig is provided or legacy
+// MaxRetryDelayMs is set.
+func RetryConfigFromOptions(opts *StreamOptions) RetryConfig {
+	if opts == nil {
+		return NoRetryConfig()
+	}
+	if opts.RetryConfig != nil {
+		cfg := *opts.RetryConfig
+		if opts.MaxRetryDelayMs != nil && cfg.MaxRetryDelayMs == 0 {
+			cfg.MaxRetryDelayMs = *opts.MaxRetryDelayMs
+		}
+		return cfg
+	}
+	if opts.MaxRetryDelayMs != nil {
+		cfg := DefaultRetryConfig()
+		cfg.MaxRetryDelayMs = *opts.MaxRetryDelayMs
+		return cfg
+	}
+	return NoRetryConfig()
+}
+
 // DoWithRetry executes an HTTP request with retry logic.
 func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
 	cfg.applyDefaults()
@@ -151,14 +174,17 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 		}
 
 		lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
-		resp.Body.Close()
-
 		if attempt < cfg.MaxRetries {
+			resp.Body.Close()
 			if cfg.OnRetry != nil {
 				cfg.OnRetry(attempt, delay, resp.StatusCode)
 			}
 			sleep(ctx, delay)
+			continue
 		}
+
+		logWarn("max retries exhausted; returning final response", "status", resp.StatusCode, "maxRetries", cfg.MaxRetries)
+		return resp, nil
 	}
 
 	logWarn("max retries exceeded", "kind", "http", "maxRetries", cfg.MaxRetries, "error", lastErr)

@@ -172,7 +172,7 @@ When context grows beyond the model's context window:
 ctx = goai.CompactContext(ctx, model, 20)
 ```
 
-For smarter compaction (summarization, priority-based pruning), see [Context Hooks](context-hooks.md) and [Building Agent Harnesses](HARNESS.md).
+`CompactContext()` is intentionally simple tail truncation. For smarter compaction (summarization, priority-based pruning, preserving tool-call/result pairs), see [Context Hooks](context-hooks.md) and [Building Agent Harnesses](HARNESS.md).
 
 ## Message content blocks
 

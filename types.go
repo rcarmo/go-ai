@@ -279,6 +279,7 @@ type StreamOptions struct {
 	SessionID       string            `json:"sessionId,omitempty"`
 	Headers         map[string]string `json:"headers,omitempty"`
 	MaxRetryDelayMs *int              `json:"maxRetryDelayMs,omitempty"`
+	RetryConfig     *RetryConfig      `json:"-"`
 	Metadata        map[string]any    `json:"metadata,omitempty"`
 
 	// Simple mode

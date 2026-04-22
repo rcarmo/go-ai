@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -203,7 +202,9 @@ func TestDoWithRetry429(t *testing.T) {
 }
 
 func TestDoWithRetryExhausted(t *testing.T) {
+	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
 		w.WriteHeader(500)
 	}))
 	defer server.Close()
@@ -218,12 +219,16 @@ func TestDoWithRetryExhausted(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
-	_, err := goai.DoWithRetry(context.Background(), server.Client(), req, cfg)
-	if err == nil {
-		t.Fatal("expected error after exhausted retries")
+	resp, err := goai.DoWithRetry(context.Background(), server.Client(), req, cfg)
+	if err != nil {
+		t.Fatalf("expected final response, got error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "max retries") {
-		t.Fatalf("expected max retries error, got: %v", err)
+	if resp.StatusCode != 500 {
+		t.Fatalf("expected final 500 response, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	if attempts != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempts)
 	}
 }
 

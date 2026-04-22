@@ -40,7 +40,8 @@ go-ai handles:
 - Streaming with event protocol
 - Message format conversion
 - Token/cost tracking
-- Retry and overflow detection
+- HTTP retry execution when `StreamOptions.RetryConfig` is set
+- Overflow detection
 
 Your harness handles:
 - Conversation state
@@ -62,13 +63,13 @@ import (
     "log"
 
     goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/provider/openai"
+    _ "github.com/rcarmo/go-ai/provider/openairesponses"
     _ "github.com/rcarmo/go-ai/provider/anthropic"
 )
 
 func main() {
     goai.RegisterBuiltinModels()
-    model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o")
+    model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
 
     ctx := &goai.Context{
         SystemPrompt: "You are a helpful coding assistant.",
@@ -249,25 +250,43 @@ if err != nil && goai.IsContextOverflow(msg, model.ContextWindow) {
 }
 ```
 
-### Custom retry loop
+### Provider-level retries
+
+HTTP-based providers honor `StreamOptions.RetryConfig` directly:
 
 ```go
-func completeWithRetry(ctx context.Context, model *goai.Model, convCtx *goai.Context, maxRetries int) (*goai.Message, error) {
+opts := &goai.StreamOptions{
+    RetryConfig: &goai.RetryConfig{
+        MaxRetries:        2,
+        InitialDelay:      500 * time.Millisecond,
+        MaxDelay:          5 * time.Second,
+        BackoffMultiplier: 2.0,
+    },
+}
+
+msg, err := goai.Complete(ctx, model, convCtx, opts)
+```
+
+Retries are disabled by default. When enabled, the final HTTP response is still returned to the provider layer after retry exhaustion so the provider can surface the real status/body.
+
+### Custom outer retry loop
+
+Use an outer loop only for harness-level decisions like compaction, model switching, or policy changes:
+
+```go
+func completeWithRetry(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, maxRetries int) (*goai.Message, error) {
     var lastErr error
     for attempt := 0; attempt <= maxRetries; attempt++ {
-        msg, err := goai.Complete(ctx, model, convCtx, nil)
+        msg, err := goai.Complete(ctx, model, convCtx, opts)
         if err == nil {
             return msg, nil
         }
-
-        // Check if overflow — compact and retry
         if msg != nil && goai.IsContextOverflow(msg, model.ContextWindow) {
             convCtx = goai.CompactContext(convCtx, model, 20)
             continue
         }
-
         lastErr = err
-        time.Sleep(time.Duration(attempt+1) * time.Second) // simple backoff
+        time.Sleep(time.Duration(attempt+1) * time.Second)
     }
     return nil, lastErr
 }
@@ -396,7 +415,7 @@ or switch providers mid-conversation.
 
 ```go
 // Start with a fast model
-model1 := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
+model1 := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini") // OpenAI Responses
 msg1, _ := goai.Complete(ctx, model1, convCtx, nil)
 goai.AppendAssistantMessage(convCtx, msg1)
 
@@ -406,7 +425,12 @@ msg2, _ := goai.Complete(ctx, model2, convCtx, nil)
 ```
 
 go-ai's `TransformMessages()` automatically handles cross-provider
-differences (thinking blocks, tool call ID formats, image support).
+differences (thinking blocks, tool call ID formats, image support). It also:
+- drops errored/aborted assistant messages
+- inserts synthetic errored tool results for orphaned tool calls
+- downgrades unsupported images to text placeholders
+
+At debug level, these transformations are logged with counts.
 
 ### Cross-language hand-off
 

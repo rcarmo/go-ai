@@ -24,7 +24,9 @@ sequenceDiagram
 
 ## OnPayload — inspect or modify outgoing requests
 
-Called with the serialized request body before it's sent to the provider. Return a modified payload to replace it, or `nil` to keep the original.
+Called with the provider request payload before it's sent. Return a modified payload to replace it, or `nil` to keep the original.
+
+All real HTTP providers wire `OnPayload` now, including OpenAI, Anthropic, OpenAI Responses/Azure, Google, Mistral, Gemini CLI, and OpenAI Codex SSE.
 
 ```go
 opts := &goai.StreamOptions{
@@ -39,23 +41,24 @@ opts := &goai.StreamOptions{
 
 ### Modifying payloads
 
+Provider payloads are usually typed structs, not generic maps. A safe pattern is to round-trip through JSON before editing:
+
 ```go
 opts := &goai.StreamOptions{
     OnPayload: func(payload interface{}, model *goai.Model) (interface{}, error) {
-        m, ok := payload.(map[string]interface{})
-        if !ok {
-            return nil, nil
+        var m map[string]interface{}
+        data, err := json.Marshal(payload)
+        if err != nil {
+            return nil, err
+        }
+        if err := json.Unmarshal(data, &m); err != nil {
+            return nil, err
         }
 
-        // Inject provider-specific fields
-        m["store"] = true
         m["metadata"] = map[string]string{"user_id": currentUser.ID}
-
-        // Add custom headers for specific providers
         if model.Provider == goai.ProviderOpenAI {
-            m["service_tier"] = "flex"
+            m["store"] = true
         }
-
         return m, nil
     },
 }
@@ -122,10 +125,29 @@ opts := &goai.StreamOptions{
 
 ### Azure-specific session headers
 
+For Azure OpenAI Responses, these headers are applied automatically when `SessionID` is set:
+
 ```go
 headers := goai.AzureSessionHeaders(sessionID)
 // Returns: session_id, x-client-request-id, x-ms-client-request-id
 ```
+
+## Retries
+
+Retries are opt-in and configured per request:
+
+```go
+opts := &goai.StreamOptions{
+    RetryConfig: &goai.RetryConfig{
+        MaxRetries:        2,
+        InitialDelay:      500 * time.Millisecond,
+        MaxDelay:          5 * time.Second,
+        BackoffMultiplier: 2.0,
+    },
+}
+```
+
+`MaxRetryDelayMs` remains as a legacy shorthand if you only want to cap `Retry-After`.
 
 ## Context compaction hooks
 
@@ -141,7 +163,7 @@ func compactBeforeCall(ctx *goai.Context, model *goai.Model) *goai.Context {
     log.Printf("Context overflow: %d tokens > %d window, compacting...",
         tokens, model.ContextWindow)
 
-    // Strategy 1: Simple truncation
+    // Strategy 1: Simple truncation of the most recent messages
     return goai.CompactContext(ctx, model, 20)
 
     // Strategy 2: Summarize old messages (your implementation)
@@ -175,7 +197,7 @@ if err != nil && msg != nil {
 
 ## Azure tool call history trimming
 
-Azure OpenAI has stricter limits on function-call history:
+Azure OpenAI has stricter limits on function-call history. The Azure OpenAI Responses provider applies this automatically before sending requests, but you can also call it directly:
 
 ```go
 // Before sending to Azure, trim tool call history

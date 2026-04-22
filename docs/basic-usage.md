@@ -28,6 +28,8 @@ import (
 
 Each blank import calls `init()` which registers that provider's streaming implementation. Unused providers are never loaded.
 
+> **Important:** import the provider that matches the model's `Api`, not just its human-facing provider name. For example, the built-in `gpt-4o-mini` model currently uses `openai-responses`, so you must import `provider/openairesponses`.
+
 ## API keys
 
 API keys are resolved in order:
@@ -53,7 +55,7 @@ API keys are resolved in order:
 ```go
 goai.RegisterBuiltinModels() // load 865 built-in models
 
-model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
+model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini") // built-in: OpenAI Responses
 
 ctx := &goai.Context{
     SystemPrompt: "You are a helpful assistant.",
@@ -124,6 +126,25 @@ sequenceDiagram
 | `ToolCallEndEvent` | Tool call complete with parsed arguments |
 | `DoneEvent` | Success — final message with usage |
 | `ErrorEvent` | Failure — error details |
+
+## Retries
+
+Retries are opt-in. By default, provider requests do not retry.
+
+```go
+opts := &goai.StreamOptions{
+    RetryConfig: &goai.RetryConfig{
+        MaxRetries:        2,
+        InitialDelay:      500 * time.Millisecond,
+        MaxDelay:          5 * time.Second,
+        BackoffMultiplier: 2.0,
+    },
+}
+
+msg, err := goai.Complete(ctx, model, convCtx, opts)
+```
+
+`RetryConfig` is honored by the HTTP-based providers. `MaxRetryDelayMs` remains available as a legacy shorthand when you only want to cap `Retry-After` handling.
 
 ## Aborting requests
 

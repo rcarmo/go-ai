@@ -347,8 +347,9 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 	}
 
-	client := &http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Do(req)
+	retryCfg := goai.RetryConfigFromOptions(opts)
+	client := retryCfg.NewHTTPClient()
+	resp, err := goai.DoWithRetry(ctx, client, req, retryCfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}

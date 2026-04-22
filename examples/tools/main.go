@@ -11,10 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/openai"
+	_ "github.com/rcarmo/go-ai/provider/openairesponses"
 )
 
 var tools = []goai.Tool{
@@ -68,6 +69,10 @@ func executeTool(tc goai.ToolCall) (string, bool) {
 }
 
 func main() {
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		log.Fatal("set OPENAI_API_KEY to run this example")
+	}
+
 	goai.SetLogger(goai.NewStderrLogger(goai.LogLevelDebug))
 	goai.RegisterBuiltinModels()
 

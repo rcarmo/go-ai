@@ -108,7 +108,7 @@ For tool results:
 (tool image omitted: model does not support images)
 ```
 
-This means you can include images in your context even when switching between vision and non-vision models — the images are silently downgraded.
+This means you can include images in your context even when switching between vision and non-vision models — the images are downgraded automatically. At debug log level, these downgrades are reported by `TransformMessages()`.
 
 ## Checking model vision support
 

@@ -1,4 +1,4 @@
-// Basic example: non-streaming completion with OpenAI.
+// Basic example: non-streaming completion with OpenAI Responses.
 //
 // Usage:
 //
@@ -10,12 +10,17 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/openai" // register OpenAI provider
+	_ "github.com/rcarmo/go-ai/provider/openairesponses" // register OpenAI Responses provider
 )
 
 func main() {
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		log.Fatal("set OPENAI_API_KEY to run this example")
+	}
+
 	goai.SetLogger(goai.NewStderrLogger(goai.LogLevelInfo))
 	goai.RegisterBuiltinModels()
 

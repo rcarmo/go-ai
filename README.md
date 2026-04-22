@@ -51,24 +51,14 @@ import (
     "log"
 
     goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/provider/openai"     // register OpenAI
-    _ "github.com/rcarmo/go-ai/provider/anthropic"   // register Anthropic
+    _ "github.com/rcarmo/go-ai/provider/openairesponses" // register OpenAI Responses
+    _ "github.com/rcarmo/go-ai/provider/anthropic"       // register Anthropic
 )
 
 func main() {
-    // Register a model (or use auto-discovery)
-    goai.RegisterModel(&goai.Model{
-        ID:            "gpt-4o-mini",
-        Name:          "GPT-4o Mini",
-        Api:           goai.ApiOpenAICompletions,
-        Provider:      goai.ProviderOpenAI,
-        BaseURL:       "https://api.openai.com/v1",
-        Input:         []string{"text", "image"},
-        ContextWindow: 128000,
-        MaxTokens:     16384,
-        Cost:          goai.ModelCost{Input: 0.15, Output: 0.60},
-    })
+    goai.RegisterBuiltinModels()
 
+    // Built-in gpt-4o-mini uses the OpenAI Responses provider.
     model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
 
     ctx := &goai.Context{
@@ -195,6 +185,29 @@ Types are designed to be JSON-serialization-compatible with pi-ai's TypeScript t
 ## Environment variables
 
 API keys are resolved in order: explicit option → model config → environment variable.
+
+## Retries
+
+Retries are opt-in per request. By default, providers do not retry.
+
+```go
+opts := &goai.StreamOptions{
+    RetryConfig: &goai.RetryConfig{
+        MaxRetries:        2,
+        InitialDelay:      500 * time.Millisecond,
+        MaxDelay:          5 * time.Second,
+        BackoffMultiplier: 2.0,
+    },
+}
+```
+
+Providers using HTTP now honor `RetryConfig` directly. `MaxRetryDelayMs` remains as a legacy shorthand.
+
+## Notes
+
+- Import the provider that matches `model.Api`, not just `model.Provider`.
+  For example, built-in `gpt-4o-mini` currently uses `openai-responses`, so import `provider/openairesponses`.
+- `CompactContext()` is simple tail truncation. If you need summaries or tool-pair preservation, build a custom compactor in your harness.
 
 | Provider | Environment Variable |
 |---|---|
