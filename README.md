@@ -26,7 +26,7 @@ event protocol, same provider coverage. If you know pi-ai, you know this.
 
 This project is a derivative work of
 [**@mariozechner/pi-ai**](https://www.npmjs.com/package/@mariozechner/pi-ai) by
-[Mario Zechner](https://github.com/mariozechner). The type system, event
+[Mario Zechner](https://mariozechner.at). The type system, event
 protocol, provider implementations, model registry, and OAuth flows are all
 ported from his TypeScript library. All credit for the design goes to him.
 
