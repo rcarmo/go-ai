@@ -1,0 +1,9 @@
+# Binaries
+go-ai
+*.exe
+*.test
+
+# IDE
+.idea/
+.vscode/
+*.swp
