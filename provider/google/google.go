@@ -407,13 +407,8 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	type currentBlock = currentBlockT
 	var current *currentBlock
 
-	// Read SSE-like stream (Gemini uses data: lines with JSON)
-	// Each chunk is a complete JSON object on a data: line
-	decoder := json.NewDecoder(body)
-
-	// Gemini REST streaming with alt=sse returns SSE events
-	// But also supports JSON array streaming. Handle both.
-	buf := make([]byte, 0, 64*1024)
+	// Gemini REST streaming with alt=sse returns SSE events.
+	// Read the full body once and parse each data: line as a JSON chunk.
 	allBytes, _ := io.ReadAll(body)
 	body = bytes.NewReader(allBytes)
 
@@ -552,9 +547,6 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	if current != nil {
 		closeBlock(current, partial, ch)
 	}
-
-	_ = decoder
-	_ = buf
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == "" {

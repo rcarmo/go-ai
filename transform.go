@@ -15,8 +15,6 @@ func TransformMessages(messages []Message, model *Model) []Message {
 	messages, imageDowngrades := downgradeUnsupportedImages(messages, model)
 
 	var transformed []Message
-	toolCallIDMap := map[string]string{} // original → normalized
-	_ = toolCallIDMap                    // used when normalizeToolCallId is provided
 	trimmedAssistantErrors := 0
 	crossProviderThinking := 0
 

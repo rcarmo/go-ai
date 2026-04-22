@@ -149,6 +149,38 @@ opts := &goai.StreamOptions{
 
 `MaxRetryDelayMs` remains as a legacy shorthand if you only want to cap `Retry-After`.
 
+## Reconnect / recovery pattern
+
+Retries cover initial HTTP setup and retryable HTTP responses. For long-lived SSE or WebSocket streams, callers should still handle mid-stream failure explicitly.
+
+SSE-based providers now surface read failures as `ErrorEvent` instead of silently ending the stream.
+
+```go
+for {
+    events := goai.Stream(ctx, model, convCtx, opts)
+    var done bool
+    for event := range events {
+        switch e := event.(type) {
+        case *goai.TextDeltaEvent:
+            fmt.Print(e.Delta)
+        case *goai.DoneEvent:
+            done = true
+        case *goai.ErrorEvent:
+            // Persist context/checkpoint here, then decide whether to reconnect.
+            log.Printf("stream failed: %v", e.Err)
+        }
+    }
+    if done {
+        break
+    }
+    // Reconnect policy is harness-specific: backoff, resume from saved context,
+    // switch transports/providers, or abort.
+    time.Sleep(time.Second)
+}
+```
+
+For WebSocket transports, use the same outer-loop pattern. `RetryConfig` helps with initial connection setup, while the outer loop handles mid-stream reconnect decisions.
+
 ## Context compaction hooks
 
 For agent harnesses that need to compact context before each LLM call:

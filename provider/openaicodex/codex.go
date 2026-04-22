@@ -17,6 +17,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	retryutil "github.com/rcarmo/go-ai/internal/retry"
 	"nhooyr.io/websocket"
 )
 
@@ -108,11 +109,42 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		headers.Set(k, v)
 	}
 
-	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
-		HTTPHeader: headers,
-	})
-	if err != nil {
-		return fmt.Errorf("WebSocket dial: %w", err)
+	retryCfg := goai.RetryConfigFromOptions(opts)
+	var (
+		conn *websocket.Conn
+		err  error
+	)
+	for attempt := 0; ; attempt++ {
+		dialCtx := ctx
+		cancel := func() {}
+		if retryCfg.ConnectTimeout > 0 {
+			dialCtx, cancel = context.WithTimeout(ctx, retryCfg.ConnectTimeout)
+		}
+		conn, _, err = websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{
+			HTTPHeader: headers,
+		})
+		cancel()
+		if err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if attempt >= retryCfg.MaxRetries {
+			return fmt.Errorf("WebSocket dial: %w", err)
+		}
+		delay := retryutil.ComputeBackoff(attempt, retryCfg.InitialDelay, retryCfg.MaxDelay, retryCfg.BackoffMultiplier, retryCfg.JitterFraction)
+		goai.GetLogger().Warn("websocket dial retry", "provider", model.Provider, "model", model.ID, "attempt", attempt+1, "maxRetries", retryCfg.MaxRetries, "delay", delay, "error", err)
+		if retryCfg.OnRetry != nil {
+			retryCfg.OnRetry(attempt, delay, 0)
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
 	}
 	defer conn.CloseNow()
 
