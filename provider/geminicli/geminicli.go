@@ -391,6 +391,10 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	events := eventstream.Parse(body)
 	for sse := range events {
+		if sse.Event == eventstream.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+			return
+		}
 		if sse.Data == "[DONE]" || sse.Data == "" {
 			continue
 		}

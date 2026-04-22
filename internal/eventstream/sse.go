@@ -16,6 +16,8 @@ type SSEEvent struct {
 	Retry int    // reconnection time in ms (-1 if not set)
 }
 
+const EventError = "__error__"
+
 // Parse reads SSE events from an io.Reader and sends them to a channel.
 // The channel is closed when the reader is exhausted or an error occurs.
 func Parse(r io.Reader) <-chan SSEEvent {
@@ -79,6 +81,9 @@ func Parse(r io.Reader) <-chan SSEEvent {
 				event.Event = "message"
 			}
 			ch <- event
+		}
+		if err := scanner.Err(); err != nil {
+			ch <- SSEEvent{Event: EventError, Data: err.Error(), Retry: -1}
 		}
 	}()
 	return ch
