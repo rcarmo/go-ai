@@ -216,6 +216,7 @@ func TestFauxAbort(t *testing.T) {
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var gotAbort bool
 	events := goai.Stream(ctx, model, convCtx, nil)
