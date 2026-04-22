@@ -17,13 +17,14 @@ var providerEnvMap = map[Provider][]string{
 	ProviderCerebras:         {"CEREBRAS_API_KEY"},
 	ProviderOpenRouter:       {"OPENROUTER_API_KEY"},
 	ProviderVercelAIGateway:  {"AI_GATEWAY_API_KEY"},
+	ProviderZAI:              {"ZAI_API_KEY"},
 	ProviderMiniMax:          {"MINIMAX_API_KEY"},
 	ProviderMiniMaxCN:        {"MINIMAX_CN_API_KEY"},
+	ProviderHuggingFace:      {"HF_TOKEN"},
+	ProviderFireworks:        {"FIREWORKS_API_KEY"},
 	ProviderOpenCode:         {"OPENCODE_API_KEY"},
 	ProviderOpenCodeGo:       {"OPENCODE_API_KEY"},
 	ProviderKimiCoding:       {"KIMI_API_KEY"},
-	"huggingface":            {"HF_TOKEN"},
-	"zai":                    {"ZAI_API_KEY"},
 }
 
 // GetEnvAPIKey looks up an API key from environment variables

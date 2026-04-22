@@ -2,7 +2,11 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.68.0
+## Source: `@mariozechner/pi-ai` v0.68.1
+
+## Sync note
+
+Upstream `v0.68.1` did not introduce a large behavioral delta relative to the already-synced `go-ai` codebase. The practical sync adjustments in this pass were provider-metadata parity updates (`zai`, `huggingface`, `fireworks`) plus continued test/transport hardening.
 
 ## Final status
 
