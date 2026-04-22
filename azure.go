@@ -64,9 +64,8 @@ func ApplyToolCallLimit(messages []interface{}, config ToolCallLimitConfig) *Too
 		config.OutputChars = 200
 	}
 
-	result := &ToolCallLimitResult{
-		Messages: messages,
-	}
+	result := &ToolCallLimitResult{Messages: messages}
+	result.EstimatedTokensBefore = estimateInputTokens(messages)
 
 	// Find all function_call and function_call_output pairs
 	type toolCallEntry struct {
@@ -102,15 +101,20 @@ func ApplyToolCallLimit(messages []interface{}, config ToolCallLimitConfig) *Too
 
 	result.ToolCallTotal = len(entries)
 
-	if len(entries) <= config.Limit {
+	if len(entries) <= config.Limit && (config.MaxEstimatedTokens <= 0 || result.EstimatedTokensBefore <= config.MaxEstimatedTokens) {
 		result.ToolCallKept = len(entries)
+		result.EstimatedTokensAfter = result.EstimatedTokensBefore
 		return result
 	}
 
-	// Remove oldest entries beyond the limit
+	// Remove oldest entries beyond the limit, then keep trimming for token budget if requested.
 	removeCount := len(entries) - config.Limit
+	if removeCount < 0 {
+		removeCount = 0
+	}
 	toRemove := make(map[int]bool)
 	var summaryParts []string
+	removedByBudget := 0
 
 	for i := 0; i < removeCount && i < len(entries); i++ {
 		e := entries[i]
@@ -120,6 +124,24 @@ func ApplyToolCallLimit(messages []interface{}, config ToolCallLimitConfig) *Too
 		}
 
 		// Build summary snippet
+		outputSnippet := truncate(e.output, config.OutputChars)
+		if outputSnippet == "" {
+			outputSnippet = "(no output)"
+		}
+		summaryParts = append(summaryParts, fmt.Sprintf("- %s → %s", e.name, outputSnippet))
+	}
+
+	for config.MaxEstimatedTokens > 0 && estimateInputTokens(removeIndexes(messages, toRemove)) > config.MaxEstimatedTokens {
+		next := removeCount + removedByBudget
+		if next >= len(entries) {
+			break
+		}
+		e := entries[next]
+		toRemove[e.callIndex] = true
+		if e.outputIndex >= 0 {
+			toRemove[e.outputIndex] = true
+		}
+		removedByBudget++
 		outputSnippet := truncate(e.output, config.OutputChars)
 		if outputSnippet == "" {
 			outputSnippet = "(no output)"
@@ -156,10 +178,39 @@ func ApplyToolCallLimit(messages []interface{}, config ToolCallLimitConfig) *Too
 	}
 
 	result.Messages = trimmed
-	result.ToolCallKept = config.Limit
-	result.ToolCallRemoved = removeCount
+	result.ToolCallRemoved = removeCount + removedByBudget
+	result.ToolCallBudgetRemoved = removedByBudget
+	result.ToolCallKept = len(entries) - result.ToolCallRemoved
+	if result.ToolCallKept < 0 {
+		result.ToolCallKept = 0
+	}
+	result.EstimatedTokensAfter = estimateInputTokens(trimmed)
+	if result.ToolCallRemoved > 0 {
+		logDebug("azure tool call limit applied",
+			"total", result.ToolCallTotal,
+			"kept", result.ToolCallKept,
+			"removed", result.ToolCallRemoved,
+			"budgetRemoved", result.ToolCallBudgetRemoved,
+			"tokensBefore", result.EstimatedTokensBefore,
+			"tokensAfter", result.EstimatedTokensAfter)
+	}
 
 	return result
+}
+
+func removeIndexes(messages []interface{}, toRemove map[int]bool) []interface{} {
+	var out []interface{}
+	for i, msg := range messages {
+		if !toRemove[i] {
+			out = append(out, msg)
+		}
+	}
+	return out
+}
+
+func estimateInputTokens(messages []interface{}) int {
+	b, _ := json.Marshal(messages)
+	return len(b) / 4
 }
 
 // AzureSessionHeaders returns Azure-specific session correlation headers.

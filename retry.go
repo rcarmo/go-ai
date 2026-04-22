@@ -128,6 +128,7 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 				sleep(ctx, delay)
 				continue
 			}
+			logWarn("max retries exceeded", "kind", "network", "maxRetries", cfg.MaxRetries, "error", lastErr)
 			return nil, fmt.Errorf("max retries exceeded (network): %w", lastErr)
 		}
 
@@ -143,6 +144,7 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 		logWarn("retryable HTTP status", "status", resp.StatusCode, "attempt", attempt+1, "maxRetries", cfg.MaxRetries, "delay", delay)
 
 		if cfg.MaxRetryDelayMs > 0 && delay > time.Duration(cfg.MaxRetryDelayMs)*time.Millisecond {
+			logWarn("retry delay exceeds cap", "status", resp.StatusCode, "delay", delay, "capMs", cfg.MaxRetryDelayMs)
 			resp.Body.Close()
 			return nil, fmt.Errorf("server requested retry delay of %v exceeds cap of %dms (HTTP %d)",
 				delay, cfg.MaxRetryDelayMs, resp.StatusCode)
@@ -159,6 +161,7 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 		}
 	}
 
+	logWarn("max retries exceeded", "kind", "http", "maxRetries", cfg.MaxRetries, "error", lastErr)
 	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 

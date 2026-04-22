@@ -7,12 +7,18 @@ package goai
 //   - Skips errored/aborted assistant messages
 //   - Inserts synthetic tool results for orphaned tool calls
 func TransformMessages(messages []Message, model *Model) []Message {
-	messages = downgradeUnsupportedImages(messages, model)
+	if model == nil {
+		logWarn("transform messages without model")
+		return messages
+	}
 
-	// First pass: transform content blocks
+	messages, imageDowngrades := downgradeUnsupportedImages(messages, model)
+
 	var transformed []Message
 	toolCallIDMap := map[string]string{} // original → normalized
 	_ = toolCallIDMap                    // used when normalizeToolCallId is provided
+	trimmedAssistantErrors := 0
+	crossProviderThinking := 0
 
 	for _, msg := range messages {
 		switch msg.Role {
@@ -23,8 +29,8 @@ func TransformMessages(messages []Message, model *Model) []Message {
 			transformed = append(transformed, msg)
 
 		case RoleAssistant:
-			// Skip errored/aborted assistant messages entirely
 			if msg.StopReason == StopReasonError || msg.StopReason == StopReasonAborted {
+				trimmedAssistantErrors++
 				continue
 			}
 
@@ -52,21 +58,15 @@ func TransformMessages(messages []Message, model *Model) []Message {
 					if isSameModel {
 						newContent = append(newContent, block)
 					} else {
-						// Convert thinking to text for cross-provider
-						newContent = append(newContent, ContentBlock{
-							Type: "text",
-							Text: block.Thinking,
-						})
+						crossProviderThinking++
+						newContent = append(newContent, ContentBlock{Type: "text", Text: block.Thinking})
 					}
 
 				case "text":
 					if isSameModel {
 						newContent = append(newContent, block)
 					} else {
-						newContent = append(newContent, ContentBlock{
-							Type: "text",
-							Text: block.Text,
-						})
+						newContent = append(newContent, ContentBlock{Type: "text", Text: block.Text})
 					}
 
 				case "toolCall":
@@ -87,18 +87,29 @@ func TransformMessages(messages []Message, model *Model) []Message {
 		}
 	}
 
-	// Second pass: insert synthetic tool results for orphaned tool calls
-	return insertSyntheticToolResults(transformed)
+	result, syntheticResults := insertSyntheticToolResults(transformed)
+	if imageDowngrades > 0 || trimmedAssistantErrors > 0 || crossProviderThinking > 0 || syntheticResults > 0 {
+		logDebug("transform messages",
+			"model", model.ID,
+			"provider", model.Provider,
+			"imageDowngrades", imageDowngrades,
+			"trimmedAssistantErrors", trimmedAssistantErrors,
+			"crossProviderThinking", crossProviderThinking,
+			"syntheticToolResults", syntheticResults)
+	}
+	return result
 }
 
-func insertSyntheticToolResults(messages []Message) []Message {
+func insertSyntheticToolResults(messages []Message) ([]Message, int) {
 	var result []Message
 	var pendingToolCalls []ContentBlock
 	existingResultIDs := map[string]bool{}
+	inserted := 0
 
 	flushOrphans := func() {
 		for _, tc := range pendingToolCalls {
 			if !existingResultIDs[tc.ID] {
+				inserted++
 				result = append(result, Message{
 					Role:       RoleToolResult,
 					ToolCallID: tc.ID,
@@ -116,7 +127,6 @@ func insertSyntheticToolResults(messages []Message) []Message {
 		switch msg.Role {
 		case RoleAssistant:
 			flushOrphans()
-			// Track tool calls
 			for _, c := range msg.Content {
 				if c.Type == "toolCall" {
 					pendingToolCalls = append(pendingToolCalls, c)
@@ -133,13 +143,14 @@ func insertSyntheticToolResults(messages []Message) []Message {
 			result = append(result, msg)
 		}
 	}
+	flushOrphans()
 
-	return result
+	return result, inserted
 }
 
 // downgradeUnsupportedImages replaces image content with text placeholders
 // for models that don't support image input.
-func downgradeUnsupportedImages(messages []Message, model *Model) []Message {
+func downgradeUnsupportedImages(messages []Message, model *Model) ([]Message, int) {
 	supportsImages := false
 	for _, input := range model.Input {
 		if input == "image" {
@@ -148,16 +159,18 @@ func downgradeUnsupportedImages(messages []Message, model *Model) []Message {
 		}
 	}
 	if supportsImages {
-		return messages
+		return messages, 0
 	}
 
 	result := make([]Message, len(messages))
+	replaced := 0
 	for i, msg := range messages {
 		if msg.Role == RoleUser || msg.Role == RoleToolResult {
 			newContent := make([]ContentBlock, 0, len(msg.Content))
 			prevWasPlaceholder := false
 			for _, block := range msg.Content {
 				if block.Type == "image" {
+					replaced++
 					if !prevWasPlaceholder {
 						placeholder := "(image omitted: model does not support images)"
 						if msg.Role == RoleToolResult {
@@ -175,5 +188,5 @@ func downgradeUnsupportedImages(messages []Message, model *Model) []Message {
 		}
 		result[i] = msg
 	}
-	return result
+	return result, replaced
 }

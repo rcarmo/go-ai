@@ -72,6 +72,11 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Accept", "text/event-stream")
+		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
+			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
+				req.Header.Set(k, v)
+			}
+		}
 
 		if opts != nil {
 			for k, v := range opts.Headers {
@@ -150,6 +155,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Convert messages to Responses API input format
 	input := convertMessages(model, convCtx)
+	if model.Api == goai.ApiAzureOpenAIResponses {
+		limited := goai.ApplyToolCallLimit(input, goai.DefaultToolCallLimitConfig())
+		input = limited.Messages
+	}
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 
@@ -323,6 +332,17 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			break
 		}
 
+		data := []byte(sse.Data)
+		if model.Api == goai.ApiAzureOpenAIResponses {
+			var evt map[string]interface{}
+			if json.Unmarshal(data, &evt) == nil {
+				evt = goai.NormalizeAzureReasoningEvent(evt)
+				if normalized, err := json.Marshal(evt); err == nil {
+					data = normalized
+				}
+			}
+		}
+
 		var raw struct {
 			Type     string          `json:"type"`
 			Item     json.RawMessage `json:"item,omitempty"`
@@ -332,7 +352,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			Code     string          `json:"code,omitempty"`
 			Message  string          `json:"message,omitempty"`
 		}
-		if json.Unmarshal([]byte(sse.Data), &raw) != nil {
+		if json.Unmarshal(data, &raw) != nil {
 			continue
 		}
 
