@@ -284,4 +284,13 @@ type StreamOptions struct {
 	// Simple mode
 	Reasoning       *ThinkingLevel   `json:"reasoning,omitempty"`
 	ThinkingBudgets *ThinkingBudgets `json:"thinkingBudgets,omitempty"`
+
+	// Hooks for request/response interception
+
+	// OnPayload is called with the serialized request body before sending.
+	// Return a modified payload to replace it, or nil to keep the original.
+	OnPayload func(payload interface{}, model *Model) (interface{}, error) `json:"-"`
+
+	// OnResponse is called after receiving the HTTP response headers.
+	OnResponse func(status int, headers map[string]string, model *Model) `json:"-"`
 }

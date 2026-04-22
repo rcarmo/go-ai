@@ -10,27 +10,6 @@ import (
 	"os"
 )
 
-// --- Payload / Response hooks ---
-
-// PayloadHook is called before sending a request to the provider.
-// Return a modified payload to replace it, or nil to keep the original.
-// The payload type depends on the provider (map[string]interface{} for most).
-type PayloadHook func(payload interface{}, model *Model) (interface{}, error)
-
-// ResponseHook is called after receiving an HTTP response, before the body is consumed.
-type ResponseHook func(status int, headers map[string]string, model *Model)
-
-// Hooks holds optional callbacks for request/response interception.
-// Set these on StreamOptions to enable per-request hooks.
-type Hooks struct {
-	// OnPayload is called with the serialized request body before sending.
-	// Return a modified payload to replace it, or nil to keep the original.
-	OnPayload PayloadHook
-
-	// OnResponse is called after receiving the HTTP response headers.
-	OnResponse ResponseHook
-}
-
 // --- Context helpers ---
 
 // CloneContext creates a deep copy of a Context.
