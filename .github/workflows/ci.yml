@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.23', '1.24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./... -count=1 -race
+
+      - name: Test with coverage
+        if: matrix.go-version == '1.24'
+        run: |
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+  fuzz:
+    name: Fuzz Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Fuzz - Partial JSON parser
+        run: go test -fuzz FuzzPartialJSON -fuzztime 30s ./internal/jsonparse/
+
+      - name: Fuzz - SSE parser
+        run: go test -fuzz FuzzSSEParse -fuzztime 30s ./internal/eventstream/
+
+      - name: Fuzz - Context round-trip
+        run: go test -fuzz FuzzContextRoundTrip -fuzztime 30s .
+
+      - name: Fuzz - Message transformation
+        run: go test -fuzz FuzzTransformMessages -fuzztime 30s .
+
+      - name: Fuzz - Overflow detection
+        run: go test -fuzz FuzzOverflowDetection -fuzztime 30s .
