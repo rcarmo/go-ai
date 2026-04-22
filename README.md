@@ -1,5 +1,9 @@
 # go-ai
 
+<p align="center">
+  <img src="docs/icon-256.png" alt="go-ai" width="128">
+</p>
+
 A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
 > **⚠️ Experimental.** This library tracks the TypeScript original and is under
