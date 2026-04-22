@@ -7,6 +7,10 @@
 *.test
 *.out
 coverage.out
+models_debug.json
+
+# Fuzz corpus (regenerated on each run)
+testdata/fuzz/
 
 # Dependency directories
 vendor/

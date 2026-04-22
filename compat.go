@@ -1,6 +1,8 @@
 // OpenAI Completions compatibility flags for OpenAI-compatible APIs.
 package goai
 
+import "strings"
+
 // OpenAICompletionsCompat holds compatibility overrides for OpenAI-compatible APIs.
 // These control wire-format differences across Ollama, Groq, xAI, OpenRouter,
 // vLLM, LM Studio, z.ai, and other providers.
@@ -111,14 +113,5 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && indexSubstring(s, substr) >= 0
-}
-
-func indexSubstring(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.Contains(s, substr)
 }
