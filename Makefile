@@ -68,7 +68,7 @@ build: ## Build the library (verify compilation)
 # =============================================================================
 
 generate: ## Regenerate models_generated.go from pi-ai
-	bun run scripts/generate-models.ts
+	$(GO) run scripts/generate-models.go
 
 # =============================================================================
 # Clean targets
