@@ -108,7 +108,7 @@ go-ai/
 | Google Generative AI | `google-generative-ai` | ✅ Implemented |
 | Google Vertex AI | `google-vertex` | ✅ Implemented |
 | Mistral | `mistral-conversations` | ✅ Implemented |
-| Amazon Bedrock | `bedrock-converse-stream` | 🔲 Planned |
+| Amazon Bedrock | `bedrock-converse-stream` | ✅ Implemented |
 | Google Gemini CLI | `google-gemini-cli` | 🔲 Planned |
 | OpenAI Codex | `openai-codex-responses` | 🔲 Planned |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
