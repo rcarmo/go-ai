@@ -113,6 +113,16 @@ go-ai/
 | OpenAI Codex | `openai-codex-responses` | 🔲 Planned |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
 
+## OAuth
+
+| Provider | Status |
+|---|---|
+| GitHub Copilot (device flow) | ✅ Implemented |
+| Google Gemini CLI | 🔲 Planned |
+| Anthropic | 🔲 Planned |
+| OpenAI Codex | 🔲 Planned |
+| Antigravity | 🔲 Planned |
+
 ## Compatibility with pi-ai
 
 Types are designed to be JSON-serialization-compatible with pi-ai's TypeScript types. A `Context` serialized in Go can be deserialized in TypeScript and vice versa, enabling:
