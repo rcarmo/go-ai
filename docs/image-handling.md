@@ -2,6 +2,19 @@
 
 ## Sending images to the model
 
+```mermaid
+flowchart TD
+    A["Image (base64)"] --> B{Model supports images?}
+    B -->|yes| C{Provider}
+    B -->|no| D["Text placeholder<br/>(image omitted)"]
+
+    C -->|OpenAI| E["image_url<br/>data:mime;base64,..."]
+    C -->|Anthropic| F["source.type: base64<br/>media_type + data"]
+    C -->|Google| G["inlineData<br/>mimeType + data"]
+    C -->|Bedrock| H["ImageBlock<br/>bytes + format"]
+```
+
+
 Images are sent as base64-encoded content blocks within user messages:
 
 ```go

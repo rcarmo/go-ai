@@ -53,6 +53,18 @@ ctx := &goai.Context{
 
 ## The agent loop pattern
 
+```mermaid
+flowchart TD
+    A[User message] --> B[Complete]
+    B --> C{StopReason?}
+    C -->|stop / length| D[Print response]
+    C -->|toolUse| E[Extract tool calls]
+    E --> F[Execute tools]
+    F --> G[Append tool results]
+    G --> B
+```
+
+
 When the model wants to call a tool, it returns `StopReasonToolUse`. You execute the tool and feed the result back:
 
 ```go

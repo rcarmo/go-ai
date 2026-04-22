@@ -71,6 +71,25 @@ goai.AppendToolResult(ctx, toolCall.ID, toolCall.Name, "file not found", true)
 
 ## Multi-turn conversations
 
+```mermaid
+flowchart LR
+    subgraph Context
+        SP[System Prompt]
+        M1[User msg]
+        M2[Assistant msg]
+        M3[Tool result]
+        M4[User msg]
+        M5[Assistant msg]
+    end
+
+    SP --> M1 --> M2 --> M3 --> M4 --> M5
+    M5 -->|"fits?"| Check{Context window}
+    Check -->|yes| Send[Send to LLM]
+    Check -->|no| Compact[Compact / Summarize]
+    Compact --> Send
+```
+
+
 Build up a conversation by appending messages after each turn:
 
 ```go

@@ -2,6 +2,25 @@
 
 ## Built-in model registry
 
+```mermaid
+flowchart TD
+    A[RegisterBuiltinModels] -->|865 models| B[Model Registry]
+    C[RegisterModel custom] --> B
+    B --> D[GetModel provider, id]
+    D --> E[Stream / Complete]
+
+    subgraph Thinking["Thinking Levels"]
+        T1[minimal ~1K]
+        T2[low ~2K]
+        T3[medium ~8K]
+        T4[high ~16K]
+        T5[xhigh max]
+    end
+
+    E -->|reasoning=level| Thinking
+```
+
+
 go-ai ships with 865 pre-configured models across 24 providers. Register them at startup:
 
 ```go

@@ -21,29 +21,18 @@ agent, chatbot, or automation pipeline.
 
 ## Architecture overview
 
-```
-┌──────────────────────────────────────────────┐
-│  Your Agent Harness                          │
-│                                              │
-│  ┌─────────┐  ┌──────────┐  ┌────────────┐  │
-│  │ Context  │  │ Tool     │  │ Compaction │  │
-│  │ Manager  │  │ Registry │  │ Strategy   │  │
-│  └────┬─────┘  └────┬─────┘  └─────┬──────┘  │
-│       │              │              │         │
-│       └──────────────┼──────────────┘         │
-│                      │                        │
-│               ┌──────▼──────┐                 │
-│               │  go-ai      │                 │
-│               │  Stream()   │                 │
-│               │  Complete() │                 │
-│               └──────┬──────┘                 │
-│                      │                        │
-└──────────────────────┼────────────────────────┘
-                       │
-            ┌──────────▼──────────┐
-            │  Provider (OpenAI,  │
-            │  Anthropic, etc.)   │
-            └─────────────────────┘
+```mermaid
+graph TD
+    subgraph Harness["Your Agent Harness"]
+        CM[Context Manager]
+        TR[Tool Registry]
+        CS[Compaction Strategy]
+        CM --> GOAI
+        TR --> GOAI
+        CS --> GOAI
+        GOAI["go-ai<br/>Stream() / Complete()"]
+    end
+    GOAI --> Provider["Provider<br/>(OpenAI, Anthropic, Google, etc.)"]
 ```
 
 go-ai handles:

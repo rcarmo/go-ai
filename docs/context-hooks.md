@@ -2,6 +2,26 @@
 
 Hooks let you intercept, inspect, and modify requests and responses at the provider boundary. Use them for logging, metrics, compliance, payload modification, and session management.
 
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant goai as go-ai
+    participant Hook as Hooks
+    participant API as Provider API
+
+    App->>goai: Stream(model, context, opts)
+    goai->>Hook: OnPayload(body, model)
+    Hook-->>goai: modified body (or nil)
+    goai->>API: HTTP POST
+    API-->>goai: HTTP Response
+    goai->>Hook: OnResponse(status, headers, model)
+    loop SSE stream
+        API-->>goai: events
+        goai-->>App: Event channel
+    end
+```
+
 ## OnPayload — inspect or modify outgoing requests
 
 Called with the serialized request body before it's sent to the provider. Return a modified payload to replace it, or `nil` to keep the original.

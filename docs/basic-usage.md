@@ -91,6 +91,23 @@ for event := range events {
 
 `Stream()` returns a `<-chan Event`. Read all events until the channel closes. The last event is always `DoneEvent` (success) or `ErrorEvent` (failure).
 
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant goai as go-ai
+    participant LLM as Provider API
+
+    App->>goai: Stream(ctx, model, context, opts)
+    goai->>LLM: HTTP POST (SSE)
+    loop SSE events
+        LLM-->>goai: data: {...}
+        goai-->>App: TextDeltaEvent / ThinkingDeltaEvent
+    end
+    LLM-->>goai: [DONE]
+    goai-->>App: DoneEvent (final message + usage)
+```
+
 ## Event types
 
 | Event | When |
