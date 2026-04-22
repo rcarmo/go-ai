@@ -24,8 +24,8 @@ Current automated coverage by area.
 | Google Gemini CLI | ✅ | ✅ | basic CCA SSE path |
 | Mistral | ✅ | ✅ | basic SSE path |
 | OpenAI Codex SSE fallback | ✅ | ✅ | SSE fallback only |
-| OpenAI Codex WebSocket | ✅ request path | ❌ | ❌ no fake WS protocol test yet |
-| Bedrock | ✅ payload hook path | ❌ unified retry | ❌ no SDK-stream fake test yet |
+| OpenAI Codex WebSocket | ✅ request path | ✅ dial retry | ✅ fake WS protocol flow |
+| Bedrock | ✅ payload hook path | ❌ unified retry | ✅ request + stream unit coverage |
 | Faux | n/a | n/a | ✅ extensive harness/testing support |
 
 ## Not yet covered
@@ -34,7 +34,6 @@ Current automated coverage by area.
 |---|---|
 | Real live-provider end-to-end calls in CI | ❌ requires secrets/network |
 | Bedrock retry via unified `RetryConfig` | ❌ AWS SDK path still separate |
-| OpenAI Codex WebSocket retry / protocol fake-server coverage | ❌ not implemented |
 | Deeper protocol parsing coverage for every provider event variant | partial |
 | Smart context compaction / summarizing compactor | ❌ not implemented |
 
