@@ -1,4 +1,4 @@
-# Binaries
+# Build artifacts
 go-ai
 *.exe
 *.test
