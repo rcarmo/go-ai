@@ -1,8 +1,6 @@
 # go-ai
 
-<p align="center">
-  <img src="docs/icon-256.png" alt="go-ai" width="128">
-</p>
+![go-ai](docs/icon-256.png)
 
 A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
@@ -94,38 +92,6 @@ func main() {
 
 ## Architecture
 
-```mermaid
-graph LR
-    subgraph Core["go-ai core"]
-        Types[types / events]
-        Registry[registry<br/>Stream · Complete]
-        Transform[transform<br/>overflow · validation]
-        Logger[logger · retry]
-    end
-
-    subgraph Providers
-        OAI[openai]
-        ANT[anthropic]
-        OAIR[openai-responses]
-        GOO[google / vertex]
-        GCL[gemini-cli]
-        MIS[mistral]
-        BED[bedrock]
-        CDX[codex]
-        FAU[faux]
-    end
-
-    subgraph Support
-        OAuth[oauth]
-        Models[models_generated]
-        Compat[compat · hooks]
-    end
-
-    Registry --> Providers
-    Types --> Registry
-    Transform --> Registry
-    Support --> Core
-```
 ```
 go-ai/
 ├── doc.go              # Package documentation
