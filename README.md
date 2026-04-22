@@ -78,9 +78,20 @@ go-ai/
 ├── events.go           # Stream event types (TextDelta, ToolCallStart, Done, etc.)
 ├── registry.go         # Provider + model registry, Stream(), Complete()
 ├── env.go              # API key resolution from environment
+├── compat.go           # OpenAI Completions compat flags
+├── overflow.go         # Context overflow detection
+├── validation.go       # Tool call argument validation
+├── transform.go        # Cross-provider message normalization
+├── retry.go            # HTTP retry with backoff
+├── simple_options.go   # ThinkingLevel mapping, cost calculation
+├── sanitize.go         # Unicode surrogate removal
+├── models_generated.go # Auto-generated model registry (865 models)
 ├── provider/
 │   ├── openai/         # OpenAI Chat Completions (+ compatible APIs)
-│   └── anthropic/      # Anthropic Messages API
+│   ├── anthropic/      # Anthropic Messages API
+│   ├── openairesponses/ # OpenAI Responses API (+ Azure)
+│   ├── google/         # Google Generative AI + Vertex AI
+│   └── mistral/        # Mistral Conversations API
 └── internal/
     ├── eventstream/    # SSE parser
     └── jsonparse/      # Partial JSON parser for streaming tool args
@@ -92,12 +103,13 @@ go-ai/
 |---|---|---|
 | OpenAI | `openai-completions` | ✅ Implemented |
 | Anthropic | `anthropic-messages` | ✅ Implemented |
-| Google | `google-generative-ai` | 🔲 Planned |
-| Google Vertex | `google-vertex` | 🔲 Planned |
-| Mistral | `mistral-conversations` | 🔲 Planned |
+| OpenAI Responses | `openai-responses` | ✅ Implemented |
+| Azure OpenAI | `azure-openai-responses` | ✅ Implemented |
+| Google Generative AI | `google-generative-ai` | ✅ Implemented |
+| Google Vertex AI | `google-vertex` | ✅ Implemented |
+| Mistral | `mistral-conversations` | ✅ Implemented |
 | Amazon Bedrock | `bedrock-converse-stream` | 🔲 Planned |
-| Azure OpenAI | `azure-openai-responses` | 🔲 Planned |
-| OpenAI Responses | `openai-responses` | 🔲 Planned |
+| Google Gemini CLI | `google-gemini-cli` | 🔲 Planned |
 | OpenAI Codex | `openai-codex-responses` | 🔲 Planned |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
 
