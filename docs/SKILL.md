@@ -1,215 +1,264 @@
 ---
 name: go-ai-upstream-sync
-description: Sync go-ai with upstream @mariozechner/pi-ai changes — regenerate models, port new providers, update types, and validate parity.
+description: Sync go-ai with upstream @mariozechner/pi-ai changes — audit upstream version deltas, regenerate models, port API/type/provider changes, update docs, and validate parity.
 distribution: private
 ---
 
 # go-ai Upstream Sync
 
-Use this skill when `@mariozechner/pi-ai` has been updated and go-ai needs to track those changes.
+Use this skill when `@mariozechner/pi-ai` has been updated and `go-ai` needs to track those changes.
 
 ## When to run
 
-- After a pi-ai version bump (check `package.json` version in the installed package)
-- When new providers or models are added upstream
-- When type definitions change
-- When new OAuth flows are added
-- Periodically as a maintenance sweep
+- After an upstream `pi-ai` version bump
+- When new models/providers appear upstream
+- When upstream `types.d.ts` changes
+- When OAuth/login flows change upstream
+- When provider behavior or compatibility flags change
+
+## Ground rules
+
+- Read the current upstream package from the installed path:
+  - `/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai`
+- Treat the current `go-ai` repo state as canonical for file layout.
+- Do **not** assume old file names from earlier refactors (`overflow.go`, `validation.go`, `sanitize.go`, `copilot_headers.go`, `generate-models.ts`, etc.).
+- Validate with `go test ./...` and `go vet ./...` before pushing.
+
+## Current go-ai structure
+
+Important current files:
+
+- `types.go`
+- `events.go`
+- `registry.go`
+- `context.go`
+- `transform.go`
+- `harness.go`
+- `env.go`
+- `compat.go`
+- `retry.go`
+- `logger.go`
+- `azure.go`
+- `simple_options.go`
+- `utils.go`
+- `models_generated.go`
+- `doc.go`
+- `provider/*/`
+- `oauth/*.go`
+- `scripts/generate-models.go`
+- `scripts/check-logging.sh`
+- `docs/GAP_ANALYSIS.md`
+- `docs/TEST_MATRIX.md`
+- `docs/AUDIT_REPORT.md`
 
 ## Pre-flight checks
 
-1. **Confirm current pi-ai version**:
-   ```bash
-   cat /usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai/package.json | jq .version
-   ```
+### 1. Confirm current upstream version
 
-2. **Check go-ai's last synced version** (recorded in `models_generated.go` header):
-   ```bash
-   head -n 4 models_generated.go
-   ```
+```bash
+cat /usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai/package.json | jq -r .version
+```
 
-3. **Compare module inventories** — find new/changed files:
-   ```bash
-   PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-   # List all JS modules with line counts
-   find "$PI_AI/dist" -name '*.js' | while read f; do
-       rel=$(echo "$f" | sed "s|$PI_AI/dist/||;s|\.js$||")
-       lines=$(wc -l < "$f")
-       printf "%-55s %5d\n" "$rel" "$lines"
-   done | sort
-   ```
-
-## Sync steps
-
-### Step 1: Regenerate model registry
+### 2. Check current go-ai sync marker
 
 ```bash
 cd /workspace/projects/go-ai
-bun run scripts/generate-models.ts
-go build ./...
+sed -n '1,20p' docs/GAP_ANALYSIS.md
+sed -n '1,5p' models_generated.go
+```
+
+### 3. Check working tree before sync
+
+```bash
+cd /workspace/projects/go-ai
+git status --short
+```
+
+## Sync workflow
+
+### Step 1: inspect upstream surface area
+
+```bash
+PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
+find "$PI_AI/dist" -maxdepth 3 -type f | sort
+```
+
+Read at minimum:
+- `package.json`
+- `README.md`
+- `dist/index.d.ts`
+- `dist/types.d.ts`
+- `dist/api-registry.d.ts`
+- `dist/providers/register-builtins.d.ts`
+- relevant `dist/providers/*.js` / `.d.ts`
+- `dist/oauth.d.ts`
+
+### Step 2: regenerate the model registry
+
+Use the **Go** generator, not the old TS one.
+
+```bash
+cd /workspace/projects/go-ai
+go run scripts/generate-models.go
 go test ./... -count=1
+go vet ./...
 ```
 
 This picks up:
-- New models (names, IDs, costs, context windows)
-- New providers
-- Changed pricing or capabilities
+- new models
+- removed models
+- pricing changes
+- context window changes
+- provider ID changes in generated metadata
 
-### Step 2: Check for type changes
+### Step 3: compare types and provider metadata
 
-Compare pi-ai's `types.d.ts` against `types.go`:
-
-```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-cat "$PI_AI/dist/types.d.ts"
-```
-
-Look for:
-- New fields on `Message`, `Context`, `Tool`, `Model`, `StreamOptions`
-- New content block types
-- New event types in `AssistantMessageEvent`
-- New `KnownProvider` or `KnownApi` values
-- New `StopReason` values
-- Changes to `OpenAICompletionsCompat`
-
-Update `types.go` and `events.go` to match.
-
-### Step 3: Check for new providers
-
-```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-diff <(find "$PI_AI/dist/providers" -name '*.js' | sed 's|.*/||;s|\.js$||' | sort) \
-     <(ls provider/ | sort)
-```
-
-For each new provider:
-1. Read the `.d.ts` type definitions
-2. Read the `.js` implementation
-3. Create `provider/<name>/<name>.go`
-4. Register in `init()` with the correct `Api` constant
-5. Add to `scripts/check-logging.sh`
-6. Add to README provider table
-
-### Step 4: Check for OAuth changes
-
-```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-diff <(find "$PI_AI/dist/utils/oauth" -name '*.js' | sed 's|.*/||;s|\.js$||' | sort) \
-     <(ls oauth/*.go | sed 's|oauth/||;s|\.go$||' | sort)
-```
+Compare upstream `dist/types.d.ts` against:
+- `types.go`
+- `events.go`
+- `compat.go`
+- `env.go`
+- `simple_options.go`
 
 Look for:
-- New OAuth provider implementations
-- Changed client IDs, scopes, or endpoints
-- New OAuth flow types (e.g., new device flow variants)
+- new `KnownApi` values
+- new `KnownProvider` values
+- new `StreamOptions` fields
+- new content block fields
+- new compat flags
+- changed provider metadata names
+- changed stop reasons / transport types / cache retention values
 
-### Step 5: Check for compat flag changes
+### Step 4: compare API registry behavior
 
-```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-cat "$PI_AI/dist/types.d.ts" | sed -n '/OpenAICompletionsCompat/,/^}/p'
-```
+Compare upstream registry/types against:
+- `registry.go`
+- provider `init()` registrations
 
-Compare against `compat.go` — add any new flags and update `DetectCompat()`.
+Look for:
+- new built-in provider modules
+- new aliases
+- changed stream/simple-stream contracts
 
-### Step 6: Check for utility changes
+### Step 5: compare providers
 
-```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
-# Overflow patterns
-grep "OVERFLOW_PATTERNS" "$PI_AI/dist/utils/overflow.js" -A 30
-# Env var mapping
-grep "envMap" "$PI_AI/dist/env-api-keys.js" -A 30
-```
+For each upstream provider under `dist/providers/`, compare to the Go implementation under `provider/`.
 
-Update `overflow.go` patterns and `env.go` mappings if changed.
+Current provider mapping:
 
-### Step 7: Validate
+| go-ai | upstream |
+|---|---|
+| `provider/openai/` | `dist/providers/openai-completions.*` |
+| `provider/openairesponses/` | `dist/providers/openai-responses.*` |
+| `provider/openaicodex/` | `dist/providers/openai-codex-responses.*` |
+| `provider/anthropic/` | `dist/providers/anthropic.*` |
+| `provider/google/` | `dist/providers/google.*` |
+| `provider/geminicli/` | `dist/providers/google-gemini-cli.*` |
+| `provider/mistral/` | `dist/providers/mistral.*` |
+| `provider/bedrock/` | `dist/bedrock-provider.*` and/or bedrock provider module |
+| `provider/faux/` | `dist/providers/faux.*` |
+
+Check for:
+- new payload fields
+- new headers/session behavior
+- retry/reconnect changes
+- SSE/WS transport behavior
+- Azure-specific normalization / trimming behavior
+- tool-call streaming changes
+- image handling changes
+- reasoning/thinking behavior changes
+
+### Step 6: compare OAuth providers
+
+Compare upstream OAuth surface against `oauth/*.go`.
+
+Check for:
+- new provider IDs
+- changed endpoints/client IDs/scopes
+- new login flows
+- changed token refresh behavior
+- `ModifyModels()` behavior changes
+
+### Step 7: compare docs and residual gaps
+
+Update these when needed:
+- `README.md`
+- `docs/basic-usage.md`
+- `docs/context-hooks.md`
+- `docs/HARNESS.md`
+- `docs/model-selection.md`
+- `docs/GAP_ANALYSIS.md`
+- `docs/TEST_MATRIX.md`
+- `docs/AUDIT_REPORT.md`
+
+### Step 8: validate end to end
 
 ```bash
 cd /workspace/projects/go-ai
-go build ./...
 go test ./... -count=1
+go vet ./...
+go build ./examples/...
 ./scripts/check-logging.sh
-# Optional: run fuzz tests
-make fuzz FUZZTIME=30s
 ```
 
-### Step 8: Update tracking
+Optional extra pass:
 
-1. Update the `Generated:` date in `models_generated.go` header (automatic from generator)
-2. Update the provider status table in `README.md`
-3. Update `GAP_ANALYSIS.md` if new gaps were introduced
-4. Commit with message format:
-   ```
-   Sync with pi-ai vX.Y.Z
-
-   - Regenerated model registry (N models, M providers)
-   - [list specific changes: new providers, type changes, etc.]
-   ```
-
-## Provider implementation pattern
-
-When porting a new provider, follow this structure:
-
-```go
-package <name>
-
-import (
-    "context"
-    goai "github.com/rcarmo/go-ai"
-)
-
-func init() {
-    goai.RegisterApi(&goai.ApiProvider{
-        Api:          goai.Api<Name>,
-        Stream:       stream<Name>,
-        StreamSimple: stream<Name>Simple,
-    })
-}
-
-func stream<Name>Simple(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
-    return stream<Name>(ctx, model, convCtx, opts)
-}
-
-func stream<Name>(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
-    ch := make(chan goai.Event, 32)
-    go func() {
-        defer close(ch)
-        goai.GetLogger().Debug("stream start", "api", "<api-name>", "provider", model.Provider, "model", model.ID)
-        // ... implementation
-    }()
-    return ch
-}
+```bash
+go test -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out | sort -k3 | sed -n '1,120p'
 ```
 
-Required logging points (enforced by quality gate):
-1. `Debug("stream start", ...)` — entering the provider
-2. `Debug("HTTP request", "url", ...)` — before HTTP call
-3. `Warn("HTTP error response", "status", ...)` — non-200 status
-4. `Debug("request aborted", ...)` or `Warn("network error", ...)` — failure paths
+## Required outputs of a sync pass
 
-## Key file locations
+A correct sync pass should usually do **all** of these when appropriate:
 
-| go-ai file | pi-ai source |
-|---|---|
-| `types.go` | `dist/types.d.ts` |
-| `events.go` | `dist/types.d.ts` (AssistantMessageEvent) |
-| `registry.go` | `dist/api-registry.js` + `dist/stream.js` |
-| `env.go` | `dist/env-api-keys.js` |
-| `compat.go` | `dist/types.d.ts` (OpenAICompletionsCompat) |
-| `overflow.go` | `dist/utils/overflow.js` |
-| `validation.go` | `dist/utils/validation.js` |
-| `transform.go` | `dist/providers/transform-messages.js` |
-| `simple_options.go` | `dist/providers/simple-options.js` |
-| `sanitize.go` | `dist/utils/sanitize-unicode.js` |
-| `models_generated.go` | `dist/models.generated.js` (via code gen) |
-| `provider/openai/` | `dist/providers/openai-completions.js` |
-| `provider/anthropic/` | `dist/providers/anthropic.js` |
-| `provider/google/` | `dist/providers/google.js` + `google-shared.js` |
-| `provider/mistral/` | `dist/providers/mistral.js` |
-| `provider/bedrock/` | `dist/providers/amazon-bedrock.js` |
-| `provider/openairesponses/` | `dist/providers/openai-responses.js` + `openai-responses-shared.js` |
-| `provider/geminicli/` | `dist/providers/google-gemini-cli.js` + `google-shared.js` |
-| `provider/openaicodex/` | `dist/providers/openai-codex-responses.js` |
-| `oauth/` | `dist/utils/oauth/*.js` |
+1. Update code if upstream changed
+2. Regenerate `models_generated.go` if model metadata changed
+3. Update `docs/GAP_ANALYSIS.md` to the new upstream version
+4. Record whether the bump was:
+   - metadata-only
+   - docs-only
+   - behavioral/API-affecting
+5. Run tests and vet
+6. Push commits
+
+## Provider implementation checklist
+
+When adding or updating a provider:
+
+- register the API in `init()`
+- support `OnPayload` if the provider sends request payloads directly
+- support `OnResponse` where HTTP response headers exist
+- wire `RetryConfig` for HTTP-based providers
+- ensure SSE/WS failures surface as `ErrorEvent`
+- add logging at key points
+- add provider-level fake-server tests where practical
+
+## Logging checklist
+
+At minimum for HTTP providers:
+
+- `Debug("stream start", ...)`
+- `Debug("HTTP request", ...)`
+- `Warn("HTTP error response", ...)`
+- `Debug("request aborted", ...)` or `Warn("network error", ...)`
+
+For retry/reconnect-sensitive paths:
+- log retry attempts
+- surface mid-stream errors as `ErrorEvent`
+- document reconnect expectations in docs if behavior changed
+
+## Commit guidance
+
+Use a commit like:
+
+```text
+Sync upstream pi-ai vX.Y.Z
+
+- regenerated model registry
+- updated provider metadata parity
+- ported [specific provider/type/oauth] changes
+- updated docs/GAP_ANALYSIS.md
+```
+
+If the bump is metadata-only, say so explicitly in the commit body and in `docs/GAP_ANALYSIS.md`.
