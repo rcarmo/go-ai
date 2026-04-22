@@ -94,47 +94,64 @@ func main() {
 
 ```
 go-ai/
-├── doc.go              # Package documentation
-├── types.go            # Core types (Message, Context, Tool, Model, Usage, etc.)
-├── events.go           # Stream event types (TextDelta, ToolCallStart, Done, etc.)
-├── registry.go         # Provider + model registry, Stream(), Complete()
-├── env.go              # API key resolution from environment
-├── compat.go           # OpenAI Completions compat flags
-├── overflow.go         # Context overflow detection
-├── validation.go       # Tool call argument validation
-├── transform.go        # Cross-provider message normalization
-├── retry.go            # HTTP retry with backoff
-├── simple_options.go   # ThinkingLevel mapping, cost calculation
-├── sanitize.go         # Unicode surrogate removal
-├── logger.go           # Centralized pluggable logging
-├── harness.go          # Agent harness helpers (context, compaction, hooks)
-├── hooks.go            # Provider hook invocation helpers
-├── hash.go             # Short deterministic hash
-├── copilot_headers.go  # GitHub Copilot header generation
-├── models_generated.go # Auto-generated model registry (865 models)
-├── provider/
-│   ├── openai/         # OpenAI Chat Completions (+ compatible APIs)
-│   ├── anthropic/      # Anthropic Messages API
-│   ├── openairesponses/ # OpenAI Responses API (+ Azure)
-│   ├── openaicodex/    # OpenAI Codex Responses (WebSocket + SSE)
-│   ├── google/         # Google Generative AI + Vertex AI
-│   ├── geminicli/      # Google Gemini CLI (Cloud Code Assist)
-│   ├── mistral/        # Mistral Conversations API
-│   ├── bedrock/        # Amazon Bedrock ConverseStream
-│   └── faux/           # Test double provider
-├── oauth/
-│   ├── oauth.go            # OAuth framework + PKCE
-│   ├── github_copilot.go   # GitHub Copilot device flow
-│   ├── anthropic.go        # Anthropic auth code + PKCE
-│   ├── google_gemini_cli.go # Google Gemini CLI auth code + PKCE
-│   ├── google_antigravity.go # Antigravity (same flow as Gemini CLI)
-│   └── openai_codex.go     # OpenAI Codex device flow
-├── internal/
-│   ├── eventstream/    # SSE parser
-│   └── jsonparse/      # Partial JSON parser for streaming tool args
-└── scripts/
-    ├── generate-models.ts  # Model registry code generator
-    └── check-logging.sh    # Logging quality gate
+│
+├── types.go             # Message, Context, Tool, Model, Usage, StreamOptions
+├── events.go            # Stream event types (12 event kinds)
+├── registry.go          # Stream(), Complete(), provider + model registry
+├── context.go           # Overflow detection, tool call validation
+├── transform.go         # Cross-provider message normalization
+├── harness.go           # Agent helpers: clone, save/load, compact, hooks
+├── env.go               # API key resolution (20 providers)
+├── compat.go            # OpenAI Completions compat flags (16 flags)
+├── retry.go             # Exponential backoff with configurable limits
+├── logger.go            # Pluggable leveled logging (zero-cost default)
+├── azure.go             # Azure tool-call trimming + reasoning normalization
+├── simple_options.go    # Thinking level mapping, cost calculation
+├── utils.go             # Hash, sanitize, Copilot headers
+├── models_generated.go  # 865 models / 24 providers (auto-generated)
+├── doc.go               # Package documentation
+│
+├── provider/            # LLM provider implementations (blank-import to register)
+│   ├── openai/          # OpenAI Chat Completions + compatible APIs
+│   ├── anthropic/       # Anthropic Messages API
+│   ├── openairesponses/ # OpenAI Responses API + Azure OpenAI
+│   ├── openaicodex/     # OpenAI Codex (WebSocket + SSE)
+│   ├── google/          # Google Generative AI + Vertex AI
+│   ├── geminicli/       # Google Gemini CLI (Cloud Code Assist)
+│   ├── mistral/         # Mistral Conversations API
+│   ├── bedrock/         # Amazon Bedrock ConverseStream
+│   └── faux/            # Test double for unit testing
+│
+├── oauth/               # OAuth flows (import when needed)
+│   ├── oauth.go         # Framework + PKCE
+│   ├── github_copilot.go
+│   ├── anthropic.go
+│   ├── google_gemini_cli.go
+│   ├── google_antigravity.go
+│   └── openai_codex.go
+│
+├── internal/            # Private implementation details
+│   ├── eventstream/     # SSE line parser
+│   └── jsonparse/       # Partial JSON for streaming tool args
+│
+├── examples/            # Runnable usage examples
+│   ├── basic/           # Non-streaming completion
+│   ├── streaming/       # Real-time text output
+│   └── tools/           # Agent loop with tool calling
+│
+├── scripts/             # Build and maintenance tooling
+│   ├── generate-models.go   # Model registry code generator (pure Go)
+│   └── check-logging.sh     # Logging quality gate
+│
+└── docs/                # Documentation
+    ├── basic-usage.md
+    ├── model-selection.md
+    ├── prompts-and-context.md
+    ├── tool-calling.md
+    ├── image-handling.md
+    ├── context-hooks.md
+    ├── HARNESS.md
+    └── SKILL.md
 ```
 
 ## Provider status

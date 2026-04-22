@@ -1,13 +1,69 @@
-// Tool call argument validation against JSON Schema.
+// Context utilities — overflow detection, tool validation, token management.
 package goai
 
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 )
 
+// --- Context overflow detection ---
+
+var overflowPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)prompt is too long`),
+	regexp.MustCompile(`(?i)request_too_large`),
+	regexp.MustCompile(`(?i)input is too long for requested model`),
+	regexp.MustCompile(`(?i)exceeds the context window`),
+	regexp.MustCompile(`(?i)input token count.*exceeds the maximum`),
+	regexp.MustCompile(`(?i)maximum prompt length is \d+`),
+	regexp.MustCompile(`(?i)reduce the length of the messages`),
+	regexp.MustCompile(`(?i)maximum context length is \d+ tokens`),
+	regexp.MustCompile(`(?i)exceeds the limit of \d+`),
+	regexp.MustCompile(`(?i)exceeds the available context size`),
+	regexp.MustCompile(`(?i)greater than the context length`),
+	regexp.MustCompile(`(?i)context window exceeds limit`),
+	regexp.MustCompile(`(?i)exceeded model token limit`),
+	regexp.MustCompile(`(?i)too large for model with \d+ maximum context length`),
+	regexp.MustCompile(`(?i)model_context_window_exceeded`),
+	regexp.MustCompile(`(?i)prompt too long; exceeded (?:max )?context length`),
+	regexp.MustCompile(`(?i)context[_ ]length[_ ]exceeded`),
+	regexp.MustCompile(`(?i)too many tokens`),
+	regexp.MustCompile(`(?i)token limit exceeded`),
+	regexp.MustCompile(`(?i)^4(?:00|13)\s*(?:status code)?\s*\(no body\)`),
+}
+
+var nonOverflowPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)^(Throttling error|Service unavailable):`),
+	regexp.MustCompile(`(?i)rate limit`),
+	regexp.MustCompile(`(?i)too many requests`),
+}
+
+// IsContextOverflow checks if a message represents a context window overflow.
+func IsContextOverflow(msg *Message, contextWindow int) bool {
+	if msg.StopReason == StopReasonError && msg.ErrorMessage != "" {
+		for _, p := range nonOverflowPatterns {
+			if p.MatchString(msg.ErrorMessage) {
+				return false
+			}
+		}
+		for _, p := range overflowPatterns {
+			if p.MatchString(msg.ErrorMessage) {
+				return true
+			}
+		}
+	}
+	if contextWindow > 0 && msg.StopReason == StopReasonStop && msg.Usage != nil {
+		inputTokens := msg.Usage.Input + msg.Usage.CacheRead
+		if inputTokens > contextWindow {
+			return true
+		}
+	}
+	return false
+}
+
+// --- Tool call validation ---
+
 // ValidateToolCall finds a tool by name and validates the arguments.
-// Returns the (potentially coerced) arguments map.
 func ValidateToolCall(tools []Tool, tc ToolCall) (map[string]interface{}, error) {
 	var tool *Tool
 	for i := range tools {
@@ -23,21 +79,14 @@ func ValidateToolCall(tools []Tool, tc ToolCall) (map[string]interface{}, error)
 }
 
 // ValidateToolArguments validates tool call arguments against the tool's JSON Schema.
-//
-// This performs structural validation: checks required fields, types, and enum values.
-// For full JSON Schema validation, use a dedicated library like github.com/santhosh-tekuri/jsonschema.
 func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, error) {
 	if len(tool.Parameters) == 0 {
 		return tc.Arguments, nil
 	}
-
-	// Parse the schema
 	var schema map[string]interface{}
 	if err := json.Unmarshal(tool.Parameters, &schema); err != nil {
-		return tc.Arguments, nil // can't parse schema, pass through
+		return tc.Arguments, nil
 	}
-
-	// Check required fields
 	if required, ok := schema["required"].([]interface{}); ok {
 		for _, r := range required {
 			name, ok := r.(string)
@@ -49,8 +98,6 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 			}
 		}
 	}
-
-	// Check property types
 	if properties, ok := schema["properties"].(map[string]interface{}); ok {
 		for name, val := range tc.Arguments {
 			propSchema, ok := properties[name].(map[string]interface{})
@@ -62,7 +109,6 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 			}
 		}
 	}
-
 	return tc.Arguments, nil
 }
 
@@ -71,13 +117,11 @@ func validateType(name string, value interface{}, schema map[string]interface{})
 	if !ok {
 		return nil
 	}
-
 	switch expectedType {
 	case "string":
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("field %q: expected string, got %T", name, value)
 		}
-		// Check enum
 		if enum, ok := schema["enum"].([]interface{}); ok {
 			s := value.(string)
 			found := false
@@ -94,7 +138,6 @@ func validateType(name string, value interface{}, schema map[string]interface{})
 	case "number", "integer":
 		switch value.(type) {
 		case float64, int, int64, json.Number:
-			// ok
 		default:
 			return fmt.Errorf("field %q: expected number, got %T", name, value)
 		}
@@ -111,6 +154,5 @@ func validateType(name string, value interface{}, schema map[string]interface{})
 			return fmt.Errorf("field %q: expected object, got %T", name, value)
 		}
 	}
-
 	return nil
 }
