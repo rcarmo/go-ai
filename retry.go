@@ -72,6 +72,9 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 			delay = backoff(attempt, cfg)
 		}
 
+		logWarn("retryable HTTP status", "status", resp.StatusCode, "attempt", attempt+1,
+			"maxRetries", cfg.MaxRetries, "delay", delay)
+
 		// Check if server-requested delay exceeds our cap
 		if cfg.MaxRetryDelayMs > 0 && delay > time.Duration(cfg.MaxRetryDelayMs)*time.Millisecond {
 			return nil, fmt.Errorf("server requested retry delay of %v exceeds cap of %dms (HTTP %d)",

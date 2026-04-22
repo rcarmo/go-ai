@@ -92,6 +92,7 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		client := &http.Client{Timeout: 10 * time.Minute}
+		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID)
 		resp, err := client.Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -104,6 +105,7 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
+			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,

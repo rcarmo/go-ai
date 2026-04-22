@@ -96,6 +96,7 @@ func ListProviders() []Provider {
 func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
 	p := GetApiProvider(model.Api)
 	if p == nil {
+		logError("no provider registered", "api", model.Api, "provider", model.Provider, "model", model.ID)
 		ch := make(chan Event, 1)
 		ch <- &ErrorEvent{
 			Reason: StopReasonError,
@@ -104,6 +105,8 @@ func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOpt
 		close(ch)
 		return ch
 	}
+	logDebug("stream start", "provider", model.Provider, "model", model.ID, "api", model.Api,
+		"messages", len(convCtx.Messages), "tools", len(convCtx.Tools))
 	if opts != nil && opts.Reasoning != nil {
 		return p.StreamSimple(ctx, model, convCtx, opts)
 	}
@@ -119,12 +122,16 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 		switch e := event.(type) {
 		case *DoneEvent:
 			result = e.Message
+			logInfo("complete done", "provider", model.Provider, "model", model.ID,
+				"stop", result.StopReason, "input", result.Usage.Input, "output", result.Usage.Output)
 		case *ErrorEvent:
 			result = e.Error
 			resultErr = e.Err
 			if resultErr == nil {
 				resultErr = fmt.Errorf("LLM error: %s (reason: %s)", result.ErrorMessage, e.Reason)
 			}
+			logError("complete error", "provider", model.Provider, "model", model.ID,
+				"reason", e.Reason, "error", resultErr)
 		}
 	}
 	if resultErr != nil {
