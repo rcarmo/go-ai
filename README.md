@@ -3,7 +3,7 @@
 A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
 > **⚠️ Experimental.** This library tracks the TypeScript original and is under
-> active development. The API surface may change. Use in production at your own risk.
+> active development. The API surface may change and has gone through limited testing. Use in production at your own risk.
 
 ## Why
 
