@@ -164,7 +164,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Convert messages
-	for _, m := range convCtx.Messages {
+	// Convert messages with cross-provider normalization
+	transformed := goai.TransformMessages(convCtx.Messages, model)
+	for _, m := range transformed {
 		switch m.Role {
 		case goai.RoleUser:
 			// Check for image content
