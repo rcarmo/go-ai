@@ -78,6 +78,14 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		// Build request
 		input := buildConverseInput(model, convCtx, opts)
+		payload, err := goai.InvokeOnPayload(opts, input, model)
+		if err != nil {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			return
+		}
+		if replaced, ok := payload.(*bedrockruntime.ConverseStreamInput); ok && replaced != nil {
+			input = replaced
+		}
 
 		// Send
 		resp, err := client.ConverseStream(ctx, input)

@@ -140,11 +140,11 @@ func FitsInContextWindow(ctx *Context, model *Model) (bool, int) {
 // --- Context compaction ---
 
 // CompactContext removes older messages to fit within a token budget.
-// Preserves the system prompt, the most recent N messages, and all
-// tool result messages that correspond to tool calls still in the context.
+// It preserves the system prompt and keeps at most the most recent N messages.
 //
-// This is a simple strategy. For production use, implement a custom
-// compaction function that summarizes removed messages.
+// This is intentionally simple tail truncation. It does not summarize or
+// reconstruct tool-call/tool-result pairings across the truncation boundary.
+// For production use, implement a custom compaction function.
 func CompactContext(ctx *Context, model *Model, keepRecent int) *Context {
 	if keepRecent <= 0 {
 		keepRecent = 10
