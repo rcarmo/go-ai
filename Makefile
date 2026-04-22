@@ -55,7 +55,10 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	$(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	$(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: lint test ## Run lint + tests
+check: lint test check-logging ## Run lint + tests + logging gate
+
+check-logging: ## Verify logging quality gate
+	./scripts/check-logging.sh
 
 build: ## Build the library (verify compilation)
 	$(GO) build ./...

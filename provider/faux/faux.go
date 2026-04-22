@@ -225,6 +225,8 @@ func (r *Registration) stream(ctx context.Context, model *goai.Model, convCtx *g
 	go func() {
 		defer close(ch)
 
+		goai.GetLogger().Debug("faux stream", "model", model.ID, "pendingResponses", r.PendingResponseCount())
+		goai.GetLogger().Debug("stream start", "api", string(model.Api), "provider", model.Provider, "model", model.ID)
 		callNum := atomic.AddInt64(&r.State.CallCount, 1)
 
 		// Get next response

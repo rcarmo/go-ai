@@ -42,6 +42,8 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 	go func() {
 		defer close(ch)
 
+		goai.GetLogger().Debug("stream start", "api", "bedrock-converse-stream", "provider", model.Provider, "model", model.ID)
+
 		// Resolve region
 		region := os.Getenv("AWS_REGION")
 		if region == "" {
@@ -60,6 +62,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			config.WithRegion(region),
 		)
 		if err != nil {
+			goai.GetLogger().Warn("AWS config error", "error", err)
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("AWS config: %w", err)}
 			return
 		}
@@ -82,6 +85,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			if ctx.Err() != nil {
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
 			} else {
+				goai.GetLogger().Warn("Bedrock API error", "provider", model.Provider, "model", model.ID, "error", err)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("Bedrock: %w", err)}
 			}
 			return

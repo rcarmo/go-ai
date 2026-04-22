@@ -42,6 +42,8 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 	go func() {
 		defer close(ch)
 
+		goai.GetLogger().Debug("stream start", "api", "google-gemini-cli", "provider", model.Provider, "model", model.ID)
+
 		// Parse API key — expected format: {"token":"...","projectId":"..."}
 		apiKeyRaw := goai.ResolveAPIKey(model, opts)
 		if apiKeyRaw == "" {
@@ -96,8 +98,10 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		resp, err := client.Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
+				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
 			} else {
+				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			}
 			return

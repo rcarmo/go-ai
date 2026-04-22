@@ -31,6 +31,9 @@ jobs:
           go test -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
 
+      - name: Logging quality gate
+        run: ./scripts/check-logging.sh
+
   fuzz:
     name: Fuzz Tests
     runs-on: ubuntu-latest

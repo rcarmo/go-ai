@@ -45,6 +45,8 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	go func() {
 		defer close(ch)
 
+		goai.GetLogger().Debug("stream start", "api", "google-generative-ai", "provider", model.Provider, "model", model.ID)
+
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for Google")}
@@ -84,8 +86,10 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		resp, err := client.Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
+				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
 			} else {
+				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			}
 			return
