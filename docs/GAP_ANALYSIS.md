@@ -2,9 +2,23 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.68.1
+## Source: `@mariozechner/pi-ai` v0.69.0
 
-## Sync note
+## Sync history
+
+### v0.69.0 (2026-04-23)
+
+**Minor release.** Dependency cleanup + model registry update.
+
+- **TypeBox**: `@sinclair/typebox` → `typebox` v1.1.24 (major package rename). No go-ai impact — we use `json.RawMessage`.
+- **ajv + ajv-formats removed** upstream. No go-ai impact — we have our own validation.
+- **transform-messages**: added `insertSyntheticToolResults()` call at end of transform. go-ai already had this.
+- **4 new models**: Xiaomi `mimo-v2.5`, `mimo-v2.5-pro` (+ OpenRouter aliases). Regenerated.
+- **1 pricing change**: `gemini-3.1-flash-lite-preview` now free (0/0). Regenerated.
+- **Model registry**: 865 → 871 models. Regenerated via `go run scripts/generate-models.go`.
+- **No provider behavior changes**, no OAuth changes, no type/event changes.
+
+### v0.68.1 (2026-04-22)
 
 Upstream `v0.68.1` did not introduce a large behavioral delta relative to the already-synced `go-ai` codebase. The practical sync adjustments in this pass were provider-metadata parity updates (`zai`, `huggingface`, `fireworks`) plus continued test/transport hardening.
 
@@ -75,6 +89,6 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 | Core + utils | 723 | 1,800+ | ~100% |
 | Providers | 6,887 | 4,900+ | ~100% (all APIs) |
 | OAuth | 2,120 | 1,500+ | ~100% (all flows) |
-| Models generated | 14,433 | 10,397 | 100% (code gen) |
+| Models generated | 14,925 | 10,600+ | 100% (code gen) |
 | CLI | 115 | — | Skip |
 | **Total** | **24,278** | **18,597+** | **Feature complete** |
