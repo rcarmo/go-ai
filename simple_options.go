@@ -60,7 +60,7 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 func SupportsXhigh(model *Model) bool {
 	// GPT-5.2+ and Opus 4.6+ families
 	id := model.ID
-	for _, prefix := range []string{"gpt-5.2", "gpt-5.3", "gpt-5.4", "claude-opus-4.6", "claude-opus-4.7"} {
+	for _, prefix := range []string{"gpt-5.2", "gpt-5.3", "gpt-5.4", "gpt-5.5", "claude-opus-4.6", "claude-opus-4.7"} {
 		if len(id) >= len(prefix) && id[:len(prefix)] == prefix {
 			return true
 		}

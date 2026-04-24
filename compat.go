@@ -46,6 +46,30 @@ type OpenAICompletionsCompat struct {
 
 	// Whether to send session affinity headers for prompt caching.
 	SendSessionAffinityHeaders *bool `json:"sendSessionAffinityHeaders,omitempty"`
+
+	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
+	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
+}
+
+// OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
+type OpenAIResponsesCompat struct {
+	// Whether to send the OpenAI session_id cache-affinity header. Default: true.
+	SendSessionIdHeader *bool `json:"sendSessionIdHeader,omitempty"`
+
+	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
+	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
+}
+
+// AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
+type AnthropicMessagesCompat struct {
+	// Whether the provider accepts per-tool eager_input_streaming.
+	// When false, the provider sends the legacy fine-grained-tool-streaming beta header.
+	// Default: true.
+	SupportsEagerToolInputStreaming *bool `json:"supportsEagerToolInputStreaming,omitempty"`
+
+	// Whether the provider supports Anthropic long cache retention (cache_control.ttl: "1h").
+	// Default: true.
+	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.

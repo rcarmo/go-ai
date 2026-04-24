@@ -16,6 +16,40 @@ import (
 
 const defaultBaseURL = "https://api.anthropic.com/v1"
 const apiVersion = "2023-06-01"
+const fineGrainedToolStreamingBeta = "fine-grained-tool-streaming-2025-05-14"
+const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
+
+type anthropicCompat struct {
+	supportsEagerToolInputStreaming bool
+	supportsLongCacheRetention     bool
+}
+
+func getAnthropicCompat(model *goai.Model) anthropicCompat {
+	c := anthropicCompat{
+		supportsEagerToolInputStreaming: true,
+		supportsLongCacheRetention:     true,
+	}
+	if model.AnthropicCompat != nil {
+		if model.AnthropicCompat.SupportsEagerToolInputStreaming != nil {
+			c.supportsEagerToolInputStreaming = *model.AnthropicCompat.SupportsEagerToolInputStreaming
+		}
+		if model.AnthropicCompat.SupportsLongCacheRetention != nil {
+			c.supportsLongCacheRetention = *model.AnthropicCompat.SupportsLongCacheRetention
+		}
+	}
+	return c
+}
+
+func joinBetas(betas []string) string {
+	result := ""
+	for i, b := range betas {
+		if i > 0 {
+			result += ","
+		}
+		result += b
+	}
+	return result
+}
 
 func init() {
 	goai.RegisterApi(&goai.ApiProvider{
@@ -70,6 +104,17 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("X-Api-Key", apiKey)
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
+
+		// Beta features
+		var betas []string
+		betas = append(betas, interleavedThinkingBeta)
+		compat := getAnthropicCompat(model)
+		if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
+			betas = append(betas, fineGrainedToolStreamingBeta)
+		}
+		if len(betas) > 0 {
+			req.Header.Set("Anthropic-Beta", joinBetas(betas))
+		}
 
 		if opts != nil {
 			for k, v := range opts.Headers {

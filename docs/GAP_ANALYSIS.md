@@ -2,9 +2,33 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.69.0
+## Source: `@mariozechner/pi-ai` v0.70.0
 
 ## Sync history
+
+### v0.70.0 (2026-04-24)
+
+**Behavioral release.** Provider compat refactoring + model updates.
+
+- **New types**: `AnthropicMessagesCompat` (eager tool streaming, long cache retention),
+  `OpenAIResponsesCompat` (session ID header, long cache retention).
+  Added `SupportsLongCacheRetention` to `OpenAICompletionsCompat`.
+  Model struct now carries `CompletionsCompat`, `ResponsesCompat`, `AnthropicCompat` fields.
+- **Anthropic provider**: compat-driven beta headers (`fine-grained-tool-streaming-2025-05-14`,
+  `interleaved-thinking-2025-05-14`), compat-driven cache TTL instead of URL-sniffing.
+  Ported to go-ai.
+- **OpenAI Completions**: content index tracking refactored (use `indexOf` instead of `length-1`).
+  Go provider already uses index-based tracking — no change needed.
+- **OpenAI Responses**: compat-driven cache retention + session ID header.
+  Noted as minor gap — go-ai already skips session headers when not applicable.
+- **OpenAI Codex**: gpt-5.5 support in effort mapping + model-specific service tier multiplier.
+  go-ai updated `SupportsXhigh` for gpt-5.5. Service tier pricing not yet implemented (existing gap).
+- **Google Vertex**: `buildHttpOptions` with `ResourceScope` for custom base URLs.
+  Go provider uses raw HTTP — not directly applicable but noted.
+- **5 new models**: gpt-5.5, gemma-4-26b-a4b-it, hy3-preview-free, ling-2.6-1t, hy3-preview.
+- **2 removed models**: arcee-ai/trinity-large-preview, gemma-4-26b-it.
+- **3 pricing changes**: mistral-nemo, qwen3-235b-a22b-thinking, mimo-v2-flash.
+- **Model registry**: 871 → 876 models. Regenerated.
 
 ### v0.69.0 (2026-04-23)
 
@@ -89,6 +113,6 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 | Core + utils | 723 | 1,800+ | ~100% |
 | Providers | 6,887 | 4,900+ | ~100% (all APIs) |
 | OAuth | 2,120 | 1,500+ | ~100% (all flows) |
-| Models generated | 14,925 | 10,600+ | 100% (code gen) |
+| Models generated | 15,016 | 10,800+ | 100% (code gen) |
 | CLI | 115 | — | Skip |
 | **Total** | **24,278** | **18,597+** | **Feature complete** |

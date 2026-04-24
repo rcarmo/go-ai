@@ -258,8 +258,11 @@ type Model struct {
 	MaxTokens     int      `json:"maxTokens"`
 
 	// Optional overrides
-	Headers map[string]string `json:"headers,omitempty"`
-	APIKey  string            `json:"-"` // never serialized
+	Headers            map[string]string        `json:"headers,omitempty"`
+	APIKey             string                   `json:"-"` // never serialized
+	CompletionsCompat  *OpenAICompletionsCompat  `json:"completionsCompat,omitempty"`
+	ResponsesCompat    *OpenAIResponsesCompat    `json:"responsesCompat,omitempty"`
+	AnthropicCompat    *AnthropicMessagesCompat  `json:"anthropicCompat,omitempty"`
 }
 
 // --- Stream options ---
