@@ -34,8 +34,12 @@ type OpenAICompletionsCompat struct {
 	// Whether thinking blocks must be converted to text with <thinking> delimiters.
 	RequiresThinkingAsText *bool `json:"requiresThinkingAsText,omitempty"`
 
+	// Whether all replayed assistant messages must include an empty reasoning_content field when reasoning is enabled.
+	RequiresReasoningContentOnAssistantMessages *bool `json:"requiresReasoningContentOnAssistantMessages,omitempty"`
+
 	// Format for reasoning/thinking parameter.
-	// "openai" = reasoning_effort, "openrouter" = reasoning:{effort}, "zai" = enable_thinking, "qwen" = enable_thinking
+	// "openai" = reasoning_effort, "openrouter" = reasoning:{effort}, "deepseek" = thinking:{type} + reasoning_effort,
+	// "zai" = enable_thinking, "qwen" = enable_thinking
 	ThinkingFormat string `json:"thinkingFormat,omitempty"`
 
 	// Whether the provider supports `strict` in tool definitions.
@@ -86,6 +90,7 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 	isZAI := contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
 	isVercel := contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
+	isDeepSeek := contains(baseURL, "deepseek.com")
 
 	t := true
 	f := false
@@ -131,6 +136,11 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 
 	if isQwen {
 		c.ThinkingFormat = "qwen"
+	}
+
+	if isDeepSeek {
+		c.ThinkingFormat = "deepseek"
+		c.RequiresReasoningContentOnAssistantMessages = &t
 	}
 
 	return c

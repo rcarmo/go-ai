@@ -53,6 +53,7 @@ const (
 	ProviderOpenCode         Provider = "opencode"
 	ProviderOpenCodeGo       Provider = "opencode-go"
 	ProviderKimiCoding       Provider = "kimi-coding"
+	ProviderDeepSeek         Provider = "deepseek"
 )
 
 // ThinkingLevel controls the reasoning depth.
@@ -287,6 +288,11 @@ type StreamOptions struct {
 	MaxRetryDelayMs *int              `json:"maxRetryDelayMs,omitempty"`
 	RetryConfig     *RetryConfig      `json:"-"`
 	Metadata        map[string]any    `json:"metadata,omitempty"`
+
+	// SDK-level timeout and retry (for providers that use SDK clients).
+	// These are passed through to the underlying SDK client when applicable.
+	TimeoutMs  *int `json:"timeoutMs,omitempty"`
+	MaxRetries *int `json:"maxRetries,omitempty"`
 
 	// Simple mode
 	Reasoning       *ThinkingLevel   `json:"reasoning,omitempty"`

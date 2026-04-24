@@ -2,9 +2,21 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.70.0
+## Source: `@mariozechner/pi-ai` v0.70.1
 
 ## Sync history
+
+### v0.70.1 (2026-04-24)
+
+**DeepSeek provider + SDK timeout/retry options.**
+
+- **New provider**: `deepseek` added to `KnownProvider`, env key `DEEPSEEK_API_KEY`.
+- **New compat flags**: `RequiresReasoningContentOnAssistantMessages`, `thinkingFormat: "deepseek"`.
+- **DeepSeek reasoning**: `thinking: { type: "enabled"/"disabled" }` + `reasoning_effort` in OpenAI Completions.
+- **New StreamOptions fields**: `TimeoutMs`, `MaxRetries` (SDK-level passthrough; go-ai maps to HTTP client timeout + RetryConfig).
+- **6 new models**: deepseek-v4-flash, deepseek-v4-pro (+ OpenRouter aliases), 2 Bedrock Anthropic models.
+- **Model registry**: 876 → 884 models, 24 → 25 providers.
+- **simple-options**: passthrough of timeoutMs/maxRetries (SDK-specific; go-ai uses raw HTTP).
 
 ### v0.70.0 (2026-04-24)
 
@@ -113,6 +125,6 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 | Core + utils | 723 | 1,800+ | ~100% |
 | Providers | 6,887 | 4,900+ | ~100% (all APIs) |
 | OAuth | 2,120 | 1,500+ | ~100% (all flows) |
-| Models generated | 15,016 | 10,800+ | 100% (code gen) |
+| Models generated | 15,156 | 10,900+ | 100% (code gen) |
 | CLI | 115 | — | Skip |
 | **Total** | **24,278** | **18,597+** | **Feature complete** |

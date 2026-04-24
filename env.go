@@ -25,6 +25,7 @@ var providerEnvMap = map[Provider][]string{
 	ProviderOpenCode:         {"OPENCODE_API_KEY"},
 	ProviderOpenCodeGo:       {"OPENCODE_API_KEY"},
 	ProviderKimiCoding:       {"KIMI_API_KEY"},
+	ProviderDeepSeek:         {"DEEPSEEK_API_KEY"},
 }
 
 // GetEnvAPIKey looks up an API key from environment variables
