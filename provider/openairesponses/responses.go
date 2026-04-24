@@ -76,6 +76,12 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
 				req.Header.Set(k, v)
 			}
+		} else if opts != nil && opts.SessionID != "" {
+			// Standard OpenAI: send session_id header if compat allows
+			compat := getResponsesCompat(model)
+			if compat.sendSessionIdHeader {
+				req.Header.Set("session_id", opts.SessionID)
+			}
 		}
 
 		if opts != nil {
@@ -126,14 +132,15 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type responsesRequest struct {
-	Model            string          `json:"model"`
-	Input            json.RawMessage `json:"input"`
-	Stream           bool            `json:"stream"`
-	Tools            []toolDef       `json:"tools,omitempty"`
-	Temperature      *float64        `json:"temperature,omitempty"`
-	MaxOutputTokens  *int            `json:"max_output_tokens,omitempty"`
-	ReasoningEffort  string          `json:"reasoning,omitempty"`
-	ReasoningSummary string          `json:"reasoning_summary,omitempty"`
+	Model                 string          `json:"model"`
+	Input                 json.RawMessage `json:"input"`
+	Stream                bool            `json:"stream"`
+	Tools                 []toolDef       `json:"tools,omitempty"`
+	Temperature           *float64        `json:"temperature,omitempty"`
+	MaxOutputTokens       *int            `json:"max_output_tokens,omitempty"`
+	ReasoningEffort       string          `json:"reasoning,omitempty"`
+	ReasoningSummary      string          `json:"reasoning_summary,omitempty"`
+	PromptCacheRetention  string          `json:"prompt_cache_retention,omitempty"`
 }
 
 type toolDef struct {
@@ -178,7 +185,34 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		req.ReasoningEffort = string(*opts.Reasoning)
 	}
 
+	// Cache retention (compat-driven)
+	compat := getResponsesCompat(model)
+	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
+		req.PromptCacheRetention = "24h"
+	}
+
 	return req
+}
+
+type responsesCompat struct {
+	sendSessionIdHeader       bool
+	supportsLongCacheRetention bool
+}
+
+func getResponsesCompat(model *goai.Model) responsesCompat {
+	c := responsesCompat{
+		sendSessionIdHeader:       true,
+		supportsLongCacheRetention: true,
+	}
+	if model.ResponsesCompat != nil {
+		if model.ResponsesCompat.SendSessionIdHeader != nil {
+			c.sendSessionIdHeader = *model.ResponsesCompat.SendSessionIdHeader
+		}
+		if model.ResponsesCompat.SupportsLongCacheRetention != nil {
+			c.supportsLongCacheRetention = *model.ResponsesCompat.SupportsLongCacheRetention
+		}
+	}
+	return c
 }
 
 // convertMessages builds the Responses API input array.
