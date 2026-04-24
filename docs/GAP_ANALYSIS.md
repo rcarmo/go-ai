@@ -2,9 +2,16 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.70.1
+## Source: `@mariozechner/pi-ai` v0.70.2
 
 ## Sync history
+
+### v0.70.2 (2026-04-24)
+
+**Refactor-only release.** SDK request options now use spread-conditional syntax to avoid passing `undefined` keys. No behavioral change. One context window fix in model registry (1000000 → 1048576 for a Gemini model).
+
+No go-ai code changes needed — we use raw HTTP, not SDK clients.
+Regenerated model registry for the context window fix.
 
 ### v0.70.1 (2026-04-24)
 
