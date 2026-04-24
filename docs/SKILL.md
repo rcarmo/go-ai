@@ -221,6 +221,7 @@ A correct sync pass should usually do **all** of these when appropriate:
    - behavioral/API-affecting
 5. Run tests and vet
 6. Push commits
+7. **Tag the release to match upstream**: `git tag -a vX.Y.Z -m "Sync with upstream pi-ai vX.Y.Z"` and `git push origin vX.Y.Z`
 
 ## Provider implementation checklist
 
