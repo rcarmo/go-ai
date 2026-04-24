@@ -208,6 +208,30 @@ go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out | sort -k3 | sed -n '1,120p'
 ```
 
+## Sync granularity
+
+**Always sync one patch release at a time, in order.**
+
+Do not skip versions. If upstream went from v0.70.0 to v0.70.3, sync v0.70.1 first, then v0.70.2, then v0.70.3 — each as a separate commit + tag.
+
+Why:
+- Intermediate releases may introduce types, flags, or provider changes that later releases depend on.
+- Jumping versions risks merging conflicting changes that are hard to debug.
+- Per-release commits make `git bisect` and rollback straightforward.
+- Each tag is a known-good state that matches an exact upstream release.
+
+Workflow when multiple releases are pending:
+
+```bash
+# Check what's available
+npm view @mariozechner/pi-ai versions --json | tail -n 10
+
+# Download each release tarball individually
+curl -sSL "https://registry.npmjs.org/@mariozechner/pi-ai/-/pi-ai-X.Y.Z.tgz" -o /tmp/pi-ai-X.Y.Z.tgz
+
+# Diff against previous, port, test, commit, tag — then repeat for next version
+```
+
 ## Required outputs of a sync pass
 
 A correct sync pass should usually do **all** of these when appropriate:
