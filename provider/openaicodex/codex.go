@@ -529,7 +529,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			json.Unmarshal(raw.Response, &resp)
 			partial.ResponseID = resp.ID
 		case "response.output_item.added":
-			var item struct{ Type, ID, CallID, Name string }
+			var item struct {
+				Type   string `json:"type"`
+				ID     string `json:"id"`
+				CallID string `json:"call_id"`
+				Name   string `json:"name"`
+			}
 			json.Unmarshal(raw.Item, &item)
 			switch item.Type {
 			case "reasoning":
