@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -21,13 +22,13 @@ const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 
 type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
-	supportsLongCacheRetention     bool
+	supportsLongCacheRetention      bool
 }
 
 func getAnthropicCompat(model *goai.Model) anthropicCompat {
 	c := anthropicCompat{
 		supportsEagerToolInputStreaming: true,
-		supportsLongCacheRetention:     true,
+		supportsLongCacheRetention:      true,
 	}
 	if model.AnthropicCompat != nil {
 		if model.AnthropicCompat.SupportsEagerToolInputStreaming != nil {
@@ -63,6 +64,17 @@ func streamAnthropicSimple(ctx context.Context, model *goai.Model, convCtx *goai
 	return streamAnthropic(ctx, model, convCtx, opts)
 }
 
+func normalizeAnthropicBaseURL(baseURL string) string {
+	if baseURL == "" {
+		return defaultBaseURL
+	}
+	normalized := strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(normalized, "/v1") {
+		return normalized
+	}
+	return normalized + "/v1"
+}
+
 func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
 
@@ -89,10 +101,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		baseURL := model.BaseURL
-		if baseURL == "" {
-			baseURL = defaultBaseURL
-		}
+		baseURL := normalizeAnthropicBaseURL(model.BaseURL)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/messages", bytes.NewReader(bodyJSON))
 		if err != nil {
@@ -101,9 +110,16 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Api-Key", apiKey)
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
+		if model.Provider == goai.ProviderGitHubCopilot {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+			for k, v := range goai.CopilotHeaders() {
+				req.Header.Set(k, v)
+			}
+		} else {
+			req.Header.Set("X-Api-Key", apiKey)
+		}
 
 		// Beta features
 		var betas []string
@@ -355,10 +371,10 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			var data struct {
 				Index int `json:"index"`
 				Delta struct {
-					Type            string `json:"type"`
-					Text            string `json:"text,omitempty"`
-					Thinking        string `json:"thinking,omitempty"`
-					PartialJSON     string `json:"partial_json,omitempty"`
+					Type        string `json:"type"`
+					Text        string `json:"text,omitempty"`
+					Thinking    string `json:"thinking,omitempty"`
+					PartialJSON string `json:"partial_json,omitempty"`
 				} `json:"delta"`
 			}
 			if json.Unmarshal([]byte(sse.Data), &data) != nil {
@@ -435,9 +451,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 				Message struct {
 					ID    string `json:"id"`
 					Usage struct {
-						InputTokens  int `json:"input_tokens"`
-						CacheRead    int `json:"cache_read_input_tokens"`
-						CacheCreate  int `json:"cache_creation_input_tokens"`
+						InputTokens int `json:"input_tokens"`
+						CacheRead   int `json:"cache_read_input_tokens"`
+						CacheCreate int `json:"cache_creation_input_tokens"`
 					} `json:"usage"`
 				} `json:"message"`
 			}

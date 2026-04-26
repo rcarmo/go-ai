@@ -33,7 +33,8 @@ func TestStreamViaSSERetries429AndSucceeds(t *testing.T) {
 	opts := &goai.StreamOptions{RetryConfig: &goai.RetryConfig{MaxRetries: 1, InitialDelay: time.Millisecond, MaxDelay: time.Millisecond, BackoffMultiplier: 1, ConnectTimeout: time.Second, RequestTimeout: time.Second}}
 
 	ch := make(chan goai.Event, 32)
-	streamViaSSE(context.Background(), model, convCtx, opts, "test-key", ch)
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+	streamViaSSE(context.Background(), model, convCtx, opts, jwt, ch)
 	close(ch)
 
 	var done *goai.DoneEvent

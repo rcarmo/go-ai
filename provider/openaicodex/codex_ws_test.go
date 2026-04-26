@@ -49,7 +49,8 @@ func TestStreamViaWebSocketProtocolFlow(t *testing.T) {
 	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
 	ch := make(chan goai.Event, 32)
-	if err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, "test-key", ch); err != nil {
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+	if err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, ch); err != nil {
 		t.Fatalf("streamViaWebSocket: %v", err)
 	}
 	close(ch)
