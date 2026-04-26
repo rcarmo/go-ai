@@ -49,8 +49,8 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			return
 		}
 
-		// Determine transport
-		transport := goai.TransportAuto
+		// Match pi-ai: default to SSE; only attempt WebSocket when explicitly requested or auto is selected.
+		transport := goai.TransportSSE
 		if opts != nil && opts.Transport != "" {
 			transport = opts.Transport
 		}
@@ -486,7 +486,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	processCodexSSE(resp.Body, model, ch)
 }
 
-// processCodexSSE is identical to the Responses API SSE processing
+// processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
 func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{},
@@ -514,21 +514,28 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			Item     json.RawMessage `json:"item,omitempty"`
 			Response json.RawMessage `json:"response,omitempty"`
 			Delta    string          `json:"delta,omitempty"`
+			Code     string          `json:"code,omitempty"`
+			Message  string          `json:"message,omitempty"`
 		}
 		if json.Unmarshal([]byte(sse.Data), &raw) != nil {
 			continue
 		}
 
 		switch raw.Type {
-		case "response.output_text.delta":
-			if current != nil && current.itemType == "message" {
-				partial.Content[current.contentIdx].Text += raw.Delta
-				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+		case "response.created":
+			var resp struct {
+				ID string `json:"id"`
 			}
+			json.Unmarshal(raw.Response, &resp)
+			partial.ResponseID = resp.ID
 		case "response.output_item.added":
 			var item struct{ Type, ID, CallID, Name string }
 			json.Unmarshal(raw.Item, &item)
 			switch item.Type {
+			case "reasoning":
+				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+				current = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
+				ch <- &goai.ThinkingStartEvent{ContentIndex: current.contentIdx, Partial: partial}
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				current = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
@@ -538,16 +545,71 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				current = &activeItem{itemType: "function_call", contentIdx: len(partial.Content) - 1}
 				ch <- &goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial}
 			}
-		case "response.completed":
+		case "response.reasoning_summary_text.delta":
+			if current != nil && current.itemType == "reasoning" {
+				partial.Content[current.contentIdx].Thinking += raw.Delta
+				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.output_text.delta":
+			if current != nil && current.itemType == "message" {
+				partial.Content[current.contentIdx].Text += raw.Delta
+				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.function_call_arguments.delta":
+			if current != nil && current.itemType == "function_call" {
+				current.partialJSON += raw.Delta
+				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+				if args != nil {
+					partial.Content[current.contentIdx].Arguments = args
+				}
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.output_item.done":
+			if current == nil {
+				continue
+			}
+			idx := current.contentIdx
+			switch current.itemType {
+			case "reasoning":
+				partial.Content[idx].ThinkingSignature = string(raw.Item)
+				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
+			case "message":
+				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+			case "function_call":
+				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+				if args == nil {
+					args = map[string]interface{}{}
+				}
+				partial.Content[idx].Arguments = args
+				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
+			}
+			current = nil
+		case "error":
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", raw.Code, raw.Message)}
+			return
+		case "response.failed":
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("response failed")}
+			return
+		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {
+				ID     string `json:"id"`
 				Status string `json:"status"`
 				Usage  *struct {
-					InputTokens, OutputTokens, TotalTokens int
+					InputTokens  int `json:"input_tokens"`
+					OutputTokens int `json:"output_tokens"`
+					TotalTokens  int `json:"total_tokens"`
+					InputDetails *struct {
+						CachedTokens int `json:"cached_tokens"`
+					} `json:"input_tokens_details"`
 				} `json:"usage"`
 			}
 			json.Unmarshal(raw.Response, &resp)
+			partial.ResponseID = resp.ID
 			if resp.Usage != nil {
 				partial.Usage = &goai.Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens, TotalTokens: resp.Usage.TotalTokens}
+				if resp.Usage.InputDetails != nil {
+					partial.Usage.CacheRead = resp.Usage.InputDetails.CachedTokens
+				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 			}
 			partial.StopReason = mapCodexStatus(resp.Status)

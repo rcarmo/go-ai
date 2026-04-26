@@ -13,6 +13,7 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/eventstream"
+	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
 const defaultBaseURL = "https://api.anthropic.com/v1"
@@ -332,6 +333,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 
 	ch <- &goai.StartEvent{Partial: partial}
 
+	toolJSON := map[int]string{}
 	events := eventstream.Parse(body)
 	for sse := range events {
 		if sse.Event == eventstream.EventError {
@@ -392,6 +394,10 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 				partial.Content[idx].Thinking += data.Delta.Thinking
 				ch <- &goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: data.Delta.Thinking, Partial: partial}
 			case "input_json_delta":
+				toolJSON[idx] += data.Delta.PartialJSON
+				if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
+					partial.Content[idx].Arguments = args
+				}
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: data.Delta.PartialJSON, Partial: partial}
 			}
 
@@ -413,10 +419,15 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			case "thinking":
 				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: c.Thinking, Partial: partial}
 			case "toolCall":
+				if partial.Content[idx].Arguments == nil && toolJSON[idx] != "" {
+					if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
+						partial.Content[idx].Arguments = args
+					}
+				}
 				ch <- &goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
-						Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: c.Arguments,
+						Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: partial.Content[idx].Arguments,
 					},
 					Partial: partial,
 				}
