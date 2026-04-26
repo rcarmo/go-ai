@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
 	"strings"
@@ -132,15 +133,21 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type responsesRequest struct {
-	Model                 string          `json:"model"`
-	Input                 json.RawMessage `json:"input"`
-	Stream                bool            `json:"stream"`
-	Tools                 []toolDef       `json:"tools,omitempty"`
-	Temperature           *float64        `json:"temperature,omitempty"`
-	MaxOutputTokens       *int            `json:"max_output_tokens,omitempty"`
-	ReasoningEffort       string          `json:"reasoning,omitempty"`
-	ReasoningSummary      string          `json:"reasoning_summary,omitempty"`
-	PromptCacheRetention  string          `json:"prompt_cache_retention,omitempty"`
+	Model                string           `json:"model"`
+	Input                json.RawMessage  `json:"input"`
+	Stream               bool             `json:"stream"`
+	Store                bool             `json:"store"`
+	Tools                []toolDef        `json:"tools,omitempty"`
+	Temperature          *float64         `json:"temperature,omitempty"`
+	MaxOutputTokens      *int             `json:"max_output_tokens,omitempty"`
+	Reasoning            *reasoningConfig `json:"reasoning,omitempty"`
+	Include              []string         `json:"include,omitempty"`
+	PromptCacheRetention string           `json:"prompt_cache_retention,omitempty"`
+}
+
+type reasoningConfig struct {
+	Effort  string `json:"effort"`
+	Summary string `json:"summary,omitempty"`
 }
 
 type toolDef struct {
@@ -154,6 +161,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	req := responsesRequest{
 		Model:  model.ID,
 		Stream: true,
+		Store:  false,
 	}
 
 	if opts != nil {
@@ -180,9 +188,23 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		})
 	}
 
-	// Reasoning
-	if opts != nil && opts.Reasoning != nil {
-		req.ReasoningEffort = string(*opts.Reasoning)
+	// Reasoning — match pi-ai's format: {effort, summary} object + include encrypted content.
+	if model.Reasoning {
+		effort := "medium"
+		if opts != nil && opts.Reasoning != nil {
+			effort = string(*opts.Reasoning)
+		}
+		if model.Provider == goai.ProviderGitHubCopilot && effort == "" {
+			// Copilot: omit reasoning block entirely if no effort requested,
+			// matching pi-ai's behavior for github-copilot without explicit effort.
+		} else {
+			req.Reasoning = &reasoningConfig{Effort: effort, Summary: "auto"}
+			req.Include = []string{"reasoning.encrypted_content"}
+		}
+	} else if opts != nil && opts.Reasoning != nil {
+		// Non-reasoning model but explicit reasoning requested — pass through.
+		req.Reasoning = &reasoningConfig{Effort: string(*opts.Reasoning), Summary: "auto"}
+		req.Include = []string{"reasoning.encrypted_content"}
 	}
 
 	// Cache retention (compat-driven)
@@ -195,13 +217,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 }
 
 type responsesCompat struct {
-	sendSessionIdHeader       bool
+	sendSessionIdHeader        bool
 	supportsLongCacheRetention bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
 	c := responsesCompat{
-		sendSessionIdHeader:       true,
+		sendSessionIdHeader:        true,
 		supportsLongCacheRetention: true,
 	}
 	if model.ResponsesCompat != nil {
@@ -286,30 +308,60 @@ func buildUserContent(msg goai.Message) []map[string]interface{} {
 }
 
 func buildAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
+	// Check if this assistant message came from a different model variant.
+	// When replaying cross-model messages, omit fc_ item IDs to avoid
+	// OpenAI's reasoning/function-call pairing validation.
+	isDifferentModel := msg.Model != "" && msg.Model != model.ID &&
+		msg.Provider == model.Provider &&
+		msg.Api == model.Api
+
 	var items []interface{}
 	for _, block := range msg.Content {
 		switch block.Type {
 		case "thinking":
 			if block.ThinkingSignature != "" {
-				// Replay the original reasoning item
+				// Replay the original reasoning item verbatim
 				var item interface{}
 				if json.Unmarshal([]byte(block.ThinkingSignature), &item) == nil {
 					items = append(items, item)
 				}
 			}
 		case "text":
-			items = append(items, map[string]interface{}{
+			item := map[string]interface{}{
 				"type":    "message",
 				"role":    "assistant",
 				"content": []map[string]interface{}{{"type": "output_text", "text": goai.SanitizeSurrogates(block.Text)}},
 				"status":  "completed",
-			})
+			}
+			// Include id from TextSignature for proper replay
+			if block.TextSignature != "" {
+				var sig struct {
+					ID    string `json:"id"`
+					Phase string `json:"phase"`
+				}
+				if json.Unmarshal([]byte(block.TextSignature), &sig) == nil && sig.ID != "" {
+					msgID := sig.ID
+					if len(msgID) > 64 {
+						msgID = fmt.Sprintf("msg_%x", crc32Hash(msgID))
+					}
+					item["id"] = msgID
+					if sig.Phase != "" {
+						item["phase"] = sig.Phase
+					}
+				}
+			}
+			items = append(items, item)
 		case "toolCall":
 			callID := block.ID
 			itemID := ""
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				itemID = callID[idx+1:]
 				callID = callID[:idx]
+			}
+			// For different-model messages, omit fc_ item IDs to avoid
+			// pairing validation between reasoning and function-call items.
+			if isDifferentModel && strings.HasPrefix(itemID, "fc_") {
+				itemID = ""
 			}
 			item := map[string]interface{}{
 				"type":      "function_call",
@@ -341,6 +393,10 @@ func mustJSON(v interface{}) string {
 	return string(b)
 }
 
+func crc32Hash(s string) uint32 {
+	return crc32.ChecksumIEEE([]byte(s))
+}
+
 // --- Stream processing ---
 
 func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
@@ -355,8 +411,8 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	ch <- &goai.StartEvent{Partial: partial}
 
 	type activeItem struct {
-		itemType   string // "reasoning", "message", "function_call"
-		contentIdx int
+		itemType    string // "reasoning", "message", "function_call"
+		contentIdx  int
 		partialJSON string
 	}
 	var current *activeItem
