@@ -232,7 +232,16 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 
 	// Send request over WebSocket
-	if err := conn.Write(ctx, websocket.MessageText, bodyJSON); err != nil {
+	var envelope map[string]interface{}
+	if err := json.Unmarshal(bodyJSON, &envelope); err != nil {
+		return fmt.Errorf("decode websocket payload: %w", err)
+	}
+	envelope["type"] = "response.create"
+	framedJSON, err := json.Marshal(envelope)
+	if err != nil {
+		return fmt.Errorf("encode websocket payload: %w", err)
+	}
+	if err := conn.Write(ctx, websocket.MessageText, framedJSON); err != nil {
 		return fmt.Errorf("WebSocket write: %w", err)
 	}
 
@@ -254,6 +263,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	var current *activeItem
 
+readLoop:
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -277,6 +287,11 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			Delta    string          `json:"delta,omitempty"`
 			Code     string          `json:"code,omitempty"`
 			Message  string          `json:"message,omitempty"`
+			Error    *struct {
+				Type    string `json:"type,omitempty"`
+				Message string `json:"message,omitempty"`
+				Code    string `json:"code,omitempty"`
+			} `json:"error,omitempty"`
 		}
 		if json.Unmarshal(data, &raw) != nil {
 			continue
@@ -369,7 +384,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			}
 			current = nil
 
-		case "response.completed":
+		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {
 				ID     string `json:"id"`
 				Status string `json:"status"`
@@ -404,9 +419,20 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 					break
 				}
 			}
+			break readLoop
 
 		case "error":
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", raw.Code, raw.Message)}
+			code := raw.Code
+			msg := raw.Message
+			if raw.Error != nil {
+				if code == "" {
+					code = raw.Error.Code
+				}
+				if msg == "" {
+					msg = raw.Error.Message
+				}
+			}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", code, msg)}
 			return nil
 
 		case "response.failed":
