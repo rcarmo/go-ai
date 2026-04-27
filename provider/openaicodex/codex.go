@@ -359,6 +359,27 @@ readLoop:
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
 			}
 
+		case "response.function_call_arguments.done":
+			if current != nil && current.itemType == "function_call" {
+				var done struct {
+					Arguments string `json:"arguments"`
+				}
+				if json.Unmarshal(data, &done) == nil && done.Arguments != "" {
+					previous := current.partialJSON
+					current.partialJSON = done.Arguments
+					args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+					if args != nil {
+						partial.Content[current.contentIdx].Arguments = args
+					}
+					if strings.HasPrefix(done.Arguments, previous) {
+						delta := strings.TrimPrefix(done.Arguments, previous)
+						if delta != "" {
+							ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial}
+						}
+					}
+				}
+			}
+
 		case "response.output_item.done":
 			if current == nil {
 				continue
@@ -372,6 +393,14 @@ readLoop:
 				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+				if args == nil {
+					var item struct {
+						Arguments string `json:"arguments"`
+					}
+					if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
+						args, _ = jsonparse.ParsePartialJSON(item.Arguments)
+					}
+				}
 				if args == nil {
 					args = map[string]interface{}{}
 				}
@@ -595,6 +624,26 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				}
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
 			}
+		case "response.function_call_arguments.done":
+			if current != nil && current.itemType == "function_call" {
+				var done struct {
+					Arguments string `json:"arguments"`
+				}
+				if json.Unmarshal([]byte(sse.Data), &done) == nil && done.Arguments != "" {
+					previous := current.partialJSON
+					current.partialJSON = done.Arguments
+					args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+					if args != nil {
+						partial.Content[current.contentIdx].Arguments = args
+					}
+					if strings.HasPrefix(done.Arguments, previous) {
+						delta := strings.TrimPrefix(done.Arguments, previous)
+						if delta != "" {
+							ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial}
+						}
+					}
+				}
+			}
 		case "response.output_item.done":
 			if current == nil {
 				continue
@@ -608,6 +657,14 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+				if args == nil {
+					var item struct {
+						Arguments string `json:"arguments"`
+					}
+					if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
+						args, _ = jsonparse.ParsePartialJSON(item.Arguments)
+					}
+				}
 				if args == nil {
 					args = map[string]interface{}{}
 				}
