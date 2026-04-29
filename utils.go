@@ -4,6 +4,7 @@ package goai
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
 	"strings"
 )
 
@@ -51,4 +52,38 @@ func CopilotHeadersWithIntent(intent string) map[string]string {
 		h["openai-intent"] = intent
 	}
 	return h
+}
+
+// --- Cloudflare Workers AI ---
+
+// ResolveCloudflareBaseURL substitutes {VAR} placeholders in a Cloudflare
+// base URL from environment variables (e.g., {CLOUDFLARE_ACCOUNT_ID}).
+func ResolveCloudflareBaseURL(model *Model) string {
+	url := model.BaseURL
+	if !strings.Contains(url, "{") {
+		return url
+	}
+	result := url
+	for {
+		start := strings.Index(result, "{")
+		if start < 0 {
+			break
+		}
+		end := strings.Index(result[start:], "}")
+		if end < 0 {
+			break
+		}
+		name := result[start+1 : start+end]
+		value := os.Getenv(name)
+		if value == "" {
+			logWarn("cloudflare base URL placeholder not set", "var", name, "provider", model.Provider)
+		}
+		result = result[:start] + value + result[start+end+1:]
+	}
+	return result
+}
+
+// IsCloudflareProvider returns true if the provider is Cloudflare Workers AI.
+func IsCloudflareProvider(provider Provider) bool {
+	return provider == ProviderCloudflareWorkersAI
 }

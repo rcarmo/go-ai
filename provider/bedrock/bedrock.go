@@ -319,15 +319,34 @@ func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
 	return result
 }
 
-func isClaudeModel(id string, name ...string) bool {
-	candidates := []string{strings.ToLower(id)}
-	for _, n := range name {
-		if n != "" {
-			candidates = append(candidates, strings.ToLower(n))
+// getModelMatchCandidates returns lowercased and normalized variants of model ID/name
+// for matching. Normalizes separators (spaces, underscores, dots, colons) to hyphens.
+func getModelMatchCandidates(modelID string, modelName string) []string {
+	values := []string{modelID}
+	if modelName != "" {
+		values = append(values, modelName)
+	}
+	var candidates []string
+	for _, v := range values {
+		lower := strings.ToLower(v)
+		candidates = append(candidates, lower)
+		// Normalize separators to hyphens
+		normalized := strings.NewReplacer(" ", "-", "_", "-", ".", "-", ":", "-").Replace(lower)
+		if normalized != lower {
+			candidates = append(candidates, normalized)
 		}
 	}
+	return candidates
+}
+
+func isClaudeModel(id string, name ...string) bool {
+	modelName := ""
+	if len(name) > 0 {
+		modelName = name[0]
+	}
+	candidates := getModelMatchCandidates(id, modelName)
 	for _, s := range candidates {
-		if strings.Contains(s, "anthropic.claude") || strings.Contains(s, "anthropic/claude") {
+		if strings.Contains(s, "anthropic.claude") || strings.Contains(s, "anthropic/claude") || strings.Contains(s, "anthropic-claude") {
 			return true
 		}
 	}

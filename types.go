@@ -54,6 +54,7 @@ const (
 	ProviderOpenCodeGo       Provider = "opencode-go"
 	ProviderKimiCoding       Provider = "kimi-coding"
 	ProviderDeepSeek         Provider = "deepseek"
+	ProviderCloudflareWorkersAI Provider = "cloudflare-workers-ai"
 )
 
 // ThinkingLevel controls the reasoning depth.

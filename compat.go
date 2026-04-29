@@ -91,6 +91,7 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 	isVercel := contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
 	isDeepSeek := contains(baseURL, "deepseek.com")
+	isCloudflare := contains(baseURL, "api.cloudflare.com")
 
 	t := true
 	f := false
@@ -141,6 +142,11 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 	if isDeepSeek {
 		c.ThinkingFormat = "deepseek"
 		c.RequiresReasoningContentOnAssistantMessages = &t
+	}
+
+	if isCloudflare {
+		c.SupportsReasoningEffort = &f
+		c.SupportsUsageInStreaming = &t
 	}
 
 	return c

@@ -2,18 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.70.2
+## Source: `@mariozechner/pi-ai` v0.70.6
 
 ## Sync history
 
-### v0.70.2 (2026-04-24)
+### v0.70.6 (2026-04-29)
 
-**Refactor-only release.** SDK request options now use spread-conditional syntax to avoid passing `undefined` keys. No behavioral change. One context window fix in model registry (1000000 → 1048576 for a Gemini model).
+**New Cloudflare Workers AI provider + Bedrock model matching improvements.**
 
-No go-ai code changes needed — we use raw HTTP, not SDK clients.
-Regenerated model registry for the context window fix.
+- **New provider**: `cloudflare-workers-ai` with env-based URL placeholder substitution (`{CLOUDFLARE_ACCOUNT_ID}`).
+  Added provider constant, env key, compat detection, and `ResolveCloudflareBaseURL()` helper.
+- **Bedrock**: `getModelMatchCandidates()` now normalizes separators (`.`, `_`, `:`, ` ` → `-`) for
+  robust matching of inference profile ARNs. `supportsAdaptiveThinking` simplified to use normalized names.
+- **Model registry**: 897 → 909 models, 25 → 26 providers.
 
-### v0.70.1 (2026-04-24)
+### v0.70.5 (2026-04-29)
+
+No-op release — identical to v0.70.4.
+
+### v0.70.4 (2026-04-29)
+
+Metadata-only: model registry 890 → 897.
+
+### v0.70.3 (2026-04-29)
 
 **DeepSeek provider + SDK timeout/retry options.**
 
@@ -132,6 +143,6 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 | Core + utils | 723 | 1,800+ | ~100% |
 | Providers | 6,887 | 4,900+ | ~100% (all APIs) |
 | OAuth | 2,120 | 1,500+ | ~100% (all flows) |
-| Models generated | 15,156 | 10,900+ | 100% (code gen) |
+| Models generated | 15,156+ | 11,100+ | 100% (code gen) |
 | CLI | 115 | — | Skip |
 | **Total** | **24,278** | **18,597+** | **Feature complete** |
