@@ -744,7 +744,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		Store:             false,
 		Stream:            true,
 		Instructions:      convCtx.SystemPrompt,
-		Text:              map[string]interface{}{"verbosity": "medium"},
+		Text:              map[string]interface{}{"verbosity": "low"},
 		Include:           []string{"reasoning.encrypted_content"},
 		ToolChoice:        "auto",
 		ParallelToolCalls: &parallelToolCalls,

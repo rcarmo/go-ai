@@ -234,7 +234,7 @@ func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
 					}
 					// Thinking blocks are sent via reasoningContent for Claude
 					// Fall back to text for non-Claude models
-					if isClaudeModel(model.ID) && b.ThinkingSignature != "" {
+					if isClaudeModel(model.ID, model.Name) && b.ThinkingSignature != "" {
 						// Would use reasoningContent here but the Go SDK types
 						// may not support it yet. Fall back to text.
 						content = append(content, &types.ContentBlockMemberText{
@@ -319,9 +319,19 @@ func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
 	return result
 }
 
-func isClaudeModel(id string) bool {
-	lower := strings.ToLower(id)
-	return strings.Contains(lower, "anthropic.claude") || strings.Contains(lower, "anthropic/claude")
+func isClaudeModel(id string, name ...string) bool {
+	candidates := []string{strings.ToLower(id)}
+	for _, n := range name {
+		if n != "" {
+			candidates = append(candidates, strings.ToLower(n))
+		}
+	}
+	for _, s := range candidates {
+		if strings.Contains(s, "anthropic.claude") || strings.Contains(s, "anthropic/claude") {
+			return true
+		}
+	}
+	return false
 }
 
 func getThinkingBudget(level goai.ThinkingLevel, custom *goai.ThinkingBudgets) int {
