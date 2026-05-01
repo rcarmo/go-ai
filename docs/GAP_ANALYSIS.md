@@ -2,9 +2,25 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.71.0
+## Source: `@mariozechner/pi-ai` v0.71.1
 
 ## Sync history
+
+### v0.71.1 (2026-05-01)
+
+**Patch release.** OpenAI Codex WebSocket cached transport + model metadata.
+
+- **New transport value**: `websocket-cached` added to `Transport`.
+- **OpenAI Codex**: cached WebSocket sessions can reuse a session-scoped connection and send deltas with `previous_response_id` when the new request extends the previous context.
+- **OpenAI Codex debug helpers**: added Go equivalents for cached WebSocket stats reset/get and session close.
+- **Model registry**: 949 → 951 models, including Grok 4.3 variants.
+
+Deep audit result:
+
+- Ported the new Codex transport value.
+- Added cached WebSocket session handling, continuation delta construction, and debug stats.
+- Added tests proving second cached WebSocket requests reuse the connection and send only delta input plus `previous_response_id`.
+- No other provider payload/API changes in v0.71.1.
 
 ### v0.71.0 (2026-05-01)
 

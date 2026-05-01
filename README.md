@@ -113,7 +113,7 @@ go-ai/
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go  # 949 models / 27 providers (auto-generated)
+├── models_generated.go  # 951 models / 27 providers (auto-generated)
 ├── doc.go               # Package documentation
 │
 ├── provider/            # LLM provider implementations (blank-import to register)

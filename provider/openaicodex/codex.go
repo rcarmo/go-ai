@@ -13,8 +13,10 @@ import (
 	"hash/crc32"
 	"io"
 	"net/http"
+	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -55,7 +57,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			transport = opts.Transport
 		}
 
-		if transport == goai.TransportWebSocket || transport == goai.TransportAuto {
+		if transport == goai.TransportWebSocket || transport == goai.TransportWebSocketCached || transport == goai.TransportAuto {
 			err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
 			if err == nil {
 				return
@@ -162,6 +164,259 @@ func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, acco
 
 // --- WebSocket transport ---
 
+type codexWebSocketContinuation struct {
+	lastRequestBody   map[string]interface{}
+	lastResponseID    string
+	lastResponseItems []interface{}
+}
+
+type codexWebSocketSessionEntry struct {
+	conn         *websocket.Conn
+	continuation *codexWebSocketContinuation
+	mu           sync.Mutex
+}
+
+// OpenAICodexWebSocketDebugStats exposes lightweight instrumentation for
+// websocket-cached transport behavior, mirroring pi-ai's debug helpers.
+type OpenAICodexWebSocketDebugStats struct {
+	Requests               int    `json:"requests"`
+	ConnectionsCreated     int    `json:"connectionsCreated"`
+	ConnectionsReused      int    `json:"connectionsReused"`
+	CachedContextRequests  int    `json:"cachedContextRequests"`
+	StoreTrueRequests      int    `json:"storeTrueRequests"`
+	FullContextRequests    int    `json:"fullContextRequests"`
+	DeltaRequests          int    `json:"deltaRequests"`
+	LastInputItems         int    `json:"lastInputItems"`
+	LastDeltaInputItems    *int   `json:"lastDeltaInputItems,omitempty"`
+	LastPreviousResponseID string `json:"lastPreviousResponseId,omitempty"`
+}
+
+var (
+	codexWebSocketSessionsMu sync.Mutex
+	codexWebSocketSessions   = map[string]*codexWebSocketSessionEntry{}
+	codexWebSocketStats      = map[string]*OpenAICodexWebSocketDebugStats{}
+)
+
+// GetOpenAICodexWebSocketDebugStats returns a copy of cached WebSocket stats for sessionID.
+func GetOpenAICodexWebSocketDebugStats(sessionID string) *OpenAICodexWebSocketDebugStats {
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	stats := codexWebSocketStats[sessionID]
+	if stats == nil {
+		return nil
+	}
+	copy := *stats
+	return &copy
+}
+
+// ResetOpenAICodexWebSocketDebugStats clears stats for one session, or all sessions when empty.
+func ResetOpenAICodexWebSocketDebugStats(sessionID string) {
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	if sessionID != "" {
+		delete(codexWebSocketStats, sessionID)
+		return
+	}
+	codexWebSocketStats = map[string]*OpenAICodexWebSocketDebugStats{}
+}
+
+// CloseOpenAICodexWebSocketSessions closes one cached Codex WebSocket session, or all when empty.
+func CloseOpenAICodexWebSocketSessions(sessionID string) {
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	closeEntry := func(entry *codexWebSocketSessionEntry) {
+		if entry != nil && entry.conn != nil {
+			_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
+		}
+	}
+	if sessionID != "" {
+		closeEntry(codexWebSocketSessions[sessionID])
+		delete(codexWebSocketSessions, sessionID)
+		return
+	}
+	for _, entry := range codexWebSocketSessions {
+		closeEntry(entry)
+	}
+	codexWebSocketSessions = map[string]*codexWebSocketSessionEntry{}
+}
+
+func recordCodexWebSocketStats(sessionID string, reused bool, useCachedContext bool, requestEnvelope map[string]interface{}) {
+	if sessionID == "" {
+		return
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	stats := codexWebSocketStats[sessionID]
+	if stats == nil {
+		stats = &OpenAICodexWebSocketDebugStats{}
+		codexWebSocketStats[sessionID] = stats
+	}
+	stats.Requests++
+	if reused {
+		stats.ConnectionsReused++
+	} else {
+		stats.ConnectionsCreated++
+	}
+	if useCachedContext {
+		stats.CachedContextRequests++
+	}
+	if store, _ := requestEnvelope["store"].(bool); store {
+		stats.StoreTrueRequests++
+	}
+	stats.LastInputItems = countInputItems(requestEnvelope)
+	if previousID, _ := requestEnvelope["previous_response_id"].(string); previousID != "" {
+		stats.DeltaRequests++
+		stats.LastPreviousResponseID = previousID
+		items := countInputItems(requestEnvelope)
+		stats.LastDeltaInputItems = &items
+	} else {
+		stats.FullContextRequests++
+		stats.LastPreviousResponseID = ""
+		stats.LastDeltaInputItems = nil
+	}
+}
+
+func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, retryCfg goai.RetryConfig, model *goai.Model) (*websocket.Conn, error) {
+	var (
+		conn  *websocket.Conn
+		wsErr error
+	)
+	for attempt := 0; ; attempt++ {
+		dialCtx := ctx
+		cancel := func() {}
+		if retryCfg.ConnectTimeout > 0 {
+			dialCtx, cancel = context.WithTimeout(ctx, retryCfg.ConnectTimeout)
+		}
+		conn, _, wsErr = websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+		cancel()
+		if wsErr == nil {
+			return conn, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if attempt >= retryCfg.MaxRetries {
+			return nil, fmt.Errorf("WebSocket dial: %w", wsErr)
+		}
+		delay := retryutil.ComputeBackoff(attempt, retryCfg.InitialDelay, retryCfg.MaxDelay, retryCfg.BackoffMultiplier, retryCfg.JitterFraction)
+		goai.GetLogger().Warn("websocket dial retry", "provider", model.Provider, "model", model.ID, "attempt", attempt+1, "maxRetries", retryCfg.MaxRetries, "delay", delay, "error", wsErr)
+		if retryCfg.OnRetry != nil {
+			retryCfg.OnRetry(attempt, delay, 0)
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*codexWebSocketSessionEntry, bool, error) {
+	codexWebSocketSessionsMu.Lock()
+	if entry := codexWebSocketSessions[sessionID]; entry != nil {
+		codexWebSocketSessionsMu.Unlock()
+		return entry, true, nil
+	}
+	codexWebSocketSessionsMu.Unlock()
+
+	conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
+	if err != nil {
+		return nil, false, err
+	}
+	entry := &codexWebSocketSessionEntry{conn: conn}
+
+	codexWebSocketSessionsMu.Lock()
+	if existing := codexWebSocketSessions[sessionID]; existing != nil {
+		codexWebSocketSessionsMu.Unlock()
+		conn.CloseNow()
+		return existing, true, nil
+	}
+	codexWebSocketSessions[sessionID] = entry
+	codexWebSocketSessionsMu.Unlock()
+	return entry, false, nil
+}
+
+func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionEntry) {
+	if sessionID == "" {
+		return
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	if codexWebSocketSessions[sessionID] == entry {
+		delete(codexWebSocketSessions, sessionID)
+	}
+}
+
+func requestBodyWithoutCodexInput(body map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for k, v := range body {
+		if k == "input" || k == "previous_response_id" || k == "type" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func requestBodiesMatchExceptInput(a, b map[string]interface{}) bool {
+	return reflect.DeepEqual(requestBodyWithoutCodexInput(a), requestBodyWithoutCodexInput(b))
+}
+
+func inputItems(body map[string]interface{}) []interface{} {
+	items, _ := body["input"].([]interface{})
+	return items
+}
+
+func getCachedWebSocketInputDelta(body map[string]interface{}, continuation *codexWebSocketContinuation) []interface{} {
+	if continuation == nil || !requestBodiesMatchExceptInput(body, continuation.lastRequestBody) {
+		return nil
+	}
+	current := inputItems(body)
+	baseline := append([]interface{}{}, inputItems(continuation.lastRequestBody)...)
+	baseline = append(baseline, continuation.lastResponseItems...)
+	if len(current) < len(baseline) {
+		return nil
+	}
+	if !reflect.DeepEqual(current[:len(baseline)], baseline) {
+		return nil
+	}
+	return current[len(baseline):]
+}
+
+func buildCachedWebSocketRequestBody(entry *codexWebSocketSessionEntry, body map[string]interface{}) map[string]interface{} {
+	if entry == nil || entry.continuation == nil {
+		return body
+	}
+	delta := getCachedWebSocketInputDelta(body, entry.continuation)
+	if delta == nil || entry.continuation.lastResponseID == "" {
+		entry.continuation = nil
+		return body
+	}
+	out := map[string]interface{}{}
+	for k, v := range body {
+		out[k] = v
+	}
+	out["previous_response_id"] = entry.continuation.lastResponseID
+	out["input"] = delta
+	return out
+}
+
+func countInputItems(body map[string]interface{}) int { return len(inputItems(body)) }
+
+func normalizeJSONValue(v interface{}) interface{} {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	var out interface{}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return v
+	}
+	return out
+}
+
 func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event) error {
 	wsURL := resolveCodexWSURL(model.BaseURL)
 	goai.GetLogger().Debug("WebSocket connect", "url", wsURL, "provider", model.Provider)
@@ -182,43 +437,29 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}(), accountID, apiKey, requestID)
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
+	useCachedContext := opts != nil && opts.Transport == goai.TransportWebSocketCached && opts.SessionID != ""
 	var (
-		conn  *websocket.Conn
-		wsErr error
+		conn   *websocket.Conn
+		entry  *codexWebSocketSessionEntry
+		reused bool
 	)
-	for attempt := 0; ; attempt++ {
-		dialCtx := ctx
-		cancel := func() {}
-		if retryCfg.ConnectTimeout > 0 {
-			dialCtx, cancel = context.WithTimeout(ctx, retryCfg.ConnectTimeout)
+	if useCachedContext {
+		var err error
+		entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, opts.SessionID, retryCfg, model)
+		if err != nil {
+			return err
 		}
-		conn, _, wsErr = websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{
-			HTTPHeader: headers,
-		})
-		cancel()
-		if wsErr == nil {
-			break
+		entry.mu.Lock()
+		defer entry.mu.Unlock()
+		conn = entry.conn
+	} else {
+		var err error
+		conn, err = dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
+		if err != nil {
+			return err
 		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if attempt >= retryCfg.MaxRetries {
-			return fmt.Errorf("WebSocket dial: %w", wsErr)
-		}
-		delay := retryutil.ComputeBackoff(attempt, retryCfg.InitialDelay, retryCfg.MaxDelay, retryCfg.BackoffMultiplier, retryCfg.JitterFraction)
-		goai.GetLogger().Warn("websocket dial retry", "provider", model.Provider, "model", model.ID, "attempt", attempt+1, "maxRetries", retryCfg.MaxRetries, "delay", delay, "error", wsErr)
-		if retryCfg.OnRetry != nil {
-			retryCfg.OnRetry(attempt, delay, 0)
-		}
-		timer := time.NewTimer(delay)
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		}
+		defer conn.CloseNow()
 	}
-	defer conn.CloseNow()
 
 	// Build request body
 	body := buildCodexRequest(model, convCtx, opts)
@@ -232,16 +473,30 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 
 	// Send request over WebSocket
-	var envelope map[string]interface{}
-	if err := json.Unmarshal(bodyJSON, &envelope); err != nil {
+	var fullEnvelope map[string]interface{}
+	if err := json.Unmarshal(bodyJSON, &fullEnvelope); err != nil {
 		return fmt.Errorf("decode websocket payload: %w", err)
 	}
-	envelope["type"] = "response.create"
-	framedJSON, err := json.Marshal(envelope)
+	requestEnvelope := fullEnvelope
+	if useCachedContext && entry != nil {
+		requestEnvelope = buildCachedWebSocketRequestBody(entry, fullEnvelope)
+	}
+	if opts != nil && opts.SessionID != "" {
+		recordCodexWebSocketStats(opts.SessionID, reused, useCachedContext, requestEnvelope)
+	}
+	sendEnvelope := map[string]interface{}{}
+	for k, v := range requestEnvelope {
+		sendEnvelope[k] = v
+	}
+	sendEnvelope["type"] = "response.create"
+	framedJSON, err := json.Marshal(sendEnvelope)
 	if err != nil {
 		return fmt.Errorf("encode websocket payload: %w", err)
 	}
 	if err := conn.Write(ctx, websocket.MessageText, framedJSON); err != nil {
+		if useCachedContext && entry != nil && opts != nil {
+			removeCodexWebSocketSession(opts.SessionID, entry)
+		}
 		return fmt.Errorf("WebSocket write: %w", err)
 	}
 
@@ -267,6 +522,10 @@ readLoop:
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
+			if useCachedContext && entry != nil && opts != nil {
+				removeCodexWebSocketSession(opts.SessionID, entry)
+				entry.continuation = nil
+			}
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
@@ -451,6 +710,9 @@ readLoop:
 			break readLoop
 
 		case "error":
+			if useCachedContext && entry != nil {
+				entry.continuation = nil
+			}
 			code := raw.Code
 			msg := raw.Message
 			if raw.Error != nil {
@@ -465,12 +727,30 @@ readLoop:
 			return nil
 
 		case "response.failed":
+			if useCachedContext && entry != nil {
+				entry.continuation = nil
+			}
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("response failed")}
 			return nil
 		}
 	}
 
-	conn.Close(websocket.StatusNormalClosure, "done")
+	if useCachedContext && entry != nil && partial.ResponseID != "" {
+		responseItems := buildCodexInput(model, &goai.Context{Messages: []goai.Message{*partial}})
+		filtered := make([]interface{}, 0, len(responseItems))
+		for _, item := range responseItems {
+			if m, ok := item.(map[string]interface{}); ok && m["type"] == "function_call_output" {
+				continue
+			}
+			filtered = append(filtered, item)
+		}
+		normalized, _ := normalizeJSONValue(filtered).([]interface{})
+		entry.continuation = &codexWebSocketContinuation{lastRequestBody: fullEnvelope, lastResponseID: partial.ResponseID, lastResponseItems: normalized}
+	} else if useCachedContext && entry != nil {
+		entry.continuation = nil
+	} else {
+		conn.Close(websocket.StatusNormalClosure, "done")
+	}
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == "" {
@@ -714,20 +994,21 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 // --- Request building ---
 
 type codexRequest struct {
-	Model             string          `json:"model"`
-	Store             bool            `json:"store"`
-	Stream            bool            `json:"stream"`
-	Instructions      string          `json:"instructions,omitempty"`
-	Input             json.RawMessage `json:"input"`
-	Tools             []codexTool     `json:"tools,omitempty"`
-	MaxOutputTokens   *int            `json:"max_output_tokens,omitempty"`
-	Temperature       *float64        `json:"temperature,omitempty"`
-	Reasoning         interface{}     `json:"reasoning,omitempty"`
-	Text              interface{}     `json:"text,omitempty"`
-	Include           []string        `json:"include,omitempty"`
-	PromptCacheKey    string          `json:"prompt_cache_key,omitempty"`
-	ToolChoice        string          `json:"tool_choice,omitempty"`
-	ParallelToolCalls *bool           `json:"parallel_tool_calls,omitempty"`
+	Model              string          `json:"model"`
+	Store              bool            `json:"store"`
+	Stream             bool            `json:"stream"`
+	Instructions       string          `json:"instructions,omitempty"`
+	Input              json.RawMessage `json:"input"`
+	Tools              []codexTool     `json:"tools,omitempty"`
+	MaxOutputTokens    *int            `json:"max_output_tokens,omitempty"`
+	Temperature        *float64        `json:"temperature,omitempty"`
+	Reasoning          interface{}     `json:"reasoning,omitempty"`
+	Text               interface{}     `json:"text,omitempty"`
+	Include            []string        `json:"include,omitempty"`
+	PromptCacheKey     string          `json:"prompt_cache_key,omitempty"`
+	PreviousResponseID string          `json:"previous_response_id,omitempty"`
+	ToolChoice         string          `json:"tool_choice,omitempty"`
+	ParallelToolCalls  *bool           `json:"parallel_tool_calls,omitempty"`
 }
 
 type codexTool struct {

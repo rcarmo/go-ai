@@ -104,9 +104,10 @@ const (
 type Transport string
 
 const (
-	TransportSSE       Transport = "sse"
-	TransportWebSocket Transport = "websocket"
-	TransportAuto      Transport = "auto"
+	TransportSSE             Transport = "sse"
+	TransportWebSocket       Transport = "websocket"
+	TransportWebSocketCached Transport = "websocket-cached"
+	TransportAuto            Transport = "auto"
 )
 
 // --- Content types ---
