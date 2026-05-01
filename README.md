@@ -8,8 +8,19 @@
 
 A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
-> **⚠️ Experimental.** This library tracks the TypeScript original and is under
-> active development. The API surface may change and has gone through limited testing. Use in production at your own risk.
+> **⚠️ Experimental.** This module is still at `v0` and tracks the TypeScript original closely.
+> The API surface may change before `v1`. Use in production at your own risk.
+
+## Documentation
+
+- [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) — published API documentation for the module.
+- [Source repository](https://github.com/rcarmo/go-ai) — issues, releases, CI status, and source history.
+- [Basic usage](docs/basic-usage.md) — getting started with streaming and completion calls.
+- [Model selection](docs/model-selection.md) — built-in registry and provider/model lookup.
+- [Prompt and context handling](docs/prompts-and-context.md) — message shapes, context, and serialization.
+- [Tool calling](docs/tool-calling.md) — tool definitions, tool-call events, and tool results.
+- [Image handling](docs/image-handling.md) — multimodal inputs and provider support.
+- [Harness helpers](docs/HARNESS.md) — higher-level agent/session helpers.
 
 ## Why
 
@@ -95,14 +106,14 @@ go-ai/
 ├── context.go           # Overflow detection, tool call validation
 ├── transform.go         # Cross-provider message normalization
 ├── harness.go           # Agent helpers: clone, save/load, compact, hooks
-├── env.go               # API key resolution (20 providers)
-├── compat.go            # OpenAI Completions compat flags (16 flags)
+├── env.go               # API key resolution for known providers
+├── compat.go            # OpenAI-compatible provider compatibility flags
 ├── retry.go             # Exponential backoff with configurable limits
 ├── logger.go            # Pluggable leveled logging (zero-cost default)
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go  # 865 models / 24 providers (auto-generated)
+├── models_generated.go  # 949 models / 27 providers (auto-generated)
 ├── doc.go               # Package documentation
 │
 ├── provider/            # LLM provider implementations (blank-import to register)
@@ -162,6 +173,8 @@ go-ai/
 | Amazon Bedrock | `bedrock-converse-stream` | ✅ Implemented |
 | Google Gemini CLI | `google-gemini-cli` | ✅ Implemented |
 | OpenAI Codex | `openai-codex-responses` | ✅ Implemented |
+| Cloudflare Workers AI / AI Gateway | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
+| Moonshot AI | `openai-completions` | ✅ Implemented |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
 
 ## OAuth

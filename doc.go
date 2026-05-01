@@ -36,4 +36,28 @@
 //
 // Retries are opt-in per request via StreamOptions.RetryConfig. By default,
 // providers do not retry.
+//
+// # Documentation
+//
+// The rendered API reference is published by pkg.go.dev. For task-oriented
+// guides and design notes, see the project documentation in the source
+// repository:
+//
+//   - [Basic usage]
+//   - [Model selection]
+//   - [Prompt and context handling]
+//   - [Tool calling]
+//   - [Image handling]
+//   - [Harness helpers]
+//   - [Source repository]
+//
+// This module is currently v0 and should be treated as experimental until v1.
+//
+// [Basic usage]: https://github.com/rcarmo/go-ai/blob/main/docs/basic-usage.md
+// [Model selection]: https://github.com/rcarmo/go-ai/blob/main/docs/model-selection.md
+// [Prompt and context handling]: https://github.com/rcarmo/go-ai/blob/main/docs/prompts-and-context.md
+// [Tool calling]: https://github.com/rcarmo/go-ai/blob/main/docs/tool-calling.md
+// [Image handling]: https://github.com/rcarmo/go-ai/blob/main/docs/image-handling.md
+// [Harness helpers]: https://github.com/rcarmo/go-ai/blob/main/docs/HARNESS.md
+// [Source repository]: https://github.com/rcarmo/go-ai
 package goai
