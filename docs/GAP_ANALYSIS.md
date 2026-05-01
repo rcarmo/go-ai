@@ -2,9 +2,27 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.70.6
+## Source: `@mariozechner/pi-ai` v0.71.0
 
 ## Sync history
+
+### v0.71.0 (2026-05-01)
+
+**Minor release.** Provider consolidation + new providers + model tracking.
+
+- **Removed from KnownApi**: `google-gemini-cli` (merged into `google-generative-ai`).
+- **Removed from KnownProvider**: `google-gemini-cli`, `google-antigravity` (deprecated upstream).
+- **New providers**: `moonshotai`, `moonshotai-cn`, `cloudflare-ai-gateway`.
+- **New type field**: `responseModel` on `AssistantMessage` — tracks the model ID reported by the provider if different from the requested model.
+- **Anthropic**: stream integrity check (message_start without message_stop → error), Cloudflare AI Gateway routing support.
+- **Cloudflare**: AI Gateway URLs (`/compat`, `/openai`, `/anthropic` passthrough), `cf-aig-authorization` header.
+- **OpenAI Completions**: `responseModel` tracking, `prompt_cache_hit_tokens` fallback for cached token count, Moonshot/Cloudflare AI Gateway compat.
+- **OpenAI Responses**: Cloudflare AI Gateway URL resolution + custom auth header.
+- **Google Shared**: removed Antigravity references and Gemini 3 thought signature sentinel.
+- **Mistral**: `mistral-medium-3.5` added to models needing special reasoning handling.
+- **SupportsXhigh**: added `deepseek-v4-flash`.
+- **OAuth**: removed Antigravity and Gemini CLI OAuth exports (deprecated).
+- **Model registry**: 909 → 949 models, 26 → 27 providers.
 
 ### v0.70.6 (2026-04-29)
 

@@ -92,6 +92,8 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
 	isDeepSeek := contains(baseURL, "deepseek.com")
 	isCloudflare := contains(baseURL, "api.cloudflare.com")
+	isCloudflareAIGW := contains(baseURL, "gateway.ai.cloudflare.com")
+	isMoonshot := contains(baseURL, "api.moonshot.")
 
 	t := true
 	f := false
@@ -147,6 +149,18 @@ func DetectCompat(baseURL string) OpenAICompletionsCompat {
 	if isCloudflare {
 		c.SupportsReasoningEffort = &f
 		c.SupportsUsageInStreaming = &t
+	}
+
+	if isCloudflareAIGW {
+		c.SupportsReasoningEffort = &f
+		c.SupportsUsageInStreaming = &t
+		c.MaxTokensField = "max_tokens"
+	}
+
+	if isMoonshot {
+		c.SupportsReasoningEffort = &f
+		c.SupportsUsageInStreaming = &t
+		c.MaxTokensField = "max_tokens"
 	}
 
 	return c

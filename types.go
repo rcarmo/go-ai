@@ -55,6 +55,9 @@ const (
 	ProviderKimiCoding       Provider = "kimi-coding"
 	ProviderDeepSeek         Provider = "deepseek"
 	ProviderCloudflareWorkersAI Provider = "cloudflare-workers-ai"
+	ProviderCloudflareAIGateway Provider = "cloudflare-ai-gateway"
+	ProviderMoonshotAI         Provider = "moonshotai"
+	ProviderMoonshotAICN       Provider = "moonshotai-cn"
 )
 
 // ThinkingLevel controls the reasoning depth.
@@ -198,7 +201,8 @@ type Message struct {
 	Api          Api        `json:"api,omitempty"`
 	Provider     Provider   `json:"provider,omitempty"`
 	Model        string     `json:"model,omitempty"`
-	ResponseID   string     `json:"responseId,omitempty"`
+	ResponseID    string     `json:"responseId,omitempty"`
+	ResponseModel string     `json:"responseModel,omitempty"`
 	Usage        *Usage     `json:"usage,omitempty"`
 	StopReason   StopReason `json:"stopReason,omitempty"`
 	ErrorMessage string     `json:"errorMessage,omitempty"`

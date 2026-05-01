@@ -85,5 +85,5 @@ func ResolveCloudflareBaseURL(model *Model) string {
 
 // IsCloudflareProvider returns true if the provider is Cloudflare Workers AI.
 func IsCloudflareProvider(provider Provider) bool {
-	return provider == ProviderCloudflareWorkersAI
+	return provider == ProviderCloudflareWorkersAI || provider == ProviderCloudflareAIGateway
 }
