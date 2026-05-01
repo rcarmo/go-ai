@@ -179,7 +179,80 @@ Check for:
 - changed token refresh behavior
 - `ModifyModels()` behavior changes
 
-### Step 7: compare docs and residual gaps
+### Step 7: deep payload/API audit pass
+
+After the mechanical per-version sync, do a deliberate second pass over recent upstream code-structure changes. This is **mandatory** for behavioral/API-affecting releases and recommended even for metadata-looking releases when provider files changed.
+
+Audit at least:
+
+- **Type/API surface**
+  - `dist/types.d.ts`, `dist/index.d.ts`, `dist/api-registry.d.ts`
+  - `KnownApi`, `KnownProvider`, message fields such as `responseId` / `responseModel`
+  - `StreamOptions` / simple options changes (`serviceTier`, `reasoningSummary`, `timeoutMs`, `maxRetries`, cache/session options)
+- **Model payload construction**
+  - request fields added/removed/renamed (`max_tokens`, `max_completion_tokens`, `max_output_tokens`, `prompt_cache_key`, `prompt_cache_retention`, `reasoning`, `reasoning_effort`, provider-specific `thinking` blocks)
+  - tool payload shape (`strict`, tool stream flags, tool result names, function call ID normalization)
+  - image/tool-result replay behavior
+- **Provider headers and base URLs**
+  - API key header changes (`Authorization`, `X-Api-Key`, `cf-aig-authorization`, Copilot dynamic headers)
+  - session/cache affinity headers
+  - placeholder base URL resolution (e.g. Cloudflare `{CLOUDFLARE_*}`)
+  - Azure/OpenAI/Anthropic URL normalization differences
+- **Streaming/event parsing**
+  - response ID/model capture
+  - usage/cache token normalization (`cached_tokens`, `cache_write_tokens`, `prompt_cache_hit_tokens`)
+  - stop reason mapping
+  - incomplete stream detection (e.g. Anthropic `message_start` without `message_stop`)
+  - SSE/WS retry and error propagation changes
+- **Compatibility detection**
+  - provider-first vs URL-based detection
+  - explicit model compat overrides
+  - provider quirks for OpenRouter, DeepSeek, Moonshot, Cloudflare Workers AI / AI Gateway, Ollama, Groq, Cerebras, xAI, z.ai, Vercel AI Gateway, Qwen/DashScope, Chutes, OpenCode
+- **Reasoning/thinking behavior**
+  - simple option mapping and clamping
+  - provider-specific reasoning effort maps
+  - Mistral `promptMode` vs `reasoningEffort`
+  - Bedrock/Anthropic adaptive thinking and model-name matching
+  - Google thought signatures and cross-provider replay behavior
+- **OAuth/login and model mutation**
+  - removed/deprecated providers that should remain in Go for backward compatibility
+  - `ModifyModels()` equivalents and token refresh behavior
+
+Practical diff commands:
+
+```bash
+PREV=/tmp/pi-ai-prev/package/dist
+NEW=/tmp/pi-ai-new/package/dist
+
+# Surface-level deltas
+diff -u "$PREV/types.d.ts" "$NEW/types.d.ts" | sed -n '1,220p'
+diff -u "$PREV/providers/openai-completions.js" "$NEW/providers/openai-completions.js" | sed -n '1,260p'
+diff -u "$PREV/providers/openai-responses.js" "$NEW/providers/openai-responses.js" | sed -n '1,260p'
+diff -u "$PREV/providers/anthropic.js" "$NEW/providers/anthropic.js" | sed -n '1,260p'
+diff -u "$PREV/providers/mistral.js" "$NEW/providers/mistral.js" | sed -n '1,220p'
+diff -u "$PREV/providers/google-shared.js" "$NEW/providers/google-shared.js" | sed -n '1,220p'
+diff -u "$PREV/providers/amazon-bedrock.js" "$NEW/providers/amazon-bedrock.js" | sed -n '1,220p'
+diff -u "$PREV/env-api-keys.js" "$NEW/env-api-keys.js" | sed -n '1,160p'
+
+# Focused searches in the new upstream tree
+grep -R "responseModel\|prompt_cache\|cache_write\|prompt_cache_hit\|cf-aig\|reasoningEffort\|reasoning_effort\|message_stop\|baseURL\|supportsStrictMode\|maxTokensField" "$NEW"/providers "$NEW"/*.js
+```
+
+For every gap found, either:
+
+1. port the behavior,
+2. add/adjust tests proving Go already matches it, or
+3. document an intentional divergence in `docs/AUDIT_REPORT.md` and `docs/GAP_ANALYSIS.md`.
+
+Add fake-server or parser tests for high-risk payload/API changes, especially:
+
+- provider-specific headers and URL resolution
+- request body fields and compat flags
+- response metadata (`responseId`, `responseModel`)
+- cache usage normalization
+- stop reason and incomplete-stream handling
+
+### Step 8: compare docs and residual gaps
 
 Update these when needed:
 - `README.md`
@@ -191,7 +264,7 @@ Update these when needed:
 - `docs/TEST_MATRIX.md`
 - `docs/AUDIT_REPORT.md`
 
-### Step 8: validate end to end
+### Step 9: validate end to end
 
 ```bash
 cd /workspace/projects/go-ai
@@ -238,14 +311,17 @@ A correct sync pass should usually do **all** of these when appropriate:
 
 1. Update code if upstream changed
 2. Regenerate `models_generated.go` if model metadata changed
-3. Update `docs/GAP_ANALYSIS.md` to the new upstream version
-4. Record whether the bump was:
+3. Run the deep payload/API audit pass for behavioral/API-affecting releases
+4. Add or update tests for any high-risk payload/header/streaming changes
+5. Update `docs/GAP_ANALYSIS.md` to the new upstream version
+6. Update `docs/AUDIT_REPORT.md` when the deep audit finds residual gaps or intentional divergences
+7. Record whether the bump was:
    - metadata-only
    - docs-only
    - behavioral/API-affecting
-5. Run tests and vet
-6. Push commits
-7. **Tag the release to match upstream**: `git tag -a vX.Y.Z -m "Sync with upstream pi-ai vX.Y.Z"` and `git push origin vX.Y.Z`
+8. Run tests, vet, and build
+9. Push commits
+10. **Tag the release to match upstream**: `git tag -a vX.Y.Z -m "Sync with upstream pi-ai vX.Y.Z"` and `git push origin vX.Y.Z`
 
 ## Provider implementation checklist
 
