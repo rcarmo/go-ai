@@ -117,21 +117,22 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 // --- Request ---
 
 type mistralRequest struct {
-	Model       string         `json:"model"`
-	Messages    []mistralMsg   `json:"messages"`
-	Stream      bool           `json:"stream"`
-	Temperature *float64       `json:"temperature,omitempty"`
-	MaxTokens   *int           `json:"max_tokens,omitempty"`
-	Tools       []mistralTool  `json:"tools,omitempty"`
-	PromptMode  string         `json:"prompt_mode,omitempty"`
+	Model           string        `json:"model"`
+	Messages        []mistralMsg  `json:"messages"`
+	Stream          bool          `json:"stream"`
+	Temperature     *float64      `json:"temperature,omitempty"`
+	MaxTokens       *int          `json:"max_tokens,omitempty"`
+	Tools           []mistralTool `json:"tools,omitempty"`
+	PromptMode      string        `json:"prompt_mode,omitempty"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
 }
 
 type mistralMsg struct {
-	Role       string             `json:"role"`
-	Content    interface{}        `json:"content"`
-	ToolCalls  []mistralToolCall  `json:"tool_calls,omitempty"`
-	ToolCallID string             `json:"tool_call_id,omitempty"`
-	Name       string             `json:"name,omitempty"`
+	Role       string            `json:"role"`
+	Content    interface{}       `json:"content"`
+	ToolCalls  []mistralToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
+	Name       string            `json:"name,omitempty"`
 }
 
 type mistralToolCall struct {
@@ -165,8 +166,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil {
 		req.Temperature = opts.Temperature
 		req.MaxTokens = opts.MaxTokens
-		if opts.Reasoning != nil && *opts.Reasoning != "" {
-			req.PromptMode = "reasoning"
+		if opts.Reasoning != nil && *opts.Reasoning != "" && model.Reasoning {
+			if usesReasoningEffort(model) {
+				req.ReasoningEffort = "high"
+			} else {
+				req.PromptMode = "reasoning"
+			}
 		}
 	}
 
@@ -203,8 +208,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				case "toolCall":
 					argsJSON, _ := json.Marshal(b.Arguments)
 					m.ToolCalls = append(m.ToolCalls, mistralToolCall{
-						ID:   b.ID,
-						Type: "function",
+						ID:       b.ID,
+						Type:     "function",
 						Function: mistralToolCallFunc{Name: b.Name, Arguments: string(argsJSON)},
 					})
 				}
@@ -263,9 +268,9 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Content   *string        `json:"content,omitempty"`
-	Reasoning *string        `json:"reasoning_content,omitempty"`
-	ToolCalls []sseToolCall  `json:"tool_calls,omitempty"`
+	Content   *string       `json:"content,omitempty"`
+	Reasoning *string       `json:"reasoning_content,omitempty"`
+	ToolCalls []sseToolCall `json:"tool_calls,omitempty"`
 }
 
 type sseToolCall struct {
@@ -437,4 +442,16 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial.StopReason = reason
 
 	ch <- &goai.DoneEvent{Reason: reason, Message: partial}
+}
+
+func usesReasoningEffort(model *goai.Model) bool {
+	if model == nil {
+		return false
+	}
+	switch model.ID {
+	case "mistral-small-2603", "mistral-small-latest", "mistral-medium-3.5":
+		return true
+	default:
+		return false
+	}
 }

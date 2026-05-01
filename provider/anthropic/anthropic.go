@@ -102,7 +102,11 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		baseURL := normalizeAnthropicBaseURL(model.BaseURL)
+		baseURL := model.BaseURL
+		if goai.IsCloudflareProvider(model.Provider) {
+			baseURL = goai.ResolveCloudflareBaseURL(model)
+		}
+		baseURL = normalizeAnthropicBaseURL(baseURL)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/messages", bytes.NewReader(bodyJSON))
 		if err != nil {
@@ -118,6 +122,8 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			for k, v := range goai.CopilotHeaders() {
 				req.Header.Set(k, v)
 			}
+		} else if model.Provider == goai.ProviderCloudflareAIGateway {
+			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
 		} else {
 			req.Header.Set("X-Api-Key", apiKey)
 		}
@@ -334,6 +340,8 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 	ch <- &goai.StartEvent{Partial: partial}
 
 	toolJSON := map[int]string{}
+	sawMessageStart := false
+	sawMessageStop := false
 	events := eventstream.Parse(body)
 	for sse := range events {
 		if sse.Event == eventstream.EventError {
@@ -458,6 +466,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			}
 
 		case "message_start":
+			sawMessageStart = true
 			var data struct {
 				Message struct {
 					ID    string `json:"id"`
@@ -477,8 +486,13 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			partial.Usage.CacheWrite = data.Message.Usage.CacheCreate
 
 		case "message_stop":
-			// Final
+			sawMessageStop = true
 		}
+	}
+
+	if sawMessageStart && !sawMessageStop {
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Anthropic stream ended before message_stop")}
+		return
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()

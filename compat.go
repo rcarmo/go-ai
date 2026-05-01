@@ -77,92 +77,143 @@ type AnthropicMessagesCompat struct {
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
-// This mirrors pi-ai's URL-based auto-detection for known providers.
+// Prefer DetectCompatForModel when a Model is available, since recent pi-ai
+// releases make provider ID take precedence over URL heuristics.
 func DetectCompat(baseURL string) OpenAICompletionsCompat {
+	return detectCompat("", "", baseURL)
+}
+
+// DetectCompatForModel auto-detects and merges OpenAI-compatible API flags for a model.
+// This mirrors pi-ai's provider-first detection plus explicit model compat overrides.
+func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
+	if model == nil {
+		return OpenAICompletionsCompat{}
+	}
+	c := detectCompat(model.Provider, model.ID, model.BaseURL)
+	if model.CompletionsCompat == nil {
+		return c
+	}
+	o := model.CompletionsCompat
+	if o.SupportsStore != nil {
+		c.SupportsStore = o.SupportsStore
+	}
+	if o.SupportsDeveloperRole != nil {
+		c.SupportsDeveloperRole = o.SupportsDeveloperRole
+	}
+	if o.SupportsReasoningEffort != nil {
+		c.SupportsReasoningEffort = o.SupportsReasoningEffort
+	}
+	if o.ReasoningEffortMap != nil {
+		c.ReasoningEffortMap = o.ReasoningEffortMap
+	}
+	if o.SupportsUsageInStreaming != nil {
+		c.SupportsUsageInStreaming = o.SupportsUsageInStreaming
+	}
+	if o.MaxTokensField != "" {
+		c.MaxTokensField = o.MaxTokensField
+	}
+	if o.RequiresToolResultName != nil {
+		c.RequiresToolResultName = o.RequiresToolResultName
+	}
+	if o.RequiresAssistantAfterToolResult != nil {
+		c.RequiresAssistantAfterToolResult = o.RequiresAssistantAfterToolResult
+	}
+	if o.RequiresThinkingAsText != nil {
+		c.RequiresThinkingAsText = o.RequiresThinkingAsText
+	}
+	if o.RequiresReasoningContentOnAssistantMessages != nil {
+		c.RequiresReasoningContentOnAssistantMessages = o.RequiresReasoningContentOnAssistantMessages
+	}
+	if o.ThinkingFormat != "" {
+		c.ThinkingFormat = o.ThinkingFormat
+	}
+	if o.SupportsStrictMode != nil {
+		c.SupportsStrictMode = o.SupportsStrictMode
+	}
+	if o.CacheControlFormat != "" {
+		c.CacheControlFormat = o.CacheControlFormat
+	}
+	if o.SendSessionAffinityHeaders != nil {
+		c.SendSessionAffinityHeaders = o.SendSessionAffinityHeaders
+	}
+	if o.SupportsLongCacheRetention != nil {
+		c.SupportsLongCacheRetention = o.SupportsLongCacheRetention
+	}
+	return c
+}
+
+func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompletionsCompat {
 	c := OpenAICompletionsCompat{}
 
-	isOpenAI := contains(baseURL, "api.openai.com")
-	isGroq := contains(baseURL, "groq.com")
-	isCerebras := contains(baseURL, "cerebras.ai")
-	isXAI := contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
-	isOpenRouter := contains(baseURL, "openrouter.ai")
+	isGroq := provider == ProviderGroq || contains(baseURL, "groq.com")
+	isCerebras := provider == ProviderCerebras || contains(baseURL, "cerebras.ai")
+	isXAI := provider == ProviderXAI || contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
+	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
 	isOllama := contains(baseURL, "localhost:11434") || contains(baseURL, ":11434")
-	isZAI := contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
-	isVercel := contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
+	isZAI := provider == ProviderZAI || contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
+	isVercel := provider == ProviderVercelAIGateway || contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
-	isDeepSeek := contains(baseURL, "deepseek.com")
-	isCloudflare := contains(baseURL, "api.cloudflare.com")
-	isCloudflareAIGW := contains(baseURL, "gateway.ai.cloudflare.com")
-	isMoonshot := contains(baseURL, "api.moonshot.")
+	isDeepSeek := provider == ProviderDeepSeek || contains(baseURL, "deepseek.com")
+	isMoonshot := provider == ProviderMoonshotAI || provider == ProviderMoonshotAICN || contains(baseURL, "api.moonshot.")
+	isCloudflareWorkersAI := provider == ProviderCloudflareWorkersAI || contains(baseURL, "api.cloudflare.com")
+	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURL, "gateway.ai.cloudflare.com")
+	isNonStandard := isCerebras || isXAI || contains(baseURL, "chutes.ai") || isDeepSeek || isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") || isCloudflareWorkersAI || isCloudflareAIGW || isOllama
+	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isOllama
 
 	t := true
 	f := false
 
-	if isOpenAI {
-		c.SupportsDeveloperRole = &t
-		c.SupportsReasoningEffort = &t
-		c.MaxTokensField = "max_completion_tokens"
-		c.SupportsStrictMode = &t
-	} else {
-		c.SupportsDeveloperRole = &f
+	c.SupportsStore = &t
+	c.SupportsDeveloperRole = &t
+	c.SupportsReasoningEffort = &t
+	c.SupportsUsageInStreaming = &t
+	c.SupportsStrictMode = &t
+	c.SupportsLongCacheRetention = &t
+	c.MaxTokensField = "max_completion_tokens"
+	if useMaxTokens {
 		c.MaxTokensField = "max_tokens"
 	}
-
-	if isGroq || isCerebras {
-		c.SupportsReasoningEffort = &f
-		c.SupportsUsageInStreaming = &t
+	if isNonStandard {
+		c.SupportsStore = &f
+		c.SupportsDeveloperRole = &f
 	}
 
+	if isGroq || isCerebras || isMoonshot || isCloudflareAIGW || isCloudflareWorkersAI {
+		c.SupportsReasoningEffort = &f
+	}
 	if isXAI {
 		c.SupportsReasoningEffort = &t
 	}
-
 	if isOpenRouter {
 		c.ThinkingFormat = "openrouter"
-		c.SupportsUsageInStreaming = &t
 	}
-
 	if isOllama {
-		c.SupportsReasoningEffort = &f
-		c.SupportsUsageInStreaming = &t
 		c.RequiresToolResultName = &t
 		c.SupportsStrictMode = &f
 	}
-
 	if isZAI {
 		c.ThinkingFormat = "zai"
 	}
-
 	if isVercel {
 		c.SupportsUsageInStreaming = &t
 	}
-
 	if isQwen {
 		c.ThinkingFormat = "qwen"
 	}
-
 	if isDeepSeek {
 		c.ThinkingFormat = "deepseek"
 		c.RequiresReasoningContentOnAssistantMessages = &t
+		c.ReasoningEffortMap = map[ThinkingLevel]string{ThinkingMinimal: "high", ThinkingLow: "high", ThinkingMedium: "high", ThinkingHigh: "high", ThinkingXHigh: "max"}
 	}
-
-	if isCloudflare {
-		c.SupportsReasoningEffort = &f
-		c.SupportsUsageInStreaming = &t
+	if isMoonshot || isCloudflareAIGW {
+		c.SupportsStrictMode = &f
 	}
-
-	if isCloudflareAIGW {
-		c.SupportsReasoningEffort = &f
-		c.SupportsUsageInStreaming = &t
-		c.MaxTokensField = "max_tokens"
+	if isCloudflareWorkersAI || isCloudflareAIGW {
+		c.SupportsLongCacheRetention = &f
 	}
-
-	if isMoonshot {
-		c.SupportsReasoningEffort = &f
-		c.SupportsUsageInStreaming = &t
-		c.MaxTokensField = "max_tokens"
+	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
+		c.CacheControlFormat = "anthropic"
 	}
-
 	return c
 }
 

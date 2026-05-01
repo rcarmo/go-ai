@@ -22,42 +22,42 @@ const (
 	ApiGoogleGenerativeAI    Api = "google-generative-ai"
 	ApiGoogleGeminiCLI       Api = "google-gemini-cli"
 	ApiGoogleVertex          Api = "google-vertex"
-	ApiMistralConversations   Api = "mistral-conversations"
+	ApiMistralConversations  Api = "mistral-conversations"
 )
 
 // Provider identifies a model hosting service.
 type Provider string
 
 const (
-	ProviderOpenAI           Provider = "openai"
-	ProviderAnthropic        Provider = "anthropic"
-	ProviderGoogle           Provider = "google"
-	ProviderGoogleGeminiCLI  Provider = "google-gemini-cli"
-	ProviderGoogleAntigravity Provider = "google-antigravity"
-	ProviderGoogleVertex     Provider = "google-vertex"
-	ProviderAzureOpenAI      Provider = "azure-openai-responses"
-	ProviderOpenAICodex      Provider = "openai-codex"
-	ProviderGitHubCopilot    Provider = "github-copilot"
-	ProviderAmazonBedrock    Provider = "amazon-bedrock"
-	ProviderMistral          Provider = "mistral"
-	ProviderXAI              Provider = "xai"
-	ProviderGroq             Provider = "groq"
-	ProviderCerebras         Provider = "cerebras"
-	ProviderOpenRouter       Provider = "openrouter"
-	ProviderVercelAIGateway  Provider = "vercel-ai-gateway"
-	ProviderZAI              Provider = "zai"
-	ProviderMiniMax          Provider = "minimax"
-	ProviderMiniMaxCN        Provider = "minimax-cn"
-	ProviderHuggingFace      Provider = "huggingface"
-	ProviderFireworks        Provider = "fireworks"
-	ProviderOpenCode         Provider = "opencode"
-	ProviderOpenCodeGo       Provider = "opencode-go"
-	ProviderKimiCoding       Provider = "kimi-coding"
-	ProviderDeepSeek         Provider = "deepseek"
+	ProviderOpenAI              Provider = "openai"
+	ProviderAnthropic           Provider = "anthropic"
+	ProviderGoogle              Provider = "google"
+	ProviderGoogleGeminiCLI     Provider = "google-gemini-cli"
+	ProviderGoogleAntigravity   Provider = "google-antigravity"
+	ProviderGoogleVertex        Provider = "google-vertex"
+	ProviderAzureOpenAI         Provider = "azure-openai-responses"
+	ProviderOpenAICodex         Provider = "openai-codex"
+	ProviderGitHubCopilot       Provider = "github-copilot"
+	ProviderAmazonBedrock       Provider = "amazon-bedrock"
+	ProviderMistral             Provider = "mistral"
+	ProviderXAI                 Provider = "xai"
+	ProviderGroq                Provider = "groq"
+	ProviderCerebras            Provider = "cerebras"
+	ProviderOpenRouter          Provider = "openrouter"
+	ProviderVercelAIGateway     Provider = "vercel-ai-gateway"
+	ProviderZAI                 Provider = "zai"
+	ProviderMiniMax             Provider = "minimax"
+	ProviderMiniMaxCN           Provider = "minimax-cn"
+	ProviderHuggingFace         Provider = "huggingface"
+	ProviderFireworks           Provider = "fireworks"
+	ProviderOpenCode            Provider = "opencode"
+	ProviderOpenCodeGo          Provider = "opencode-go"
+	ProviderKimiCoding          Provider = "kimi-coding"
+	ProviderDeepSeek            Provider = "deepseek"
 	ProviderCloudflareWorkersAI Provider = "cloudflare-workers-ai"
 	ProviderCloudflareAIGateway Provider = "cloudflare-ai-gateway"
-	ProviderMoonshotAI         Provider = "moonshotai"
-	ProviderMoonshotAICN       Provider = "moonshotai-cn"
+	ProviderMoonshotAI          Provider = "moonshotai"
+	ProviderMoonshotAICN        Provider = "moonshotai-cn"
 )
 
 // ThinkingLevel controls the reasoning depth.
@@ -198,14 +198,14 @@ type Message struct {
 	Timestamp int64          `json:"timestamp"`
 
 	// Assistant-only fields
-	Api          Api        `json:"api,omitempty"`
-	Provider     Provider   `json:"provider,omitempty"`
-	Model        string     `json:"model,omitempty"`
+	Api           Api        `json:"api,omitempty"`
+	Provider      Provider   `json:"provider,omitempty"`
+	Model         string     `json:"model,omitempty"`
 	ResponseID    string     `json:"responseId,omitempty"`
 	ResponseModel string     `json:"responseModel,omitempty"`
-	Usage        *Usage     `json:"usage,omitempty"`
-	StopReason   StopReason `json:"stopReason,omitempty"`
-	ErrorMessage string     `json:"errorMessage,omitempty"`
+	Usage         *Usage     `json:"usage,omitempty"`
+	StopReason    StopReason `json:"stopReason,omitempty"`
+	ErrorMessage  string     `json:"errorMessage,omitempty"`
 
 	// ToolResult-only fields
 	ToolCallID string `json:"toolCallId,omitempty"`
@@ -252,23 +252,23 @@ type ModelCost struct {
 
 // Model identifies a specific LLM endpoint.
 type Model struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Api           Api      `json:"api"`
-	Provider      Provider `json:"provider"`
-	BaseURL       string   `json:"baseUrl"`
-	Reasoning     bool     `json:"reasoning"`
-	Input         []string `json:"input"` // "text", "image"
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Api           Api       `json:"api"`
+	Provider      Provider  `json:"provider"`
+	BaseURL       string    `json:"baseUrl"`
+	Reasoning     bool      `json:"reasoning"`
+	Input         []string  `json:"input"` // "text", "image"
 	Cost          ModelCost `json:"cost"`
-	ContextWindow int      `json:"contextWindow"`
-	MaxTokens     int      `json:"maxTokens"`
+	ContextWindow int       `json:"contextWindow"`
+	MaxTokens     int       `json:"maxTokens"`
 
 	// Optional overrides
-	Headers            map[string]string        `json:"headers,omitempty"`
-	APIKey             string                   `json:"-"` // never serialized
-	CompletionsCompat  *OpenAICompletionsCompat  `json:"completionsCompat,omitempty"`
-	ResponsesCompat    *OpenAIResponsesCompat    `json:"responsesCompat,omitempty"`
-	AnthropicCompat    *AnthropicMessagesCompat  `json:"anthropicCompat,omitempty"`
+	Headers           map[string]string        `json:"headers,omitempty"`
+	APIKey            string                   `json:"-"` // never serialized
+	CompletionsCompat *OpenAICompletionsCompat `json:"completionsCompat,omitempty"`
+	ResponsesCompat   *OpenAIResponsesCompat   `json:"responsesCompat,omitempty"`
+	AnthropicCompat   *AnthropicMessagesCompat `json:"anthropicCompat,omitempty"`
 }
 
 // --- Stream options ---

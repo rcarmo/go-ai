@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -65,7 +66,11 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		url := model.BaseURL + "/chat/completions"
+		baseURL := model.BaseURL
+		if goai.IsCloudflareProvider(model.Provider) {
+			baseURL = goai.ResolveCloudflareBaseURL(model)
+		}
+		url := baseURL + "/chat/completions"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -73,11 +78,15 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+		if model.Provider == goai.ProviderCloudflareAIGateway {
+			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+		} else {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
 		req.Header.Set("Accept", "text/event-stream")
 
 		// Session affinity headers for prompt caching
-		compat := goai.DetectCompat(model.BaseURL)
+		compat := goai.DetectCompatForModel(model)
 		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" {
 			req.Header.Set("x-session-id", opts.SessionID)
 			req.Header.Set("x-client-request-id", opts.SessionID)
@@ -133,16 +142,18 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 // --- Request building ---
 
 type chatRequest struct {
-	Model              string         `json:"model"`
-	Messages           []chatMessage  `json:"messages"`
-	Stream             bool           `json:"stream"`
-	StreamOptions      *streamOpts    `json:"stream_options,omitempty"`
-	Temperature        *float64       `json:"temperature,omitempty"`
-	MaxTokens          *int           `json:"max_tokens,omitempty"`
-	MaxCompletionToks  *int           `json:"max_completion_tokens,omitempty"`
-	Tools              []toolDef      `json:"tools,omitempty"`
-	ReasoningEffort    string         `json:"reasoning_effort,omitempty"`
-	Store              *bool          `json:"store,omitempty"`
+	Model                string        `json:"model"`
+	Messages             []chatMessage `json:"messages"`
+	Stream               bool          `json:"stream"`
+	StreamOptions        *streamOpts   `json:"stream_options,omitempty"`
+	PromptCacheKey       string        `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string        `json:"prompt_cache_retention,omitempty"`
+	Temperature          *float64      `json:"temperature,omitempty"`
+	MaxTokens            *int          `json:"max_tokens,omitempty"`
+	MaxCompletionToks    *int          `json:"max_completion_tokens,omitempty"`
+	Tools                []toolDef     `json:"tools,omitempty"`
+	ReasoningEffort      string        `json:"reasoning_effort,omitempty"`
+	Store                *bool         `json:"store,omitempty"`
 }
 
 type streamOpts struct {
@@ -150,11 +161,11 @@ type streamOpts struct {
 }
 
 type chatMessage struct {
-	Role       string       `json:"role"`
-	Content    interface{}  `json:"content"`         // string or []contentPart
+	Role       string         `json:"role"`
+	Content    interface{}    `json:"content"` // string or []contentPart
 	ToolCalls  []toolCallPart `json:"tool_calls,omitempty"`
-	ToolCallID string       `json:"tool_call_id,omitempty"`
-	Name       string       `json:"name,omitempty"`
+	ToolCallID string         `json:"tool_call_id,omitempty"`
+	Name       string         `json:"name,omitempty"`
 }
 
 type contentPart struct {
@@ -191,8 +202,8 @@ type toolCallFunction struct {
 }
 
 func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) chatRequest {
-	// Detect compat flags from base URL
-	compat := goai.DetectCompat(model.BaseURL)
+	// Detect compat flags from provider/base URL plus explicit model overrides.
+	compat := goai.DetectCompatForModel(model)
 
 	req := chatRequest{
 		Model:  model.ID,
@@ -202,6 +213,17 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	// Stream options — some providers don't support include_usage
 	if compat.SupportsUsageInStreaming == nil || *compat.SupportsUsageInStreaming {
 		req.StreamOptions = &streamOpts{IncludeUsage: true}
+	}
+
+	// Prompt cache/session fields. Match pi-ai: send a cache key when cache
+	// retention is enabled, and only request 24h retention when supported.
+	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
+		if (strings.Contains(model.BaseURL, "api.openai.com") && opts.CacheRetention != goai.CacheRetentionNone) || (opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)) {
+			req.PromptCacheKey = opts.SessionID
+		}
+	}
+	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention) {
+		req.PromptCacheRetention = "24h"
 	}
 
 	if opts != nil {
@@ -393,7 +415,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					msgs = append(msgs, chatMessage{Role: "assistant", Content: "I have processed the tool results."})
 				}
 				msgs = append(msgs, chatMessage{
-					Role: "user",
+					Role:    "user",
 					Content: append([]contentPart{{Type: "text", Text: "Tool result image:"}}, imageBlocks...),
 				})
 			}
@@ -427,29 +449,31 @@ func joinStrings(parts []string) string {
 // --- SSE response processing ---
 
 type sseChunk struct {
-	ID      string         `json:"id"`
-	Choices []sseChoice    `json:"choices"`
-	Usage   *sseUsage      `json:"usage,omitempty"`
+	ID      string      `json:"id"`
+	Model   string      `json:"model,omitempty"`
+	Choices []sseChoice `json:"choices"`
+	Usage   *sseUsage   `json:"usage,omitempty"`
 }
 
 type sseChoice struct {
 	Index        int       `json:"index"`
 	Delta        sseDelta  `json:"delta"`
 	FinishReason *string   `json:"finish_reason"`
+	Usage        *sseUsage `json:"usage,omitempty"`
 }
 
 type sseDelta struct {
-	Role      string         `json:"role,omitempty"`
-	Content   *string        `json:"content,omitempty"`
-	ToolCalls []sseToolCall  `json:"tool_calls,omitempty"`
-	Reasoning *string        `json:"reasoning,omitempty"`
+	Role      string        `json:"role,omitempty"`
+	Content   *string       `json:"content,omitempty"`
+	ToolCalls []sseToolCall `json:"tool_calls,omitempty"`
+	Reasoning *string       `json:"reasoning,omitempty"`
 }
 
 type sseToolCall struct {
-	Index    int              `json:"index"`
-	ID       string           `json:"id,omitempty"`
-	Type     string           `json:"type,omitempty"`
-	Function sseToolFunction  `json:"function"`
+	Index    int             `json:"index"`
+	ID       string          `json:"id,omitempty"`
+	Type     string          `json:"type,omitempty"`
+	Function sseToolFunction `json:"function"`
 }
 
 type sseToolFunction struct {
@@ -458,9 +482,14 @@ type sseToolFunction struct {
 }
 
 type sseUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens         int `json:"prompt_tokens"`
+	CompletionTokens     int `json:"completion_tokens"`
+	TotalTokens          int `json:"total_tokens"`
+	PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
+	PromptTokensDetails  *struct {
+		CachedTokens     int `json:"cached_tokens"`
+		CacheWriteTokens int `json:"cache_write_tokens"`
+	} `json:"prompt_tokens_details"`
 }
 
 func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
@@ -476,10 +505,10 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
-		index    int
-		id       string
-		name     string
-		argsBuf  string
+		index      int
+		id         string
+		name       string
+		argsBuf    string
 		contentIdx int
 	}
 	var activeTools []activeToolCall
@@ -500,12 +529,16 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			continue
 		}
 
+		if chunk.ID != "" {
+			partial.ResponseID = chunk.ID
+		}
+		if chunk.Model != "" && chunk.Model != model.ID && partial.ResponseModel == "" {
+			partial.ResponseModel = chunk.Model
+		}
+
 		// Update usage
 		if chunk.Usage != nil {
-			partial.Usage.Input = chunk.Usage.PromptTokens
-			partial.Usage.Output = chunk.Usage.CompletionTokens
-			partial.Usage.TotalTokens = chunk.Usage.TotalTokens
-			computeCosts(partial.Usage, model)
+			applyUsage(partial.Usage, chunk.Usage, model)
 		}
 
 		if len(chunk.Choices) == 0 {
@@ -513,6 +546,9 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		}
 
 		choice := chunk.Choices[0]
+		if chunk.Usage == nil && choice.Usage != nil {
+			applyUsage(partial.Usage, choice.Usage, model)
+		}
 		delta := choice.Delta
 
 		if choice.FinishReason != nil {
@@ -652,6 +688,37 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial.StopReason = reason
 
 	ch <- &goai.DoneEvent{Reason: reason, Message: partial}
+}
+
+func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
+	if usage == nil || raw == nil {
+		return
+	}
+	reportedCached := raw.PromptCacheHitTokens
+	cacheWrite := 0
+	if raw.PromptTokensDetails != nil {
+		if raw.PromptTokensDetails.CachedTokens > 0 {
+			reportedCached = raw.PromptTokensDetails.CachedTokens
+		}
+		cacheWrite = raw.PromptTokensDetails.CacheWriteTokens
+	}
+	cacheRead := reportedCached
+	if cacheWrite > 0 && cacheRead >= cacheWrite {
+		cacheRead -= cacheWrite
+	}
+	input := raw.PromptTokens - cacheRead - cacheWrite
+	if input < 0 {
+		input = 0
+	}
+	usage.Input = input
+	usage.Output = raw.CompletionTokens
+	usage.CacheRead = cacheRead
+	usage.CacheWrite = cacheWrite
+	usage.TotalTokens = input + raw.CompletionTokens + cacheRead + cacheWrite
+	if raw.TotalTokens > 0 {
+		usage.TotalTokens = raw.TotalTokens
+	}
+	computeCosts(usage, model)
 }
 
 func computeCosts(usage *goai.Usage, model *goai.Model) {

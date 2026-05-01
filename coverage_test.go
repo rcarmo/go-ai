@@ -91,14 +91,14 @@ func TestNormalizeAzureReasoningTextDelta(t *testing.T) {
 
 func TestDetectCompatProviders(t *testing.T) {
 	tests := []struct {
-		url      string
-		devRole  bool
-		strict   bool
+		url     string
+		devRole bool
+		strict  bool
 	}{
 		{"https://api.openai.com/v1", true, true},
-		{"http://localhost:11434/v1", false, false},       // Ollama
-		{"https://api.groq.com/v1", false, true},          // Groq (default strict)
-		{"https://openrouter.ai/api/v1", false, true},     // OpenRouter
+		{"http://localhost:11434/v1", false, false},  // Ollama
+		{"https://api.groq.com/v1", true, true},      // Groq follows upstream's standard-compatible payload shape
+		{"https://openrouter.ai/api/v1", true, true}, // OpenRouter follows upstream's standard-compatible payload shape
 	}
 	for _, tt := range tests {
 		c := goai.DetectCompat(tt.url)

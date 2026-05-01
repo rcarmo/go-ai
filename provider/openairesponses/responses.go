@@ -63,7 +63,11 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		url := model.BaseURL + "/responses"
+		baseURL := model.BaseURL
+		if goai.IsCloudflareProvider(model.Provider) {
+			baseURL = goai.ResolveCloudflareBaseURL(model)
+		}
+		url := baseURL + "/responses"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -71,7 +75,11 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+		if model.Provider == goai.ProviderCloudflareAIGateway {
+			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+		} else {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
 		req.Header.Set("Accept", "text/event-stream")
 		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
 			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
@@ -142,6 +150,7 @@ type responsesRequest struct {
 	MaxOutputTokens      *int             `json:"max_output_tokens,omitempty"`
 	Reasoning            *reasoningConfig `json:"reasoning,omitempty"`
 	Include              []string         `json:"include,omitempty"`
+	PromptCacheKey       string           `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string           `json:"prompt_cache_retention,omitempty"`
 }
 
@@ -209,6 +218,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Cache retention (compat-driven)
 	compat := getResponsesCompat(model)
+	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
+		req.PromptCacheKey = opts.SessionID
+	}
 	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
 		req.PromptCacheRetention = "24h"
 	}
@@ -225,6 +237,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 	c := responsesCompat{
 		sendSessionIdHeader:        true,
 		supportsLongCacheRetention: true,
+	}
+	if goai.IsCloudflareProvider(model.Provider) {
+		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
 		if model.ResponsesCompat.SendSessionIdHeader != nil {

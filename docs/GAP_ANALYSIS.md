@@ -24,6 +24,17 @@ All gaps from the original analysis have been addressed.
 - **OAuth**: removed Antigravity and Gemini CLI OAuth exports (deprecated).
 - **Model registry**: 909 → 949 models, 26 → 27 providers.
 
+Post-sync audit fixes:
+
+- Populated `responseModel` for OpenAI-compatible streamed chunks.
+- Normalized OpenAI-compatible cache usage (`prompt_tokens_details.cached_tokens`, `cache_write_tokens`, `prompt_cache_hit_tokens`).
+- Added provider-first compat detection and explicit `Model.CompletionsCompat` merge.
+- Resolved Cloudflare base URL placeholders in OpenAI Completions, OpenAI Responses, and Anthropic paths.
+- Added Cloudflare AI Gateway `cf-aig-authorization` header handling.
+- Added cache key/retention request fields for OpenAI Completions and Responses.
+- Added Mistral `reasoning_effort` routing for `mistral-medium-3.5` and related small models.
+- Added Anthropic incomplete-stream detection (`message_start` without `message_stop`).
+
 ### v0.70.6 (2026-04-29)
 
 **New Cloudflare Workers AI provider + Bedrock model matching improvements.**

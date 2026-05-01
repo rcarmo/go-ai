@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -58,3 +59,64 @@ func TestStreamOpenAIInvokesOnPayload(t *testing.T) {
 		t.Fatalf("expected overridden temperature in wire payload, got %#v", got["temperature"])
 	}
 }
+
+func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
+	t.Setenv("CLOUDFLARE_GATEWAY_ID", "gw")
+	var gotAuth, gotCfAIG, gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotCfAIG = r.Header.Get("cf-aig-authorization")
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderCloudflareAIGateway, Api: goai.ApiOpenAICompletions, BaseURL: server.URL + "/{CLOUDFLARE_GATEWAY_ID}"}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	opts := &goai.StreamOptions{APIKey: "cf-key"}
+	for range streamOpenAI(context.Background(), model, convCtx, opts) {
+	}
+
+	if gotPath != "/gw/chat/completions" {
+		t.Fatalf("resolved Cloudflare URL path = %q", gotPath)
+	}
+	if gotAuth != "" {
+		t.Fatalf("Authorization should be omitted for Cloudflare AI Gateway, got %q", gotAuth)
+	}
+	if gotCfAIG != "Bearer cf-key" {
+		t.Fatalf("cf-aig-authorization = %q", gotCfAIG)
+	}
+}
+
+func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {
+	body := io.NopCloser(io.MultiReader(
+		stringsReader("data: {\"id\":\"chatcmpl_1\",\"model\":\"actual-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"}}]}\n\n"),
+		stringsReader("data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":100,\"prompt_tokens_details\":{\"cached_tokens\":30,\"cache_write_tokens\":10},\"completion_tokens\":5,\"total_tokens\":105}}\n\n"),
+		stringsReader("data: [DONE]\n\n"),
+	))
+	ch := make(chan goai.Event, 16)
+	model := &goai.Model{ID: "requested-model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}
+	processSSEStream(body, model, ch)
+	close(ch)
+
+	var done *goai.DoneEvent
+	for ev := range ch {
+		if d, ok := ev.(*goai.DoneEvent); ok {
+			done = d
+		}
+	}
+	if done == nil {
+		t.Fatal("missing done event")
+	}
+	msg := done.Message
+	if msg.ResponseID != "chatcmpl_1" || msg.ResponseModel != "actual-model" {
+		t.Fatalf("response metadata = id %q model %q", msg.ResponseID, msg.ResponseModel)
+	}
+	if msg.Usage.Input != 70 || msg.Usage.CacheRead != 20 || msg.Usage.CacheWrite != 10 || msg.Usage.Output != 5 {
+		t.Fatalf("usage = %+v", msg.Usage)
+	}
+}
+
+func stringsReader(s string) io.Reader { return strings.NewReader(s) }

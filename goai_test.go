@@ -87,30 +87,30 @@ func TestStreamNoProvider(t *testing.T) {
 
 func TestIsContextOverflow(t *testing.T) {
 	tests := []struct {
-		name    string
-		msg     goai.Message
-		ctxWin  int
-		want    bool
+		name   string
+		msg    goai.Message
+		ctxWin int
+		want   bool
 	}{
 		{
-			name:   "Anthropic overflow",
-			msg:    goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "prompt is too long: 213462 tokens > 200000 maximum"},
-			want:   true,
+			name: "Anthropic overflow",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "prompt is too long: 213462 tokens > 200000 maximum"},
+			want: true,
 		},
 		{
-			name:   "OpenAI overflow",
-			msg:    goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Your input exceeds the context window"},
-			want:   true,
+			name: "OpenAI overflow",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Your input exceeds the context window"},
+			want: true,
 		},
 		{
-			name:   "rate limit (not overflow)",
-			msg:    goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "rate limit exceeded, too many tokens"},
-			want:   false,
+			name: "rate limit (not overflow)",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "rate limit exceeded, too many tokens"},
+			want: false,
 		},
 		{
-			name:   "throttling (not overflow)",
-			msg:    goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Throttling error: Too many tokens, please wait"},
-			want:   false,
+			name: "throttling (not overflow)",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Throttling error: Too many tokens, please wait"},
+			want: false,
 		},
 		{
 			name:   "silent overflow",
@@ -298,5 +298,15 @@ func TestDetectCompat(t *testing.T) {
 	c2 := goai.DetectCompat("http://localhost:11434/v1")
 	if c2.SupportsStrictMode == nil || *c2.SupportsStrictMode {
 		t.Fatal("expected SupportsStrictMode=false for Ollama")
+	}
+
+	moonshot := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderMoonshotAI, BaseURL: "https://api.moonshot.ai/v1"})
+	if moonshot.MaxTokensField != "max_tokens" || moonshot.SupportsReasoningEffort == nil || *moonshot.SupportsReasoningEffort || moonshot.SupportsStrictMode == nil || *moonshot.SupportsStrictMode {
+		t.Fatalf("unexpected Moonshot compat: %+v", moonshot)
+	}
+
+	cf := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderCloudflareAIGateway, BaseURL: "https://gateway.ai.cloudflare.com/v1/a/b/compat"})
+	if cf.MaxTokensField != "max_tokens" || cf.SupportsLongCacheRetention == nil || *cf.SupportsLongCacheRetention {
+		t.Fatalf("unexpected Cloudflare AI Gateway compat: %+v", cf)
 	}
 }
