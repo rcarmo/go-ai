@@ -13,7 +13,7 @@ Compared `go-ai` against `@mariozechner/pi-ai` v0.70.3 through v0.72.0, with emp
 - **Cache retention payload fields**: OpenAI Completions and Responses now emit prompt-cache key/retention fields when the caller opts into cache retention and the provider supports the long-retention variant.
 - **Mistral reasoning payloads**: `mistral-small-2603`, `mistral-small-latest`, and `mistral-medium-3.5` now use `reasoning_effort` instead of generic `prompt_mode=reasoning`.
 - **Anthropic stream integrity**: Anthropic streams that start a message but end without `message_stop` now surface an `ErrorEvent` instead of silently completing.
-- **OpenAI Codex cached WebSocket transport**: `websocket-cached` reuses session-scoped Codex WebSockets and sends continuation deltas with `previous_response_id`, with exported debug/session helpers.
+- **OpenAI Codex cached WebSocket transport**: `websocket-cached` and `auto` with a session ID reuse session-scoped Codex WebSockets and send continuation deltas with `previous_response_id`, with exported debug/session helpers.
 - **Model-level thinking maps**: v0.72.0's `thinkingLevelMap` metadata is preserved in generated models and used to clamp/map reasoning levels across OpenAI, Codex, Mistral, Google/Gemini, and Responses providers.
 
 ## 2026-05-02 full comparative audit follow-up

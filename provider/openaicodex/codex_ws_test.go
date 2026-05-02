@@ -12,7 +12,7 @@ import (
 	"nhooyr.io/websocket"
 )
 
-func TestStreamViaWebSocketCachedUsesDeltaAndDebugStats(t *testing.T) {
+func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 	CloseOpenAICodexWebSocketSessions("")
 	ResetOpenAICodexWebSocketDebugStats("")
 	defer CloseOpenAICodexWebSocketSessions("")
@@ -58,7 +58,7 @@ func TestStreamViaWebSocketCachedUsesDeltaAndDebugStats(t *testing.T) {
 
 	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
-	opts := &goai.StreamOptions{Transport: goai.TransportWebSocketCached, SessionID: "sess-1"}
+	opts := &goai.StreamOptions{Transport: goai.TransportAuto, SessionID: "sess-1"}
 
 	ch1 := make(chan goai.Event, 32)
 	ctx1 := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}

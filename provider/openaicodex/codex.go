@@ -51,8 +51,8 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			return
 		}
 
-		// Match pi-ai: default to SSE; only attempt WebSocket when explicitly requested or auto is selected.
-		transport := goai.TransportSSE
+		// Match pi-ai: default to auto, preferring WebSocket with SSE fallback.
+		transport := goai.TransportAuto
 		if opts != nil && opts.Transport != "" {
 			transport = opts.Transport
 		}
@@ -479,7 +479,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}(), accountID, apiKey, requestID)
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
-	useCachedContext := opts != nil && opts.Transport == goai.TransportWebSocketCached && opts.SessionID != ""
+	useCachedContext := opts != nil && (opts.Transport == goai.TransportWebSocketCached || opts.Transport == goai.TransportAuto || opts.Transport == "") && opts.SessionID != ""
 	var (
 		conn   *websocket.Conn
 		entry  *codexWebSocketSessionEntry

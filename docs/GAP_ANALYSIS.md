@@ -2,9 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.72.0
+## Source: `@mariozechner/pi-ai` v0.72.1
 
 ## Sync history
+
+### v0.72.1 (2026-05-02)
+
+**Patch release.** Codex transport defaults + model metadata.
+
+- **OpenAI Codex**: default simple/raw transport changed from `sse` to `auto`.
+- **OpenAI Codex**: `auto` transport now uses cached WebSocket continuation behavior when a session ID is present.
+- **Model registry**: count unchanged (956 models / 28 providers) with one Qwen metadata update.
+
+Deep audit result:
+
+- Updated Codex default transport to `auto`.
+- Enabled cached Codex WebSocket context for `auto` transport, matching upstream.
+- Regenerated model registry from v0.72.1.
+- No public type or OAuth changes.
 
 ### v0.72.0 (2026-05-02)
 
