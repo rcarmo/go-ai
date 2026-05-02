@@ -25,6 +25,13 @@ Deep audit result:
 - Removed stale OpenAI-compatible `ReasoningEffortMap` compat behavior in favor of model-level maps.
 - No new OAuth/login changes.
 
+Full comparative audit follow-up:
+
+- Updated the model generator to preserve upstream `headers` and `compat` metadata.
+- Added compat fields needed by v0.72.0 (`zaiToolStream`, routing maps) and merge them into provider behavior.
+- Added OpenAI-compatible request shaping for `zai`, `qwen`, `qwen-chat-template`, `deepseek`, and OpenRouter thinking formats.
+- Added Codex cached WebSocket idle TTL to match upstream's 5-minute session cache.
+
 ### v0.71.1 (2026-05-01)
 
 **Patch release.** OpenAI Codex WebSocket cached transport + model metadata.

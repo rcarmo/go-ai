@@ -142,18 +142,23 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 // --- Request building ---
 
 type chatRequest struct {
-	Model                string        `json:"model"`
-	Messages             []chatMessage `json:"messages"`
-	Stream               bool          `json:"stream"`
-	StreamOptions        *streamOpts   `json:"stream_options,omitempty"`
-	PromptCacheKey       string        `json:"prompt_cache_key,omitempty"`
-	PromptCacheRetention string        `json:"prompt_cache_retention,omitempty"`
-	Temperature          *float64      `json:"temperature,omitempty"`
-	MaxTokens            *int          `json:"max_tokens,omitempty"`
-	MaxCompletionToks    *int          `json:"max_completion_tokens,omitempty"`
-	Tools                []toolDef     `json:"tools,omitempty"`
-	ReasoningEffort      string        `json:"reasoning_effort,omitempty"`
-	Store                *bool         `json:"store,omitempty"`
+	Model                string                 `json:"model"`
+	Messages             []chatMessage          `json:"messages"`
+	Stream               bool                   `json:"stream"`
+	StreamOptions        *streamOpts            `json:"stream_options,omitempty"`
+	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
+	Temperature          *float64               `json:"temperature,omitempty"`
+	MaxTokens            *int                   `json:"max_tokens,omitempty"`
+	MaxCompletionToks    *int                   `json:"max_completion_tokens,omitempty"`
+	Tools                []toolDef              `json:"tools,omitempty"`
+	ReasoningEffort      string                 `json:"reasoning_effort,omitempty"`
+	Reasoning            map[string]interface{} `json:"reasoning,omitempty"`
+	Thinking             map[string]interface{} `json:"thinking,omitempty"`
+	EnableThinking       *bool                  `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs   map[string]interface{} `json:"chat_template_kwargs,omitempty"`
+	ToolStream           *bool                  `json:"tool_stream,omitempty"`
+	Store                *bool                  `json:"store,omitempty"`
 }
 
 type streamOpts struct {
@@ -242,14 +247,43 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		req.Store = &t
 	}
 
-	// Reasoning effort
-	if opts != nil && opts.Reasoning != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
-		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
-			req.ReasoningEffort = effort
+	// Reasoning effort / thinking control. Mirror pi-ai's provider-specific formats.
+	reasoningRequested := opts != nil && opts.Reasoning != nil
+	effort := ""
+	if reasoningRequested {
+		if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+			effort = mapped
 		}
-	} else if opts == nil || opts.Reasoning == nil {
-		if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
-			req.ReasoningEffort = *off
+	}
+	if model.Reasoning {
+		switch compat.ThinkingFormat {
+		case "zai", "qwen":
+			enabled := reasoningRequested && effort != ""
+			req.EnableThinking = &enabled
+		case "qwen-chat-template":
+			enabled := reasoningRequested && effort != ""
+			req.ChatTemplateKwargs = map[string]interface{}{"enable_thinking": enabled, "preserve_thinking": true}
+		case "deepseek":
+			typeValue := "disabled"
+			if reasoningRequested && effort != "" {
+				typeValue = "enabled"
+				req.ReasoningEffort = effort
+			}
+			req.Thinking = map[string]interface{}{"type": typeValue}
+		case "openrouter":
+			if reasoningRequested && effort != "" {
+				req.Reasoning = map[string]interface{}{"effort": effort}
+			} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil {
+				req.Reasoning = map[string]interface{}{"effort": *off}
+			}
+		default:
+			if reasoningRequested && effort != "" && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+				req.ReasoningEffort = effort
+			} else if !reasoningRequested {
+				if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+					req.ReasoningEffort = *off
+				}
+			}
 		}
 	}
 
@@ -258,6 +292,10 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 
 	// Convert tools
 	if len(convCtx.Tools) > 0 {
+		if compat.ZaiToolStream != nil && *compat.ZaiToolStream {
+			t := true
+			req.ToolStream = &t
+		}
 		strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
 		for _, t := range convCtx.Tools {
 			req.Tools = append(req.Tools, toolDef{

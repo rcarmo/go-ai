@@ -39,6 +39,15 @@ type OpenAICompletionsCompat struct {
 	// "zai" = enable_thinking, "qwen" = enable_thinking
 	ThinkingFormat string `json:"thinkingFormat,omitempty"`
 
+	// OpenRouter-specific routing preferences.
+	OpenRouterRouting map[string]interface{} `json:"openRouterRouting,omitempty"`
+
+	// Vercel AI Gateway routing preferences.
+	VercelGatewayRouting map[string]interface{} `json:"vercelGatewayRouting,omitempty"`
+
+	// Whether z.ai supports top-level `tool_stream: true` for streaming tool deltas.
+	ZaiToolStream *bool `json:"zaiToolStream,omitempty"`
+
 	// Whether the provider supports `strict` in tool definitions.
 	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
 
@@ -120,6 +129,15 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.ThinkingFormat != "" {
 		c.ThinkingFormat = o.ThinkingFormat
+	}
+	if o.OpenRouterRouting != nil {
+		c.OpenRouterRouting = o.OpenRouterRouting
+	}
+	if o.VercelGatewayRouting != nil {
+		c.VercelGatewayRouting = o.VercelGatewayRouting
+	}
+	if o.ZaiToolStream != nil {
+		c.ZaiToolStream = o.ZaiToolStream
 	}
 	if o.SupportsStrictMode != nil {
 		c.SupportsStrictMode = o.SupportsStrictMode

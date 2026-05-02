@@ -16,6 +16,14 @@ Compared `go-ai` against `@mariozechner/pi-ai` v0.70.3 through v0.72.0, with emp
 - **OpenAI Codex cached WebSocket transport**: `websocket-cached` reuses session-scoped Codex WebSockets and sends continuation deltas with `previous_response_id`, with exported debug/session helpers.
 - **Model-level thinking maps**: v0.72.0's `thinkingLevelMap` metadata is preserved in generated models and used to clamp/map reasoning levels across OpenAI, Codex, Mistral, Google/Gemini, and Responses providers.
 
+## 2026-05-02 full comparative audit follow-up
+
+A second full audit after the v0.72.0 sync found two remaining parity-sensitive gaps and closed them:
+
+- **Generated model metadata** now preserves upstream `headers` and `compat` objects. This restores model-specific behavior for Copilot headers, DeepSeek/ZAI thinking formats, session-affinity flags, Anthropic eager tool streaming overrides, strict-tool support, and max-token-field overrides.
+- **OpenAI-compatible thinking formats** now emit provider-specific controls (`thinking`, nested `reasoning`, `enable_thinking`, `chat_template_kwargs`, and `tool_stream`) based on merged model compat + `thinkingLevelMap`.
+- **OpenAI Codex cached WebSocket sessions** now have a 5-minute idle TTL matching upstream's temporary session cache rather than persisting until explicit close.
+
 Intentional divergence retained:
 
 - `google-gemini-cli` and `google-antigravity` constants/providers remain in Go for backward compatibility, although v0.71.0 removed them from upstream public unions.

@@ -40,6 +40,31 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	}
 }
 
+func TestGeneratedModelMetadataParity(t *testing.T) {
+	goai.RegisterBuiltinModels()
+
+	deepseek := goai.GetModel(goai.ProviderDeepSeek, "deepseek-v4-pro")
+	if deepseek == nil || deepseek.CompletionsCompat == nil || deepseek.CompletionsCompat.ThinkingFormat != "deepseek" {
+		t.Fatalf("expected DeepSeek compat thinking format, got %#v", deepseek)
+	}
+	if deepseek.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingLow)] != nil {
+		t.Fatalf("expected DeepSeek low thinking level to be explicitly unsupported")
+	}
+	if v := deepseek.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)]; v == nil || *v != "max" {
+		t.Fatalf("expected DeepSeek xhigh to map to max, got %#v", v)
+	}
+
+	copilot := goai.GetModel(goai.ProviderGitHubCopilot, "claude-sonnet-4")
+	if copilot == nil || copilot.Headers["User-Agent"] == "" || copilot.AnthropicCompat == nil || copilot.AnthropicCompat.SupportsEagerToolInputStreaming == nil || *copilot.AnthropicCompat.SupportsEagerToolInputStreaming {
+		t.Fatalf("expected Copilot headers and Anthropic compat from generated metadata, got %#v", copilot)
+	}
+
+	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
+	if xiaomi == nil {
+		t.Fatal("expected Xiaomi mimo-v2-flash model")
+	}
+}
+
 func TestListModelsFilter(t *testing.T) {
 	goai.RegisterBuiltinModels()
 

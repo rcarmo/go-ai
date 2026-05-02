@@ -90,6 +90,40 @@ func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
 	}
 }
 
+func TestBuildRequestBodyUsesCompatThinkingFormats(t *testing.T) {
+	reasoning := goai.ThinkingHigh
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+
+	deepseekMax := "max"
+	deepseek := &goai.Model{
+		ID:                "deepseek-v4-pro",
+		Provider:          goai.ProviderDeepSeek,
+		Api:               goai.ApiOpenAICompletions,
+		BaseURL:           "https://api.deepseek.com",
+		Reasoning:         true,
+		ThinkingLevelMap:  map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingHigh): &deepseekMax},
+		CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "deepseek"},
+	}
+	deepReq := buildRequestBody(deepseek, convCtx, &goai.StreamOptions{Reasoning: &reasoning})
+	if deepReq.Thinking["type"] != "enabled" || deepReq.ReasoningEffort != "max" {
+		t.Fatalf("unexpected DeepSeek thinking payload: %#v effort=%q", deepReq.Thinking, deepReq.ReasoningEffort)
+	}
+
+	zaiToolStream := true
+	zai := &goai.Model{
+		ID:                "glm-4.7-flash",
+		Provider:          goai.ProviderZAI,
+		Api:               goai.ApiOpenAICompletions,
+		BaseURL:           "https://api.z.ai/api/paas/v4",
+		Reasoning:         true,
+		CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "zai", ZaiToolStream: &zaiToolStream},
+	}
+	zaiReq := buildRequestBody(zai, &goai.Context{Messages: convCtx.Messages, Tools: []goai.Tool{{Name: "tool", Description: "tool", Parameters: json.RawMessage(`{"type":"object"}`)}}}, &goai.StreamOptions{Reasoning: &reasoning})
+	if zaiReq.EnableThinking == nil || !*zaiReq.EnableThinking || zaiReq.ToolStream == nil || !*zaiReq.ToolStream {
+		t.Fatalf("unexpected ZAI payload enableThinking=%#v toolStream=%#v", zaiReq.EnableThinking, zaiReq.ToolStream)
+	}
+}
+
 func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {
 	body := io.NopCloser(io.MultiReader(
 		stringsReader("data: {\"id\":\"chatcmpl_1\",\"model\":\"actual-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"}}]}\n\n"),

@@ -170,9 +170,12 @@ type codexWebSocketContinuation struct {
 	lastResponseItems []interface{}
 }
 
+const codexWebSocketSessionCacheTTL = 5 * time.Minute
+
 type codexWebSocketSessionEntry struct {
 	conn         *websocket.Conn
 	continuation *codexWebSocketContinuation
+	idleTimer    *time.Timer
 	mu           sync.Mutex
 }
 
@@ -225,8 +228,13 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 	codexWebSocketSessionsMu.Lock()
 	defer codexWebSocketSessionsMu.Unlock()
 	closeEntry := func(entry *codexWebSocketSessionEntry) {
-		if entry != nil && entry.conn != nil {
-			_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
+		if entry != nil {
+			if entry.idleTimer != nil {
+				entry.idleTimer.Stop()
+			}
+			if entry.conn != nil {
+				_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
+			}
 		}
 	}
 	if sessionID != "" {
@@ -316,6 +324,10 @@ func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, 
 func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*codexWebSocketSessionEntry, bool, error) {
 	codexWebSocketSessionsMu.Lock()
 	if entry := codexWebSocketSessions[sessionID]; entry != nil {
+		if entry.idleTimer != nil {
+			entry.idleTimer.Stop()
+			entry.idleTimer = nil
+		}
 		codexWebSocketSessionsMu.Unlock()
 		return entry, true, nil
 	}
@@ -329,6 +341,10 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 
 	codexWebSocketSessionsMu.Lock()
 	if existing := codexWebSocketSessions[sessionID]; existing != nil {
+		if existing.idleTimer != nil {
+			existing.idleTimer.Stop()
+			existing.idleTimer = nil
+		}
 		codexWebSocketSessionsMu.Unlock()
 		conn.CloseNow()
 		return existing, true, nil
@@ -345,8 +361,34 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	codexWebSocketSessionsMu.Lock()
 	defer codexWebSocketSessionsMu.Unlock()
 	if codexWebSocketSessions[sessionID] == entry {
+		if entry != nil && entry.idleTimer != nil {
+			entry.idleTimer.Stop()
+			entry.idleTimer = nil
+		}
 		delete(codexWebSocketSessions, sessionID)
 	}
+}
+
+func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSessionEntry) {
+	if sessionID == "" || entry == nil {
+		return
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	if codexWebSocketSessions[sessionID] != entry {
+		return
+	}
+	if entry.idleTimer != nil {
+		entry.idleTimer.Stop()
+	}
+	entry.idleTimer = time.AfterFunc(codexWebSocketSessionCacheTTL, func() {
+		codexWebSocketSessionsMu.Lock()
+		defer codexWebSocketSessionsMu.Unlock()
+		if codexWebSocketSessions[sessionID] == entry {
+			delete(codexWebSocketSessions, sessionID)
+			_ = entry.conn.Close(websocket.StatusNormalClosure, "idle_timeout")
+		}
+	})
 }
 
 func requestBodyWithoutCodexInput(body map[string]interface{}) map[string]interface{} {
@@ -746,8 +788,10 @@ readLoop:
 		}
 		normalized, _ := normalizeJSONValue(filtered).([]interface{})
 		entry.continuation = &codexWebSocketContinuation{lastRequestBody: fullEnvelope, lastResponseID: partial.ResponseID, lastResponseItems: normalized}
+		scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
 	} else if useCachedContext && entry != nil {
 		entry.continuation = nil
+		scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
 	} else {
 		conn.Close(websocket.StatusNormalClosure, "done")
 	}

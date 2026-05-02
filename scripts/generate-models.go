@@ -83,12 +83,36 @@ type modelEntry struct {
 	Api              string             `json:"api"`
 	Provider         string             `json:"provider"`
 	BaseURL          string             `json:"baseUrl"`
+	Headers          map[string]string  `json:"headers"`
+	Compat           compatEntry        `json:"compat"`
 	Reasoning        bool               `json:"reasoning"`
 	ThinkingLevelMap map[string]*string `json:"thinkingLevelMap"`
 	Input            []string           `json:"input"`
 	Cost             costEntry          `json:"cost"`
 	ContextWindow    int                `json:"contextWindow"`
 	MaxTokens        int                `json:"maxTokens"`
+}
+
+type compatEntry struct {
+	SupportsStore                               *bool                  `json:"supportsStore"`
+	SupportsDeveloperRole                       *bool                  `json:"supportsDeveloperRole"`
+	SupportsReasoningEffort                     *bool                  `json:"supportsReasoningEffort"`
+	SupportsUsageInStreaming                    *bool                  `json:"supportsUsageInStreaming"`
+	MaxTokensField                              string                 `json:"maxTokensField"`
+	RequiresToolResultName                      *bool                  `json:"requiresToolResultName"`
+	RequiresAssistantAfterToolResult            *bool                  `json:"requiresAssistantAfterToolResult"`
+	RequiresThinkingAsText                      *bool                  `json:"requiresThinkingAsText"`
+	RequiresReasoningContentOnAssistantMessages *bool                  `json:"requiresReasoningContentOnAssistantMessages"`
+	ThinkingFormat                              string                 `json:"thinkingFormat"`
+	OpenRouterRouting                           map[string]interface{} `json:"openRouterRouting"`
+	VercelGatewayRouting                        map[string]interface{} `json:"vercelGatewayRouting"`
+	ZaiToolStream                               *bool                  `json:"zaiToolStream"`
+	SupportsStrictMode                          *bool                  `json:"supportsStrictMode"`
+	CacheControlFormat                          string                 `json:"cacheControlFormat"`
+	SendSessionAffinityHeaders                  *bool                  `json:"sendSessionAffinityHeaders"`
+	SupportsLongCacheRetention                  *bool                  `json:"supportsLongCacheRetention"`
+	SendSessionIdHeader                         *bool                  `json:"sendSessionIdHeader"`
+	SupportsEagerToolInputStreaming             *bool                  `json:"supportsEagerToolInputStreaming"`
 }
 
 type costEntry struct {
@@ -143,6 +167,7 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 	b.WriteString(fmt.Sprintf("// Generated: %s\n", time.Now().UTC().Format(time.RFC3339)))
 	b.WriteString("\n")
 	b.WriteString("package goai\n\n")
+	b.WriteString("import \"encoding/json\"\n\n")
 	b.WriteString("// RegisterBuiltinModels registers all known models from pi-ai's model registry.\n")
 	b.WriteString("// Call this during init() or at program startup to populate the model registry.\n")
 	b.WriteString("func RegisterBuiltinModels() {\n")
@@ -181,6 +206,22 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 			b.WriteString(fmt.Sprintf("\t\tApi:           %q,\n", m.Api))
 			b.WriteString(fmt.Sprintf("\t\tProvider:      %q,\n", m.Provider))
 			b.WriteString(fmt.Sprintf("\t\tBaseURL:       %q,\n", m.BaseURL))
+			if len(m.Headers) > 0 {
+				b.WriteString("\t\tHeaders:       map[string]string{")
+				keys := make([]string, 0, len(m.Headers))
+				for k := range m.Headers {
+					keys = append(keys, k)
+				}
+				sortStrings(keys)
+				for i, k := range keys {
+					if i > 0 {
+						b.WriteString(", ")
+					}
+					b.WriteString(fmt.Sprintf("%q: %q", k, m.Headers[k]))
+				}
+				b.WriteString("},\n")
+			}
+			writeCompat(&b, m.Api, m.Compat)
 			b.WriteString(fmt.Sprintf("\t\tReasoning:     %v,\n", m.Reasoning))
 			if len(m.ThinkingLevelMap) > 0 {
 				b.WriteString("\t\tThinkingLevelMap: map[ModelThinkingLevel]*string{")
@@ -212,7 +253,71 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 
 	b.WriteString("}\n\n")
 	b.WriteString("func strPtr(v string) *string { return &v }\n")
+	b.WriteString("func boolPtr(v bool) *bool { return &v }\n")
+	b.WriteString("func mustMap(data string) map[string]interface{} { var out map[string]interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
 	return b.String()
+}
+
+func writeCompat(b *strings.Builder, api string, c compatEntry) {
+	if !hasCompat(c) {
+		return
+	}
+	switch api {
+	case "openai-completions":
+		b.WriteString("\t\tCompletionsCompat: &OpenAICompletionsCompat{")
+		writeBoolField(b, "SupportsStore", c.SupportsStore)
+		writeBoolField(b, "SupportsDeveloperRole", c.SupportsDeveloperRole)
+		writeBoolField(b, "SupportsReasoningEffort", c.SupportsReasoningEffort)
+		writeBoolField(b, "SupportsUsageInStreaming", c.SupportsUsageInStreaming)
+		writeStringField(b, "MaxTokensField", c.MaxTokensField)
+		writeBoolField(b, "RequiresToolResultName", c.RequiresToolResultName)
+		writeBoolField(b, "RequiresAssistantAfterToolResult", c.RequiresAssistantAfterToolResult)
+		writeBoolField(b, "RequiresThinkingAsText", c.RequiresThinkingAsText)
+		writeBoolField(b, "RequiresReasoningContentOnAssistantMessages", c.RequiresReasoningContentOnAssistantMessages)
+		writeStringField(b, "ThinkingFormat", c.ThinkingFormat)
+		writeMapField(b, "OpenRouterRouting", c.OpenRouterRouting)
+		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
+		writeBoolField(b, "ZaiToolStream", c.ZaiToolStream)
+		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
+		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
+		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		b.WriteString("},\n")
+	case "openai-responses", "azure-openai-responses":
+		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
+		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
+		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		b.WriteString("},\n")
+	case "anthropic-messages":
+		b.WriteString("\t\tAnthropicCompat: &AnthropicMessagesCompat{")
+		writeBoolField(b, "SupportsEagerToolInputStreaming", c.SupportsEagerToolInputStreaming)
+		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		b.WriteString("},\n")
+	}
+}
+
+func hasCompat(c compatEntry) bool {
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+}
+
+func writeBoolField(b *strings.Builder, name string, value *bool) {
+	if value != nil {
+		b.WriteString(fmt.Sprintf("%s: boolPtr(%v), ", name, *value))
+	}
+}
+
+func writeStringField(b *strings.Builder, name string, value string) {
+	if value != "" {
+		b.WriteString(fmt.Sprintf("%s: %q, ", name, value))
+	}
+}
+
+func writeMapField(b *strings.Builder, name string, value map[string]interface{}) {
+	if len(value) == 0 {
+		return
+	}
+	data, _ := json.Marshal(value)
+	b.WriteString(fmt.Sprintf("%s: mustMap(%q), ", name, string(data)))
 }
 
 func sortedKeys(m map[string]map[string]modelEntry) []string {
