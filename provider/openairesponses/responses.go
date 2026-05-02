@@ -201,7 +201,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if model.Reasoning {
 		effort := "medium"
 		if opts != nil && opts.Reasoning != nil {
-			effort = string(*opts.Reasoning)
+			if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+				effort = mapped
+			}
 		}
 		if model.Provider == goai.ProviderGitHubCopilot && effort == "" {
 			// Copilot: omit reasoning block entirely if no effort requested,
@@ -211,9 +213,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			req.Include = []string{"reasoning.encrypted_content"}
 		}
 	} else if opts != nil && opts.Reasoning != nil {
-		// Non-reasoning model but explicit reasoning requested — pass through.
-		req.Reasoning = &reasoningConfig{Effort: string(*opts.Reasoning), Summary: "auto"}
-		req.Include = []string{"reasoning.encrypted_content"}
+		// Non-reasoning model but explicit reasoning requested — pass through if supported.
+		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+			req.Reasoning = &reasoningConfig{Effort: effort, Summary: "auto"}
+			req.Include = []string{"reasoning.encrypted_content"}
+		}
+	} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && model.Provider != goai.ProviderGitHubCopilot {
+		req.Reasoning = &reasoningConfig{Effort: *off}
 	}
 
 	// Cache retention (compat-driven)

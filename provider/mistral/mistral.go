@@ -167,10 +167,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		req.Temperature = opts.Temperature
 		req.MaxTokens = opts.MaxTokens
 		if opts.Reasoning != nil && *opts.Reasoning != "" && model.Reasoning {
-			if usesReasoningEffort(model) {
-				req.ReasoningEffort = "high"
-			} else {
-				req.PromptMode = "reasoning"
+			level := goai.ModelThinkingLevel(*opts.Reasoning)
+			if mapped, ok := goai.MapThinkingLevel(model, level); ok && mapped != "none" {
+				if usesReasoningEffort(model) {
+					req.ReasoningEffort = mapped
+				} else {
+					req.PromptMode = "reasoning"
+				}
 			}
 		}
 	}

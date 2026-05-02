@@ -16,9 +16,6 @@ type OpenAICompletionsCompat struct {
 	// Whether the provider supports `reasoning_effort`.
 	SupportsReasoningEffort *bool `json:"supportsReasoningEffort,omitempty"`
 
-	// Mapping from thinking levels to provider-specific reasoning_effort values.
-	ReasoningEffortMap map[ThinkingLevel]string `json:"reasoningEffortMap,omitempty"`
-
 	// Whether the provider supports `stream_options: { include_usage: true }`.
 	SupportsUsageInStreaming *bool `json:"supportsUsageInStreaming,omitempty"`
 
@@ -102,9 +99,6 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.SupportsReasoningEffort != nil {
 		c.SupportsReasoningEffort = o.SupportsReasoningEffort
-	}
-	if o.ReasoningEffortMap != nil {
-		c.ReasoningEffortMap = o.ReasoningEffortMap
 	}
 	if o.SupportsUsageInStreaming != nil {
 		c.SupportsUsageInStreaming = o.SupportsUsageInStreaming
@@ -203,7 +197,6 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	if isDeepSeek {
 		c.ThinkingFormat = "deepseek"
 		c.RequiresReasoningContentOnAssistantMessages = &t
-		c.ReasoningEffortMap = map[ThinkingLevel]string{ThinkingMinimal: "high", ThinkingLow: "high", ThinkingMedium: "high", ThinkingHigh: "high", ThinkingXHigh: "max"}
 	}
 	if isMoonshot || isCloudflareAIGW {
 		c.SupportsStrictMode = &f

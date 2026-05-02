@@ -1038,9 +1038,11 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 			req.PromptCacheKey = opts.SessionID
 		}
 		if opts.Reasoning != nil {
-			req.Reasoning = map[string]interface{}{
-				"effort":  clampCodexReasoningEffort(model.ID, string(*opts.Reasoning)),
-				"summary": "auto",
+			if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+				req.Reasoning = map[string]interface{}{
+					"effort":  effort,
+					"summary": "auto",
+				}
 			}
 		}
 	}

@@ -2,9 +2,28 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.71.1
+## Source: `@mariozechner/pi-ai` v0.72.0
 
 ## Sync history
+
+### v0.72.0 (2026-05-02)
+
+**Minor release.** Model-level thinking maps + Xiaomi provider.
+
+- **New provider**: `xiaomi` with env key `XIAOMI_API_KEY`.
+- **New model metadata**: `thinkingLevelMap` on `Model`, plus `ModelThinkingLevel`/`ThinkingLevelMap` concepts.
+- **Reasoning behavior**: upstream replaced hard-coded `supportsXhigh`/reasoning effort maps with per-model thinking-level maps.
+- **Providers updated**: OpenAI Completions, OpenAI Responses, OpenAI Codex, Mistral, Google, Vertex, Anthropic, Bedrock and Azure Responses now consult `thinkingLevelMap` where applicable.
+- **Model registry**: 951 → 956 models, 27 → 28 providers; added Xiaomi `mimo-v2-flash`.
+
+Deep audit result:
+
+- Added `Model.ThinkingLevelMap`, `ModelThinkingLevel`, `ThinkingOff`, `GetSupportedThinkingLevels`, `ClampThinkingLevel`, and `MapThinkingLevel`.
+- Regenerated models including thinking-level maps with null unsupported levels.
+- Added Xiaomi provider constant and API-key environment mapping.
+- Routed OpenAI Completions, OpenAI Responses, OpenAI Codex, Mistral, Google, and Gemini CLI reasoning through `MapThinkingLevel`.
+- Removed stale OpenAI-compatible `ReasoningEffortMap` compat behavior in favor of model-level maps.
+- No new OAuth/login changes.
 
 ### v0.71.1 (2026-05-01)
 

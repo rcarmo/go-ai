@@ -1,12 +1,86 @@
 // Simple options — maps unified ThinkingLevel to provider-specific options.
 package goai
 
-// ClampReasoning downgrades xhigh to high for providers that don't support it.
+var extendedThinkingLevels = []ModelThinkingLevel{ThinkingOff, ModelThinkingLevel(ThinkingMinimal), ModelThinkingLevel(ThinkingLow), ModelThinkingLevel(ThinkingMedium), ModelThinkingLevel(ThinkingHigh), ModelThinkingLevel(ThinkingXHigh)}
+
+// ClampReasoning downgrades xhigh to high for legacy callers that do not pass a model.
 func ClampReasoning(level ThinkingLevel) ThinkingLevel {
 	if level == ThinkingXHigh {
 		return ThinkingHigh
 	}
 	return level
+}
+
+// GetSupportedThinkingLevels returns the levels supported by a model, including "off".
+func GetSupportedThinkingLevels(model *Model) []ModelThinkingLevel {
+	if model == nil || !model.Reasoning {
+		return []ModelThinkingLevel{ThinkingOff}
+	}
+	out := make([]ModelThinkingLevel, 0, len(extendedThinkingLevels))
+	for _, level := range extendedThinkingLevels {
+		mapped, ok := model.ThinkingLevelMap[level]
+		if ok && mapped == nil {
+			continue
+		}
+		if level == ModelThinkingLevel(ThinkingXHigh) && !ok {
+			continue
+		}
+		out = append(out, level)
+	}
+	if len(out) == 0 {
+		return []ModelThinkingLevel{ThinkingOff}
+	}
+	return out
+}
+
+// ClampThinkingLevel clamps a requested level to the nearest supported model level.
+func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLevel {
+	available := GetSupportedThinkingLevels(model)
+	for _, candidate := range available {
+		if candidate == level {
+			return level
+		}
+	}
+	idx := -1
+	for i, candidate := range extendedThinkingLevels {
+		if candidate == level {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return available[0]
+	}
+	for i := idx; i < len(extendedThinkingLevels); i++ {
+		for _, candidate := range available {
+			if candidate == extendedThinkingLevels[i] {
+				return candidate
+			}
+		}
+	}
+	for i := idx - 1; i >= 0; i-- {
+		for _, candidate := range available {
+			if candidate == extendedThinkingLevels[i] {
+				return candidate
+			}
+		}
+	}
+	return available[0]
+}
+
+// MapThinkingLevel returns the provider/model-specific value for a thinking level.
+func MapThinkingLevel(model *Model, level ModelThinkingLevel) (string, bool) {
+	clamped := ClampThinkingLevel(model, level)
+	if mapped, ok := model.ThinkingLevelMap[clamped]; ok {
+		if mapped == nil {
+			return "", false
+		}
+		return *mapped, true
+	}
+	if clamped == ThinkingOff {
+		return "none", true
+	}
+	return string(clamped), true
 }
 
 // DefaultThinkingBudgets returns the default token budgets per thinking level.
@@ -58,10 +132,8 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 
 // SupportsXhigh checks if a model supports the xhigh thinking level.
 func SupportsXhigh(model *Model) bool {
-	// GPT-5.2+ and Opus 4.6+ families
-	id := model.ID
-	for _, prefix := range []string{"gpt-5.2", "gpt-5.3", "gpt-5.4", "gpt-5.5", "claude-opus-4.6", "claude-opus-4.7", "deepseek-v4-pro", "deepseek-v4-flash"} {
-		if len(id) >= len(prefix) && id[:len(prefix)] == prefix {
+	for _, level := range GetSupportedThinkingLevels(model) {
+		if level == ModelThinkingLevel(ThinkingXHigh) {
 			return true
 		}
 	}

@@ -58,10 +58,18 @@ const (
 	ProviderCloudflareAIGateway Provider = "cloudflare-ai-gateway"
 	ProviderMoonshotAI          Provider = "moonshotai"
 	ProviderMoonshotAICN        Provider = "moonshotai-cn"
+	ProviderXiaomi              Provider = "xiaomi"
 )
 
 // ThinkingLevel controls the reasoning depth.
 type ThinkingLevel string
+
+// ModelThinkingLevel extends ThinkingLevel with "off" for per-model thinking maps.
+type ModelThinkingLevel string
+
+const (
+	ThinkingOff ModelThinkingLevel = "off"
+)
 
 const (
 	ThinkingMinimal ThinkingLevel = "minimal"
@@ -253,16 +261,17 @@ type ModelCost struct {
 
 // Model identifies a specific LLM endpoint.
 type Model struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Api           Api       `json:"api"`
-	Provider      Provider  `json:"provider"`
-	BaseURL       string    `json:"baseUrl"`
-	Reasoning     bool      `json:"reasoning"`
-	Input         []string  `json:"input"` // "text", "image"
-	Cost          ModelCost `json:"cost"`
-	ContextWindow int       `json:"contextWindow"`
-	MaxTokens     int       `json:"maxTokens"`
+	ID               string                         `json:"id"`
+	Name             string                         `json:"name"`
+	Api              Api                            `json:"api"`
+	Provider         Provider                       `json:"provider"`
+	BaseURL          string                         `json:"baseUrl"`
+	Reasoning        bool                           `json:"reasoning"`
+	ThinkingLevelMap map[ModelThinkingLevel]*string `json:"thinkingLevelMap,omitempty"`
+	Input            []string                       `json:"input"` // "text", "image"
+	Cost             ModelCost                      `json:"cost"`
+	ContextWindow    int                            `json:"contextWindow"`
+	MaxTokens        int                            `json:"maxTokens"`
 
 	// Optional overrides
 	Headers           map[string]string        `json:"headers,omitempty"`

@@ -244,7 +244,13 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 
 	// Reasoning effort
 	if opts != nil && opts.Reasoning != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
-		req.ReasoningEffort = string(*opts.Reasoning)
+		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+			req.ReasoningEffort = effort
+		}
+	} else if opts == nil || opts.Reasoning == nil {
+		if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+			req.ReasoningEffort = *off
+		}
 	}
 
 	// Convert messages with compat awareness

@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
-	model := &goai.Model{ID: "gpt-5.4-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}
+	model := &goai.Model{ID: "gpt-5.4-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true}
 	sess := "sess-123"
 	reasoning := goai.ThinkingLevel("minimal")
 	conv := &goai.Context{
@@ -42,8 +42,8 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected reasoning map, got %#v", req.Reasoning)
 	}
-	if rm["effort"] != "low" {
-		t.Fatalf("expected clamped minimal->low, got %#v", rm["effort"])
+	if rm["effort"] != "minimal" {
+		t.Fatalf("expected model-level thinking map default to keep minimal, got %#v", rm["effort"])
 	}
 	var input []map[string]any
 	if err := json.Unmarshal(req.Input, &input); err != nil {

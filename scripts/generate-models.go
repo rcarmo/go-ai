@@ -78,16 +78,17 @@ func main() {
 }
 
 type modelEntry struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Api           string   `json:"api"`
-	Provider      string   `json:"provider"`
-	BaseURL       string   `json:"baseUrl"`
-	Reasoning     bool     `json:"reasoning"`
-	Input         []string `json:"input"`
-	Cost          costEntry `json:"cost"`
-	ContextWindow int      `json:"contextWindow"`
-	MaxTokens     int      `json:"maxTokens"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Api              string             `json:"api"`
+	Provider         string             `json:"provider"`
+	BaseURL          string             `json:"baseUrl"`
+	Reasoning        bool               `json:"reasoning"`
+	ThinkingLevelMap map[string]*string `json:"thinkingLevelMap"`
+	Input            []string           `json:"input"`
+	Cost             costEntry          `json:"cost"`
+	ContextWindow    int                `json:"contextWindow"`
+	MaxTokens        int                `json:"maxTokens"`
 }
 
 type costEntry struct {
@@ -181,6 +182,25 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 			b.WriteString(fmt.Sprintf("\t\tProvider:      %q,\n", m.Provider))
 			b.WriteString(fmt.Sprintf("\t\tBaseURL:       %q,\n", m.BaseURL))
 			b.WriteString(fmt.Sprintf("\t\tReasoning:     %v,\n", m.Reasoning))
+			if len(m.ThinkingLevelMap) > 0 {
+				b.WriteString("\t\tThinkingLevelMap: map[ModelThinkingLevel]*string{")
+				keys := make([]string, 0, len(m.ThinkingLevelMap))
+				for k := range m.ThinkingLevelMap {
+					keys = append(keys, k)
+				}
+				sortStrings(keys)
+				for i, k := range keys {
+					if i > 0 {
+						b.WriteString(", ")
+					}
+					if m.ThinkingLevelMap[k] == nil {
+						b.WriteString(fmt.Sprintf("%q: nil", k))
+					} else {
+						b.WriteString(fmt.Sprintf("%q: strPtr(%q)", k, *m.ThinkingLevelMap[k]))
+					}
+				}
+				b.WriteString("},\n")
+			}
 			b.WriteString(fmt.Sprintf("\t\tInput:         %s,\n", inputArr))
 			b.WriteString(fmt.Sprintf("\t\tCost:          ModelCost{Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v},\n",
 				m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite))
@@ -190,7 +210,8 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 		}
 	}
 
-	b.WriteString("}\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func strPtr(v string) *string { return &v }\n")
 	return b.String()
 }
 

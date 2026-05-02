@@ -135,11 +135,11 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request types ---
 
 type ccaRequest struct {
-	Project     string     `json:"project"`
-	Model       string     `json:"model"`
-	Request     ccaInner   `json:"request"`
-	RequestType string     `json:"requestType,omitempty"`
-	UserAgent   string     `json:"userAgent,omitempty"`
+	Project     string   `json:"project"`
+	Model       string   `json:"model"`
+	Request     ccaInner `json:"request"`
+	RequestType string   `json:"requestType,omitempty"`
+	UserAgent   string   `json:"userAgent,omitempty"`
 }
 
 type ccaInner struct {
@@ -245,7 +245,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, projectID string, op
 		tc := &geminiThinkingConfig{}
 		t := true
 		tc.IncludeThoughts = &t
-		tc.ThinkingLevel = strings.ToUpper(string(goai.ClampReasoning(*opts.Reasoning)))
+		level, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+		if !ok || level == "none" {
+			level = string(goai.ThinkingHigh)
+		}
+		tc.ThinkingLevel = strings.ToUpper(level)
 		genConfig.ThinkingConfig = tc
 		hasConfig = true
 	}
@@ -425,11 +429,11 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 							(!isThinking && current.blockType != "text") {
 							if current != nil {
 								switch current.blockType {
-					case "text":
-						ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
-					case "thinking":
-						ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
-					}
+								case "text":
+									ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
+								case "thinking":
+									ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
+								}
 							}
 							if isThinking {
 								partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
@@ -456,11 +460,11 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					if part.FunctionCall != nil {
 						if current != nil {
 							switch current.blockType {
-					case "text":
-						ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
-					case "thinking":
-						ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
-					}
+							case "text":
+								ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
+							case "thinking":
+								ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
+							}
 							current = nil
 						}
 						tcID := fmt.Sprintf("%s_%d_%d", part.FunctionCall.Name, time.Now().UnixMilli(), atomic.AddInt64(&toolCallCounter, 1))
@@ -506,11 +510,11 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	if current != nil {
 		switch current.blockType {
-					case "text":
-						ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
-					case "thinking":
-						ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
-					}
+		case "text":
+			ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
+		case "thinking":
+			ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
+		}
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
@@ -519,7 +523,6 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
 }
-
 
 func mapFinishReason(reason string) goai.StopReason {
 	switch reason {

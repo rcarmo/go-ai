@@ -30,6 +30,7 @@ var providerEnvMap = map[Provider][]string{
 	ProviderMoonshotAICN:        {"MOONSHOT_API_KEY"},
 	ProviderCloudflareAIGateway: {"CLOUDFLARE_API_KEY"},
 	ProviderCloudflareWorkersAI: {"CLOUDFLARE_API_KEY"},
+	ProviderXiaomi:              {"XIAOMI_API_KEY"},
 }
 
 // GetEnvAPIKey looks up an API key from environment variables

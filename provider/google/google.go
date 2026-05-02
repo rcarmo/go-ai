@@ -132,11 +132,11 @@ func buildStreamURL(model *goai.Model, apiKey string) string {
 // --- Request types ---
 
 type geminiRequest struct {
-	Contents         []geminiContent         `json:"contents"`
-	SystemInstruction *geminiContent         `json:"systemInstruction,omitempty"`
-	GenerationConfig *geminiGenerationConfig `json:"generationConfig,omitempty"`
-	Tools            []geminiToolDecl        `json:"tools,omitempty"`
-	ToolConfig       *geminiToolConfig       `json:"toolConfig,omitempty"`
+	Contents          []geminiContent         `json:"contents"`
+	SystemInstruction *geminiContent          `json:"systemInstruction,omitempty"`
+	GenerationConfig  *geminiGenerationConfig `json:"generationConfig,omitempty"`
+	Tools             []geminiToolDecl        `json:"tools,omitempty"`
+	ToolConfig        *geminiToolConfig       `json:"toolConfig,omitempty"`
 }
 
 type geminiContent struct {
@@ -145,12 +145,12 @@ type geminiContent struct {
 }
 
 type geminiPart struct {
-	Text             string               `json:"text,omitempty"`
-	Thought          *bool                `json:"thought,omitempty"`
-	ThoughtSignature string               `json:"thoughtSignature,omitempty"`
-	InlineData       *geminiInlineData    `json:"inlineData,omitempty"`
-	FunctionCall     *geminiFunctionCall  `json:"functionCall,omitempty"`
-	FunctionResponse *geminiFuncResponse  `json:"functionResponse,omitempty"`
+	Text             string              `json:"text,omitempty"`
+	Thought          *bool               `json:"thought,omitempty"`
+	ThoughtSignature string              `json:"thoughtSignature,omitempty"`
+	InlineData       *geminiInlineData   `json:"inlineData,omitempty"`
+	FunctionCall     *geminiFunctionCall `json:"functionCall,omitempty"`
+	FunctionResponse *geminiFuncResponse `json:"functionResponse,omitempty"`
 }
 
 type geminiInlineData struct {
@@ -171,9 +171,9 @@ type geminiFuncResponse struct {
 }
 
 type geminiGenerationConfig struct {
-	Temperature    *float64             `json:"temperature,omitempty"`
-	MaxOutputTokens *int               `json:"maxOutputTokens,omitempty"`
-	ThinkingConfig *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
+	Temperature     *float64              `json:"temperature,omitempty"`
+	MaxOutputTokens *int                  `json:"maxOutputTokens,omitempty"`
+	ThinkingConfig  *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
 type geminiThinkingConfig struct {
@@ -228,7 +228,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		tc := &geminiThinkingConfig{}
 		t := true
 		tc.IncludeThoughts = &t
-		level := string(goai.ClampReasoning(*opts.Reasoning))
+		level, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+		if !ok || level == "none" {
+			level = string(goai.ThinkingHigh)
+		}
 		tc.ThinkingLevel = strings.ToUpper(level)
 		genConfig.ThinkingConfig = tc
 		hasConfig = true
@@ -386,10 +389,10 @@ type geminiCandidate struct {
 }
 
 type geminiUsage struct {
-	PromptTokenCount       int `json:"promptTokenCount"`
-	CandidatesTokenCount   int `json:"candidatesTokenCount"`
-	TotalTokenCount        int `json:"totalTokenCount"`
-	ThoughtsTokenCount     int `json:"thoughtsTokenCount"`
+	PromptTokenCount        int `json:"promptTokenCount"`
+	CandidatesTokenCount    int `json:"candidatesTokenCount"`
+	TotalTokenCount         int `json:"totalTokenCount"`
+	ThoughtsTokenCount      int `json:"thoughtsTokenCount"`
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 

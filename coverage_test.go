@@ -190,13 +190,14 @@ func TestClampReasoning(t *testing.T) {
 }
 
 func TestSupportsXhigh(t *testing.T) {
-	yes := &goai.Model{ID: "gpt-5.2-turbo"}
-	no := &goai.Model{ID: "gpt-4o"}
+	xhigh := "xhigh"
+	yes := &goai.Model{ID: "gpt-5.2-turbo", Reasoning: true, ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingXHigh): &xhigh}}
+	no := &goai.Model{ID: "gpt-4o", Reasoning: true}
 	if !goai.SupportsXhigh(yes) {
-		t.Fatal("gpt-5.2 should support xhigh")
+		t.Fatal("model with xhigh map should support xhigh")
 	}
 	if goai.SupportsXhigh(no) {
-		t.Fatal("gpt-4o should not support xhigh")
+		t.Fatal("model without xhigh map should not support xhigh")
 	}
 }
 
