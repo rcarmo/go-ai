@@ -23,6 +23,7 @@ Use this skill when `@mariozechner/pi-ai` has been updated and `go-ai` needs to 
 - Treat the current `go-ai` repo state as canonical for file layout.
 - Do **not** assume old file names from earlier refactors (`overflow.go`, `validation.go`, `sanitize.go`, `copilot_headers.go`, `generate-models.ts`, etc.).
 - Validate with `go test ./...` and `go vet ./...` before pushing.
+- For **every** upstream release, perform a complete comparative audit against upstream code and `go-ai` code before declaring the release synced. Do not treat any release as “just a diff” without this audit.
 
 ## Current go-ai structure
 
@@ -179,9 +180,11 @@ Check for:
 - changed token refresh behavior
 - `ModifyModels()` behavior changes
 
-### Step 7: deep payload/API audit pass
+### Step 7: complete comparative audit pass
 
-After the mechanical per-version sync, do a deliberate second pass over recent upstream code-structure changes. This is **mandatory** for behavioral/API-affecting releases and recommended even for metadata-looking releases when provider files changed.
+After the mechanical per-version sync, do a deliberate second pass over the upstream release code and the current `go-ai` code. This is **mandatory for every upstream release**, including metadata-only, docs-only, patch, and no-op-looking releases. Never declare a release synced until this audit is complete.
+
+The audit must compare the upstream release artifacts/code against the Go implementation, not only the changelog. Start from the release notes when available, then verify each note and any actual code diff against `go-ai`.
 
 Audit at least:
 
@@ -238,11 +241,13 @@ diff -u "$PREV/env-api-keys.js" "$NEW/env-api-keys.js" | sed -n '1,160p'
 grep -R "responseModel\|prompt_cache\|cache_write\|prompt_cache_hit\|cf-aig\|reasoningEffort\|reasoning_effort\|message_stop\|baseURL\|supportsStrictMode\|maxTokensField" "$NEW"/providers "$NEW"/*.js
 ```
 
-For every gap found, either:
+For every release and every gap found, either:
 
 1. port the behavior,
 2. add/adjust tests proving Go already matches it, or
 3. document an intentional divergence in `docs/AUDIT_REPORT.md` and `docs/GAP_ANALYSIS.md`.
+
+The final response/commit notes must explicitly say the complete comparative audit was performed and summarize the result.
 
 Add fake-server or parser tests for high-risk payload/API changes, especially:
 
@@ -311,8 +316,8 @@ A correct sync pass should usually do **all** of these when appropriate:
 
 1. Update code if upstream changed
 2. Regenerate `models_generated.go` if model metadata changed
-3. Run the deep payload/API audit pass for behavioral/API-affecting releases
-4. Add or update tests for any high-risk payload/header/streaming changes
+3. Run the complete comparative audit pass for **every** upstream release
+4. Add or update tests for any high-risk payload/header/streaming changes, or tests proving parity when behavior is already covered
 5. Update `docs/GAP_ANALYSIS.md` to the new upstream version
 6. Update `docs/AUDIT_REPORT.md` when the deep audit finds residual gaps or intentional divergences
 7. Record whether the bump was:
