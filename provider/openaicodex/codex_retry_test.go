@@ -34,7 +34,7 @@ func TestStreamViaSSERetries429AndSucceeds(t *testing.T) {
 
 	ch := make(chan goai.Event, 32)
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
-	streamViaSSE(context.Background(), model, convCtx, opts, jwt, ch)
+	streamViaSSE(context.Background(), model, convCtx, opts, jwt, ch, nil)
 	close(ch)
 
 	var done *goai.DoneEvent

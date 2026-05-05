@@ -2,9 +2,30 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.72.1
+## Source: `@mariozechner/pi-ai` v0.73.0
 
 ## Sync history
+
+### v0.73.0 (2026-05-05)
+
+**Minor release.** Xiaomi provider split, model metadata fixes, Bedrock xhigh thinking, Codex fallback diagnostics/session cleanup.
+
+- **Xiaomi breaking change**: built-in `xiaomi` now points to the API-billing endpoint (`https://api.xiaomimimo.com/anthropic`) and keeps `XIAOMI_API_KEY` for that platform key.
+- **New providers**: `xiaomi-token-plan-cn`, `xiaomi-token-plan-ams`, and `xiaomi-token-plan-sgp` with `XIAOMI_TOKEN_PLAN_{CN,AMS,SGP}_API_KEY` environment variables.
+- **Model registry**: 956 → 971 models and 28 → 31 providers. Includes Xiaomi Token Plan regional catalogs and Qwen/MiniMax metadata fixes (`opencode-go` Qwen/MiniMax now use OpenAI-compatible API metadata where upstream changed it).
+- **Type surface**: assistant messages can now carry `diagnostics`; upstream also added session resource cleanup and diagnostic helpers.
+- **Bedrock**: Claude Opus 4.7 `xhigh` now preserves the native `xhigh` effort value instead of mapping to `max`/budgeted high.
+- **OpenAI Codex**: WebSocket setup failures before message streaming fall back to SSE and attach a `provider_transport_failure` diagnostic. Failed session IDs stay on SSE fallback for subsequent requests. Cached Codex WebSocket sessions are registered for session cleanup.
+
+Complete comparative audit result:
+
+- Added Xiaomi Token Plan provider constants and environment-key mappings.
+- Regenerated `models_generated.go` from upstream v0.73.0 (`971 models / 31 providers`).
+- Added assistant-message diagnostics and session-resource cleanup helpers to the Go surface.
+- Hardened Codex WebSocket behavior to delay `StartEvent` until the first valid WebSocket event, fall back to SSE on pre-stream transport failures, record fallback/debug stats, attach diagnostics to the fallback assistant message, and expose cleanup through `CleanupSessionResources()`.
+- Added Bedrock adaptive-thinking request fields for supported Claude models and preserves native `xhigh` for Opus 4.7.
+- Added fake-server/regression tests for Codex fallback diagnostics and Bedrock Opus 4.7 native `xhigh` effort.
+- Non-library release-note items (`read` rendering, bash incremental output, fuzzy ranking, terminal session fixes) are Pi runtime/tooling concerns and are not applicable to `go-ai`.
 
 ### v0.72.1 (2026-05-02)
 

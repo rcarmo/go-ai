@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -31,6 +32,10 @@ func init() {
 		Api:          goai.ApiOpenAICodexResponses,
 		Stream:       streamCodex,
 		StreamSimple: streamCodexSimple,
+	})
+	goai.RegisterSessionResourceCleanup(func(sessionID string) error {
+		CloseOpenAICodexWebSocketSessions(sessionID)
+		return nil
 	})
 }
 
@@ -57,22 +62,47 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			transport = opts.Transport
 		}
 
+		var diagnostics []goai.AssistantMessageDiagnostic
 		if transport == goai.TransportWebSocket || transport == goai.TransportWebSocketCached || transport == goai.TransportAuto {
-			err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
-			if err == nil {
-				return
-			}
-			// Fall back to SSE if WebSocket fails and transport is auto
-			if transport == goai.TransportAuto {
-				goai.GetLogger().Debug("WebSocket fallback to SSE", "error", err)
+			if opts != nil && opts.SessionID != "" && isCodexWebSocketSSEFallbackActive(opts.SessionID) {
+				recordCodexWebSocketSSEFallback(opts.SessionID)
 			} else {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
-				return
+				err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
+				if err == nil {
+					return
+				}
+				if ctx.Err() != nil {
+					ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+					return
+				}
+				if isCodexNonTransportError(err) {
+					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+					return
+				}
+				diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
+					"configuredTransport": string(transport),
+					"fallbackTransport":   "sse",
+					"eventsEmitted":       false,
+					"phase":               "before_message_stream_start",
+				}))
+				recordCodexWebSocketFailure(func() string {
+					if opts != nil {
+						return opts.SessionID
+					}
+					return ""
+				}(), err)
+				recordCodexWebSocketSSEFallback(func() string {
+					if opts != nil {
+						return opts.SessionID
+					}
+					return ""
+				}())
+				goai.GetLogger().Debug("WebSocket fallback to SSE", "error", err)
 			}
 		}
 
 		// SSE fallback (same as OpenAI Responses but with Codex URL)
-		streamViaSSE(ctx, model, convCtx, opts, apiKey, ch)
+		streamViaSSE(ctx, model, convCtx, opts, apiKey, ch, diagnostics)
 	}()
 
 	return ch
@@ -94,6 +124,51 @@ func resolveCodexWSURL(baseURL string) string {
 	httpURL = strings.Replace(httpURL, "https://", "wss://", 1)
 	httpURL = strings.Replace(httpURL, "http://", "ws://", 1)
 	return httpURL
+}
+
+type codexAPIError struct {
+	message string
+	code    string
+	payload any
+}
+
+func (e *codexAPIError) Error() string {
+	if e == nil {
+		return "codex API error"
+	}
+	if e.message != "" {
+		return e.message
+	}
+	if e.code != "" {
+		return "Codex error: " + e.code
+	}
+	return "Codex API error"
+}
+
+func (e *codexAPIError) Code() any { return e.code }
+
+type codexProtocolError struct {
+	message string
+	payload any
+	cause   error
+}
+
+func (e *codexProtocolError) Error() string {
+	if e == nil || e.message == "" {
+		return "Codex protocol error"
+	}
+	return e.message
+}
+
+func (e *codexProtocolError) Unwrap() error { return e.cause }
+
+func isCodexNonTransportError(err error) bool {
+	var apiErr *codexAPIError
+	if errors.As(err, &apiErr) {
+		return true
+	}
+	var protoErr *codexProtocolError
+	return errors.As(err, &protoErr)
 }
 
 func extractCodexAccountID(token string) (string, error) {
@@ -182,22 +257,27 @@ type codexWebSocketSessionEntry struct {
 // OpenAICodexWebSocketDebugStats exposes lightweight instrumentation for
 // websocket-cached transport behavior, mirroring pi-ai's debug helpers.
 type OpenAICodexWebSocketDebugStats struct {
-	Requests               int    `json:"requests"`
-	ConnectionsCreated     int    `json:"connectionsCreated"`
-	ConnectionsReused      int    `json:"connectionsReused"`
-	CachedContextRequests  int    `json:"cachedContextRequests"`
-	StoreTrueRequests      int    `json:"storeTrueRequests"`
-	FullContextRequests    int    `json:"fullContextRequests"`
-	DeltaRequests          int    `json:"deltaRequests"`
-	LastInputItems         int    `json:"lastInputItems"`
-	LastDeltaInputItems    *int   `json:"lastDeltaInputItems,omitempty"`
-	LastPreviousResponseID string `json:"lastPreviousResponseId,omitempty"`
+	Requests                int    `json:"requests"`
+	ConnectionsCreated      int    `json:"connectionsCreated"`
+	ConnectionsReused       int    `json:"connectionsReused"`
+	CachedContextRequests   int    `json:"cachedContextRequests"`
+	StoreTrueRequests       int    `json:"storeTrueRequests"`
+	FullContextRequests     int    `json:"fullContextRequests"`
+	DeltaRequests           int    `json:"deltaRequests"`
+	LastInputItems          int    `json:"lastInputItems"`
+	LastDeltaInputItems     *int   `json:"lastDeltaInputItems,omitempty"`
+	LastPreviousResponseID  string `json:"lastPreviousResponseId,omitempty"`
+	WebSocketFailures       int    `json:"websocketFailures"`
+	SSEFallbacks            int    `json:"sseFallbacks"`
+	LastWebSocketError      string `json:"lastWebSocketError,omitempty"`
+	WebSocketFallbackActive bool   `json:"websocketFallbackActive,omitempty"`
 }
 
 var (
-	codexWebSocketSessionsMu sync.Mutex
-	codexWebSocketSessions   = map[string]*codexWebSocketSessionEntry{}
-	codexWebSocketStats      = map[string]*OpenAICodexWebSocketDebugStats{}
+	codexWebSocketSessionsMu          sync.Mutex
+	codexWebSocketSessions            = map[string]*codexWebSocketSessionEntry{}
+	codexWebSocketStats               = map[string]*OpenAICodexWebSocketDebugStats{}
+	codexWebSocketSSEFallbackSessions = map[string]bool{}
 )
 
 // GetOpenAICodexWebSocketDebugStats returns a copy of cached WebSocket stats for sessionID.
@@ -218,9 +298,11 @@ func ResetOpenAICodexWebSocketDebugStats(sessionID string) {
 	defer codexWebSocketSessionsMu.Unlock()
 	if sessionID != "" {
 		delete(codexWebSocketStats, sessionID)
+		delete(codexWebSocketSSEFallbackSessions, sessionID)
 		return
 	}
 	codexWebSocketStats = map[string]*OpenAICodexWebSocketDebugStats{}
+	codexWebSocketSSEFallbackSessions = map[string]bool{}
 }
 
 // CloseOpenAICodexWebSocketSessions closes one cached Codex WebSocket session, or all when empty.
@@ -246,6 +328,47 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 		closeEntry(entry)
 	}
 	codexWebSocketSessions = map[string]*codexWebSocketSessionEntry{}
+}
+
+func isCodexWebSocketSSEFallbackActive(sessionID string) bool {
+	if sessionID == "" {
+		return false
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	return codexWebSocketSSEFallbackSessions[sessionID]
+}
+
+func recordCodexWebSocketSSEFallback(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	stats := codexWebSocketStats[sessionID]
+	if stats == nil {
+		stats = &OpenAICodexWebSocketDebugStats{}
+		codexWebSocketStats[sessionID] = stats
+	}
+	stats.SSEFallbacks++
+	stats.WebSocketFallbackActive = codexWebSocketSSEFallbackSessions[sessionID]
+}
+
+func recordCodexWebSocketFailure(sessionID string, err error) {
+	if sessionID == "" {
+		return
+	}
+	codexWebSocketSessionsMu.Lock()
+	defer codexWebSocketSessionsMu.Unlock()
+	codexWebSocketSSEFallbackSessions[sessionID] = true
+	stats := codexWebSocketStats[sessionID]
+	if stats == nil {
+		stats = &OpenAICodexWebSocketDebugStats{}
+		codexWebSocketStats[sessionID] = stats
+	}
+	stats.WebSocketFailures++
+	stats.LastWebSocketError = goai.FormatThrownValue(err)
+	stats.WebSocketFallbackActive = true
 }
 
 func recordCodexWebSocketStats(sessionID string, reused bool, useCachedContext bool, requestEnvelope map[string]interface{}) {
@@ -447,6 +570,15 @@ func buildCachedWebSocketRequestBody(entry *codexWebSocketSessionEntry, body map
 
 func countInputItems(body map[string]interface{}) int { return len(inputItems(body)) }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func normalizeJSONValue(v interface{}) interface{} {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -551,7 +683,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		Usage:    &goai.Usage{},
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	started := false
 
 	type activeItem struct {
 		itemType    string
@@ -570,12 +702,18 @@ readLoop:
 			}
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
-				return nil
+				if started {
+					ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+					return nil
+				}
+				return ctx.Err()
 			}
 			// Normal close
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
 				break
+			}
+			if !started {
+				return fmt.Errorf("WebSocket read: %w", err)
 			}
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return nil
@@ -594,8 +732,15 @@ readLoop:
 				Code    string `json:"code,omitempty"`
 			} `json:"error,omitempty"`
 		}
-		if json.Unmarshal(data, &raw) != nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
+			if !started {
+				return &codexProtocolError{message: "Invalid Codex WebSocket JSON: " + goai.FormatThrownValue(err), payload: string(data), cause: err}
+			}
 			continue
+		}
+		if !started {
+			started = true
+			ch <- &goai.StartEvent{Partial: partial}
 		}
 
 		// Same event processing as OpenAI Responses
@@ -765,14 +910,22 @@ readLoop:
 					msg = raw.Error.Message
 				}
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", code, msg)}
+			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(msg, code, string(data))), code: code, payload: string(data)}
+			if !started {
+				return err
+			}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return nil
 
 		case "response.failed":
 			if useCachedContext && entry != nil {
 				entry.continuation = nil
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("response failed")}
+			err := &codexAPIError{message: "Codex response failed", payload: string(data)}
+			if !started {
+				return err
+			}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return nil
 		}
 	}
@@ -806,7 +959,7 @@ readLoop:
 
 // --- SSE fallback ---
 
-func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event) {
+func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
 	body := buildCodexRequest(model, convCtx, opts)
 	payload, err := goai.InvokeOnPayload(opts, body, model)
 	if err != nil {
@@ -862,13 +1015,13 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 
 	// Reuse same SSE processing as OpenAI Responses
-	processCodexSSE(resp.Body, model, ch)
+	processCodexSSE(resp.Body, model, ch, diagnostics)
 }
 
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
-func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
 	partial := &goai.Message{
-		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{},
+		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics,
 	}
 	ch <- &goai.StartEvent{Partial: partial}
 

@@ -59,6 +59,9 @@ const (
 	ProviderMoonshotAI          Provider = "moonshotai"
 	ProviderMoonshotAICN        Provider = "moonshotai-cn"
 	ProviderXiaomi              Provider = "xiaomi"
+	ProviderXiaomiTokenPlanCN   Provider = "xiaomi-token-plan-cn"
+	ProviderXiaomiTokenPlanAMS  Provider = "xiaomi-token-plan-ams"
+	ProviderXiaomiTokenPlanSGP  Provider = "xiaomi-token-plan-sgp"
 )
 
 // ThinkingLevel controls the reasoning depth.
@@ -198,6 +201,27 @@ type Usage struct {
 	Cost        CostBreakdown `json:"cost"`
 }
 
+// --- Diagnostics ---
+
+// DiagnosticError captures an error that occurred while producing an assistant
+// message without necessarily making the overall request fail.
+type DiagnosticError struct {
+	Name    string `json:"name,omitempty"`
+	Message string `json:"message"`
+	Stack   string `json:"stack,omitempty"`
+	Code    any    `json:"code,omitempty"`
+}
+
+// AssistantMessageDiagnostic records provider/runtime diagnostics attached to
+// assistant messages. This mirrors pi-ai's diagnostic side channel for cases
+// such as transport fallback.
+type AssistantMessageDiagnostic struct {
+	Type      string          `json:"type"`
+	Timestamp int64           `json:"timestamp"`
+	Error     DiagnosticError `json:"error"`
+	Details   map[string]any  `json:"details,omitempty"`
+}
+
 // --- Messages ---
 
 // Message is a single conversation turn.
@@ -207,14 +231,15 @@ type Message struct {
 	Timestamp int64          `json:"timestamp"`
 
 	// Assistant-only fields
-	Api           Api        `json:"api,omitempty"`
-	Provider      Provider   `json:"provider,omitempty"`
-	Model         string     `json:"model,omitempty"`
-	ResponseID    string     `json:"responseId,omitempty"`
-	ResponseModel string     `json:"responseModel,omitempty"`
-	Usage         *Usage     `json:"usage,omitempty"`
-	StopReason    StopReason `json:"stopReason,omitempty"`
-	ErrorMessage  string     `json:"errorMessage,omitempty"`
+	Api           Api                          `json:"api,omitempty"`
+	Provider      Provider                     `json:"provider,omitempty"`
+	Model         string                       `json:"model,omitempty"`
+	ResponseID    string                       `json:"responseId,omitempty"`
+	ResponseModel string                       `json:"responseModel,omitempty"`
+	Diagnostics   []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
+	Usage         *Usage                       `json:"usage,omitempty"`
+	StopReason    StopReason                   `json:"stopReason,omitempty"`
+	ErrorMessage  string                       `json:"errorMessage,omitempty"`
 
 	// ToolResult-only fields
 	ToolCallID string `json:"toolCallId,omitempty"`

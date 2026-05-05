@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,12 +33,12 @@ func TestBuildConverseInputIncludesSystemToolsAndThinking(t *testing.T) {
 	model := &goai.Model{ID: "anthropic.claude-3-7-sonnet", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream, Reasoning: true}
 	ctx := &goai.Context{
 		SystemPrompt: "You are helpful.",
-		Messages: []goai.Message{goai.UserMessage("hello")},
-		Tools: []goai.Tool{{Name: "search", Description: "Search docs", Parameters: []byte(`{"type":"object"}`)}},
+		Messages:     []goai.Message{goai.UserMessage("hello")},
+		Tools:        []goai.Tool{{Name: "search", Description: "Search docs", Parameters: []byte(`{"type":"object"}`)}},
 	}
 	opts := &goai.StreamOptions{
-		MaxTokens: &[]int{1234}[0],
-		Reasoning: &level,
+		MaxTokens:       &[]int{1234}[0],
+		Reasoning:       &level,
 		ThinkingBudgets: &goai.ThinkingBudgets{High: &customBudget},
 	}
 
@@ -59,6 +60,27 @@ func TestBuildConverseInputIncludesSystemToolsAndThinking(t *testing.T) {
 	}
 	if input.AdditionalModelRequestFields == nil {
 		t.Fatal("expected additional model request fields for thinking config")
+	}
+}
+
+func TestBuildConverseInputUsesNativeXhighForClaudeOpus47(t *testing.T) {
+	level := goai.ThinkingXHigh
+	model := &goai.Model{ID: "us.anthropic.claude-opus-4-7-20260115-v1:0", Name: "Claude Opus 4.7", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream, Reasoning: true}
+	input := buildConverseInput(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{Reasoning: &level})
+	if input.AdditionalModelRequestFields == nil {
+		t.Fatal("expected additional model request fields")
+	}
+	data, err := input.AdditionalModelRequestFields.MarshalSmithyDocument()
+	if err != nil {
+		t.Fatalf("marshal additional fields: %v", err)
+	}
+	var fields map[string]interface{}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatalf("decode additional fields: %v", err)
+	}
+	outputConfig, _ := fields["output_config"].(map[string]interface{})
+	if outputConfig["effort"] != "xhigh" {
+		t.Fatalf("expected native xhigh effort, got %#v in %#v", outputConfig["effort"], fields)
 	}
 }
 

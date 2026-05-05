@@ -17,8 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	bedrockdoc "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
@@ -169,13 +169,22 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		input.ToolConfig = toolConfig
 	}
 
-	// Thinking config for Claude models
+	// Thinking config for Claude models. Newer Claude models on Bedrock support
+	// adaptive thinking with native effort strings; older models use token budgets.
 	if model.Reasoning && opts != nil && opts.Reasoning != nil {
-		addFields := map[string]interface{}{
-			"thinking": map[string]interface{}{
-				"type":          "enabled",
-				"budget_tokens": getThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets),
-			},
+		var addFields map[string]interface{}
+		if supportsAdaptiveThinking(model) {
+			addFields = map[string]interface{}{
+				"thinking":      map[string]interface{}{"type": "adaptive", "display": "summarized"},
+				"output_config": map[string]interface{}{"effort": mapThinkingLevelToEffort(model, *opts.Reasoning)},
+			}
+		} else {
+			addFields = map[string]interface{}{
+				"thinking": map[string]interface{}{
+					"type":          "enabled",
+					"budget_tokens": getThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets),
+				},
+			}
 		}
 		input.AdditionalModelRequestFields = mustDocument(mustJSON(addFields))
 	}
@@ -353,6 +362,47 @@ func isClaudeModel(id string, name ...string) bool {
 	return false
 }
 
+func supportsAdaptiveThinking(model *goai.Model) bool {
+	if model == nil {
+		return false
+	}
+	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
+		if strings.Contains(s, "opus-4-6") || strings.Contains(s, "opus-4-7") || strings.Contains(s, "sonnet-4-6") {
+			return true
+		}
+	}
+	return false
+}
+
+func supportsNativeXhighEffort(model *goai.Model) bool {
+	if model == nil {
+		return false
+	}
+	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
+		if strings.Contains(s, "opus-4-7") {
+			return true
+		}
+	}
+	return false
+}
+
+func mapThinkingLevelToEffort(model *goai.Model, level goai.ThinkingLevel) string {
+	if level == goai.ThinkingXHigh && supportsNativeXhighEffort(model) {
+		return "xhigh"
+	}
+	if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(level)); ok {
+		return mapped
+	}
+	switch level {
+	case goai.ThinkingMinimal, goai.ThinkingLow:
+		return "low"
+	case goai.ThinkingHigh, goai.ThinkingXHigh:
+		return "high"
+	default:
+		return "medium"
+	}
+}
+
 func getThinkingBudget(level goai.ThinkingLevel, custom *goai.ThinkingBudgets) int {
 	if custom != nil {
 		switch level {
@@ -439,7 +489,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 
 	// Track content blocks by their Bedrock index
 	type blockState struct {
-		contentIdx int
+		contentIdx  int
 		partialJSON string
 	}
 	blockMap := map[int]*blockState{}

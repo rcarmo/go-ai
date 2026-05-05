@@ -113,7 +113,7 @@ go-ai/
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go  # 956 models / 28 providers (auto-generated)
+├── models_generated.go  # 971 models / 31 providers (auto-generated)
 ├── doc.go               # Package documentation
 │
 ├── provider/            # LLM provider implementations (blank-import to register)
@@ -175,6 +175,7 @@ go-ai/
 | OpenAI Codex | `openai-codex-responses` | ✅ Implemented |
 | Cloudflare Workers AI / AI Gateway | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
 | Moonshot AI | `openai-completions` | ✅ Implemented |
+| Xiaomi MiMo / Token Plan regions | `anthropic-messages` | ✅ Implemented |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
 
 ## OAuth
@@ -230,6 +231,8 @@ Providers using HTTP now honor `RetryConfig` directly. `MaxRetryDelayMs` remains
 | Mistral | `MISTRAL_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | Groq | `GROQ_API_KEY` |
+| Xiaomi MiMo | `XIAOMI_API_KEY` |
+| Xiaomi Token Plan CN/AMS/SGP | `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY` |
 
 ## License
 

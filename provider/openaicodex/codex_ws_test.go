@@ -3,6 +3,7 @@ package openaicodex
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -98,6 +99,60 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 	stats := GetOpenAICodexWebSocketDebugStats("sess-1")
 	if stats == nil || stats.Requests != 2 || stats.ConnectionsCreated != 1 || stats.ConnectionsReused != 1 || stats.DeltaRequests != 1 || stats.FullContextRequests != 1 {
 		t.Fatalf("unexpected stats: %#v", stats)
+	}
+}
+
+func TestStreamCodexWebSocketSetupFailureFallsBackToSSEWithDiagnostic(t *testing.T) {
+	CloseOpenAICodexWebSocketSessions("")
+	ResetOpenAICodexWebSocketDebugStats("")
+	defer CloseOpenAICodexWebSocketSessions("")
+
+	var wsAttempts, sseAttempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") == "websocket" {
+			wsAttempts++
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				t.Fatalf("accept websocket: %v", err)
+			}
+			_ = conn.Close(websocket.StatusPolicyViolation, "setup failed")
+			return
+		}
+		sseAttempts++
+		_, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_sse\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\",\"id\":\"item_1\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"id\":\"item_1\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_sse\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n")
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	opts := &goai.StreamOptions{Transport: goai.TransportAuto, SessionID: "sess-fallback"}
+
+	var done *goai.Message
+	for ev := range streamCodex(context.Background(), model, convCtx, &goai.StreamOptions{Transport: opts.Transport, SessionID: opts.SessionID, APIKey: jwt}) {
+		if e, ok := ev.(*goai.DoneEvent); ok {
+			done = e.Message
+		}
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			t.Fatalf("unexpected error event: %v", e.Err)
+		}
+	}
+	if wsAttempts != 1 || sseAttempts != 1 {
+		t.Fatalf("expected one websocket attempt and one SSE fallback, got ws=%d sse=%d", wsAttempts, sseAttempts)
+	}
+	if done == nil || done.ResponseID != "resp_sse" || len(done.Diagnostics) != 1 || done.Diagnostics[0].Type != "provider_transport_failure" {
+		t.Fatalf("unexpected fallback done message: %#v", done)
+	}
+	stats := GetOpenAICodexWebSocketDebugStats("sess-fallback")
+	if stats == nil || stats.WebSocketFailures != 1 || stats.SSEFallbacks != 1 || !stats.WebSocketFallbackActive {
+		t.Fatalf("unexpected fallback stats: %#v", stats)
 	}
 }
 

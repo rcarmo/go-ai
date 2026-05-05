@@ -2,6 +2,24 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-05 v0.73.0 complete comparative audit
+
+Compared upstream `@mariozechner/pi-ai` v0.73.0 against the previous v0.72.1 artifact and the current Go implementation. The release was behavioral/API-affecting for the core library.
+
+Closed in this pass:
+
+- **Xiaomi provider split**: `ProviderXiaomi` now tracks the API-billing endpoint through regenerated model metadata, and the three Token Plan regional providers (`xiaomi-token-plan-cn`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-sgp`) have provider constants and environment key mappings.
+- **Model registry parity**: regenerated from upstream v0.73.0, now `971 models / 31 providers`, including Qwen/MiniMax OpenAI-compatible metadata fixes and Xiaomi regional catalogs.
+- **Assistant diagnostics**: assistant messages now carry optional diagnostics, matching upstream's new transport-diagnostic channel.
+- **Session resource cleanup**: added a small cleanup registry and wired OpenAI Codex cached WebSocket sessions into it, so callers can close session-scoped resources via `CleanupSessionResources(sessionID)`.
+- **OpenAI Codex WebSocket fallback**: WebSocket `StartEvent` is delayed until the first valid event; setup/read failures before that point fall back to SSE, attach a `provider_transport_failure` diagnostic, and mark the session for future SSE fallback. Debug stats now include WebSocket failure/fallback counters.
+- **Bedrock Opus 4.7 xhigh**: Bedrock adaptive-thinking request fields now preserve native `xhigh` effort for Claude Opus 4.7 instead of collapsing it to high/max.
+
+Audited as not applicable to `go-ai`:
+
+- Pi runtime/tool UX changes: incremental bash output streaming, compact read rendering, selector/autocomplete ranking, terminal-input session shutdown, and `/login` display labels.
+- Pi CLI/process session shutdown semantics beyond the exported library cleanup hook.
+
 ## 2026-05-01 upstream structure/payload audit
 
 Compared `go-ai` against `@mariozechner/pi-ai` v0.70.3 through v0.72.0, with emphasis on model payloads and API metadata. The audit found and fixed the main high-risk gaps introduced by the recent upstream releases:
