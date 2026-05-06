@@ -42,8 +42,12 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected reasoning map, got %#v", req.Reasoning)
 	}
-	if rm["effort"] != "minimal" {
-		t.Fatalf("expected model-level thinking map default to keep minimal, got %#v", rm["effort"])
+	expectedEffort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(reasoning))
+	if !ok {
+		t.Fatal("expected reasoning effort mapping")
+	}
+	if rm["effort"] != expectedEffort {
+		t.Fatalf("expected mapped effort %q, got %#v", expectedEffort, rm["effort"])
 	}
 	var input []map[string]any
 	if err := json.Unmarshal(req.Input, &input); err != nil {
