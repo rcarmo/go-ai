@@ -94,7 +94,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
 			} else {
 				goai.GetLogger().Warn("Bedrock API error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("Bedrock: %w", err)}
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("bedrock: %w", err)}
 			}
 			return
 		}

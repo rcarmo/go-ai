@@ -48,7 +48,7 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		apiKeyRaw := goai.ResolveAPIKey(model, opts)
 		if apiKeyRaw == "" {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError,
-				Err: fmt.Errorf("Google Cloud Code Assist requires OAuth authentication")}
+				Err: fmt.Errorf("google cloud code assist requires OAuth authentication")}
 			return
 		}
 
@@ -121,7 +121,7 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("Cloud Code Assist API error (%d): %s", resp.StatusCode, string(bodyBytes)),
+				Err:    fmt.Errorf("cloud code assist API error (%d): %s", resp.StatusCode, string(bodyBytes)),
 			}
 			return
 		}

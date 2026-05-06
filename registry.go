@@ -20,12 +20,15 @@ type ApiProvider struct {
 }
 
 var (
-	registryMu sync.RWMutex
+	registryMu   sync.RWMutex
 	apiProviders = map[Api]*ApiProvider{}
 )
 
 // RegisterApi registers a provider implementation for a wire protocol.
 func RegisterApi(p *ApiProvider) {
+	if p == nil || p.Api == "" {
+		return
+	}
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	apiProviders[p.Api] = p
@@ -72,6 +75,9 @@ var (
 
 // RegisterModel adds a model to the global registry.
 func RegisterModel(m *Model) {
+	if m == nil || m.Provider == "" || m.ID == "" {
+		return
+	}
 	modelsMu.Lock()
 	defer modelsMu.Unlock()
 	models[string(m.Provider)+"/"+m.ID] = m
@@ -152,6 +158,10 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 	events := Stream(ctx, model, convCtx, opts)
 	var result *Message
 	var resultErr error
+	provider, modelID := Provider(""), ""
+	if model != nil {
+		provider, modelID = model.Provider, model.ID
+	}
 	for event := range events {
 		switch e := event.(type) {
 		case *DoneEvent:
@@ -164,7 +174,7 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 					input, output = result.Usage.Input, result.Usage.Output
 				}
 			}
-			logInfo("complete done", "provider", model.Provider, "model", model.ID,
+			logInfo("complete done", "provider", provider, "model", modelID,
 				"stop", stop, "input", input, "output", output)
 		case *ErrorEvent:
 			result = e.Error
@@ -172,7 +182,7 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 			if resultErr == nil {
 				resultErr = fmt.Errorf("LLM error: %s (reason: %s)", result.ErrorMessage, e.Reason)
 			}
-			logError("complete error", "provider", model.Provider, "model", model.ID,
+			logError("complete error", "provider", provider, "model", modelID,
 				"reason", e.Reason, "error", resultErr)
 		}
 	}

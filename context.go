@@ -40,15 +40,23 @@ var nonOverflowPatterns = []*regexp.Regexp{
 
 // IsContextOverflow checks if a message represents a context window overflow.
 func IsContextOverflow(msg *Message, contextWindow int) bool {
-	if msg.StopReason == StopReasonError && msg.ErrorMessage != "" {
-		for _, p := range nonOverflowPatterns {
-			if p.MatchString(msg.ErrorMessage) {
-				return false
+	if msg == nil {
+		return false
+	}
+	if msg.StopReason == StopReasonError {
+		texts := overflowCandidateTexts(msg)
+		for _, text := range texts {
+			for _, p := range nonOverflowPatterns {
+				if p.MatchString(text) {
+					return false
+				}
 			}
 		}
-		for _, p := range overflowPatterns {
-			if p.MatchString(msg.ErrorMessage) {
-				return true
+		for _, text := range texts {
+			for _, p := range overflowPatterns {
+				if p.MatchString(text) {
+					return true
+				}
 			}
 		}
 	}
@@ -59,6 +67,22 @@ func IsContextOverflow(msg *Message, contextWindow int) bool {
 		}
 	}
 	return false
+}
+
+func overflowCandidateTexts(msg *Message) []string {
+	texts := make([]string, 0, 1+len(msg.Diagnostics)*2)
+	if msg.ErrorMessage != "" {
+		texts = append(texts, msg.ErrorMessage)
+	}
+	for _, d := range msg.Diagnostics {
+		if d.Error.Message != "" {
+			texts = append(texts, d.Error.Message)
+		}
+		if d.Error.Code != nil {
+			texts = append(texts, fmt.Sprint(d.Error.Code))
+		}
+	}
+	return texts
 }
 
 // --- Tool call validation ---

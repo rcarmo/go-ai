@@ -491,7 +491,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 	}
 
 	if sawMessageStart && !sawMessageStop {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Anthropic stream ended before message_stop")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended before message_stop")}
 		return
 	}
 

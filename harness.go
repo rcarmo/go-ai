@@ -54,15 +54,20 @@ func cloneMessage(msg Message) Message {
 		clone.Content = make([]ContentBlock, len(msg.Content))
 		for i, b := range msg.Content {
 			clone.Content[i] = b
-			// Deep copy arguments map
-			if b.Arguments != nil {
-				clone.Content[i].Arguments = make(map[string]interface{})
-				for k, v := range b.Arguments {
-					clone.Content[i].Arguments[k] = v
-				}
-			}
+			clone.Content[i].Arguments = deepCopyStringAnyMap(b.Arguments)
 		}
 	}
+
+	// Deep copy diagnostics
+	if msg.Diagnostics != nil {
+		clone.Diagnostics = make([]AssistantMessageDiagnostic, len(msg.Diagnostics))
+		for i, d := range msg.Diagnostics {
+			clone.Diagnostics[i] = d
+			clone.Diagnostics[i].Details = deepCopyStringAnyMap(d.Details)
+		}
+	}
+
+	clone.Details = deepCopyAny(msg.Details)
 
 	// Deep copy usage
 	if msg.Usage != nil {
@@ -71,6 +76,36 @@ func cloneMessage(msg Message) Message {
 	}
 
 	return clone
+}
+
+func deepCopyStringAnyMap(in map[string]interface{}) map[string]interface{} {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]interface{}, len(in))
+	for k, v := range in {
+		out[k] = deepCopyAny(v)
+	}
+	return out
+}
+
+func deepCopyAny(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		return deepCopyStringAnyMap(t)
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, v := range t {
+			out[i] = deepCopyAny(v)
+		}
+		return out
+	case json.RawMessage:
+		return append(json.RawMessage{}, t...)
+	case []byte:
+		return append([]byte{}, t...)
+	default:
+		return v
+	}
 }
 
 // --- Context serialization ---
@@ -103,6 +138,9 @@ func LoadContext(path string) (*Context, error) {
 // Uses the ~4 chars per token heuristic. For precise counts, use
 // a provider-specific tokenizer.
 func EstimateTokens(ctx *Context) int {
+	if ctx == nil {
+		return 0
+	}
 	total := len(ctx.SystemPrompt) / 4
 
 	for _, msg := range ctx.Messages {
@@ -134,6 +172,9 @@ func EstimateTokens(ctx *Context) int {
 // Returns (fits, estimatedTokens).
 func FitsInContextWindow(ctx *Context, model *Model) (bool, int) {
 	tokens := EstimateTokens(ctx)
+	if model == nil || model.ContextWindow <= 0 {
+		return true, tokens
+	}
 	return tokens < model.ContextWindow, tokens
 }
 
@@ -146,6 +187,9 @@ func FitsInContextWindow(ctx *Context, model *Model) (bool, int) {
 // reconstruct tool-call/tool-result pairings across the truncation boundary.
 // For production use, implement a custom compaction function.
 func CompactContext(ctx *Context, model *Model, keepRecent int) *Context {
+	if ctx == nil {
+		return nil
+	}
 	if keepRecent <= 0 {
 		keepRecent = 10
 	}
@@ -169,11 +213,17 @@ func CompactContext(ctx *Context, model *Model, keepRecent int) *Context {
 
 // AppendUserMessage adds a text user message to the context.
 func AppendUserMessage(ctx *Context, text string) {
+	if ctx == nil {
+		return
+	}
 	ctx.Messages = append(ctx.Messages, UserMessage(text))
 }
 
 // AppendToolResult adds a tool result message to the context.
 func AppendToolResult(ctx *Context, toolCallID, toolName, text string, isError bool) {
+	if ctx == nil {
+		return
+	}
 	ctx.Messages = append(ctx.Messages, Message{
 		Role:       RoleToolResult,
 		ToolCallID: toolCallID,
@@ -203,7 +253,7 @@ func GetToolCalls(msg *Message) []ToolCall {
 				Type:      "toolCall",
 				ID:        b.ID,
 				Name:      b.Name,
-				Arguments: b.Arguments,
+				Arguments: deepCopyStringAnyMap(b.Arguments),
 			})
 		}
 	}
@@ -245,6 +295,7 @@ func NeedsToolExecution(msg *Message) bool {
 	}
 	return msg.Role == RoleAssistant && msg.StopReason == StopReasonToolUse && HasToolCalls(msg)
 }
+
 // --- Provider hook helpers ---
 
 // InvokeOnPayload calls the OnPayload hook if set, returning the (possibly replaced) payload.

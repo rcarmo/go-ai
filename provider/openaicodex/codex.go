@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
-	"nhooyr.io/websocket"
 )
 
 func init() {
@@ -1353,26 +1353,6 @@ func buildCodexAssistantItems(msg goai.Message, model *goai.Model) []interface{}
 		}
 	}
 	return items
-}
-
-func clampCodexReasoningEffort(modelID, effort string) string {
-	id := modelID
-	if idx := strings.Index(id, "/"); idx >= 0 {
-		id = id[idx+1:]
-	}
-	if (strings.HasPrefix(id, "gpt-5.2") || strings.HasPrefix(id, "gpt-5.3") || strings.HasPrefix(id, "gpt-5.4")) && effort == "minimal" {
-		return "low"
-	}
-	if id == "gpt-5.1" && effort == "xhigh" {
-		return "high"
-	}
-	if id == "gpt-5.1-codex-mini" {
-		if effort == "high" || effort == "xhigh" {
-			return "high"
-		}
-		return "medium"
-	}
-	return effort
 }
 
 func mapCodexStatus(status string) goai.StopReason {

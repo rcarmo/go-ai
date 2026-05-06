@@ -1,6 +1,7 @@
 package goai_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -75,7 +76,7 @@ func TestStreamNoProvider(t *testing.T) {
 		Api:      "nonexistent-api",
 	}
 	ctx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}
-	events := goai.Stream(nil, m, ctx, nil)
+	events := goai.Stream(context.Background(), m, ctx, nil)
 	for e := range events {
 		if _, ok := e.(*goai.ErrorEvent); !ok {
 			t.Fatal("expected ErrorEvent for missing provider")

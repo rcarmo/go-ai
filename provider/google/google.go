@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
@@ -125,8 +127,9 @@ func buildStreamURL(model *goai.Model, apiKey string) string {
 	if baseURL == "" {
 		baseURL = "https://generativelanguage.googleapis.com/v1beta"
 	}
-	// REST streaming endpoint
-	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", baseURL, model.ID, apiKey)
+	// REST streaming endpoint. Escape path/query components so unusual model
+	// aliases or API keys containing reserved characters cannot corrupt the URL.
+	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey))
 }
 
 // --- Request types ---
@@ -410,25 +413,20 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	type currentBlock = currentBlockT
 	var current *currentBlock
 
-	// Gemini REST streaming with alt=sse returns SSE events.
-	// Read the full body once and parse each data: line as a JSON chunk.
-	allBytes, _ := io.ReadAll(body)
-	body = bytes.NewReader(allBytes)
-
-	// Try to parse as SSE first
-	lines := strings.Split(string(allBytes), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "data: ") {
-			continue
+	// Gemini REST streaming with alt=sse returns Server-Sent Events. Use the
+	// shared parser so multi-line events and long chunks are handled correctly
+	// and incrementally instead of buffering the full response body.
+	for sse := range eventstream.Parse(body) {
+		if sse.Event == eventstream.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+			return
 		}
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "" || data == "[DONE]" {
+		if sse.Data == "" || sse.Data == "[DONE]" {
 			continue
 		}
 
 		var chunk geminiStreamChunk
-		if json.Unmarshal([]byte(data), &chunk) != nil {
+		if json.Unmarshal([]byte(sse.Data), &chunk) != nil {
 			continue
 		}
 

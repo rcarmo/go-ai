@@ -71,11 +71,13 @@ func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLev
 // MapThinkingLevel returns the provider/model-specific value for a thinking level.
 func MapThinkingLevel(model *Model, level ModelThinkingLevel) (string, bool) {
 	clamped := ClampThinkingLevel(model, level)
-	if mapped, ok := model.ThinkingLevelMap[clamped]; ok {
-		if mapped == nil {
-			return "", false
+	if model != nil && model.ThinkingLevelMap != nil {
+		if mapped, ok := model.ThinkingLevelMap[clamped]; ok {
+			if mapped == nil {
+				return "", false
+			}
+			return *mapped, true
 		}
-		return *mapped, true
 	}
 	if clamped == ThinkingOff {
 		return "none", true
@@ -104,14 +106,18 @@ func AdjustMaxTokensForThinking(baseMaxTokens, modelMaxTokens int, level Thinkin
 
 	const minOutputTokens = 1024
 	maxTokens = baseMaxTokens + thinkingBudget
-	if maxTokens > modelMaxTokens {
+	if modelMaxTokens > 0 && maxTokens > modelMaxTokens {
 		maxTokens = modelMaxTokens
 	}
-	if maxTokens <= thinkingBudget {
-		thinkingBudget = maxTokens - minOutputTokens
-		if thinkingBudget < 0 {
-			thinkingBudget = 0
-		}
+	if maxTokens < 0 {
+		maxTokens = 0
+	}
+	availableForThinking := maxTokens - minOutputTokens
+	if availableForThinking < 0 {
+		availableForThinking = 0
+	}
+	if thinkingBudget > availableForThinking {
+		thinkingBudget = availableForThinking
 	}
 
 	return maxTokens, thinkingBudget
@@ -119,6 +125,9 @@ func AdjustMaxTokensForThinking(baseMaxTokens, modelMaxTokens int, level Thinkin
 
 // CalculateCost computes the cost breakdown from usage and model pricing.
 func CalculateCost(model *Model, usage *Usage) CostBreakdown {
+	if model == nil || usage == nil {
+		return CostBreakdown{}
+	}
 	m := 1_000_000.0
 	c := CostBreakdown{
 		Input:      float64(usage.Input) * model.Cost.Input / m,
