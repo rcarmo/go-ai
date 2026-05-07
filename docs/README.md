@@ -15,7 +15,7 @@
 ## Advanced
 
 - [Building Agent Harnesses](HARNESS.md) — full agent architecture, retries, overflow, testing
-- [Upstream Sync](SKILL.md) — tracking pi-coding-agent changes, regenerating models
+- [Upstream Sync](SKILL.md) — tracking pi-ai changes, regenerating models
 
 ## Reference
 

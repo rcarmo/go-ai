@@ -99,7 +99,7 @@ build: ## Build the library (verify compilation)
 # Code generation
 # =============================================================================
 
-generate: ## Regenerate models_generated.go from pi-coding-agent (with legacy fallback support)
+generate: ## Regenerate models_generated.go from pi-ai (with legacy fallback support)
 	$(GO) run scripts/generate-models.go
 
 # =============================================================================
