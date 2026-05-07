@@ -2,9 +2,25 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@mariozechner/pi-ai` v0.73.0
+## Source: `@earendil-works/pi-ai` v0.74.0
 
 ## Sync history
+
+### v0.74.0 (2026-05-07)
+
+**Patch release at new upstream namespace.**
+
+Comparative audit (`@mariozechner/pi-ai v0.73.1` → `@earendil-works/pi-ai v0.74.0`) found:
+
+- **Type/API/provider implementations**: no changes in `dist/types.d.ts`, `dist/index.d.ts`, `dist/env-api-keys.js`, or provider runtime files (`openai-*`, `anthropic`, `amazon-bedrock`, `google`, `mistral`).
+- **Model registry**: metadata-only change; model set moved from 971 to 969 entries across 31 providers after upstream catalog updates (notably `inclusionai/ling-2.6-1t` metadata normalization).
+- **CLI/readme artifacts**: changed upstream but out of scope for the Go library parity surface.
+
+Deep audit result:
+
+- Regenerated `models_generated.go` from `@earendil-works/pi-ai v0.74.0`.
+- Updated sync/audit process and scheduler to track `@earendil-works/pi-ai`.
+- No provider code or type-surface deltas required for parity.
 
 ### v0.73.0 (2026-05-05)
 

@@ -1,7 +1,8 @@
 // Package goai provides a unified LLM API with automatic model discovery,
 // provider configuration, token/cost tracking, streaming, and tool calling.
 //
-// It is a feature-complete Go port of @mariozechner/pi-ai (TypeScript).
+// It is a feature-complete Go port of @earendil-works/pi-ai (TypeScript),
+// originally created as @mariozechner/pi-ai.
 //
 // # Quick Start
 //

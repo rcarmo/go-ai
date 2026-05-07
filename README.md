@@ -6,7 +6,7 @@
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
+A Go port of [@earendil-works/pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
 
 > **⚠️ Experimental.** This module is still at `v0` and tracks the TypeScript original closely.
 > The API surface may change before `v1`. Use in production at your own risk.
@@ -25,7 +25,7 @@ A Go port of [@mariozechner/pi-ai](https://www.npmjs.com/package/@mariozechner/p
 ## Why
 
 I needed a Go library for talking to LLMs that was at least as good as
-[pi-ai](https://www.npmjs.com/package/@mariozechner/pi-ai) — unified
+[pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai) — unified
 streaming, tool calling, multi-provider, proper cost tracking — and couldn't
 find anything I liked. Everything was either OpenAI-only, didn't stream
 properly, or required pulling in half the internet as dependencies.
@@ -36,7 +36,7 @@ event protocol, same provider coverage. If you know pi-ai, you know this.
 ## Credits
 
 This project is a derivative work of
-[**@mariozechner/pi-ai**](https://www.npmjs.com/package/@mariozechner/pi-ai) by
+[**@earendil-works/pi-ai**](https://www.npmjs.com/package/@earendil-works/pi-ai), originally by
 [Mario Zechner](https://mariozechner.at). The type system, event
 protocol, provider implementations, model registry, and OAuth flows are all
 ported from his TypeScript library. All credit for the design goes to him.
@@ -113,7 +113,7 @@ go-ai/
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go  # 971 models / 31 providers (auto-generated)
+├── models_generated.go  # 969 models / 31 providers (auto-generated)
 ├── doc.go               # Package documentation
 │
 ├── provider/            # LLM provider implementations (blank-import to register)

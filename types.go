@@ -1,6 +1,6 @@
 // Package goai — core types for the unified LLM API.
 //
-// These types mirror @mariozechner/pi-ai's type system exactly,
+// These types mirror @earendil-works/pi-ai's type system exactly,
 // enabling serialization-compatible context hand-off between the
 // TypeScript and Go implementations.
 package goai

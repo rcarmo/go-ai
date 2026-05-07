@@ -2,6 +2,24 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-07 v0.74.0 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@mariozechner/pi-ai v0.73.1` against `@earendil-works/pi-ai v0.74.0` and then verified `go-ai` parity.
+
+Findings:
+
+- No changes in provider runtime JS files (`openai-completions`, `openai-responses`, `openai-codex-responses`, `anthropic`, `amazon-bedrock`, `google`, `mistral`).
+- No changes in `types.d.ts`, `index.d.ts`, or API key mapping runtime.
+- Upstream deltas were model-catalog and package/readme/cli metadata changes.
+
+Actions taken:
+
+- Regenerated `models_generated.go` from `@earendil-works/pi-ai v0.74.0` (969 models / 31 providers).
+- Updated process docs and automation to use the new upstream package name.
+- Re-ran full validation gates including race/staticcheck/logging checks.
+
+Result: no new logic gaps introduced by the upstream namespace move; parity remains intact after model regeneration.
+
 ## 2026-05-05 v0.73.0 complete comparative audit
 
 Compared upstream `@mariozechner/pi-ai` v0.73.0 against the previous v0.72.1 artifact and the current Go implementation. The release was behavioral/API-affecting for the core library.
