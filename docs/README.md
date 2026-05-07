@@ -15,10 +15,10 @@
 ## Advanced
 
 - [Building Agent Harnesses](HARNESS.md) — full agent architecture, retries, overflow, testing
-- [Upstream Sync](SKILL.md) — tracking pi-ai changes, regenerating models
+- [Upstream Sync](SKILL.md) — tracking pi-coding-agent changes, regenerating models
 
 ## Reference
 
-- [Gap Analysis](GAP_ANALYSIS.md) — closed parity tracking vs pi-ai
+- [Gap Analysis](GAP_ANALYSIS.md) — closed parity tracking vs upstream JS package
 - [Test Matrix](TEST_MATRIX.md) — current automated coverage and known gaps
 - [Audit Report](AUDIT_REPORT.md) — residual architectural gaps after the hardening pass

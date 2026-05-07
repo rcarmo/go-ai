@@ -1,16 +1,16 @@
 ---
 name: go-ai-upstream-sync
-description: Sync go-ai with upstream @mariozechner/pi-ai changes — audit upstream version deltas, regenerate models, port API/type/provider changes, update docs, and validate parity.
+description: Sync go-ai with upstream @earendil-works/pi-coding-agent changes — audit upstream version deltas, regenerate models, port API/type/provider changes, update docs, and validate parity.
 distribution: private
 ---
 
 # go-ai Upstream Sync
 
-Use this skill when `@mariozechner/pi-ai` has been updated and `go-ai` needs to track those changes.
+Use this skill when `@earendil-works/pi-coding-agent` has been updated and `go-ai` needs to track those changes.
 
 ## When to run
 
-- After an upstream `pi-ai` version bump
+- After an upstream `pi-coding-agent` version bump
 - When new models/providers appear upstream
 - When upstream `types.d.ts` changes
 - When OAuth/login flows change upstream
@@ -19,7 +19,8 @@ Use this skill when `@mariozechner/pi-ai` has been updated and `go-ai` needs to 
 ## Ground rules
 
 - Read the current upstream package from the installed path:
-  - `/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai`
+  - `/usr/local/lib/bun/install/global/node_modules/@earendil-works/pi-coding-agent`
+  - fallback legacy path: `/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai`
 - Treat the current `go-ai` repo state as canonical for file layout.
 - Do **not** assume old file names from earlier refactors (`overflow.go`, `validation.go`, `sanitize.go`, `copilot_headers.go`, `generate-models.ts`, etc.).
 - Validate with `go test ./...` and `go vet ./...` before pushing.
@@ -57,7 +58,7 @@ Important current files:
 ### 1. Confirm current upstream version
 
 ```bash
-cat /usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai/package.json | jq -r .version
+cat /usr/local/lib/bun/install/global/node_modules/@earendil-works/pi-coding-agent/package.json | jq -r .version
 ```
 
 ### 2. Check current go-ai sync marker
@@ -80,7 +81,7 @@ git status --short
 ### Step 1: inspect upstream surface area
 
 ```bash
-PI_AI=/usr/local/lib/bun/install/global/node_modules/@mariozechner/pi-ai
+PI_AI=/usr/local/lib/bun/install/global/node_modules/@earendil-works/pi-coding-agent
 find "$PI_AI/dist" -maxdepth 3 -type f | sort
 ```
 
@@ -302,10 +303,10 @@ Workflow when multiple releases are pending:
 
 ```bash
 # Check what's available
-npm view @mariozechner/pi-ai versions --json | tail -n 10
+npm view @earendil-works/pi-coding-agent versions --json | tail -n 10
 
 # Download each release tarball individually
-curl -sSL "https://registry.npmjs.org/@mariozechner/pi-ai/-/pi-ai-X.Y.Z.tgz" -o /tmp/pi-ai-X.Y.Z.tgz
+curl -sSL "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-X.Y.Z.tgz" -o /tmp/pi-coding-agent-X.Y.Z.tgz
 
 # Diff against previous, port, test, commit, tag — then repeat for next version
 ```
@@ -326,7 +327,7 @@ A correct sync pass should usually do **all** of these when appropriate:
    - behavioral/API-affecting
 8. Run tests, vet, and build
 9. Push commits
-10. **Tag the release to match upstream**: `git tag -a vX.Y.Z -m "Sync with upstream pi-ai vX.Y.Z"` and `git push origin vX.Y.Z`
+10. **Tag the release to match upstream**: `git tag -a vX.Y.Z -m "Sync with upstream pi-coding-agent vX.Y.Z"` and `git push origin vX.Y.Z`
 
 ## Provider implementation checklist
 
@@ -359,7 +360,7 @@ For retry/reconnect-sensitive paths:
 Use a commit like:
 
 ```text
-Sync upstream pi-ai vX.Y.Z
+Sync upstream pi-coding-agent vX.Y.Z
 
 - regenerated model registry
 - updated provider metadata parity
