@@ -9,7 +9,6 @@ import (
 
 func TestExamplesBuild(t *testing.T) {
 	cmd := exec.Command("go", "build", "./examples/...")
-	cmd.Dir = "/workspace/projects/go-ai"
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("go build ./examples/... failed: %v\n%s", err, string(out))
@@ -29,7 +28,6 @@ func TestExamplesMissingCredentialMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			cmd := exec.Command("go", "run", tt.path)
-			cmd.Dir = "/workspace/projects/go-ai"
 			cmd.Env = minimalEnvWithoutAIKeys()
 			out, err := cmd.CombinedOutput()
 			if err == nil {
