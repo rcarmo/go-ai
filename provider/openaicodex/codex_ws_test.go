@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,46 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 	stats := GetOpenAICodexWebSocketDebugStats("sess-1")
 	if stats == nil || stats.Requests != 2 || stats.ConnectionsCreated != 1 || stats.ConnectionsReused != 1 || stats.DeltaRequests != 1 || stats.FullContextRequests != 1 {
 		t.Fatalf("unexpected stats: %#v", stats)
+	}
+}
+
+func TestRemoveCodexWebSocketSessionClosesConnection(t *testing.T) {
+	CloseOpenAICodexWebSocketSessions("")
+	defer CloseOpenAICodexWebSocketSessions("")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	entry := &codexWebSocketSessionEntry{conn: conn}
+
+	codexWebSocketSessionsMu.Lock()
+	codexWebSocketSessions["sess-close"] = entry
+	codexWebSocketSessionsMu.Unlock()
+
+	removeCodexWebSocketSession("sess-close", entry)
+
+	codexWebSocketSessionsMu.Lock()
+	_, ok := codexWebSocketSessions["sess-close"]
+	codexWebSocketSessionsMu.Unlock()
+	if ok {
+		t.Fatal("expected session entry to be removed")
+	}
+	if err := conn.Write(context.Background(), websocket.MessageText, []byte("ping")); err == nil {
+		t.Fatal("expected write to fail after session removal closes websocket")
 	}
 }
 

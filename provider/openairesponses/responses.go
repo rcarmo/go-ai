@@ -199,11 +199,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Reasoning — match pi-ai's format: {effort, summary} object + include encrypted content.
 	if model.Reasoning {
-		effort := "medium"
+		effort := ""
 		if opts != nil && opts.Reasoning != nil {
 			if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
 				effort = mapped
 			}
+		}
+		if effort == "" && model.Provider != goai.ProviderGitHubCopilot {
+			effort = "medium"
 		}
 		if model.Provider == goai.ProviderGitHubCopilot && effort == "" {
 			// Copilot: omit reasoning block entirely if no effort requested,

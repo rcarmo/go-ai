@@ -52,6 +52,9 @@ func NoRetryConfig() RetryConfig {
 }
 
 func (cfg *RetryConfig) applyDefaults() {
+	if cfg.MaxRetries < 0 {
+		cfg.MaxRetries = 0
+	}
 	if cfg.InitialDelay <= 0 {
 		cfg.InitialDelay = time.Second
 	}

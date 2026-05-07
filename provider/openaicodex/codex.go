@@ -481,14 +481,21 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	if sessionID == "" {
 		return
 	}
+	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
-	defer codexWebSocketSessionsMu.Unlock()
 	if codexWebSocketSessions[sessionID] == entry {
 		if entry != nil && entry.idleTimer != nil {
 			entry.idleTimer.Stop()
 			entry.idleTimer = nil
 		}
+		if entry != nil {
+			conn = entry.conn
+		}
 		delete(codexWebSocketSessions, sessionID)
+	}
+	codexWebSocketSessionsMu.Unlock()
+	if conn != nil {
+		conn.CloseNow()
 	}
 }
 

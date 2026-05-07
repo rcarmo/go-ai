@@ -57,6 +57,29 @@ func TestDoWithRetryRequiresReplayableBody(t *testing.T) {
 	}
 }
 
+func TestDoWithRetryNegativeMaxRetriesClampsToSingleAttempt(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest("GET", server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := goai.DoWithRetry(context.Background(), &http.Client{Timeout: time.Second}, req, goai.RetryConfig{MaxRetries: -1})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resp.Body.Close()
+	if attempts != 1 {
+		t.Fatalf("expected one attempt when MaxRetries < 0, got %d", attempts)
+	}
+}
+
 func TestDoWithRetryReplaysBodyAcrossRetries(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
