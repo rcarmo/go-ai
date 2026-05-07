@@ -277,6 +277,7 @@ cd /workspace/projects/go-ai
 go test ./... -count=1
 go vet ./...
 go build ./examples/...
+CGO_ENABLED=1 go test -race ./... -count=1
 ./scripts/check-logging.sh
 ```
 
