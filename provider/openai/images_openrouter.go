@@ -3,7 +3,6 @@ package openai
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,8 +55,13 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 		client = opts.HTTPClient
 	}
 	ctx := context.Background()
-	if opts != nil && opts.Signal != nil {
-		ctx = opts.Signal
+	if opts != nil {
+		if opts.Signal != nil {
+			ctx = opts.Signal
+		}
+		if opts.Context != nil {
+			ctx = opts.Context
+		}
 	}
 	if timeout := imageTimeout(opts); timeout > 0 {
 		var cancel context.CancelFunc
@@ -197,18 +201,18 @@ func parseOpenRouterImageResponse(decoded map[string]any, model *goai.ImagesMode
 		if !ok {
 			continue
 		}
-		u, _ := m["image_url"].(string)
+		var u string
 		if uu, ok := m["image_url"].(map[string]any); ok {
 			u, _ = uu["url"].(string)
+		} else {
+			u, _ = m["image_url"].(string)
 		}
 		if !strings.HasPrefix(u, "data:") {
 			continue
 		}
 		parts := strings.SplitN(strings.TrimPrefix(u, "data:"), ";base64,", 2)
 		if len(parts) == 2 {
-			if _, err := base64.StdEncoding.DecodeString(parts[1]); err == nil {
-				out.Output = append(out.Output, goai.ImageOutput{Type: "image", MimeType: parts[0], Data: parts[1]})
-			}
+			out.Output = append(out.Output, goai.ImageOutput{Type: "image", MimeType: parts[0], Data: parts[1]})
 		}
 	}
 }

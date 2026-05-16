@@ -3,6 +3,7 @@ package goai
 import (
 	"context"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 )
@@ -67,10 +68,15 @@ type ImagesPayloadHook func(payload map[string]any, model *ImagesModel) (map[str
 type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel) error
 
 type ImagesOptions struct {
-	APIKey     string
-	Headers    map[string]string
-	Signal     context.Context
-	Timeout    time.Duration
+	APIKey  string
+	Headers map[string]string
+	// Signal mirrors upstream's AbortSignal option. In Go callers may also use
+	// Context; Context takes precedence when both are set.
+	Signal  context.Context
+	Context context.Context
+	Timeout time.Duration
+	// TimeoutMs mirrors upstream's timeoutMs option for JSON/JS parity. Prefer
+	// Timeout in idiomatic Go code.
 	TimeoutMs  int
 	MaxRetries int
 	HTTPClient *http.Client
@@ -130,6 +136,12 @@ func ListImageModels(provider ImagesProvider) []*ImagesModel {
 			out = append(out, m)
 		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Provider == out[j].Provider {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Provider < out[j].Provider
+	})
 	return out
 }
 
@@ -144,6 +156,7 @@ func ListImageProviders() []ImagesProvider {
 	for p := range seen {
 		out = append(out, p)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 

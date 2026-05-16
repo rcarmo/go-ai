@@ -34,6 +34,17 @@ func TestBuiltinImageModels(t *testing.T) {
 	}
 }
 
+func TestGenerateImagesErrorPaths(t *testing.T) {
+	out, err := goai.GenerateImages(nil, goai.ImagesContext{}, nil)
+	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
+		t.Fatalf("expected nil-model error result, got out=%#v err=%v", out, err)
+	}
+	out, err = goai.GenerateImages(&goai.ImagesModel{ID: "m", Api: "missing", Provider: "p"}, goai.ImagesContext{}, nil)
+	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
+		t.Fatalf("expected missing-provider error result, got out=%#v err=%v", out, err)
+	}
+}
+
 func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	var sawAuth, sawPayload, sawResponse bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +91,45 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	if !sawAuth || !sawPayload || !sawResponse {
 		t.Fatalf("missing hook/auth observations: auth=%v payload=%v response=%v", sawAuth, sawPayload, sawResponse)
 	}
-	if out.ResponseID != "resp-1" || len(out.Output) != 2 || out.Output[1].MimeType != "image/png" || out.Usage == nil || out.Usage.TotalTokens != 15 {
+	if out.ResponseID != "resp-1" || out.Usage == nil || out.Usage.TotalTokens != 15 {
 		t.Fatalf("unexpected image output: %#v", out)
+	}
+	var sawText, sawImage bool
+	for _, item := range out.Output {
+		if item.Type == "text" && item.Text == "caption" {
+			sawText = true
+		}
+		if item.Type == "image" && item.MimeType == "image/png" && item.Data == "aGk=" {
+			sawImage = true
+		}
+	}
+	if !sawText || !sawImage {
+		t.Fatalf("expected text and image output, got %#v", out.Output)
+	}
+}
+
+func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			http.Error(w, "try again", http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"images": []any{}}}}})
+	}))
+	defer server.Close()
+
+	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image"}}
+	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", MaxRetries: 1})
+	if err != nil || out.StopReason != goai.StopReasonStop || attempts != 2 {
+		t.Fatalf("expected retry success, attempts=%d out=%#v err=%v", attempts, out, err)
+	}
+
+	out, err = goai.GenerateImages(model, goai.ImagesContext{}, &goai.ImagesOptions{APIKey: "test-key", OnPayload: func(payload map[string]any, model *goai.ImagesModel) (map[string]any, error) {
+		return nil, context.Canceled
+	}})
+	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
+		t.Fatalf("expected payload hook error result, got out=%#v err=%v", out, err)
 	}
 }
