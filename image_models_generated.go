@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
 //
-// Source: image-models.generated.js (28 image models, 1 providers)
+// Source: image-models.generated.js (28 image models, 1 provider)
 
 package goai
 

@@ -81,7 +81,7 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 				out.StopReason = goai.StopReasonAborted
 				out.ErrorMessage = ctx.Err().Error()
 				return out, nil
-			case <-time.After(time.Duration(attempt) * 250 * time.Millisecond):
+			case <-time.After(imageRetryDelay(attempt, opts)):
 			}
 		}
 		result, retry, err := doOpenRouterImageRequest(ctx, client, model, opts, apiKey, body)
@@ -237,6 +237,14 @@ func parseOpenRouterImageUsage(raw map[string]any, model *goai.ImagesModel) *goa
 	u.Cost.CacheWrite = model.Cost.CacheWrite / 1_000_000 * float64(cacheWrite)
 	u.Cost.Total = u.Cost.Input + u.Cost.Output + u.Cost.CacheRead + u.Cost.CacheWrite
 	return u
+}
+
+func imageRetryDelay(attempt int, opts *goai.ImagesOptions) time.Duration {
+	delay := time.Duration(attempt) * 250 * time.Millisecond
+	if opts != nil && opts.MaxRetryDelayMs > 0 && delay > time.Duration(opts.MaxRetryDelayMs)*time.Millisecond {
+		return time.Duration(opts.MaxRetryDelayMs) * time.Millisecond
+	}
+	return delay
 }
 
 func imageTimeout(opts *goai.ImagesOptions) time.Duration {

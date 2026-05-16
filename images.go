@@ -77,11 +77,13 @@ type ImagesOptions struct {
 	Timeout time.Duration
 	// TimeoutMs mirrors upstream's timeoutMs option for JSON/JS parity. Prefer
 	// Timeout in idiomatic Go code.
-	TimeoutMs  int
-	MaxRetries int
-	HTTPClient *http.Client
-	OnPayload  ImagesPayloadHook
-	OnResponse ImagesResponseHook
+	TimeoutMs       int
+	MaxRetries      int
+	MaxRetryDelayMs int
+	Metadata        map[string]any
+	HTTPClient      *http.Client
+	OnPayload       ImagesPayloadHook
+	OnResponse      ImagesResponseHook
 }
 
 type ImagesFunction func(model *ImagesModel, ctx ImagesContext, options *ImagesOptions) (*AssistantImages, error)
