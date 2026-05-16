@@ -15,12 +15,13 @@ Findings:
 Actions:
 
 - Regenerated model metadata from upstream `v0.74.1` artifact.
-- Updated generated-metadata parity test to current Copilot model IDs.
+- Added generated image model registry from upstream `image-models.generated.js` (28 image models / 1 provider).
+- Ported image API surface: `ImagesApi`, `ImagesModel`, `ImagesContext`, `AssistantImages`, image registry, `GenerateImages`.
+- Ported OpenRouter image provider behavior: OpenAI-compatible chat completions payload, `modalities`, data-URL image output parsing, usage/cost parsing, payload/response hooks, timeout/context, retry handling, and provider/header API key handling.
+- Updated generated-metadata parity test to current Copilot model IDs and added image API tests.
 - Ran verification gates (`make test-repro`).
 
-Intentional divergence tracked:
-
-- New upstream image API modules are not yet ported to Go API surface.
+Result: new upstream image API surface is represented in Go with OpenRouter image provider parity.
 
 ## 2026-05-07 v0.74.0 complete comparative audit (`@earendil-works/pi-ai`)
 

@@ -1,6 +1,11 @@
 package goai
 
-import "context"
+import (
+	"context"
+	"net/http"
+	"sync"
+	"time"
+)
 
 type ImagesApi string
 
@@ -36,6 +41,7 @@ type ImagesModel struct {
 	Provider ImagesProvider    `json:"provider"`
 	BaseURL  string            `json:"baseUrl,omitempty"`
 	Headers  map[string]string `json:"headers,omitempty"`
+	Input    []string          `json:"input,omitempty"`
 	Output   []string          `json:"output,omitempty"`
 	Cost     ModelCost         `json:"cost"`
 }
@@ -52,10 +58,24 @@ type AssistantImages struct {
 	ErrorMessage string         `json:"errorMessage,omitempty"`
 }
 
+type ImagesResponseMetadata struct {
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers"`
+}
+
+type ImagesPayloadHook func(payload map[string]any, model *ImagesModel) (map[string]any, error)
+type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel) error
+
 type ImagesOptions struct {
-	APIKey  string
-	Headers map[string]string
-	Signal  context.Context
+	APIKey     string
+	Headers    map[string]string
+	Signal     context.Context
+	Timeout    time.Duration
+	TimeoutMs  int
+	MaxRetries int
+	HTTPClient *http.Client
+	OnPayload  ImagesPayloadHook
+	OnResponse ImagesResponseHook
 }
 
 type ImagesFunction func(model *ImagesModel, ctx ImagesContext, options *ImagesOptions) (*AssistantImages, error)
@@ -65,17 +85,66 @@ type ImagesApiProvider struct {
 	GenerateImages ImagesFunction
 }
 
-var imagesApiProviders = map[ImagesApi]*ImagesApiProvider{}
+var (
+	imagesRegistryMu   sync.RWMutex
+	imagesApiProviders = map[ImagesApi]*ImagesApiProvider{}
+	imageModels        = map[string]*ImagesModel{}
+)
 
 func RegisterImagesApiProvider(p *ImagesApiProvider) {
 	if p == nil || p.Api == "" || p.GenerateImages == nil {
 		return
 	}
+	imagesRegistryMu.Lock()
+	defer imagesRegistryMu.Unlock()
 	imagesApiProviders[p.Api] = p
 }
 
 func GetImagesApiProvider(api ImagesApi) *ImagesApiProvider {
+	imagesRegistryMu.RLock()
+	defer imagesRegistryMu.RUnlock()
 	return imagesApiProviders[api]
+}
+
+func RegisterImageModel(m *ImagesModel) {
+	if m == nil || m.Provider == "" || m.ID == "" {
+		return
+	}
+	imagesRegistryMu.Lock()
+	defer imagesRegistryMu.Unlock()
+	imageModels[string(m.Provider)+"/"+m.ID] = m
+}
+
+func GetImageModel(provider ImagesProvider, id string) *ImagesModel {
+	imagesRegistryMu.RLock()
+	defer imagesRegistryMu.RUnlock()
+	return imageModels[string(provider)+"/"+id]
+}
+
+func ListImageModels(provider ImagesProvider) []*ImagesModel {
+	imagesRegistryMu.RLock()
+	defer imagesRegistryMu.RUnlock()
+	out := []*ImagesModel{}
+	for _, m := range imageModels {
+		if provider == "" || m.Provider == provider {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func ListImageProviders() []ImagesProvider {
+	imagesRegistryMu.RLock()
+	defer imagesRegistryMu.RUnlock()
+	seen := map[ImagesProvider]bool{}
+	for _, m := range imageModels {
+		seen[m.Provider] = true
+	}
+	out := make([]ImagesProvider, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	return out
 }
 
 func GenerateImages(model *ImagesModel, ctx ImagesContext, opts *ImagesOptions) (*AssistantImages, error) {
