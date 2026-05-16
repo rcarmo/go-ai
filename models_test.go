@@ -54,7 +54,7 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected DeepSeek xhigh to map to max, got %#v", v)
 	}
 
-	copilot := goai.GetModel(goai.ProviderGitHubCopilot, "claude-sonnet-4")
+	copilot := goai.GetModel(goai.ProviderGitHubCopilot, "claude-haiku-4.5")
 	if copilot == nil || copilot.Headers["User-Agent"] == "" || copilot.AnthropicCompat == nil || copilot.AnthropicCompat.SupportsEagerToolInputStreaming == nil || *copilot.AnthropicCompat.SupportsEagerToolInputStreaming {
 		t.Fatalf("expected Copilot headers and Anthropic compat from generated metadata, got %#v", copilot)
 	}

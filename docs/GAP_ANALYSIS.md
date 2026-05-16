@@ -6,6 +6,17 @@ All gaps from the original analysis have been addressed.
 
 ## Sync history
 
+### v0.74.1 (2026-05-16)
+
+Comparative audit (`@earendil-works/pi-ai v0.74.0` → `v0.74.1`) found:
+
+- Provider/type surfaces changed upstream (including new image API modules and refreshed provider/type metadata).
+- Regenerated `models_generated.go` from `v0.74.1` (`942 models / 32 providers`).
+- Updated tests for renamed/rotated Copilot model IDs in generated metadata.
+- Intentional divergence: Go image-specific APIs introduced upstream are not yet ported; current Go package remains focused on text/chat parity and tracks this gap for follow-up.
+
+Validation gates passed after regeneration and test updates.
+
 ### v0.74.0 (2026-05-07)
 
 **Patch release at new upstream namespace.**

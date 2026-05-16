@@ -2,6 +2,26 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-16 v0.74.1 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.74.0` against `v0.74.1` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream introduced broader dist changes (types/index/provider bundles), including new image-related API modules.
+- Model catalog changed materially; regenerated `models_generated.go` now contains `942 models / 32 providers`.
+- Existing `go-ai` runtime/provider code remained valid for current text/chat parity surface.
+
+Actions:
+
+- Regenerated model metadata from upstream `v0.74.1` artifact.
+- Updated generated-metadata parity test to current Copilot model IDs.
+- Ran verification gates (`make test-repro`).
+
+Intentional divergence tracked:
+
+- New upstream image API modules are not yet ported to Go API surface.
+
 ## 2026-05-07 v0.74.0 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@mariozechner/pi-ai v0.73.1` against `@earendil-works/pi-ai v0.74.0` and then verified `go-ai` parity.
