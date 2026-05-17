@@ -1,5 +1,12 @@
 # Image Handling
 
+## Two image surfaces
+
+go-ai has two image-related surfaces:
+
+1. **Multimodal text/chat inputs** — send images as message content blocks to vision-capable chat models via `Stream`/`Complete`.
+2. **Image generation** — generate image outputs via the upstream-compatible `GenerateImages` API and image model registry.
+
 ## Sending images to the model
 
 ```mermaid
@@ -121,6 +128,73 @@ for _, input := range model.Input {
     }
 }
 ```
+
+## Generating images
+
+Image generation uses a separate registry/API surface that mirrors upstream `@earendil-works/pi-ai`:
+
+```go
+import (
+    "context"
+    "fmt"
+    "log"
+
+    goai "github.com/rcarmo/go-ai"
+    _ "github.com/rcarmo/go-ai/provider/openai" // registers openrouter-images
+)
+
+func main() {
+    goai.RegisterBuiltinImageModels()
+
+    model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+
+    result, err := goai.GenerateImages(model, goai.ImagesContext{
+        Input: []goai.ImageInput{
+            {Type: "text", Text: "A tiny robot reading a book, watercolor"},
+        },
+    }, &goai.ImagesOptions{
+        APIKey:  "...", // or OPENROUTER_API_KEY
+        Context: context.Background(),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if result.StopReason != goai.StopReasonStop {
+        log.Fatalf("image generation failed: %s", result.ErrorMessage)
+    }
+
+    for i, out := range result.Output {
+        if out.Type == "image" {
+            fmt.Printf("image %d: %s, %d base64 chars\n", i, out.MimeType, len(out.Data))
+        }
+    }
+}
+```
+
+Provider/runtime failures mirror upstream JS behavior: `GenerateImages` resolves to an `AssistantImages` value with `StopReason` set to `"error"` or `"aborted"` and `ErrorMessage` populated. Check `StopReason`; do not rely solely on the Go `error` return.
+
+### Image generation options
+
+`ImagesOptions` supports:
+
+- `APIKey` or `OPENROUTER_API_KEY`
+- `Context` for cancellation (preferred Go field)
+- `Signal` for upstream-name parity; use only when `Context` is nil
+- `Timeout` or upstream-compatible `TimeoutMs`
+- `MaxRetries` and `MaxRetryDelayMs`
+- custom `Headers`
+- `OnPayload` and `OnResponse` hooks for inspection/customization
+- `HTTPClient` for tests or custom transports
+
+### Image model registry
+
+```go
+goai.RegisterBuiltinImageModels()
+models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
+model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+```
+
+The current upstream registry contains 28 OpenRouter image models using `openrouter-images`.
 
 ## Image size considerations
 

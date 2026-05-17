@@ -1,5 +1,6 @@
 // Package goai provides a unified LLM API with automatic model discovery,
-// provider configuration, token/cost tracking, streaming, and tool calling.
+// provider configuration, token/cost tracking, streaming, tool calling, and
+// image generation.
 //
 // It is a feature-complete Go port of @earendil-works/pi-ai (TypeScript),
 // originally created as @mariozechner/pi-ai.
@@ -33,7 +34,8 @@
 //
 // OpenAI, Anthropic, Google, Google Vertex AI, Google Gemini CLI, Mistral,
 // Amazon Bedrock, Azure OpenAI, OpenAI Codex, GitHub Copilot, xAI, Groq,
-// Cerebras, OpenRouter, Vercel AI Gateway, MiniMax, and any OpenAI-compatible API.
+// Cerebras, OpenRouter, Vercel AI Gateway, MiniMax, OpenRouter Images, and any
+// OpenAI-compatible API.
 //
 // Retries are opt-in per request via StreamOptions.RetryConfig. By default,
 // providers do not retry.

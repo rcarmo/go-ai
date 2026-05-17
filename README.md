@@ -46,7 +46,8 @@ ported from his TypeScript library. All credit for the design goes to him.
 - **Unified API** — same `Stream()`/`Complete()` interface across all providers
 - **Streaming** — channel-based event stream with text, thinking, and tool call deltas
 - **Tool calling** — typed tool definitions with JSON Schema parameters
-- **Multi-provider** — OpenAI, Anthropic, Google, Mistral, Bedrock, and OpenAI-compatible APIs
+- **Image generation** — upstream-compatible image API surface with OpenRouter image models
+- **Multi-provider** — OpenAI, Anthropic, Google, Mistral, Bedrock, OpenRouter images, and OpenAI-compatible APIs
 - **Context serialization** — JSON-compatible with pi-ai for cross-language hand-off
 - **Cost tracking** — per-request token counts and USD cost breakdown
 - **Thinking/reasoning** — unified thinking level across providers
@@ -113,8 +114,10 @@ go-ai/
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go  # 969 models / 31 providers (auto-generated)
-├── doc.go               # Package documentation
+├── models_generated.go        # 942 text/chat models / 32 providers (auto-generated)
+├── image_models_generated.go  # 28 image models / 1 provider (auto-generated)
+├── images.go                 # Image generation API, registry, and model types
+├── doc.go                    # Package documentation
 │
 ├── provider/            # LLM provider implementations (blank-import to register)
 │   ├── openai/          # OpenAI Chat Completions + compatible APIs
@@ -177,6 +180,7 @@ go-ai/
 | Moonshot AI | `openai-completions` | ✅ Implemented |
 | Xiaomi MiMo / Token Plan regions | `anthropic-messages` | ✅ Implemented |
 | Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
+| OpenRouter Images | `openrouter-images` | ✅ Implemented |
 
 ## OAuth
 

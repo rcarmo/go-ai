@@ -2,7 +2,7 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.74.0
+## Source: `@earendil-works/pi-ai` v0.74.1
 
 ## Sync history
 
@@ -13,7 +13,7 @@ Comparative audit (`@earendil-works/pi-ai v0.74.0` → `v0.74.1`) found:
 - Provider/type surfaces changed upstream (including new image API modules and refreshed provider/type metadata).
 - Regenerated `models_generated.go` from `v0.74.1` (`942 models / 32 providers`).
 - Updated tests for renamed/rotated Copilot model IDs in generated metadata.
-- Image-specific APIs introduced upstream are now ported at the Go surface level: image model registry, `GenerateImages`, image provider registry, OpenRouter image provider, payload/response hooks, timeout/context, retry handling, and usage/output parsing.
+- Image-specific APIs introduced upstream are now ported at the Go surface level: image model registry, `GenerateImages`, image provider registry, OpenRouter image provider, payload/response hooks, timeout/context, retry/`Retry-After` handling, and usage/output parsing.
 
 Validation gates passed after regeneration, image API implementation, and test updates.
 

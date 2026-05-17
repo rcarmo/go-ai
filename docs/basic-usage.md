@@ -15,7 +15,7 @@ import (
     goai "github.com/rcarmo/go-ai"
 
     // Register the providers you want to use
-    _ "github.com/rcarmo/go-ai/provider/openai"         // OpenAI + compatible APIs
+    _ "github.com/rcarmo/go-ai/provider/openai"         // OpenAI + compatible APIs + OpenRouter images
     _ "github.com/rcarmo/go-ai/provider/anthropic"       // Anthropic Claude
     _ "github.com/rcarmo/go-ai/provider/google"          // Google Gemini + Vertex AI
     _ "github.com/rcarmo/go-ai/provider/mistral"         // Mistral
@@ -53,7 +53,7 @@ API keys are resolved in order:
 ## First request — non-streaming
 
 ```go
-goai.RegisterBuiltinModels() // load 865 built-in models
+goai.RegisterBuiltinModels() // load 942 built-in text/chat models
 
 model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini") // built-in: OpenAI Responses
 

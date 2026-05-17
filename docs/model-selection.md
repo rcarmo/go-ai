@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A[RegisterBuiltinModels] -->|865 models| B[Model Registry]
+    A[RegisterBuiltinModels] -->|942 text/chat models| B[Model Registry]
     C[RegisterModel custom] --> B
     B --> D[GetModel provider, id]
     D --> E[Stream / Complete]
@@ -21,7 +21,7 @@ flowchart TD
 ```
 
 
-go-ai ships with 865 pre-configured models across 24 providers. Register them at startup:
+go-ai ships with 942 pre-configured text/chat models across 32 providers. Register them at startup:
 
 ```go
 goai.RegisterBuiltinModels()
@@ -52,6 +52,22 @@ for _, p := range goai.ListProviders() {
     fmt.Println(p)
 }
 ```
+
+## Image model registry
+
+Image generation models live in a separate registry that mirrors upstream `image-models.generated.js`:
+
+```go
+import _ "github.com/rcarmo/go-ai/provider/openai" // registers openrouter-images
+
+goai.RegisterBuiltinImageModels()
+
+model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
+providers := goai.ListImageProviders()
+```
+
+The current upstream image registry has 28 OpenRouter image models using the `openrouter-images` API.
 
 ## Custom models
 

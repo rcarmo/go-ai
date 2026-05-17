@@ -11,6 +11,7 @@ Current automated coverage by area.
 | Retry utility | ✅ unit tests |
 | Logger | ✅ unit tests |
 | Registry / complete path | ✅ unit tests |
+| Image API / image model registry | ✅ unit + fake-server tests |
 | Example build + preflight | ✅ smoke tests |
 
 ## Provider-level fake-server coverage
@@ -26,6 +27,7 @@ Current automated coverage by area.
 | OpenAI Codex SSE fallback | ✅ | ✅ | SSE fallback only |
 | OpenAI Codex WebSocket | ✅ request path | ✅ dial retry | ✅ fake WS protocol flow |
 | Bedrock | ✅ payload hook path | ❌ unified retry | ✅ request + stream unit coverage |
+| OpenRouter Images | ✅ payload + response hooks | ✅ retry + Retry-After cap | ✅ fake-server response/output/usage parsing |
 | Faux | n/a | n/a | ✅ extensive harness/testing support |
 
 ## Not yet covered
