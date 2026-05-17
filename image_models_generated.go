@@ -69,7 +69,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333334},
+		Cost:     ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333333},
 	},
 	{
 		ID:       "google/gemini-3-pro-image-preview",
@@ -79,7 +79,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 2, Output: 12, CacheRead: 0.19999999999999998, CacheWrite: 0.375},
+		Cost:     ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
 	},
 	{
 		ID:       "google/gemini-3.1-flash-image-preview",

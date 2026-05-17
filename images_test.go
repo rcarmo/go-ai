@@ -65,7 +65,7 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 		w.Header().Set("X-Test", "ok")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":    "resp-1",
-			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "prompt_tokens_details": map[string]any{"cached_tokens": 2}},
+			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "prompt_tokens_details": map[string]any{"cached_tokens": 3, "cache_write_tokens": 1}},
 			"choices": []any{map[string]any{"message": map[string]any{
 				"content": "caption",
 				"images":  []any{map[string]any{"image_url": map[string]any{"url": "data:image/png;base64,aGk="}}},
@@ -95,7 +95,7 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	if !sawAuth || !sawPayload || !sawResponse {
 		t.Fatalf("missing hook/auth observations: auth=%v payload=%v response=%v", sawAuth, sawPayload, sawResponse)
 	}
-	if out.ResponseID != "resp-1" || out.Usage == nil || out.Usage.TotalTokens != 15 {
+	if out.StopReason != goai.StopReasonStop || out.ResponseID != "resp-1" || out.Usage == nil || out.Usage.TotalTokens != 15 {
 		t.Fatalf("unexpected image output: %#v", out)
 	}
 	var sawText, sawImage bool

@@ -70,8 +70,8 @@ type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel
 type ImagesOptions struct {
 	APIKey  string
 	Headers map[string]string
-	// Signal mirrors upstream's AbortSignal option. In Go callers may also use
-	// Context; Context takes precedence when both are set.
+	// Signal mirrors upstream's AbortSignal option. Deprecated in Go callers:
+	// prefer Context. Signal is honored only when Context is nil.
 	Signal  context.Context
 	Context context.Context
 	Timeout time.Duration
