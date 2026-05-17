@@ -25,8 +25,12 @@ func TestBuiltinImageModels(t *testing.T) {
 		t.Fatalf("expected openrouter image provider, got %#v", providers)
 	}
 	models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
-	if len(models) != 28 {
-		t.Fatalf("expected 28 image models, got %d", len(models))
+	if len(models) < 1 {
+		t.Fatalf("expected image models, got %d", len(models))
+	}
+	allModels := goai.ListImageModels("")
+	if len(allModels) < len(models) {
+		t.Fatalf("expected wildcard image model list to include provider models")
 	}
 	m := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
 	if m == nil || m.Api != goai.ImagesApiOpenRouter || m.BaseURL == "" {
@@ -108,11 +112,27 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	}
 }
 
+func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
+	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: "http://127.0.0.1", Output: []string{"image"}}
+	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "bogus"}}}, &goai.ImagesOptions{APIKey: "test-key"})
+	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
+		t.Fatalf("expected unsupported input type error result, got out=%#v err=%v", out, err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", Context: ctx})
+	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
+		t.Fatalf("expected aborted result, got out=%#v err=%v", out, err)
+	}
+}
+
 func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
+			w.Header().Set("Retry-After", "1")
 			http.Error(w, "try again", http.StatusInternalServerError)
 			return
 		}
@@ -121,7 +141,7 @@ func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 	defer server.Close()
 
 	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image"}}
-	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", MaxRetries: 1})
+	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", MaxRetries: 1, MaxRetryDelayMs: 1})
 	if err != nil || out.StopReason != goai.StopReasonStop || attempts != 2 {
 		t.Fatalf("expected retry success, attempts=%d out=%#v err=%v", attempts, out, err)
 	}

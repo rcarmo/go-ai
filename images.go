@@ -162,6 +162,13 @@ func ListImageProviders() []ImagesProvider {
 	return out
 }
 
+// GenerateImages invokes the registered image API provider for model.
+//
+// Provider/runtime failures mirror upstream pi-ai: they are returned as an
+// AssistantImages value with StopReason "error" or "aborted" and ErrorMessage
+// populated. The Go error return is reserved for future non-provider failures;
+// callers should inspect StopReason just as JS callers inspect the resolved
+// AssistantImages object.
 func GenerateImages(model *ImagesModel, ctx ImagesContext, opts *ImagesOptions) (*AssistantImages, error) {
 	if model == nil {
 		return &AssistantImages{StopReason: StopReasonError, ErrorMessage: "nil model"}, nil

@@ -31,7 +31,12 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 		return out, nil
 	}
 
-	payload := buildImagesPayload(model, ictx)
+	payload, err := buildImagesPayload(model, ictx)
+	if err != nil {
+		out.StopReason = goai.StopReasonError
+		out.ErrorMessage = err.Error()
+		return out, nil
+	}
 	if opts != nil && opts.OnPayload != nil {
 		next, err := opts.OnPayload(payload, model)
 		if err != nil {
@@ -75,6 +80,11 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 	}
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if ctx.Err() != nil {
+			out.StopReason = goai.StopReasonAborted
+			out.ErrorMessage = ctx.Err().Error()
+			return out, nil
+		}
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
@@ -84,13 +94,22 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 			case <-time.After(imageRetryDelay(attempt, opts)):
 			}
 		}
-		result, retry, err := doOpenRouterImageRequest(ctx, client, model, opts, apiKey, body)
+		result, retryAfter, retry, err := doOpenRouterImageRequest(ctx, client, model, opts, apiKey, body)
 		if err == nil {
 			return result, nil
 		}
 		lastErr = err
 		if !retry {
 			break
+		}
+		if retryAfter > 0 && attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				out.StopReason = goai.StopReasonAborted
+				out.ErrorMessage = ctx.Err().Error()
+				return out, nil
+			case <-time.After(capImageRetryDelay(retryAfter, opts)):
+			}
 		}
 	}
 	if ctx.Err() != nil {
@@ -103,13 +122,16 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 	return out, nil
 }
 
-func buildImagesPayload(model *goai.ImagesModel, ictx goai.ImagesContext) map[string]any {
+func buildImagesPayload(model *goai.ImagesModel, ictx goai.ImagesContext) (map[string]any, error) {
 	content := make([]any, 0, len(ictx.Input))
 	for _, in := range ictx.Input {
-		if in.Type == "text" {
+		switch in.Type {
+		case "text":
 			content = append(content, map[string]any{"type": "text", "text": in.Text})
-		} else if in.Type == "image" {
+		case "image":
 			content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:" + in.MimeType + ";base64," + in.Data}})
+		default:
+			return nil, fmt.Errorf("unsupported image input type %q", in.Type)
 		}
 	}
 	modes := []string{"image"}
@@ -124,14 +146,14 @@ func buildImagesPayload(model *goai.ImagesModel, ictx goai.ImagesContext) map[st
 		"messages":   []any{map[string]any{"role": "user", "content": content}},
 		"stream":     false,
 		"modalities": modes,
-	}
+	}, nil
 }
 
-func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *goai.ImagesModel, opts *goai.ImagesOptions, apiKey string, body []byte) (*goai.AssistantImages, bool, error) {
+func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *goai.ImagesModel, opts *goai.ImagesOptions, apiKey string, body []byte) (*goai.AssistantImages, time.Duration, bool, error) {
 	out := &goai.AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonStop, Timestamp: time.Now().UnixMilli()}
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(model.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return nil, false, err
+		return nil, 0, false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -145,29 +167,29 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *g
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, true, err
+		return nil, 0, true, err
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if opts != nil && opts.OnResponse != nil {
 		if err := opts.OnResponse(goai.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
-			return nil, false, err
+			return nil, 0, false, err
 		}
 	}
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
-		return nil, true, fmt.Errorf("openrouter images request failed: status %d: %s", resp.StatusCode, string(raw))
+		return nil, retryAfter(resp.Header), true, fmt.Errorf("openrouter images request failed: status %d: %s", resp.StatusCode, string(raw))
 	}
 	if resp.StatusCode >= 300 {
 		out.StopReason = goai.StopReasonError
 		out.ErrorMessage = string(raw)
-		return out, false, nil
+		return out, 0, false, nil
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, false, err
+		return nil, 0, false, err
 	}
 	parseOpenRouterImageResponse(decoded, model, out)
-	return out, false, nil
+	return out, 0, false, nil
 }
 
 func parseOpenRouterImageResponse(decoded map[string]any, model *goai.ImagesModel, out *goai.AssistantImages) {
@@ -240,11 +262,31 @@ func parseOpenRouterImageUsage(raw map[string]any, model *goai.ImagesModel) *goa
 }
 
 func imageRetryDelay(attempt int, opts *goai.ImagesOptions) time.Duration {
-	delay := time.Duration(attempt) * 250 * time.Millisecond
-	if opts != nil && opts.MaxRetryDelayMs > 0 && delay > time.Duration(opts.MaxRetryDelayMs)*time.Millisecond {
-		return time.Duration(opts.MaxRetryDelayMs) * time.Millisecond
+	return capImageRetryDelay(time.Duration(attempt)*250*time.Millisecond, opts)
+}
+
+func capImageRetryDelay(delay time.Duration, opts *goai.ImagesOptions) time.Duration {
+	if opts != nil && opts.MaxRetryDelayMs > 0 {
+		capDelay := time.Duration(opts.MaxRetryDelayMs) * time.Millisecond
+		if delay > capDelay {
+			return capDelay
+		}
 	}
 	return delay
+}
+
+func retryAfter(h http.Header) time.Duration {
+	v := strings.TrimSpace(h.Get("Retry-After"))
+	if v == "" {
+		return 0
+	}
+	if seconds, err := time.ParseDuration(v + "s"); err == nil {
+		return seconds
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		return time.Until(t)
+	}
+	return 0
 }
 
 func imageTimeout(opts *goai.ImagesOptions) time.Duration {
