@@ -8,9 +8,9 @@ Current automated coverage by area.
 |---|---|
 | Context helpers / harness | ✅ unit + integration tests |
 | Transform logic | ✅ unit tests |
-| Retry utility | ✅ unit tests |
+| Retry utility | ✅ unit tests, replayable-body guard, transport fallback, Retry-After cap |
 | Logger | ✅ unit tests |
-| Registry / complete path | ✅ unit tests |
+| Registry / complete path | ✅ unit tests, nil/error edge cases |
 | Image API / image model registry | ✅ unit + fake-server tests |
 | Example build + preflight | ✅ smoke tests |
 
@@ -27,7 +27,7 @@ Current automated coverage by area.
 | OpenAI Codex SSE fallback | ✅ | ✅ | SSE fallback only |
 | OpenAI Codex WebSocket | ✅ request path | ✅ dial retry | ✅ fake WS protocol flow |
 | Bedrock | ✅ payload hook path | ❌ unified retry | ✅ request + stream unit coverage |
-| OpenRouter Images | ✅ payload + response hooks | ✅ retry + Retry-After cap | ✅ fake-server response/output/usage parsing |
+| OpenRouter Images | ✅ payload + response hooks | ✅ retry + Retry-After cap + cancellation/timer cleanup | ✅ fake-server response/output/usage parsing |
 | Faux | n/a | n/a | ✅ extensive harness/testing support |
 
 ## Not yet covered
@@ -41,6 +41,6 @@ Current automated coverage by area.
 
 ## Notes
 
-- HTTP provider retries are opt-in via `StreamOptions.RetryConfig`.
+- HTTP provider retries are opt-in via `StreamOptions.RetryConfig`; retryable request bodies must be replayable via `Request.GetBody`.
 - Example smoke tests verify buildability and clean missing-credential behavior.
 - Azure OpenAI Responses has dedicated fake-server tests for outbound cleanup and inbound reasoning normalization.

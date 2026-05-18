@@ -17,6 +17,8 @@ Comparative audit (`@earendil-works/pi-ai v0.75.1` → `v0.75.2`) found:
 
 Validation gates passed after regeneration and parity test update.
 
+Post-sync hardening audits also tightened retry/image edge cases, nil/error contracts, generated-registry tests, and global test isolation. No remaining parity gap is tracked for v0.75.2.
+
 ### v0.75.1 (2026-05-18)
 
 Comparative audit (`@earendil-works/pi-ai v0.75.0` → `v0.75.1`) found:

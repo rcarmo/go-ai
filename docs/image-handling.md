@@ -181,7 +181,7 @@ Provider/runtime failures mirror upstream JS behavior: `GenerateImages` resolves
 - `Context` for cancellation (preferred Go field)
 - `Signal` for upstream-name parity; use only when `Context` is nil
 - `Timeout` or upstream-compatible `TimeoutMs`
-- `MaxRetries` and `MaxRetryDelayMs`
+- `MaxRetries` and `MaxRetryDelayMs` for retryable OpenRouter failures and `Retry-After` caps
 - custom `Headers`
 - `OnPayload` and `OnResponse` hooks for inspection/customization
 - `HTTPClient` for tests or custom transports

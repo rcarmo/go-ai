@@ -147,7 +147,7 @@ opts := &goai.StreamOptions{
 }
 ```
 
-`MaxRetryDelayMs` remains as a legacy shorthand if you only want to cap `Retry-After`.
+`MaxRetryDelayMs` remains as a legacy shorthand if you only want to cap `Retry-After`. Retryable HTTP request bodies must be replayable (`Request.GetBody` set) before `DoWithRetry` will retry them.
 
 ## Reconnect / recovery pattern
 

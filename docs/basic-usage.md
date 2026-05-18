@@ -144,7 +144,7 @@ opts := &goai.StreamOptions{
 msg, err := goai.Complete(ctx, model, convCtx, opts)
 ```
 
-`RetryConfig` is honored by the HTTP-based providers. `MaxRetryDelayMs` remains available as a legacy shorthand when you only want to cap `Retry-After` handling.
+`RetryConfig` is honored by the HTTP-based providers. `MaxRetryDelayMs` remains available as a legacy shorthand when you only want to cap `Retry-After` handling. If retries are exhausted on retryable HTTP status responses, `DoWithRetry` returns the final response so callers/providers can inspect the provider error payload and close the body.
 
 ## Aborting requests
 

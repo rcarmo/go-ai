@@ -2,6 +2,20 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-18 post-v0.75.2 hardening audit
+
+After syncing `@earendil-works/pi-ai v0.75.2`, repeated code-smell and logic-error audits focused on retry semantics, image generation, generated-registry tests, and global test state.
+
+Actions taken:
+
+- Hardened `Stream`/`Complete` edge cases around nil provider functions and error events.
+- Tightened retry behavior and documentation: replayable bodies, `Retry-After`, cancellation, final response ownership, and safe `http.DefaultTransport` handling.
+- Hardened OpenRouter image generation retry/cancellation paths, timer cleanup, payload-hook coverage, and registry tests.
+- Reduced generated-registry test brittleness by avoiding rotating date-stamped upstream model IDs while retaining compat metadata parity assertions.
+- Cleaned unsafe global-state tests and tightened model/provider count thresholds.
+
+Validation: full reproducible gate (`make test-repro`) and race/static/vet/logging checks pass after these follow-up commits.
+
 ## 2026-05-18 v0.75.2 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.75.1` against `v0.75.2` and audited `go-ai` parity.
