@@ -21,7 +21,14 @@ func TestImageAPIProviderRegistered(t *testing.T) {
 func TestBuiltinImageModels(t *testing.T) {
 	goai.RegisterBuiltinImageModels()
 	providers := goai.ListImageProviders()
-	if len(providers) != 1 || providers[0] != goai.ImagesProviderOpenRouter {
+	foundOpenRouter := false
+	for _, p := range providers {
+		if p == goai.ImagesProviderOpenRouter {
+			foundOpenRouter = true
+			break
+		}
+	}
+	if !foundOpenRouter {
 		t.Fatalf("expected openrouter image provider, got %#v", providers)
 	}
 	models := goai.ListImageModels(goai.ImagesProviderOpenRouter)

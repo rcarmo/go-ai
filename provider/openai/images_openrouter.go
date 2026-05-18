@@ -103,12 +103,19 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 		if retryAfter > delay {
 			delay = capImageRetryDelay(retryAfter, opts)
 		}
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			out.StopReason = goai.StopReasonAborted
 			out.ErrorMessage = ctx.Err().Error()
 			return out, nil
-		case <-time.After(delay):
+		case <-timer.C:
 		}
 	}
 	if ctx.Err() != nil {
