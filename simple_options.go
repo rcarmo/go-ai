@@ -51,14 +51,14 @@ func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLev
 	if idx < 0 {
 		return available[0]
 	}
-	for i := idx; i < len(extendedThinkingLevels); i++ {
+	for i := idx - 1; i >= 0; i-- {
 		for _, candidate := range available {
 			if candidate == extendedThinkingLevels[i] {
 				return candidate
 			}
 		}
 	}
-	for i := idx - 1; i >= 0; i-- {
+	for i := idx + 1; i < len(extendedThinkingLevels); i++ {
 		for _, candidate := range available {
 			if candidate == extendedThinkingLevels[i] {
 				return candidate

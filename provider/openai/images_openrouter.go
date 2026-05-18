@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +68,11 @@ func GenerateImagesOpenRouter(model *goai.ImagesModel, ictx goai.ImagesContext, 
 		if opts.Context != nil {
 			ctx = opts.Context
 		}
+	}
+	if ctx.Err() != nil {
+		out.StopReason = goai.StopReasonAborted
+		out.ErrorMessage = ctx.Err().Error()
+		return out, nil
 	}
 	if timeout := imageTimeout(opts); timeout > 0 {
 		var cancel context.CancelFunc
@@ -129,6 +135,9 @@ func buildImagesPayload(model *goai.ImagesModel, ictx goai.ImagesContext) (map[s
 		default:
 			return nil, fmt.Errorf("unsupported image input type %q", in.Type)
 		}
+	}
+	if len(content) == 0 {
+		return nil, fmt.Errorf("image context has no inputs")
 	}
 	modesSet := map[string]bool{}
 	for _, o := range model.Output {
@@ -290,8 +299,8 @@ func retryAfter(h http.Header) time.Duration {
 	if v == "" {
 		return 0
 	}
-	if seconds, err := time.ParseDuration(v + "s"); err == nil {
-		return seconds
+	if seconds, err := strconv.Atoi(v); err == nil {
+		return time.Duration(seconds) * time.Second
 	}
 	if t, err := http.ParseTime(v); err == nil {
 		return time.Until(t)

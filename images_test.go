@@ -114,7 +114,11 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 
 func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
 	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: "http://127.0.0.1", Output: []string{"image"}}
-	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "bogus"}}}, &goai.ImagesOptions{APIKey: "test-key"})
+	out, err := goai.GenerateImages(model, goai.ImagesContext{}, &goai.ImagesOptions{APIKey: "test-key"})
+	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
+		t.Fatalf("expected empty input error result, got out=%#v err=%v", out, err)
+	}
+	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "bogus"}}}, &goai.ImagesOptions{APIKey: "test-key"})
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
 		t.Fatalf("expected unsupported input type error result, got out=%#v err=%v", out, err)
 	}

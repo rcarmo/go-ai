@@ -147,8 +147,14 @@ func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOpt
 	}
 	logDebug("stream start", "provider", model.Provider, "model", model.ID, "api", model.Api,
 		"messages", len(convCtx.Messages), "tools", len(convCtx.Tools))
-	if opts != nil && opts.Reasoning != nil {
+	if opts != nil && opts.Reasoning != nil && p.StreamSimple != nil {
 		return p.StreamSimple(ctx, model, convCtx, opts)
+	}
+	if p.Stream == nil {
+		ch := make(chan Event, 1)
+		ch <- &ErrorEvent{Reason: StopReasonError, Err: fmt.Errorf("no stream function registered for API %q", model.Api)}
+		close(ch)
+		return ch
 	}
 	return p.Stream(ctx, model, convCtx, opts)
 }

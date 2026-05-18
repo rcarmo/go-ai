@@ -348,4 +348,23 @@ func TestCompleteViaFaux(t *testing.T) {
 	if msg.StopReason != goai.StopReasonStop {
 		t.Fatal("expected stop")
 	}
+
+	level := goai.ThinkingLow
+	msg, err = goai.Complete(context.Background(), model, convCtx, &goai.StreamOptions{Reasoning: &level})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.StopReason != goai.StopReasonStop {
+		t.Fatal("expected Stream fallback when StreamSimple is nil")
+	}
+}
+
+func TestStreamMissingFunction(t *testing.T) {
+	goai.RegisterApi(&goai.ApiProvider{Api: "test-empty-api"})
+	model := &goai.Model{ID: "m", Provider: "p", Api: "test-empty-api"}
+	events := goai.Stream(context.Background(), model, &goai.Context{}, nil)
+	event := <-events
+	if _, ok := event.(*goai.ErrorEvent); !ok {
+		t.Fatalf("expected ErrorEvent, got %T", event)
+	}
 }

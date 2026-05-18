@@ -310,4 +310,25 @@ func TestDetectCompat(t *testing.T) {
 	if cf.MaxTokensField != "max_tokens" || cf.SupportsLongCacheRetention == nil || *cf.SupportsLongCacheRetention {
 		t.Fatalf("unexpected Cloudflare AI Gateway compat: %+v", cf)
 	}
+
+	xiaomi := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderXiaomi, BaseURL: "https://api.xiaomimimo.com/v1"})
+	if xiaomi.ThinkingFormat != "deepseek" || xiaomi.RequiresReasoningContentOnAssistantMessages == nil || !*xiaomi.RequiresReasoningContentOnAssistantMessages {
+		t.Fatalf("unexpected Xiaomi compat: %+v", xiaomi)
+	}
+}
+
+func TestClampThinkingLevelPrefersDowngrade(t *testing.T) {
+	high := "high"
+	model := &goai.Model{
+		Reasoning: true,
+		ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{
+			goai.ThinkingOff: nil,
+			goai.ModelThinkingLevel(goai.ThinkingLow):    nil,
+			goai.ModelThinkingLevel(goai.ThinkingMedium): nil,
+			goai.ModelThinkingLevel(goai.ThinkingHigh):   &high,
+		},
+	}
+	if got := goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingMedium)); got != goai.ModelThinkingLevel(goai.ThinkingMinimal) {
+		t.Fatalf("expected unsupported medium to downgrade to minimal, got %q", got)
+	}
 }
