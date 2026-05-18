@@ -140,19 +140,20 @@ import (
     "log"
 
     goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/provider/openai" // registers openrouter-images
+    "github.com/rcarmo/go-ai/images"
+    _ "github.com/rcarmo/go-ai/images/openrouter" // registers openrouter-images
 )
 
 func main() {
-    goai.RegisterBuiltinImageModels()
+    images.RegisterBuiltinImageModels()
 
-    model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+    model := images.GetImageModel(images.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
 
-    result, err := goai.GenerateImages(model, goai.ImagesContext{
-        Input: []goai.ImageInput{
+    result, err := images.GenerateImages(model, images.ImagesContext{
+        Input: []images.ImageInput{
             {Type: "text", Text: "A tiny robot reading a book, watercolor"},
         },
-    }, &goai.ImagesOptions{
+    }, &images.ImagesOptions{
         APIKey:  "...", // or OPENROUTER_API_KEY
         Context: context.Background(),
     })
@@ -171,7 +172,7 @@ func main() {
 }
 ```
 
-Provider/runtime failures mirror upstream JS behavior: `GenerateImages` resolves to an `AssistantImages` value with `StopReason` set to `"error"` or `"aborted"` and `ErrorMessage` populated. Check `StopReason`; do not rely solely on the Go `error` return.
+Provider/runtime failures mirror upstream JS behavior: `images.GenerateImages` resolves to an `AssistantImages` value with `StopReason` set to `"error"` or `"aborted"` and `ErrorMessage` populated. Check `StopReason`; do not rely solely on the Go `error` return.
 
 ### Image generation options
 
@@ -189,9 +190,9 @@ Provider/runtime failures mirror upstream JS behavior: `GenerateImages` resolves
 ### Image model registry
 
 ```go
-goai.RegisterBuiltinImageModels()
-models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
-model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+images.RegisterBuiltinImageModels()
+models := images.ListImageModels(images.ImagesProviderOpenRouter)
+model := images.GetImageModel(images.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
 ```
 
 The current upstream registry contains 28 OpenRouter image models using `openrouter-images`.

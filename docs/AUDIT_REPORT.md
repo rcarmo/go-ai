@@ -11,6 +11,7 @@ Actions taken:
 - Hardened `Stream`/`Complete` edge cases around nil provider functions and error events.
 - Tightened retry behavior and documentation: replayable bodies, `Retry-After`, cancellation, final response ownership, and safe `http.DefaultTransport` handling.
 - Hardened OpenRouter image generation retry/cancellation paths, timer cleanup, payload-hook coverage, and registry tests.
+- Started breaking package layout split with `images/` for image generation and `inference/` for the text/chat inference facade.
 - Reduced generated-registry test brittleness by avoiding rotating date-stamped upstream model IDs while retaining compat metadata parity assertions.
 - Cleaned unsafe global-state tests and tightened model/provider count thresholds.
 
@@ -83,9 +84,9 @@ Findings:
 Actions:
 
 - Regenerated model metadata from upstream `v0.74.1` artifact.
-- Added generated image model registry from upstream `image-models.generated.js` (28 image models / 1 provider).
-- Ported image API surface: `ImagesApi`, `ImagesModel`, `ImagesContext`, `AssistantImages`, image registry, `GenerateImages`.
-- Ported OpenRouter image provider behavior: OpenAI-compatible chat completions payload, `modalities`, data-URL image output parsing, usage/cost parsing, payload/response hooks, timeout/context, retry handling, and provider/header API key handling.
+- Added generated image model registry from upstream `image-models.generated.js` (28 image models / 1 provider), now under `images/`.
+- Ported image API surface under `github.com/rcarmo/go-ai/images`: `ImagesApi`, `ImagesModel`, `ImagesContext`, `AssistantImages`, image registry, `GenerateImages`.
+- Ported OpenRouter image provider behavior under `github.com/rcarmo/go-ai/images/openrouter`: OpenAI-compatible chat completions payload, `modalities`, data-URL image output parsing, usage/cost parsing, payload/response hooks, timeout/context, retry handling, and provider/header API key handling.
 - Updated generated-metadata parity test to current Copilot model IDs and added image API tests.
 - Ran verification gates (`make test-repro`).
 

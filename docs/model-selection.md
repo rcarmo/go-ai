@@ -58,13 +58,16 @@ for _, p := range goai.ListProviders() {
 Image generation models live in a separate registry that mirrors upstream `image-models.generated.js`:
 
 ```go
-import _ "github.com/rcarmo/go-ai/provider/openai" // registers openrouter-images
+import (
+    "github.com/rcarmo/go-ai/images"
+    _ "github.com/rcarmo/go-ai/images/openrouter" // registers openrouter-images
+)
 
-goai.RegisterBuiltinImageModels()
+images.RegisterBuiltinImageModels()
 
-model := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
-models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
-providers := goai.ListImageProviders()
+model := images.GetImageModel(images.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+models := images.ListImageModels(images.ImagesProviderOpenRouter)
+providers := images.ListImageProviders()
 ```
 
 The current upstream image registry has 28 OpenRouter image models using the `openrouter-images` API.

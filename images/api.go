@@ -1,4 +1,4 @@
-package goai
+package images
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 type ImagesApi string
@@ -44,19 +46,19 @@ type ImagesModel struct {
 	Headers  map[string]string `json:"headers,omitempty"`
 	Input    []string          `json:"input,omitempty"`
 	Output   []string          `json:"output,omitempty"`
-	Cost     ModelCost         `json:"cost"`
+	Cost     goai.ModelCost    `json:"cost"`
 }
 
 type AssistantImages struct {
-	Api          ImagesApi      `json:"api"`
-	Provider     ImagesProvider `json:"provider"`
-	Model        string         `json:"model"`
-	Output       []ImageOutput  `json:"output"`
-	StopReason   StopReason     `json:"stopReason"`
-	Timestamp    int64          `json:"timestamp"`
-	ResponseID   string         `json:"responseId,omitempty"`
-	Usage        *Usage         `json:"usage,omitempty"`
-	ErrorMessage string         `json:"errorMessage,omitempty"`
+	Api          ImagesApi       `json:"api"`
+	Provider     ImagesProvider  `json:"provider"`
+	Model        string          `json:"model"`
+	Output       []ImageOutput   `json:"output"`
+	StopReason   goai.StopReason `json:"stopReason"`
+	Timestamp    int64           `json:"timestamp"`
+	ResponseID   string          `json:"responseId,omitempty"`
+	Usage        *goai.Usage     `json:"usage,omitempty"`
+	ErrorMessage string          `json:"errorMessage,omitempty"`
 }
 
 type ImagesResponseMetadata struct {
@@ -171,11 +173,11 @@ func ListImageProviders() []ImagesProvider {
 // AssistantImages object.
 func GenerateImages(model *ImagesModel, ctx ImagesContext, opts *ImagesOptions) (*AssistantImages, error) {
 	if model == nil {
-		return &AssistantImages{StopReason: StopReasonError, ErrorMessage: "nil model"}, nil
+		return &AssistantImages{StopReason: goai.StopReasonError, ErrorMessage: "nil model"}, nil
 	}
 	p := GetImagesApiProvider(model.Api)
 	if p == nil {
-		return &AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: StopReasonError, ErrorMessage: "no image provider registered"}, nil
+		return &AssistantImages{Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonError, ErrorMessage: "no image provider registered"}, nil
 	}
 	return p.GenerateImages(model, ctx, opts)
 }

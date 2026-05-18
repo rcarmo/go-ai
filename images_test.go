@@ -8,22 +8,23 @@ import (
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/openai"
+	"github.com/rcarmo/go-ai/images"
+	_ "github.com/rcarmo/go-ai/images/openrouter"
 )
 
 func TestImageAPIProviderRegistered(t *testing.T) {
-	p := goai.GetImagesApiProvider(goai.ImagesApiOpenRouter)
+	p := images.GetImagesApiProvider(images.ImagesApiOpenRouter)
 	if p == nil {
 		t.Fatal("expected openrouter images provider to be registered")
 	}
 }
 
 func TestBuiltinImageModels(t *testing.T) {
-	goai.RegisterBuiltinImageModels()
-	providers := goai.ListImageProviders()
+	images.RegisterBuiltinImageModels()
+	providers := images.ListImageProviders()
 	foundOpenRouter := false
 	for _, p := range providers {
-		if p == goai.ImagesProviderOpenRouter {
+		if p == images.ImagesProviderOpenRouter {
 			foundOpenRouter = true
 			break
 		}
@@ -31,26 +32,26 @@ func TestBuiltinImageModels(t *testing.T) {
 	if !foundOpenRouter {
 		t.Fatalf("expected openrouter image provider, got %#v", providers)
 	}
-	models := goai.ListImageModels(goai.ImagesProviderOpenRouter)
+	models := images.ListImageModels(images.ImagesProviderOpenRouter)
 	if len(models) < 1 {
 		t.Fatalf("expected image models, got %d", len(models))
 	}
-	allModels := goai.ListImageModels("")
+	allModels := images.ListImageModels("")
 	if len(allModels) < len(models) {
 		t.Fatalf("expected wildcard image model list to include provider models")
 	}
-	m := goai.GetImageModel(goai.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
-	if m == nil || m.Api != goai.ImagesApiOpenRouter || m.BaseURL == "" {
+	m := images.GetImageModel(images.ImagesProviderOpenRouter, "black-forest-labs/flux.2-flex")
+	if m == nil || m.Api != images.ImagesApiOpenRouter || m.BaseURL == "" {
 		t.Fatalf("expected generated openrouter image model, got %#v", m)
 	}
 }
 
 func TestGenerateImagesErrorPaths(t *testing.T) {
-	out, err := goai.GenerateImages(nil, goai.ImagesContext{}, nil)
+	out, err := images.GenerateImages(nil, images.ImagesContext{}, nil)
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
 		t.Fatalf("expected nil-model error result, got out=%#v err=%v", out, err)
 	}
-	out, err = goai.GenerateImages(&goai.ImagesModel{ID: "m", Api: "missing", Provider: "p"}, goai.ImagesContext{}, nil)
+	out, err = images.GenerateImages(&images.ImagesModel{ID: "m", Api: "missing", Provider: "p"}, images.ImagesContext{}, nil)
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
 		t.Fatalf("expected missing-provider error result, got out=%#v err=%v", out, err)
 	}
@@ -81,15 +82,15 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image", "text"}}
-	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{
+	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image", "text"}}
+	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{
 		APIKey: "test-key",
 		Signal: context.Background(),
-		OnPayload: func(payload map[string]any, model *goai.ImagesModel) (map[string]any, error) {
+		OnPayload: func(payload map[string]any, model *images.ImagesModel) (map[string]any, error) {
 			payload["custom"] = "yes"
 			return payload, nil
 		},
-		OnResponse: func(response goai.ImagesResponseMetadata, model *goai.ImagesModel) error {
+		OnResponse: func(response images.ImagesResponseMetadata, model *images.ImagesModel) error {
 			if response.Status == 200 && response.Headers["X-Test"] == "ok" {
 				sawResponse = true
 			}
@@ -120,19 +121,19 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 }
 
 func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
-	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: "http://127.0.0.1", Output: []string{"image"}}
-	out, err := goai.GenerateImages(model, goai.ImagesContext{}, &goai.ImagesOptions{APIKey: "test-key"})
+	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: "http://127.0.0.1", Output: []string{"image"}}
+	out, err := images.GenerateImages(model, images.ImagesContext{}, &images.ImagesOptions{APIKey: "test-key"})
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
 		t.Fatalf("expected empty input error result, got out=%#v err=%v", out, err)
 	}
-	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "bogus"}}}, &goai.ImagesOptions{APIKey: "test-key"})
+	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "bogus"}}}, &images.ImagesOptions{APIKey: "test-key"})
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
 		t.Fatalf("expected unsupported input type error result, got out=%#v err=%v", out, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", Context: ctx})
+	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{APIKey: "test-key", Context: ctx})
 	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
 		t.Fatalf("expected aborted result, got out=%#v err=%v", out, err)
 	}
@@ -144,7 +145,7 @@ func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
 	ctx, cancel = context.WithCancel(context.Background())
 	cancel()
 	model.BaseURL = server.URL
-	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", Context: ctx})
+	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{APIKey: "test-key", Context: ctx})
 	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
 		t.Fatalf("expected client cancellation to abort without retry, got out=%#v err=%v", out, err)
 	}
@@ -164,13 +165,13 @@ func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	model := &goai.ImagesModel{ID: "img", Api: goai.ImagesApiOpenRouter, Provider: goai.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image"}}
-	out, err := goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", MaxRetries: 1, MaxRetryDelayMs: 1})
+	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image"}}
+	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{APIKey: "test-key", MaxRetries: 1, MaxRetryDelayMs: 1})
 	if err != nil || out.StopReason != goai.StopReasonStop || attempts != 2 {
 		t.Fatalf("expected retry success, attempts=%d out=%#v err=%v", attempts, out, err)
 	}
 
-	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", OnPayload: func(payload map[string]any, model *goai.ImagesModel) (map[string]any, error) {
+	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{APIKey: "test-key", OnPayload: func(payload map[string]any, model *images.ImagesModel) (map[string]any, error) {
 		return nil, context.Canceled
 	}})
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {

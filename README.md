@@ -52,6 +52,16 @@ ported from his TypeScript library. All credit for the design goes to him.
 - **Cost tracking** — per-request token counts and USD cost breakdown
 - **Thinking/reasoning** — unified thinking level across providers
 
+## Package layout
+
+The v0 API is being split into explicit trees:
+
+- `github.com/rcarmo/go-ai/inference` — text/chat inference facade over the root inference implementation.
+- `github.com/rcarmo/go-ai/images` — image generation API, image model registry, and image provider interfaces.
+- `github.com/rcarmo/go-ai/images/openrouter` — OpenRouter image provider registration.
+
+The root package still contains the current text/chat implementation while this split progresses.
+
 ## Quick start
 
 ```go
@@ -115,9 +125,12 @@ go-ai/
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
 ├── models_generated.go        # 938 text/chat models / 32 providers (auto-generated)
-├── image_models_generated.go  # 28 image models / 1 provider (auto-generated)
-├── images.go                 # Image generation API, registry, and model types
 ├── doc.go                    # Package documentation
+├── inference/                # Namespaced text/chat inference facade
+├── images/                   # Image generation API, registry, and providers
+│   ├── api.go                # Image generation API, registry, and model types
+│   ├── models_generated.go   # 28 image models / 1 provider (auto-generated)
+│   └── openrouter/           # OpenRouter image provider registration
 │
 ├── provider/            # LLM provider implementations (blank-import to register)
 │   ├── openai/          # OpenAI Chat Completions + compatible APIs

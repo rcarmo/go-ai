@@ -15,7 +15,7 @@ import (
     goai "github.com/rcarmo/go-ai"
 
     // Register the providers you want to use
-    _ "github.com/rcarmo/go-ai/provider/openai"         // OpenAI + compatible APIs + OpenRouter images
+    _ "github.com/rcarmo/go-ai/provider/openai"         // OpenAI + compatible chat APIs
     _ "github.com/rcarmo/go-ai/provider/anthropic"       // Anthropic Claude
     _ "github.com/rcarmo/go-ai/provider/google"          // Google Gemini + Vertex AI
     _ "github.com/rcarmo/go-ai/provider/mistral"         // Mistral

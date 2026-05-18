@@ -2,7 +2,9 @@
 //
 // Source: image-models.generated.js (28 image models, 1 provider)
 
-package goai
+package images
+
+import goai "github.com/rcarmo/go-ai"
 
 func RegisterBuiltinImageModels() {
 	for i := range builtinImageModels {
@@ -19,7 +21,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "black-forest-labs/flux.2-klein-4b",
@@ -29,7 +31,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "black-forest-labs/flux.2-max",
@@ -39,7 +41,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "black-forest-labs/flux.2-pro",
@@ -49,7 +51,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "bytedance-seed/seedream-4.5",
@@ -59,7 +61,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "google/gemini-2.5-flash-image",
@@ -69,7 +71,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333333},
+		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333333},
 	},
 	{
 		ID:       "google/gemini-3-pro-image-preview",
@@ -79,7 +81,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
+		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
 	},
 	{
 		ID:       "google/gemini-3.1-flash-image-preview",
@@ -89,7 +91,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 0.5, Output: 3, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0.5, Output: 3, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "openai/gpt-5-image",
@@ -99,7 +101,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 10, Output: 10, CacheRead: 1.25, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 10, Output: 10, CacheRead: 1.25, CacheWrite: 0},
 	},
 	{
 		ID:       "openai/gpt-5-image-mini",
@@ -109,7 +111,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 2.5, Output: 2, CacheRead: 0.25, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 2.5, Output: 2, CacheRead: 0.25, CacheWrite: 0},
 	},
 	{
 		ID:       "openai/gpt-5.4-image-2",
@@ -119,7 +121,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     ModelCost{Input: 8, Output: 15, CacheRead: 2, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 8, Output: 15, CacheRead: 2, CacheWrite: 0},
 	},
 	{
 		ID:       "openrouter/auto",
@@ -129,7 +131,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"text", "image"},
-		Cost:     ModelCost{Input: -1000000, Output: -1000000, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: -1000000, Output: -1000000, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v3",
@@ -139,7 +141,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4",
@@ -149,7 +151,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4-pro",
@@ -159,7 +161,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4-pro-vector",
@@ -169,7 +171,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4-vector",
@@ -179,7 +181,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1",
@@ -189,7 +191,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1-pro",
@@ -199,7 +201,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1-pro-vector",
@@ -209,7 +211,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1-utility",
@@ -219,7 +221,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1-utility-pro",
@@ -229,7 +231,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "recraft/recraft-v4.1-vector",
@@ -239,7 +241,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "sourceful/riverflow-v2-fast",
@@ -249,7 +251,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "sourceful/riverflow-v2-fast-preview",
@@ -259,7 +261,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "sourceful/riverflow-v2-max-preview",
@@ -269,7 +271,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "sourceful/riverflow-v2-pro",
@@ -279,7 +281,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "sourceful/riverflow-v2-standard-preview",
@@ -289,6 +291,6 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
-		Cost:     ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 }
