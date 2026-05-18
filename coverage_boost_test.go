@@ -313,6 +313,7 @@ func TestInvokeOnResponse(t *testing.T) {
 // --- Complete via faux (covers Complete path) ---
 
 func TestCompleteViaFaux(t *testing.T) {
+	t.Cleanup(func() { goai.UnregisterApi("test-complete-api") })
 	// Import faux side effect already registered from other tests
 	// Register a simple model and provider
 	goai.RegisterApi(&goai.ApiProvider{
@@ -355,6 +356,7 @@ func TestCompleteViaFaux(t *testing.T) {
 }
 
 func TestStreamMissingFunction(t *testing.T) {
+	t.Cleanup(func() { goai.UnregisterApi("test-empty-api") })
 	goai.RegisterApi(&goai.ApiProvider{Api: "test-empty-api"})
 	model := &goai.Model{ID: "m", Provider: "p", Api: "test-empty-api"}
 	events := goai.Stream(context.Background(), model, &goai.Context{}, nil)
@@ -365,6 +367,7 @@ func TestStreamMissingFunction(t *testing.T) {
 }
 
 func TestCompleteErrorEventWithoutMessage(t *testing.T) {
+	t.Cleanup(func() { goai.UnregisterApi("test-error-api") })
 	goai.RegisterApi(&goai.ApiProvider{Api: "test-error-api", Stream: func(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 		ch := make(chan goai.Event, 1)
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError}

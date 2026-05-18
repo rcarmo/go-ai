@@ -245,7 +245,7 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 
 ### Core Framework — ✅ Complete
 - types, events, registry (with unregister/clear), env, stream, complete
-- models.generated (865 models, 24 providers, code generator)
+- models.generated (938 models, 32 providers, code generator)
 - CalculateCost, SupportsXhigh, ModelsAreEqual
 - CLI: skipped (not part of library API)
 

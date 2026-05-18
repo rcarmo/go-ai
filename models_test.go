@@ -11,8 +11,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 
 	// Check we have models
 	providers := goai.ListProviders()
-	if len(providers) < 10 {
-		t.Fatalf("expected at least 10 providers, got %d", len(providers))
+	if len(providers) < 30 {
+		t.Fatalf("expected at least 30 providers, got %d", len(providers))
 	}
 
 	// Check specific well-known models
@@ -72,8 +72,8 @@ func TestListModelsFilter(t *testing.T) {
 	goai.RegisterBuiltinModels()
 
 	openaiModels := goai.ListModels(goai.ProviderOpenAI)
-	if len(openaiModels) < 5 {
-		t.Fatalf("expected at least 5 OpenAI models, got %d", len(openaiModels))
+	if len(openaiModels) < 20 {
+		t.Fatalf("expected at least 20 OpenAI models, got %d", len(openaiModels))
 	}
 
 	for _, m := range openaiModels {
