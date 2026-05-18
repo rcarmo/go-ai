@@ -162,7 +162,7 @@ func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 		t.Fatalf("expected retry success, attempts=%d out=%#v err=%v", attempts, out, err)
 	}
 
-	out, err = goai.GenerateImages(model, goai.ImagesContext{}, &goai.ImagesOptions{APIKey: "test-key", OnPayload: func(payload map[string]any, model *goai.ImagesModel) (map[string]any, error) {
+	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", OnPayload: func(payload map[string]any, model *goai.ImagesModel) (map[string]any, error) {
 		return nil, context.Canceled
 	}})
 	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
