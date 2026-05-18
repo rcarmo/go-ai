@@ -108,7 +108,6 @@ func TestClearModels(t *testing.T) {
 	t.Cleanup(func() {
 		// Re-register builtins for other tests that share the package registry.
 		goai.RegisterBuiltinModels()
-		goai.RegisterBuiltinImageModels()
 	})
 	goai.RegisterModel(&goai.Model{ID: "test-clear-m", Provider: "test"})
 	goai.ClearModels()

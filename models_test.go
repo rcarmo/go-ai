@@ -15,27 +15,19 @@ func TestRegisterBuiltinModels(t *testing.T) {
 		t.Fatalf("expected at least 30 providers, got %d", len(providers))
 	}
 
-	// Check specific well-known models
-	tests := []struct {
-		provider goai.Provider
-		id       string
-	}{
-		{goai.ProviderOpenAI, "gpt-4o"},
-		{goai.ProviderAnthropic, "claude-sonnet-4-20250514"},
-		{goai.ProviderGoogle, "gemini-2.5-pro"},
-	}
-
-	for _, tt := range tests {
-		m := goai.GetModel(tt.provider, tt.id)
-		if m == nil {
-			t.Errorf("model %s/%s not found", tt.provider, tt.id)
-			continue
+	// Check representative provider registries without depending on rotating
+	// date-stamped upstream model IDs.
+	for _, provider := range []goai.Provider{goai.ProviderOpenAI, goai.ProviderAnthropic, goai.ProviderGoogle} {
+		providerModels := goai.ListModels(provider)
+		if len(providerModels) == 0 {
+			t.Fatalf("expected models for provider %s", provider)
 		}
+		m := providerModels[0]
 		if m.Api == "" {
-			t.Errorf("model %s/%s has empty API", tt.provider, tt.id)
+			t.Errorf("model %s/%s has empty API", m.Provider, m.ID)
 		}
 		if m.ContextWindow <= 0 {
-			t.Errorf("model %s/%s has no context window", tt.provider, tt.id)
+			t.Errorf("model %s/%s has no context window", m.Provider, m.ID)
 		}
 	}
 }
@@ -54,9 +46,14 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected DeepSeek xhigh to map to max, got %#v", v)
 	}
 
-	copilot := goai.GetModel(goai.ProviderGitHubCopilot, "claude-haiku-4.5")
-	if copilot == nil || copilot.Headers["User-Agent"] == "" || copilot.AnthropicCompat == nil || copilot.AnthropicCompat.SupportsEagerToolInputStreaming == nil || *copilot.AnthropicCompat.SupportsEagerToolInputStreaming {
-		t.Fatalf("expected Copilot headers and Anthropic compat from generated metadata, got %#v", copilot)
+	copilot := firstModelMatching(goai.ProviderGitHubCopilot, func(m *goai.Model) bool {
+		return m.Api == goai.ApiAnthropicMessages && m.Headers["User-Agent"] != "" && m.AnthropicCompat != nil
+	})
+	if copilot == nil {
+		t.Fatal("expected at least one Copilot Anthropic-compatible model with headers")
+	}
+	if copilot.AnthropicCompat.SupportsEagerToolInputStreaming == nil || *copilot.AnthropicCompat.SupportsEagerToolInputStreaming {
+		t.Fatalf("expected Copilot Anthropic compat eager streaming override, got %#v", copilot.AnthropicCompat)
 	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
@@ -81,4 +78,13 @@ func TestListModelsFilter(t *testing.T) {
 			t.Fatalf("expected provider openai, got %s", m.Provider)
 		}
 	}
+}
+
+func firstModelMatching(provider goai.Provider, pred func(*goai.Model) bool) *goai.Model {
+	for _, m := range goai.ListModels(provider) {
+		if pred(m) {
+			return m
+		}
+	}
+	return nil
 }

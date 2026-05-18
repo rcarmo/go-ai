@@ -155,8 +155,9 @@ func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
+			// Exercise Retry-After handling on a retryable provider status.
 			w.Header().Set("Retry-After", "1")
-			http.Error(w, "try again", http.StatusInternalServerError)
+			http.Error(w, "try again", http.StatusTooManyRequests)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"images": []any{}}}}})
