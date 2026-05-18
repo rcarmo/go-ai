@@ -15,20 +15,20 @@ import (
     goai "github.com/rcarmo/go-ai"
 
     // Register the providers you want to use
-    _ "github.com/rcarmo/go-ai/provider/openai"         // OpenAI + compatible chat APIs
-    _ "github.com/rcarmo/go-ai/provider/anthropic"       // Anthropic Claude
-    _ "github.com/rcarmo/go-ai/provider/google"          // Google Gemini + Vertex AI
-    _ "github.com/rcarmo/go-ai/provider/mistral"         // Mistral
-    _ "github.com/rcarmo/go-ai/provider/bedrock"         // Amazon Bedrock
-    _ "github.com/rcarmo/go-ai/provider/openairesponses" // OpenAI Responses API + Azure
-    _ "github.com/rcarmo/go-ai/provider/geminicli"       // Google Gemini CLI
-    _ "github.com/rcarmo/go-ai/provider/openaicodex"     // OpenAI Codex (WebSocket)
+    _ "github.com/rcarmo/go-ai/inference/provider/openai"         // OpenAI + compatible chat APIs
+    _ "github.com/rcarmo/go-ai/inference/provider/anthropic"       // Anthropic Claude
+    _ "github.com/rcarmo/go-ai/inference/provider/google"          // Google Gemini + Vertex AI
+    _ "github.com/rcarmo/go-ai/inference/provider/mistral"         // Mistral
+    _ "github.com/rcarmo/go-ai/inference/provider/bedrock"         // Amazon Bedrock
+    _ "github.com/rcarmo/go-ai/inference/provider/openairesponses" // OpenAI Responses API + Azure
+    _ "github.com/rcarmo/go-ai/inference/provider/geminicli"       // Google Gemini CLI
+    _ "github.com/rcarmo/go-ai/inference/provider/openaicodex"     // OpenAI Codex (WebSocket)
 )
 ```
 
 Each blank import calls `init()` which registers that provider's streaming implementation. Unused providers are never loaded.
 
-> **Important:** import the provider that matches the model's `Api`, not just its human-facing provider name. For example, the built-in `gpt-4o-mini` model currently uses `openai-responses`, so you must import `provider/openairesponses`.
+> **Important:** import the provider that matches the model's `Api`, not just its human-facing provider name. For example, the built-in `gpt-4o-mini` model currently uses `openai-responses`, so you must import `inference/provider/openairesponses`.
 
 ## API keys
 

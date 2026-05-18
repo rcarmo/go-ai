@@ -219,7 +219,7 @@ func AzureSessionHeaders(sessionID string) map[string]string {
 		return nil
 	}
 	return map[string]string{
-		"session_id":              sessionID,
+		"session_id":             sessionID,
 		"x-client-request-id":    sessionID,
 		"x-ms-client-request-id": sessionID,
 	}

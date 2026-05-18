@@ -73,8 +73,8 @@ import (
     "log"
 
     goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/provider/openairesponses" // register OpenAI Responses
-    _ "github.com/rcarmo/go-ai/provider/anthropic"       // register Anthropic
+    _ "github.com/rcarmo/go-ai/inference/provider/openairesponses" // register OpenAI Responses
+    _ "github.com/rcarmo/go-ai/inference/provider/anthropic"       // register Anthropic
 )
 
 func main() {
@@ -126,22 +126,21 @@ go-ai/
 ├── utils.go             # Hash, sanitize, Copilot headers
 ├── models_generated.go        # 938 text/chat models / 32 providers (auto-generated)
 ├── doc.go                    # Package documentation
-├── inference/                # Namespaced text/chat inference facade
+├── inference/                # Text/chat inference facade and providers
+│   └── provider/             # LLM provider implementations (blank-import to register)
+│       ├── openai/           # OpenAI Chat Completions + compatible APIs
+│       ├── anthropic/        # Anthropic Messages API
+│       ├── openairesponses/  # OpenAI Responses API + Azure OpenAI
+│       ├── openaicodex/      # OpenAI Codex (WebSocket + SSE)
+│       ├── google/           # Google Generative AI + Vertex AI
+│       ├── geminicli/        # Google Gemini CLI (Cloud Code Assist)
+│       ├── mistral/          # Mistral Conversations API
+│       ├── bedrock/          # Amazon Bedrock ConverseStream
+│       └── faux/             # Test double for unit testing
 ├── images/                   # Image generation API, registry, and providers
 │   ├── api.go                # Image generation API, registry, and model types
 │   ├── models_generated.go   # 28 image models / 1 provider (auto-generated)
 │   └── openrouter/           # OpenRouter image provider registration
-│
-├── provider/            # LLM provider implementations (blank-import to register)
-│   ├── openai/          # OpenAI Chat Completions + compatible APIs
-│   ├── anthropic/       # Anthropic Messages API
-│   ├── openairesponses/ # OpenAI Responses API + Azure OpenAI
-│   ├── openaicodex/     # OpenAI Codex (WebSocket + SSE)
-│   ├── google/          # Google Generative AI + Vertex AI
-│   ├── geminicli/       # Google Gemini CLI (Cloud Code Assist)
-│   ├── mistral/         # Mistral Conversations API
-│   ├── bedrock/         # Amazon Bedrock ConverseStream
-│   └── faux/            # Test double for unit testing
 │
 ├── oauth/               # OAuth flows (import when needed)
 │   ├── oauth.go         # Framework + PKCE
@@ -240,7 +239,7 @@ Providers using HTTP now honor `RetryConfig` directly. `MaxRetryDelayMs` remains
 ## Notes
 
 - Import the provider that matches `model.Api`, not just `model.Provider`.
-  For example, built-in `gpt-4o-mini` currently uses `openai-responses`, so import `provider/openairesponses`.
+  For example, built-in `gpt-4o-mini` currently uses `openai-responses`, so import `inference/provider/openairesponses`.
 - `CompactContext()` is simple tail truncation. If you need summaries or tool-pair preservation, build a custom compactor in your harness.
 
 | Provider | Environment Variable |

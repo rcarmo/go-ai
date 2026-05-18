@@ -15,7 +15,7 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/openairesponses"
+	_ "github.com/rcarmo/go-ai/inference/provider/openairesponses"
 )
 
 var tools = []goai.Tool{

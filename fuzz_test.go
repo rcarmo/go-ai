@@ -10,11 +10,11 @@ import (
 // FuzzContextRoundTrip verifies that Context survives JSON round-trips.
 func FuzzContextRoundTrip(f *testing.F) {
 	f.Add(
-		"You are helpful.",                      // systemPrompt
-		"What is 2+2?",                          // userMessage
-		`{"type":"object","properties":{}}`,      // toolSchema
-		"get_time",                               // toolName
-		"Get current time",                       // toolDesc
+		"You are helpful.",                  // systemPrompt
+		"What is 2+2?",                      // userMessage
+		`{"type":"object","properties":{}}`, // toolSchema
+		"get_time",                          // toolName
+		"Get current time",                  // toolDesc
 	)
 	f.Add(
 		"",

@@ -63,8 +63,8 @@ import (
     "log"
 
     goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/provider/openairesponses"
-    _ "github.com/rcarmo/go-ai/provider/anthropic"
+    _ "github.com/rcarmo/go-ai/inference/provider/openairesponses"
+    _ "github.com/rcarmo/go-ai/inference/provider/anthropic"
 )
 
 func main() {
@@ -449,7 +449,7 @@ The JSON format is identical to pi-ai's `Context` type.
 ## Testing with the faux provider
 
 ```go
-import "github.com/rcarmo/go-ai/provider/faux"
+import "github.com/rcarmo/go-ai/inference/provider/faux"
 
 func TestMyAgent(t *testing.T) {
     reg := faux.Register(nil)

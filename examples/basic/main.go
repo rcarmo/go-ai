@@ -13,7 +13,7 @@ import (
 	"os"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/openairesponses" // register OpenAI Responses provider
+	_ "github.com/rcarmo/go-ai/inference/provider/openairesponses" // register OpenAI Responses provider
 )
 
 func main() {

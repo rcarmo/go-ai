@@ -11,7 +11,7 @@ Actions taken:
 - Hardened `Stream`/`Complete` edge cases around nil provider functions and error events.
 - Tightened retry behavior and documentation: replayable bodies, `Retry-After`, cancellation, final response ownership, and safe `http.DefaultTransport` handling.
 - Hardened OpenRouter image generation retry/cancellation paths, timer cleanup, payload-hook coverage, and registry tests.
-- Started breaking package layout split with `images/` for image generation and `inference/` for the text/chat inference facade.
+- Started breaking package layout split with `images/` for image generation and `inference/` for the text/chat inference facade; text/chat providers now live under `inference/provider/`.
 - Started consolidating shared transport primitives under `transports/`, moving SSE parsing to `transports/sse` and adding a WebSocket facade under `transports/websocket`.
 - Reduced generated-registry test brittleness by avoiding rotating date-stamped upstream model IDs while retaining compat metadata parity assertions.
 - Cleaned unsafe global-state tests and tightened model/provider count thresholds.

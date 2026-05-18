@@ -13,7 +13,7 @@ import (
 	"os"
 
 	goai "github.com/rcarmo/go-ai"
-	_ "github.com/rcarmo/go-ai/provider/anthropic" // register Anthropic provider
+	_ "github.com/rcarmo/go-ai/inference/provider/anthropic" // register Anthropic provider
 )
 
 func main() {

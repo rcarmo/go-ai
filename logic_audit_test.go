@@ -11,8 +11,8 @@ func TestTransformMessagesAddsSyntheticResultForTrailingOrphan(t *testing.T) {
 	messages := []goai.Message{
 		goai.UserMessage("hi"),
 		{
-			Role: goai.RoleAssistant,
-			Content: []goai.ContentBlock{{Type: "toolCall", ID: "tc1", Name: "search", Arguments: map[string]interface{}{"q": "x"}}},
+			Role:       goai.RoleAssistant,
+			Content:    []goai.ContentBlock{{Type: "toolCall", ID: "tc1", Name: "search", Arguments: map[string]interface{}{"q": "x"}}},
 			StopReason: goai.StopReasonToolUse,
 			Provider:   goai.ProviderOpenAI,
 			Api:        goai.ApiOpenAICompletions,

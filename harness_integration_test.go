@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/provider/faux"
+	"github.com/rcarmo/go-ai/inference/provider/faux"
 )
 
 // TestAgentLoopHarness simulates a complete multi-turn agent conversation

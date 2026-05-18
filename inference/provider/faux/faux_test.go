@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/provider/faux"
+	"github.com/rcarmo/go-ai/inference/provider/faux"
 )
 
 func TestFauxTextStream(t *testing.T) {

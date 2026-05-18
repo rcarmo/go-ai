@@ -45,7 +45,7 @@ Important current files:
 - `utils.go`
 - `models_generated.go`
 - `doc.go`
-- `provider/*/`
+- `inference/provider/*/`
 - `oauth/*.go`
 - `scripts/generate-models.go`
 - `scripts/check-logging.sh`
@@ -144,21 +144,21 @@ Look for:
 
 ### Step 5: compare providers
 
-For each upstream provider under `dist/providers/`, compare to the Go implementation under `provider/`.
+For each upstream provider under `dist/providers/`, compare to the Go implementation under `inference/provider/`.
 
 Current provider mapping:
 
 | go-ai | upstream |
 |---|---|
-| `provider/openai/` | `dist/providers/openai-completions.*` |
-| `provider/openairesponses/` | `dist/providers/openai-responses.*` |
-| `provider/openaicodex/` | `dist/providers/openai-codex-responses.*` |
-| `provider/anthropic/` | `dist/providers/anthropic.*` |
-| `provider/google/` | `dist/providers/google.*` |
-| `provider/geminicli/` | `dist/providers/google-gemini-cli.*` |
-| `provider/mistral/` | `dist/providers/mistral.*` |
-| `provider/bedrock/` | `dist/bedrock-provider.*` and/or bedrock provider module |
-| `provider/faux/` | `dist/providers/faux.*` |
+| `inference/provider/openai/` | `dist/providers/openai-completions.*` |
+| `inference/provider/openairesponses/` | `dist/providers/openai-responses.*` |
+| `inference/provider/openaicodex/` | `dist/providers/openai-codex-responses.*` |
+| `inference/provider/anthropic/` | `dist/providers/anthropic.*` |
+| `inference/provider/google/` | `dist/providers/google.*` |
+| `inference/provider/geminicli/` | `dist/providers/google-gemini-cli.*` |
+| `inference/provider/mistral/` | `dist/providers/mistral.*` |
+| `inference/provider/bedrock/` | `dist/bedrock-provider.*` and/or bedrock provider module |
+| `inference/provider/faux/` | `dist/providers/faux.*` |
 
 Check for:
 - new payload fields

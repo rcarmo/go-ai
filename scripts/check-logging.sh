@@ -62,21 +62,21 @@ echo "Checking providers..."
 
 # HTTP-based providers (need 4+ log calls)
 for f in \
-    provider/openai/openai.go \
-    provider/anthropic/anthropic.go \
-    provider/google/google.go \
-    provider/mistral/mistral.go \
-    provider/openairesponses/responses.go \
-    provider/geminicli/geminicli.go \
-    provider/openaicodex/codex.go; do
+    inference/provider/openai/openai.go \
+    inference/provider/anthropic/anthropic.go \
+    inference/provider/google/google.go \
+    inference/provider/mistral/mistral.go \
+    inference/provider/openairesponses/responses.go \
+    inference/provider/geminicli/geminicli.go \
+    inference/provider/openaicodex/codex.go; do
     check_provider "$f" $MIN_HTTP_PROVIDER
 done
 
 # SDK-based providers (need 2+ log calls)
-check_provider provider/bedrock/bedrock.go $MIN_SDK_PROVIDER
+check_provider inference/provider/bedrock/bedrock.go $MIN_SDK_PROVIDER
 
 # Faux (test provider, minimal logging)
-check_provider provider/faux/faux.go $MIN_FAUX
+check_provider inference/provider/faux/faux.go $MIN_FAUX
 
 echo ""
 echo "Checking core modules..."

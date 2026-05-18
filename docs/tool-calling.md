@@ -240,7 +240,7 @@ msg2, _ := goai.Complete(bg, model, ctx, nil)
 ## Testing tool calling with faux
 
 ```go
-import "github.com/rcarmo/go-ai/provider/faux"
+import "github.com/rcarmo/go-ai/inference/provider/faux"
 
 reg := faux.Register(nil)
 reg.SetResponses([]faux.ResponseStep{
