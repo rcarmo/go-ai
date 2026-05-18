@@ -78,7 +78,10 @@ func (cfg *RetryConfig) applyDefaults() {
 // NewHTTPClient creates an http.Client with the timeout settings from this config.
 func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 	cfg.applyDefaults()
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport := &http.Transport{}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
 	transport.DialContext = (&net.Dialer{Timeout: cfg.ConnectTimeout}).DialContext
 	transport.TLSHandshakeTimeout = cfg.ConnectTimeout
 	transport.ResponseHeaderTimeout = cfg.ConnectTimeout

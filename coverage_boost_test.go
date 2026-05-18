@@ -149,6 +149,22 @@ func TestNewHTTPClient(t *testing.T) {
 	}
 }
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+func TestNewHTTPClientWithCustomDefaultTransport(t *testing.T) {
+	old := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) { return nil, http.ErrServerClosed })
+	defer func() { http.DefaultTransport = old }()
+
+	cfg := goai.DefaultRetryConfig()
+	client := cfg.NewHTTPClient()
+	if client == nil || client.Transport == nil {
+		t.Fatalf("expected client with fallback transport, got %#v", client)
+	}
+}
+
 func TestDoWithRetrySuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
