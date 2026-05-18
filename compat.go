@@ -161,7 +161,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isCerebras := provider == ProviderCerebras || contains(baseURL, "cerebras.ai")
 	isXAI := provider == ProviderXAI || contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
 	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
-	isOllama := contains(baseURL, "localhost:11434") || contains(baseURL, ":11434")
+	isOllama := contains(baseURL, "localhost:11434") || contains(baseURL, "127.0.0.1:11434") || contains(baseURL, "[::1]:11434")
 	isZAI := provider == ProviderZAI || contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
 	isVercel := provider == ProviderVercelAIGateway || contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")

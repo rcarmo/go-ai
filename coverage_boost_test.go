@@ -368,3 +368,16 @@ func TestStreamMissingFunction(t *testing.T) {
 		t.Fatalf("expected ErrorEvent, got %T", event)
 	}
 }
+
+func TestCompleteErrorEventWithoutMessage(t *testing.T) {
+	goai.RegisterApi(&goai.ApiProvider{Api: "test-error-api", Stream: func(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError}
+		close(ch)
+		return ch
+	}})
+	_, err := goai.Complete(context.Background(), &goai.Model{ID: "m", Provider: "p", Api: "test-error-api"}, &goai.Context{}, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}

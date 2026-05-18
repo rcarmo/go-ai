@@ -303,7 +303,11 @@ func retryAfter(h http.Header) time.Duration {
 		return time.Duration(seconds) * time.Second
 	}
 	if t, err := http.ParseTime(v); err == nil {
-		return time.Until(t)
+		delay := time.Until(t)
+		if delay < 0 {
+			return 0
+		}
+		return delay
 	}
 	return 0
 }

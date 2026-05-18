@@ -186,7 +186,11 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 			result = e.Error
 			resultErr = e.Err
 			if resultErr == nil {
-				resultErr = fmt.Errorf("LLM error: %s (reason: %s)", result.ErrorMessage, e.Reason)
+				message := ""
+				if result != nil {
+					message = result.ErrorMessage
+				}
+				resultErr = fmt.Errorf("LLM error: %s (reason: %s)", message, e.Reason)
 			}
 			logError("complete error", "provider", provider, "model", modelID,
 				"reason", e.Reason, "error", resultErr)

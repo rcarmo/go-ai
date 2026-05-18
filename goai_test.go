@@ -300,6 +300,10 @@ func TestDetectCompat(t *testing.T) {
 	if c2.SupportsStrictMode == nil || *c2.SupportsStrictMode {
 		t.Fatal("expected SupportsStrictMode=false for Ollama")
 	}
+	remotePort := goai.DetectCompat("https://example.com:11434/v1")
+	if remotePort.MaxTokensField != "max_completion_tokens" {
+		t.Fatalf("expected remote :11434 URL not to be treated as Ollama, got %+v", remotePort)
+	}
 
 	moonshot := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderMoonshotAI, BaseURL: "https://api.moonshot.ai/v1"})
 	if moonshot.MaxTokensField != "max_tokens" || moonshot.SupportsReasoningEffort == nil || *moonshot.SupportsReasoningEffort || moonshot.SupportsStrictMode == nil || *moonshot.SupportsStrictMode {
