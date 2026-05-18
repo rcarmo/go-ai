@@ -180,6 +180,9 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *g
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, 0, false, err
+		}
 		return nil, 0, true, err
 	}
 	defer resp.Body.Close()

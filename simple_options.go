@@ -11,7 +11,10 @@ func ClampReasoning(level ThinkingLevel) ThinkingLevel {
 	return level
 }
 
-// GetSupportedThinkingLevels returns the levels supported by a model, including "off".
+// GetSupportedThinkingLevels returns the levels supported by a model, including
+// "off" unless the model explicitly disables it with a nil ThinkingLevelMap
+// entry. Absent non-xhigh map entries use the provider default spelling and are
+// therefore treated as supported; nil entries explicitly disable a level.
 func GetSupportedThinkingLevels(model *Model) []ModelThinkingLevel {
 	if model == nil || !model.Reasoning {
 		return []ModelThinkingLevel{ThinkingOff}

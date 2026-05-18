@@ -376,8 +376,11 @@ func TestCompleteErrorEventWithoutMessage(t *testing.T) {
 		close(ch)
 		return ch
 	}})
-	_, err := goai.Complete(context.Background(), &goai.Model{ID: "m", Provider: "p", Api: "test-error-api"}, &goai.Context{}, nil)
+	msg, err := goai.Complete(context.Background(), &goai.Model{ID: "m", Provider: "p", Api: "test-error-api"}, &goai.Context{}, nil)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if msg != nil {
+		t.Fatalf("expected nil message when provider error carries no message, got %#v", msg)
 	}
 }

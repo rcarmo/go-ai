@@ -129,6 +129,18 @@ func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
 	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
 		t.Fatalf("expected aborted result, got out=%#v err=%v", out, err)
 	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	ctx, cancel = context.WithCancel(context.Background())
+	cancel()
+	model.BaseURL = server.URL
+	out, err = goai.GenerateImages(model, goai.ImagesContext{Input: []goai.ImageInput{{Type: "text", Text: "draw"}}}, &goai.ImagesOptions{APIKey: "test-key", Context: ctx})
+	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
+		t.Fatalf("expected client cancellation to abort without retry, got out=%#v err=%v", out, err)
+	}
 }
 
 func TestGenerateImagesOpenRouterRetriesAndHookError(t *testing.T) {

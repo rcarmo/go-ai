@@ -16,15 +16,15 @@ import (
 // Backoff formula: delay = min(InitialDelay * BackoffMultiplier^attempt * jitter, MaxDelay)
 // where jitter is uniformly distributed in [1-JitterFraction, 1+JitterFraction].
 type RetryConfig struct {
-	MaxRetries        int           // max retry attempts (default: 3). 0 disables retries.
-	InitialDelay      time.Duration // base delay before first retry (default: 1s)
-	MaxDelay          time.Duration // cap on computed backoff (default: 60s)
-	BackoffMultiplier float64       // exponential base (default: 2.0). 1.0 = constant interval.
-	JitterFraction    float64       // jitter range as fraction (default: 0.25 = ±25%). 0 = none.
-	MaxRetryDelayMs   int           // cap on server Retry-After delay. 0 = no cap. (default: 60000)
-	ConnectTimeout    time.Duration // TCP connection timeout (default: 30s)
-	RequestTimeout    time.Duration // full request timeout (default: 10m)
-	RetryableStatuses []int         // override retryable codes (default: [429,500,502,503,504])
+	MaxRetries        int                                                // max retry attempts (default: 3). 0 disables retries.
+	InitialDelay      time.Duration                                      // base delay before first retry (default: 1s)
+	MaxDelay          time.Duration                                      // cap on computed backoff (default: 60s)
+	BackoffMultiplier float64                                            // exponential base (default: 2.0). 1.0 = constant interval.
+	JitterFraction    float64                                            // jitter range as fraction (default: 0.25 = ±25%). 0 = none.
+	MaxRetryDelayMs   int                                                // cap on server Retry-After delay. 0 = no cap. (default: 60000)
+	ConnectTimeout    time.Duration                                      // TCP connection timeout (default: 30s)
+	RequestTimeout    time.Duration                                      // full request timeout (default: 10m)
+	RetryableStatuses []int                                              // override retryable codes (default: [429,500,502,503,504])
 	OnRetry           func(attempt int, delay time.Duration, status int) // called before each retry
 }
 
@@ -112,6 +112,11 @@ func RetryConfigFromOptions(opts *StreamOptions) RetryConfig {
 }
 
 // DoWithRetry executes an HTTP request with retry logic.
+//
+// If all retries are exhausted on HTTP status responses, the final response is
+// returned with a nil error so callers can inspect the provider error payload;
+// callers remain responsible for closing resp.Body. Network/setup failures are
+// returned as errors.
 func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
 	cfg.applyDefaults()
 	if client == nil {
