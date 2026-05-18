@@ -114,7 +114,7 @@ go-ai/
 ├── azure.go             # Azure tool-call trimming + reasoning normalization
 ├── simple_options.go    # Thinking level mapping, cost calculation
 ├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go        # 942 text/chat models / 32 providers (auto-generated)
+├── models_generated.go        # 938 text/chat models / 32 providers (auto-generated)
 ├── image_models_generated.go  # 28 image models / 1 provider (auto-generated)
 ├── images.go                 # Image generation API, registry, and model types
 ├── doc.go                    # Package documentation

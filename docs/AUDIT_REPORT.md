@@ -2,6 +2,24 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-18 v0.75.2 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.75.1` against `v0.75.2` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed only `models.generated.*` and package metadata.
+- No provider/runtime/type/image/OAuth/header/event parsing changes were present.
+- The concrete model delta is Xiaomi-family OpenAI-compatible `compat` metadata: DeepSeek thinking format plus required reasoning content on assistant messages.
+
+Actions:
+
+- Regenerated model metadata from upstream `v0.75.2` artifact (`938 models / 32 providers`).
+- Added a parity test asserting Xiaomi DeepSeek thinking compat metadata is present.
+- Re-ran the full validation suite.
+
+Result: upstream v0.75.2 is synced in Go; no runtime code changes required beyond regenerated metadata and test coverage.
+
 ## 2026-05-18 v0.75.1 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.75.0` against `v0.75.1` and audited `go-ai` parity.

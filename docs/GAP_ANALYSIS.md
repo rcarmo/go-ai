@@ -2,9 +2,20 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.75.1
+## Source: `@earendil-works/pi-ai` v0.75.2
 
 ## Sync history
+
+### v0.75.2 (2026-05-18)
+
+Comparative audit (`@earendil-works/pi-ai v0.75.1` → `v0.75.2`) found:
+
+- Upstream changed only package metadata and `dist/models.generated.*`; provider/type/image/OAuth/header/event parsing surfaces were unchanged.
+- Regenerated `models_generated.go` from `v0.75.2` (`938 models / 32 providers`).
+- Xiaomi and Xiaomi Token Plan OpenAI-compatible models now carry explicit `compat` metadata: `thinkingFormat: "deepseek"` and `requiresReasoningContentOnAssistantMessages: true`.
+- Added generated-metadata parity coverage for the Xiaomi compat fields.
+
+Validation gates passed after regeneration and parity test update.
 
 ### v0.75.1 (2026-05-18)
 

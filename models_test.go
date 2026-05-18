@@ -63,6 +63,9 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if xiaomi == nil {
 		t.Fatal("expected Xiaomi mimo-v2-flash model")
 	}
+	if xiaomi.CompletionsCompat == nil || xiaomi.CompletionsCompat.ThinkingFormat != "deepseek" || xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages == nil || !*xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages {
+		t.Fatalf("expected Xiaomi OpenAI-compatible DeepSeek thinking compat metadata, got %#v", xiaomi.CompletionsCompat)
+	}
 }
 
 func TestListModelsFilter(t *testing.T) {

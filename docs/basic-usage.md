@@ -53,7 +53,7 @@ API keys are resolved in order:
 ## First request — non-streaming
 
 ```go
-goai.RegisterBuiltinModels() // load 942 built-in text/chat models
+goai.RegisterBuiltinModels() // load 938 built-in text/chat models
 
 model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini") // built-in: OpenAI Responses
 

@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A[RegisterBuiltinModels] -->|942 text/chat models| B[Model Registry]
+    A[RegisterBuiltinModels] -->|938 text/chat models| B[Model Registry]
     C[RegisterModel custom] --> B
     B --> D[GetModel provider, id]
     D --> E[Stream / Complete]
@@ -21,7 +21,7 @@ flowchart TD
 ```
 
 
-go-ai ships with 942 pre-configured text/chat models across 32 providers. Register them at startup:
+go-ai ships with 938 pre-configured text/chat models across 32 providers. Register them at startup:
 
 ```go
 goai.RegisterBuiltinModels()
