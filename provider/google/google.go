@@ -18,8 +18,8 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 var toolCallCounter int64
@@ -416,17 +416,17 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	// Gemini REST streaming with alt=sse returns Server-Sent Events. Use the
 	// shared parser so multi-line events and long chunks are handled correctly
 	// and incrementally instead of buffering the full response body.
-	for sse := range eventstream.Parse(body) {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	for evt := range sse.Parse(body) {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		if sse.Data == "" || sse.Data == "[DONE]" {
+		if evt.Data == "" || evt.Data == "[DONE]" {
 			continue
 		}
 
 		var chunk geminiStreamChunk
-		if json.Unmarshal([]byte(sse.Data), &chunk) != nil {
+		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
 			continue
 		}
 

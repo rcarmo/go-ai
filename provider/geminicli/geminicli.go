@@ -17,7 +17,7 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 const defaultEndpoint = "https://cloudcode-pa.googleapis.com"
@@ -393,18 +393,18 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 	var current *currentBlock
 
-	events := eventstream.Parse(body)
-	for sse := range events {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	events := sse.Parse(body)
+	for evt := range events {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		if sse.Data == "[DONE]" || sse.Data == "" {
+		if evt.Data == "[DONE]" || evt.Data == "" {
 			continue
 		}
 
 		var chunk ccaStreamChunk
-		if json.Unmarshal([]byte(sse.Data), &chunk) != nil {
+		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
 			continue
 		}
 

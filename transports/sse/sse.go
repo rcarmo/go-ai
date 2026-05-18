@@ -1,5 +1,5 @@
-// Package eventstream provides a Server-Sent Events (SSE) line parser.
-package eventstream
+// Package sse provides a Server-Sent Events (SSE) line parser.
+package sse
 
 import (
 	"bufio"

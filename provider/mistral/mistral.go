@@ -15,8 +15,8 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 const defaultBaseURL = "https://api.mistral.ai/v1"
@@ -314,18 +314,18 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	var activeTools []activeTC
 	var finishReason *string
 
-	events := eventstream.Parse(body)
-	for sse := range events {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	events := sse.Parse(body)
+	for evt := range events {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		if sse.Data == "[DONE]" {
+		if evt.Data == "[DONE]" {
 			break
 		}
 
 		var chunk sseChunk
-		if json.Unmarshal([]byte(sse.Data), &chunk) != nil {
+		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
 			continue
 		}
 

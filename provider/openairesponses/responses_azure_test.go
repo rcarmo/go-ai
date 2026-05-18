@@ -41,10 +41,10 @@ func TestAzureResponsesRequestAppliesCleanupAndSessionHeaders(t *testing.T) {
 	defer server.Close()
 
 	model := &goai.Model{
-		ID:       "gpt-4.1",
-		Provider: goai.ProviderAzureOpenAI,
-		Api:      goai.ApiAzureOpenAIResponses,
-		BaseURL:  server.URL,
+		ID:        "gpt-4.1",
+		Provider:  goai.ProviderAzureOpenAI,
+		Api:       goai.ApiAzureOpenAIResponses,
+		BaseURL:   server.URL,
 		Reasoning: true,
 	}
 

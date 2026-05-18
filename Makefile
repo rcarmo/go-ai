@@ -53,7 +53,7 @@ bench: ## Run benchmarks
 
 fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzPartialJSON -fuzztime $(or $(FUZZTIME),30s) ./internal/jsonparse/
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s) ./internal/eventstream/
+	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s) ./transports/sse/
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzContextRoundTrip -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .

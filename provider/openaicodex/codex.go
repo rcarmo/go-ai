@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
+	"github.com/rcarmo/go-ai/transports/sse"
+	"github.com/rcarmo/go-ai/transports/websocket"
 )
 
 func init() {
@@ -1039,13 +1039,13 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	}
 	var current *activeItem
 
-	events := eventstream.Parse(body)
-	for sse := range events {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	events := sse.Parse(body)
+	for evt := range events {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		if sse.Data == "[DONE]" {
+		if evt.Data == "[DONE]" {
 			break
 		}
 		var raw struct {
@@ -1056,7 +1056,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			Code     string          `json:"code,omitempty"`
 			Message  string          `json:"message,omitempty"`
 		}
-		if json.Unmarshal([]byte(sse.Data), &raw) != nil {
+		if json.Unmarshal([]byte(evt.Data), &raw) != nil {
 			continue
 		}
 
@@ -1113,7 +1113,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 				var done struct {
 					Arguments string `json:"arguments"`
 				}
-				if json.Unmarshal([]byte(sse.Data), &done) == nil && done.Arguments != "" {
+				if json.Unmarshal([]byte(evt.Data), &done) == nil && done.Arguments != "" {
 					previous := current.partialJSON
 					current.partialJSON = done.Arguments
 					args, _ := jsonparse.ParsePartialJSON(current.partialJSON)

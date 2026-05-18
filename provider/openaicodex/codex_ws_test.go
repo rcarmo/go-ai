@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/websocket"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/transports/websocket"
 )
 
 func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {

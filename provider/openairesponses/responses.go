@@ -16,8 +16,8 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 func init() {
@@ -441,17 +441,17 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 	var current *activeItem
 
-	events := eventstream.Parse(body)
-	for sse := range events {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	events := sse.Parse(body)
+	for evt := range events {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		if sse.Data == "[DONE]" {
+		if evt.Data == "[DONE]" {
 			break
 		}
 
-		data := []byte(sse.Data)
+		data := []byte(evt.Data)
 		if model.Api == goai.ApiAzureOpenAIResponses {
 			var evt map[string]interface{}
 			if json.Unmarshal(data, &evt) == nil {

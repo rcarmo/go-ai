@@ -47,7 +47,7 @@ jobs:
         run: go test -fuzz FuzzPartialJSON -fuzztime 30s ./internal/jsonparse/
 
       - name: Fuzz - SSE parser
-        run: go test -fuzz FuzzSSEParse -fuzztime 30s ./internal/eventstream/
+        run: go test -fuzz FuzzSSEParse -fuzztime 30s ./transports/sse/
 
       - name: Fuzz - Context round-trip
         run: go test -fuzz FuzzContextRoundTrip -fuzztime 30s .

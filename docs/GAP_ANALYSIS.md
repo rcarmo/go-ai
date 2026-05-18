@@ -285,7 +285,7 @@ Upstream `v0.68.1` did not introduce a large behavioral delta relative to the al
 ### Utilities — ✅ Complete
 | Utility | Status |
 |---|---|
-| event-stream (SSE parser) | ✅ |
+| transports/sse (SSE parser) | ✅ |
 | json-parse (partial JSON) | ✅ |
 | overflow (context overflow detection) | ✅ |
 | validation (tool call validation) | ✅ |

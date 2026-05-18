@@ -12,8 +12,8 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/eventstream"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 const defaultBaseURL = "https://api.anthropic.com/v1"
@@ -342,13 +342,13 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 	toolJSON := map[int]string{}
 	sawMessageStart := false
 	sawMessageStop := false
-	events := eventstream.Parse(body)
-	for sse := range events {
-		if sse.Event == eventstream.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", sse.Data)}
+	events := sse.Parse(body)
+	for evt := range events {
+		if evt.Event == sse.EventError {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
 			return
 		}
-		switch sse.Event {
+		switch evt.Event {
 		case "content_block_start":
 			var data struct {
 				Index        int `json:"index"`
@@ -358,7 +358,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					Name string `json:"name,omitempty"`
 				} `json:"content_block"`
 			}
-			if json.Unmarshal([]byte(sse.Data), &data) != nil {
+			if json.Unmarshal([]byte(evt.Data), &data) != nil {
 				continue
 			}
 			switch data.ContentBlock.Type {
@@ -387,7 +387,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					PartialJSON string `json:"partial_json,omitempty"`
 				} `json:"delta"`
 			}
-			if json.Unmarshal([]byte(sse.Data), &data) != nil {
+			if json.Unmarshal([]byte(evt.Data), &data) != nil {
 				continue
 			}
 			idx := data.Index
@@ -413,7 +413,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			var data struct {
 				Index int `json:"index"`
 			}
-			if json.Unmarshal([]byte(sse.Data), &data) != nil {
+			if json.Unmarshal([]byte(evt.Data), &data) != nil {
 				continue
 			}
 			idx := data.Index
@@ -450,7 +450,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					OutputTokens int `json:"output_tokens"`
 				} `json:"usage"`
 			}
-			if json.Unmarshal([]byte(sse.Data), &data) != nil {
+			if json.Unmarshal([]byte(evt.Data), &data) != nil {
 				continue
 			}
 			partial.Usage.Output = data.Usage.OutputTokens
@@ -477,7 +477,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					} `json:"usage"`
 				} `json:"message"`
 			}
-			if json.Unmarshal([]byte(sse.Data), &data) != nil {
+			if json.Unmarshal([]byte(evt.Data), &data) != nil {
 				continue
 			}
 			partial.ResponseID = data.Message.ID

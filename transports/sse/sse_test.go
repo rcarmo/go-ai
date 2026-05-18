@@ -1,10 +1,10 @@
-package eventstream_test
+package sse_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/rcarmo/go-ai/internal/eventstream"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 func TestParseSSE(t *testing.T) {
@@ -17,8 +17,8 @@ data: {"type":"content_block_delta","delta":{"text":"Hello"}}
 data: [DONE]
 
 `
-	events := eventstream.Parse(strings.NewReader(input))
-	var got []eventstream.SSEEvent
+	events := sse.Parse(strings.NewReader(input))
+	var got []sse.SSEEvent
 	for e := range events {
 		got = append(got, e)
 	}
@@ -39,8 +39,8 @@ data: [DONE]
 
 func TestParseMultilineData(t *testing.T) {
 	input := "data: line1\ndata: line2\n\n"
-	events := eventstream.Parse(strings.NewReader(input))
-	var got []eventstream.SSEEvent
+	events := sse.Parse(strings.NewReader(input))
+	var got []sse.SSEEvent
 	for e := range events {
 		got = append(got, e)
 	}

@@ -1,10 +1,10 @@
-package eventstream_test
+package sse_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/rcarmo/go-ai/internal/eventstream"
+	"github.com/rcarmo/go-ai/transports/sse"
 )
 
 func FuzzSSEParse(f *testing.F) {
@@ -25,7 +25,7 @@ func FuzzSSEParse(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		// Must not panic
-		events := eventstream.Parse(strings.NewReader(input))
+		events := sse.Parse(strings.NewReader(input))
 		count := 0
 		for e := range events {
 			count++

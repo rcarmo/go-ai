@@ -9,6 +9,7 @@ Current automated coverage by area.
 | Context helpers / harness | ✅ unit + integration tests |
 | Transform logic | ✅ unit tests |
 | Retry utility | ✅ unit tests, replayable-body guard, transport fallback, Retry-After cap |
+| Transports (`sse`, `websocket`) | ✅ SSE parser tests/fuzz + WebSocket facade compile coverage |
 | Logger | ✅ unit tests |
 | Registry / complete path | ✅ unit tests, nil/error edge cases |
 | Image API / image model registry | ✅ unit + fake-server tests |

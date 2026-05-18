@@ -151,8 +151,11 @@ go-ai/
 │   ├── google_antigravity.go
 │   └── openai_codex.go
 │
+├── transports/          # Shared transport primitives
+│   ├── sse/             # SSE line parser
+│   └── websocket/       # WebSocket dependency facade
+│
 ├── internal/            # Private implementation details
-│   ├── eventstream/     # SSE line parser
 │   └── jsonparse/       # Partial JSON for streaming tool args
 │
 ├── examples/            # Runnable usage examples
