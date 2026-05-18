@@ -304,6 +304,10 @@ func TestDetectCompat(t *testing.T) {
 	if remotePort.MaxTokensField != "max_completion_tokens" {
 		t.Fatalf("expected remote :11434 URL not to be treated as Ollama, got %+v", remotePort)
 	}
+	pathMention := goai.DetectCompat("https://proxy.example.com/v1/localhost:11434/api")
+	if pathMention.MaxTokensField != "max_completion_tokens" {
+		t.Fatalf("expected localhost:11434 in path not to be treated as Ollama, got %+v", pathMention)
+	}
 
 	moonshot := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderMoonshotAI, BaseURL: "https://api.moonshot.ai/v1"})
 	if moonshot.MaxTokensField != "max_tokens" || moonshot.SupportsReasoningEffort == nil || *moonshot.SupportsReasoningEffort || moonshot.SupportsStrictMode == nil || *moonshot.SupportsStrictMode {

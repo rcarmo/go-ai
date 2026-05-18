@@ -269,6 +269,8 @@ func parseOpenRouterImageUsage(raw map[string]any, model *goai.ImagesModel) *goa
 		cached = intFromAny(details["cached_tokens"])
 		cacheWrite = intFromAny(details["cache_write_tokens"])
 	}
+	// OpenAI/OpenRouter report cached_tokens as cache-read + cache-write.
+	// Match upstream pi-ai by subtracting explicit writes when present.
 	cacheRead := cached
 	if cacheWrite > 0 {
 		cacheRead = max(0, cached-cacheWrite)

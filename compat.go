@@ -1,7 +1,10 @@
 // OpenAI Completions compatibility flags for OpenAI-compatible APIs.
 package goai
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 // OpenAICompletionsCompat holds compatibility overrides for OpenAI-compatible APIs.
 // These control wire-format differences across Ollama, Groq, xAI, OpenRouter,
@@ -161,7 +164,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isCerebras := provider == ProviderCerebras || contains(baseURL, "cerebras.ai")
 	isXAI := provider == ProviderXAI || contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
 	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
-	isOllama := contains(baseURL, "localhost:11434") || contains(baseURL, "127.0.0.1:11434") || contains(baseURL, "[::1]:11434")
+	isOllama := isLocalOllamaURL(baseURL)
 	isZAI := provider == ProviderZAI || contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
 	isVercel := provider == ProviderVercelAIGateway || contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
@@ -231,4 +234,13 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func isLocalOllamaURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return u.Port() == "11434" && (host == "localhost" || host == "127.0.0.1" || host == "::1")
 }

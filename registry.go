@@ -160,6 +160,10 @@ func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOpt
 }
 
 // Complete makes a non-streaming LLM request and returns the final message.
+//
+// On error, the returned message may be nil if the provider did not attach a
+// partial/error message to its ErrorEvent. Always check err before using the
+// returned message.
 func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) (*Message, error) {
 	events := Stream(ctx, model, convCtx, opts)
 	var result *Message

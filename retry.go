@@ -195,6 +195,8 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 		return resp, nil
 	}
 
+	// Defensive fallback for future loop changes; current HTTP status paths
+	// return either a non-retryable response or the final retryable response.
 	logWarn("max retries exceeded", "kind", "http", "maxRetries", cfg.MaxRetries, "error", lastErr)
 	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }

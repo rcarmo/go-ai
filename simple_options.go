@@ -52,6 +52,7 @@ func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLev
 		}
 	}
 	if idx < 0 {
+		logWarn("unknown thinking level; using first supported level", "level", level, "fallback", available[0])
 		return available[0]
 	}
 	for i := idx - 1; i >= 0; i-- {
