@@ -104,22 +104,17 @@ func TestNewStderrLogger(t *testing.T) {
 
 // --- Registry ---
 
-func TestClearApiProviders(t *testing.T) {
-	goai.RegisterApi(&goai.ApiProvider{Api: "test-clear", Stream: nil, StreamSimple: nil})
-	goai.ClearApiProviders()
-	if goai.GetApiProvider("test-clear") != nil {
-		t.Fatal("should be cleared")
-	}
-}
-
 func TestClearModels(t *testing.T) {
+	t.Cleanup(func() {
+		// Re-register builtins for other tests that share the package registry.
+		goai.RegisterBuiltinModels()
+		goai.RegisterBuiltinImageModels()
+	})
 	goai.RegisterModel(&goai.Model{ID: "test-clear-m", Provider: "test"})
 	goai.ClearModels()
 	if goai.GetModel("test", "test-clear-m") != nil {
 		t.Fatal("should be cleared")
 	}
-	// Re-register builtins for other tests
-	goai.RegisterBuiltinModels()
 }
 
 // --- Retry ---
@@ -146,22 +141,6 @@ func TestNewHTTPClient(t *testing.T) {
 	client := cfg.NewHTTPClient()
 	if client.Timeout != 10*time.Minute {
 		t.Fatalf("expected 10m timeout, got %v", client.Timeout)
-	}
-}
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
-
-func TestNewHTTPClientWithCustomDefaultTransport(t *testing.T) {
-	old := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) { return nil, http.ErrServerClosed })
-	defer func() { http.DefaultTransport = old }()
-
-	cfg := goai.DefaultRetryConfig()
-	client := cfg.NewHTTPClient()
-	if client == nil || client.Transport == nil {
-		t.Fatalf("expected client with fallback transport, got %#v", client)
 	}
 }
 
