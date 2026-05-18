@@ -2,6 +2,42 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-18 v0.75.1 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.75.0` against `v0.75.1` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream model catalog changed again; regenerated `models_generated.go` now contains `938 models / 32 providers`.
+- `gpt-5.4-fast` was removed from the generated registry upstream.
+- No provider/type/header/OAuth/event parsing changes were present beyond the generated registry delta and the already-audited 0.75.0 `simple-options` max-token fallback change.
+
+Actions:
+
+- Regenerated model metadata from upstream `v0.75.1` artifact.
+- Kept the earlier 0.75.0 simple-options audit note as an intentional non-port: `go-ai` does not expose the same simple-options helper path, so there was no public API surface to change there.
+- Re-ran the full validation suite after regeneration.
+
+Result: upstream v0.75.1 is synced in Go, with the only concrete code change being regenerated model metadata.
+
+## 2026-05-18 v0.75.0 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.74.1` against `v0.75.0` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream model catalog changed materially; regenerated `models_generated.go` from `v0.75.0` would contain `941 models / 32 providers`.
+- `simple-options` changed the default `maxTokens` fallback so large-context models now cap the default output budget at 32k when their advertised max token limit is close to the context window.
+- No public provider/type/OAuth/header/event-parsing surface changed beyond model metadata and `simple-options` behavior.
+
+Actions:
+
+- Audited the new default max-token behavior against the Go codebase and found no direct public helper/API path to port; this remains a release-note-only divergence in `go-ai`’s current surface.
+- Regenerated and compared model metadata for parity review.
+- Re-ran the full validation gates after the audit.
+
+Result: v0.75.0’s registry changes are represented by regenerated metadata; the simple-options fallback change is recorded as an intentional non-port because `go-ai` does not expose that helper path.
+
 ## 2026-05-16 v0.74.1 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.74.0` against `v0.74.1` and audited `go-ai` parity.

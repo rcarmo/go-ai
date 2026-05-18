@@ -2,9 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.74.1
+## Source: `@earendil-works/pi-ai` v0.75.1
 
 ## Sync history
+
+### v0.75.1 (2026-05-18)
+
+Comparative audit (`@earendil-works/pi-ai v0.75.0` → `v0.75.1`) found:
+
+- Upstream model registry changed again; regenerated `models_generated.go` from `v0.75.1` (`938 models / 32 providers`).
+- `gpt-5.4-fast` was removed upstream from the generated registry.
+- Upstream `simple-options` logic kept the 0.75.0 max-token fallback change for large-context models, but `go-ai` does not expose the same simple-options helper path, so there was no public API surface to port there.
+
+Validation gates passed after regeneration and full parity checks.
+
+### v0.75.0 (2026-05-18)
+
+Comparative audit (`@earendil-works/pi-ai v0.74.1` → `v0.75.0`) found:
+
+- Upstream model registry changed materially; regenerated `models_generated.go` from `v0.75.0` (`941 models / 32 providers`).
+- `simple-options` changed the default `maxTokens` fallback so large-context models now cap the default output budget at 32k when their advertised max token limit is close to the context window.
+- No public provider/type/OAuth/header/event-parsing surface changed beyond model metadata and `simple-options` behavior.
+
+Validation gates passed after regeneration and parity review.
 
 ### v0.74.1 (2026-05-16)
 
