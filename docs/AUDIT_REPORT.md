@@ -2,6 +2,22 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-19 v0.75.3 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.75.2` against `v0.75.3` and audited `go-ai` parity after the `images/`, `inference/`, and `transports/` tree split.
+
+Findings:
+
+- Upstream changed only package metadata/version (`package.json`).
+- All parity-relevant dist artifacts were byte-identical: text model registry, image model registry, type declarations, provider runtime files, image APIs, OAuth/header/event parsing surfaces, and `simple-options`.
+
+Actions:
+
+- No Go code or generated metadata changes required.
+- Re-ran validation gates and tagged the current audited state as `v0.75.3`.
+
+Result: `go-ai` remains behaviorally in sync with upstream `v0.75.3`; this is a no-op sync release.
+
 ## 2026-05-18 post-v0.75.2 hardening audit
 
 After syncing `@earendil-works/pi-ai v0.75.2`, repeated code-smell and logic-error audits focused on retry semantics, image generation, generated-registry tests, and global test state.

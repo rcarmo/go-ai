@@ -2,9 +2,19 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.75.2
+## Source: `@earendil-works/pi-ai` v0.75.3
 
 ## Sync history
+
+### v0.75.3 (2026-05-19)
+
+Comparative audit (`@earendil-works/pi-ai v0.75.2` → `v0.75.3`) found:
+
+- Upstream changed only `package.json` metadata/version.
+- `dist/models.generated.js`, `dist/image-models.generated.js`, type declarations, provider runtime files, image APIs, OAuth/header/event parsing surfaces, and `simple-options` were byte-identical to `v0.75.2`.
+- No Go code or generated metadata changes were required after the recent `images/`, `inference/`, and `transports/` package layout split.
+
+Validation gates passed; tag `v0.75.3` marks the audited no-op sync point.
 
 ### v0.75.2 (2026-05-18)
 
