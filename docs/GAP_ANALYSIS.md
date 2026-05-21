@@ -2,7 +2,25 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.75.3
+## Source: `@earendil-works/pi-ai` v0.75.4
+
+## Sync history
+
+### v0.75.4 (2026-05-21)
+
+Comparative audit (`@earendil-works/pi-ai v0.75.3` → `v0.75.4`) found:
+
+- Upstream added OpenAI prompt-cache-key clamping to 64 Unicode code points and applied it to OpenAI chat completions, OpenAI Responses, and Codex Responses request builders.
+- The release also includes build-artifact import-specifier rewrites in generated JS bundles, but those are build-time output details rather than Go runtime behavior changes.
+- No new models, provider registrations, OAuth flows, base URLs, headers, streaming parsers, or reasoning maps were introduced.
+
+Actions:
+
+- Added an exported OpenAI prompt-cache-key clamping helper in Go and applied it at the OpenAI completions, OpenAI Responses, and Codex request-build call sites.
+- Added regression tests proving Unicode-aware truncation to the upstream 64-code-point limit for the affected request builders.
+- Re-ran the full validation suite after the port.
+
+Result: upstream v0.75.4 is synced in Go; the only runtime delta is the prompt-cache-key clamp shared across the OpenAI-family request paths.
 
 ## Sync history
 

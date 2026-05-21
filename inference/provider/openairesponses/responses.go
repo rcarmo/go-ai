@@ -228,7 +228,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	// Cache retention (compat-driven)
 	compat := getResponsesCompat(model)
 	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
-		req.PromptCacheKey = opts.SessionID
+		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
 	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
 		req.PromptCacheRetention = "24h"

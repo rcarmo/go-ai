@@ -224,7 +224,7 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	// retention is enabled, and only request 24h retention when supported.
 	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
 		if (strings.Contains(model.BaseURL, "api.openai.com") && opts.CacheRetention != goai.CacheRetentionNone) || (opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)) {
-			req.PromptCacheKey = opts.SessionID
+			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 		}
 	}
 	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention) {

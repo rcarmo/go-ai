@@ -2,6 +2,24 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-21 v0.75.4 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.75.3` against `v0.75.4` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream added prompt-cache-key clamping to 64 Unicode code points and wired it into the OpenAI completions, OpenAI Responses, and Codex request builders.
+- The JS bundle diff also shows import-extension rewrites in generated output, but there was no runtime protocol or API-surface delta behind them.
+- No new model metadata, headers, base URLs, streaming event fields, OAuth flows, or reasoning/thinking maps changed in this release.
+
+Actions:
+
+- Added a Go helper for OpenAI prompt-cache-key clamping and applied it in the OpenAI completions, OpenAI Responses, and Codex request paths.
+- Added regression tests covering Unicode-aware truncation to the upstream 64-code-point limit.
+- Re-ran the full validation gates after the port.
+
+Result: `go-ai` is synced with upstream `v0.75.4`; the only runtime change was the prompt-cache-key clamp.
+
 ## 2026-05-19 v0.75.3 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.75.2` against `v0.75.3` and audited `go-ai` parity after the `images/`, `inference/`, and `transports/` tree split.

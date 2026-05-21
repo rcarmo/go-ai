@@ -1,6 +1,7 @@
 package openairesponses
 
 import (
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -21,6 +22,14 @@ func TestBuildRequestOmitsDefaultReasoningForGitHubCopilot(t *testing.T) {
 	}
 	if len(req.Include) != 0 {
 		t.Fatalf("expected no include fields, got %#v", req.Include)
+	}
+}
+
+func TestBuildRequestClampsPromptCacheKey(t *testing.T) {
+	model := &goai.Model{ID: "gpt-5.4-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}
+	req := buildRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{SessionID: strings.Repeat("x", 80), CacheRetention: goai.CacheRetentionShort})
+	if got, want := req.PromptCacheKey, strings.Repeat("x", 64); got != want {
+		t.Fatalf("prompt cache key = %q, want %q", got, want)
 	}
 }
 

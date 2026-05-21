@@ -1239,7 +1239,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		req.Temperature = opts.Temperature
 		req.MaxOutputTokens = opts.MaxTokens
 		if opts.SessionID != "" {
-			req.PromptCacheKey = opts.SessionID
+			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 		}
 		if opts.Reasoning != nil {
 			if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {

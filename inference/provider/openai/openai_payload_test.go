@@ -90,6 +90,15 @@ func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
 	}
 }
 
+func TestBuildRequestBodyClampsPromptCacheKey(t *testing.T) {
+	model := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: "https://api.openai.com/v1"}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	req := buildRequestBody(model, convCtx, &goai.StreamOptions{SessionID: strings.Repeat("あ", 80), CacheRetention: goai.CacheRetentionShort})
+	if got, want := req.PromptCacheKey, strings.Repeat("あ", 64); got != want {
+		t.Fatalf("prompt cache key = %q, want %q", got, want)
+	}
+}
+
 func TestBuildRequestBodyUsesCompatThinkingFormats(t *testing.T) {
 	reasoning := goai.ThinkingHigh
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}

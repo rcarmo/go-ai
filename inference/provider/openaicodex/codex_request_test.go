@@ -2,10 +2,19 @@ package openaicodex
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+func TestBuildCodexRequestClampsPromptCacheKey(t *testing.T) {
+	model := &goai.Model{ID: "gpt-5.4-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}
+	req := buildCodexRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{SessionID: strings.Repeat("🚀", 80)})
+	if got, want := req.PromptCacheKey, strings.Repeat("🚀", 64); got != want {
+		t.Fatalf("prompt cache key = %q, want %q", got, want)
+	}
+}
 
 func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	model := &goai.Model{ID: "gpt-5.4-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, Reasoning: true}
