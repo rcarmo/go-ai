@@ -2,6 +2,26 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-25 v0.75.5 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.75.4` against `v0.75.5` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream refreshed the generated model registry: 944 models / 32 providers → 924 models / 32 providers.
+- New model metadata included Cloudflare Workers AI additions and `compat.forceAdaptiveThinking` updates for Anthropic-compatible built-ins.
+- `dist/index.d.ts` re-exported `OAuthDeviceCodeInfo`; the bundled CLI added `onDeviceCode` and `onSelect` OAuth callbacks.
+- `package.json` added `@smithy/node-http-handler` as an upstream dependency.
+
+Actions:
+
+- Regenerated `models_generated.go` from the v0.75.5 upstream registry snapshot.
+- Confirmed the Go registry now matches the upstream registry data.
+- Documented the CLI/OAuth type-surface delta as an intentional divergence because go-ai does not ship the upstream Node CLI layer.
+- Re-ran the full validation gates after regeneration.
+
+Result: `go-ai` is synced with upstream `v0.75.5`; the only Go-facing change was the regenerated model registry.
+
 ## 2026-05-21 v0.75.4 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.75.3` against `v0.75.4` and audited `go-ai` parity.
