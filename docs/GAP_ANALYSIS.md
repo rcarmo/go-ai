@@ -2,7 +2,26 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.75.5
+## Source: `@earendil-works/pi-ai` v0.76.0
+
+## Sync history
+
+### v0.76.0 (2026-05-28)
+
+Comparative audit (`@earendil-works/pi-ai v0.75.5` → `v0.76.0`) found:
+
+- Upstream refreshed the generated model registry from 924 to 923 models across 32 providers.
+- Model catalog changes were limited to metadata: pricing updates across existing entries, removal of `cerebras/qwen-3-235b-a22b-instruct-2507`, addition of `opencode/mimo-v2.5-free`, and addition of `opencode-go/qwen3.7-max`.
+- No parity-relevant changes were found in `dist/types.d.ts`, provider payload builders, header/base-URL resolution, streaming/event parsing, OAuth/auth behavior, reasoning/thinking maps, or Codex transport/cache behavior.
+- Release notes were not published upstream for this patch, so the audit relied on direct code and registry diffing.
+
+Actions:
+
+- Regenerated `models_generated.go` from v0.76.0 to keep the Go model registry aligned with upstream metadata.
+- Verified the Go runtime/provider surface already matched upstream for the audited release; no provider, header, stream, OAuth, or Codex changes were required.
+- Re-ran the full validation suite after regeneration.
+
+Result: upstream v0.76.0 is synced in Go; the only Go-facing change is the regenerated model registry and the accompanying audit/doc updates.
 
 ## Sync history
 
