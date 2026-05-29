@@ -31,6 +31,9 @@ func Parse(r io.Reader) <-chan SSEEvent {
 		var event SSEEvent
 		event.Retry = -1
 		var dataLines []string
+		// SSE spec: id and retry are sticky across events until overwritten.
+		lastID := ""
+		lastRetry := -1
 
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -42,9 +45,15 @@ func Parse(r io.Reader) <-chan SSEEvent {
 					if event.Event == "" {
 						event.Event = "message"
 					}
+					if event.ID == "" {
+						event.ID = lastID
+					}
+					if event.Retry == -1 {
+						event.Retry = lastRetry
+					}
 					ch <- event
 				}
-				// Reset
+				// Reset per-event state; keep sticky id/retry
 				event = SSEEvent{Retry: -1}
 				dataLines = nil
 				continue
@@ -65,11 +74,13 @@ func Parse(r io.Reader) <-chan SSEEvent {
 				dataLines = append(dataLines, value)
 			case "id":
 				event.ID = value
+				lastID = value
 			case "retry":
 				// parse int; ignore errors
 				var n int
 				if _, err := fmt.Sscanf(value, "%d", &n); err == nil {
 					event.Retry = n
+					lastRetry = n
 				}
 			}
 		}

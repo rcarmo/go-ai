@@ -116,6 +116,31 @@ func GetImagesApiProvider(api ImagesApi) *ImagesApiProvider {
 	return imagesApiProviders[api]
 }
 
+// UnregisterImagesApiProvider removes an image API provider by API name.
+func UnregisterImagesApiProvider(api ImagesApi) {
+	imagesRegistryMu.Lock()
+	defer imagesRegistryMu.Unlock()
+	delete(imagesApiProviders, api)
+}
+
+// ClearImagesApiProviders removes all registered image API providers.
+func ClearImagesApiProviders() {
+	imagesRegistryMu.Lock()
+	defer imagesRegistryMu.Unlock()
+	for k := range imagesApiProviders {
+		delete(imagesApiProviders, k)
+	}
+}
+
+// ClearImageModels removes all registered image models.
+func ClearImageModels() {
+	imagesRegistryMu.Lock()
+	defer imagesRegistryMu.Unlock()
+	for k := range imageModels {
+		delete(imageModels, k)
+	}
+}
+
 func RegisterImageModel(m *ImagesModel) {
 	if m == nil || m.Provider == "" || m.ID == "" {
 		return

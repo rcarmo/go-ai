@@ -41,6 +41,8 @@ func RegisterBuiltinModels()                       { goai.RegisterBuiltinModels(
 func GetModel(provider Provider, id string) *Model { return goai.GetModel(provider, id) }
 func ListModels(provider Provider) []*Model        { return goai.ListModels(provider) }
 func ListProviders() []Provider                    { return goai.ListProviders() }
+func ClearModels()                                 { goai.ClearModels() }
+func ClearApiProviders()                           { goai.ClearApiProviders() }
 
 func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
 	return goai.Stream(ctx, model, convCtx, opts)

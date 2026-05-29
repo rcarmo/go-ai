@@ -200,7 +200,9 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *i
 	}
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 		if opts != nil && opts.OnResponse != nil {
-			_ = opts.OnResponse(images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model)
+			if err := opts.OnResponse(images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
+				return nil, 0, false, err
+			}
 		}
 		return nil, retryAfter(resp.Header), true, fmt.Errorf("openrouter images request failed: status %d: %s", resp.StatusCode, string(raw))
 	}
