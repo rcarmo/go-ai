@@ -2,6 +2,29 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-29 v0.77.0 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.76.0` against `v0.77.0` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream refreshed the generated model registry: 923 models / 32 providers → 931 models / 32 providers.
+- New model metadata covered Claude Opus 4.8 regional variants and reasoning metadata updates, including `thinkingFormat: "string-thinking"` and expanded thinking-level maps.
+- Direct diff/audit of `dist/types.d.ts`, provider builders, header/base-URL resolution, streaming/event parsing, OAuth/auth behavior, reasoning/thinking maps, and Codex transport/cache handling found the following parity-relevant wire changes:
+  - OpenAI completions gained `string-thinking` support.
+  - OpenAI Responses now uses stable fallback IDs for replayed assistant text items.
+  - Anthropic-compatible replay preserves empty thinking signatures when requested.
+- Upstream did not publish release notes for this patch, so the audit was based on direct package/code comparison.
+
+Actions:
+
+- Regenerated `models_generated.go` from the v0.77.0 upstream registry snapshot.
+- Ported the completions and Responses replay updates needed for parity.
+- Added regression tests covering the new thinking format and replay behavior.
+- Re-ran the full validation gates after the sync.
+
+Result: `go-ai` is synced with upstream `v0.77.0`; the Go-facing changes were the regenerated model registry plus the parity fixes and audit/doc updates.
+
 ## 2026-05-28 v0.76.0 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.75.5` against `v0.76.0` and audited `go-ai` parity.

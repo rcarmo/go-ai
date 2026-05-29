@@ -279,7 +279,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 
-	for _, msg := range transformed {
+	for msgIndex, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleUser:
 			content := buildUserContent(msg)
@@ -291,7 +291,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 			}
 
 		case goai.RoleAssistant:
-			items := buildAssistantItems(msg, model)
+			items := buildAssistantItems(msgIndex, msg, model)
 			input = append(input, items...)
 
 		case goai.RoleToolResult:
@@ -331,7 +331,7 @@ func buildUserContent(msg goai.Message) []map[string]interface{} {
 	return content
 }
 
-func buildAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
+func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []interface{} {
 	// Check if this assistant message came from a different model variant.
 	// When replaying cross-model messages, omit fc_ item IDs to avoid
 	// OpenAI's reasoning/function-call pairing validation.
@@ -340,6 +340,7 @@ func buildAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
 		msg.Api == model.Api
 
 	var items []interface{}
+	textBlockIndex := 0
 	for _, block := range msg.Content {
 		switch block.Type {
 		case "thinking":
@@ -349,6 +350,11 @@ func buildAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
 				if json.Unmarshal([]byte(block.ThinkingSignature), &item) == nil {
 					items = append(items, item)
 				}
+			} else if model.AnthropicCompat != nil && model.AnthropicCompat.AllowEmptySignature != nil && *model.AnthropicCompat.AllowEmptySignature {
+				items = append(items, map[string]interface{}{
+					"type":      "reasoning",
+					"signature": "",
+				})
 			}
 		case "text":
 			item := map[string]interface{}{
@@ -357,15 +363,22 @@ func buildAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
 				"content": []map[string]interface{}{{"type": "output_text", "text": goai.SanitizeSurrogates(block.Text)}},
 				"status":  "completed",
 			}
+			fallbackMessageID := fmt.Sprintf("msg_pi_%d", msgIndex)
+			if textBlockIndex > 0 {
+				fallbackMessageID = fmt.Sprintf("msg_pi_%d_%d", msgIndex, textBlockIndex)
+			}
+			textBlockIndex++
 			// Include id from TextSignature for proper replay
 			if block.TextSignature != "" {
 				var sig struct {
 					ID    string `json:"id"`
 					Phase string `json:"phase"`
 				}
-				if json.Unmarshal([]byte(block.TextSignature), &sig) == nil && sig.ID != "" {
+				if json.Unmarshal([]byte(block.TextSignature), &sig) == nil {
 					msgID := sig.ID
-					if len(msgID) > 64 {
+					if msgID == "" {
+						msgID = fallbackMessageID
+					} else if len(msgID) > 64 {
 						msgID = fmt.Sprintf("msg_%x", crc32Hash(msgID))
 					}
 					item["id"] = msgID

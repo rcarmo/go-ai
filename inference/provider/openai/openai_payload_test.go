@@ -131,6 +131,21 @@ func TestBuildRequestBodyUsesCompatThinkingFormats(t *testing.T) {
 	if zaiReq.EnableThinking == nil || !*zaiReq.EnableThinking || zaiReq.ToolStream == nil || !*zaiReq.ToolStream {
 		t.Fatalf("unexpected ZAI payload enableThinking=%#v toolStream=%#v", zaiReq.EnableThinking, zaiReq.ToolStream)
 	}
+
+	stringThinkingOff := "none"
+	stringThinking := &goai.Model{
+		ID:                "string-thinking-model",
+		Provider:          goai.ProviderOpenAI,
+		Api:               goai.ApiOpenAICompletions,
+		BaseURL:           "https://example.com",
+		Reasoning:         true,
+		ThinkingLevelMap:  map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: &stringThinkingOff, goai.ModelThinkingLevel(goai.ThinkingHigh): &deepseekMax},
+		CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "string-thinking"},
+	}
+	stringReq := buildRequestBody(stringThinking, convCtx, &goai.StreamOptions{Reasoning: &reasoning})
+	if stringReq.Thinking["type"] != "max" {
+		t.Fatalf("unexpected string-thinking payload: %#v", stringReq.Thinking)
+	}
 }
 
 func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {

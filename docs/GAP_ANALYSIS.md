@@ -2,9 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.76.0
+## Source: `@earendil-works/pi-ai` v0.77.0
 
 ## Sync history
+
+### v0.77.0 (2026-05-29)
+
+Comparative audit (`@earendil-works/pi-ai v0.76.0` → `v0.77.0`) found:
+
+- Upstream refreshed the generated model registry from 923 to 931 models across 32 providers.
+- Model catalog changes included new Claude Opus 4.8 entries across regional variants and expanded reasoning metadata, including the new `thinkingFormat: "string-thinking"` path and additional `minimal: null` thinking-map entries.
+- `dist/types.d.ts` added the `string-thinking` compat option and the Anthropic `allowEmptySignature` compat flag.
+- Provider/runtime diffs were limited to wire-format parity updates: OpenAI completions gained `string-thinking`, OpenAI Responses replay now uses stable fallback IDs for text items, and Anthropic-compatible replay now preserves empty thinking signatures.
+- No other parity-relevant deltas were found in headers, base URLs, streaming/event parsing, OAuth refresh behavior, reasoning maps, or Codex transport/cache handling.
+- Upstream did not publish release notes for this patch, so the audit relied on direct package/code comparison.
+
+Actions:
+
+- Regenerated `models_generated.go` from v0.77.0 to keep the Go model registry aligned with upstream metadata.
+- Ported the new `string-thinking` completions behavior, empty-signature replay handling, and Responses replay ID fallback parity.
+- Added regression tests for the new OpenAI completions thinking format and Responses replay behavior.
+- Re-ran the full validation suite after the sync.
+
+Result: upstream v0.77.0 is synced in Go; the Go-facing changes are the regenerated model registry plus the parity fixes and audit/doc updates.
 
 ### v0.76.0 (2026-05-28)
 

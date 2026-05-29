@@ -39,7 +39,7 @@ type OpenAICompletionsCompat struct {
 
 	// Format for reasoning/thinking parameter.
 	// "openai" = reasoning_effort, "openrouter" = reasoning:{effort}, "deepseek" = thinking:{type} + reasoning_effort,
-	// "zai" = enable_thinking, "qwen" = enable_thinking
+	// "zai" = enable_thinking, "qwen" = enable_thinking, "string-thinking" = thinking:<string>
 	ThinkingFormat string `json:"thinkingFormat,omitempty"`
 
 	// OpenRouter-specific routing preferences.
@@ -83,6 +83,9 @@ type AnthropicMessagesCompat struct {
 	// Whether the provider supports Anthropic long cache retention (cache_control.ttl: "1h").
 	// Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
+
+	// Whether empty Anthropic thinking signatures should be replayed as `signature: ""` instead of text fallbacks.
+	AllowEmptySignature *bool `json:"allowEmptySignature,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.

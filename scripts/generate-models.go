@@ -111,6 +111,7 @@ type compatEntry struct {
 	CacheControlFormat                          string                 `json:"cacheControlFormat"`
 	SendSessionAffinityHeaders                  *bool                  `json:"sendSessionAffinityHeaders"`
 	SupportsLongCacheRetention                  *bool                  `json:"supportsLongCacheRetention"`
+	AllowEmptySignature                         *bool                  `json:"allowEmptySignature"`
 	SendSessionIdHeader                         *bool                  `json:"sendSessionIdHeader"`
 	SupportsEagerToolInputStreaming             *bool                  `json:"supportsEagerToolInputStreaming"`
 }
@@ -282,6 +283,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
 	case "openai-responses", "azure-openai-responses":
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
@@ -297,7 +299,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {

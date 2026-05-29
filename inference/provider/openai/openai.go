@@ -260,6 +260,12 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		case "zai", "qwen":
 			enabled := reasoningRequested && effort != ""
 			req.EnableThinking = &enabled
+		case "string-thinking":
+			if reasoningRequested && effort != "" {
+				req.Thinking = map[string]interface{}{"type": effort}
+			} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil {
+				req.Thinking = map[string]interface{}{"type": *off}
+			}
 		case "qwen-chat-template":
 			enabled := reasoningRequested && effort != ""
 			req.ChatTemplateKwargs = map[string]interface{}{"enable_thinking": enabled, "preserve_thinking": true}

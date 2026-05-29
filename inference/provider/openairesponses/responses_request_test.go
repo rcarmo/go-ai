@@ -50,3 +50,20 @@ func TestBuildRequestDefaultsReasoningForNonCopilotReasoningModels(t *testing.T)
 		t.Fatalf("expected medium effort, got %q", req.Reasoning.Effort)
 	}
 }
+
+func TestBuildAssistantItemsAllowsEmptyThinkingSignature(t *testing.T) {
+	allow := true
+	model := &goai.Model{ID: "gpt-4.1", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, AnthropicCompat: &goai.AnthropicMessagesCompat{AllowEmptySignature: &allow}}
+	msg := goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "thinking", Thinking: "pondering"}}}
+	items := buildAssistantItems(0, msg, model)
+	if len(items) != 1 {
+		t.Fatalf("expected one replay item, got %d", len(items))
+	}
+	item, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map item, got %T", items[0])
+	}
+	if item["type"] != "reasoning" || item["signature"] != "" {
+		t.Fatalf("unexpected replay item: %#v", item)
+	}
+}
