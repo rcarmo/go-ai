@@ -51,7 +51,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for Google")}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
 		}
 

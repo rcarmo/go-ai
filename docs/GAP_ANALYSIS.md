@@ -6,6 +6,25 @@ All gaps from the original analysis have been addressed.
 
 ## Sync history
 
+### v0.78.0 (2026-05-30)
+
+Comparative audit (`@earendil-works/pi-ai v0.77.0` → `v0.78.0`) found:
+
+- Upstream package version advanced to `v0.78.0`; the generated model registry remained unchanged at 931 models across 32 providers.
+- The relevant runtime/code diffs were concentrated in provider auth handling: OpenAI completions, OpenAI Responses, OpenAI Codex, Anthropic, Google, and Mistral now require an explicit API key in the provider runtime instead of falling back to environment lookup.
+- Upstream also tightened the error string to `No API key for provider: …` in these paths.
+- `dist/types.d.ts` only changed documentation wording for custom headers and the `thinkingFormat` comment; no new type surface or model metadata landed in this patch.
+- No changes were found in headers/base URLs, streaming/event parsing, OAuth/auth flows, reasoning/thinking maps, Codex transport/cache behavior, or the generated model registry.
+
+Actions:
+
+- Removed environment-key fallback from `ResolveAPIKey()` so provider streams now require explicit keys, matching upstream 0.78.0 behavior.
+- Updated provider error strings to match upstream’s `No API key for provider: …` wording.
+- Re-ran targeted parity tests for API-key resolution and provider error handling.
+- Kept `models_generated.go` unchanged because the upstream registry did not change.
+
+Result: upstream v0.78.0 is synced in Go; the only Go-facing change was the auth/runtime parity update plus audit/doc updates.
+
 ### v0.77.0 (2026-05-29)
 
 Comparative audit (`@earendil-works/pi-ai v0.76.0` → `v0.77.0`) found:

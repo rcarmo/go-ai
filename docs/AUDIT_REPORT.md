@@ -2,6 +2,27 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-05-30 v0.78.0 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.77.0` against `v0.78.0` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream published `v0.78.0` without a model-registry refresh: 931 models / 32 providers remained unchanged.
+- The runtime diffs were provider-auth related: OpenAI completions, OpenAI Responses, OpenAI Codex, Anthropic, Google, and Mistral now require explicit API keys in the provider runtime instead of falling back to environment variables.
+- Upstream standardized the missing-key error text to `No API key for provider: …` in those paths.
+- `dist/types.d.ts` only changed descriptive comments for custom headers and `thinkingFormat`; there was no API-surface, model, header/base-URL, streaming/event, OAuth, reasoning, or Codex transport/cache delta.
+- Upstream did not publish separate release notes in the package tarball, so the audit was based on direct code comparison of the published dist artifacts.
+
+Actions:
+
+- Removed environment-key fallback from Go `ResolveAPIKey()` so provider streams require explicit keys, matching upstream 0.78.0.
+- Updated provider error strings to match upstream wording for parity and to keep regression output aligned.
+- Kept `models_generated.go` unchanged because the upstream registry snapshot did not move.
+- Re-ran targeted tests around key resolution and provider error handling, then the full validation suite.
+
+Result: `go-ai` is synced with upstream `v0.78.0`; the Go-facing changes were the explicit-key runtime behavior and matching error text, plus the audit/doc updates.
+
 ## 2026-05-29 v0.77.0 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.76.0` against `v0.77.0` and audited `go-ai` parity.
