@@ -47,7 +47,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for provider: %s", model.Provider)}
 			return
 		}
 

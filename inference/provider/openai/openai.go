@@ -47,7 +47,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if apiKey == "" {
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("No API key for provider: %s", model.Provider),
+				Err:    fmt.Errorf("no API key for provider: %s", model.Provider),
 			}
 			return
 		}

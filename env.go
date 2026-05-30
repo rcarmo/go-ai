@@ -55,12 +55,16 @@ func GetEnvAPIKey(provider Provider) string {
 // ResolveAPIKey returns the API key for a request, checking in order:
 // 1. Explicit option
 // 2. Model-level key
+// 3. Environment variable (via GetEnvAPIKey)
 func ResolveAPIKey(model *Model, opts *StreamOptions) string {
 	if opts != nil && opts.APIKey != "" {
 		return opts.APIKey
 	}
-	if model.APIKey != "" {
+	if model != nil && model.APIKey != "" {
 		return model.APIKey
+	}
+	if model != nil {
+		return GetEnvAPIKey(model.Provider)
 	}
 	return ""
 }
