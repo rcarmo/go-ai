@@ -62,6 +62,9 @@ const (
 	ProviderXiaomiTokenPlanCN   Provider = "xiaomi-token-plan-cn"
 	ProviderXiaomiTokenPlanAMS  Provider = "xiaomi-token-plan-ams"
 	ProviderXiaomiTokenPlanSGP  Provider = "xiaomi-token-plan-sgp"
+	ProviderAntLing             Provider = "ant-ling"
+	ProviderNvidia              Provider = "nvidia"
+	ProviderZAICodingCN         Provider = "zai-coding-cn"
 )
 
 // ThinkingLevel controls the reasoning depth.

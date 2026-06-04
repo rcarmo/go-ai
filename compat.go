@@ -62,6 +62,10 @@ type OpenAICompletionsCompat struct {
 
 	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
+
+	// Whether the provider supports the temperature parameter. Default: true.
+	// Claude Opus 4.7+ rejects non-default temperatures.
+	SupportsTemperature *bool `json:"supportsTemperature,omitempty"`
 }
 
 // OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
@@ -86,6 +90,9 @@ type AnthropicMessagesCompat struct {
 
 	// Whether empty Anthropic thinking signatures should be replayed as `signature: ""` instead of text fallbacks.
 	AllowEmptySignature *bool `json:"allowEmptySignature,omitempty"`
+
+	// Whether the provider supports the temperature parameter. Default: true.
+	SupportsTemperature *bool `json:"supportsTemperature,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
@@ -168,7 +175,9 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isXAI := provider == ProviderXAI || contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
 	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
 	isOllama := isLocalOllamaURL(baseURL)
-	isZAI := provider == ProviderZAI || contains(baseURL, "z.ai") || contains(baseURL, "zai.com")
+	isZAI := provider == ProviderZAI || provider == ProviderZAICodingCN || contains(baseURL, "z.ai") || contains(baseURL, "zai.com") || contains(baseURL, "open.bigmodel.cn")
+	isNvidia := provider == ProviderNvidia || contains(baseURL, "integrate.api.nvidia.com")
+	isAntLing := provider == ProviderAntLing || contains(baseURL, "api.ant-ling.com")
 	isVercel := provider == ProviderVercelAIGateway || contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
 	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
 	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURL, "xiaomimimo.com")
@@ -176,8 +185,8 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isMoonshot := provider == ProviderMoonshotAI || provider == ProviderMoonshotAICN || contains(baseURL, "api.moonshot.")
 	isCloudflareWorkersAI := provider == ProviderCloudflareWorkersAI || contains(baseURL, "api.cloudflare.com")
 	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURL, "gateway.ai.cloudflare.com")
-	isNonStandard := isCerebras || isXAI || contains(baseURL, "chutes.ai") || isDeepSeek || isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") || isCloudflareWorkersAI || isCloudflareAIGW || isOllama
-	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isOllama
+	isNonStandard := isCerebras || isXAI || contains(baseURL, "chutes.ai") || isDeepSeek || isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") || isCloudflareWorkersAI || isCloudflareAIGW || isOllama || isNvidia || isAntLing
+	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isOllama || isNvidia || isAntLing
 
 	t := true
 	f := false
@@ -223,11 +232,20 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		c.ThinkingFormat = "deepseek"
 		c.RequiresReasoningContentOnAssistantMessages = &t
 	}
+	if isAntLing {
+		c.ThinkingFormat = "ant-ling"
+	}
 	if isMoonshot || isCloudflareAIGW {
 		c.SupportsStrictMode = &f
 	}
 	if isCloudflareWorkersAI || isCloudflareAIGW {
 		c.SupportsLongCacheRetention = &f
+	}
+	if isOpenRouter {
+		// OpenRouter only supports developer role for Anthropic and OpenAI models
+		if !strings.HasPrefix(modelID, "anthropic/") && !strings.HasPrefix(modelID, "openai/") {
+			c.SupportsDeveloperRole = &f
+		}
 	}
 	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
 		c.CacheControlFormat = "anthropic"

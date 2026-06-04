@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
 //
-// Source: image-models.generated.js (28 image models, 1 provider)
+// Source: image-models.generated.js (30 image models, 1 provider)
 
 package images
 
@@ -71,7 +71,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333333},
+		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.0833333333},
 	},
 	{
 		ID:       "google/gemini-3-pro-image-preview",
@@ -92,6 +92,16 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
 		Cost:     goai.ModelCost{Input: 0.5, Output: 3, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "microsoft/mai-image-2.5",
+		Name:     "Microsoft: MAI-Image-2.5",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 5, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "openai/gpt-5-image",
@@ -286,6 +296,16 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "sourceful/riverflow-v2-standard-preview",
 		Name:     "Sourceful: Riverflow V2 Standard Preview",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "x-ai/grok-imagine-image-quality",
+		Name:     "xAI: Grok Imagine Image Quality",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

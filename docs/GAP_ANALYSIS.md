@@ -2,9 +2,35 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.77.0
+## Source: `@earendil-works/pi-ai` v0.78.1
 
 ## Sync history
+
+### v0.78.1 (2026-06-04)
+
+Comparative audit (`@earendil-works/pi-ai v0.78.0` → `v0.78.1`) found:
+
+- **New providers**: `ant-ling`, `nvidia`, `zai-coding-cn` added with env keys and compat autodetection.
+- **New compat field**: `supportsTemperature` (defaults true; Claude Opus 4.7+ and some Cloudflare AI Gateway models reject non-default temps).
+- **New thinking format**: `"ant-ling"` for the Ant-Ling provider.
+- **OpenRouter developer-role restriction**: upstream now only enables `SupportsDeveloperRole` for `anthropic/` and `openai/` prefixed model IDs on OpenRouter.
+- **Model registry**: 931 → 968 models / 32 → 35 providers. Ant-Ling, Nvidia models added; Anthropic pricing updated; GitHub Copilot model renames.
+- **Image model registry**: 28 → 30 image models (new OpenRouter image models).
+- **Bedrock**: empty-text placeholder and tool-result content helpers added upstream (Go bedrock provider already handles empty content).
+- **Anthropic provider**: temperature now gated by `compat.supportsTemperature` upstream.
+- **OAuth**: GitHub Copilot verification_uri validation; Codex callback host safety (Go OAuth already validates URLs).
+
+Actions:
+
+- Added `ProviderAntLing`, `ProviderNvidia`, `ProviderZAICodingCN` constants and env key mappings.
+- Added `SupportsTemperature` field to `OpenAICompletionsCompat` and `AnthropicMessagesCompat`.
+- Updated `detectCompat` with nvidia/ant-ling non-standard flags, ant-ling thinking format, and OpenRouter developer-role model-prefix restriction.
+- Regenerated `models_generated.go` from v0.78.1 (968 models / 35 providers).
+- Regenerated `images/models_generated.go` from v0.78.1 (30 image models / 1 provider).
+- Updated compat test expectations for new OpenRouter behavior.
+- Re-ran full validation suite.
+
+Result: upstream v0.78.1 is fully synced in Go with provider, compat, registry, and image model parity.
 
 ### v0.78.0 (2026-05-30)
 
