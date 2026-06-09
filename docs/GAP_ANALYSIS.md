@@ -2,6 +2,27 @@
 
 All gaps from the original analysis have been addressed.
 
+## Source: `@earendil-works/pi-ai` v0.79.0
+
+## Sync history
+
+### v0.79.0 (2026-06-09)
+
+Comparative audit (`@earendil-works/pi-ai v0.78.1` → `v0.79.0`) found:
+
+- **OpenRouter routing**: upstream now always forwards `compat.openRouterRouting` as the request `provider` field when present, instead of requiring an OpenRouter base URL check.
+- **Responses developer role**: upstream added `compat.supportsDeveloperRole` and now uses `developer` only when both reasoning is enabled and the provider supports it; otherwise it falls back to `system`.
+- **Model registry**: refreshed to 968 models / 35 providers with new OpenAI Bedrock, Fireworks, NVIDIA, and OpenRouter entries plus pricing/context updates.
+- **Go parity**: `go-ai` already matched the new compat behavior, so the sync only needed a regenerated model registry and audit confirmation.
+
+Actions:
+
+- Regenerated `models_generated.go` from v0.79.0 (968 models / 35 providers).
+- Re-ran audit checks against OpenRouter routing and OpenAI Responses developer-role selection.
+- Re-ran full validation suite.
+
+Result: upstream v0.79.0 is fully synced in Go; this was a metadata-and-compat parity refresh with no additional provider code changes required.
+
 ## Source: `@earendil-works/pi-ai` v0.78.1
 
 ## Sync history

@@ -2,6 +2,26 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-09 v0.79.0 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.78.1` against `v0.79.0` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed OpenRouter request construction so `compat.openRouterRouting` is forwarded whenever present, not only for OpenRouter base URLs.
+- Upstream added `compat.supportsDeveloperRole` and now uses `developer` for Responses system prompts only when reasoning is enabled and the provider supports developer-role messages.
+- Upstream refreshed the generated model registry to 968 models / 35 providers, adding OpenAI Bedrock, Fireworks, NVIDIA, and OpenRouter entries plus pricing/context metadata updates.
+- Direct diff/audit of `dist/types.d.ts`, provider builders, header/base-URL resolution, streaming/event parsing, OAuth/auth behavior, reasoning/thinking maps, and Codex transport/cache handling found no additional Go-facing runtime delta beyond the two compat changes above.
+- The Go implementation already matched the new OpenRouter routing and developer-role behavior.
+
+Actions:
+
+- Regenerated `models_generated.go` from the v0.79.0 upstream registry snapshot.
+- Verified the Go runtime/provider surface already matched the audited upstream release.
+- Re-ran the full validation gates after regeneration.
+
+Result: `go-ai` is synced with upstream `v0.79.0`; the Go-facing changes were the regenerated model registry plus audit/doc updates.
+
 ## 2026-05-30 v0.78.0 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.77.0` against `v0.78.0` and audited `go-ai` parity.
