@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
 //
-// Source: image-models.generated.js (30 image models, 1 provider)
+// Source: image-models.generated.js (32 image models, 1 provider)
 
 package images
 
@@ -296,6 +296,26 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "sourceful/riverflow-v2-standard-preview",
 		Name:     "Sourceful: Riverflow V2 Standard Preview",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "sourceful/riverflow-v2.5-fast",
+		Name:     "Sourceful: Riverflow V2.5 Fast",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "sourceful/riverflow-v2.5-pro",
+		Name:     "Sourceful: Riverflow V2.5 Pro",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
