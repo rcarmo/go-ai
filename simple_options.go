@@ -52,9 +52,20 @@ func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLev
 		}
 	}
 	if idx < 0 {
-		logWarn("unknown thinking level; using first supported level", "level", level, "fallback", available[0])
-		return available[0]
+		if len(available) > 0 {
+			return available[0]
+		}
+		return ModelThinkingLevel(ThinkingOff)
 	}
+	// Search higher levels first (upstream parity)
+	for i := idx; i < len(extendedThinkingLevels); i++ {
+		for _, candidate := range available {
+			if candidate == extendedThinkingLevels[i] {
+				return candidate
+			}
+		}
+	}
+	// Then search lower levels
 	for i := idx - 1; i >= 0; i-- {
 		for _, candidate := range available {
 			if candidate == extendedThinkingLevels[i] {
@@ -62,14 +73,10 @@ func ClampThinkingLevel(model *Model, level ModelThinkingLevel) ModelThinkingLev
 			}
 		}
 	}
-	for i := idx + 1; i < len(extendedThinkingLevels); i++ {
-		for _, candidate := range available {
-			if candidate == extendedThinkingLevels[i] {
-				return candidate
-			}
-		}
+	if len(available) > 0 {
+		return available[0]
 	}
-	return available[0]
+	return ModelThinkingLevel(ThinkingOff)
 }
 
 // MapThinkingLevel returns the provider/model-specific value for a thinking level.

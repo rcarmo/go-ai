@@ -352,7 +352,7 @@ func TestDetectCompat(t *testing.T) {
 	}
 }
 
-func TestClampThinkingLevelPrefersDowngrade(t *testing.T) {
+func TestClampThinkingLevelPrefersUpgrade(t *testing.T) {
 	high := "high"
 	model := &goai.Model{
 		Reasoning: true,
@@ -363,7 +363,8 @@ func TestClampThinkingLevelPrefersDowngrade(t *testing.T) {
 			goai.ModelThinkingLevel(goai.ThinkingHigh):   &high,
 		},
 	}
-	if got := goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingMedium)); got != goai.ModelThinkingLevel(goai.ThinkingMinimal) {
-		t.Fatalf("expected unsupported medium to downgrade to minimal, got %q", got)
+	// Upstream prefers upgrading to next available level
+	if got := goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingMedium)); got != goai.ModelThinkingLevel(goai.ThinkingHigh) {
+		t.Fatalf("expected unsupported medium to upgrade to high, got %q", got)
 	}
 }

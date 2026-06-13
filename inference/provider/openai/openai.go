@@ -530,10 +530,12 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Role      string        `json:"role,omitempty"`
-	Content   *string       `json:"content,omitempty"`
-	ToolCalls []sseToolCall `json:"tool_calls,omitempty"`
-	Reasoning *string       `json:"reasoning,omitempty"`
+	Role             string        `json:"role,omitempty"`
+	Content          *string       `json:"content,omitempty"`
+	ToolCalls        []sseToolCall `json:"tool_calls,omitempty"`
+	Reasoning        *string       `json:"reasoning,omitempty"`
+	ReasoningContent *string       `json:"reasoning_content,omitempty"`
+	ReasoningText    *string       `json:"reasoning_text,omitempty"`
 }
 
 type sseToolCall struct {
@@ -640,8 +642,17 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			}
 		}
 
-		// Thinking/reasoning content
-		if delta.Reasoning != nil && *delta.Reasoning != "" {
+		// Thinking/reasoning content — check fields in priority order
+		// (reasoning_content for llama.cpp, reasoning for other endpoints, reasoning_text)
+		var reasoningDelta string
+		if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
+			reasoningDelta = *delta.ReasoningContent
+		} else if delta.Reasoning != nil && *delta.Reasoning != "" {
+			reasoningDelta = *delta.Reasoning
+		} else if delta.ReasoningText != nil && *delta.ReasoningText != "" {
+			reasoningDelta = *delta.ReasoningText
+		}
+		if reasoningDelta != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				ch <- &goai.ThinkingStartEvent{
@@ -650,10 +661,10 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				}
 			}
 			idx := len(partial.Content) - 1
-			partial.Content[idx].Thinking += *delta.Reasoning
+			partial.Content[idx].Thinking += reasoningDelta
 			ch <- &goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
-				Delta:        *delta.Reasoning,
+				Delta:        reasoningDelta,
 				Partial:      partial,
 			}
 		}
