@@ -341,6 +341,7 @@ type StreamOptions struct {
 	// Simple mode
 	Reasoning       *ThinkingLevel   `json:"reasoning,omitempty"`
 	ThinkingBudgets *ThinkingBudgets `json:"thinkingBudgets,omitempty"`
+	ServiceTier     string           `json:"serviceTier,omitempty"`
 
 	// Hooks for request/response interception
 

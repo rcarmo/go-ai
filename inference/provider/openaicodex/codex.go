@@ -1213,6 +1213,7 @@ type codexRequest struct {
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	ToolChoice         string          `json:"tool_choice,omitempty"`
 	ParallelToolCalls  *bool           `json:"parallel_tool_calls,omitempty"`
+	ServiceTier        string          `json:"service_tier,omitempty"`
 }
 
 type codexTool struct {
@@ -1249,6 +1250,9 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 				}
 			}
 		}
+	}
+	if opts != nil && opts.ServiceTier != "" {
+		req.ServiceTier = opts.ServiceTier
 	}
 
 	// Build input in Responses-compatible format, but with system prompt carried in top-level instructions.

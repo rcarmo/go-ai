@@ -103,6 +103,14 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				req.Header.Set(k, v)
 			}
 		}
+		// Dynamic Copilot headers
+		if model.Provider == goai.ProviderGitHubCopilot {
+			req.Header.Set("X-Initiator", inferCopilotInitiator(convCtx.Messages))
+			req.Header.Set("Openai-Intent", "conversation-edits")
+			if hasCopilotVisionInput(convCtx.Messages) {
+				req.Header.Set("Copilot-Vision-Request", "true")
+			}
+		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
@@ -152,6 +160,7 @@ type responsesRequest struct {
 	Include              []string         `json:"include,omitempty"`
 	PromptCacheKey       string           `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string           `json:"prompt_cache_retention,omitempty"`
+	ServiceTier          string           `json:"service_tier,omitempty"`
 }
 
 type reasoningConfig struct {
@@ -232,6 +241,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
 		req.PromptCacheRetention = "24h"
+	}
+	if opts != nil && opts.ServiceTier != "" {
+		req.ServiceTier = opts.ServiceTier
 	}
 
 	return req
@@ -715,4 +727,30 @@ func mapStatus(status string) goai.StopReason {
 	default:
 		return goai.StopReasonStop
 	}
+}
+
+// inferCopilotInitiator determines X-Initiator header value based on last message role.
+func inferCopilotInitiator(messages []goai.Message) string {
+	if len(messages) == 0 {
+		return "user"
+	}
+	last := messages[len(messages)-1]
+	if last.Role != goai.RoleUser {
+		return "agent"
+	}
+	return "user"
+}
+
+// hasCopilotVisionInput checks if any user or toolResult message contains images.
+func hasCopilotVisionInput(messages []goai.Message) bool {
+	for _, msg := range messages {
+		if msg.Role == goai.RoleUser || msg.Role == goai.RoleToolResult {
+			for _, c := range msg.Content {
+				if c.Type == "image" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
