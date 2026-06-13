@@ -125,6 +125,33 @@ func TestIsContextOverflow(t *testing.T) {
 			ctxWin: 128000,
 			want:   false,
 		},
+		{
+			name: "OpenAI/LiteLLM max context length",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Requested token count exceeds the model's maximum context length of 131072 tokens"},
+			want: true,
+		},
+		{
+			name: "OpenRouter/Poolside max allowed input",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "Input length 265330 exceeds the maximum allowed input length of 262144 tokens."},
+			want: true,
+		},
+		{
+			name: "Together AI context length",
+			msg:  goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "The input (200000 tokens) is longer than the model's context length (131072 tokens)."},
+			want: true,
+		},
+		{
+			name:   "Xiaomi MiMo length-stop overflow",
+			msg:    goai.Message{StopReason: goai.StopReasonLength, Usage: &goai.Usage{Input: 131000, Output: 0}},
+			ctxWin: 131072,
+			want:   true,
+		},
+		{
+			name:   "length stop with normal output (not overflow)",
+			msg:    goai.Message{StopReason: goai.StopReasonLength, Usage: &goai.Usage{Input: 100000, Output: 4096}},
+			ctxWin: 131072,
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {

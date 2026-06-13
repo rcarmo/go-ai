@@ -14,10 +14,13 @@ var overflowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)request_too_large`),
 	regexp.MustCompile(`(?i)input is too long for requested model`),
 	regexp.MustCompile(`(?i)exceeds the context window`),
+	regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), // OpenAI/LiteLLM specific
 	regexp.MustCompile(`(?i)input token count.*exceeds the maximum`),
 	regexp.MustCompile(`(?i)maximum prompt length is \d+`),
 	regexp.MustCompile(`(?i)reduce the length of the messages`),
 	regexp.MustCompile(`(?i)maximum context length is \d+ tokens`),
+	regexp.MustCompile(`(?i)exceeds (?:the )?maximum allowed input length of [\d,]+ tokens?`),                // OpenRouter/Poolside
+	regexp.MustCompile(`(?i)input \(\d+ tokens\) is longer than the model'?s context length \(\d+ tokens\)`), // Together AI
 	regexp.MustCompile(`(?i)exceeds the limit of \d+`),
 	regexp.MustCompile(`(?i)exceeds the available context size`),
 	regexp.MustCompile(`(?i)greater than the context length`),
@@ -63,6 +66,15 @@ func IsContextOverflow(msg *Message, contextWindow int) bool {
 	if contextWindow > 0 && msg.StopReason == StopReasonStop && msg.Usage != nil {
 		inputTokens := msg.Usage.Input + msg.Usage.CacheRead
 		if inputTokens > contextWindow {
+			return true
+		}
+	}
+	// Case 3: Length-stop overflow (Xiaomi MiMo style) — server truncates oversized
+	// input to fit the context window, leaving no room for output. Returns
+	// stopReason "length" with output=0 and input+cacheRead filling the window.
+	if contextWindow > 0 && msg.StopReason == StopReasonLength && msg.Usage != nil && msg.Usage.Output == 0 {
+		inputTokens := msg.Usage.Input + msg.Usage.CacheRead
+		if float64(inputTokens) >= float64(contextWindow)*0.99 {
 			return true
 		}
 	}
