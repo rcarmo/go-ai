@@ -530,12 +530,19 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Role             string        `json:"role,omitempty"`
-	Content          *string       `json:"content,omitempty"`
-	ToolCalls        []sseToolCall `json:"tool_calls,omitempty"`
-	Reasoning        *string       `json:"reasoning,omitempty"`
-	ReasoningContent *string       `json:"reasoning_content,omitempty"`
-	ReasoningText    *string       `json:"reasoning_text,omitempty"`
+	Role             string               `json:"role,omitempty"`
+	Content          *string              `json:"content,omitempty"`
+	ToolCalls        []sseToolCall        `json:"tool_calls,omitempty"`
+	Reasoning        *string              `json:"reasoning,omitempty"`
+	ReasoningContent *string              `json:"reasoning_content,omitempty"`
+	ReasoningText    *string              `json:"reasoning_text,omitempty"`
+	ReasoningDetails []reasoningDetail    `json:"reasoning_details,omitempty"`
+}
+
+type reasoningDetail struct {
+	Type string `json:"type"`
+	ID   string `json:"id,omitempty"`
+	Data string `json:"data,omitempty"`
 }
 
 type sseToolCall struct {
@@ -717,6 +724,19 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			if tc.Function.Name != "" {
 				at.name = tc.Function.Name
 				partial.Content[at.contentIdx].Name = tc.Function.Name
+			}
+		}
+
+		// Encrypted reasoning details → attach as thoughtSignature on matching tool calls
+		for _, detail := range delta.ReasoningDetails {
+			if detail.Type == "reasoning.encrypted" && detail.ID != "" && detail.Data != "" {
+				for i := range partial.Content {
+					if partial.Content[i].Type == "toolCall" && partial.Content[i].ID == detail.ID {
+						sig, _ := json.Marshal(detail)
+						partial.Content[i].ThoughtSignature = string(sig)
+						break
+					}
+				}
 			}
 		}
 	}

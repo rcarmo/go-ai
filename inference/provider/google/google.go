@@ -172,6 +172,7 @@ type geminiFuncResponse struct {
 	Name     string                 `json:"name"`
 	Response map[string]interface{} `json:"response"`
 	ID       string                 `json:"id,omitempty"`
+	Parts    []geminiPart           `json:"parts,omitempty"`
 }
 
 type geminiGenerationConfig struct {
@@ -348,16 +349,24 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 
 		case goai.RoleToolResult:
 			textResult := ""
+			var imageParts []geminiPart
 			for _, b := range msg.Content {
 				if b.Type == "text" {
 					textResult += b.Text
+				} else if b.Type == "image" && b.MimeType != "" && b.Data != "" {
+					imageParts = append(imageParts, geminiPart{
+						InlineData: &geminiInlineData{MimeType: b.MimeType, Data: b.Data},
+					})
 				}
 			}
+			hasImages := len(imageParts) > 0
 			resp := map[string]interface{}{}
 			if msg.IsError {
 				resp["error"] = goai.SanitizeSurrogates(textResult)
-			} else {
+			} else if textResult != "" {
 				resp["output"] = goai.SanitizeSurrogates(textResult)
+			} else if hasImages {
+				resp["output"] = "(see attached image)"
 			}
 
 			part := geminiPart{
@@ -365,6 +374,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 					Name:     msg.ToolName,
 					Response: resp,
 				},
+			}
+			if hasImages && supportsMultimodalFunctionResponse(model.ID) {
+				part.FunctionResponse.Parts = imageParts
 			}
 			if requiresToolCallID(model.ID) {
 				part.FunctionResponse.ID = normalizeGoogleToolCallID(msg.ToolCallID)
@@ -392,6 +404,41 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 // the Gemini API that require explicit tool call IDs.
 func requiresToolCallID(modelID string) bool {
 	return strings.HasPrefix(modelID, "claude-") || strings.HasPrefix(modelID, "gpt-oss-")
+}
+
+// supportsMultimodalFunctionResponse returns true for Gemini 3+ models which
+// support image parts directly in functionResponse.
+func supportsMultimodalFunctionResponse(modelID string) bool {
+	v := getGeminiMajorVersion(modelID)
+	if v > 0 {
+		return v >= 3
+	}
+	// Non-Gemini models (claude, gpt-oss) default to supporting it
+	return true
+}
+
+// getGeminiMajorVersion extracts the major version from a Gemini model ID.
+func getGeminiMajorVersion(modelID string) int {
+	lower := strings.ToLower(modelID)
+	// Match patterns like gemini-3, gemini-live-3, etc.
+	var prefix string
+	if strings.HasPrefix(lower, "gemini-live-") {
+		prefix = lower[len("gemini-live-"):]
+	} else if strings.HasPrefix(lower, "gemini-") {
+		prefix = lower[len("gemini-"):]
+	} else {
+		return 0
+	}
+	// Extract leading digits
+	n := 0
+	for _, c := range prefix {
+		if c >= '0' && c <= '9' {
+			n = n*10 + int(c-'0')
+		} else {
+			break
+		}
+	}
+	return n
 }
 
 // normalizeGoogleToolCallID sanitizes a tool call ID for the Google API.

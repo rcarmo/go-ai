@@ -518,13 +518,14 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		}
 
 		var raw struct {
-			Type     string          `json:"type"`
-			Item     json.RawMessage `json:"item,omitempty"`
-			Response json.RawMessage `json:"response,omitempty"`
-			Delta    string          `json:"delta,omitempty"`
-			Part     json.RawMessage `json:"part,omitempty"`
-			Code     string          `json:"code,omitempty"`
-			Message  string          `json:"message,omitempty"`
+			Type      string          `json:"type"`
+			Item      json.RawMessage `json:"item,omitempty"`
+			Response  json.RawMessage `json:"response,omitempty"`
+			Delta     string          `json:"delta,omitempty"`
+			Arguments string          `json:"arguments,omitempty"`
+			Part      json.RawMessage `json:"part,omitempty"`
+			Code      string          `json:"code,omitempty"`
+			Message   string          `json:"message,omitempty"`
 		}
 		if json.Unmarshal(data, &raw) != nil {
 			continue
@@ -572,10 +573,25 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
 			}
 
+		case "response.reasoning_text.delta":
+			if current != nil && current.itemType == "reasoning" {
+				partial.Content[current.contentIdx].Thinking += raw.Delta
+				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+
+		case "response.reasoning_summary_part.added":
+			// Part initialization — no content emitted yet
+
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
 				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+
+		case "response.reasoning_summary_part.done":
+			if current != nil && current.itemType == "reasoning" {
+				partial.Content[current.contentIdx].Thinking += "\n\n"
+				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: "\n\n", Partial: partial}
 			}
 
 		case "response.output_text.delta":
@@ -598,6 +614,22 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					partial.Content[current.contentIdx].Arguments = args
 				}
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+
+		case "response.function_call_arguments.done":
+			if current != nil && current.itemType == "function_call" {
+				// Finalize: emit any trailing delta not covered by incremental deltas
+				if raw.Arguments != "" && strings.HasPrefix(raw.Arguments, current.partialJSON) {
+					trailing := raw.Arguments[len(current.partialJSON):]
+					if trailing != "" {
+						current.partialJSON = raw.Arguments
+						args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
+						if args != nil {
+							partial.Content[current.contentIdx].Arguments = args
+						}
+						ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: trailing, Partial: partial}
+					}
+				}
 			}
 
 		case "response.output_item.done":
