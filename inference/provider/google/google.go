@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -227,18 +228,34 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		genConfig.MaxOutputTokens = opts.MaxTokens
 		hasConfig = true
 	}
-	if model.Reasoning && opts != nil && opts.Reasoning != nil {
-		tc := &geminiThinkingConfig{}
-		t := true
-		tc.IncludeThoughts = &t
-		level, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
-		if !ok || level == "none" {
-			level = string(goai.ThinkingHigh)
+
+	// Thinking configuration — mirrors upstream's model-specific dispatch.
+	if model.Reasoning {
+		reasoningRequested := opts != nil && opts.Reasoning != nil && *opts.Reasoning != ""
+		if reasoningRequested {
+			level, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+			if !ok || level == "off" {
+				level = string(goai.ThinkingHigh)
+			}
+			tc := &geminiThinkingConfig{}
+			t := true
+			tc.IncludeThoughts = &t
+			if isGemini3ProModel(model) || isGemini3FlashModel(model) || isGemma4Model(model) {
+				tc.ThinkingLevel = getGoogleThinkingLevel(level, model)
+			} else {
+				budget := getGoogleBudget(model, level)
+				tc.ThinkingBudget = &budget
+			}
+			genConfig.ThinkingConfig = tc
+			hasConfig = true
+		} else {
+			// Disable thinking
+			tc := getDisabledThinkingConfig(model)
+			genConfig.ThinkingConfig = tc
+			hasConfig = true
 		}
-		tc.ThinkingLevel = strings.ToUpper(level)
-		genConfig.ThinkingConfig = tc
-		hasConfig = true
 	}
+
 	if hasConfig {
 		req.GenerationConfig = genConfig
 	}
@@ -584,3 +601,111 @@ func mapFinishReason(reason string) goai.StopReason {
 
 // parseStreamingJSON is a local alias for the shared parser.
 var _ = jsonparse.ParsePartialJSON
+
+// --- Google thinking config helpers (upstream parity) ---
+
+var (
+	gemini3ProRe   = regexp.MustCompile(`(?i)gemini-3(?:\.\d+)?-pro`)
+	gemini3FlashRe = regexp.MustCompile(`(?i)gemini-3(?:\.\d+)?-flash`)
+	gemma4Re       = regexp.MustCompile(`(?i)gemma-?4`)
+)
+
+func isGemini3ProModel(model *goai.Model) bool {
+	return gemini3ProRe.MatchString(model.ID)
+}
+
+func isGemini3FlashModel(model *goai.Model) bool {
+	return gemini3FlashRe.MatchString(model.ID)
+}
+
+func isGemma4Model(model *goai.Model) bool {
+	return gemma4Re.MatchString(model.ID)
+}
+
+func getDisabledThinkingConfig(model *goai.Model) *geminiThinkingConfig {
+	if isGemini3ProModel(model) {
+		return &geminiThinkingConfig{ThinkingLevel: "LOW"}
+	}
+	if isGemini3FlashModel(model) {
+		return &geminiThinkingConfig{ThinkingLevel: "MINIMAL"}
+	}
+	if isGemma4Model(model) {
+		return &geminiThinkingConfig{ThinkingLevel: "MINIMAL"}
+	}
+	// Gemini 2.x: disable via budget=0
+	zero := 0
+	return &geminiThinkingConfig{ThinkingBudget: &zero}
+}
+
+func getGoogleThinkingLevel(effort string, model *goai.Model) string {
+	if isGemini3ProModel(model) {
+		switch effort {
+		case "minimal", "low":
+			return "LOW"
+		case "medium", "high":
+			return "HIGH"
+		}
+	}
+	if isGemma4Model(model) {
+		switch effort {
+		case "minimal", "low":
+			return "MINIMAL"
+		case "medium", "high":
+			return "HIGH"
+		}
+	}
+	// Gemini 3 Flash
+	switch effort {
+	case "minimal":
+		return "MINIMAL"
+	case "low":
+		return "LOW"
+	case "medium":
+		return "MEDIUM"
+	case "high":
+		return "HIGH"
+	default:
+		return strings.ToUpper(effort)
+	}
+}
+
+func getGoogleBudget(model *goai.Model, effort string) int {
+	id := strings.ToLower(model.ID)
+	if strings.Contains(id, "2.5-pro") {
+		switch effort {
+		case "minimal":
+			return 128
+		case "low":
+			return 2048
+		case "medium":
+			return 8192
+		case "high":
+			return 32768
+		}
+	}
+	if strings.Contains(id, "2.5-flash-lite") {
+		switch effort {
+		case "minimal":
+			return 512
+		case "low":
+			return 2048
+		case "medium":
+			return 8192
+		case "high":
+			return 24576
+		}
+	}
+	if strings.Contains(id, "2.5-flash") {
+		switch effort {
+		case "minimal":
+			return 128
+		case "low":
+			return 2048
+		case "medium":
+			return 8192
+		case "high":
+			return 24576
+		}
+	}
+	return -1
+}
