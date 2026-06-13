@@ -128,8 +128,8 @@ func TestBuildRequestBodyUsesCompatThinkingFormats(t *testing.T) {
 		CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "zai", ZaiToolStream: &zaiToolStream},
 	}
 	zaiReq := buildRequestBody(zai, &goai.Context{Messages: convCtx.Messages, Tools: []goai.Tool{{Name: "tool", Description: "tool", Parameters: json.RawMessage(`{"type":"object"}`)}}}, &goai.StreamOptions{Reasoning: &reasoning})
-	if zaiReq.EnableThinking == nil || !*zaiReq.EnableThinking || zaiReq.ToolStream == nil || !*zaiReq.ToolStream {
-		t.Fatalf("unexpected ZAI payload enableThinking=%#v toolStream=%#v", zaiReq.EnableThinking, zaiReq.ToolStream)
+	if zaiReq.Thinking == nil || zaiReq.Thinking["type"] != "enabled" || zaiReq.ToolStream == nil || !*zaiReq.ToolStream {
+		t.Fatalf("unexpected ZAI payload thinking=%#v toolStream=%#v", zaiReq.Thinking, zaiReq.ToolStream)
 	}
 
 	stringThinkingOff := "none"

@@ -257,7 +257,13 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 	if model.Reasoning {
 		switch compat.ThinkingFormat {
-		case "zai", "qwen":
+		case "zai":
+			typeValue := "disabled"
+			if reasoningRequested && effort != "" {
+				typeValue = "enabled"
+			}
+			req.Thinking = map[string]interface{}{"type": typeValue}
+		case "qwen":
 			enabled := reasoningRequested && effort != ""
 			req.EnableThinking = &enabled
 		case "string-thinking":
@@ -273,7 +279,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 			typeValue := "disabled"
 			if reasoningRequested && effort != "" {
 				typeValue = "enabled"
-				req.ReasoningEffort = effort
+				if compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort {
+					req.ReasoningEffort = effort
+				}
 			}
 			req.Thinking = map[string]interface{}{"type": typeValue}
 		case "openrouter":
@@ -281,6 +289,15 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 				req.Reasoning = map[string]interface{}{"effort": effort}
 			} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil {
 				req.Reasoning = map[string]interface{}{"effort": *off}
+			}
+		case "ant-ling":
+			if reasoningRequested && effort != "" {
+				req.Reasoning = map[string]interface{}{"effort": effort}
+			}
+		case "together":
+			req.Reasoning = map[string]interface{}{"enabled": reasoningRequested && effort != ""}
+			if reasoningRequested && effort != "" && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+				req.ReasoningEffort = effort
 			}
 		default:
 			if reasoningRequested && effort != "" && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
