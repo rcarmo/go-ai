@@ -300,6 +300,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				callID = callID[:idx]
 			}
+			callID = normalizeResponsesIDPart(callID)
 			input = append(input, map[string]interface{}{
 				"type":    "function_call_output",
 				"call_id": callID,
@@ -395,10 +396,18 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 				itemID = callID[idx+1:]
 				callID = callID[:idx]
 			}
+			// Normalize callID for API compatibility
+			callID = normalizeResponsesIDPart(callID)
 			// For different-model messages, omit fc_ item IDs to avoid
 			// pairing validation between reasoning and function-call items.
 			if isDifferentModel && strings.HasPrefix(itemID, "fc_") {
 				itemID = ""
+			} else if itemID != "" {
+				// Normalize itemID and ensure fc_ prefix
+				itemID = normalizeResponsesIDPart(itemID)
+				if !strings.HasPrefix(itemID, "fc_") {
+					itemID = normalizeResponsesIDPart("fc_" + itemID)
+				}
 			}
 			item := map[string]interface{}{
 				"type":      "function_call",
@@ -432,6 +441,27 @@ func mustJSON(v interface{}) string {
 
 func crc32Hash(s string) uint32 {
 	return crc32.ChecksumIEEE([]byte(s))
+}
+
+// normalizeResponsesIDPart sanitizes an ID part for the OpenAI Responses API.
+// Replaces characters not matching [a-zA-Z0-9_-] with '_', truncates to 64 chars,
+// and trims trailing underscores.
+func normalizeResponsesIDPart(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	out := b.String()
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	out = strings.TrimRight(out, "_")
+	return out
 }
 
 // --- Stream processing ---

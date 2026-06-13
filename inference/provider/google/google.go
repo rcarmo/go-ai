@@ -333,6 +333,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 							Args: block.Arguments,
 						},
 					}
+					if requiresToolCallID(model.ID) {
+						p.FunctionCall.ID = normalizeGoogleToolCallID(block.ID)
+					}
 					if isSameModel && isValidBase64Signature(block.ThoughtSignature) {
 						p.ThoughtSignature = block.ThoughtSignature
 					}
@@ -363,6 +366,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 					Response: resp,
 				},
 			}
+			if requiresToolCallID(model.ID) {
+				part.FunctionResponse.ID = normalizeGoogleToolCallID(msg.ToolCallID)
+			}
 
 			// Merge tool results into existing user turn if present
 			if len(contents) > 0 {
@@ -380,6 +386,30 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 	}
 
 	return contents
+}
+
+// requiresToolCallID returns true for non-Gemini models (Claude, GPT-OSS) served via
+// the Gemini API that require explicit tool call IDs.
+func requiresToolCallID(modelID string) bool {
+	return strings.HasPrefix(modelID, "claude-") || strings.HasPrefix(modelID, "gpt-oss-")
+}
+
+// normalizeGoogleToolCallID sanitizes a tool call ID for the Google API.
+func normalizeGoogleToolCallID(id string) string {
+	var b strings.Builder
+	b.Grow(len(id))
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	out := b.String()
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	return out
 }
 
 func isValidBase64Signature(sig string) bool {
