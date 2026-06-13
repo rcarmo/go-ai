@@ -339,9 +339,10 @@ type StreamOptions struct {
 	MaxRetries *int `json:"maxRetries,omitempty"`
 
 	// Simple mode
-	Reasoning       *ThinkingLevel   `json:"reasoning,omitempty"`
-	ThinkingBudgets *ThinkingBudgets `json:"thinkingBudgets,omitempty"`
-	ServiceTier     string           `json:"serviceTier,omitempty"`
+	Reasoning        *ThinkingLevel   `json:"reasoning,omitempty"`
+	ThinkingBudgets  *ThinkingBudgets `json:"thinkingBudgets,omitempty"`
+	ReasoningSummary string           `json:"reasoningSummary,omitempty"`
+	ServiceTier      string           `json:"serviceTier,omitempty"`
 
 	// Hooks for request/response interception
 

@@ -221,13 +221,21 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			// Copilot: omit reasoning block entirely if no effort requested,
 			// matching pi-ai's behavior for github-copilot without explicit effort.
 		} else {
-			req.Reasoning = &reasoningConfig{Effort: effort, Summary: "auto"}
+			summary := "auto"
+			if opts != nil && opts.ReasoningSummary != "" {
+				summary = opts.ReasoningSummary
+			}
+			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
 			req.Include = []string{"reasoning.encrypted_content"}
 		}
 	} else if opts != nil && opts.Reasoning != nil {
 		// Non-reasoning model but explicit reasoning requested — pass through if supported.
 		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
-			req.Reasoning = &reasoningConfig{Effort: effort, Summary: "auto"}
+			summary := "auto"
+			if opts != nil && opts.ReasoningSummary != "" {
+				summary = opts.ReasoningSummary
+			}
+			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
 			req.Include = []string{"reasoning.encrypted_content"}
 		}
 	} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && model.Provider != goai.ProviderGitHubCopilot {
@@ -729,11 +737,18 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					Code    string `json:"code"`
 					Message string `json:"message"`
 				} `json:"error"`
+				IncompleteDetails *struct {
+					Reason string `json:"reason"`
+				} `json:"incomplete_details"`
 			}
 			json.Unmarshal(raw.Response, &resp)
-			msg := "unknown error"
+			var msg string
 			if resp.Error != nil {
 				msg = fmt.Sprintf("%s: %s", resp.Error.Code, resp.Error.Message)
+			} else if resp.IncompleteDetails != nil && resp.IncompleteDetails.Reason != "" {
+				msg = "incomplete: " + resp.IncompleteDetails.Reason
+			} else {
+				msg = "Unknown error (no error details in response)"
 			}
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("%s", msg)}
 			return

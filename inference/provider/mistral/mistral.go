@@ -446,10 +446,12 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		switch *finishReason {
 		case "stop":
 			reason = goai.StopReasonStop
-		case "length":
+		case "length", "model_length":
 			reason = goai.StopReasonLength
 		case "tool_calls":
 			reason = goai.StopReasonToolUse
+		case "error":
+			reason = goai.StopReasonError
 		}
 	}
 	partial.StopReason = reason
