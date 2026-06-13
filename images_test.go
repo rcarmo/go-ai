@@ -120,15 +120,31 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	}
 }
 
-func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
-	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: "http://127.0.0.1", Output: []string{"image"}}
-	out, err := images.GenerateImages(model, images.ImagesContext{}, &images.ImagesOptions{APIKey: "test-key"})
-	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
-		t.Fatalf("expected empty input error result, got out=%#v err=%v", out, err)
+func TestGenerateImagesOpenRouterPayloadParityAndAbort(t *testing.T) {
+	var payload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"images": []any{}}}}})
+	}))
+	defer server.Close()
+	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"text"}}
+	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "bad\xed\xa0\x80"}, {Type: "bogus", MimeType: "image/png", Data: "aGk="}}}, &images.ImagesOptions{APIKey: "test-key"})
+	if err != nil || out.StopReason != goai.StopReasonStop {
+		t.Fatalf("expected request to succeed, got out=%#v err=%v", out, err)
 	}
-	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "bogus"}}}, &images.ImagesOptions{APIKey: "test-key"})
-	if err != nil || out.StopReason != goai.StopReasonError || out.ErrorMessage == "" {
-		t.Fatalf("expected unsupported input type error result, got out=%#v err=%v", out, err)
+	modalities, _ := payload["modalities"].([]any)
+	if len(modalities) != 2 || modalities[0] != "image" || modalities[1] != "text" {
+		t.Fatalf("expected upstream modalities [image text], got %#v", payload["modalities"])
+	}
+	messages := payload["messages"].([]any)
+	content := messages[0].(map[string]any)["content"].([]any)
+	if got := content[0].(map[string]any)["text"]; got != "bad" {
+		t.Fatalf("expected sanitized surrogate text, got %#v", got)
+	}
+	if content[1].(map[string]any)["type"] != "image_url" {
+		t.Fatalf("expected non-text input to become image_url, got %#v", content[1])
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -138,13 +154,13 @@ func TestGenerateImagesOpenRouterValidationAndAbort(t *testing.T) {
 		t.Fatalf("expected aborted result, got out=%#v err=%v", out, err)
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	abortServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 	}))
-	defer server.Close()
+	defer abortServer.Close()
 	ctx, cancel = context.WithCancel(context.Background())
 	cancel()
-	model.BaseURL = server.URL
+	model.BaseURL = abortServer.URL
 	out, err = images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{APIKey: "test-key", Context: ctx})
 	if err != nil || out.StopReason != goai.StopReasonAborted || out.ErrorMessage == "" {
 		t.Fatalf("expected client cancellation to abort without retry, got out=%#v err=%v", out, err)

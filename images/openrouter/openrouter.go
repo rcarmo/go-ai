@@ -135,31 +135,18 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 func buildImagesPayload(model *images.ImagesModel, ictx images.ImagesContext) (map[string]any, error) {
 	content := make([]any, 0, len(ictx.Input))
 	for _, in := range ictx.Input {
-		switch in.Type {
-		case "text":
-			content = append(content, map[string]any{"type": "text", "text": in.Text})
-		case "image":
-			content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:" + in.MimeType + ";base64," + in.Data}})
-		default:
-			return nil, fmt.Errorf("unsupported image input type %q", in.Type)
+		if in.Type == "text" {
+			content = append(content, map[string]any{"type": "text", "text": goai.SanitizeSurrogates(in.Text)})
+			continue
 		}
+		// Upstream treats every non-text image input block as an image_url.
+		content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:" + in.MimeType + ";base64," + in.Data}})
 	}
-	if len(content) == 0 {
-		return nil, fmt.Errorf("image context has no inputs")
-	}
-	modesSet := map[string]bool{}
+	modes := []string{"image"}
 	for _, o := range model.Output {
-		if o == "image" || o == "text" {
-			modesSet[o] = true
-		}
-	}
-	if !modesSet["image"] && !modesSet["text"] {
-		modesSet["image"] = true
-	}
-	modes := make([]string, 0, len(modesSet))
-	for _, o := range []string{"image", "text"} {
-		if modesSet[o] {
-			modes = append(modes, o)
+		if o == "text" {
+			modes = append(modes, "text")
+			break
 		}
 	}
 	return map[string]any{
