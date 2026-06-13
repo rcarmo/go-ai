@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -182,12 +183,13 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type anthropicRequest struct {
-	Model     string             `json:"model"`
-	MaxTokens int                `json:"max_tokens"`
-	System    string             `json:"system,omitempty"`
-	Messages  []anthropicMessage `json:"messages"`
-	Stream    bool               `json:"stream"`
-	Tools     []anthropicTool    `json:"tools,omitempty"`
+	Model       string             `json:"model"`
+	MaxTokens   int                `json:"max_tokens"`
+	System      string             `json:"system,omitempty"`
+	Messages    []anthropicMessage `json:"messages"`
+	Stream      bool               `json:"stream"`
+	Tools       []anthropicTool    `json:"tools,omitempty"`
+	Temperature *float64           `json:"temperature,omitempty"`
 }
 
 type anthropicMessage struct {
@@ -237,9 +239,19 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		System:    convCtx.SystemPrompt,
 	}
 
-	// Convert messages
+	// Temperature: gate on supportsTemperature and not-thinking (upstream parity)
+	thinkingEnabled := opts != nil && opts.Reasoning != nil && *opts.Reasoning != ""
+	supportsTemp := true
+	if model.AnthropicCompat != nil && model.AnthropicCompat.SupportsTemperature != nil {
+		supportsTemp = *model.AnthropicCompat.SupportsTemperature
+	}
+	if opts != nil && opts.Temperature != nil && !thinkingEnabled && supportsTemp {
+		req.Temperature = opts.Temperature
+	}
+
 	// Convert messages with cross-provider normalization
 	transformed := goai.TransformMessages(convCtx.Messages, model)
+	toolCallIDMap := make(map[string]string) // original → normalized
 	for _, m := range transformed {
 		switch m.Role {
 		case goai.RoleUser:
@@ -283,9 +295,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					blocks = append(blocks, anthropicContentBlock{Type: "text", Text: c.Text})
 				case "toolCall":
 					inputJSON, _ := json.Marshal(c.Arguments)
+					normID := normalizeAnthropicToolCallID(c.ID)
+					if normID != c.ID {
+						toolCallIDMap[c.ID] = normID
+					}
 					blocks = append(blocks, anthropicContentBlock{
 						Type:  "tool_use",
-						ID:    c.ID,
+						ID:    normID,
 						Name:  c.Name,
 						Input: inputJSON,
 					})
@@ -293,11 +309,15 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			}
 			req.Messages = append(req.Messages, anthropicMessage{Role: "assistant", Content: blocks})
 		case goai.RoleToolResult:
+			toolUseID := m.ToolCallID
+			if mapped, ok := toolCallIDMap[toolUseID]; ok {
+				toolUseID = mapped
+			}
 			req.Messages = append(req.Messages, anthropicMessage{
 				Role: "user",
 				Content: []anthropicContentBlock{{
 					Type:      "tool_result",
-					ToolUseID: m.ToolCallID,
+					ToolUseID: toolUseID,
 					Content:   extractText(m.Content),
 					IsError:   m.IsError,
 				}},
@@ -522,4 +542,16 @@ func computeCosts(usage *goai.Usage, model *goai.Model) {
 	usage.Cost.CacheRead = float64(usage.CacheRead) * model.Cost.CacheRead / m
 	usage.Cost.CacheWrite = float64(usage.CacheWrite) * model.Cost.CacheWrite / m
 	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
+}
+
+// normalizeAnthropicToolCallID sanitizes tool call IDs for Anthropic's requirements:
+// ^[a-zA-Z0-9_-]+$ max 64 characters.
+var anthropicToolCallIDRegex = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+func normalizeAnthropicToolCallID(id string) string {
+	normalized := anthropicToolCallIDRegex.ReplaceAllString(id, "_")
+	if len(normalized) > 64 {
+		normalized = normalized[:64]
+	}
+	return normalized
 }
