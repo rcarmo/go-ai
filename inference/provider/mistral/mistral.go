@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -188,6 +189,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Messages
 	transformed := goai.TransformMessages(convCtx.Messages, model)
+	toolCallIDMap := make(map[string]string)
 	for _, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleUser:
@@ -210,8 +212,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					texts = append(texts, b.Thinking)
 				case "toolCall":
 					argsJSON, _ := json.Marshal(b.Arguments)
+					normID := normalizeMistralToolCallID(b.ID)
+					if normID != b.ID {
+						toolCallIDMap[b.ID] = normID
+					}
 					m.ToolCalls = append(m.ToolCalls, mistralToolCall{
-						ID:       b.ID,
+						ID:       normID,
 						Type:     "function",
 						Function: mistralToolCallFunc{Name: b.Name, Arguments: string(argsJSON)},
 					})
@@ -233,10 +239,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					text += b.Text
 				}
 			}
+			tcID := msg.ToolCallID
+			if mapped, ok := toolCallIDMap[tcID]; ok {
+				tcID = mapped
+			}
 			req.Messages = append(req.Messages, mistralMsg{
 				Role:       "tool",
 				Content:    goai.SanitizeSurrogates(text),
-				ToolCallID: msg.ToolCallID,
+				ToolCallID: tcID,
 				Name:       msg.ToolName,
 			})
 		}
@@ -457,4 +467,24 @@ func usesReasoningEffort(model *goai.Model) bool {
 	default:
 		return false
 	}
+}
+
+const mistralToolCallIDLength = 9
+
+var mistralNonAlphanumRe = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+// normalizeMistralToolCallID normalizes tool call IDs to 9-char alphanumeric
+// strings as required by Mistral's API.
+func normalizeMistralToolCallID(id string) string {
+	normalized := mistralNonAlphanumRe.ReplaceAllString(id, "")
+	if len(normalized) == mistralToolCallIDLength {
+		return normalized
+	}
+	// Hash to produce a stable 9-char alphanumeric ID
+	h := goai.ShortHash(id)
+	result := mistralNonAlphanumRe.ReplaceAllString(h, "")
+	if len(result) > mistralToolCallIDLength {
+		return result[:mistralToolCallIDLength]
+	}
+	return result
 }
