@@ -444,7 +444,10 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 		case "message_delta":
 			var data struct {
 				Delta struct {
-					StopReason string `json:"stop_reason"`
+					StopReason  string `json:"stop_reason"`
+					StopDetails struct {
+						Explanation string `json:"explanation"`
+					} `json:"stop_details"`
 				} `json:"delta"`
 				Usage struct {
 					OutputTokens int `json:"output_tokens"`
@@ -457,12 +460,19 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output
 
 			switch data.Delta.StopReason {
-			case "end_turn":
+			case "end_turn", "pause_turn", "stop_sequence":
 				partial.StopReason = goai.StopReasonStop
 			case "max_tokens":
 				partial.StopReason = goai.StopReasonLength
 			case "tool_use":
 				partial.StopReason = goai.StopReasonToolUse
+			case "refusal", "sensitive":
+				partial.StopReason = goai.StopReasonError
+				if data.Delta.StopDetails.Explanation != "" {
+					partial.ErrorMessage = data.Delta.StopDetails.Explanation
+				} else {
+					partial.ErrorMessage = "The model refused to complete the request"
+				}
 			}
 
 		case "message_start":
