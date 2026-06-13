@@ -34,6 +34,7 @@ var providerEnvMap = map[Provider][]string{
 	ProviderXiaomiTokenPlanCN:   {"XIAOMI_TOKEN_PLAN_CN_API_KEY"},
 	ProviderXiaomiTokenPlanAMS:  {"XIAOMI_TOKEN_PLAN_AMS_API_KEY"},
 	ProviderXiaomiTokenPlanSGP:  {"XIAOMI_TOKEN_PLAN_SGP_API_KEY"},
+	ProviderTogether:            {"TOGETHER_API_KEY"},
 	ProviderAntLing:             {"ANT_LING_API_KEY"},
 	ProviderNvidia:              {"NVIDIA_API_KEY"},
 	ProviderZAICodingCN:         {"ZAI_CODING_CN_API_KEY"},

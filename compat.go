@@ -170,86 +170,106 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompletionsCompat {
 	c := OpenAICompletionsCompat{}
 
-	isGroq := provider == ProviderGroq || contains(baseURL, "groq.com")
-	isCerebras := provider == ProviderCerebras || contains(baseURL, "cerebras.ai")
-	isXAI := provider == ProviderXAI || contains(baseURL, "x.ai") || contains(baseURL, "xai.com")
 	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
 	isOllama := isLocalOllamaURL(baseURL)
-	isZAI := provider == ProviderZAI || provider == ProviderZAICodingCN || contains(baseURL, "z.ai") || contains(baseURL, "zai.com") || contains(baseURL, "open.bigmodel.cn")
-	isNvidia := provider == ProviderNvidia || contains(baseURL, "integrate.api.nvidia.com")
-	isAntLing := provider == ProviderAntLing || contains(baseURL, "api.ant-ling.com")
-	isVercel := provider == ProviderVercelAIGateway || contains(baseURL, "gateway.vercel.ai") || contains(baseURL, "sdk.vercel.ai")
-	isQwen := contains(baseURL, "dashscope.aliyuncs.com")
-	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURL, "xiaomimimo.com")
-	isDeepSeek := provider == ProviderDeepSeek || isXiaomi || contains(baseURL, "deepseek.com")
+	isZAI := provider == ProviderZAI || provider == ProviderZAICodingCN || contains(baseURL, "api.z.ai") || contains(baseURL, "open.bigmodel.cn")
+	isTogether := provider == ProviderTogether || contains(baseURL, "api.together.ai") || contains(baseURL, "api.together.xyz")
 	isMoonshot := provider == ProviderMoonshotAI || provider == ProviderMoonshotAICN || contains(baseURL, "api.moonshot.")
 	isCloudflareWorkersAI := provider == ProviderCloudflareWorkersAI || contains(baseURL, "api.cloudflare.com")
 	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURL, "gateway.ai.cloudflare.com")
-	isNonStandard := isCerebras || isXAI || contains(baseURL, "chutes.ai") || isDeepSeek || isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") || isCloudflareWorkersAI || isCloudflareAIGW || isOllama || isNvidia || isAntLing
-	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isOllama || isNvidia || isAntLing
+	isNvidia := provider == ProviderNvidia || contains(baseURL, "integrate.api.nvidia.com")
+	isAntLing := provider == ProviderAntLing || contains(baseURL, "api.ant-ling.com")
+	isGrok := provider == ProviderXAI || contains(baseURL, "api.x.ai")
+	isDeepSeek := provider == ProviderDeepSeek || contains(baseURL, "deepseek.com")
+	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURL, "xiaomimimo.com")
+
+	isNonStandard := isNvidia || provider == ProviderCerebras || contains(baseURL, "cerebras.ai") ||
+		isGrok || isTogether || contains(baseURL, "chutes.ai") || isDeepSeek || isXiaomi ||
+		isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") ||
+		isCloudflareWorkersAI || isCloudflareAIGW || isAntLing || isOllama
+	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isOllama
+
+	isOpenRouterDevRole := isOpenRouter && (strings.HasPrefix(modelID, "anthropic/") || strings.HasPrefix(modelID, "openai/"))
 
 	t := true
 	f := false
 
-	c.SupportsStore = &t
-	c.SupportsDeveloperRole = &t
-	c.SupportsReasoningEffort = &t
-	c.SupportsUsageInStreaming = &t
-	c.SupportsStrictMode = &t
-	c.SupportsLongCacheRetention = &t
-	c.MaxTokensField = "max_completion_tokens"
-	if useMaxTokens {
-		c.MaxTokensField = "max_tokens"
-	}
+	// supportsStore
 	if isNonStandard {
 		c.SupportsStore = &f
+	} else {
+		c.SupportsStore = &t
+	}
+
+	// supportsDeveloperRole
+	if isOpenRouterDevRole || (!isNonStandard && !isOpenRouter) {
+		c.SupportsDeveloperRole = &t
+	} else {
 		c.SupportsDeveloperRole = &f
 	}
 
-	if isGroq || isCerebras || isMoonshot || isCloudflareAIGW || isCloudflareWorkersAI {
+	// supportsReasoningEffort
+	if isGrok || isZAI || isMoonshot || isTogether || isCloudflareAIGW || isNvidia || isAntLing {
 		c.SupportsReasoningEffort = &f
-	}
-	if isXAI {
+	} else {
 		c.SupportsReasoningEffort = &t
 	}
-	if isOpenRouter {
-		c.ThinkingFormat = "openrouter"
+
+	c.SupportsUsageInStreaming = &t
+
+	// maxTokensField
+	if useMaxTokens {
+		c.MaxTokensField = "max_tokens"
+	} else {
+		c.MaxTokensField = "max_completion_tokens"
 	}
+
+	// requiresReasoningContentOnAssistantMessages
+	if isDeepSeek || isXiaomi {
+		c.RequiresReasoningContentOnAssistantMessages = &t
+	}
+
+	// thinkingFormat (priority order matches upstream ternary chain)
+	switch {
+	case isDeepSeek || isXiaomi:
+		c.ThinkingFormat = "deepseek"
+	case isZAI:
+		c.ThinkingFormat = "zai"
+	case isTogether:
+		c.ThinkingFormat = "together"
+	case isAntLing:
+		c.ThinkingFormat = "ant-ling"
+	case isOpenRouter:
+		c.ThinkingFormat = "openrouter"
+	default:
+		c.ThinkingFormat = "openai"
+	}
+
+	// supportsStrictMode
+	if isMoonshot || isTogether || isCloudflareAIGW || isNvidia {
+		c.SupportsStrictMode = &f
+	} else {
+		c.SupportsStrictMode = &t
+	}
+
+	// supportsLongCacheRetention
+	if isTogether || isCloudflareWorkersAI || isCloudflareAIGW || isNvidia || isAntLing {
+		c.SupportsLongCacheRetention = &f
+	} else {
+		c.SupportsLongCacheRetention = &t
+	}
+
+	// cacheControlFormat
+	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
+		c.CacheControlFormat = "anthropic"
+	}
+
+	// Ollama-specific overrides
 	if isOllama {
 		c.RequiresToolResultName = &t
 		c.SupportsStrictMode = &f
 	}
-	if isZAI {
-		c.ThinkingFormat = "zai"
-	}
-	if isVercel {
-		c.SupportsUsageInStreaming = &t
-	}
-	if isQwen {
-		c.ThinkingFormat = "qwen"
-	}
-	if isDeepSeek {
-		c.ThinkingFormat = "deepseek"
-		c.RequiresReasoningContentOnAssistantMessages = &t
-	}
-	if isAntLing {
-		c.ThinkingFormat = "ant-ling"
-	}
-	if isMoonshot || isCloudflareAIGW {
-		c.SupportsStrictMode = &f
-	}
-	if isCloudflareWorkersAI || isCloudflareAIGW {
-		c.SupportsLongCacheRetention = &f
-	}
-	if isOpenRouter {
-		// OpenRouter only supports developer role for Anthropic and OpenAI models
-		if !strings.HasPrefix(modelID, "anthropic/") && !strings.HasPrefix(modelID, "openai/") {
-			c.SupportsDeveloperRole = &f
-		}
-	}
-	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
-		c.CacheControlFormat = "anthropic"
-	}
+
 	return c
 }
 

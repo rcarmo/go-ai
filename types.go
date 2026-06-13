@@ -51,6 +51,7 @@ const (
 	ProviderHuggingFace         Provider = "huggingface"
 	ProviderFireworks           Provider = "fireworks"
 	ProviderOpenCode            Provider = "opencode"
+	ProviderTogether            Provider = "together"
 	ProviderOpenCodeGo          Provider = "opencode-go"
 	ProviderKimiCoding          Provider = "kimi-coding"
 	ProviderDeepSeek            Provider = "deepseek"
