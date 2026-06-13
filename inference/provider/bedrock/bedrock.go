@@ -117,6 +117,23 @@ func extractRegionFromURL(baseURL string) string {
 	return ""
 }
 
+// isGovCloudBedrockTarget checks if the model targets a GovCloud region.
+func isGovCloudBedrockTarget(model *goai.Model) bool {
+	// Check region from env or baseUrl
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = os.Getenv("AWS_DEFAULT_REGION")
+	}
+	if region == "" {
+		region = extractRegionFromURL(model.BaseURL)
+	}
+	if strings.HasPrefix(strings.ToLower(region), "us-gov-") {
+		return true
+	}
+	id := strings.ToLower(model.ID)
+	return strings.HasPrefix(id, "us-gov.") || strings.HasPrefix(id, "arn:aws-us-gov:")
+}
+
 // --- Request building ---
 
 func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) *bedrockruntime.ConverseStreamInput {
@@ -173,17 +190,28 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	// adaptive thinking with native effort strings; older models use token budgets.
 	if model.Reasoning && opts != nil && opts.Reasoning != nil {
 		var addFields map[string]interface{}
+		govCloud := isGovCloudBedrockTarget(model)
 		if supportsAdaptiveThinking(model) {
+			thinkingField := map[string]interface{}{"type": "adaptive"}
+			if !govCloud {
+				thinkingField["display"] = "summarized"
+			}
 			addFields = map[string]interface{}{
-				"thinking":      map[string]interface{}{"type": "adaptive", "display": "summarized"},
+				"thinking":      thinkingField,
 				"output_config": map[string]interface{}{"effort": mapThinkingLevelToEffort(model, *opts.Reasoning)},
 			}
 		} else {
+			budget := getThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets)
+			thinkingField := map[string]interface{}{
+				"type":          "enabled",
+				"budget_tokens": budget,
+			}
+			if !govCloud {
+				thinkingField["display"] = "summarized"
+			}
 			addFields = map[string]interface{}{
-				"thinking": map[string]interface{}{
-					"type":          "enabled",
-					"budget_tokens": getThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets),
-				},
+				"thinking":       thinkingField,
+				"anthropic_beta": []string{"interleaved-thinking-2025-05-14"},
 			}
 		}
 		input.AdditionalModelRequestFields = mustDocument(mustJSON(addFields))
@@ -367,7 +395,9 @@ func supportsAdaptiveThinking(model *goai.Model) bool {
 		return false
 	}
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
-		if strings.Contains(s, "opus-4-6") || strings.Contains(s, "opus-4-7") || strings.Contains(s, "sonnet-4-6") {
+		if strings.Contains(s, "opus-4-6") || strings.Contains(s, "opus-4-7") ||
+			strings.Contains(s, "opus-4-8") || strings.Contains(s, "sonnet-4-6") ||
+			strings.Contains(s, "fable-5") {
 			return true
 		}
 	}
@@ -379,7 +409,8 @@ func supportsNativeXhighEffort(model *goai.Model) bool {
 		return false
 	}
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
-		if strings.Contains(s, "opus-4-7") {
+		if strings.Contains(s, "opus-4-7") || strings.Contains(s, "opus-4-8") ||
+			strings.Contains(s, "fable-5") {
 			return true
 		}
 	}
