@@ -141,6 +141,19 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		ModelId: aws.String(model.ID),
 	}
 
+	// Resolve cache retention
+	cacheRetention := ""
+	if opts != nil && opts.CacheRetention != "" {
+		cacheRetention = string(opts.CacheRetention)
+	}
+	if cacheRetention == "" {
+		if os.Getenv("PI_CACHE_RETENTION") == "long" {
+			cacheRetention = "long"
+		} else {
+			cacheRetention = "short"
+		}
+	}
+
 	// System prompt
 	if convCtx.SystemPrompt != "" {
 		input.System = []types.SystemContentBlock{
@@ -148,10 +161,19 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 				Value: goai.SanitizeSurrogates(convCtx.SystemPrompt),
 			},
 		}
+		if cacheRetention != "none" && supportsPromptCaching(model) {
+			cp := types.CachePointBlock{Type: types.CachePointTypeDefault}
+			if cacheRetention == "long" {
+				cp.Ttl = types.CacheTTLOneHour
+			}
+			input.System = append(input.System, &types.SystemContentBlockMemberCachePoint{
+				Value: cp,
+			})
+		}
 	}
 
 	// Messages
-	input.Messages = convertMessages(convCtx, model)
+	input.Messages = convertMessages(convCtx, model, cacheRetention)
 
 	// Inference config
 	inferenceConfig := &types.InferenceConfiguration{}
@@ -220,7 +242,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	return input
 }
 
-func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
+func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention string) []types.Message {
 	var result []types.Message
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 
@@ -270,12 +292,16 @@ func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
 						continue
 					}
 					// Thinking blocks are sent via reasoningContent for Claude
-					// Fall back to text for non-Claude models
-					if isClaudeModel(model.ID, model.Name) && b.ThinkingSignature != "" {
-						// Would use reasoningContent here but the Go SDK types
-						// may not support it yet. Fall back to text.
-						content = append(content, &types.ContentBlockMemberText{
-							Value: goai.SanitizeSurrogates(b.Thinking),
+					if supportsThinkingSignature(model) && b.ThinkingSignature != "" {
+						text := goai.SanitizeSurrogates(b.Thinking)
+						sig := b.ThinkingSignature
+						content = append(content, &types.ContentBlockMemberReasoningContent{
+							Value: &types.ReasoningContentBlockMemberReasoningText{
+								Value: types.ReasoningTextBlock{
+									Text:      &text,
+									Signature: &sig,
+								},
+							},
 						})
 					} else {
 						content = append(content, &types.ContentBlockMemberText{
@@ -353,6 +379,18 @@ func convertMessages(convCtx *goai.Context, model *goai.Model) []types.Message {
 		}
 	}
 
+	// Add cache point to last user message for supported models
+	if cacheRetention != "none" && supportsPromptCaching(model) && len(result) > 0 {
+		last := &result[len(result)-1]
+		if last.Role == types.ConversationRoleUser && last.Content != nil {
+			cp := types.CachePointBlock{Type: types.CachePointTypeDefault}
+			if cacheRetention == "long" {
+				cp.Ttl = types.CacheTTLOneHour
+			}
+			last.Content = append(last.Content, &types.ContentBlockMemberCachePoint{Value: cp})
+		}
+	}
+
 	return result
 }
 
@@ -376,19 +414,6 @@ func getModelMatchCandidates(modelID string, modelName string) []string {
 	return candidates
 }
 
-func isClaudeModel(id string, name ...string) bool {
-	modelName := ""
-	if len(name) > 0 {
-		modelName = name[0]
-	}
-	candidates := getModelMatchCandidates(id, modelName)
-	for _, s := range candidates {
-		if strings.Contains(s, "anthropic.claude") || strings.Contains(s, "anthropic/claude") || strings.Contains(s, "anthropic-claude") {
-			return true
-		}
-	}
-	return false
-}
 
 func supportsAdaptiveThinking(model *goai.Model) bool {
 	if model == nil {
@@ -415,6 +440,58 @@ func supportsNativeXhighEffort(model *goai.Model) bool {
 		}
 	}
 	return false
+}
+
+// isAnthropicClaudeModel checks if the model is a Claude model on Bedrock.
+func isAnthropicClaudeModel(model *goai.Model) bool {
+	if model == nil {
+		return false
+	}
+	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
+		if strings.Contains(s, "claude") {
+			return true
+		}
+	}
+	return false
+}
+
+// supportsPromptCaching returns true for Bedrock Claude models that support cache points.
+func supportsPromptCaching(model *goai.Model) bool {
+	candidates := getModelMatchCandidates(model.ID, model.Name)
+	hasClaudeRef := false
+	for _, s := range candidates {
+		if strings.Contains(s, "claude") {
+			hasClaudeRef = true
+			break
+		}
+	}
+	if !hasClaudeRef {
+		return os.Getenv("AWS_BEDROCK_FORCE_CACHE") == "1"
+	}
+	// Claude 4.x models
+	for _, s := range candidates {
+		if strings.Contains(s, "-4-") {
+			return true
+		}
+	}
+	// Claude 3.7 Sonnet
+	for _, s := range candidates {
+		if strings.Contains(s, "claude-3-7-sonnet") {
+			return true
+		}
+	}
+	// Claude 3.5 Haiku
+	for _, s := range candidates {
+		if strings.Contains(s, "claude-3-5-haiku") {
+			return true
+		}
+	}
+	return false
+}
+
+// supportsThinkingSignature returns true for models that support reasoning signatures.
+func supportsThinkingSignature(model *goai.Model) bool {
+	return isAnthropicClaudeModel(model)
 }
 
 func mapThinkingLevelToEffort(model *goai.Model, level goai.ThinkingLevel) string {

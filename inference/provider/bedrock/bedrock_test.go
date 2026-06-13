@@ -46,8 +46,8 @@ func TestBuildConverseInputIncludesSystemToolsAndThinking(t *testing.T) {
 	if aws.ToString(input.ModelId) != model.ID {
 		t.Fatalf("unexpected model id: %q", aws.ToString(input.ModelId))
 	}
-	if len(input.System) != 1 {
-		t.Fatalf("expected 1 system block, got %d", len(input.System))
+	if len(input.System) != 2 { // text + cache point
+		t.Fatalf("expected 2 system blocks (text + cache point), got %d", len(input.System))
 	}
 	if len(input.Messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(input.Messages))
@@ -92,15 +92,15 @@ func TestConvertMessagesCoalescesConsecutiveToolResults(t *testing.T) {
 		{Role: goai.RoleToolResult, ToolCallID: "tc2", ToolName: "b", Content: []goai.ContentBlock{{Type: "text", Text: "two"}}, IsError: true},
 	}}
 
-	msgs := convertMessages(ctx, model)
+	msgs := convertMessages(ctx, model, "short")
 	if len(msgs) != 2 {
 		t.Fatalf("expected 2 bedrock messages, got %d", len(msgs))
 	}
 	if msgs[1].Role != types.ConversationRoleUser {
 		t.Fatalf("expected tool results to become user message, got %v", msgs[1].Role)
 	}
-	if len(msgs[1].Content) != 2 {
-		t.Fatalf("expected 2 tool result blocks, got %d", len(msgs[1].Content))
+	if len(msgs[1].Content) != 3 { // 2 tool results + cache point
+		t.Fatalf("expected 3 blocks (2 tool results + cache point), got %d", len(msgs[1].Content))
 	}
 }
 
