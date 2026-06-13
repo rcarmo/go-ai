@@ -215,3 +215,43 @@ func budgetForLevel(b ThinkingBudgets, level ThinkingLevel) int {
 		return 8192
 	}
 }
+
+// GetThinkingBudget returns the token budget for a given thinking level,
+// using custom budgets if provided, otherwise returning a sensible default.
+func GetThinkingBudget(level ThinkingLevel, custom *ThinkingBudgets) int {
+	if custom != nil {
+		switch level {
+		case ThinkingMinimal:
+			if custom.Minimal != nil {
+				return *custom.Minimal
+			}
+		case ThinkingLow:
+			if custom.Low != nil {
+				return *custom.Low
+			}
+		case ThinkingMedium:
+			if custom.Medium != nil {
+				return *custom.Medium
+			}
+		case ThinkingHigh, ThinkingXHigh:
+			if custom.High != nil {
+				return *custom.High
+			}
+		}
+	}
+	// Default budgets
+	switch level {
+	case ThinkingMinimal:
+		return 1024
+	case ThinkingLow:
+		return 2048
+	case ThinkingMedium:
+		return 4096
+	case ThinkingHigh:
+		return 8192
+	case ThinkingXHigh:
+		return 16384
+	default:
+		return 4096
+	}
+}

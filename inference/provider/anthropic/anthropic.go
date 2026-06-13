@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -25,6 +26,8 @@ const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
 	supportsLongCacheRetention      bool
+	forceAdaptiveThinking           bool
+	allowEmptySignature             bool
 }
 
 func getAnthropicCompat(model *goai.Model) anthropicCompat {
@@ -39,8 +42,38 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		if model.AnthropicCompat.SupportsLongCacheRetention != nil {
 			c.supportsLongCacheRetention = *model.AnthropicCompat.SupportsLongCacheRetention
 		}
+		if model.AnthropicCompat.ForceAdaptiveThinking != nil {
+			c.forceAdaptiveThinking = *model.AnthropicCompat.ForceAdaptiveThinking
+		}
+		if model.AnthropicCompat.AllowEmptySignature != nil {
+			c.allowEmptySignature = *model.AnthropicCompat.AllowEmptySignature
+		}
 	}
 	return c
+}
+
+// resolveCacheControl returns the cache_control annotation to use, or nil if caching is disabled.
+func resolveCacheControl(model *goai.Model, opts *goai.StreamOptions) *cacheControl {
+	retention := ""
+	if opts != nil && opts.CacheRetention != "" {
+		retention = string(opts.CacheRetention)
+	}
+	if retention == "" {
+		if os.Getenv("PI_CACHE_RETENTION") == "long" {
+			retention = "long"
+		} else {
+			retention = "short"
+		}
+	}
+	if retention == "none" {
+		return nil
+	}
+	compat := getAnthropicCompat(model)
+	cc := &cacheControl{Type: "ephemeral"}
+	if retention == "long" && compat.supportsLongCacheRetention {
+		cc.TTL = "1h"
+	}
+	return cc
 }
 
 func joinBetas(betas []string) string {
@@ -131,8 +164,10 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		// Beta features
 		var betas []string
-		betas = append(betas, interleavedThinkingBeta)
 		compat := getAnthropicCompat(model)
+		if !compat.forceAdaptiveThinking {
+			betas = append(betas, interleavedThinkingBeta)
+		}
 		if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
 			betas = append(betas, fineGrainedToolStreamingBeta)
 		}
@@ -183,14 +218,28 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type anthropicRequest struct {
-	Model       string             `json:"model"`
-	MaxTokens   int                `json:"max_tokens"`
-	System      string             `json:"system,omitempty"`
-	Messages    []anthropicMessage `json:"messages"`
-	Stream      bool               `json:"stream"`
-	Tools       []anthropicTool    `json:"tools,omitempty"`
-	Temperature *float64           `json:"temperature,omitempty"`
+	Model        string              `json:"model"`
+	MaxTokens    int                 `json:"max_tokens"`
+	System       json.RawMessage     `json:"system,omitempty"`
+	Messages     []anthropicMessage  `json:"messages"`
+	Stream       bool                `json:"stream"`
+	Tools        []anthropicTool     `json:"tools,omitempty"`
+	Temperature  *float64            `json:"temperature,omitempty"`
+	Thinking     *anthropicThinking  `json:"thinking,omitempty"`
+	OutputConfig *anthropicOutput    `json:"output_config,omitempty"`
 }
+
+type anthropicThinking struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
+	Display      string `json:"display,omitempty"`
+}
+
+type anthropicOutput struct {
+	Effort string `json:"effort,omitempty"`
+}
+
+func boolPtr(b bool) *bool { return &b }
 
 type anthropicMessage struct {
 	Role    string      `json:"role"`
@@ -198,14 +247,17 @@ type anthropicMessage struct {
 }
 
 type anthropicContentBlock struct {
-	Type      string          `json:"type"`
-	Text      string          `json:"text,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	Name      string          `json:"name,omitempty"`
-	Input     json.RawMessage `json:"input,omitempty"`
-	ToolUseID string          `json:"tool_use_id,omitempty"`
-	Content   string          `json:"content,omitempty"`
-	IsError   bool            `json:"is_error,omitempty"`
+	Type         string          `json:"type"`
+	Text         string          `json:"text,omitempty"`
+	ID           string          `json:"id,omitempty"`
+	Name         string          `json:"name,omitempty"`
+	Input        json.RawMessage `json:"input,omitempty"`
+	ToolUseID    string          `json:"tool_use_id,omitempty"`
+	Content      string          `json:"content,omitempty"`
+	IsError      bool            `json:"is_error,omitempty"`
+	CacheControl *cacheControl   `json:"cache_control,omitempty"`
+	Thinking     string          `json:"thinking,omitempty"`
+	Signature    string          `json:"signature,omitempty"`
 
 	// Image
 	Source *anthropicImageSource `json:"source,omitempty"`
@@ -217,10 +269,17 @@ type anthropicImageSource struct {
 	Data      string `json:"data"`
 }
 
+type cacheControl struct {
+	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"`
+}
+
 type anthropicTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name                string          `json:"name"`
+	Description         string          `json:"description"`
+	InputSchema         json.RawMessage `json:"input_schema"`
+	CacheControl        *cacheControl   `json:"cache_control,omitempty"`
+	EagerInputStreaming *bool           `json:"eager_input_streaming,omitempty"`
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) anthropicRequest {
@@ -236,7 +295,21 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		Model:     model.ID,
 		MaxTokens: maxTokens,
 		Stream:    true,
-		System:    convCtx.SystemPrompt,
+	}
+
+	// System prompt with cache control
+	if convCtx.SystemPrompt != "" {
+		cc := resolveCacheControl(model, opts)
+		sysBlock := struct {
+			Type         string        `json:"type"`
+			Text         string        `json:"text"`
+			CacheControl *cacheControl `json:"cache_control,omitempty"`
+		}{
+			Type:         "text",
+			Text:         goai.SanitizeSurrogates(convCtx.SystemPrompt),
+			CacheControl: cc,
+		}
+		req.System, _ = json.Marshal([]interface{}{sysBlock})
 	}
 
 	// Temperature: gate on supportsTemperature and not-thinking (upstream parity)
@@ -247,6 +320,29 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 	if opts != nil && opts.Temperature != nil && !thinkingEnabled && supportsTemp {
 		req.Temperature = opts.Temperature
+	}
+
+	// Configure thinking mode
+	compat := getAnthropicCompat(model)
+	if model.Reasoning {
+		if thinkingEnabled {
+			if compat.forceAdaptiveThinking {
+				req.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
+				if opts != nil && opts.Reasoning != nil {
+					if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok && effort != "" {
+						req.OutputConfig = &anthropicOutput{Effort: effort}
+					}
+				}
+			} else {
+				// Budget-based thinking: adjust max_tokens to accommodate thinking budget
+				adjustedMax, budget := goai.AdjustMaxTokensForThinking(maxTokens, model.MaxTokens, *opts.Reasoning, opts.ThinkingBudgets)
+				req.MaxTokens = adjustedMax
+				req.Thinking = &anthropicThinking{Type: "enabled", BudgetTokens: budget, Display: "summarized"}
+			}
+		} else {
+			// Explicitly disable thinking if model supports it but not requested
+			req.Thinking = &anthropicThinking{Type: "disabled"}
+		}
 	}
 
 	// Convert messages with cross-provider normalization
@@ -289,8 +385,22 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			}
 		case goai.RoleAssistant:
 			var blocks []anthropicContentBlock
+			compat := getAnthropicCompat(model)
 			for _, c := range m.Content {
 				switch c.Type {
+				case "thinking":
+					if strings.TrimSpace(c.Thinking) == "" {
+						continue
+					}
+					if c.ThinkingSignature == "" || strings.TrimSpace(c.ThinkingSignature) == "" {
+						if compat.allowEmptySignature {
+							blocks = append(blocks, anthropicContentBlock{Type: "thinking", Thinking: goai.SanitizeSurrogates(c.Thinking), Signature: ""})
+						} else {
+							blocks = append(blocks, anthropicContentBlock{Type: "text", Text: goai.SanitizeSurrogates(c.Thinking)})
+						}
+					} else {
+						blocks = append(blocks, anthropicContentBlock{Type: "thinking", Thinking: goai.SanitizeSurrogates(c.Thinking), Signature: c.ThinkingSignature})
+					}
 				case "text":
 					blocks = append(blocks, anthropicContentBlock{Type: "text", Text: c.Text})
 				case "toolCall":
@@ -326,12 +436,32 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Convert tools
-	for _, t := range convCtx.Tools {
-		req.Tools = append(req.Tools, anthropicTool{
+	cc := resolveCacheControl(model, opts)
+	compatForTools := getAnthropicCompat(model)
+	for i, t := range convCtx.Tools {
+		tool := anthropicTool{
 			Name:        t.Name,
 			Description: t.Description,
 			InputSchema: t.Parameters,
-		})
+		}
+		if compatForTools.supportsEagerToolInputStreaming {
+			tool.EagerInputStreaming = boolPtr(true)
+		}
+		if cc != nil && i == len(convCtx.Tools)-1 {
+			tool.CacheControl = cc
+		}
+		req.Tools = append(req.Tools, tool)
+	}
+
+	// Add cache_control to the last user message's last block
+	if cc != nil && len(req.Messages) > 0 {
+		last := &req.Messages[len(req.Messages)-1]
+		if last.Role == "user" {
+			if blocks, ok := last.Content.([]anthropicContentBlock); ok && len(blocks) > 0 {
+				blocks[len(blocks)-1].CacheControl = cc
+				last.Content = blocks
+			}
+		}
 	}
 
 	return req

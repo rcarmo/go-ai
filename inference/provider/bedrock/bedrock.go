@@ -223,7 +223,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 				"output_config": map[string]interface{}{"effort": mapThinkingLevelToEffort(model, *opts.Reasoning)},
 			}
 		} else {
-			budget := getThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets)
+			budget := goai.GetThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets)
 			thinkingField := map[string]interface{}{
 				"type":          "enabled",
 				"budget_tokens": budget,
@@ -511,39 +511,6 @@ func mapThinkingLevelToEffort(model *goai.Model, level goai.ThinkingLevel) strin
 	}
 }
 
-func getThinkingBudget(level goai.ThinkingLevel, custom *goai.ThinkingBudgets) int {
-	if custom != nil {
-		switch level {
-		case goai.ThinkingMinimal:
-			if custom.Minimal != nil {
-				return *custom.Minimal
-			}
-		case goai.ThinkingLow:
-			if custom.Low != nil {
-				return *custom.Low
-			}
-		case goai.ThinkingMedium:
-			if custom.Medium != nil {
-				return *custom.Medium
-			}
-		case goai.ThinkingHigh, goai.ThinkingXHigh:
-			if custom.High != nil {
-				return *custom.High
-			}
-		}
-	}
-	defaults := map[goai.ThinkingLevel]int{
-		goai.ThinkingMinimal: 1024,
-		goai.ThinkingLow:     2048,
-		goai.ThinkingMedium:  8192,
-		goai.ThinkingHigh:    16384,
-		goai.ThinkingXHigh:   16384,
-	}
-	if v, ok := defaults[level]; ok {
-		return v
-	}
-	return 8192
-}
 
 func createImageBlock(mimeType, data string) types.ContentBlock {
 	decoded, err := base64.StdEncoding.DecodeString(data)

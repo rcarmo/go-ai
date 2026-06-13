@@ -93,6 +93,10 @@ type AnthropicMessagesCompat struct {
 
 	// Whether the provider supports the temperature parameter. Default: true.
 	SupportsTemperature *bool `json:"supportsTemperature,omitempty"`
+
+	// Whether the model uses adaptive thinking (type: "adaptive") instead of budget-based thinking.
+	// Models like Opus 4.7+, Fable 5 use this mode.
+	ForceAdaptiveThinking *bool `json:"forceAdaptiveThinking,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
