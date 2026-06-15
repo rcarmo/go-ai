@@ -140,11 +140,19 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 		return CostBreakdown{}
 	}
 	m := 1_000_000.0
+	longWrite := usage.CacheWrite1h
+	if longWrite < 0 {
+		longWrite = 0
+	}
+	if longWrite > usage.CacheWrite {
+		longWrite = usage.CacheWrite
+	}
+	shortWrite := usage.CacheWrite - longWrite
 	c := CostBreakdown{
 		Input:      float64(usage.Input) * model.Cost.Input / m,
 		Output:     float64(usage.Output) * model.Cost.Output / m,
 		CacheRead:  float64(usage.CacheRead) * model.Cost.CacheRead / m,
-		CacheWrite: float64(usage.CacheWrite) * model.Cost.CacheWrite / m,
+		CacheWrite: (float64(shortWrite)*model.Cost.CacheWrite + float64(longWrite)*model.Cost.Input*2) / m,
 	}
 	c.Total = c.Input + c.Output + c.CacheRead + c.CacheWrite
 	return c

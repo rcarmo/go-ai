@@ -237,6 +237,17 @@ func TestCalculateCost(t *testing.T) {
 	}
 }
 
+func TestCalculateCostAnthropicLongCacheWrite(t *testing.T) {
+	model := &goai.Model{Cost: goai.ModelCost{Input: 3.0, Output: 15.0, CacheRead: 0.3, CacheWrite: 3.75}}
+	usage := &goai.Usage{CacheWrite: 1000, CacheWrite1h: 250}
+	cost := goai.CalculateCost(model, usage)
+	// 750 short cache writes at 3.75/M + 250 1h writes at 2x input (6.0/M)
+	want := (750*3.75 + 250*6.0) / 1_000_000
+	if cost.CacheWrite < want-0.0000001 || cost.CacheWrite > want+0.0000001 {
+		t.Fatalf("unexpected long cache write cost: got %f want %f", cost.CacheWrite, want)
+	}
+}
+
 func TestModelsAreEqual(t *testing.T) {
 	a := &goai.Model{ID: "gpt-4o", Provider: "openai"}
 	b := &goai.Model{ID: "gpt-4o", Provider: "openai"}

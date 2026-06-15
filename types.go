@@ -197,12 +197,13 @@ type CostBreakdown struct {
 
 // Usage tracks token counts and costs for a single request.
 type Usage struct {
-	Input       int           `json:"input"`
-	Output      int           `json:"output"`
-	CacheRead   int           `json:"cacheRead"`
-	CacheWrite  int           `json:"cacheWrite"`
-	TotalTokens int           `json:"totalTokens"`
-	Cost        CostBreakdown `json:"cost"`
+	Input        int           `json:"input"`
+	Output       int           `json:"output"`
+	CacheRead    int           `json:"cacheRead"`
+	CacheWrite   int           `json:"cacheWrite"`
+	CacheWrite1h int           `json:"cacheWrite1h,omitempty"`
+	TotalTokens  int           `json:"totalTokens"`
+	Cost         CostBreakdown `json:"cost"`
 }
 
 // --- Diagnostics ---

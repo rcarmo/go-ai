@@ -218,15 +218,15 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type anthropicRequest struct {
-	Model        string              `json:"model"`
-	MaxTokens    int                 `json:"max_tokens"`
-	System       json.RawMessage     `json:"system,omitempty"`
-	Messages     []anthropicMessage  `json:"messages"`
-	Stream       bool                `json:"stream"`
-	Tools        []anthropicTool     `json:"tools,omitempty"`
-	Temperature  *float64            `json:"temperature,omitempty"`
-	Thinking     *anthropicThinking  `json:"thinking,omitempty"`
-	OutputConfig *anthropicOutput    `json:"output_config,omitempty"`
+	Model        string             `json:"model"`
+	MaxTokens    int                `json:"max_tokens"`
+	System       json.RawMessage    `json:"system,omitempty"`
+	Messages     []anthropicMessage `json:"messages"`
+	Stream       bool               `json:"stream"`
+	Tools        []anthropicTool    `json:"tools,omitempty"`
+	Temperature  *float64           `json:"temperature,omitempty"`
+	Thinking     *anthropicThinking `json:"thinking,omitempty"`
+	OutputConfig *anthropicOutput   `json:"output_config,omitempty"`
 }
 
 type anthropicThinking struct {
@@ -631,9 +631,12 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 				Message struct {
 					ID    string `json:"id"`
 					Usage struct {
-						InputTokens int `json:"input_tokens"`
-						CacheRead   int `json:"cache_read_input_tokens"`
-						CacheCreate int `json:"cache_creation_input_tokens"`
+						InputTokens   int `json:"input_tokens"`
+						CacheRead     int `json:"cache_read_input_tokens"`
+						CacheCreate   int `json:"cache_creation_input_tokens"`
+						CacheCreation struct {
+							Ephemeral1h int `json:"ephemeral_1h_input_tokens"`
+						} `json:"cache_creation"`
 					} `json:"usage"`
 				} `json:"message"`
 			}
@@ -644,6 +647,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			partial.Usage.Input = data.Message.Usage.InputTokens
 			partial.Usage.CacheRead = data.Message.Usage.CacheRead
 			partial.Usage.CacheWrite = data.Message.Usage.CacheCreate
+			partial.Usage.CacheWrite1h = data.Message.Usage.CacheCreation.Ephemeral1h
 
 		case "message_stop":
 			sawMessageStop = true
@@ -666,12 +670,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 }
 
 func computeCosts(usage *goai.Usage, model *goai.Model) {
-	m := 1_000_000.0
-	usage.Cost.Input = float64(usage.Input) * model.Cost.Input / m
-	usage.Cost.Output = float64(usage.Output) * model.Cost.Output / m
-	usage.Cost.CacheRead = float64(usage.CacheRead) * model.Cost.CacheRead / m
-	usage.Cost.CacheWrite = float64(usage.CacheWrite) * model.Cost.CacheWrite / m
-	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
+	usage.Cost = goai.CalculateCost(model, usage)
 }
 
 // normalizeAnthropicToolCallID sanitizes tool call IDs for Anthropic's requirements:

@@ -10,6 +10,40 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+func TestStreamAnthropicParsesOneHourCacheWriteUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: message_start\ndata: {\"message\":{\"id\":\"msg_1\",\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":2,\"cache_creation_input_tokens\":6,\"cache_creation\":{\"ephemeral_1h_input_tokens\":4}}}}\n\n"))
+		_, _ = w.Write([]byte("event: message_delta\ndata: {\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}\n\n"))
+		_, _ = w.Write([]byte("event: message_stop\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "claude-sonnet-4-20250514", Provider: goai.ProviderAnthropic, Api: goai.ApiAnthropicMessages, BaseURL: server.URL, Cost: goai.ModelCost{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+
+	var done *goai.DoneEvent
+	for ev := range streamAnthropic(context.Background(), model, convCtx, &goai.StreamOptions{APIKey: "test-key"}) {
+		switch e := ev.(type) {
+		case *goai.DoneEvent:
+			done = e
+		case *goai.ErrorEvent:
+			t.Fatalf("unexpected error: %v", e.Err)
+		}
+	}
+	if done == nil || done.Message == nil {
+		t.Fatalf("expected done event, got %#v", done)
+	}
+	usage := done.Message.Usage
+	if usage.CacheWrite != 6 || usage.CacheWrite1h != 4 {
+		t.Fatalf("unexpected cache usage: %#v", usage)
+	}
+	wantCacheWriteCost := (2*3.75 + 4*6.0) / 1_000_000
+	if usage.Cost.CacheWrite < wantCacheWriteCost-0.0000001 || usage.Cost.CacheWrite > wantCacheWriteCost+0.0000001 {
+		t.Fatalf("unexpected cache write cost: got %f want %f", usage.Cost.CacheWrite, wantCacheWriteCost)
+	}
+}
+
 func TestStreamAnthropicRetries429AndSucceeds(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

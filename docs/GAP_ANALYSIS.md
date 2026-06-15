@@ -2,9 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.0
+## Source: `@earendil-works/pi-ai` v0.79.4
 
 ## Sync history
+
+### v0.79.4 (2026-06-15)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.3` → `v0.79.4`) found:
+
+- **Type surface**: `Usage` gained optional `cacheWrite1h`, the Anthropic-reported subset of `cacheWrite` written with 1h retention.
+- **Cost calculation**: upstream now prices 1h cache writes as `2x` base input cost, while normal cache writes continue to use `model.cost.cacheWrite`.
+- **Anthropic provider**: `message_start.usage.cache_creation.ephemeral_1h_input_tokens` is parsed into `usage.cacheWrite1h`.
+- **Model registry**: refreshed to 971 models / 35 providers. Added `gemma-4-E2B-it`, `gemma-4-E4B-it`, `glm-5.2`, and `moonshotai/Kimi-K2.7-Code`; updated Claude thinking maps, MiniMax compat, and several Kimi/DeepSeek price/max-token fields.
+- **No other provider/runtime deltas**: direct diff of OpenAI Completions, OpenAI Responses, OpenAI Codex, Google, Mistral, Bedrock, image provider, OAuth, env-key, registry, and index surfaces found no further Go-facing changes.
+
+Actions:
+
+- Added `Usage.CacheWrite1h` and updated `CalculateCost` to match upstream 1h cache-write pricing.
+- Updated Anthropic SSE usage parsing and cost computation.
+- Regenerated `models_generated.go` from v0.79.4 (971 models / 35 providers).
+- Added regression coverage for Anthropic `cacheWrite1h` parsing and long-cache-write cost calculation.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.4 is fully synced in Go; this was a small type/model/Anthropic usage accounting update.
 
 ### v0.79.0 (2026-06-09)
 

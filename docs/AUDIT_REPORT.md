@@ -2,6 +2,29 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-15 v0.79.4 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.3` against `v0.79.4` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed `dist/types.d.ts` by adding optional `Usage.cacheWrite1h`, documenting Anthropic's split for the subset of cache-write tokens written with 1h retention.
+- Upstream changed `calculateCost()` so 1h cache writes are charged at `2x` the model input rate; short cache writes continue to use `model.cost.cacheWrite`.
+- Upstream changed only Anthropic provider runtime code, parsing `message_start.usage.cache_creation.ephemeral_1h_input_tokens` into `usage.cacheWrite1h`.
+- Upstream refreshed `models.generated.js`: 966/968-era Go registry now updates to 971 models / 35 providers for this release, with four model additions and a small set of pricing/max-token/thinking-map/compat changes.
+- Direct diff/audit of OpenAI Completions, OpenAI Responses, OpenAI Codex, Google, Mistral, Bedrock, image generation, env API keys, OAuth, provider registration, and index/type surfaces found no other Go-facing runtime deltas.
+
+Actions:
+
+- Added `Usage.CacheWrite1h` to the Go type surface.
+- Updated shared `CalculateCost` to match upstream's 1h cache-write accounting.
+- Updated Anthropic SSE usage parsing and reused shared cost calculation there.
+- Regenerated `models_generated.go` from the v0.79.4 upstream registry snapshot.
+- Added regression tests for long-cache-write cost calculation and Anthropic `cacheWrite1h` usage parsing.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.4`; the Go-facing changes were the usage/cost accounting fix, Anthropic parser update, regenerated model registry, and audit/doc updates.
+
 ## 2026-06-09 v0.79.0 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.78.1` against `v0.79.0` and audited `go-ai` parity.
