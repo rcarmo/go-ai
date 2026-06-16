@@ -220,6 +220,36 @@ func TestGetEnvAPIKeyAnthropic(t *testing.T) {
 	}
 }
 
+func TestGetEnvAPIKeyWithEnvBedrockAuthenticated(t *testing.T) {
+	key := goai.GetEnvAPIKeyWithEnv(goai.ProviderAmazonBedrock, goai.ProviderEnv{
+		"AWS_ACCESS_KEY_ID":     "akid",
+		"AWS_SECRET_ACCESS_KEY": "secret",
+	})
+	if key != "<authenticated>" {
+		t.Fatalf("expected authenticated marker, got %q", key)
+	}
+	key = goai.GetEnvAPIKeyWithEnv(goai.ProviderAmazonBedrock, goai.ProviderEnv{"AWS_BEARER_TOKEN_BEDROCK": "token"})
+	if key != "<authenticated>" {
+		t.Fatalf("expected bearer token authenticated marker, got %q", key)
+	}
+}
+
+func TestGetEnvAPIKeyWithEnvGoogleVertexADC(t *testing.T) {
+	dir := t.TempDir()
+	credentialsPath := dir + "/adc.json"
+	if err := os.WriteFile(credentialsPath, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	key := goai.GetEnvAPIKeyWithEnv(goai.ProviderGoogleVertex, goai.ProviderEnv{
+		"GOOGLE_APPLICATION_CREDENTIALS": credentialsPath,
+		"GOOGLE_CLOUD_PROJECT":           "project",
+		"GOOGLE_CLOUD_LOCATION":          "us-central1",
+	})
+	if key != "<authenticated>" {
+		t.Fatalf("expected ADC authenticated marker, got %q", key)
+	}
+}
+
 // --- Simple options ---
 
 func TestCalculateCost(t *testing.T) {

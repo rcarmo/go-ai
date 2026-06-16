@@ -12,6 +12,35 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+func TestResolveAzureResponsesConfigUsesEnvAndDeploymentMap(t *testing.T) {
+	model := &goai.Model{ID: "gpt-5", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses}
+	baseURL, deployment, apiVersion, err := resolveAzureResponsesConfig(model, &goai.StreamOptions{Env: goai.ProviderEnv{
+		"AZURE_OPENAI_RESOURCE_NAME":       "my-resource",
+		"AZURE_OPENAI_API_VERSION":         "2025-04-01-preview",
+		"AZURE_OPENAI_DEPLOYMENT_NAME_MAP": "gpt-5=gpt5-prod",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseURL != "https://my-resource.openai.azure.com/openai/v1/deployments/gpt5-prod" {
+		t.Fatalf("unexpected base URL: %q", baseURL)
+	}
+	if deployment != "gpt5-prod" || apiVersion != "2025-04-01-preview" {
+		t.Fatalf("unexpected deployment/version: %q %q", deployment, apiVersion)
+	}
+}
+
+func TestResolveAzureResponsesConfigNormalizesAzureHost(t *testing.T) {
+	model := &goai.Model{ID: "gpt-4.1", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses}
+	baseURL, _, _, err := resolveAzureResponsesConfig(model, &goai.StreamOptions{AzureBaseURL: "https://acct.openai.azure.com/openai/", AzureDeploymentName: "dep/one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseURL != "https://acct.openai.azure.com/openai/v1/deployments/dep%2Fone" {
+		t.Fatalf("unexpected normalized base URL: %q", baseURL)
+	}
+}
+
 func TestAzureResponsesRequestAppliesCleanupAndSessionHeaders(t *testing.T) {
 	var rawReq responsesRequest
 	var input []map[string]interface{}

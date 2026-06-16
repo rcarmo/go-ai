@@ -12,6 +12,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net/http"
+	urlpkg "net/url"
 	"strings"
 	"time"
 
@@ -51,7 +52,22 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
+		baseURL := model.BaseURL
+		requestModelID := model.ID
+		var azureAPIVersion string
+		if model.Api == goai.ApiAzureOpenAIResponses {
+			var err error
+			baseURL, requestModelID, azureAPIVersion, err = resolveAzureResponsesConfig(model, opts)
+			if err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				return
+			}
+		} else if goai.IsCloudflareProvider(model.Provider) {
+			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
+		}
+
 		body := buildRequest(model, convCtx, opts)
+		body.Model = requestModelID
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -63,11 +79,10 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		baseURL := model.BaseURL
-		if goai.IsCloudflareProvider(model.Provider) {
-			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
+		url := strings.TrimRight(baseURL, "/") + "/responses"
+		if model.Api == goai.ApiAzureOpenAIResponses && azureAPIVersion != "" {
+			url += "?api-version=" + urlpkg.QueryEscape(azureAPIVersion)
 		}
-		url := baseURL + "/responses"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -173,6 +188,91 @@ type toolDef struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
+}
+
+func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (baseURL string, deploymentName string, apiVersion string, err error) {
+	env := goai.ProviderEnvFromOptions(opts)
+	apiVersion = "v1"
+	deploymentName = model.ID
+	if opts != nil {
+		if opts.AzureAPIVersion != "" {
+			apiVersion = opts.AzureAPIVersion
+		}
+		if opts.AzureDeploymentName != "" {
+			deploymentName = opts.AzureDeploymentName
+		}
+	}
+	if v := goai.GetProviderEnvValue("AZURE_OPENAI_API_VERSION", env); apiVersion == "v1" && v != "" {
+		apiVersion = v
+	}
+	if deploymentName == model.ID {
+		if mapped := parseAzureDeploymentNameMap(goai.GetProviderEnvValue("AZURE_OPENAI_DEPLOYMENT_NAME_MAP", env))[model.ID]; mapped != "" {
+			deploymentName = mapped
+		}
+	}
+
+	if opts != nil && strings.TrimSpace(opts.AzureBaseURL) != "" {
+		baseURL = strings.TrimSpace(opts.AzureBaseURL)
+	}
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(goai.GetProviderEnvValue("AZURE_OPENAI_BASE_URL", env))
+	}
+	resourceName := ""
+	if opts != nil {
+		resourceName = opts.AzureResourceName
+	}
+	if resourceName == "" {
+		resourceName = goai.GetProviderEnvValue("AZURE_OPENAI_RESOURCE_NAME", env)
+	}
+	if baseURL == "" && resourceName != "" {
+		baseURL = "https://" + resourceName + ".openai.azure.com/openai/v1"
+	}
+	if baseURL == "" {
+		baseURL = model.BaseURL
+	}
+	if baseURL == "" {
+		return "", "", "", fmt.Errorf("Azure OpenAI base URL is required. Set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME, or pass AzureBaseURL, AzureResourceName, or model.BaseURL")
+	}
+	baseURL, err = normalizeAzureBaseURL(baseURL)
+	if err != nil {
+		return "", "", "", err
+	}
+	return baseURL + "/deployments/" + urlpkg.PathEscape(deploymentName), deploymentName, apiVersion, nil
+}
+
+func parseAzureDeploymentNameMap(value string) map[string]string {
+	out := map[string]string{}
+	for _, entry := range strings.Split(value, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		modelID := strings.TrimSpace(parts[0])
+		deployment := strings.TrimSpace(parts[1])
+		if modelID != "" && deployment != "" {
+			out[modelID] = deployment
+		}
+	}
+	return out
+}
+
+func normalizeAzureBaseURL(baseURL string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	u, err := urlpkg.Parse(trimmed)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("invalid Azure OpenAI base URL: %s", baseURL)
+	}
+	isAzureHost := strings.HasSuffix(u.Hostname(), ".openai.azure.com") || strings.HasSuffix(u.Hostname(), ".cognitiveservices.azure.com")
+	normalizedPath := strings.TrimRight(u.Path, "/")
+	if isAzureHost && (normalizedPath == "" || normalizedPath == "/" || normalizedPath == "/openai") {
+		u.Path = "/openai/v1"
+		u.RawQuery = ""
+	}
+	return strings.TrimRight(u.String(), "/"), nil
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {

@@ -84,7 +84,13 @@ func GetEnvAPIKeyWithEnv(provider Provider, env ProviderEnv) string {
 				return v
 			}
 		}
+		if provider == ProviderGoogleVertex && hasVertexADCCredentials(env) && (GetProviderEnvValue("GOOGLE_CLOUD_PROJECT", env) != "" || GetProviderEnvValue("GCLOUD_PROJECT", env) != "") && GetProviderEnvValue("GOOGLE_CLOUD_LOCATION", env) != "" {
+			return "<authenticated>"
+		}
 		return ""
+	}
+	if provider == ProviderAmazonBedrock && hasBedrockCredentials(env) {
+		return "<authenticated>"
 	}
 	// Fallback: try PROVIDER_API_KEY pattern
 	return envFallback(provider, env)
@@ -109,6 +115,31 @@ func ResolveAPIKey(model *Model, opts *StreamOptions) string {
 		return GetEnvAPIKeyWithEnv(model.Provider, env)
 	}
 	return ""
+}
+
+func hasVertexADCCredentials(env ProviderEnv) bool {
+	if p := GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env); p != "" {
+		_, err := os.Stat(p)
+		return err == nil
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		_, err = os.Stat(home + "/.config/gcloud/application_default_credentials.json")
+		return err == nil
+	}
+	return false
+}
+
+func hasBedrockCredentials(env ProviderEnv) bool {
+	if GetProviderEnvValue("AWS_PROFILE", env) != "" || GetProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", env) != "" {
+		return true
+	}
+	if GetProviderEnvValue("AWS_ACCESS_KEY_ID", env) != "" && GetProviderEnvValue("AWS_SECRET_ACCESS_KEY", env) != "" {
+		return true
+	}
+	if GetProviderEnvValue("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", env) != "" || GetProviderEnvValue("AWS_CONTAINER_CREDENTIALS_FULL_URI", env) != "" {
+		return true
+	}
+	return GetProviderEnvValue("AWS_WEB_IDENTITY_TOKEN_FILE", env) != ""
 }
 
 func envFallback(provider Provider, env ProviderEnv) string {

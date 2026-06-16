@@ -10,14 +10,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrockdoc "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	bearer "github.com/aws/smithy-go/auth/bearer"
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
@@ -43,24 +48,37 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		goai.GetLogger().Debug("stream start", "api", "bedrock-converse-stream", "provider", model.Provider, "model", model.ID)
 
-		// Resolve region
+		// Resolve region/config, matching upstream's precedence: ARN-embedded >
+		// scoped/process env > explicit endpoint region when pinned > us-east-1.
 		env := goai.ProviderEnvFromOptions(opts)
-		region := goai.GetProviderEnvValue("AWS_REGION", env)
+		configuredRegion := getConfiguredBedrockRegion(model, env)
+		ambientProfile := goai.GetProviderEnvValue("AWS_PROFILE", nil) != ""
+		endpointRegion := getStandardBedrockEndpointRegion(model.BaseURL)
+		useExplicitEndpoint := shouldUseExplicitBedrockEndpoint(model.BaseURL, configuredRegion, ambientProfile)
+		region := bedrockARNRegion(model.ID)
 		if region == "" {
-			region = goai.GetProviderEnvValue("AWS_DEFAULT_REGION", env)
+			region = configuredRegion
 		}
-		if region == "" {
-			// Try to extract from baseUrl
-			region = extractRegionFromURL(model.BaseURL)
+		if region == "" && endpointRegion != "" && useExplicitEndpoint {
+			region = endpointRegion
 		}
 		if region == "" {
 			region = "us-east-1"
 		}
 
+		loadOpts := []func(*config.LoadOptions) error{config.WithRegion(region)}
+		if profile := goai.GetProviderEnvValue("AWS_PROFILE", env); profile != "" {
+			loadOpts = append(loadOpts, config.WithSharedConfigProfile(profile))
+		}
+		if creds := getConfiguredBedrockCredentials(env); creds != nil {
+			loadOpts = append(loadOpts, config.WithCredentialsProvider(creds))
+		}
+		if goai.GetProviderEnvValue("AWS_BEDROCK_SKIP_AUTH", env) == "1" {
+			loadOpts = append(loadOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy-access-key", "dummy-secret-key", "")))
+		}
+
 		// Load AWS config
-		awsCfg, err := config.LoadDefaultConfig(ctx,
-			config.WithRegion(region),
-		)
+		awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 		if err != nil {
 			goai.GetLogger().Warn("AWS config error", "error", err)
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("AWS config: %w", err)}
@@ -69,9 +87,19 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		// Create client
 		clientOpts := []func(*bedrockruntime.Options){}
-		if model.BaseURL != "" {
+		if model.BaseURL != "" && useExplicitEndpoint {
 			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
 				o.BaseEndpoint = aws.String(model.BaseURL)
+			})
+		}
+		if token := goai.GetProviderEnvValue("AWS_BEARER_TOKEN_BEDROCK", env); token != "" && goai.GetProviderEnvValue("AWS_BEDROCK_SKIP_AUTH", env) != "1" {
+			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
+				o.BearerAuthTokenProvider = bearer.StaticTokenProvider{Token: bearer.Token{Value: token}}
+			})
+		}
+		if goai.GetProviderEnvValue("AWS_BEDROCK_FORCE_HTTP1", env) == "1" {
+			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
+				o.HTTPClient = &http.Client{Transport: &http.Transport{ForceAttemptHTTP2: false}}
 			})
 		}
 		client := bedrockruntime.NewFromConfig(awsCfg, clientOpts...)
@@ -105,28 +133,66 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 	return ch
 }
 
-func extractRegionFromURL(baseURL string) string {
-	// https://bedrock-runtime.us-east-1.amazonaws.com
-	lower := strings.ToLower(baseURL)
-	if idx := strings.Index(lower, "bedrock-runtime."); idx >= 0 {
-		rest := lower[idx+len("bedrock-runtime."):]
-		if end := strings.Index(rest, ".amazonaws"); end >= 0 {
-			return rest[:end]
-		}
+var standardBedrockEndpointRe = regexp.MustCompile(`^bedrock-runtime(?:-fips)?\.([a-z0-9-]+)\.amazonaws\.com(?:\.cn)?$`)
+
+func getConfiguredBedrockRegion(model *goai.Model, env goai.ProviderEnv) string {
+	if r := bedrockARNRegion(model.ID); r != "" {
+		return r
+	}
+	if r := goai.GetProviderEnvValue("AWS_REGION", env); r != "" {
+		return r
+	}
+	return goai.GetProviderEnvValue("AWS_DEFAULT_REGION", env)
+}
+
+func getConfiguredBedrockCredentials(env goai.ProviderEnv) aws.CredentialsProvider {
+	accessKeyID := goai.GetProviderEnvValue("AWS_ACCESS_KEY_ID", env)
+	secretAccessKey := goai.GetProviderEnvValue("AWS_SECRET_ACCESS_KEY", env)
+	if accessKeyID == "" || secretAccessKey == "" {
+		return nil
+	}
+	sessionToken := goai.GetProviderEnvValue("AWS_SESSION_TOKEN", env)
+	return credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, sessionToken)
+}
+
+func bedrockARNRegion(modelID string) string {
+	parts := strings.Split(modelID, ":")
+	if len(parts) >= 4 && strings.HasPrefix(parts[0], "arn") && strings.HasPrefix(parts[2], "bedrock") {
+		return parts[3]
 	}
 	return ""
 }
 
+func extractRegionFromURL(baseURL string) string {
+	return getStandardBedrockEndpointRegion(baseURL)
+}
+
+func getStandardBedrockEndpointRegion(baseURL string) string {
+	if baseURL == "" {
+		return ""
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return ""
+	}
+	m := standardBedrockEndpointRe.FindStringSubmatch(strings.ToLower(u.Hostname()))
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
+}
+
+func shouldUseExplicitBedrockEndpoint(baseURL, configuredRegion string, hasAmbientConfiguredProfile bool) bool {
+	endpointRegion := getStandardBedrockEndpointRegion(baseURL)
+	if endpointRegion == "" {
+		return baseURL != ""
+	}
+	return configuredRegion == "" && !hasAmbientConfiguredProfile
+}
+
 // isGovCloudBedrockTarget checks if the model targets a GovCloud region.
 func isGovCloudBedrockTarget(model *goai.Model, env goai.ProviderEnv) bool {
-	// Check region from env or baseUrl
-	region := goai.GetProviderEnvValue("AWS_REGION", env)
-	if region == "" {
-		region = goai.GetProviderEnvValue("AWS_DEFAULT_REGION", env)
-	}
-	if region == "" {
-		region = extractRegionFromURL(model.BaseURL)
-	}
+	region := getConfiguredBedrockRegion(model, env)
 	if strings.HasPrefix(strings.ToLower(region), "us-gov-") {
 		return true
 	}

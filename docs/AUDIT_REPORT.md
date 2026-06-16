@@ -11,7 +11,8 @@ Findings:
 - Upstream added `StreamOptions.env`, a provider-scoped environment override map used before `process.env` for provider runtime lookups.
 - Upstream updated env-key resolution and Cloudflare base URL placeholder substitution to honor scoped env overrides.
 - Upstream changed cache-retention default resolution so `PI_CACHE_RETENTION` can come from scoped env for OpenAI Completions, OpenAI Responses, Anthropic, and Bedrock paths.
-- Upstream adjusted Bedrock region/GovCloud/force-cache env handling to use scoped env values where applicable.
+- Upstream adjusted Bedrock region/GovCloud/force-cache env handling to use scoped env values where applicable; follow-up audit also aligned scoped AWS credentials/profile/bearer token, skip-auth, endpoint pinning, and HTTP/1 controls.
+- Upstream Azure OpenAI Responses exposes provider-specific API-version/resource/base-URL/deployment options plus env fallbacks and deployment-name map resolution; Go now mirrors those semantics in `StreamOptions` and request construction.
 - Upstream added Gemini latest Flash aliases to the Gemini 3 Flash thinking rule.
 - Upstream exposes `StreamOptions.websocketConnectTimeoutMs` for OpenAI Codex WebSocket connection setup; Go now carries this field and applies it to Codex WebSocket dialing.
 - Upstream refreshed `models.generated.js` to 975 models / 35 providers, adding GLM/Kimi variants and removing stale Gemini aliases; image models remained at 32 models / 1 provider.
@@ -20,12 +21,13 @@ Actions:
 
 - Added `ProviderEnv`, `StreamOptions.Env`, `ProviderEnvFromOptions`, scoped env lookup helpers, and cache-retention resolution helpers.
 - Added `StreamOptions.WebSocketConnectTimeoutMs` and wired it into OpenAI Codex WebSocket dialing.
-- Routed API-key resolution, Cloudflare placeholder substitution, cache-retention defaults, and Bedrock env decisions through scoped env while preserving normal process-env fallback.
+- Routed API-key resolution, Cloudflare placeholder substitution, cache-retention defaults, and Bedrock env/auth/endpoint decisions through scoped env while preserving normal process-env fallback.
+- Added Azure OpenAI Responses option fields and normalized Azure base URL/deployment/API-version resolution.
 - Updated Google Gemini Flash latest alias matching.
 - Regenerated `models_generated.go` from upstream v0.79.5 (975 models / 35 providers) and verified image model parity remained unchanged.
 - Re-ran the complete validation gate.
 
-Result: `go-ai` is synced with upstream `v0.79.5`; the Go-facing changes were scoped provider environment support, Codex WebSocket connect timeout parity, registry refresh, and the small Bedrock/cache-retention/Google alias updates.
+Result: `go-ai` is synced with upstream `v0.79.5`; the Go-facing changes were scoped provider environment support, Bedrock/Azure auth/config parity, Codex WebSocket connect timeout parity, registry refresh, and the small cache-retention/Google alias updates.
 
 ## 2026-06-15 v0.79.4 complete comparative audit (`@earendil-works/pi-ai`)
 

@@ -17,6 +17,8 @@ func TestExtractRegionFromURL(t *testing.T) {
 	}{
 		{"https://bedrock-runtime.us-east-1.amazonaws.com", "us-east-1"},
 		{"https://bedrock-runtime.eu-west-1.amazonaws.com", "eu-west-1"},
+		{"https://bedrock-runtime-fips.us-gov-west-1.amazonaws.com", "us-gov-west-1"},
+		{"https://bedrock-runtime.cn-north-1.amazonaws.com.cn", "cn-north-1"},
 		{"https://example.com", ""},
 		{"", ""},
 	}
@@ -24,6 +26,18 @@ func TestExtractRegionFromURL(t *testing.T) {
 		if got := extractRegionFromURL(tt.url); got != tt.want {
 			t.Fatalf("extractRegionFromURL(%q) = %q, want %q", tt.url, got, tt.want)
 		}
+	}
+}
+
+func TestShouldUseExplicitBedrockEndpoint(t *testing.T) {
+	if !shouldUseExplicitBedrockEndpoint("https://bedrock-runtime.us-east-1.amazonaws.com", "", false) {
+		t.Fatal("expected standard endpoint to be pinned when no region/profile is configured")
+	}
+	if shouldUseExplicitBedrockEndpoint("https://bedrock-runtime.us-east-1.amazonaws.com", "eu-west-1", false) {
+		t.Fatal("expected standard endpoint not to be pinned when a region is configured")
+	}
+	if !shouldUseExplicitBedrockEndpoint("https://custom-bedrock-proxy.example.com", "eu-west-1", true) {
+		t.Fatal("expected custom endpoints to remain explicit")
 	}
 }
 

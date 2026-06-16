@@ -337,6 +337,12 @@ type StreamOptions struct {
 	Metadata        map[string]any    `json:"metadata,omitempty"`
 	Env             ProviderEnv       `json:"env,omitempty"`
 
+	// Azure OpenAI Responses provider-specific options.
+	AzureAPIVersion     string `json:"azureApiVersion,omitempty"`
+	AzureResourceName   string `json:"azureResourceName,omitempty"`
+	AzureBaseURL        string `json:"azureBaseUrl,omitempty"`
+	AzureDeploymentName string `json:"azureDeploymentName,omitempty"`
+
 	// SDK-level timeout and retry (for providers that use SDK clients).
 	// These are passed through to the underlying SDK client when applicable.
 	TimeoutMs                 *int `json:"timeoutMs,omitempty"`
