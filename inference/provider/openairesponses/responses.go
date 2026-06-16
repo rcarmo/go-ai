@@ -101,11 +101,13 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				req.Header.Set(k, v)
 			}
 		} else if opts != nil && opts.SessionID != "" {
-			// Standard OpenAI: send session_id header if compat allows
+			// Standard OpenAI: send session_id header if compat allows; always
+			// send x-client-request-id for session affinity (matches upstream).
 			compat := getResponsesCompat(model)
 			if compat.sendSessionIdHeader {
 				req.Header.Set("session_id", opts.SessionID)
 			}
+			req.Header.Set("x-client-request-id", opts.SessionID)
 		}
 
 		if opts != nil {
@@ -120,10 +122,8 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 		// Dynamic Copilot headers
 		if model.Provider == goai.ProviderGitHubCopilot {
-			req.Header.Set("X-Initiator", inferCopilotInitiator(convCtx.Messages))
-			req.Header.Set("Openai-Intent", "conversation-edits")
-			if hasCopilotVisionInput(convCtx.Messages) {
-				req.Header.Set("Copilot-Vision-Request", "true")
+			for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
+				req.Header.Set(k, v)
 			}
 		}
 
@@ -882,26 +882,10 @@ func mapStatus(status string) goai.StopReason {
 
 // inferCopilotInitiator determines X-Initiator header value based on last message role.
 func inferCopilotInitiator(messages []goai.Message) string {
-	if len(messages) == 0 {
-		return "user"
-	}
-	last := messages[len(messages)-1]
-	if last.Role != goai.RoleUser {
-		return "agent"
-	}
-	return "user"
+	return goai.InferCopilotInitiator(messages)
 }
 
 // hasCopilotVisionInput checks if any user or toolResult message contains images.
 func hasCopilotVisionInput(messages []goai.Message) bool {
-	for _, msg := range messages {
-		if msg.Role == goai.RoleUser || msg.Role == goai.RoleToolResult {
-			for _, c := range msg.Content {
-				if c.Type == "image" {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return goai.HasCopilotVisionInput(messages)
 }

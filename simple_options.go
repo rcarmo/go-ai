@@ -123,12 +123,13 @@ func AdjustMaxTokensForThinking(baseMaxTokens, modelMaxTokens int, level Thinkin
 	if maxTokens < 0 {
 		maxTokens = 0
 	}
-	availableForThinking := maxTokens - minOutputTokens
-	if availableForThinking < 0 {
-		availableForThinking = 0
-	}
-	if thinkingBudget > availableForThinking {
-		thinkingBudget = availableForThinking
+	// Mirror upstream: only carve out room for output when thinking would
+	// consume the entire max_tokens budget (maxTokens <= thinkingBudget).
+	if maxTokens <= thinkingBudget {
+		thinkingBudget = maxTokens - minOutputTokens
+		if thinkingBudget < 0 {
+			thinkingBudget = 0
+		}
 	}
 
 	return maxTokens, thinkingBudget

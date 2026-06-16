@@ -34,6 +34,47 @@ func SanitizeSurrogates(text string) string {
 
 // --- GitHub Copilot headers ---
 
+// InferCopilotInitiator determines the X-Initiator header value based on the
+// last message role: "agent" for non-user-initiated follow-ups, otherwise "user".
+func InferCopilotInitiator(messages []Message) string {
+	if len(messages) == 0 {
+		return "user"
+	}
+	last := messages[len(messages)-1]
+	if last.Role != RoleUser {
+		return "agent"
+	}
+	return "user"
+}
+
+// HasCopilotVisionInput reports whether any user or toolResult message contains
+// image content (Copilot requires the Copilot-Vision-Request header for images).
+func HasCopilotVisionInput(messages []Message) bool {
+	for _, msg := range messages {
+		if msg.Role == RoleUser || msg.Role == RoleToolResult {
+			for _, c := range msg.Content {
+				if c.Type == "image" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// BuildCopilotDynamicHeaders builds the per-request GitHub Copilot headers
+// (X-Initiator, Openai-Intent, and optionally Copilot-Vision-Request).
+func BuildCopilotDynamicHeaders(messages []Message) map[string]string {
+	headers := map[string]string{
+		"X-Initiator":   InferCopilotInitiator(messages),
+		"Openai-Intent": "conversation-edits",
+	}
+	if HasCopilotVisionInput(messages) {
+		headers["Copilot-Vision-Request"] = "true"
+	}
+	return headers
+}
+
 // CopilotHeaders returns the standard headers required for GitHub Copilot API calls.
 func CopilotHeaders() map[string]string {
 	return map[string]string{

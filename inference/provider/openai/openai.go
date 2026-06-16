@@ -88,9 +88,16 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		// Session affinity headers for prompt caching
 		compat := goai.DetectCompatForModel(model)
 		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" {
-			req.Header.Set("x-session-id", opts.SessionID)
+			req.Header.Set("session_id", opts.SessionID)
 			req.Header.Set("x-client-request-id", opts.SessionID)
 			req.Header.Set("x-session-affinity", opts.SessionID)
+		}
+
+		// Dynamic Copilot headers
+		if model.Provider == goai.ProviderGitHubCopilot {
+			for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
+				req.Header.Set(k, v)
+			}
 		}
 
 		// Apply custom headers

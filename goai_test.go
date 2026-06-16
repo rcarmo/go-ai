@@ -409,3 +409,31 @@ func TestClampThinkingLevelPrefersUpgrade(t *testing.T) {
 		t.Fatalf("expected unsupported medium to upgrade to high, got %q", got)
 	}
 }
+
+func TestBuildCopilotDynamicHeaders(t *testing.T) {
+	// Last message from user => user-initiated, no images.
+	h := goai.BuildCopilotDynamicHeaders([]goai.Message{
+		{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "hi"}}},
+	})
+	if h["X-Initiator"] != "user" {
+		t.Fatalf("expected X-Initiator=user, got %q", h["X-Initiator"])
+	}
+	if h["Openai-Intent"] != "conversation-edits" {
+		t.Fatalf("expected Openai-Intent=conversation-edits, got %q", h["Openai-Intent"])
+	}
+	if _, ok := h["Copilot-Vision-Request"]; ok {
+		t.Fatal("did not expect Copilot-Vision-Request without images")
+	}
+
+	// Last message from assistant => agent-initiated; user image present => vision.
+	h = goai.BuildCopilotDynamicHeaders([]goai.Message{
+		{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "image"}}},
+		{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "ok"}}},
+	})
+	if h["X-Initiator"] != "agent" {
+		t.Fatalf("expected X-Initiator=agent, got %q", h["X-Initiator"])
+	}
+	if h["Copilot-Vision-Request"] != "true" {
+		t.Fatalf("expected Copilot-Vision-Request=true, got %q", h["Copilot-Vision-Request"])
+	}
+}

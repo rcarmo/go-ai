@@ -10,7 +10,7 @@ var providerEnvMap = map[Provider][]string{
 	ProviderGoogle:              {"GEMINI_API_KEY"},
 	ProviderGoogleVertex:        {"GOOGLE_CLOUD_API_KEY"},
 	ProviderAzureOpenAI:         {"AZURE_OPENAI_API_KEY"},
-	ProviderGitHubCopilot:       {"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"},
+	ProviderGitHubCopilot:       {"COPILOT_GITHUB_TOKEN"},
 	ProviderMistral:             {"MISTRAL_API_KEY"},
 	ProviderXAI:                 {"XAI_API_KEY"},
 	ProviderGroq:                {"GROQ_API_KEY"},
