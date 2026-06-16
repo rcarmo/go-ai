@@ -2,6 +2,28 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-16 v0.79.5 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.4` against `v0.79.5` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream added `StreamOptions.env`, a provider-scoped environment override map used before `process.env` for provider runtime lookups.
+- Upstream updated env-key resolution and Cloudflare base URL placeholder substitution to honor scoped env overrides.
+- Upstream changed cache-retention default resolution so `PI_CACHE_RETENTION` can come from scoped env for OpenAI Completions, OpenAI Responses, Anthropic, and Bedrock paths.
+- Upstream adjusted Bedrock region/GovCloud/force-cache env handling to use scoped env values where applicable.
+- Upstream added Gemini latest Flash aliases to the Gemini 3 Flash thinking rule.
+- Direct diff/audit of the published `dist` artifacts found no model-registry refresh and no other Go-facing runtime deltas.
+
+Actions:
+
+- Added `ProviderEnv`, `StreamOptions.Env`, `ProviderEnvFromOptions`, scoped env lookup helpers, and cache-retention resolution helpers.
+- Routed API-key resolution, Cloudflare placeholder substitution, cache-retention defaults, and Bedrock env decisions through scoped env while preserving normal process-env fallback.
+- Updated Google Gemini Flash latest alias matching.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.5`; the Go-facing changes were scoped provider environment support plus the small Bedrock/cache-retention/Google alias parity updates.
+
 ## 2026-06-15 v0.79.4 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.3` against `v0.79.4` and audited `go-ai` parity.

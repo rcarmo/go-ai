@@ -40,26 +40,60 @@ var providerEnvMap = map[Provider][]string{
 	ProviderZAICodingCN:         {"ZAI_CODING_CN_API_KEY"},
 }
 
+// GetProviderEnvValue returns a provider-scoped environment override when
+// present, otherwise it falls back to the process environment.
+func ProviderEnvFromOptions(opts *StreamOptions) ProviderEnv {
+	if opts == nil {
+		return nil
+	}
+	return opts.Env
+}
+
+func GetProviderEnvValue(name string, env ProviderEnv) string {
+	if env != nil {
+		if v, ok := env[name]; ok {
+			return v
+		}
+	}
+	return os.Getenv(name)
+}
+
+func ResolveCacheRetention(cacheRetention CacheRetention, env ProviderEnv) CacheRetention {
+	if cacheRetention != "" {
+		return cacheRetention
+	}
+	if GetProviderEnvValue("PI_CACHE_RETENTION", env) == "long" {
+		return CacheRetentionLong
+	}
+	return CacheRetentionShort
+}
+
 // GetEnvAPIKey looks up an API key from environment variables
 // using the same conventions as pi-ai.
 func GetEnvAPIKey(provider Provider) string {
+	return GetEnvAPIKeyWithEnv(provider, nil)
+}
+
+// GetEnvAPIKeyWithEnv looks up an API key, preferring provider-scoped env
+// overrides over the process environment.
+func GetEnvAPIKeyWithEnv(provider Provider, env ProviderEnv) string {
 	envNames, ok := providerEnvMap[provider]
 	if ok {
 		for _, name := range envNames {
-			if v := os.Getenv(name); v != "" {
+			if v := GetProviderEnvValue(name, env); v != "" {
 				return v
 			}
 		}
 		return ""
 	}
 	// Fallback: try PROVIDER_API_KEY pattern
-	return envFallback(provider)
+	return envFallback(provider, env)
 }
 
 // ResolveAPIKey returns the API key for a request, checking in order:
 // 1. Explicit option
 // 2. Model-level key
-// 3. Environment variable (via GetEnvAPIKey)
+// 3. Provider-scoped/process environment variable (via GetEnvAPIKeyWithEnv)
 func ResolveAPIKey(model *Model, opts *StreamOptions) string {
 	if opts != nil && opts.APIKey != "" {
 		return opts.APIKey
@@ -68,12 +102,16 @@ func ResolveAPIKey(model *Model, opts *StreamOptions) string {
 		return model.APIKey
 	}
 	if model != nil {
-		return GetEnvAPIKey(model.Provider)
+		var env ProviderEnv
+		if opts != nil {
+			env = opts.Env
+		}
+		return GetEnvAPIKeyWithEnv(model.Provider, env)
 	}
 	return ""
 }
 
-func envFallback(provider Provider) string {
+func envFallback(provider Provider, env ProviderEnv) string {
 	// Generic: uppercase, replace - with _, append _API_KEY
 	upper := ""
 	for _, c := range string(provider) {
@@ -85,5 +123,5 @@ func envFallback(provider Provider) string {
 			upper += string(c)
 		}
 	}
-	return os.Getenv(upper + "_API_KEY")
+	return GetProviderEnvValue(upper+"_API_KEY", env)
 }

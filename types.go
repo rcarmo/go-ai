@@ -322,6 +322,8 @@ type ThinkingBudgets struct {
 }
 
 // StreamOptions controls a single stream/complete request.
+type ProviderEnv map[string]string
+
 type StreamOptions struct {
 	Temperature     *float64          `json:"temperature,omitempty"`
 	MaxTokens       *int              `json:"maxTokens,omitempty"`
@@ -333,6 +335,7 @@ type StreamOptions struct {
 	MaxRetryDelayMs *int              `json:"maxRetryDelayMs,omitempty"`
 	RetryConfig     *RetryConfig      `json:"-"`
 	Metadata        map[string]any    `json:"metadata,omitempty"`
+	Env             ProviderEnv       `json:"env,omitempty"`
 
 	// SDK-level timeout and retry (for providers that use SDK clients).
 	// These are passed through to the underlying SDK client when applicable.

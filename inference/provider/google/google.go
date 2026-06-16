@@ -692,7 +692,8 @@ func isGemini3ProModel(model *goai.Model) bool {
 }
 
 func isGemini3FlashModel(model *goai.Model) bool {
-	return gemini3FlashRe.MatchString(model.ID)
+	id := strings.ToLower(model.ID)
+	return gemini3FlashRe.MatchString(id) || id == "gemini-flash-latest" || id == "gemini-flash-lite-latest"
 }
 
 func isGemma4Model(model *goai.Model) bool {

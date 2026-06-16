@@ -2,9 +2,28 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.4
+## Source: `@earendil-works/pi-ai` v0.79.5
 
 ## Sync history
+
+### v0.79.5 (2026-06-16)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.4` → `v0.79.5`) found:
+
+- **Scoped provider env**: upstream added `StreamOptions.env` and routes provider runtime env lookups through it before process env.
+- **API keys and Cloudflare placeholders**: env key resolution and Cloudflare `{VAR}` base URL expansion now honor scoped env overrides.
+- **Cache retention**: `PI_CACHE_RETENTION` can be provided via scoped env for OpenAI Completions, OpenAI Responses, Anthropic, and Bedrock defaults.
+- **Bedrock**: AWS region/GovCloud detection and force-cache override now use scoped env where relevant.
+- **Google**: `gemini-flash-latest` and `gemini-flash-lite-latest` are included in the Gemini 3 Flash thinking behavior.
+- **No registry refresh**: upstream `v0.79.5` did not require regenerating `models_generated.go`.
+
+Actions:
+
+- Added `ProviderEnv`, `StreamOptions.Env`, and scoped env/cache-retention helper functions.
+- Updated provider API-key resolution, Cloudflare base URL substitution, cache-retention defaults, Bedrock env handling, and Google Flash latest alias matching.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.5 is fully synced in Go; this was a scoped-env/runtime parity update with no model registry changes.
 
 ### v0.79.4 (2026-06-15)
 

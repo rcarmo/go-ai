@@ -65,7 +65,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		baseURL := model.BaseURL
 		if goai.IsCloudflareProvider(model.Provider) {
-			baseURL = goai.ResolveCloudflareBaseURL(model)
+			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
 		}
 		url := baseURL + "/responses"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
@@ -244,10 +244,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Cache retention (compat-driven)
 	compat := getResponsesCompat(model)
-	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
+	cacheRetention := goai.CacheRetentionShort
+	if opts != nil {
+		cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
+	}
+	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
 		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
-	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
+	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
 		req.PromptCacheRetention = "24h"
 	}
 	if opts != nil && opts.ServiceTier != "" {

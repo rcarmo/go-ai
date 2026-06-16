@@ -68,7 +68,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		baseURL := model.BaseURL
 		if goai.IsCloudflareProvider(model.Provider) {
-			baseURL = goai.ResolveCloudflareBaseURL(model)
+			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
 		}
 		url := baseURL + "/chat/completions"
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
@@ -222,12 +222,16 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 
 	// Prompt cache/session fields. Match pi-ai: send a cache key when cache
 	// retention is enabled, and only request 24h retention when supported.
-	if opts != nil && opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
-		if (strings.Contains(model.BaseURL, "api.openai.com") && opts.CacheRetention != goai.CacheRetentionNone) || (opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)) {
+	cacheRetention := goai.CacheRetentionShort
+	if opts != nil {
+		cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
+	}
+	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
+		if (strings.Contains(model.BaseURL, "api.openai.com") && cacheRetention != goai.CacheRetentionNone) || (cacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention)) {
 			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 		}
 	}
-	if opts != nil && opts.CacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention) {
+	if cacheRetention == goai.CacheRetentionLong && (compat.SupportsLongCacheRetention == nil || *compat.SupportsLongCacheRetention) {
 		req.PromptCacheRetention = "24h"
 	}
 
@@ -530,13 +534,13 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Role             string               `json:"role,omitempty"`
-	Content          *string              `json:"content,omitempty"`
-	ToolCalls        []sseToolCall        `json:"tool_calls,omitempty"`
-	Reasoning        *string              `json:"reasoning,omitempty"`
-	ReasoningContent *string              `json:"reasoning_content,omitempty"`
-	ReasoningText    *string              `json:"reasoning_text,omitempty"`
-	ReasoningDetails []reasoningDetail    `json:"reasoning_details,omitempty"`
+	Role             string            `json:"role,omitempty"`
+	Content          *string           `json:"content,omitempty"`
+	ToolCalls        []sseToolCall     `json:"tool_calls,omitempty"`
+	Reasoning        *string           `json:"reasoning,omitempty"`
+	ReasoningContent *string           `json:"reasoning_content,omitempty"`
+	ReasoningText    *string           `json:"reasoning_text,omitempty"`
+	ReasoningDetails []reasoningDetail `json:"reasoning_details,omitempty"`
 }
 
 type reasoningDetail struct {

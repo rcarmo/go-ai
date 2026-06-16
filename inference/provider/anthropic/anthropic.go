@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ func resolveCacheControl(model *goai.Model, opts *goai.StreamOptions) *cacheCont
 		retention = string(opts.CacheRetention)
 	}
 	if retention == "" {
-		if os.Getenv("PI_CACHE_RETENTION") == "long" {
+		if goai.GetProviderEnvValue("PI_CACHE_RETENTION", goai.ProviderEnvFromOptions(opts)) == "long" {
 			retention = "long"
 		} else {
 			retention = "short"
@@ -138,7 +137,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		baseURL := model.BaseURL
 		if goai.IsCloudflareProvider(model.Provider) {
-			baseURL = goai.ResolveCloudflareBaseURL(model)
+			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
 		}
 		baseURL = normalizeAnthropicBaseURL(baseURL)
 

@@ -92,7 +92,7 @@ func TestConvertMessagesCoalescesConsecutiveToolResults(t *testing.T) {
 		{Role: goai.RoleToolResult, ToolCallID: "tc2", ToolName: "b", Content: []goai.ContentBlock{{Type: "text", Text: "two"}}, IsError: true},
 	}}
 
-	msgs := convertMessages(ctx, model, "short")
+	msgs := convertMessages(ctx, model, "short", nil)
 	if len(msgs) != 2 {
 		t.Fatalf("expected 2 bedrock messages, got %d", len(msgs))
 	}

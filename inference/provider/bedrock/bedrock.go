@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -45,9 +44,10 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		goai.GetLogger().Debug("stream start", "api", "bedrock-converse-stream", "provider", model.Provider, "model", model.ID)
 
 		// Resolve region
-		region := os.Getenv("AWS_REGION")
+		env := goai.ProviderEnvFromOptions(opts)
+		region := goai.GetProviderEnvValue("AWS_REGION", env)
 		if region == "" {
-			region = os.Getenv("AWS_DEFAULT_REGION")
+			region = goai.GetProviderEnvValue("AWS_DEFAULT_REGION", env)
 		}
 		if region == "" {
 			// Try to extract from baseUrl
@@ -118,11 +118,11 @@ func extractRegionFromURL(baseURL string) string {
 }
 
 // isGovCloudBedrockTarget checks if the model targets a GovCloud region.
-func isGovCloudBedrockTarget(model *goai.Model) bool {
+func isGovCloudBedrockTarget(model *goai.Model, env goai.ProviderEnv) bool {
 	// Check region from env or baseUrl
-	region := os.Getenv("AWS_REGION")
+	region := goai.GetProviderEnvValue("AWS_REGION", env)
 	if region == "" {
-		region = os.Getenv("AWS_DEFAULT_REGION")
+		region = goai.GetProviderEnvValue("AWS_DEFAULT_REGION", env)
 	}
 	if region == "" {
 		region = extractRegionFromURL(model.BaseURL)
@@ -147,7 +147,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		cacheRetention = string(opts.CacheRetention)
 	}
 	if cacheRetention == "" {
-		if os.Getenv("PI_CACHE_RETENTION") == "long" {
+		if goai.GetProviderEnvValue("PI_CACHE_RETENTION", goai.ProviderEnvFromOptions(opts)) == "long" {
 			cacheRetention = "long"
 		} else {
 			cacheRetention = "short"
@@ -161,7 +161,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 				Value: goai.SanitizeSurrogates(convCtx.SystemPrompt),
 			},
 		}
-		if cacheRetention != "none" && supportsPromptCaching(model) {
+		if cacheRetention != "none" && supportsPromptCaching(model, goai.ProviderEnvFromOptions(opts)) {
 			cp := types.CachePointBlock{Type: types.CachePointTypeDefault}
 			if cacheRetention == "long" {
 				cp.Ttl = types.CacheTTLOneHour
@@ -173,7 +173,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	}
 
 	// Messages
-	input.Messages = convertMessages(convCtx, model, cacheRetention)
+	input.Messages = convertMessages(convCtx, model, cacheRetention, goai.ProviderEnvFromOptions(opts))
 
 	// Inference config
 	inferenceConfig := &types.InferenceConfiguration{}
@@ -212,7 +212,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	// adaptive thinking with native effort strings; older models use token budgets.
 	if model.Reasoning && opts != nil && opts.Reasoning != nil {
 		var addFields map[string]interface{}
-		govCloud := isGovCloudBedrockTarget(model)
+		govCloud := isGovCloudBedrockTarget(model, goai.ProviderEnvFromOptions(opts))
 		if supportsAdaptiveThinking(model) {
 			thinkingField := map[string]interface{}{"type": "adaptive"}
 			if !govCloud {
@@ -242,7 +242,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	return input
 }
 
-func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention string) []types.Message {
+func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention string, env goai.ProviderEnv) []types.Message {
 	var result []types.Message
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 
@@ -380,7 +380,7 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 	}
 
 	// Add cache point to last user message for supported models
-	if cacheRetention != "none" && supportsPromptCaching(model) && len(result) > 0 {
+	if cacheRetention != "none" && supportsPromptCaching(model, env) && len(result) > 0 {
 		last := &result[len(result)-1]
 		if last.Role == types.ConversationRoleUser && last.Content != nil {
 			cp := types.CachePointBlock{Type: types.CachePointTypeDefault}
@@ -413,7 +413,6 @@ func getModelMatchCandidates(modelID string, modelName string) []string {
 	}
 	return candidates
 }
-
 
 func supportsAdaptiveThinking(model *goai.Model) bool {
 	if model == nil {
@@ -456,7 +455,7 @@ func isAnthropicClaudeModel(model *goai.Model) bool {
 }
 
 // supportsPromptCaching returns true for Bedrock Claude models that support cache points.
-func supportsPromptCaching(model *goai.Model) bool {
+func supportsPromptCaching(model *goai.Model, env goai.ProviderEnv) bool {
 	candidates := getModelMatchCandidates(model.ID, model.Name)
 	hasClaudeRef := false
 	for _, s := range candidates {
@@ -466,7 +465,7 @@ func supportsPromptCaching(model *goai.Model) bool {
 		}
 	}
 	if !hasClaudeRef {
-		return os.Getenv("AWS_BEDROCK_FORCE_CACHE") == "1"
+		return goai.GetProviderEnvValue("AWS_BEDROCK_FORCE_CACHE", env) == "1"
 	}
 	// Claude 4.x models
 	for _, s := range candidates {
@@ -510,7 +509,6 @@ func mapThinkingLevelToEffort(model *goai.Model, level goai.ThinkingLevel) strin
 		return "medium"
 	}
 }
-
 
 func createImageBlock(mimeType, data string) types.ContentBlock {
 	decoded, err := base64.StdEncoding.DecodeString(data)

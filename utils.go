@@ -4,7 +4,6 @@ package goai
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"strings"
 )
 
@@ -58,7 +57,7 @@ func CopilotHeadersWithIntent(intent string) map[string]string {
 
 // ResolveCloudflareBaseURL substitutes {VAR} placeholders in a Cloudflare
 // base URL from environment variables (e.g., {CLOUDFLARE_ACCOUNT_ID}).
-func ResolveCloudflareBaseURL(model *Model) string {
+func ResolveCloudflareBaseURL(model *Model, env ...ProviderEnv) string {
 	url := model.BaseURL
 	if !strings.Contains(url, "{") {
 		return url
@@ -74,7 +73,11 @@ func ResolveCloudflareBaseURL(model *Model) string {
 			break
 		}
 		name := result[start+1 : start+end]
-		value := os.Getenv(name)
+		var providerEnv ProviderEnv
+		if len(env) > 0 {
+			providerEnv = env[0]
+		}
+		value := GetProviderEnvValue(name, providerEnv)
 		if value == "" {
 			logWarn("cloudflare base URL placeholder not set", "var", name, "provider", model.Provider)
 		}
