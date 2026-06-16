@@ -15,15 +15,18 @@ Comparative audit (`@earendil-works/pi-ai v0.79.4` → `v0.79.5`) found:
 - **Cache retention**: `PI_CACHE_RETENTION` can be provided via scoped env for OpenAI Completions, OpenAI Responses, Anthropic, and Bedrock defaults.
 - **Bedrock**: AWS region/GovCloud detection and force-cache override now use scoped env where relevant.
 - **Google**: `gemini-flash-latest` and `gemini-flash-lite-latest` are included in the Gemini 3 Flash thinking behavior.
-- **No registry refresh**: upstream `v0.79.5` did not require regenerating `models_generated.go`.
+- **Codex WebSocket timeout**: upstream exposes `websocketConnectTimeoutMs` for WebSocket connection setup; Go now exposes `StreamOptions.WebSocketConnectTimeoutMs` and applies it to Codex WebSocket dialing.
+- **Model registry**: refreshed to 975 models / 35 providers. Added GLM/Kimi variants including `@cf/zai-org/glm-5.2`, `z-ai/glm-5.2`, `zai/glm-5.2`, and high-speed Kimi K2.7 Code entries; removed stale Gemini aliases. Image models remained at 32 models / 1 provider.
 
 Actions:
 
 - Added `ProviderEnv`, `StreamOptions.Env`, and scoped env/cache-retention helper functions.
+- Added `StreamOptions.WebSocketConnectTimeoutMs` and mapped it to OpenAI Codex WebSocket connection timeout behavior.
 - Updated provider API-key resolution, Cloudflare base URL substitution, cache-retention defaults, Bedrock env handling, and Google Flash latest alias matching.
+- Regenerated `models_generated.go` from v0.79.5 (975 models / 35 providers) and verified `images/models_generated.go` already matched upstream.
 - Re-ran the complete validation suite.
 
-Result: upstream v0.79.5 is fully synced in Go; this was a scoped-env/runtime parity update with no model registry changes.
+Result: upstream v0.79.5 is fully synced in Go; this was a scoped-env/runtime, Codex timeout, and registry parity update.
 
 ### v0.79.4 (2026-06-15)
 

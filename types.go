@@ -339,8 +339,9 @@ type StreamOptions struct {
 
 	// SDK-level timeout and retry (for providers that use SDK clients).
 	// These are passed through to the underlying SDK client when applicable.
-	TimeoutMs  *int `json:"timeoutMs,omitempty"`
-	MaxRetries *int `json:"maxRetries,omitempty"`
+	TimeoutMs                 *int `json:"timeoutMs,omitempty"`
+	WebSocketConnectTimeoutMs *int `json:"websocketConnectTimeoutMs,omitempty"`
+	MaxRetries                *int `json:"maxRetries,omitempty"`
 
 	// Simple mode
 	Reasoning        *ThinkingLevel   `json:"reasoning,omitempty"`

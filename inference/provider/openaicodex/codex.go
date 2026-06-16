@@ -618,6 +618,9 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}(), accountID, apiKey, requestID)
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
+	if opts != nil && opts.WebSocketConnectTimeoutMs != nil {
+		retryCfg.ConnectTimeout = time.Duration(*opts.WebSocketConnectTimeoutMs) * time.Millisecond
+	}
 	useCachedContext := opts != nil && (opts.Transport == goai.TransportWebSocketCached || opts.Transport == goai.TransportAuto || opts.Transport == "") && opts.SessionID != ""
 	var (
 		conn   *websocket.Conn
