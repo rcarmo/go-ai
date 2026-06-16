@@ -25,7 +25,7 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 		Messages:     []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "hi"}}}},
 		Tools:        []goai.Tool{{Name: "shell", Description: "run shell", Parameters: json.RawMessage(`{"type":"object"}`)}},
 	}
-	req := buildCodexRequest(model, conv, &goai.StreamOptions{SessionID: sess, Reasoning: &reasoning})
+	req := buildCodexRequest(model, conv, &goai.StreamOptions{SessionID: sess, Reasoning: &reasoning, ReasoningSummary: "detailed", TextVerbosity: "medium"})
 	if !req.Stream {
 		t.Fatalf("expected stream=true")
 	}
@@ -57,6 +57,13 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	}
 	if rm["effort"] != expectedEffort {
 		t.Fatalf("expected mapped effort %q, got %#v", expectedEffort, rm["effort"])
+	}
+	if rm["summary"] != "detailed" {
+		t.Fatalf("expected reasoning summary override, got %#v", rm["summary"])
+	}
+	text, ok := req.Text.(map[string]interface{})
+	if !ok || text["verbosity"] != "medium" {
+		t.Fatalf("expected text verbosity override, got %#v", req.Text)
 	}
 	var input []map[string]any
 	if err := json.Unmarshal(req.Input, &input); err != nil {

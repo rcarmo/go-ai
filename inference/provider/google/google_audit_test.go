@@ -9,7 +9,10 @@ import (
 
 func TestBuildStreamURLEscapesPathAndQuery(t *testing.T) {
 	model := &goai.Model{ID: "models/custom/id", BaseURL: "https://example.test/v1beta/"}
-	got := buildStreamURL(model, "a+b/c=")
+	got, err := buildStreamURL(model, "a+b/c=", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(got, "v1beta//") {
 		t.Fatalf("base URL was not normalized: %q", got)
 	}
@@ -18,6 +21,18 @@ func TestBuildStreamURLEscapesPathAndQuery(t *testing.T) {
 	}
 	if !strings.Contains(got, "key=a%2Bb%2Fc%3D") {
 		t.Fatalf("API key was not query-escaped: %q", got)
+	}
+}
+
+func TestBuildVertexStreamURLUsesProjectAndLocationOptions(t *testing.T) {
+	model := &goai.Model{ID: "gemini-2.5-pro", Api: goai.ApiGoogleVertex, Provider: goai.ProviderGoogleVertex, BaseURL: "https://{location}-aiplatform.googleapis.com"}
+	got, err := buildStreamURL(model, "vertex-key", &goai.StreamOptions{Project: "proj-1", Location: "europe-west4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "https://europe-west4-aiplatform.googleapis.com/v1/projects/proj-1/locations/europe-west4/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=vertex-key"
+	if got != want {
+		t.Fatalf("unexpected Vertex URL:\n got %q\nwant %q", got, want)
 	}
 }
 

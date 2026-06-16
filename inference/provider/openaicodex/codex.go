@@ -1242,14 +1242,21 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	if opts != nil {
 		req.Temperature = opts.Temperature
 		req.MaxOutputTokens = opts.MaxTokens
+		if opts.TextVerbosity != "" {
+			req.Text = map[string]interface{}{"verbosity": opts.TextVerbosity}
+		}
 		if opts.SessionID != "" {
 			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 		}
 		if opts.Reasoning != nil {
 			if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+				summary := opts.ReasoningSummary
+				if summary == "" {
+					summary = "auto"
+				}
 				req.Reasoning = map[string]interface{}{
 					"effort":  effort,
-					"summary": "auto",
+					"summary": summary,
 				}
 			}
 		}

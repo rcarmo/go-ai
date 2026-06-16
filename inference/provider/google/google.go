@@ -68,8 +68,12 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		// Build URL: REST API for Gemini
-		url := buildStreamURL(model, apiKey)
+		// Build URL: REST API for Gemini/Vertex.
+		url, err := buildStreamURL(model, apiKey, opts)
+		if err != nil {
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			return
+		}
 
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
@@ -123,14 +127,56 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	return ch
 }
 
-func buildStreamURL(model *goai.Model, apiKey string) string {
+func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) (string, error) {
 	baseURL := model.BaseURL
+	if model.Api == goai.ApiGoogleVertex {
+		project, location, err := resolveVertexProjectLocation(opts)
+		if err != nil {
+			return "", err
+		}
+		if baseURL == "" {
+			baseURL = "https://{location}-aiplatform.googleapis.com"
+		}
+		baseURL = strings.ReplaceAll(baseURL, "{location}", location)
+		endpoint := fmt.Sprintf("%s/v1/projects/%s/locations/%s/publishers/google/models/%s:streamGenerateContent?alt=sse",
+			strings.TrimRight(baseURL, "/"), url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
+		if apiKey != "" && !strings.HasPrefix(apiKey, "<") {
+			endpoint += "&key=" + url.QueryEscape(apiKey)
+		}
+		return endpoint, nil
+	}
 	if baseURL == "" {
 		baseURL = "https://generativelanguage.googleapis.com/v1beta"
 	}
 	// REST streaming endpoint. Escape path/query components so unusual model
 	// aliases or API keys containing reserved characters cannot corrupt the URL.
-	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey))
+	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+}
+
+func resolveVertexProjectLocation(opts *goai.StreamOptions) (string, string, error) {
+	env := goai.ProviderEnvFromOptions(opts)
+	project := ""
+	location := ""
+	if opts != nil {
+		project = opts.Project
+		location = opts.Location
+	}
+	if project == "" {
+		project = goai.GetProviderEnvValue("GOOGLE_CLOUD_PROJECT", env)
+	}
+	if project == "" {
+		project = goai.GetProviderEnvValue("GCLOUD_PROJECT", env)
+	}
+	if location == "" {
+		location = goai.GetProviderEnvValue("GOOGLE_CLOUD_LOCATION", env)
+	}
+	if project == "" {
+		return "", "", fmt.Errorf("Vertex AI requires a project ID. Set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or pass Project in options")
+	}
+	if location == "" {
+		return "", "", fmt.Errorf("Vertex AI requires a location. Set GOOGLE_CLOUD_LOCATION or pass Location in options")
+	}
+	return project, location, nil
 }
 
 // --- Request types ---

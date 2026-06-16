@@ -337,6 +337,16 @@ type StreamOptions struct {
 	Metadata        map[string]any    `json:"metadata,omitempty"`
 	Env             ProviderEnv       `json:"env,omitempty"`
 
+	// Provider-specific options that mirror upstream option names where Go has
+	// equivalent transport/payload support.
+	Region          string            `json:"region,omitempty"`
+	Profile         string            `json:"profile,omitempty"`
+	BearerToken     string            `json:"bearerToken,omitempty"`
+	RequestMetadata map[string]string `json:"requestMetadata,omitempty"`
+	Project         string            `json:"project,omitempty"`
+	Location        string            `json:"location,omitempty"`
+	TextVerbosity   string            `json:"textVerbosity,omitempty"`
+
 	// Azure OpenAI Responses provider-specific options.
 	AzureAPIVersion     string `json:"azureApiVersion,omitempty"`
 	AzureResourceName   string `json:"azureResourceName,omitempty"`

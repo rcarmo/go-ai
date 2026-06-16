@@ -41,6 +41,17 @@ func TestShouldUseExplicitBedrockEndpoint(t *testing.T) {
 	}
 }
 
+func TestBedrockOptionPrecedenceAndRequestMetadata(t *testing.T) {
+	model := &goai.Model{ID: "anthropic.claude-3-5-sonnet", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}
+	if got := getConfiguredBedrockRegion(model, &goai.StreamOptions{Region: "eu-central-1", Env: goai.ProviderEnv{"AWS_REGION": "us-west-2"}}, nil); got != "eu-central-1" {
+		t.Fatalf("expected explicit region option, got %q", got)
+	}
+	input := buildConverseInput(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{RequestMetadata: map[string]string{"trace": "abc"}})
+	if input.RequestMetadata["trace"] != "abc" {
+		t.Fatalf("request metadata not propagated: %#v", input.RequestMetadata)
+	}
+}
+
 func TestBuildConverseInputIncludesSystemToolsAndThinking(t *testing.T) {
 	level := goai.ThinkingHigh
 	customBudget := 7777

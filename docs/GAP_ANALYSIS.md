@@ -13,8 +13,10 @@ Comparative audit (`@earendil-works/pi-ai v0.79.4` → `v0.79.5`) found:
 - **Scoped provider env**: upstream added `StreamOptions.env` and routes provider runtime env lookups through it before process env.
 - **API keys and Cloudflare placeholders**: env key resolution and Cloudflare `{VAR}` base URL expansion now honor scoped env overrides.
 - **Cache retention**: `PI_CACHE_RETENTION` can be provided via scoped env for OpenAI Completions, OpenAI Responses, Anthropic, and Bedrock defaults.
-- **Bedrock**: AWS region/GovCloud detection, credential/profile/bearer-token selection, skip-auth, HTTP/1 opt-in, explicit endpoint pinning, and force-cache override now use scoped env where relevant.
+- **Bedrock**: AWS region/GovCloud detection, credential/profile/bearer-token selection, skip-auth, HTTP/1 opt-in, explicit endpoint pinning, request metadata, and force-cache override now use scoped env/options where relevant.
+- **Google Vertex**: explicit `project`/`location` options and env fallbacks now resolve Vertex REST URLs using the upstream project/location endpoint shape.
 - **Azure OpenAI Responses**: upstream-specific `azureApiVersion`, `azureResourceName`, `azureBaseUrl`, `azureDeploymentName`, and `AZURE_OPENAI_DEPLOYMENT_NAME_MAP` semantics are reflected in `StreamOptions` and request URL/model construction.
+- **OpenAI Codex Responses**: `textVerbosity` and `reasoningSummary` options are now forwarded into the request payload.
 - **Google**: `gemini-flash-latest` and `gemini-flash-lite-latest` are included in the Gemini 3 Flash thinking behavior.
 - **Codex WebSocket timeout**: upstream exposes `websocketConnectTimeoutMs` for WebSocket connection setup; Go now exposes `StreamOptions.WebSocketConnectTimeoutMs` and applies it to Codex WebSocket dialing.
 - **Model registry**: refreshed to 975 models / 35 providers. Added GLM/Kimi variants including `@cf/zai-org/glm-5.2`, `z-ai/glm-5.2`, `zai/glm-5.2`, and high-speed Kimi K2.7 Code entries; removed stale Gemini aliases. Image models remained at 32 models / 1 provider.
@@ -23,12 +25,13 @@ Actions:
 
 - Added `ProviderEnv`, `StreamOptions.Env`, and scoped env/cache-retention helper functions.
 - Added `StreamOptions.WebSocketConnectTimeoutMs` and mapped it to OpenAI Codex WebSocket connection timeout behavior.
+- Added provider-specific option fields for Bedrock region/profile/bearer token/request metadata, Google Vertex project/location, Codex text verbosity, and Azure OpenAI Responses config.
 - Added Azure OpenAI Responses option fields and env-aware base URL/deployment resolution.
-- Updated provider API-key resolution, Cloudflare base URL substitution, cache-retention defaults, Bedrock env/auth/endpoint handling, and Google Flash latest alias matching.
+- Updated provider API-key resolution, Cloudflare base URL substitution, cache-retention defaults, Bedrock env/auth/endpoint handling, Vertex URL construction, Codex request construction, and Google Flash latest alias matching.
 - Regenerated `models_generated.go` from v0.79.5 (975 models / 35 providers) and verified `images/models_generated.go` already matched upstream.
 - Re-ran the complete validation suite.
 
-Result: upstream v0.79.5 is fully synced in Go; this was a scoped-env/runtime, Bedrock/Azure auth/config, Codex timeout, and registry parity update.
+Result: upstream v0.79.5 is fully synced in Go; this was a scoped-env/runtime, Bedrock/Azure/Vertex auth/config, Codex option/timeout, and registry parity update.
 
 ### v0.79.4 (2026-06-15)
 
