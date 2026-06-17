@@ -6112,7 +6112,7 @@ var builtinModels = []Model{
 		Api:           "openai-completions",
 		Provider:      "opencode-go",
 		BaseURL:       "https://opencode.ai/zen/go/v1",
-		CompletionsCompat: &OpenAICompletionsCompat{MaxTokensField: "max_tokens", RequiresReasoningContentOnAssistantMessages: boolPtr(true), },
+		CompletionsCompat: &OpenAICompletionsCompat{MaxTokensField: "max_tokens", RequiresReasoningContentOnAssistantMessages: boolPtr(true), ThinkingFormat: "deepseek", },
 		Reasoning:     true,
 		ThinkingLevelMap: map[ModelThinkingLevel]*string{"high": strPtr("high"), "low": nil, "medium": nil, "minimal": nil, "xhigh": strPtr("max")},
 		Input:         []string{"text"},

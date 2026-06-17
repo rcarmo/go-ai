@@ -2,9 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.5
+## Source: `@earendil-works/pi-ai` v0.79.6
 
 ## Sync history
+
+### v0.79.6 (2026-06-17)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.5` → `v0.79.6`) found:
+
+- **Model registry metadata only**: upstream added `thinkingFormat: "deepseek"` to the `opencode-go/deepseek-v4-flash` OpenAI-compatible model metadata.
+- **No provider/runtime/type/env deltas**: direct diff of `dist/types.d.ts`, env helpers, provider runtimes, and image registry found no Go-facing code changes beyond the generated model metadata.
+
+Actions:
+
+- Updated `models_generated.go` for `opencode-go/deepseek-v4-flash` compat metadata.
+- Added regression coverage in `TestGeneratedModelMetadataParity`.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.6 is fully synced in Go; this was a single generated-metadata parity update.
 
 ### v0.79.5 (2026-06-16)
 

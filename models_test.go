@@ -56,6 +56,11 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected Copilot Anthropic compat eager streaming override, got %#v", copilot.AnthropicCompat)
 	}
 
+	opencodeGo := goai.GetModel(goai.ProviderOpenCodeGo, "deepseek-v4-flash")
+	if opencodeGo == nil || opencodeGo.CompletionsCompat == nil || opencodeGo.CompletionsCompat.ThinkingFormat != "deepseek" {
+		t.Fatalf("expected OpenCode Go DeepSeek Flash thinking format parity, got %#v", opencodeGo)
+	}
+
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
 	if xiaomi == nil {
 		t.Fatal("expected Xiaomi mimo-v2-flash model")

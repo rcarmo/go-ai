@@ -2,6 +2,24 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-17 v0.79.6 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.5` against `v0.79.6` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed only `models.generated.js`.
+- The metadata delta adds `thinkingFormat: "deepseek"` to `opencode-go/deepseek-v4-flash`.
+- Direct diff of `dist/types.d.ts`, env helpers, provider runtime files, and image model registry found no other Go-facing changes.
+
+Actions:
+
+- Updated the corresponding `models_generated.go` entry.
+- Added registry metadata regression coverage.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.6`; the Go-facing change was a single generated model metadata parity update.
+
 ## 2026-06-16 v0.79.5 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.4` against `v0.79.5` and audited `go-ai` parity.
