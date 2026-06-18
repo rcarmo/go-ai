@@ -2,9 +2,26 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.6
+## Source: `@earendil-works/pi-ai` v0.79.7
 
 ## Sync history
+
+### v0.79.7 (2026-06-18)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.6` → `v0.79.7`) found:
+
+- **Text model registry metadata**: upstream refreshed generated text models to 980 models / 35 providers. Changes include new Fireworks GLM 5.2, OpenCode Go GLM 5.2, several OpenRouter additions, Gemini/OpenRouter max-token and cost updates, Fireworks/Vercel cost updates, and removal of stale Copilot/OpenCode/Xiaomi entries.
+- **Image model registry metadata**: upstream refreshed generated image models to 34 models / 1 provider, adding `google/gemini-3-pro-image` and `google/gemini-3.1-flash-image`.
+- **No provider/runtime/type/env deltas**: full `dist/` audit found generated registry artifacts changed only; no Go-facing provider implementation changes were required.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.7.
+- Regenerated `images/models_generated.go` from upstream v0.79.7 image registry data.
+- Added regression coverage for representative text and image registry deltas.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.7 is fully synced in Go; this was a generated-registry parity update.
 
 ### v0.79.6 (2026-06-17)
 

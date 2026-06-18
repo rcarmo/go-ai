@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
 //
-// Source: image-models.generated.js (32 image models, 1 provider)
+// Source: image-models.generated.js (34 image models, 1 provider)
 
 package images
 
@@ -71,7 +71,17 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.0833333333},
+		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.0833333333333333},
+	},
+	{
+		ID:       "google/gemini-3-pro-image",
+		Name:     "Google: Nano Banana Pro (Gemini 3 Pro Image)",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"image", "text"},
+		Output:   []string{"image", "text"},
+		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
 	},
 	{
 		ID:       "google/gemini-3-pro-image-preview",
@@ -82,6 +92,16 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
 		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
+	},
+	{
+		ID:       "google/gemini-3.1-flash-image",
+		Name:     "Google: Nano Banana 2 (Gemini 3.1 Flash Image)",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"image", "text"},
+		Output:   []string{"image", "text"},
+		Cost:     goai.ModelCost{Input: 0.5, Output: 3, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "google/gemini-3.1-flash-image-preview",

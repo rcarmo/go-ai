@@ -44,6 +44,14 @@ func TestBuiltinImageModels(t *testing.T) {
 	if m == nil || m.Api != images.ImagesApiOpenRouter || m.BaseURL == "" {
 		t.Fatalf("expected generated openrouter image model, got %#v", m)
 	}
+	pro := images.GetImageModel(images.ImagesProviderOpenRouter, "google/gemini-3-pro-image")
+	if pro == nil || pro.Cost.Input != 2 || pro.Cost.CacheWrite != 0.375 {
+		t.Fatalf("expected Gemini 3 Pro Image metadata, got %#v", pro)
+	}
+	flash := images.GetImageModel(images.ImagesProviderOpenRouter, "google/gemini-3.1-flash-image")
+	if flash == nil || flash.Cost.Output != 3 || len(flash.Output) != 2 {
+		t.Fatalf("expected Gemini 3.1 Flash Image metadata, got %#v", flash)
+	}
 }
 
 func TestGenerateImagesErrorPaths(t *testing.T) {

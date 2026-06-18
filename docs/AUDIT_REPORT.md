@@ -2,6 +2,26 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-18 v0.79.7 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.6` against `v0.79.7` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed only generated registry artifacts: `models.generated.*` and `image-models.generated.*`.
+- Text model registry moved to 980 models / 35 providers with metadata additions, removals, and cost/window/max-token updates.
+- Image model registry moved to 34 image models / 1 provider, adding Gemini 3 Pro Image and Gemini 3.1 Flash Image OpenRouter entries.
+- Direct full-`dist/` audit found no provider/runtime/type/env implementation deltas.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.7.
+- Regenerated `images/models_generated.go` from upstream v0.79.7 image registry data.
+- Added regression coverage for representative text and image metadata changes.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.7`; the Go-facing change was generated text/image model registry parity.
+
 ## 2026-06-17 v0.79.6 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.5` against `v0.79.6` and audited `go-ai` parity.

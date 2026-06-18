@@ -60,6 +60,14 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if opencodeGo == nil || opencodeGo.CompletionsCompat == nil || opencodeGo.CompletionsCompat.ThinkingFormat != "deepseek" {
 		t.Fatalf("expected OpenCode Go DeepSeek Flash thinking format parity, got %#v", opencodeGo)
 	}
+	glm52 := goai.GetModel(goai.ProviderOpenCodeGo, "glm-5.2")
+	if glm52 == nil || glm52.ContextWindow != 1000000 || glm52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenCode Go GLM-5.2 v0.79.7 metadata, got %#v", glm52)
+	}
+	geminiImage := goai.GetModel(goai.ProviderOpenRouter, "google/gemini-3-pro-image")
+	if geminiImage == nil || geminiImage.Cost.CacheWrite != 0.375 || geminiImage.MaxTokens != 32768 {
+		t.Fatalf("expected OpenRouter Gemini 3 Pro Image text registry metadata, got %#v", geminiImage)
+	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
 	if xiaomi == nil {
