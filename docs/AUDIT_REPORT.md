@@ -2,6 +2,25 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-19 v0.79.8 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.7` against `v0.79.8` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream refreshed `models.generated.*` to 981 models / 35 providers.
+- Registry deltas are metadata-only: Mistral cache-read prices, OpenRouter cost/window updates, and new `openrouter/fusion`.
+- Upstream added side-effect registration modules and `registerApiProvider` calls in JS providers; this is a packaging/registration refactor and does not require a Go runtime change because providers already self-register in `init()`.
+- Direct full-`dist/` audit found no type-surface, env-helper, provider behavior, or image registry deltas to port.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.8.
+- Added representative registry metadata regression coverage.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.8`; the Go-facing change was generated text model registry parity.
+
 ## 2026-06-18 v0.79.7 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.6` against `v0.79.7` and audited `go-ai` parity.

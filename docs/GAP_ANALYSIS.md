@@ -2,9 +2,25 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.7
+## Source: `@earendil-works/pi-ai` v0.79.8
 
 ## Sync history
+
+### v0.79.8 (2026-06-19)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.7` → `v0.79.8`) found:
+
+- **Text model registry metadata**: upstream refreshed generated text models to 981 models / 35 providers. Changes are Mistral cache-read pricing, OpenRouter cost/window updates, and the new `openrouter/fusion` model.
+- **Package registration refactor**: upstream added generated side-effect registration modules (`base`, `registerApiProvider` calls in providers), but `go-ai` already has explicit Go provider registration and no Go-facing API/runtime behavior change was required.
+- **No provider/runtime/type/env/image deltas**: full `dist/` audit found no type-surface, env-helper, provider behavior, or image registry changes to port.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.8.
+- Added regression coverage for representative v0.79.8 text registry deltas.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.8 is fully synced in Go; this was a generated text-registry parity update plus audit confirmation of upstream registration-only runtime refactors.
 
 ### v0.79.7 (2026-06-18)
 

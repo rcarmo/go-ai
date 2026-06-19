@@ -68,6 +68,14 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if geminiImage == nil || geminiImage.Cost.CacheWrite != 0.375 || geminiImage.MaxTokens != 32768 {
 		t.Fatalf("expected OpenRouter Gemini 3 Pro Image text registry metadata, got %#v", geminiImage)
 	}
+	fusion := goai.GetModel(goai.ProviderOpenRouter, "openrouter/fusion")
+	if fusion == nil || fusion.ContextWindow != 1000000 || fusion.MaxTokens != 30000 {
+		t.Fatalf("expected OpenRouter Fusion v0.79.8 metadata, got %#v", fusion)
+	}
+	mistralLatest := goai.GetModel(goai.ProviderMistral, "mistral-large-latest")
+	if mistralLatest == nil || mistralLatest.Cost.CacheRead != 0.05 {
+		t.Fatalf("expected Mistral cache-read pricing metadata, got %#v", mistralLatest)
+	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
 	if xiaomi == nil {
