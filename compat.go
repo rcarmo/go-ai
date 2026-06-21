@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+// ChatTemplateKwargValue describes a value for chat_template_kwargs.
+// Literal values are used as-is. Variable values resolve to pi-controlled
+// thinking state when the provider uses thinkingFormat "chat-template".
+type ChatTemplateKwargValue struct {
+	Value       interface{} `json:"value,omitempty"`
+	Var         string      `json:"$var,omitempty"`
+	OmitWhenOff bool        `json:"omitWhenOff,omitempty"`
+}
+
 // OpenAICompletionsCompat holds compatibility overrides for OpenAI-compatible APIs.
 // These control wire-format differences across Ollama, Groq, xAI, OpenRouter,
 // vLLM, LM Studio, z.ai, and other providers.
@@ -41,6 +50,9 @@ type OpenAICompletionsCompat struct {
 	// "openai" = reasoning_effort, "openrouter" = reasoning:{effort}, "deepseek" = thinking:{type} + reasoning_effort,
 	// "zai" = enable_thinking, "qwen" = enable_thinking, "string-thinking" = thinking:<string>
 	ThinkingFormat string `json:"thinkingFormat,omitempty"`
+
+	// Kwargs to send as chat_template_kwargs when ThinkingFormat is "chat-template".
+	ChatTemplateKwargs map[string]ChatTemplateKwargValue `json:"chatTemplateKwargs,omitempty"`
 
 	// OpenRouter-specific routing preferences.
 	OpenRouterRouting map[string]interface{} `json:"openRouterRouting,omitempty"`
@@ -146,6 +158,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.ThinkingFormat != "" {
 		c.ThinkingFormat = o.ThinkingFormat
+	}
+	if len(o.ChatTemplateKwargs) > 0 {
+		c.ChatTemplateKwargs = o.ChatTemplateKwargs
 	}
 	if o.OpenRouterRouting != nil {
 		c.OpenRouterRouting = o.OpenRouterRouting

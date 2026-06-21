@@ -286,6 +286,10 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		case "qwen-chat-template":
 			enabled := reasoningRequested && effort != ""
 			req.ChatTemplateKwargs = map[string]interface{}{"enable_thinking": enabled, "preserve_thinking": true}
+		case "chat-template":
+			if kwargs := buildChatTemplateKwargs(model, opts, compat, effort); len(kwargs) > 0 {
+				req.ChatTemplateKwargs = kwargs
+			}
 		case "deepseek":
 			typeValue := "disabled"
 			if reasoningRequested && effort != "" {
@@ -345,6 +349,49 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 
 	return req
+}
+
+func buildChatTemplateKwargs(model *goai.Model, opts *goai.StreamOptions, compat goai.OpenAICompletionsCompat, effort string) map[string]interface{} {
+	if len(compat.ChatTemplateKwargs) == 0 {
+		return nil
+	}
+	out := make(map[string]interface{}, len(compat.ChatTemplateKwargs))
+	for key, value := range compat.ChatTemplateKwargs {
+		resolved, ok := resolveChatTemplateKwargValue(model, opts, effort, value)
+		if ok {
+			out[key] = resolved
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func resolveChatTemplateKwargValue(model *goai.Model, _ *goai.StreamOptions, effort string, value goai.ChatTemplateKwargValue) (interface{}, bool) {
+	if value.Var == "" {
+		return value.Value, true
+	}
+	if effort == "" && value.OmitWhenOff {
+		return nil, false
+	}
+	switch value.Var {
+	case "thinking.enabled":
+		return effort != "", true
+	case "thinking.effort":
+		if effort != "" {
+			return effort, true
+		}
+		if mapped, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok {
+			if mapped == nil {
+				return nil, false
+			}
+			return *mapped, true
+		}
+		return nil, false
+	default:
+		return value.Value, true
+	}
 }
 
 func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.OpenAICompletionsCompat) []chatMessage {

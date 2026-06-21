@@ -146,6 +146,31 @@ func TestBuildRequestBodyUsesCompatThinkingFormats(t *testing.T) {
 	if stringReq.Thinking["type"] != "max" {
 		t.Fatalf("unexpected string-thinking payload: %#v", stringReq.Thinking)
 	}
+
+	chatTemplate := &goai.Model{
+		ID:               "chat-template-model",
+		Provider:         goai.ProviderOpenAI,
+		Api:              goai.ApiOpenAICompletions,
+		BaseURL:          "https://example.com",
+		Reasoning:        true,
+		ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: &stringThinkingOff, goai.ModelThinkingLevel(goai.ThinkingHigh): &deepseekMax},
+		CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "chat-template", ChatTemplateKwargs: map[string]goai.ChatTemplateKwargValue{
+			"enable_thinking": {Var: "thinking.enabled"},
+			"effort":          {Var: "thinking.effort", OmitWhenOff: true},
+			"literal":         {Value: "ok"},
+		}},
+	}
+	chatReq := buildRequestBody(chatTemplate, convCtx, &goai.StreamOptions{Reasoning: &reasoning})
+	if chatReq.ChatTemplateKwargs["enable_thinking"] != true || chatReq.ChatTemplateKwargs["effort"] != "max" || chatReq.ChatTemplateKwargs["literal"] != "ok" {
+		t.Fatalf("unexpected chat-template kwargs: %#v", chatReq.ChatTemplateKwargs)
+	}
+	chatOffReq := buildRequestBody(chatTemplate, convCtx, nil)
+	if chatOffReq.ChatTemplateKwargs["enable_thinking"] != false {
+		t.Fatalf("expected disabled chat-template thinking, got %#v", chatOffReq.ChatTemplateKwargs)
+	}
+	if _, ok := chatOffReq.ChatTemplateKwargs["effort"]; ok {
+		t.Fatalf("expected effort omitted when thinking off, got %#v", chatOffReq.ChatTemplateKwargs)
+	}
 }
 
 func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {

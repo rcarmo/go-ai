@@ -2,6 +2,8 @@ package oauth
 
 import (
 	"testing"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func TestPKCE(t *testing.T) {
@@ -70,6 +72,38 @@ func TestGetGitHubCopilotBaseURL(t *testing.T) {
 	url = GetGitHubCopilotBaseURL(token, "")
 	if url != "https://api.individual.githubcopilot.com" {
 		t.Fatalf("expected URL from token, got %q", url)
+	}
+}
+
+func TestGitHubCopilotModelFiltering(t *testing.T) {
+	provider := &GitHubCopilotProvider{}
+	models := []*goai.Model{
+		{ID: "keep", Provider: goai.ProviderGitHubCopilot},
+		{ID: "drop", Provider: goai.ProviderGitHubCopilot},
+		{ID: "other", Provider: goai.ProviderOpenAI},
+	}
+	filtered := provider.ModifyModels(models, &Credentials{Access: "tok", Extra: map[string]interface{}{"availableModelIds": []interface{}{"keep"}}})
+	if len(filtered) != 2 || filtered[0].ID != "keep" || filtered[0].BaseURL == "" || filtered[1].ID != "other" {
+		t.Fatalf("unexpected filtered models: %#v", filtered)
+	}
+	unfiltered := provider.ModifyModels(models, &Credentials{Access: "tok"})
+	if len(unfiltered) != 3 {
+		t.Fatalf("expected old credentials to preserve generated catalog, got %d", len(unfiltered))
+	}
+}
+
+func TestIsSelectableCopilotModel(t *testing.T) {
+	if !isSelectableCopilotModel(map[string]interface{}{"model_picker_enabled": true}) {
+		t.Fatal("expected enabled model to be selectable")
+	}
+	if isSelectableCopilotModel(map[string]interface{}{"model_picker_enabled": false}) {
+		t.Fatal("expected hidden model to be filtered")
+	}
+	if isSelectableCopilotModel(map[string]interface{}{"model_picker_enabled": true, "policy": map[string]interface{}{"state": "disabled"}}) {
+		t.Fatal("expected disabled policy model to be filtered")
+	}
+	if isSelectableCopilotModel(map[string]interface{}{"model_picker_enabled": true, "capabilities": map[string]interface{}{"supports": map[string]interface{}{"tool_calls": false}}}) {
+		t.Fatal("expected non-tool-call model to be filtered")
 	}
 }
 

@@ -2,6 +2,27 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-21 v0.79.9 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.8` against `v0.79.9` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream added the `chat-template` thinking format for OpenAI-compatible APIs, with configurable `chat_template_kwargs` values and pi-controlled thinking variables.
+- Upstream GitHub Copilot OAuth now fetches account-selectable model IDs from `/models` during login/refresh and filters Copilot models when availability data is stored.
+- Upstream refreshed `models.generated.*` to 979 models / 35 providers.
+- Image registry was unchanged; direct full-`dist/` audit found no other provider/runtime/type/env deltas to port.
+
+Actions:
+
+- Added Go compat/type/generator support for `ChatTemplateKwargValue`, `chatTemplateKwargs`, and `thinkingFormat: "chat-template"` payload construction.
+- Updated GitHub Copilot OAuth refresh/login handling and model filtering with legacy-credential fallback.
+- Regenerated `models_generated.go` from upstream v0.79.9.
+- Added regression coverage for chat-template kwargs and Copilot model availability filtering.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.9`; the Go-facing changes were OpenAI-compatible chat-template thinking kwargs, Copilot OAuth model availability filtering, and generated text model registry parity.
+
 ## 2026-06-19 v0.79.8 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.7` against `v0.79.8` and audited `go-ai` parity.

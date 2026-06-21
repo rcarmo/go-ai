@@ -2,9 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.8
+## Source: `@earendil-works/pi-ai` v0.79.9
 
 ## Sync history
+
+### v0.79.9 (2026-06-21)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.8` → `v0.79.9`) found:
+
+- **Type/compat surface**: upstream added `ChatTemplateKwargValue`, `thinkingFormat: "chat-template"`, and `compat.chatTemplateKwargs` for OpenAI-compatible providers that need configurable `chat_template_kwargs`.
+- **OpenAI Completions runtime**: upstream now emits configurable `chat_template_kwargs` for `thinkingFormat: "chat-template"`, including pi-controlled `thinking.enabled` and `thinking.effort` variables.
+- **GitHub Copilot OAuth**: refreshed credentials now include account-selectable model IDs from `/models`; model mutation filters Copilot catalog entries when availability data is present while preserving legacy stored credentials.
+- **Text model registry metadata**: upstream refreshed generated text models to 979 models / 35 providers.
+- **No image registry/provider behavior deltas**: full `dist/` audit found image models unchanged and no other Go-facing provider behavior changes beyond the items above.
+
+Actions:
+
+- Added `ChatTemplateKwargValue`, `OpenAICompletionsCompat.ChatTemplateKwargs`, generator support, and OpenAI-compatible request payload handling for `thinkingFormat: "chat-template"`.
+- Updated GitHub Copilot OAuth refresh/login model availability handling and filtering.
+- Regenerated `models_generated.go` from upstream v0.79.9.
+- Added regression coverage for chat-template kwargs and Copilot model filtering.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.9 is fully synced in Go; this was a compat/runtime OAuth plus generated text-registry parity update.
 
 ### v0.79.8 (2026-06-19)
 

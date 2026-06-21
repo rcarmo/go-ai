@@ -94,26 +94,54 @@ type modelEntry struct {
 }
 
 type compatEntry struct {
-	SupportsStore                               *bool                  `json:"supportsStore"`
-	SupportsDeveloperRole                       *bool                  `json:"supportsDeveloperRole"`
-	SupportsReasoningEffort                     *bool                  `json:"supportsReasoningEffort"`
-	SupportsUsageInStreaming                    *bool                  `json:"supportsUsageInStreaming"`
-	MaxTokensField                              string                 `json:"maxTokensField"`
-	RequiresToolResultName                      *bool                  `json:"requiresToolResultName"`
-	RequiresAssistantAfterToolResult            *bool                  `json:"requiresAssistantAfterToolResult"`
-	RequiresThinkingAsText                      *bool                  `json:"requiresThinkingAsText"`
-	RequiresReasoningContentOnAssistantMessages *bool                  `json:"requiresReasoningContentOnAssistantMessages"`
-	ThinkingFormat                              string                 `json:"thinkingFormat"`
-	OpenRouterRouting                           map[string]interface{} `json:"openRouterRouting"`
-	VercelGatewayRouting                        map[string]interface{} `json:"vercelGatewayRouting"`
-	ZaiToolStream                               *bool                  `json:"zaiToolStream"`
-	SupportsStrictMode                          *bool                  `json:"supportsStrictMode"`
-	CacheControlFormat                          string                 `json:"cacheControlFormat"`
-	SendSessionAffinityHeaders                  *bool                  `json:"sendSessionAffinityHeaders"`
-	SupportsLongCacheRetention                  *bool                  `json:"supportsLongCacheRetention"`
-	AllowEmptySignature                         *bool                  `json:"allowEmptySignature"`
-	SendSessionIdHeader                         *bool                  `json:"sendSessionIdHeader"`
-	SupportsEagerToolInputStreaming             *bool                  `json:"supportsEagerToolInputStreaming"`
+	SupportsStore                               *bool                        `json:"supportsStore"`
+	SupportsDeveloperRole                       *bool                        `json:"supportsDeveloperRole"`
+	SupportsReasoningEffort                     *bool                        `json:"supportsReasoningEffort"`
+	SupportsUsageInStreaming                    *bool                        `json:"supportsUsageInStreaming"`
+	MaxTokensField                              string                       `json:"maxTokensField"`
+	RequiresToolResultName                      *bool                        `json:"requiresToolResultName"`
+	RequiresAssistantAfterToolResult            *bool                        `json:"requiresAssistantAfterToolResult"`
+	RequiresThinkingAsText                      *bool                        `json:"requiresThinkingAsText"`
+	RequiresReasoningContentOnAssistantMessages *bool                        `json:"requiresReasoningContentOnAssistantMessages"`
+	ThinkingFormat                              string                       `json:"thinkingFormat"`
+	ChatTemplateKwargs                          map[string]chatTemplateKwarg `json:"chatTemplateKwargs"`
+	OpenRouterRouting                           map[string]interface{}       `json:"openRouterRouting"`
+	VercelGatewayRouting                        map[string]interface{}       `json:"vercelGatewayRouting"`
+	ZaiToolStream                               *bool                        `json:"zaiToolStream"`
+	SupportsStrictMode                          *bool                        `json:"supportsStrictMode"`
+	CacheControlFormat                          string                       `json:"cacheControlFormat"`
+	SendSessionAffinityHeaders                  *bool                        `json:"sendSessionAffinityHeaders"`
+	SupportsLongCacheRetention                  *bool                        `json:"supportsLongCacheRetention"`
+	AllowEmptySignature                         *bool                        `json:"allowEmptySignature"`
+	SendSessionIdHeader                         *bool                        `json:"sendSessionIdHeader"`
+	SupportsEagerToolInputStreaming             *bool                        `json:"supportsEagerToolInputStreaming"`
+}
+
+type chatTemplateKwarg struct {
+	Var         string      `json:"$var"`
+	OmitWhenOff bool        `json:"omitWhenOff"`
+	Value       interface{} `json:"-"`
+}
+
+func (c *chatTemplateKwarg) UnmarshalJSON(data []byte) error {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		if v, ok := obj["$var"].(string); ok {
+			c.Var = v
+		}
+		if v, ok := obj["omitWhenOff"].(bool); ok {
+			c.OmitWhenOff = v
+		}
+		if c.Var != "" || c.OmitWhenOff {
+			return nil
+		}
+	}
+	var literal interface{}
+	if err := json.Unmarshal(data, &literal); err != nil {
+		return err
+	}
+	c.Value = literal
+	return nil
 }
 
 type costEntry struct {
@@ -256,6 +284,7 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 	b.WriteString("func strPtr(v string) *string { return &v }\n")
 	b.WriteString("func boolPtr(v bool) *bool { return &v }\n")
 	b.WriteString("func mustMap(data string) map[string]interface{} { var out map[string]interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
+	b.WriteString("func mustValue(data string) interface{} { var out interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
 	return b.String()
 }
 
@@ -276,6 +305,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "RequiresThinkingAsText", c.RequiresThinkingAsText)
 		writeBoolField(b, "RequiresReasoningContentOnAssistantMessages", c.RequiresReasoningContentOnAssistantMessages)
 		writeStringField(b, "ThinkingFormat", c.ThinkingFormat)
+		writeChatTemplateKwargsField(b, c.ChatTemplateKwargs)
 		writeMapField(b, "OpenRouterRouting", c.OpenRouterRouting)
 		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
 		writeBoolField(b, "ZaiToolStream", c.ZaiToolStream)
@@ -299,7 +329,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
@@ -320,6 +350,33 @@ func writeMapField(b *strings.Builder, name string, value map[string]interface{}
 	}
 	data, _ := json.Marshal(value)
 	b.WriteString(fmt.Sprintf("%s: mustMap(%q), ", name, string(data)))
+}
+
+func writeChatTemplateKwargsField(b *strings.Builder, value map[string]chatTemplateKwarg) {
+	if len(value) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(value))
+	for k := range value {
+		keys = append(keys, k)
+	}
+	sortStrings(keys)
+	b.WriteString("ChatTemplateKwargs: map[string]ChatTemplateKwargValue{")
+	for _, k := range keys {
+		v := value[k]
+		b.WriteString(fmt.Sprintf("%q: {", k))
+		if v.Var != "" {
+			b.WriteString(fmt.Sprintf("Var: %q, ", v.Var))
+			if v.OmitWhenOff {
+				b.WriteString("OmitWhenOff: true, ")
+			}
+		} else {
+			data, _ := json.Marshal(v.Value)
+			b.WriteString(fmt.Sprintf("Value: mustValue(%q), ", string(data)))
+		}
+		b.WriteString("}, ")
+	}
+	b.WriteString("}, ")
 }
 
 func sortedKeys(m map[string]map[string]modelEntry) []string {

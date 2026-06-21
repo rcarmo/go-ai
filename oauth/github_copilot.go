@@ -22,11 +22,13 @@ var clientID = func() string {
 }()
 
 var copilotHeaders = map[string]string{
-	"User-Agent":              "GitHubCopilotChat/0.35.0",
-	"Editor-Version":          "vscode/1.107.0",
-	"Editor-Plugin-Version":   "copilot-chat/0.35.0",
-	"Copilot-Integration-Id":  "vscode-chat",
+	"User-Agent":             "GitHubCopilotChat/0.35.0",
+	"Editor-Version":         "vscode/1.107.0",
+	"Editor-Plugin-Version":  "copilot-chat/0.35.0",
+	"Copilot-Integration-Id": "vscode-chat",
 }
+
+const copilotAPIVersion = "2026-06-01"
 
 // GitHubCopilotProvider implements the OAuth flow for GitHub Copilot.
 type GitHubCopilotProvider struct{}
@@ -85,12 +87,23 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 		return nil, fmt.Errorf("access token: %w", err)
 	}
 
-	// Exchange for Copilot token
-	creds, err := RefreshGitHubCopilotToken(githubToken, enterpriseDomain)
+	// Exchange for Copilot token, enable known models, then fetch account availability.
+	creds, err := refreshGitHubCopilotAccessToken(githubToken, enterpriseDomain)
 	if err != nil {
 		return nil, fmt.Errorf("copilot token: %w", err)
 	}
-
+	if callbacks.OnProgress != nil {
+		callbacks.OnProgress("Enabling models...")
+	}
+	EnableAllGitHubCopilotModels(creds.Access, enterpriseDomain)
+	ids, err := FetchAvailableGitHubCopilotModelIDs(creds.Access, enterpriseDomain)
+	if err != nil {
+		return nil, fmt.Errorf("copilot models: %w", err)
+	}
+	if creds.Extra == nil {
+		creds.Extra = map[string]interface{}{}
+	}
+	creds.Extra["availableModelIds"] = ids
 	return creds, nil
 }
 
@@ -116,12 +129,20 @@ func (p *GitHubCopilotProvider) ModifyModels(models []*goai.Model, creds *Creden
 		}
 	}
 	baseURL := GetGitHubCopilotBaseURL(creds.Access, domain)
+	available := availableCopilotModelSet(creds)
+	out := make([]*goai.Model, 0, len(models))
 	for _, m := range models {
-		if m.Provider == goai.ProviderGitHubCopilot {
-			m.BaseURL = baseURL
+		if m.Provider != goai.ProviderGitHubCopilot {
+			out = append(out, m)
+			continue
 		}
+		if available != nil && !available[m.ID] {
+			continue
+		}
+		m.BaseURL = baseURL
+		out = append(out, m)
 	}
-	return models
+	return out
 }
 
 // --- Device flow ---
@@ -225,6 +246,22 @@ func pollForAccessToken(ctx context.Context, domain, deviceCode string, interval
 
 // RefreshGitHubCopilotToken exchanges a GitHub access token for a Copilot API token.
 func RefreshGitHubCopilotToken(refreshToken, enterpriseDomain string) (*Credentials, error) {
+	creds, err := refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := FetchAvailableGitHubCopilotModelIDs(creds.Access, enterpriseDomain)
+	if err != nil {
+		return nil, err
+	}
+	if creds.Extra == nil {
+		creds.Extra = map[string]interface{}{}
+	}
+	creds.Extra["availableModelIds"] = ids
+	return creds, nil
+}
+
+func refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain string) (*Credentials, error) {
 	domain := "github.com"
 	if enterpriseDomain != "" {
 		domain = enterpriseDomain
@@ -263,6 +300,115 @@ func RefreshGitHubCopilotToken(refreshToken, enterpriseDomain string) (*Credenti
 		Expires: raw.ExpiresAt*1000 - 5*60*1000, // 5 min buffer
 		Extra:   map[string]interface{}{"enterpriseUrl": enterpriseDomain},
 	}, nil
+}
+
+// EnableAllGitHubCopilotModels enables known Copilot model policies where required.
+func EnableAllGitHubCopilotModels(copilotToken, enterpriseDomain string) {
+	goai.RegisterBuiltinModels()
+	for _, model := range goai.ListModels(goai.ProviderGitHubCopilot) {
+		_ = EnableGitHubCopilotModel(copilotToken, model.ID, enterpriseDomain)
+	}
+}
+
+// EnableGitHubCopilotModel enables one Copilot model policy where required.
+func EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain string) bool {
+	baseURL := GetGitHubCopilotBaseURL(copilotToken, enterpriseDomain)
+	endpoint := strings.TrimRight(baseURL, "/") + "/models/" + url.PathEscape(modelID) + "/policy"
+	body := strings.NewReader(`{"state":"enabled"}`)
+	req, _ := http.NewRequest("POST", endpoint, body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+copilotToken)
+	req.Header.Set("openai-intent", "chat-policy")
+	req.Header.Set("x-interaction-type", "chat-policy")
+	for k, v := range copilotHeaders {
+		req.Header.Set(k, v)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
+// FetchAvailableGitHubCopilotModelIDs returns account-selectable Copilot model IDs.
+func FetchAvailableGitHubCopilotModelIDs(copilotToken, enterpriseDomain string) ([]string, error) {
+	baseURL := GetGitHubCopilotBaseURL(copilotToken, enterpriseDomain)
+	req, _ := http.NewRequest("GET", strings.TrimRight(baseURL, "/")+"/models", nil)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+copilotToken)
+	req.Header.Set("X-GitHub-Api-Version", copilotAPIVersion)
+	for k, v := range copilotHeaders {
+		req.Header.Set(k, v)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+	var raw struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(raw.Data))
+	for _, item := range raw.Data {
+		id, _ := item["id"].(string)
+		if id != "" && isSelectableCopilotModel(item) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+func isSelectableCopilotModel(item map[string]interface{}) bool {
+	if enabled, _ := item["model_picker_enabled"].(bool); !enabled {
+		return false
+	}
+	if policy, ok := item["policy"].(map[string]interface{}); ok {
+		if state, _ := policy["state"].(string); state == "disabled" {
+			return false
+		}
+	}
+	if capabilities, ok := item["capabilities"].(map[string]interface{}); ok {
+		if supports, ok := capabilities["supports"].(map[string]interface{}); ok {
+			if toolCalls, ok := supports["tool_calls"].(bool); ok && !toolCalls {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func availableCopilotModelSet(creds *Credentials) map[string]bool {
+	if creds == nil || creds.Extra == nil {
+		return nil
+	}
+	raw, ok := creds.Extra["availableModelIds"]
+	if !ok {
+		return nil
+	}
+	out := map[string]bool{}
+	switch v := raw.(type) {
+	case []string:
+		for _, id := range v {
+			out[id] = true
+		}
+	case []interface{}:
+		for _, item := range v {
+			if id, ok := item.(string); ok {
+				out[id] = true
+			}
+		}
+	}
+	return out
 }
 
 // GetGitHubCopilotBaseURL extracts the API base URL from a Copilot token.
