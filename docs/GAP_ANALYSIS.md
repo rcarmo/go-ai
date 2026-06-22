@@ -2,9 +2,26 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.9
+## Source: `@earendil-works/pi-ai` v0.79.10
 
 ## Sync history
+
+### v0.79.10 (2026-06-22)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.9` → `v0.79.10`) found:
+
+- **OpenAI Completions SSE runtime**: upstream now validates encrypted reasoning details and preserves details that arrive before the matching streamed tool-call ID is available, attaching them once the tool call is materialized.
+- **Text model registry metadata**: upstream refreshed generated text models while retaining 979 models / 35 providers. Concrete changes include OpenAI model metadata/pricing/max-token updates and removal of older OpenRouter entries present in v0.79.9.
+- **No image registry/provider/env/OAuth deltas**: full `dist/` audit found no other Go-facing runtime/type/provider changes beyond OpenAI completions encrypted-reasoning handling and generated text registry metadata.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.10.
+- Added validated encrypted-reasoning detail handling plus pending detail attachment for streamed tool calls in the OpenAI-compatible SSE parser.
+- Added regression coverage for reasoning details arriving before the matching tool call.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.79.10 is fully synced in Go; this was an OpenAI-compatible SSE robustness fix plus generated text-registry parity update.
 
 ### v0.79.9 (2026-06-21)
 

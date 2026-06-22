@@ -2,6 +2,25 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-22 v0.79.10 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.9` against `v0.79.10` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream changed OpenAI Completions SSE handling for encrypted `reasoning_details`: details are now validated and retained if they arrive before the matching streamed tool-call ID.
+- Upstream refreshed generated text model metadata while retaining 979 models / 35 providers.
+- Image registry and other provider/type/env/OAuth surfaces were unchanged in `dist/`.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.79.10.
+- Ported pending encrypted-reasoning detail attachment in the OpenAI-compatible SSE parser.
+- Added regression coverage for reasoning details preceding tool-call materialization.
+- Re-ran the complete validation gate.
+
+Result: `go-ai` is synced with upstream `v0.79.10`; the Go-facing changes were OpenAI-compatible SSE encrypted-reasoning robustness and generated text model registry parity.
+
 ## 2026-06-21 v0.79.9 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.8` against `v0.79.9` and audited `go-ai` parity.

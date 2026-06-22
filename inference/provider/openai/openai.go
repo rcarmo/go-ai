@@ -603,6 +603,10 @@ type reasoningDetail struct {
 	Data string `json:"data,omitempty"`
 }
 
+func isEncryptedReasoningDetail(detail reasoningDetail) bool {
+	return detail.Type == "reasoning.encrypted" && detail.ID != "" && detail.Data != ""
+}
+
 type sseToolCall struct {
 	Index    int             `json:"index"`
 	ID       string          `json:"id,omitempty"`
@@ -646,6 +650,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		contentIdx int
 	}
 	var activeTools []activeToolCall
+	pendingReasoningDetailsByToolCallID := map[string]string{}
 	var finishReason *string
 
 	events := sse.Parse(body)
@@ -778,6 +783,9 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			if tc.ID != "" {
 				at.id = tc.ID
 				partial.Content[at.contentIdx].ID = tc.ID
+				if sig := pendingReasoningDetailsByToolCallID[tc.ID]; sig != "" {
+					partial.Content[at.contentIdx].ThoughtSignature = sig
+				}
 			}
 			if tc.Function.Name != "" {
 				at.name = tc.Function.Name
@@ -785,16 +793,26 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			}
 		}
 
-		// Encrypted reasoning details → attach as thoughtSignature on matching tool calls
+		// Encrypted reasoning details → attach as thoughtSignature on matching tool calls.
+		// Some OpenAI-compatible streams emit reasoning_details before the matching
+		// tool call ID is fully available, so retain validated encrypted details and
+		// attach them when the tool call arrives later.
 		for _, detail := range delta.ReasoningDetails {
-			if detail.Type == "reasoning.encrypted" && detail.ID != "" && detail.Data != "" {
-				for i := range partial.Content {
-					if partial.Content[i].Type == "toolCall" && partial.Content[i].ID == detail.ID {
-						sig, _ := json.Marshal(detail)
-						partial.Content[i].ThoughtSignature = string(sig)
-						break
-					}
+			if !isEncryptedReasoningDetail(detail) {
+				continue
+			}
+			sigBytes, _ := json.Marshal(detail)
+			sig := string(sigBytes)
+			matched := false
+			for i := range partial.Content {
+				if partial.Content[i].Type == "toolCall" && partial.Content[i].ID == detail.ID {
+					partial.Content[i].ThoughtSignature = sig
+					matched = true
+					break
 				}
+			}
+			if !matched {
+				pendingReasoningDetailsByToolCallID[detail.ID] = sig
 			}
 		}
 	}

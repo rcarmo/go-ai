@@ -202,4 +202,33 @@ func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {
 	}
 }
 
+func TestProcessSSEStreamAttachesPendingEncryptedReasoningDetails(t *testing.T) {
+	body := io.NopCloser(io.MultiReader(
+		stringsReader("data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.encrypted\",\"id\":\"call_1\",\"data\":\"secret\"}]}}]}\n\n"),
+		stringsReader("data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\":\\\"hi\\\"}\"}}]}}]}\n\n"),
+		stringsReader("data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"delta\":{}}]}\n\n"),
+		stringsReader("data: [DONE]\n\n"),
+	))
+	ch := make(chan goai.Event, 16)
+	model := &goai.Model{ID: "requested-model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}
+	processSSEStream(body, model, ch)
+	close(ch)
+
+	var done *goai.DoneEvent
+	for ev := range ch {
+		if d, ok := ev.(*goai.DoneEvent); ok {
+			done = d
+		}
+	}
+	if done == nil {
+		t.Fatal("missing done event")
+	}
+	if len(done.Message.Content) != 1 || done.Message.Content[0].Type != "toolCall" {
+		t.Fatalf("unexpected content: %#v", done.Message.Content)
+	}
+	if got := done.Message.Content[0].ThoughtSignature; got != `{"type":"reasoning.encrypted","id":"call_1","data":"secret"}` {
+		t.Fatalf("thought signature = %q", got)
+	}
+}
+
 func stringsReader(s string) io.Reader { return strings.NewReader(s) }
