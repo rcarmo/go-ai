@@ -10,10 +10,11 @@ import (
 
 // SSEEvent represents a single Server-Sent Event.
 type SSEEvent struct {
-	Event string // event type (default: "message")
-	Data  string // event data (lines joined by \n)
-	ID    string // last event ID
-	Retry int    // reconnection time in ms (-1 if not set)
+	Event string   // event type (default: "message")
+	Data  string   // event data (lines joined by \n)
+	ID    string   // last event ID
+	Retry int      // reconnection time in ms (-1 if not set)
+	Raw   []string // raw SSE lines for this event, excluding comments
 }
 
 const EventError = "__error__"
@@ -31,6 +32,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 		var event SSEEvent
 		event.Retry = -1
 		var dataLines []string
+		var rawLines []string
 		// SSE spec: id and retry are sticky across events until overwritten.
 		lastID := ""
 		lastRetry := -1
@@ -42,6 +44,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 				// Empty line = dispatch event
 				if len(dataLines) > 0 {
 					event.Data = strings.Join(dataLines, "\n")
+					event.Raw = append([]string(nil), rawLines...)
 					if event.Event == "" {
 						event.Event = "message"
 					}
@@ -56,6 +59,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 				// Reset per-event state; keep sticky id/retry
 				event = SSEEvent{Retry: -1}
 				dataLines = nil
+				rawLines = nil
 				continue
 			}
 
@@ -64,6 +68,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 				continue // comment
 			}
 
+			rawLines = append(rawLines, line)
 			field, value, _ := strings.Cut(line, ":")
 			value = strings.TrimPrefix(value, " ")
 
@@ -88,6 +93,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 		// Flush last event if no trailing blank line
 		if len(dataLines) > 0 {
 			event.Data = strings.Join(dataLines, "\n")
+			event.Raw = append([]string(nil), rawLines...)
 			if event.Event == "" {
 				event.Event = "message"
 			}

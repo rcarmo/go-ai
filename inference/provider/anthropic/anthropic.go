@@ -515,8 +515,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					Name string `json:"name,omitempty"`
 				} `json:"content_block"`
 			}
-			if json.Unmarshal([]byte(evt.Data), &data) != nil {
-				continue
+			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				return
 			}
 			switch data.ContentBlock.Type {
 			case "text":
@@ -544,8 +545,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					PartialJSON string `json:"partial_json,omitempty"`
 				} `json:"delta"`
 			}
-			if json.Unmarshal([]byte(evt.Data), &data) != nil {
-				continue
+			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				return
 			}
 			idx := data.Index
 			if idx >= len(partial.Content) {
@@ -570,8 +572,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 			var data struct {
 				Index int `json:"index"`
 			}
-			if json.Unmarshal([]byte(evt.Data), &data) != nil {
-				continue
+			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				return
 			}
 			idx := data.Index
 			if idx >= len(partial.Content) {
@@ -610,8 +613,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					OutputTokens int `json:"output_tokens"`
 				} `json:"usage"`
 			}
-			if json.Unmarshal([]byte(evt.Data), &data) != nil {
-				continue
+			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				return
 			}
 			partial.Usage.Output = data.Usage.OutputTokens
 			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output
@@ -647,8 +651,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 					} `json:"usage"`
 				} `json:"message"`
 			}
-			if json.Unmarshal([]byte(evt.Data), &data) != nil {
-				continue
+			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				return
 			}
 			partial.ResponseID = data.Message.ID
 			partial.Usage.Input = data.Message.Usage.InputTokens
@@ -674,6 +679,14 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 	}
 
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+}
+
+func anthropicSSEParseError(evt sse.SSEEvent, err error) error {
+	raw := strings.Join(evt.Raw, `\n`)
+	if raw == "" {
+		raw = "data: " + evt.Data
+	}
+	return fmt.Errorf("Could not parse Anthropic SSE event %s: %s; data=%s; raw=%s", evt.Event, err.Error(), evt.Data, raw)
 }
 
 func computeCosts(usage *goai.Usage, model *goai.Model) {

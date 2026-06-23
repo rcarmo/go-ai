@@ -10,6 +10,27 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+func TestStreamAnthropicMalformedRawSSEErrorIncludesDataAndRaw(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: message_start\ndata: {bad json}\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "claude-sonnet-4-20250514", Provider: goai.ProviderAnthropic, Api: goai.ApiAnthropicMessages, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	want := "Could not parse Anthropic SSE event message_start: invalid character 'b' looking for beginning of object key string; data={bad json}; raw=event: message_start\\ndata: {bad json}"
+	for ev := range streamAnthropic(context.Background(), model, convCtx, &goai.StreamOptions{APIKey: "test-key"}) {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if e.Err == nil || e.Err.Error() != want {
+				t.Fatalf("unexpected Anthropic parse error:\n got: %v\nwant: %s", e.Err, want)
+			}
+			return
+		}
+	}
+	t.Fatal("expected Anthropic SSE parse error")
+}
+
 func TestStreamAnthropicParsesOneHourCacheWriteUsage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
