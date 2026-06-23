@@ -85,11 +85,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
-		for k, v := range model.Headers {
-			if req.Header.Get(k) == "" {
-				req.Header.Set(k, v)
-			}
-		}
+		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

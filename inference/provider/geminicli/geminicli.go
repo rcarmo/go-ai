@@ -92,11 +92,7 @@ func streamGeminiCLI(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("User-Agent", "cloud-code-assist/1.0")
 		req.Header.Set("X-Goog-Api-Client", "cl/head cloud-code-assist/1.0")
 
-		for k, v := range model.Headers {
-			if req.Header.Get(k) == "" {
-				req.Header.Set(k, v)
-			}
-		}
+		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)

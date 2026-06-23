@@ -118,6 +118,35 @@ func HasOpenAIAuthHeader(headers ...map[string]string) bool {
 	return false
 }
 
+// MergeProviderHeaders returns the effective provider header map after model
+// defaults, caller overrides, and null-equivalent suppressions. Matching is
+// case-insensitive for suppressions, mirroring HTTP header semantics.
+func MergeProviderHeaders(modelHeaders, optionHeaders map[string]string, suppress []string) map[string]string {
+	out := map[string]string{}
+	for k, v := range modelHeaders {
+		out[k] = v
+	}
+	for k, v := range optionHeaders {
+		for existing := range out {
+			if strings.EqualFold(existing, k) && existing != k {
+				delete(out, existing)
+			}
+		}
+		out[k] = v
+	}
+	for _, name := range suppress {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		for k := range out {
+			if strings.EqualFold(k, name) {
+				delete(out, k)
+			}
+		}
+	}
+	return out
+}
+
 // HasAnthropicAuthHeader reports whether caller/model headers already provide
 // Anthropic-compatible authorization.
 func HasAnthropicAuthHeader(headers ...map[string]string) bool {
@@ -129,10 +158,22 @@ func HasAnthropicAuthHeader(headers ...map[string]string) bool {
 	return false
 }
 
-// ApplyHeaders applies non-empty header values to h.
+// ApplyHeaders applies header values to h.
 func ApplyHeaders(h http.Header, headers map[string]string) {
 	for k, v := range headers {
 		h.Set(k, v)
+	}
+}
+
+// ApplyDefaultHeaders applies header values only when that header key is absent.
+// Unlike Header.Get, this treats an explicitly present empty value as present,
+// preserving caller overrides that intentionally blank a provider default.
+func ApplyDefaultHeaders(h http.Header, headers map[string]string) {
+	for k, v := range headers {
+		canonical := http.CanonicalHeaderKey(k)
+		if _, ok := h[canonical]; !ok {
+			h.Set(k, v)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package goai_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"testing"
 
@@ -419,6 +420,35 @@ func TestHasOpenAIAuthHeader(t *testing.T) {
 	}
 	if goai.HasOpenAIAuthHeader(map[string]string{"Authorization": "   "}) {
 		t.Fatal("blank auth header should not be detected")
+	}
+}
+
+func TestMergeProviderHeadersAppliesOverridesAndSuppressions(t *testing.T) {
+	merged := goai.MergeProviderHeaders(
+		map[string]string{"Authorization": "Bearer model", "X-Keep": "model"},
+		map[string]string{"authorization": "", "X-Override": "caller"},
+		[]string{"x-keep"},
+	)
+	if goai.HasOpenAIAuthHeader(merged) {
+		t.Fatal("blank caller Authorization override should not count as auth")
+	}
+	if _, ok := merged["X-Keep"]; ok {
+		t.Fatalf("suppressed header still present: %#v", merged)
+	}
+	if merged["X-Override"] != "caller" {
+		t.Fatalf("caller override missing: %#v", merged)
+	}
+}
+
+func TestApplyDefaultHeadersPreservesExplicitEmptyOverride(t *testing.T) {
+	h := http.Header{}
+	h.Set("X-Test", "")
+	goai.ApplyDefaultHeaders(h, map[string]string{"x-test": "model-default", "x-other": "default"})
+	if got := h.Get("X-Test"); got != "" {
+		t.Fatalf("expected explicit empty header to remain empty, got %q", got)
+	}
+	if got := h.Get("X-Other"); got != "default" {
+		t.Fatalf("expected missing header default, got %q", got)
 	}
 }
 

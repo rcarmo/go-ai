@@ -45,10 +45,12 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		var optHeaders map[string]string
+		var suppressHeaders []string
 		if opts != nil {
 			optHeaders = opts.Headers
+			suppressHeaders = opts.SuppressHeaders
 		}
-		if apiKey == "" && !goai.HasOpenAIAuthHeader(optHeaders, model.Headers) {
+		if apiKey == "" && !goai.HasOpenAIAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("no API key for provider: %s", model.Provider),
@@ -110,11 +112,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
-		for k, v := range model.Headers {
-			if req.Header.Get(k) == "" {
-				req.Header.Set(k, v)
-			}
-		}
+		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

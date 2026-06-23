@@ -119,10 +119,12 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		var optHeaders map[string]string
+		var suppressHeaders []string
 		if opts != nil {
 			optHeaders = opts.Headers
+			suppressHeaders = opts.SuppressHeaders
 		}
-		if apiKey == "" && !goai.HasAnthropicAuthHeader(optHeaders, model.Headers) {
+		if apiKey == "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for provider: %s", model.Provider)}
 			return
 		}
@@ -180,11 +182,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			req.Header.Set("Anthropic-Beta", joinBetas(betas))
 		}
 
-		for k, v := range model.Headers {
-			if req.Header.Get(k) == "" {
-				req.Header.Set(k, v)
-			}
-		}
+		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
