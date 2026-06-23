@@ -940,6 +940,9 @@ readLoop:
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
 			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data)}
 			if !started {
+				if useCachedContext && entry != nil && opts != nil {
+					removeCodexWebSocketSession(opts.SessionID, entry)
+				}
 				return err
 			}
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}

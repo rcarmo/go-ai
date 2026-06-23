@@ -197,9 +197,72 @@ func TestStreamCodexWebSocketSetupFailureFallsBackToSSEWithDiagnostic(t *testing
 	}
 }
 
+func TestStreamCodexRetriesWebSocketConnectionLimitOnceBeforeSSE(t *testing.T) {
+	CloseOpenAICodexWebSocketSessions("")
+	ResetOpenAICodexWebSocketDebugStats("")
+	defer CloseOpenAICodexWebSocketSessions("")
+
+	var wsAttempts, sseAttempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") == "websocket" {
+			wsAttempts++
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				t.Fatalf("accept websocket: %v", err)
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "done")
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+			_, _, _ = conn.Read(ctx)
+			payload := map[string]interface{}{"type": "error", "error": map[string]interface{}{"code": "websocket_connection_limit_reached", "message": "too many websocket connections"}}
+			b, _ := json.Marshal(payload)
+			if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
+				t.Fatalf("write connection-limit error: %v", err)
+			}
+			return
+		}
+		sseAttempts++
+		_, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_sse\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\",\"id\":\"item_1\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"id\":\"item_1\"}}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_sse\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n")
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+
+	var done *goai.Message
+	for ev := range streamCodex(context.Background(), model, convCtx, &goai.StreamOptions{Transport: goai.TransportAuto, SessionID: "sess-conn-limit", APIKey: jwt}) {
+		switch e := ev.(type) {
+		case *goai.DoneEvent:
+			done = e.Message
+		case *goai.ErrorEvent:
+			t.Fatalf("unexpected error event: %v", e.Err)
+		}
+	}
+	if wsAttempts != 2 || sseAttempts != 1 {
+		t.Fatalf("expected two websocket attempts then one SSE fallback, got ws=%d sse=%d", wsAttempts, sseAttempts)
+	}
+	if done == nil || done.ResponseID != "resp_sse" || len(done.Diagnostics) != 1 || done.Diagnostics[0].Type != "provider_transport_failure" {
+		t.Fatalf("unexpected fallback done message: %#v", done)
+	}
+}
+
 func TestStreamViaWebSocketProtocolFlow(t *testing.T) {
 	var received map[string]interface{}
+	var gotUpgrade, gotConnection, gotKey, gotVersion, gotHost string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUpgrade = r.Header.Get("Upgrade")
+		gotConnection = r.Header.Get("Connection")
+		gotKey = r.Header.Get("Sec-WebSocket-Key")
+		gotVersion = r.Header.Get("Sec-WebSocket-Version")
+		gotHost = r.Host
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Fatalf("accept websocket: %v", err)
@@ -240,6 +303,9 @@ func TestStreamViaWebSocketProtocolFlow(t *testing.T) {
 	}
 	close(ch)
 
+	if gotUpgrade != "websocket" || !strings.Contains(strings.ToLower(gotConnection), "upgrade") || gotKey == "" || gotVersion != "13" || gotHost == "" {
+		t.Fatalf("missing RFC6455 handshake headers: upgrade=%q connection=%q key=%q version=%q host=%q", gotUpgrade, gotConnection, gotKey, gotVersion, gotHost)
+	}
 	if received["model"] != "codex-mini" {
 		t.Fatalf("expected model in outbound payload, got %#v", received["model"])
 	}
