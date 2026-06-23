@@ -4,11 +4,28 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+func TestProcessCodexSSEResponseFailedErrorMatchesUpstream(t *testing.T) {
+	body := strings.NewReader("data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"bad\",\"message\":\"terminal failed\"}}}\n\n")
+	ch := make(chan goai.Event, 8)
+	processCodexSSE(body, &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}, ch, nil)
+	close(ch)
+	for ev := range ch {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if e.Err == nil || e.Err.Error() != "terminal failed" {
+				t.Fatalf("unexpected response.failed error: %v", e.Err)
+			}
+			return
+		}
+	}
+	t.Fatal("expected response.failed error")
+}
 
 func TestStreamViaSSERetries429AndSucceeds(t *testing.T) {
 	attempts := 0

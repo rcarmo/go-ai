@@ -725,6 +725,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 
 	started := false
+	sawCompletion := false
 
 	type activeItem struct {
 		itemType    string
@@ -897,6 +898,7 @@ readLoop:
 			current = nil
 
 		case "response.completed", "response.incomplete", "response.done":
+			sawCompletion = true
 			var resp struct {
 				ID     string `json:"id"`
 				Status string `json:"status"`
@@ -952,13 +954,35 @@ readLoop:
 			if useCachedContext && entry != nil {
 				entry.continuation = nil
 			}
-			err := &codexAPIError{message: "Codex response failed", payload: string(data)}
+			var failed struct {
+				Response *struct {
+					Error *struct {
+						Code    string `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				} `json:"response"`
+			}
+			_ = json.Unmarshal(data, &failed)
+			code, message := "", ""
+			if failed.Response != nil && failed.Response.Error != nil {
+				code = failed.Response.Error.Code
+				message = failed.Response.Error.Message
+			}
+			err := &codexAPIError{message: firstNonEmpty(message, "Codex response failed"), code: code, payload: string(data)}
 			if !started {
 				return err
 			}
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return nil
 		}
+	}
+
+	if !sawCompletion {
+		if useCachedContext && entry != nil && opts != nil {
+			removeCodexWebSocketSession(opts.SessionID, entry)
+			entry.continuation = nil
+		}
+		return fmt.Errorf("WebSocket stream closed before response.completed")
 	}
 
 	if useCachedContext && entry != nil && partial.ResponseID != "" {
@@ -1191,7 +1215,19 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)}
 			return
 		case "response.failed":
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("response failed")}
+			var failed struct {
+				Response *struct {
+					Error *struct {
+						Message string `json:"message"`
+					} `json:"error"`
+				} `json:"response"`
+			}
+			_ = json.Unmarshal([]byte(evt.Data), &failed)
+			message := "Codex response failed"
+			if failed.Response != nil && failed.Response.Error != nil && failed.Response.Error.Message != "" {
+				message = failed.Response.Error.Message
+			}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("%s", message)}
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {

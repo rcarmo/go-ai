@@ -197,6 +197,29 @@ func TestStreamCodexWebSocketSetupFailureFallsBackToSSEWithDiagnostic(t *testing
 	}
 }
 
+func TestStreamViaWebSocketClosedBeforeCompletionErrorMatchesUpstream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Fatalf("accept websocket: %v", err)
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		_, _, _ = conn.Read(ctx)
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+	ch := make(chan goai.Event, 32)
+	err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, ch)
+	if err == nil || err.Error() != "WebSocket stream closed before response.completed" {
+		t.Fatalf("unexpected terminal WS error: %v", err)
+	}
+}
+
 func TestStreamCodexRetriesWebSocketConnectionLimitOnceBeforeSSE(t *testing.T) {
 	CloseOpenAICodexWebSocketSessions("")
 	ResetOpenAICodexWebSocketDebugStats("")
