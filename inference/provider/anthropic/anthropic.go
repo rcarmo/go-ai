@@ -118,7 +118,11 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		goai.GetLogger().Debug("stream start", "api", "anthropic-messages", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
-		if apiKey == "" {
+		var optHeaders map[string]string
+		if opts != nil {
+			optHeaders = opts.Headers
+		}
+		if apiKey == "" && !goai.HasAnthropicAuthHeader(optHeaders, model.Headers) {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for provider: %s", model.Provider)}
 			return
 		}
@@ -150,15 +154,17 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
-		if model.Provider == goai.ProviderGitHubCopilot {
-			req.Header.Set("Authorization", "Bearer "+apiKey)
-			for k, v := range goai.CopilotHeaders() {
-				req.Header.Set(k, v)
+		if apiKey != "" {
+			if model.Provider == goai.ProviderGitHubCopilot {
+				req.Header.Set("Authorization", "Bearer "+apiKey)
+				for k, v := range goai.CopilotHeaders() {
+					req.Header.Set(k, v)
+				}
+			} else if model.Provider == goai.ProviderCloudflareAIGateway {
+				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+			} else {
+				req.Header.Set("X-Api-Key", apiKey)
 			}
-		} else if model.Provider == goai.ProviderCloudflareAIGateway {
-			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
-		} else {
-			req.Header.Set("X-Api-Key", apiKey)
 		}
 
 		// Beta features
@@ -174,10 +180,14 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			req.Header.Set("Anthropic-Beta", joinBetas(betas))
 		}
 
-		if opts != nil {
-			for k, v := range opts.Headers {
+		for k, v := range model.Headers {
+			if req.Header.Get(k) == "" {
 				req.Header.Set(k, v)
 			}
+		}
+		if opts != nil {
+			goai.ApplyHeaders(req.Header, opts.Headers)
+			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)

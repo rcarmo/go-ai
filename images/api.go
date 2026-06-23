@@ -72,6 +72,9 @@ type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel
 type ImagesOptions struct {
 	APIKey  string
 	Headers map[string]string
+	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
+	// removes a provider/model/default header after normal header merging.
+	SuppressHeaders []string
 	// Signal mirrors upstream's AbortSignal option. Deprecated in Go callers:
 	// prefer Context. Signal is honored only when Context is nil.
 	Signal  context.Context
@@ -83,6 +86,7 @@ type ImagesOptions struct {
 	MaxRetries      int
 	MaxRetryDelayMs int
 	Metadata        map[string]any
+	Env             goai.ProviderEnv
 	HTTPClient      *http.Client
 	OnPayload       ImagesPayloadHook
 	OnResponse      ImagesResponseHook

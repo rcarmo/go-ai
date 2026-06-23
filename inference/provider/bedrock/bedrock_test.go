@@ -41,6 +41,19 @@ func TestShouldUseExplicitBedrockEndpoint(t *testing.T) {
 	}
 }
 
+func TestBedrockCustomHeaderReservation(t *testing.T) {
+	for _, key := range []string{"authorization", "Authorization", "host", "Host", "x-amz-date", "X-Amz-Security-Token"} {
+		if !isReservedBedrockHeader(key) {
+			t.Fatalf("expected %q to be reserved", key)
+		}
+	}
+	for _, key := range []string{"x-trace-id", "anthropic-beta"} {
+		if isReservedBedrockHeader(key) {
+			t.Fatalf("expected %q to be custom-allowed", key)
+		}
+	}
+}
+
 func TestBedrockOptionPrecedenceAndRequestMetadata(t *testing.T) {
 	model := &goai.Model{ID: "anthropic.claude-3-5-sonnet", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}
 	if got := getConfiguredBedrockRegion(model, &goai.StreamOptions{Region: "eu-central-1", Env: goai.ProviderEnv{"AWS_REGION": "us-west-2"}}, nil); got != "eu-central-1" {

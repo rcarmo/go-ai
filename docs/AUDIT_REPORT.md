@@ -2,6 +2,34 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-23 v0.80.1 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.79.10` against `v0.80.1` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream reorganized the package around modular `dist/api/` providers, lazy API wrappers, provider factory helpers, and model/auth collection abstractions. Go keeps explicit package registration and global registries, but the generated registry parser needed to support modular provider imports.
+- Upstream refreshed generated text model metadata to 999 models / 35 providers. Image model metadata remained at 34 models / 1 provider.
+- Upstream added nullable provider headers. A `null` header suppresses provider/API defaults in HTTP-capable providers, while Bedrock filters reserved SigV4/auth headers.
+- Upstream OpenAI-compatible and Anthropic-compatible runtime auth now accepts explicit caller auth headers without requiring an `apiKey` value.
+- Upstream OpenRouter image generation now carries the richer image options surface: scoped env lookup, abort signal, request timeout, max retries, response hook, and nullable custom headers.
+- Upstream OpenAI Codex Responses retries one initial WebSocket connection-limit API error, extracts nested `event.error` codes/messages, and supports nullable extra headers.
+- Upstream Bedrock applies custom headers through a Smithy build-step middleware before signing.
+- Upstream auth abstractions centralize OAuth refresh. Go's existing `oauth.GetAPIKey()` contract already promised refresh-on-expiry, but the implementation did not perform it.
+
+Actions:
+
+- Updated `scripts/generate-models.go` for the 0.80.x modular registry layout and full compat metadata emission, then regenerated `models_generated.go` from v0.80.1.
+- Added `SuppressHeaders` to stream/image options and shared `ApplyHeaders` / `SuppressHeaders` helpers, then wired suppression into HTTP providers and image generation.
+- Ported Anthropic-compatible header-owned auth and kept OpenAI-compatible header-owned auth covered.
+- Ported OpenRouter image env/timeout/retry/signal/onResponse/header behavior.
+- Ported Codex WebSocket connection-limit retry/fallback and nested error extraction.
+- Added Bedrock build-step custom-header middleware with reserved-header filtering.
+- Fixed OAuth expired-token refresh in the existing Go OAuth helper.
+- Added focused regression coverage for each runtime change and representative registry metadata.
+
+Result: `go-ai` is synced with upstream `v0.80.1`; the complete comparative audit found no remaining Go-facing runtime/type/provider gaps. The JS-only `Models`/credential-store collection API remains an architectural difference from Go's existing registry/OAuth packages rather than an unimplemented wire-protocol gap.
+
 ## 2026-06-22 v0.79.10 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.9` against `v0.79.10` and audited `go-ai` parity.

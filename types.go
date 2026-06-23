@@ -325,17 +325,20 @@ type ThinkingBudgets struct {
 type ProviderEnv map[string]string
 
 type StreamOptions struct {
-	Temperature     *float64          `json:"temperature,omitempty"`
-	MaxTokens       *int              `json:"maxTokens,omitempty"`
-	APIKey          string            `json:"-"`
-	Transport       Transport         `json:"transport,omitempty"`
-	CacheRetention  CacheRetention    `json:"cacheRetention,omitempty"`
-	SessionID       string            `json:"sessionId,omitempty"`
-	Headers         map[string]string `json:"headers,omitempty"`
-	MaxRetryDelayMs *int              `json:"maxRetryDelayMs,omitempty"`
-	RetryConfig     *RetryConfig      `json:"-"`
-	Metadata        map[string]any    `json:"metadata,omitempty"`
-	Env             ProviderEnv       `json:"env,omitempty"`
+	Temperature    *float64          `json:"temperature,omitempty"`
+	MaxTokens      *int              `json:"maxTokens,omitempty"`
+	APIKey         string            `json:"-"`
+	Transport      Transport         `json:"transport,omitempty"`
+	CacheRetention CacheRetention    `json:"cacheRetention,omitempty"`
+	SessionID      string            `json:"sessionId,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
+	// removes a provider/model/default header after normal header merging.
+	SuppressHeaders []string       `json:"suppressHeaders,omitempty"`
+	MaxRetryDelayMs *int           `json:"maxRetryDelayMs,omitempty"`
+	RetryConfig     *RetryConfig   `json:"-"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	Env             ProviderEnv    `json:"env,omitempty"`
 
 	// Provider-specific options that mirror upstream option names where Go has
 	// equivalent transport/payload support.

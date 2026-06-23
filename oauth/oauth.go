@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sync"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -98,8 +99,16 @@ func GetAPIKey(id string, creds *Credentials) (*Credentials, string, error) {
 		return nil, "", fmt.Errorf("no credentials for OAuth provider %q", id)
 	}
 
-	// Check if token needs refresh (expired or about to expire)
-	// Credentials.Expires is in Unix millis; compare with buffer
+	// Credentials.Expires already includes each provider's early-refresh buffer.
+	if creds.Expires > 0 && time.Now().UnixMilli() >= creds.Expires {
+		refreshed, err := p.RefreshToken(creds)
+		if err != nil {
+			return creds, "", err
+		}
+		if refreshed != nil {
+			creds = refreshed
+		}
+	}
 	key := p.GetAPIKey(creds)
 	return creds, key, nil
 }

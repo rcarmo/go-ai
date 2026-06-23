@@ -41,6 +41,25 @@ func TestResolveAzureResponsesConfigNormalizesAzureHost(t *testing.T) {
 	}
 }
 
+func TestResponsesUsesExplicitAuthHeaderWithoutAPIKey(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "gpt-4.1", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, BaseURL: server.URL}
+	ctx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	for range streamResponses(context.Background(), model, ctx, &goai.StreamOptions{Headers: map[string]string{"authorization": "Bearer custom"}}) {
+	}
+	if gotAuth != "Bearer custom" {
+		t.Fatalf("Authorization = %q", gotAuth)
+	}
+}
+
 func TestAzureResponsesRequestAppliesCleanupAndSessionHeaders(t *testing.T) {
 	var rawReq responsesRequest
 	var input []map[string]interface{}

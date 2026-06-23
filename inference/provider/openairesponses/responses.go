@@ -47,7 +47,11 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		goai.GetLogger().Debug("stream start", "api", "openai-responses", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
-		if apiKey == "" {
+		var optHeaders map[string]string
+		if opts != nil {
+			optHeaders = opts.Headers
+		}
+		if apiKey == "" && !goai.HasOpenAIAuthHeader(optHeaders, model.Headers) {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("no API key for provider: %s", model.Provider)}
 			return
 		}
@@ -90,10 +94,12 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		if model.Provider == goai.ProviderCloudflareAIGateway {
-			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
-		} else {
-			req.Header.Set("Authorization", "Bearer "+apiKey)
+		if apiKey != "" {
+			if model.Provider == goai.ProviderCloudflareAIGateway {
+				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+			} else {
+				req.Header.Set("Authorization", "Bearer "+apiKey)
+			}
 		}
 		req.Header.Set("Accept", "text/event-stream")
 		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
@@ -111,14 +117,15 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		if opts != nil {
-			for k, v := range opts.Headers {
-				req.Header.Set(k, v)
-			}
+			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		for k, v := range model.Headers {
 			if req.Header.Get(k) == "" {
 				req.Header.Set(k, v)
 			}
+		}
+		if opts != nil {
+			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 		// Dynamic Copilot headers
 		if model.Provider == goai.ProviderGitHubCopilot {
@@ -231,7 +238,7 @@ func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (b
 		baseURL = model.BaseURL
 	}
 	if baseURL == "" {
-		return "", "", "", fmt.Errorf("Azure OpenAI base URL is required. Set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME, or pass AzureBaseURL, AzureResourceName, or model.BaseURL")
+		return "", "", "", fmt.Errorf("azure OpenAI base URL is required; set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME, or pass AzureBaseURL, AzureResourceName, or model.BaseURL")
 	}
 	baseURL, err = normalizeAzureBaseURL(baseURL)
 	if err != nil {
@@ -878,14 +885,4 @@ func mapStatus(status string) goai.StopReason {
 	default:
 		return goai.StopReasonStop
 	}
-}
-
-// inferCopilotInitiator determines X-Initiator header value based on last message role.
-func inferCopilotInitiator(messages []goai.Message) string {
-	return goai.InferCopilotInitiator(messages)
-}
-
-// hasCopilotVisionInput checks if any user or toolResult message contains images.
-func hasCopilotVisionInput(messages []goai.Message) bool {
-	return goai.HasCopilotVisionInput(messages)
 }

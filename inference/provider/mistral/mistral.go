@@ -75,10 +75,14 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Accept", "text/event-stream")
 
-		if opts != nil {
-			for k, v := range opts.Headers {
+		for k, v := range model.Headers {
+			if req.Header.Get(k) == "" {
 				req.Header.Set(k, v)
 			}
+		}
+		if opts != nil {
+			goai.ApplyHeaders(req.Header, opts.Headers)
+			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)

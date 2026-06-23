@@ -74,6 +74,16 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	}
 }
 
+func TestExtractCodexEventErrorUsesNestedPayload(t *testing.T) {
+	eventErr := extractCodexEventError("", "", &codexEventError{Code: "websocket_connection_limit_reached", Message: "too many connections"})
+	if eventErr.Code != "websocket_connection_limit_reached" || eventErr.Message != "too many connections" {
+		t.Fatalf("unexpected nested error: %#v", eventErr)
+	}
+	if !isWebSocketConnectionLimitReachedError(&codexAPIError{code: eventErr.Code}) {
+		t.Fatal("expected connection limit error to be detected")
+	}
+}
+
 func TestBuildCodexHeadersAddsAccountAndExperimentalHeaders(t *testing.T) {
 	token := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
 	accountID, err := extractCodexAccountID(token)
@@ -83,11 +93,11 @@ func TestBuildCodexHeadersAddsAccountAndExperimentalHeaders(t *testing.T) {
 	if accountID != "acct_123" {
 		t.Fatalf("unexpected account id: %q", accountID)
 	}
-	h := buildCodexSSEHeaders(map[string]string{"x-model": "1"}, map[string]string{"x-opt": "2"}, accountID, token, "sess-1")
-	if h.Get("chatgpt-account-id") != "acct_123" || h.Get("OpenAI-Beta") != "responses=experimental" || h.Get("session_id") != "sess-1" {
+	h := buildCodexSSEHeaders(map[string]string{"x-model": "1", "x-remove": "model"}, map[string]string{"x-opt": "2", "x-remove": "opt"}, []string{"x-remove"}, accountID, token, "sess-1")
+	if h.Get("chatgpt-account-id") != "acct_123" || h.Get("OpenAI-Beta") != "responses=experimental" || h.Get("session_id") != "sess-1" || h.Get("x-remove") != "" {
 		t.Fatalf("unexpected SSE headers: %#v", h)
 	}
-	wh := buildCodexWebSocketHeaders(nil, nil, accountID, token, "req-1")
+	wh := buildCodexWebSocketHeaders(nil, nil, nil, accountID, token, "req-1")
 	if wh.Get("OpenAI-Beta") != "responses_websockets=2026-02-06" || wh.Get("x-client-request-id") != "req-1" {
 		t.Fatalf("unexpected WS headers: %#v", wh)
 	}

@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"testing"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -104,6 +105,46 @@ func TestIsSelectableCopilotModel(t *testing.T) {
 	}
 	if isSelectableCopilotModel(map[string]interface{}{"model_picker_enabled": true, "capabilities": map[string]interface{}{"supports": map[string]interface{}{"tool_calls": false}}}) {
 		t.Fatal("expected non-tool-call model to be filtered")
+	}
+}
+
+type testOAuthProvider struct {
+	refreshes int
+}
+
+func (p *testOAuthProvider) ID() string                                 { return "test-refresh" }
+func (p *testOAuthProvider) Name() string                               { return "Test Refresh" }
+func (p *testOAuthProvider) Login(LoginCallbacks) (*Credentials, error) { return nil, nil }
+func (p *testOAuthProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	p.refreshes++
+	return &Credentials{Refresh: creds.Refresh, Access: "new-token", Expires: time.Now().Add(time.Hour).UnixMilli()}, nil
+}
+func (p *testOAuthProvider) GetAPIKey(creds *Credentials) string { return creds.Access }
+func (p *testOAuthProvider) ModifyModels(models []*goai.Model, creds *Credentials) []*goai.Model {
+	return models
+}
+
+func TestGetAPIKeyRefreshesExpiredCredential(t *testing.T) {
+	provider := &testOAuthProvider{}
+	RegisterProvider(provider)
+	creds, key, err := GetAPIKey(provider.ID(), &Credentials{Refresh: "refresh", Access: "old-token", Expires: time.Now().Add(-time.Minute).UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "new-token" || creds.Access != "new-token" || provider.refreshes != 1 {
+		t.Fatalf("expected refreshed key, got key=%q creds=%#v refreshes=%d", key, creds, provider.refreshes)
+	}
+}
+
+func TestGetAPIKeyKeepsValidCredential(t *testing.T) {
+	provider := &testOAuthProvider{}
+	RegisterProvider(provider)
+	_, key, err := GetAPIKey(provider.ID(), &Credentials{Refresh: "refresh", Access: "valid-token", Expires: time.Now().Add(time.Hour).UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "valid-token" || provider.refreshes != 0 {
+		t.Fatalf("expected existing key without refresh, got key=%q refreshes=%d", key, provider.refreshes)
 	}
 }
 

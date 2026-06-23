@@ -4,6 +4,7 @@ package goai
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http"
 	"strings"
 )
 
@@ -92,6 +93,57 @@ func CopilotHeadersWithIntent(intent string) map[string]string {
 		h["openai-intent"] = intent
 	}
 	return h
+}
+
+// HasNonEmptyHeader reports whether headers include name (case-insensitive)
+// with a non-empty value.
+func HasNonEmptyHeader(headers map[string]string, name string) bool {
+	expected := strings.ToLower(name)
+	for k, v := range headers {
+		if strings.ToLower(k) == expected && strings.TrimSpace(v) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasOpenAIAuthHeader reports whether caller/model headers already provide
+// OpenAI-compatible authorization.
+func HasOpenAIAuthHeader(headers ...map[string]string) bool {
+	for _, h := range headers {
+		if HasNonEmptyHeader(h, "authorization") || HasNonEmptyHeader(h, "cf-aig-authorization") {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnthropicAuthHeader reports whether caller/model headers already provide
+// Anthropic-compatible authorization.
+func HasAnthropicAuthHeader(headers ...map[string]string) bool {
+	for _, h := range headers {
+		if HasNonEmptyHeader(h, "authorization") || HasNonEmptyHeader(h, "x-api-key") || HasNonEmptyHeader(h, "cf-aig-authorization") {
+			return true
+		}
+	}
+	return false
+}
+
+// ApplyHeaders applies non-empty header values to h.
+func ApplyHeaders(h http.Header, headers map[string]string) {
+	for k, v := range headers {
+		h.Set(k, v)
+	}
+}
+
+// SuppressHeaders deletes headers after normal provider/model/caller merging.
+// It is the Go equivalent of upstream ProviderHeaders entries set to null.
+func SuppressHeaders(h http.Header, names []string) {
+	for _, name := range names {
+		if strings.TrimSpace(name) != "" {
+			h.Del(name)
+		}
+	}
 }
 
 // --- Cloudflare Workers AI ---

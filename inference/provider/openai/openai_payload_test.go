@@ -60,6 +60,26 @@ func TestStreamOpenAIInvokesOnPayload(t *testing.T) {
 	}
 }
 
+func TestStreamOpenAIUsesExplicitAuthHeaderWithoutAPIKey(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	for range streamOpenAI(context.Background(), model, convCtx, &goai.StreamOptions{Headers: map[string]string{"authorization": "Bearer custom"}}) {
+	}
+
+	if gotAuth != "Bearer custom" {
+		t.Fatalf("Authorization = %q", gotAuth)
+	}
+}
+
 func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
 	t.Setenv("CLOUDFLARE_GATEWAY_ID", "gw")
 	var gotAuth, gotCfAIG, gotPath string

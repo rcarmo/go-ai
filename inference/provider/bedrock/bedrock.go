@@ -23,6 +23,8 @@ import (
 	bedrockdoc "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	bearer "github.com/aws/smithy-go/auth/bearer"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
@@ -110,6 +112,13 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 				o.HTTPClient = &http.Client{Transport: &http.Transport{ForceAttemptHTTP2: false}}
 			})
 		}
+		if opts != nil && (len(opts.Headers) > 0 || len(opts.SuppressHeaders) > 0) {
+			headers := cloneStringMap(opts.Headers)
+			suppress := append([]string(nil), opts.SuppressHeaders...)
+			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
+				o.APIOptions = append(o.APIOptions, addCustomHeadersMiddleware(headers, suppress))
+			})
+		}
 		client := bedrockruntime.NewFromConfig(awsCfg, clientOpts...)
 
 		// Build request
@@ -176,6 +185,42 @@ func bedrockARNRegion(modelID string) string {
 
 func extractRegionFromURL(baseURL string) string {
 	return getStandardBedrockEndpointRegion(baseURL)
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func isReservedBedrockHeader(key string) bool {
+	lower := strings.ToLower(key)
+	return lower == "authorization" || lower == "host" || strings.HasPrefix(lower, "x-amz-")
+}
+
+func addCustomHeadersMiddleware(headers map[string]string, suppressHeaders []string) func(*middleware.Stack) error {
+	return func(stack *middleware.Stack) error {
+		return stack.Build.Add(middleware.BuildMiddlewareFunc("go-ai-custom-headers", func(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (out middleware.BuildOutput, metadata middleware.Metadata, err error) {
+			if req, ok := in.Request.(*smithyhttp.Request); ok && req != nil {
+				for k, v := range headers {
+					if !isReservedBedrockHeader(k) {
+						req.Header.Set(k, v)
+					}
+				}
+				for _, name := range suppressHeaders {
+					if !isReservedBedrockHeader(name) {
+						req.Header.Del(name)
+					}
+				}
+			}
+			return next.HandleBuild(ctx, in)
+		}), middleware.After)
+	}
 }
 
 func getStandardBedrockEndpointRegion(baseURL string) string {

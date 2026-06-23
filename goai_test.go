@@ -410,6 +410,33 @@ func TestClampThinkingLevelPrefersUpgrade(t *testing.T) {
 	}
 }
 
+func TestHasOpenAIAuthHeader(t *testing.T) {
+	if !goai.HasOpenAIAuthHeader(map[string]string{"authorization": "Bearer custom"}) {
+		t.Fatal("expected Authorization header to be detected")
+	}
+	if !goai.HasOpenAIAuthHeader(map[string]string{"CF-AIG-Authorization": "Bearer cf"}) {
+		t.Fatal("expected cf-aig-authorization header to be detected")
+	}
+	if goai.HasOpenAIAuthHeader(map[string]string{"Authorization": "   "}) {
+		t.Fatal("blank auth header should not be detected")
+	}
+}
+
+func TestHasAnthropicAuthHeader(t *testing.T) {
+	if !goai.HasAnthropicAuthHeader(map[string]string{"authorization": "Bearer custom"}) {
+		t.Fatal("expected Authorization header to be detected")
+	}
+	if !goai.HasAnthropicAuthHeader(map[string]string{"X-Api-Key": "custom"}) {
+		t.Fatal("expected X-Api-Key header to be detected")
+	}
+	if !goai.HasAnthropicAuthHeader(map[string]string{"cf-aig-authorization": "Bearer cf"}) {
+		t.Fatal("expected cf-aig-authorization header to be detected")
+	}
+	if goai.HasAnthropicAuthHeader(map[string]string{"X-Api-Key": "   "}) {
+		t.Fatal("blank auth header should not be detected")
+	}
+}
+
 func TestBuildCopilotDynamicHeaders(t *testing.T) {
 	// Last message from user => user-initiated, no images.
 	h := goai.BuildCopilotDynamicHeaders([]goai.Message{

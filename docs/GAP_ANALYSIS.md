@@ -2,9 +2,32 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.79.10
+## Source: `@earendil-works/pi-ai` v0.80.1
 
 ## Sync history
+
+### v0.80.1 (2026-06-23)
+
+Comparative audit (`@earendil-works/pi-ai v0.79.10` → `v0.80.1`) found:
+
+- **Package/API layout**: upstream moved provider implementations from `dist/providers/` into modular `dist/api/` modules and added lazy wrappers plus typed API option maps. Go already uses explicit `init()` API registration; no runtime shim was required, but the model generator now understands the modular generated-registry imports.
+- **Text model registry metadata**: upstream refreshed generated text models to 999 models / 35 providers and moved registry data into provider modules. Go regenerated `models_generated.go` and preserved Anthropic/OpenAI compat metadata from the modular registry.
+- **Provider headers**: upstream added nullable `ProviderHeaders`; `null` suppresses a default/provider header. Go now exposes `StreamOptions.SuppressHeaders` and `images.ImagesOptions.SuppressHeaders`, applies suppression after normal header merging, and protects reserved Bedrock SigV4/auth headers.
+- **Header-owned auth**: OpenAI-compatible APIs accept caller-supplied `Authorization` / `cf-aig-authorization` without an explicit API key, and Anthropic-compatible APIs accept caller-supplied `Authorization`, `X-Api-Key`, or `cf-aig-authorization`. Go now mirrors this for OpenAI-compatible and Anthropic-compatible providers.
+- **Images options**: upstream OpenRouter image generation added/confirmed `env`, `signal`, `timeoutMs`, `maxRetries`, `onResponse`, and nullable custom headers. Go image generation now honors scoped env API-key resolution, context/signal cancellation, request timeout, retry count, response hooks, and header suppression.
+- **OpenAI Codex Responses**: upstream retries one WebSocket `websocket_connection_limit_reached` error before SSE fallback, extracts nested `event.error` codes/messages, and supports nullable extra headers. Go now mirrors those transport/error/header behaviors.
+- **Bedrock custom headers**: upstream injects caller headers at the Smithy build step and skips reserved SigV4/auth headers. Go now injects custom headers through an AWS SDK build middleware with the same reserved-header protection.
+- **OAuth/auth abstraction**: upstream added a JS `Models`/credential-store abstraction with locked OAuth refresh. Go keeps its existing global registry and `oauth` package, but the concrete runtime gap was that `oauth.GetAPIKey()` did not refresh expired credentials despite its contract; it now refreshes using the provider refresh hook.
+
+Actions:
+
+- Updated the model generator for upstream 0.80.x modular `MODELS` imports and Anthropic compat metadata emission.
+- Regenerated `models_generated.go` from upstream v0.80.1 (999 models / 35 providers).
+- Added `SuppressHeaders`, shared header helpers, Anthropic auth-header detection, Bedrock custom-header middleware, Codex WebSocket/error/header parity, OpenRouter image option parity, and OAuth expired-token refresh.
+- Added regression coverage for header-owned auth, nullable/suppressed headers, image timeout/retry/response behavior, Codex nested/connection-limit errors, Bedrock reserved headers, OAuth refresh, and representative registry metadata.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.80.1 is fully synced in Go; the Go-facing changes were modular registry generation, generated text-registry parity, provider/image header semantics, image option parity, Codex transport robustness, Bedrock custom headers, Anthropic/OpenAI header-owned auth, and OAuth refresh behavior.
 
 ### v0.79.10 (2026-06-22)
 

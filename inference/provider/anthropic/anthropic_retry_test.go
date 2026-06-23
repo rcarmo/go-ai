@@ -44,6 +44,29 @@ func TestStreamAnthropicParsesOneHourCacheWriteUsage(t *testing.T) {
 	}
 }
 
+func TestStreamAnthropicUsesExplicitAuthHeaderWithoutAPIKey(t *testing.T) {
+	var gotXAPIKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotXAPIKey = r.Header.Get("X-Api-Key")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: message_start\ndata: {\"message\":{\"id\":\"msg_1\",\"usage\":{\"input_tokens\":1}}}\n\n"))
+		_, _ = w.Write([]byte("event: message_delta\ndata: {\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n"))
+		_, _ = w.Write([]byte("event: message_stop\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "claude-sonnet-4-20250514", Provider: goai.ProviderAnthropic, Api: goai.ApiAnthropicMessages, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	for ev := range streamAnthropic(context.Background(), model, convCtx, &goai.StreamOptions{Headers: map[string]string{"x-api-key": "custom-key"}}) {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			t.Fatalf("unexpected error: %v", e.Err)
+		}
+	}
+	if gotXAPIKey != "custom-key" {
+		t.Fatalf("X-Api-Key = %q", gotXAPIKey)
+	}
+}
+
 func TestStreamAnthropicRetries429AndSucceeds(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

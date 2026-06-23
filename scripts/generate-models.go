@@ -46,8 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Extract the object literal
-	jsText := string(data)
+	// Extract the object literal. pi-ai v0.80+ splits MODELS across provider
+	// modules, so inline those imports before using the existing JS-object parser.
+	jsText := inlineModularModels(*input, string(data))
 	jsonText := jsObjectToJSON(jsText)
 
 	// Parse as JSON
@@ -112,6 +113,8 @@ type compatEntry struct {
 	CacheControlFormat                          string                       `json:"cacheControlFormat"`
 	SendSessionAffinityHeaders                  *bool                        `json:"sendSessionAffinityHeaders"`
 	SupportsLongCacheRetention                  *bool                        `json:"supportsLongCacheRetention"`
+	SupportsTemperature                         *bool                        `json:"supportsTemperature"`
+	ForceAdaptiveThinking                       *bool                        `json:"forceAdaptiveThinking"`
 	AllowEmptySignature                         *bool                        `json:"allowEmptySignature"`
 	SendSessionIdHeader                         *bool                        `json:"sendSessionIdHeader"`
 	SupportsEagerToolInputStreaming             *bool                        `json:"supportsEagerToolInputStreaming"`
@@ -149,6 +152,50 @@ type costEntry struct {
 	Output     float64 `json:"output"`
 	CacheRead  float64 `json:"cacheRead"`
 	CacheWrite float64 `json:"cacheWrite"`
+}
+
+func inlineModularModels(inputPath, js string) string {
+	importRe := regexp.MustCompile(`(?m)^import \{ ([A-Z0-9_]+) \} from "([^"]+\.models\.js)";`)
+	imports := map[string]string{}
+	baseDir := filepath.Dir(inputPath)
+	for _, match := range importRe.FindAllStringSubmatch(js, -1) {
+		modulePath := filepath.Join(baseDir, filepath.FromSlash(strings.TrimPrefix(match[2], "./")))
+		data, err := os.ReadFile(modulePath)
+		if err != nil {
+			continue
+		}
+		imports[match[1]] = extractJSObjectLiteral(string(data))
+	}
+	if len(imports) == 0 {
+		return js
+	}
+
+	modelsRe := regexp.MustCompile(`(?s)export const MODELS = \{(.*)\};?`)
+	modelsMatch := modelsRe.FindStringSubmatch(js)
+	if len(modelsMatch) < 2 {
+		return js
+	}
+	entryRe := regexp.MustCompile(`(?m)^\s*"([^"]+)":\s*([A-Z0-9_]+),?\s*$`)
+	var b strings.Builder
+	b.WriteString("export const MODELS = {\n")
+	for _, match := range entryRe.FindAllStringSubmatch(modelsMatch[1], -1) {
+		obj, ok := imports[match[2]]
+		if !ok || obj == "" {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("  %q: %s,\n", match[1], obj))
+	}
+	b.WriteString("};")
+	return b.String()
+}
+
+func extractJSObjectLiteral(js string) string {
+	start := strings.Index(js, "{")
+	end := strings.LastIndex(js, "}")
+	if start < 0 || end < 0 || end <= start {
+		return "{}"
+	}
+	return js[start : end+1]
 }
 
 // jsObjectToJSON converts the JS module to a JSON object.
@@ -324,12 +371,15 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		b.WriteString("\t\tAnthropicCompat: &AnthropicMessagesCompat{")
 		writeBoolField(b, "SupportsEagerToolInputStreaming", c.SupportsEagerToolInputStreaming)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
+		writeBoolField(b, "ForceAdaptiveThinking", c.ForceAdaptiveThinking)
+		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
 	}
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {

@@ -25,7 +25,11 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 		apiKey = opts.APIKey
 	}
 	if apiKey == "" {
-		apiKey = goai.GetEnvAPIKey(goai.Provider(model.Provider))
+		var env goai.ProviderEnv
+		if opts != nil {
+			env = opts.Env
+		}
+		apiKey = goai.GetEnvAPIKeyWithEnv(goai.Provider(model.Provider), env)
 	}
 	if apiKey == "" {
 		out.StopReason = goai.StopReasonError
@@ -169,9 +173,8 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *i
 		req.Header.Set(k, v)
 	}
 	if opts != nil {
-		for k, v := range opts.Headers {
-			req.Header.Set(k, v)
-		}
+		goai.ApplyHeaders(req.Header, opts.Headers)
+		goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

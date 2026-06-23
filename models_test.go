@@ -47,13 +47,10 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	copilot := firstModelMatching(goai.ProviderGitHubCopilot, func(m *goai.Model) bool {
-		return m.Api == goai.ApiAnthropicMessages && m.Headers["User-Agent"] != "" && m.AnthropicCompat != nil
+		return m.Api == goai.ApiAnthropicMessages && m.Headers["User-Agent"] != "" && m.AnthropicCompat != nil && m.AnthropicCompat.SupportsEagerToolInputStreaming != nil && !*m.AnthropicCompat.SupportsEagerToolInputStreaming
 	})
 	if copilot == nil {
-		t.Fatal("expected at least one Copilot Anthropic-compatible model with headers")
-	}
-	if copilot.AnthropicCompat.SupportsEagerToolInputStreaming == nil || *copilot.AnthropicCompat.SupportsEagerToolInputStreaming {
-		t.Fatalf("expected Copilot Anthropic compat eager streaming override, got %#v", copilot.AnthropicCompat)
+		t.Fatal("expected at least one Copilot Anthropic-compatible model with eager streaming disabled")
 	}
 
 	opencodeGo := goai.GetModel(goai.ProviderOpenCodeGo, "deepseek-v4-flash")

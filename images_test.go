@@ -128,6 +128,26 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	}
 }
 
+func TestGenerateImagesOpenRouterUsesProviderEnvAPIKey(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{"message": map[string]any{"images": []any{}}}},
+		})
+	}))
+	defer server.Close()
+
+	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image"}}
+	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{Env: goai.ProviderEnv{"OPENROUTER_API_KEY": "env-key"}})
+	if err != nil || out.StopReason != goai.StopReasonStop {
+		t.Fatalf("expected image request to succeed via opts.Env API key, got out=%#v err=%v", out, err)
+	}
+	if gotAuth != "Bearer env-key" {
+		t.Fatalf("Authorization = %q", gotAuth)
+	}
+}
+
 func TestGenerateImagesOpenRouterPayloadParityAndAbort(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

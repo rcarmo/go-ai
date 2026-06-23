@@ -44,7 +44,11 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		goai.GetLogger().Debug("stream start", "api", "openai-completions", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
-		if apiKey == "" {
+		var optHeaders map[string]string
+		if opts != nil {
+			optHeaders = opts.Headers
+		}
+		if apiKey == "" && !goai.HasOpenAIAuthHeader(optHeaders, model.Headers) {
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("no API key for provider: %s", model.Provider),
@@ -78,10 +82,12 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		if model.Provider == goai.ProviderCloudflareAIGateway {
-			req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
-		} else {
-			req.Header.Set("Authorization", "Bearer "+apiKey)
+		if apiKey != "" {
+			if model.Provider == goai.ProviderCloudflareAIGateway {
+				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+			} else {
+				req.Header.Set("Authorization", "Bearer "+apiKey)
+			}
 		}
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -102,14 +108,15 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		// Apply custom headers
 		if opts != nil {
-			for k, v := range opts.Headers {
-				req.Header.Set(k, v)
-			}
+			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		for k, v := range model.Headers {
 			if req.Header.Get(k) == "" {
 				req.Header.Set(k, v)
 			}
+		}
+		if opts != nil {
+			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)

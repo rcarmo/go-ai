@@ -67,37 +67,46 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			if opts != nil && opts.SessionID != "" && isCodexWebSocketSSEFallbackActive(opts.SessionID) {
 				recordCodexWebSocketSSEFallback(opts.SessionID)
 			} else {
-				err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
-				if err == nil {
-					return
-				}
-				if ctx.Err() != nil {
-					ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
-					return
-				}
-				if isCodexNonTransportError(err) {
-					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
-					return
-				}
-				diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
-					"configuredTransport": string(transport),
-					"fallbackTransport":   "sse",
-					"eventsEmitted":       false,
-					"phase":               "before_message_stream_start",
-				}))
-				recordCodexWebSocketFailure(func() string {
-					if opts != nil {
-						return opts.SessionID
+				retriedConnectionLimit := false
+				for {
+					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
+					if err == nil {
+						return
 					}
-					return ""
-				}(), err)
-				recordCodexWebSocketSSEFallback(func() string {
-					if opts != nil {
-						return opts.SessionID
+					if ctx.Err() != nil {
+						ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+						return
 					}
-					return ""
-				}())
-				goai.GetLogger().Debug("WebSocket fallback to SSE", "error", err)
+					connectionLimit := isWebSocketConnectionLimitReachedError(err)
+					if connectionLimit && !retriedConnectionLimit {
+						retriedConnectionLimit = true
+						continue
+					}
+					if isCodexNonTransportError(err) && !connectionLimit {
+						ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+						return
+					}
+					diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
+						"configuredTransport": string(transport),
+						"fallbackTransport":   "sse",
+						"eventsEmitted":       false,
+						"phase":               "before_message_stream_start",
+					}))
+					recordCodexWebSocketFailure(func() string {
+						if opts != nil {
+							return opts.SessionID
+						}
+						return ""
+					}(), err)
+					recordCodexWebSocketSSEFallback(func() string {
+						if opts != nil {
+							return opts.SessionID
+						}
+						return ""
+					}())
+					goai.GetLogger().Debug("WebSocket fallback to SSE", "error", err)
+					break
+				}
 			}
 		}
 
@@ -171,6 +180,29 @@ func isCodexNonTransportError(err error) bool {
 	return errors.As(err, &protoErr)
 }
 
+func isWebSocketConnectionLimitReachedError(err error) bool {
+	var apiErr *codexAPIError
+	return errors.As(err, &apiErr) && apiErr.code == "websocket_connection_limit_reached"
+}
+
+type codexEventError struct {
+	Code    string
+	Message string
+}
+
+func extractCodexEventError(code, message string, nested *codexEventError) codexEventError {
+	out := codexEventError{Code: code, Message: message}
+	if nested != nil {
+		if out.Code == "" {
+			out.Code = nested.Code
+		}
+		if out.Message == "" {
+			out.Message = nested.Message
+		}
+	}
+	return out
+}
+
 func extractCodexAccountID(token string) (string, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -195,14 +227,10 @@ func extractCodexAccountID(token string) (string, error) {
 	return accountID, nil
 }
 
-func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, accountID, token, sessionID string) http.Header {
+func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string) http.Header {
 	h := http.Header{}
-	for k, v := range modelHeaders {
-		h.Set(k, v)
-	}
-	for k, v := range optHeaders {
-		h.Set(k, v)
-	}
+	goai.ApplyHeaders(h, modelHeaders)
+	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
 	h.Set("originator", "pi")
@@ -214,17 +242,14 @@ func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, accountID,
 		h.Set("session_id", sessionID)
 		h.Set("x-client-request-id", sessionID)
 	}
+	goai.SuppressHeaders(h, suppressHeaders)
 	return h
 }
 
-func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, accountID, token, requestID string) http.Header {
+func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, requestID string) http.Header {
 	h := http.Header{}
-	for k, v := range modelHeaders {
-		h.Set(k, v)
-	}
-	for k, v := range optHeaders {
-		h.Set(k, v)
-	}
+	goai.ApplyHeaders(h, modelHeaders)
+	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
 	h.Set("originator", "pi")
@@ -234,6 +259,7 @@ func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, acco
 		h.Set("session_id", requestID)
 		h.Set("x-client-request-id", requestID)
 	}
+	goai.SuppressHeaders(h, suppressHeaders)
 	return h
 }
 
@@ -615,6 +641,11 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			return opts.Headers
 		}
 		return nil
+	}(), func() []string {
+		if opts != nil {
+			return opts.SuppressHeaders
+		}
+		return nil
 	}(), accountID, apiKey, requestID)
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
@@ -730,17 +761,13 @@ readLoop:
 		}
 
 		var raw struct {
-			Type     string          `json:"type"`
-			Item     json.RawMessage `json:"item,omitempty"`
-			Response json.RawMessage `json:"response,omitempty"`
-			Delta    string          `json:"delta,omitempty"`
-			Code     string          `json:"code,omitempty"`
-			Message  string          `json:"message,omitempty"`
-			Error    *struct {
-				Type    string `json:"type,omitempty"`
-				Message string `json:"message,omitempty"`
-				Code    string `json:"code,omitempty"`
-			} `json:"error,omitempty"`
+			Type     string           `json:"type"`
+			Item     json.RawMessage  `json:"item,omitempty"`
+			Response json.RawMessage  `json:"response,omitempty"`
+			Delta    string           `json:"delta,omitempty"`
+			Code     string           `json:"code,omitempty"`
+			Message  string           `json:"message,omitempty"`
+			Error    *codexEventError `json:"error,omitempty"`
 		}
 		if err := json.Unmarshal(data, &raw); err != nil {
 			if !started {
@@ -748,7 +775,7 @@ readLoop:
 			}
 			continue
 		}
-		if !started {
+		if raw.Type != "error" && raw.Type != "response.failed" && !started {
 			started = true
 			ch <- &goai.StartEvent{Partial: partial}
 		}
@@ -910,17 +937,8 @@ readLoop:
 			if useCachedContext && entry != nil {
 				entry.continuation = nil
 			}
-			code := raw.Code
-			msg := raw.Message
-			if raw.Error != nil {
-				if code == "" {
-					code = raw.Error.Code
-				}
-				if msg == "" {
-					msg = raw.Error.Message
-				}
-			}
-			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(msg, code, string(data))), code: code, payload: string(data)}
+			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
+			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data)}
 			if !started {
 				return err
 			}
@@ -1000,6 +1018,11 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return opts.Headers
 		}
 		return nil
+	}(), func() []string {
+		if opts != nil {
+			return opts.SuppressHeaders
+		}
+		return nil
 	}(), accountID, apiKey, sessionID)
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
@@ -1052,12 +1075,13 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			break
 		}
 		var raw struct {
-			Type     string          `json:"type"`
-			Item     json.RawMessage `json:"item,omitempty"`
-			Response json.RawMessage `json:"response,omitempty"`
-			Delta    string          `json:"delta,omitempty"`
-			Code     string          `json:"code,omitempty"`
-			Message  string          `json:"message,omitempty"`
+			Type     string           `json:"type"`
+			Item     json.RawMessage  `json:"item,omitempty"`
+			Response json.RawMessage  `json:"response,omitempty"`
+			Delta    string           `json:"delta,omitempty"`
+			Code     string           `json:"code,omitempty"`
+			Message  string           `json:"message,omitempty"`
+			Error    *codexEventError `json:"error,omitempty"`
 		}
 		if json.Unmarshal([]byte(evt.Data), &raw) != nil {
 			continue
@@ -1160,7 +1184,8 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			}
 			current = nil
 		case "error":
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", raw.Code, raw.Message)}
+			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)}
 			return
 		case "response.failed":
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("response failed")}

@@ -83,14 +83,15 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		req.Header.Set("Content-Type", "application/json")
 		if opts != nil {
-			for k, v := range opts.Headers {
-				req.Header.Set(k, v)
-			}
+			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		for k, v := range model.Headers {
 			if req.Header.Get(k) == "" {
 				req.Header.Set(k, v)
 			}
+		}
+		if opts != nil {
+			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
@@ -171,10 +172,10 @@ func resolveVertexProjectLocation(opts *goai.StreamOptions) (string, string, err
 		location = goai.GetProviderEnvValue("GOOGLE_CLOUD_LOCATION", env)
 	}
 	if project == "" {
-		return "", "", fmt.Errorf("Vertex AI requires a project ID. Set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or pass Project in options")
+		return "", "", fmt.Errorf("vertex AI requires a project ID; set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or pass Project in options")
 	}
 	if location == "" {
-		return "", "", fmt.Errorf("Vertex AI requires a location. Set GOOGLE_CLOUD_LOCATION or pass Location in options")
+		return "", "", fmt.Errorf("vertex AI requires a location; set GOOGLE_CLOUD_LOCATION or pass Location in options")
 	}
 	return project, location, nil
 }
