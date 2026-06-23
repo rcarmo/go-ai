@@ -2,7 +2,7 @@
 
 Generated: 2026-06-23
 
-Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil-works/pi-ai`. The published upstream `v0.80.2` npm tarball does not include `*.test.ts`, so this registry treats the current Go test suite as the local regression corpus that `rs-ai` and `swift-ai` should adapt where applicable. Keep this file updated whenever adding local regression/provider-quirk tests.
+Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil-works/pi-ai`. The published upstream `v0.80.2` npm tarball does not include `*.test.ts`; the canonical GitHub source at `ec6311b` does. This registry is the local Go regression corpus for tests that are not known 1:1 upstream ports; `rs-ai` and `swift-ai` should adapt these where applicable. Keep this file updated whenever adding local regression/provider-quirk tests and cross-check against `docs/upstream-tests-parity.md`.
 
 ## Summary
 

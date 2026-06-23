@@ -2,7 +2,7 @@
 
 Generated: 2026-06-23
 
-Canonical upstream inspected: `/tmp/pi-ai-0.80.2/package/dist` (published npm tarball). The package does **not** ship `src/` or `*.test.ts`, so source/test inventories below are based on published `dist/*.d.ts`/`dist/*.js` exports. If upstream tests become available from a repository checkout, this document must be extended with a test-for-test port checklist.
+Canonical upstream inspected: published npm tarball `/tmp/pi-ai-0.80.2/package/dist` plus GitHub source `github.com/earendil-works/pi` at commit `ec6311b` (`/tmp/pi-src-ec6311b/.../packages/ai`). The npm tarball omits `src/` and tests; the source checkout contains the upstream test suite. See `docs/upstream-tests-parity.md` for the test-for-test checklist.
 
 Status key: **DONE** = implemented and covered in Go; **PARTIAL** = semantically covered but not export-for-export/test-for-test; **MISSING** = no Go equivalent yet.
 
@@ -10,12 +10,12 @@ Status key: **DONE** = implemented and covered in Go; **PARTIAL** = semantically
 
 - Runtime/provider wire behavior: **~90%**
 - Public module/export parity: **~70%**
-- Upstream test-suite parity: **MISSING** from published package; local Go tests cover high-risk behavior but are not a test-for-test port.
+- Upstream test-suite parity: **PARTIAL** against GitHub source `ec6311b`; local Go tests cover many behavior classes but are not yet a complete test-for-test assertion port.
 - Overall functional parity estimate: **~82%**
 
 ## Top 3 gaps
 
-1. **MISSING/PARTIAL upstream test-suite port** — upstream npm tarball has no `*.test.ts`; current Go tests are targeted parity/regression tests, not a one-to-one upstream suite port.
+1. **PARTIAL upstream test-suite port** — canonical GitHub source at `ec6311b` has 86 `packages/ai/**/*.test.ts` files; current Go tests cover many behavior classes, but `docs/upstream-tests-parity.md` tracks the remaining test-for-test audit/port work.
 2. **PARTIAL JS `Models` / auth collection abstraction** — Go has global registries, direct options, scoped env, and OAuth helpers, but not an export-for-export equivalent of upstream `createModels`, `createProvider`, `CredentialStore`, and `resolveProviderAuth` collection APIs.
 3. **PARTIAL package/export compatibility layer** — upstream has lazy API modules, legacy JS stream aliases, and compat barrel exports. Go has idiomatic packages/registries; several compatibility exports are intentionally not mirrored as named Go functions yet.
 
@@ -94,7 +94,7 @@ Recently closed during this audit: upstream `providers/faux.*` content/message h
 
 ## Upstream tests inventory
 
-No `*.test.ts` files are present in `/tmp/pi-ai-0.80.2/package`. Current Go test coverage includes provider fake-server tests, parser tests, model metadata parity tests, OAuth tests, image tests, race/staticcheck/logging/repro gates, but it is **not** a test-for-test port of upstream.
+The npm tarball has no `*.test.ts`, but the GitHub source at `ec6311b` has 86 `packages/ai/**/*.test.ts` files. See `docs/upstream-tests-parity.md` for the per-file checklist. Current Go test coverage includes provider fake-server tests, parser tests, model metadata parity tests, OAuth tests, image tests, race/staticcheck/logging/repro gates, but it is **not yet** a complete test-for-test assertion port of upstream.
 
 ## Current closure target
 

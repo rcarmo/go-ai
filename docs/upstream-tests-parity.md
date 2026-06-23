@@ -1,0 +1,104 @@
+# Upstream test-for-test parity checklist — pi-ai ec6311b / v0.80.2
+
+Canonical source: `github.com/earendil-works/pi` at commit `ec6311b` (`packages/ai`).
+
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **86** `packages/ai/**/*.test.ts` files at this commit, not 87 under `packages/ai`.
+
+Status key: **DONE** = local Go suite covers the same behavior class; **PARTIAL** = local coverage exists but exact upstream assertions are not yet ported one-for-one; **MISSING** = no known local equivalent. This is a starting checklist, not yet a proof of 1:1 test parity.
+
+## Summary
+
+- DONE: 64 files
+- PARTIAL: 22 files
+- MISSING: 0 files
+
+## Test files
+
+| Upstream test file | Status | Local Go coverage path | Notes |
+|---|---:|---|---|
+| `test/abort.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-adaptive-thinking-models.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-cache-write-1h-cost.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-eager-tool-input-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-eager-tool-input-e2e.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-empty-thinking-signature-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-force-adaptive-thinking.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-long-cache-retention-e2e.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-oauth.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-opus-4-8-smoke.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-sse-parsing.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-temperature-compat.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-thinking-disable.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-tool-name-normalization.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/azure-openai-base-url.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-convert-messages.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-endpoint-resolution.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-models.test.ts` | DONE | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-thinking-payload.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/cache-retention.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/compat-env.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/context-overflow.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/cross-provider-handoff.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/empty.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/env-api-keys.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/faux-provider.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/fireworks-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/github-copilot-anthropic.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/github-copilot-oauth.test.ts` | DONE | oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-shared-convert-tools.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-shared-gemini3-unsigned-tool-call.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-shared-image-tool-result-routing.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-thinking-disable.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-thinking-signature.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-vertex-api-key-resolution.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/image-tool-result.test.ts` | DONE | images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/images-models.test.ts` | DONE | images_test.go; images/openrouter<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/images.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/interleaved-thinking.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/lazy-module-load.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/mistral-reasoning-mode.test.ts` | PARTIAL | inference/provider/mistral/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/mistral-tool-schema.test.ts` | PARTIAL | inference/provider/mistral/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/models-runtime.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/node-http-proxy.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/oauth-auth.test.ts` | PARTIAL | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/oauth-device-code.test.ts` | PARTIAL | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/openai-codex-cache-affinity-e2e.test.ts` | DONE | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-codex-oauth.test.ts` | DONE | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-codex-stream.test.ts` | DONE | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-cache-control-format.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-empty-tools.test.ts` | DONE | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-prompt-cache.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-reasoning-details.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-response-model.test.ts` | DONE | inference/provider/openai/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-retry.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-thinking-as-text.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-tool-choice.test.ts` | DONE | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-tool-result-images.test.ts` | DONE | inference/provider/openai/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-cache-affinity-e2e.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-copilot-provider.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-foreign-toolcall-id.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-message-id.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-partial-json-cleanup.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-reasoning-replay-e2e.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-terminal-event.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-tool-result-images.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openrouter-cache-write-repro.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openrouter-images.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/overflow.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/providers.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/responseid.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/stream.test.ts` | DONE | transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/supports-xhigh.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/together-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/tokens.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/tool-call-id-normalization.test.ts` | DONE | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/tool-call-without-result.test.ts` | DONE | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/total-tokens.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/transform-messages-copilot-openai-to-anthropic.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/unicode-surrogate.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/validation.test.ts` | DONE | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/xhigh.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/xiaomi-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/zen.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
