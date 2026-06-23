@@ -4,7 +4,9 @@ package goai
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
+	"strconv"
 )
 
 // --- Context overflow detection ---
@@ -134,61 +136,267 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 			}
 		}
 	}
+	out := make(map[string]interface{}, len(tc.Arguments))
+	for k, v := range tc.Arguments {
+		out[k] = v
+	}
 	if properties, ok := schema["properties"].(map[string]interface{}); ok {
-		for name, val := range tc.Arguments {
+		for name, val := range out {
 			propSchema, ok := properties[name].(map[string]interface{})
 			if !ok {
 				continue
 			}
-			if err := validateType(name, val, propSchema); err != nil {
+			coerced, err := validateAndCoerceType(name, val, propSchema)
+			if err != nil {
 				return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
 			}
+			out[name] = coerced
 		}
 	}
-	return tc.Arguments, nil
+	return out, nil
 }
 
-func validateType(name string, value interface{}, schema map[string]interface{}) error {
-	expectedType, ok := schema["type"].(string)
-	if !ok {
-		return nil
+func validateAndCoerceType(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
+	types := schemaTypes(schema["type"])
+	if len(types) == 0 {
+		return value, nil
 	}
-	switch expectedType {
-	case "string":
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("field %q: expected string, got %T", name, value)
-		}
-		if enum, ok := schema["enum"].([]interface{}); ok {
-			s := value.(string)
-			found := false
-			for _, e := range enum {
-				if e == s {
-					found = true
-					break
+	for _, expectedType := range types {
+		if matchesJSONSchemaType(value, expectedType) {
+			if expectedType == "string" {
+				if enum, ok := schema["enum"].([]interface{}); ok {
+					s := value.(string)
+					found := false
+					for _, e := range enum {
+						if e == s {
+							found = true
+							break
+						}
+					}
+					if !found {
+						continue
+					}
 				}
 			}
-			if !found {
-				return fmt.Errorf("field %q: value %q not in enum", name, s)
+			return value, nil
+		}
+	}
+	var lastErr error
+	for _, expectedType := range types {
+		coerced, err := coerceJSONSchemaType(value, expectedType)
+		if err == nil {
+			if expectedType == "string" {
+				if enum, ok := schema["enum"].([]interface{}); ok {
+					s := coerced.(string)
+					found := false
+					for _, e := range enum {
+						if e == s {
+							found = true
+							break
+						}
+					}
+					if !found {
+						lastErr = fmt.Errorf("field %q: value %q not in enum", name, s)
+						continue
+					}
+				}
+			}
+			return coerced, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("field %q: expected %v, got %T", name, types, value)
+	}
+	return nil, lastErr
+}
+
+func schemaTypes(raw interface{}) []string {
+	switch t := raw.(type) {
+	case string:
+		return []string{t}
+	case []interface{}:
+		out := make([]string, 0, len(t))
+		for _, v := range t {
+			if s, ok := v.(string); ok {
+				out = append(out, s)
 			}
 		}
-	case "number", "integer":
+		return out
+	default:
+		return nil
+	}
+}
+
+func matchesJSONSchemaType(value interface{}, expectedType string) bool {
+	switch expectedType {
+	case "string":
+		_, ok := value.(string)
+		return ok
+	case "number":
 		switch value.(type) {
 		case float64, int, int64, json.Number:
+			return true
 		default:
-			return fmt.Errorf("field %q: expected number, got %T", name, value)
+			return false
+		}
+	case "integer":
+		switch v := value.(type) {
+		case int, int64:
+			return true
+		case float64:
+			return v == math.Trunc(v)
+		case json.Number:
+			f, err := v.Float64()
+			return err == nil && f == math.Trunc(f)
+		default:
+			return false
 		}
 	case "boolean":
-		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("field %q: expected boolean, got %T", name, value)
+		_, ok := value.(bool)
+		return ok
+	case "null":
+		return value == nil
+	case "array":
+		_, ok := value.([]interface{})
+		return ok
+	case "object":
+		_, ok := value.(map[string]interface{})
+		return ok
+	default:
+		return false
+	}
+}
+
+func coerceJSONSchemaType(value interface{}, expectedType string) (interface{}, error) {
+	switch expectedType {
+	case "string":
+		switch v := value.(type) {
+		case string:
+			return v, nil
+		case nil:
+			return "", nil
+		case bool:
+			if v {
+				return "true", nil
+			}
+			return "false", nil
+		default:
+			return nil, fmt.Errorf("expected string, got %T", value)
 		}
+	case "number":
+		return coerceNumber(value, false)
+	case "integer":
+		return coerceNumber(value, true)
+	case "boolean":
+		switch v := value.(type) {
+		case bool:
+			return v, nil
+		case string:
+			if v == "true" {
+				return true, nil
+			}
+			if v == "false" {
+				return false, nil
+			}
+		case float64:
+			if v == 1 {
+				return true, nil
+			}
+			if v == 0 {
+				return false, nil
+			}
+		case int:
+			if v == 1 {
+				return true, nil
+			}
+			if v == 0 {
+				return false, nil
+			}
+		case int64:
+			if v == 1 {
+				return true, nil
+			}
+			if v == 0 {
+				return false, nil
+			}
+		}
+		return nil, fmt.Errorf("expected boolean, got %T", value)
+	case "null":
+		switch v := value.(type) {
+		case nil:
+			return nil, nil
+		case string:
+			if v == "" {
+				return nil, nil
+			}
+		case float64:
+			if v == 0 {
+				return nil, nil
+			}
+		case int:
+			if v == 0 {
+				return nil, nil
+			}
+		case int64:
+			if v == 0 {
+				return nil, nil
+			}
+		case bool:
+			if !v {
+				return nil, nil
+			}
+		}
+		return nil, fmt.Errorf("expected null, got %T", value)
 	case "array":
 		if _, ok := value.([]interface{}); !ok {
-			return fmt.Errorf("field %q: expected array, got %T", name, value)
+			return nil, fmt.Errorf("expected array, got %T", value)
 		}
 	case "object":
 		if _, ok := value.(map[string]interface{}); !ok {
-			return fmt.Errorf("field %q: expected object, got %T", name, value)
+			return nil, fmt.Errorf("expected object, got %T", value)
 		}
 	}
-	return nil
+	return value, nil
+}
+
+func coerceNumber(value interface{}, integer bool) (interface{}, error) {
+	var f float64
+	switch v := value.(type) {
+	case float64:
+		f = v
+	case int:
+		f = float64(v)
+	case int64:
+		f = float64(v)
+	case json.Number:
+		parsed, err := v.Float64()
+		if err != nil {
+			return nil, err
+		}
+		f = parsed
+	case string:
+		parsed, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, err
+		}
+		f = parsed
+	case bool:
+		if v {
+			f = 1
+		} else {
+			f = 0
+		}
+	case nil:
+		f = 0
+	default:
+		return nil, fmt.Errorf("expected number, got %T", value)
+	}
+	if integer && f != math.Trunc(f) {
+		return nil, fmt.Errorf("expected integer, got %v", f)
+	}
+	if integer {
+		return int(f), nil
+	}
+	return f, nil
 }

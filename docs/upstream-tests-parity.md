@@ -4,11 +4,12 @@ Canonical source: `github.com/earendil-works/pi` at commit `ec6311b` (`packages/
 
 Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **86** `packages/ai/**/*.test.ts` files at this commit, not 87 under `packages/ai`.
 
-Status key: **DONE** = local Go suite covers the same behavior class; **PARTIAL** = local coverage exists but exact upstream assertions are not yet ported one-for-one; **MISSING** = no known local equivalent. This is a starting checklist, not yet a proof of 1:1 test parity.
+Status key: **PORTED** = upstream test file has a named Go port with the same cases/expected values and is passing; **DONE** = local Go suite covers the same behavior class; **PARTIAL** = local coverage exists but exact upstream assertions are not yet ported one-for-one; **MISSING** = no known local equivalent. Drive this checklist toward PORTED for every upstream file.
 
 ## Summary
 
-- DONE: 64 files
+- PORTED: 1 files
+- DONE: 63 files
 - PARTIAL: 22 files
 - MISSING: 0 files
 
@@ -97,7 +98,7 @@ Status key: **DONE** = local Go suite covers the same behavior class; **PARTIAL*
 | `test/total-tokens.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/transform-messages-copilot-openai-to-anthropic.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/unicode-surrogate.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/validation.test.ts` | DONE | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/validation.test.ts` | PORTED | `upstream_validation_test.go`; `context.go` | Ported all three upstream cases: Function-constructor fallback equivalent, AJV-compatible primitive coercions, and invalid coercion rejection. Passing with `go test . -run TestUpstreamValidation`. |
 | `test/xhigh.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/xiaomi-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
