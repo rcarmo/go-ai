@@ -9,8 +9,19 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/images"
-	_ "github.com/rcarmo/go-ai/images/openrouter"
+	"github.com/rcarmo/go-ai/images/openrouter"
 )
+
+func TestGenerateImagesOpenRouterMissingAPIKeyErrorMatchesUpstream(t *testing.T) {
+	model := &images.ImagesModel{ID: "openrouter/image", Provider: images.ImagesProvider("openrouter"), Api: images.ImagesApi("openrouter-images"), BaseURL: "https://example.invalid/v1"}
+	out, err := openrouter.GenerateImagesOpenRouter(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out == nil || out.ErrorMessage != "No API key for provider: openrouter" {
+		t.Fatalf("unexpected missing-key image output: %#v", out)
+	}
+}
 
 func TestImageAPIProviderRegistered(t *testing.T) {
 	p := images.GetImagesApiProvider(images.ImagesApiOpenRouter)

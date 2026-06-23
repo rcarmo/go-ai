@@ -12,6 +12,20 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+func TestStreamOpenAIMissingAPIKeyErrorMatchesUpstream(t *testing.T) {
+	model := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: "https://example.invalid/v1"}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	for ev := range streamOpenAI(context.Background(), model, convCtx, nil) {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if e.Err == nil || e.Err.Error() != "No API key for provider: openai" {
+				t.Fatalf("unexpected missing-key error: %v", e.Err)
+			}
+			return
+		}
+	}
+	t.Fatal("expected error event")
+}
+
 func TestStreamOpenAIInvokesOnPayload(t *testing.T) {
 	var got map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

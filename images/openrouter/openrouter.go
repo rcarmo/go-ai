@@ -33,7 +33,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 	}
 	if apiKey == "" {
 		out.StopReason = goai.StopReasonError
-		out.ErrorMessage = fmt.Sprintf("No API key available for provider: %s", model.Provider)
+		out.ErrorMessage = fmt.Sprintf("No API key for provider: %s", model.Provider)
 		return out, nil
 	}
 

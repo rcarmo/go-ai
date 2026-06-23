@@ -1,6 +1,7 @@
 package openaicodex
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -72,6 +73,20 @@ func TestBuildCodexRequestMatchesPiaiShape(t *testing.T) {
 	if len(input) == 0 || input[0]["role"] != "user" {
 		t.Fatalf("expected first input item to be user message, got %#v", input)
 	}
+}
+
+func TestStreamCodexMissingAPIKeyErrorMatchesUpstream(t *testing.T) {
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: "https://example.invalid/v1"}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	for ev := range streamCodex(context.Background(), model, convCtx, nil) {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if e.Err == nil || e.Err.Error() != "No API key for provider: openai-codex" {
+				t.Fatalf("unexpected missing-key error: %v", e.Err)
+			}
+			return
+		}
+	}
+	t.Fatal("expected error event")
 }
 
 func TestExtractCodexEventErrorUsesNestedPayload(t *testing.T) {
