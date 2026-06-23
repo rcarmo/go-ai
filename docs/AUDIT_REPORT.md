@@ -2,6 +2,25 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-06-23 v0.80.2 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared `@earendil-works/pi-ai v0.80.1` against `v0.80.2` and audited `go-ai` parity.
+
+Findings:
+
+- Upstream restored OpenAI-compatible provider/base-URL compat auto-detection beneath explicit model compat overrides. Go already used `DetectCompatForModel`, so runtime behavior already matched.
+- Upstream simplified Anthropic compat defaults to standard Anthropic behavior unless explicit metadata says otherwise. Go already defaulted eager tool streaming and long cache retention on, with no implicit session affinity.
+- Upstream adjusted JS auth/model collection internals: `api_key` credential tags, Cloudflare credential `env`, per-request auth overrides, and legacy lazy API aliases. Go uses direct stream/image options, scoped provider env, and explicit provider registration rather than this JS collection layer; no additional wire-protocol change was needed.
+- Upstream refreshed two OpenRouter generated metadata entries: `moonshotai/kimi-k2.7-code` and `z-ai/glm-5.2`. No image registry changes were found.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.80.2.
+- Added registry metadata regression coverage for the two changed OpenRouter entries.
+- Ran targeted provider/compat/model tests and the full validation gate.
+
+Result: `go-ai` is synced with upstream `v0.80.2`; the complete comparative audit found no remaining Go-facing runtime/type/provider gaps.
+
 ## 2026-06-23 v0.80.1 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.79.10` against `v0.80.1` and audited `go-ai` parity.

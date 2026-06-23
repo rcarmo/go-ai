@@ -74,6 +74,15 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected Mistral cache-read pricing metadata, got %#v", mistralLatest)
 	}
 
+	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
+	if kimi == nil || kimi.Cost.Input != 0.74 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.15 || kimi.MaxTokens != 16384 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.2 metadata, got %#v", kimi)
+	}
+	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.95 || openRouterGLM52.Cost.Output != 3 || openRouterGLM52.Cost.CacheRead != 0.18 || openRouterGLM52.MaxTokens != 32768 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.2 metadata, got %#v", openRouterGLM52)
+	}
+
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
 	if xiaomi == nil {
 		t.Fatal("expected Xiaomi mimo-v2-flash model")

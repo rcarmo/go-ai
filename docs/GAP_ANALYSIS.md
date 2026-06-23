@@ -2,9 +2,28 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.80.1
+## Source: `@earendil-works/pi-ai` v0.80.2
 
 ## Sync history
+
+### v0.80.2 (2026-06-23)
+
+Comparative audit (`@earendil-works/pi-ai v0.80.1` → `v0.80.2`) found:
+
+- **OpenAI-compatible runtime**: upstream restored provider/base-URL compatibility auto-detection as the fallback before explicit `model.compat` overrides. Go already matched this behavior through `DetectCompatForModel`.
+- **Anthropic runtime defaults**: upstream simplified Anthropic compat defaults to eager tool streaming, long cache retention, and tool cache control enabled by default, with session affinity disabled unless explicitly configured. Go already matched these effective defaults.
+- **Auth/model collection plumbing**: upstream changed JS stored API-key credential tagging from `api-key` to `api_key`, moved Cloudflare metadata into provider-scoped `env`, and made per-request `apiKey`/`env` overrides participate in auth resolution. Go does not use the JS `Models`/credential-store abstraction; its direct provider options and scoped env support already expose the relevant runtime behavior.
+- **Legacy JS API aliases**: upstream added deprecated lazy stream aliases for compatibility. Go already has stable exported provider packages/registry calls; no wire behavior change was needed.
+- **Text model registry metadata**: upstream changed two OpenRouter entries: `moonshotai/kimi-k2.7-code` pricing/max token cap and `z-ai/glm-5.2` pricing/max token cap. Image model metadata was unchanged.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.80.2 (999 models / 35 providers).
+- Added regression assertions for the two v0.80.2 OpenRouter metadata updates.
+- Audited provider/runtime/auth diffs and confirmed no additional Go-facing implementation changes were required.
+- Re-ran the complete validation suite.
+
+Result: upstream v0.80.2 is fully synced in Go; this was a generated text-registry parity update plus audit confirmation that the upstream auth/alias/runtime refactors either already matched Go behavior or are JS-only compatibility surfaces.
 
 ### v0.80.1 (2026-06-23)
 
