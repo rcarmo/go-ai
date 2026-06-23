@@ -25,6 +25,31 @@ func setConverseEventStream(resp *bedrockruntime.ConverseStreamOutput, es *bedro
 	reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr())).Elem().Set(reflect.ValueOf(es))
 }
 
+func TestProcessConverseStreamRejectsNonAssistantMessageStart(t *testing.T) {
+	events := make(chan types.ConverseStreamOutput, 1)
+	events <- &types.ConverseStreamOutputMemberMessageStart{Value: types.MessageStartEvent{Role: types.ConversationRoleUser}}
+	close(events)
+	resp := &bedrockruntime.ConverseStreamOutput{}
+	stream := bedrockruntime.NewConverseStreamEventStream(func(es *bedrockruntime.ConverseStreamEventStream) {
+		es.Reader = &fakeConverseReader{events: events}
+	})
+	setConverseEventStream(resp, stream)
+
+	ch := make(chan goai.Event, 4)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	close(ch)
+
+	for ev := range ch {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if e.Err == nil || e.Err.Error() != "Unexpected assistant message start but got user message start instead" {
+				t.Fatalf("unexpected role validation error: %#v", e)
+			}
+			return
+		}
+	}
+	t.Fatal("expected ErrorEvent for non-assistant message start")
+}
+
 func TestProcessConverseStreamSurfacesStreamErr(t *testing.T) {
 	events := make(chan types.ConverseStreamOutput)
 	close(events)

@@ -696,6 +696,10 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	for event := range stream.Events() {
 		switch e := event.(type) {
 		case *types.ConverseStreamOutputMemberMessageStart:
+			if e.Value.Role != types.ConversationRoleAssistant {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Unexpected assistant message start but got user message start instead")}
+				return
+			}
 			ch <- &goai.StartEvent{Partial: partial}
 
 		case *types.ConverseStreamOutputMemberContentBlockStart:
