@@ -8,6 +8,34 @@ import (
 	"github.com/rcarmo/go-ai/inference/provider/faux"
 )
 
+func TestFauxContentAndAssistantHelpers(t *testing.T) {
+	text := faux.FauxText("hello")
+	if text.Type != "text" || text.Text != "hello" {
+		t.Fatalf("unexpected faux text block: %#v", text)
+	}
+	thinking := faux.FauxThinking("hmm")
+	if thinking.Type != "thinking" || thinking.Thinking != "hmm" {
+		t.Fatalf("unexpected faux thinking block: %#v", thinking)
+	}
+	tool := faux.FauxToolCall("search", map[string]interface{}{"q": "go"}, "call_1")
+	if tool.Type != "toolCall" || tool.ID != "call_1" || tool.Name != "search" || tool.Arguments["q"] != "go" {
+		t.Fatalf("unexpected faux tool block: %#v", tool)
+	}
+
+	msg := faux.FauxAssistantMessage([]goai.ContentBlock{text, thinking, tool}, faux.AssistantMessageOptions{ResponseID: "resp_1", Timestamp: 1234})
+	if msg.Role != goai.RoleAssistant || msg.ResponseID != "resp_1" || msg.Timestamp != 1234 || msg.StopReason != goai.StopReasonStop {
+		t.Fatalf("unexpected faux assistant metadata: %#v", msg)
+	}
+	if len(msg.Content) != 3 || msg.Content[2].ID != "call_1" {
+		t.Fatalf("unexpected faux assistant content: %#v", msg.Content)
+	}
+
+	toolMsg := faux.FauxAssistantMessage(tool)
+	if toolMsg.StopReason != goai.StopReasonToolUse {
+		t.Fatalf("single tool-call message should default to toolUse, got %q", toolMsg.StopReason)
+	}
+}
+
 func TestFauxTextStream(t *testing.T) {
 	reg := faux.Register(nil)
 	reg.SetResponses([]faux.ResponseStep{

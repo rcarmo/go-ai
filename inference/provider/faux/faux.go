@@ -165,6 +165,75 @@ func (r *Registration) GetModel(id ...string) *goai.Model {
 
 // --- Helpers for building responses ---
 
+// AssistantMessageOptions configures FauxAssistantMessage metadata.
+type AssistantMessageOptions struct {
+	StopReason   goai.StopReason
+	ErrorMessage string
+	ResponseID   string
+	Timestamp    int64
+}
+
+// FauxText creates a text content block, mirroring upstream fauxText.
+func FauxText(text string) goai.ContentBlock {
+	return goai.ContentBlock{Type: "text", Text: text}
+}
+
+// FauxThinking creates a thinking content block, mirroring upstream fauxThinking.
+func FauxThinking(thinking string) goai.ContentBlock {
+	return goai.ContentBlock{Type: "thinking", Thinking: thinking}
+}
+
+// FauxToolCall creates a tool-call content block, mirroring upstream fauxToolCall.
+func FauxToolCall(name string, args map[string]interface{}, id ...string) goai.ContentBlock {
+	toolCallID := ""
+	if len(id) > 0 {
+		toolCallID = id[0]
+	}
+	if toolCallID == "" {
+		toolCallID = fmt.Sprintf("call_%s_%d", name, time.Now().UnixNano())
+	}
+	return goai.ContentBlock{Type: "toolCall", ID: toolCallID, Name: name, Arguments: args}
+}
+
+// FauxAssistantMessage creates an assistant message from a string, one content
+// block, or multiple content blocks, mirroring upstream fauxAssistantMessage.
+func FauxAssistantMessage(content interface{}, options ...AssistantMessageOptions) *goai.Message {
+	msg := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop, Usage: &goai.Usage{}, Timestamp: time.Now().UnixMilli()}
+	switch c := content.(type) {
+	case string:
+		msg.Content = []goai.ContentBlock{FauxText(c)}
+	case goai.ContentBlock:
+		msg.Content = []goai.ContentBlock{c}
+	case []goai.ContentBlock:
+		msg.Content = append([]goai.ContentBlock(nil), c...)
+	case nil:
+		msg.Content = nil
+	default:
+		msg.Content = []goai.ContentBlock{FauxText(fmt.Sprintf("%v", c))}
+	}
+	if len(options) > 0 {
+		opt := options[0]
+		if opt.StopReason != "" {
+			msg.StopReason = opt.StopReason
+		}
+		msg.ErrorMessage = opt.ErrorMessage
+		msg.ResponseID = opt.ResponseID
+		if opt.Timestamp != 0 {
+			msg.Timestamp = opt.Timestamp
+		}
+	}
+	if msg.StopReason == goai.StopReasonToolUse {
+		return msg
+	}
+	for _, block := range msg.Content {
+		if block.Type == "toolCall" && len(options) == 0 {
+			msg.StopReason = goai.StopReasonToolUse
+			break
+		}
+	}
+	return msg
+}
+
 // TextMessage creates a simple text assistant message.
 func TextMessage(text string) *goai.Message {
 	return &goai.Message{
@@ -194,15 +263,9 @@ func ThinkingMessage(thinking, text string) *goai.Message {
 
 // ToolCallMessage creates an assistant message with a tool call.
 func ToolCallMessage(name string, args map[string]interface{}) *goai.Message {
-	return &goai.Message{
-		Role: goai.RoleAssistant,
-		Content: []goai.ContentBlock{
-			{Type: "toolCall", ID: fmt.Sprintf("call_%s_%d", name, time.Now().UnixNano()), Name: name, Arguments: args},
-		},
-		StopReason: goai.StopReasonToolUse,
-		Usage:      &goai.Usage{Input: 100, Output: 50, TotalTokens: 150},
-		Timestamp:  time.Now().UnixMilli(),
-	}
+	msg := FauxAssistantMessage(FauxToolCall(name, args), AssistantMessageOptions{StopReason: goai.StopReasonToolUse})
+	msg.Usage = &goai.Usage{Input: 100, Output: 50, TotalTokens: 150}
+	return msg
 }
 
 // ErrorMessage creates an error assistant message.
