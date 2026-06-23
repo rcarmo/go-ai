@@ -220,6 +220,91 @@ func TestStreamViaWebSocketClosedBeforeCompletionErrorMatchesUpstream(t *testing
 	}
 }
 
+func TestStreamCodexRealWebSocketConnectionLimitRetrySucceedsWithoutSSE(t *testing.T) {
+	CloseOpenAICodexWebSocketSessions("")
+	ResetOpenAICodexWebSocketDebugStats("")
+	defer CloseOpenAICodexWebSocketSessions("")
+
+	var wsAttempts, sseAttempts int
+	var received map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") == "websocket" {
+			wsAttempts++
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				t.Fatalf("accept websocket: %v", err)
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "done")
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+			_, msg, err := conn.Read(ctx)
+			if err != nil {
+				t.Fatalf("read client payload: %v", err)
+			}
+			if wsAttempts == 1 {
+				payload := map[string]interface{}{"type": "error", "error": map[string]interface{}{"code": "websocket_connection_limit_reached", "message": "too many websocket connections"}}
+				b, _ := json.Marshal(payload)
+				if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
+					t.Fatalf("write connection-limit error: %v", err)
+				}
+				return
+			}
+			if err := json.Unmarshal(msg, &received); err != nil {
+				t.Fatalf("decode client payload: %v", err)
+			}
+			write := func(v interface{}) {
+				b, _ := json.Marshal(v)
+				if err := conn.Write(ctx, websocket.MessageText, b); err != nil {
+					t.Fatalf("write ws frame: %v", err)
+				}
+			}
+			write(map[string]interface{}{"type": "response.created", "response": map[string]interface{}{"id": "resp_ws_retry"}})
+			write(map[string]interface{}{"type": "response.output_item.added", "item": map[string]interface{}{"type": "message", "id": "item_1"}})
+			write(map[string]interface{}{"type": "response.output_text.delta", "delta": "retried-ok"})
+			write(map[string]interface{}{"type": "response.output_item.done", "item": map[string]interface{}{"type": "message", "id": "item_1"}})
+			write(map[string]interface{}{"type": "response.completed", "response": map[string]interface{}{"id": "resp_ws_retry", "status": "completed", "usage": map[string]interface{}{"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}})
+			return
+		}
+		sseAttempts++
+		t.Fatalf("unexpected SSE fallback request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, BaseURL: server.URL}
+	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
+	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
+
+	var sawStart, sawText, sawDone bool
+	for ev := range streamCodex(context.Background(), model, convCtx, &goai.StreamOptions{Transport: goai.TransportAuto, SessionID: "sess-conn-limit-success", APIKey: jwt}) {
+		switch e := ev.(type) {
+		case *goai.StartEvent:
+			sawStart = true
+		case *goai.TextDeltaEvent:
+			sawText = sawText || e.Delta == "retried-ok"
+		case *goai.DoneEvent:
+			sawDone = true
+			if e.Message == nil || e.Message.ResponseID != "resp_ws_retry" || len(e.Message.Diagnostics) != 0 {
+				t.Fatalf("unexpected done message: %#v", e.Message)
+			}
+		case *goai.ErrorEvent:
+			t.Fatalf("unexpected error event: %v", e.Err)
+		}
+	}
+	if wsAttempts != 2 || sseAttempts != 0 {
+		t.Fatalf("expected one connection-limit WS rejection, one WS retry success, and no SSE fallback; got ws=%d sse=%d", wsAttempts, sseAttempts)
+	}
+	if received == nil || received["model"] != "codex-mini" {
+		t.Fatalf("missing outbound response.create payload: %#v", received)
+	}
+	if !sawStart || !sawText || !sawDone {
+		t.Fatalf("expected start/text/done after WS retry, got start=%v text=%v done=%v", sawStart, sawText, sawDone)
+	}
+	stats := GetOpenAICodexWebSocketDebugStats("sess-conn-limit-success")
+	if stats == nil || stats.SSEFallbacks != 0 || stats.WebSocketFallbackActive {
+		t.Fatalf("unexpected fallback stats after successful WS retry: %#v", stats)
+	}
+}
+
 func TestStreamCodexRetriesWebSocketConnectionLimitOnceBeforeSSE(t *testing.T) {
 	CloseOpenAICodexWebSocketSessions("")
 	ResetOpenAICodexWebSocketDebugStats("")

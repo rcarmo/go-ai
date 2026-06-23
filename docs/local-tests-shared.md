@@ -18,7 +18,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Model registry/metadata: 3
 - OAuth providers: 8
 - OpenAI Chat Completions provider: 8
-- OpenAI Codex transport/provider: 9
+- OpenAI Codex transport/provider: 10
 - OpenAI/Azure Responses provider: 10
 - Retry helper: 5
 - SSE transport: 4
@@ -174,8 +174,9 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: Stream Via Web Socket Auto Uses Cached Delta And Debug Stats | Guards event stream protocol compatibility and partial-failure behavior. |
 | `TestRemoveCodexWebSocketSessionClosesConnection` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: Remove Codex Web Socket Session Closes Connection | Guards event stream protocol compatibility and partial-failure behavior. |
 | `TestStreamCodexWebSocketSetupFailureFallsBackToSSEWithDiagnostic` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: Stream Codex Web Socket Setup Failure Falls Back To SSEWith Diagnostic | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestStreamCodexRealWebSocketConnectionLimitRetrySucceedsWithoutSSE` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: rs-ai-origin RT1 Codex real WebSocket connection-limit retry: first local WS server attempt returns nested `websocket_connection_limit_reached`, second real WS handshake streams a valid response without SSE fallback | Guards the real transport retry method that mock-only tests missed; asserts Start/TextDelta/Done and no provider fallback diagnostic. |
 | `TestStreamCodexRetriesWebSocketConnectionLimitOnceBeforeSSE` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: rs-ai-origin Codex connection-limit retry: real WebSocket connection receives nested `websocket_connection_limit_reached`, retries one fresh WS handshake, then falls back to SSE | Guards upstream `isWebSocketConnectionLimitReachedError` / `retriedWebSocketConnectionLimit` behavior and catches cached-connection reuse bugs after pre-start WS API errors. |
-| `TestStreamViaWebSocketProtocolFlow` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: Stream Via Web Socket Protocol Flow | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestStreamViaWebSocketProtocolFlow` | `inference/provider/openaicodex/codex_ws_test.go` | streaming/event transport behavior: rs-ai-origin RT2 Codex real WebSocket protocol happy-path: local WS server captures outbound `response.create`, streams full event sequence, and asserts Start/TextDelta/Done | Guards actual RFC6455 handshake and event-flow regressions that mocks cannot catch. |
 | `TestResolveAzureResponsesConfigUsesEnvAndDeploymentMap` | `inference/provider/openairesponses/responses_azure_test.go` | Resolve Azure Responses Config Uses Env And Deployment Map | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
 | `TestResolveAzureResponsesConfigNormalizesAzureHost` | `inference/provider/openairesponses/responses_azure_test.go` | Resolve Azure Responses Config Normalizes Azure Host | Guards locally discovered edge cases and Go API compatibility. |
 | `TestResponsesUsesExplicitAuthHeaderWithoutAPIKey` | `inference/provider/openairesponses/responses_azure_test.go` | auth/header/env edge case: Responses Uses Explicit Auth Header Without APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
