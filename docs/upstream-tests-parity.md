@@ -8,8 +8,8 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 31 files
-- N/A credential/live/JS-runtime files: 21 files
+- DETERMINISTIC-PORTED: 33 files
+- N/A credential/live/JS-runtime files: 19 files
 - TODO deterministic/needs classification: 34 files
 - Achieved (`DETERMINISTIC-PORTED + N/A`): 52 / 86 files
 
@@ -39,7 +39,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/bedrock-thinking-payload.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_thinking_payload_upstream_test.go | Ported the deterministic upstream payload cases with identical expected fields: Opus 4.8 and Fable 5 adaptive summarized thinking at high/xhigh effort, GovCloud fixed/adaptive display omission, application-inference-profile adaptive detection by model name, cache point injection by model name, and fixed-budget Sonnet fallback. Also aligned Bedrock high thinking budget and region-option GovCloud detection. Passing. |
 | `test/cache-retention.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/compat-env.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/context-overflow.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/context-overflow.test.ts` | DETERMINISTIC-PORTED | context_overflow_simulated_test.go | Ported provider overflow behavior with simulated real provider outputs/error shapes for Anthropic, Copilot, OpenAI, Google, xAI, Groq, Cerebras, Mistral, OpenRouter, z.ai, and Xiaomi length-stop overflow; fixed Cerebras `HTTP 413: (no body)` detection. Passing 3×. |
 | `test/cross-provider-handoff.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/empty.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/env-api-keys.test.ts` | DETERMINISTIC-PORTED | env_api_keys_test.go | Ported all three upstream env-key cases: generic GitHub tokens ignored for Copilot, `COPILOT_GITHUB_TOKEN` selected, and `ZAI_CODING_CN_API_KEY` selected. Passing. |
@@ -92,7 +92,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/stream.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | supports_xhigh_upstream_test.go | Ported all upstream xhigh support metadata assertions for Anthropic, OpenAI/Codex, OpenRouter, DeepSeek, OpenCode, Moonshot, and Bedrock model IDs. Passing. |
 | `test/together-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Together catalog/env assertions: Kimi K2.6 OpenAI-compatible metadata/cost/compat, gpt-oss, DeepSeek V4, and MiniMax reasoning control maps, and `TOGETHER_API_KEY` resolution. Passing. |
-| `test/tokens.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/tokens.test.ts` | DETERMINISTIC-PORTED | tokens_simulated_test.go | Ported token-on-abort behavior using simulated provider usage outputs: final-chunk-only providers report zero usage, Kimi reports input-only, early-usage providers retain input/output and positive cost when priced, zero-cost Copilot does not require positive cost. Passing 3×. |
 | `test/tool-call-id-normalization.test.ts` | TODO | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/tool-call-without-result.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/total-tokens.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
