@@ -237,6 +237,7 @@ type geminiToolDecl struct {
 type geminiToolFunc struct {
 	Name                 string          `json:"name"`
 	Description          string          `json:"description"`
+	Parameters           json.RawMessage `json:"parameters,omitempty"`
 	ParametersJsonSchema json.RawMessage `json:"parametersJsonSchema,omitempty"`
 }
 
@@ -305,19 +306,67 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Tools
-	if len(convCtx.Tools) > 0 {
-		var funcs []geminiToolFunc
-		for _, t := range convCtx.Tools {
-			funcs = append(funcs, geminiToolFunc{
-				Name:                 t.Name,
-				Description:          t.Description,
-				ParametersJsonSchema: t.Parameters,
-			})
-		}
-		req.Tools = []geminiToolDecl{{FunctionDeclarations: funcs}}
-	}
+	req.Tools = convertTools(convCtx.Tools, false)
 
 	return req
+}
+
+func convertTools(tools []goai.Tool, useParameters ...bool) []geminiToolDecl {
+	if len(tools) == 0 {
+		return nil
+	}
+	useSchemaParameters := len(useParameters) > 0 && useParameters[0]
+	funcs := make([]geminiToolFunc, 0, len(tools))
+	for _, t := range tools {
+		decl := geminiToolFunc{Name: t.Name, Description: t.Description}
+		if useSchemaParameters {
+			decl.Parameters = stripGoogleSchemaMeta(t.Parameters)
+		} else {
+			decl.ParametersJsonSchema = t.Parameters
+		}
+		funcs = append(funcs, decl)
+	}
+	return []geminiToolDecl{{FunctionDeclarations: funcs}}
+}
+
+func stripGoogleSchemaMeta(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return append(json.RawMessage(nil), raw...)
+	}
+	cleaned := stripGoogleSchemaMetaValue(value)
+	out, err := json.Marshal(cleaned)
+	if err != nil {
+		return append(json.RawMessage(nil), raw...)
+	}
+	return out
+}
+
+func stripGoogleSchemaMetaValue(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for key, child := range v {
+			switch key {
+			case "$schema", "$id", "$comment", "$defs", "definitions":
+				continue
+			default:
+				out[key] = stripGoogleSchemaMetaValue(child)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(v))
+		for i, child := range v {
+			out[i] = stripGoogleSchemaMetaValue(child)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
@@ -430,6 +479,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 				last := &contents[len(contents)-1]
 				if last.Role == "user" && len(last.Parts) > 0 && last.Parts[0].FunctionResponse != nil {
 					last.Parts = append(last.Parts, part)
+					if hasImages && !supportsMultimodalFunctionResponse(model.ID) {
+						contents = append(contents, geminiContent{Role: "user", Parts: append([]geminiPart{{Text: "Tool result image:"}}, imageParts...)})
+					}
 					continue
 				}
 			}
@@ -437,6 +489,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 				Role:  "user",
 				Parts: []geminiPart{part},
 			})
+			if hasImages && !supportsMultimodalFunctionResponse(model.ID) {
+				contents = append(contents, geminiContent{Role: "user", Parts: append([]geminiPart{{Text: "Tool result image:"}}, imageParts...)})
+			}
 		}
 	}
 

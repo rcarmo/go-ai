@@ -8,12 +8,12 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 26 files
+- DETERMINISTIC-PORTED: 29 files
 - LIVE-GATED: 0 files
 - LIVE-PENDING: 21 files
 - N/A: 0 files
-- TODO deterministic/needs classification: 39 files
-- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 26 / 86 files
+- TODO deterministic/needs classification: 36 files
+- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 29 / 86 files
 
 ## Test files
 
@@ -49,9 +49,9 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/fireworks-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Fireworks catalog/env/compat assertions: default Kimi K2.6 Anthropic-compatible model metadata and costs, Fire Pass turbo router metadata, `FIREWORKS_API_KEY` resolution, and Fireworks Anthropic compat flags for eager input and long cache retention. Passing. |
 | `test/github-copilot-anthropic.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/github_copilot_anthropic_test.go | Ported upstream Copilot Anthropic metadata/header/payload assertions: adaptive effort overrides, Bearer auth + static/dynamic Copilot headers, Anthropic Messages payload, and no interleaved beta for adaptive models. Passing. |
 | `test/github-copilot-oauth.test.ts` | TODO | oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/google-shared-convert-tools.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/google-shared-gemini3-unsigned-tool-call.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/google-shared-image-tool-result-routing.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-shared-convert-tools.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported all seven upstream Google shared tool-conversion cases: meta-key stripping for `parameters`, recursive nested stripping, `$ref` preservation, original parameter immutability, `$schema` preservation in `parametersJsonSchema`, no-schema handling, and empty tool list nil result. Passing. |
+| `test/google-shared-gemini3-unsigned-tool-call.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported all four upstream Gemini 3 unsigned tool-call cases: no legacy skip validator for Google GenAI or Vertex, valid same-model thoughtSignature preservation, and non-Gemini-3 unsigned behavior. Passing. |
+| `test/google-shared-image-tool-result-routing.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported both upstream image tool-result routing cases with identical turn shapes: Gemini 2.x keeps a separate synthetic `Tool result image:` turn, while Gemini 3 nests inline image data inside functionResponse parts. Passing. |
 | `test/google-thinking-disable.test.ts` | LIVE-PENDING | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_thinking_signature_test.go | Ported all five upstream thought/signature helper cases: `thought=true` detection, signature-alone not thinking, empty/missing signatures not thinking, retaining previous signature, and updating on new non-empty signature. Passing. |
 | `test/google-vertex-api-key-resolution.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
