@@ -438,10 +438,15 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				}
 				req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: blocks})
 			} else {
-				req.Messages = append(req.Messages, anthropicMessage{
-					Role:    "user",
-					Content: goai.SanitizeSurrogates(extractText(m.Content)),
-				})
+				text := goai.SanitizeSurrogates(extractText(m.Content))
+				if resolveCacheControl(model, opts) != nil {
+					req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: []anthropicContentBlock{{Type: "text", Text: text}}})
+				} else {
+					req.Messages = append(req.Messages, anthropicMessage{
+						Role:    "user",
+						Content: text,
+					})
+				}
 			}
 		case goai.RoleAssistant:
 			var blocks []anthropicContentBlock
