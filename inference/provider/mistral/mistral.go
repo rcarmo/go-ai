@@ -126,6 +126,7 @@ type mistralRequest struct {
 	Tools           []mistralTool `json:"tools,omitempty"`
 	PromptMode      string        `json:"prompt_mode,omitempty"`
 	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
+	PromptCacheKey  string        `json:"prompt_cache_key,omitempty"`
 }
 
 type mistralMsg struct {
@@ -167,6 +168,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil {
 		req.Temperature = opts.Temperature
 		req.MaxTokens = opts.MaxTokens
+		if opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
+			req.PromptCacheKey = opts.SessionID
+		}
 		if opts.Reasoning != nil && *opts.Reasoning != "" && model.Reasoning {
 			level := goai.ModelThinkingLevel(*opts.Reasoning)
 			if mapped, ok := goai.MapThinkingLevel(model, level); ok && mapped != "none" {
