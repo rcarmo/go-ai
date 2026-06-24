@@ -8,9 +8,9 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 4 files
-- DONE: 63 files
-- PARTIAL: 19 files
+- PORTED: 9 files
+- DONE: 59 files
+- PARTIAL: 18 files
 - MISSING: 0 files
 
 ## Test files
@@ -19,7 +19,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 |---|---:|---|---|
 | `test/abort.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/anthropic-adaptive-thinking-models.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/anthropic-cache-write-1h-cost.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-cache-write-1h-cost.test.ts` | PORTED | inference/provider/anthropic/anthropic_cache_write_1h_cost_test.go | Ported both upstream cache-write cost cases with exact expected usage/cost values: 1h split `400000` at `7.75`, and no-breakdown fallback at `6.25`. Passing. |
 | `test/anthropic-eager-tool-input-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/anthropic-eager-tool-input-e2e.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-empty-thinking-signature-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
@@ -31,7 +31,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/anthropic-temperature-compat.test.ts` | PORTED | inference/provider/anthropic/anthropic_temperature_compat_test.go | Ported all six upstream payload cases with identical expected `temperature` values: Opus 4.7/4.8 omit explicit `0`, Opus 4.7 omits default `1`, Opus 4.6 and Sonnet 4.6 keep `0`, and custom `supportsTemperature: false` omits `0`. Passing. |
 | `test/anthropic-thinking-disable.test.ts` | PORTED | inference/provider/anthropic/anthropic_thinking_disable_test.go | Ported all six upstream payload cases with identical expected `thinking`/`output_config` values: Sonnet 4.5, Opus 4.6, and Opus 4.8 disable thinking when off; Fable 5 omits disabled thinking; Opus 4.8 uses adaptive summarized thinking with high/xhigh output effort when reasoning is enabled. Also fixed Fable 5 off-map handling. Passing. |
 | `test/anthropic-tool-name-normalization.test.ts` | PORTED | inference/provider/anthropic/anthropic_tool_name_normalization_test.go | Ported upstream four OAuth tool-name normalization cases with identical expected returned tool names: `todowrite`, `read`, `find`, and `my_custom_tool`; also asserts outbound Claude Code canonical casing where applicable. Passing. |
-| `test/azure-openai-base-url.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/azure-openai-base-url.test.ts` | PORTED | inference/provider/openairesponses/azure_openai_base_url_test.go | Ported all 11 upstream Azure base URL / prompt cache / storage cases with identical expected URLs, invalid-URL error substring, 64-char prompt cache clamp, and `store=false`. Passing. |
 | `test/bedrock-convert-messages.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-endpoint-resolution.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
@@ -42,7 +42,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/context-overflow.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/cross-provider-handoff.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/empty.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/env-api-keys.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/env-api-keys.test.ts` | PORTED | env_api_keys_test.go | Ported all three upstream env-key cases: generic GitHub tokens ignored for Copilot, `COPILOT_GITHUB_TOKEN` selected, and `ZAI_CODING_CN_API_KEY` selected. Passing. |
 | `test/faux-provider.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/fireworks-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/github-copilot-anthropic.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
@@ -58,7 +58,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/images.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/interleaved-thinking.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/lazy-module-load.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/mistral-reasoning-mode.test.ts` | PARTIAL | inference/provider/mistral/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/mistral-reasoning-mode.test.ts` | PORTED | inference/provider/mistral/mistral_reasoning_mode_test.go | Ported all seven upstream Mistral reasoning/cache-key cases with identical expected `reasoning_effort`, `prompt_mode`, and `prompt_cache_key` values. Passing. |
 | `test/mistral-tool-schema.test.ts` | PARTIAL | inference/provider/mistral/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/models-runtime.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/node-http-proxy.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
@@ -71,7 +71,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/openai-completions-empty-tools.test.ts` | DONE | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-prompt-cache.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-reasoning-details.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-completions-response-model.test.ts` | DONE | inference/provider/openai/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-response-model.test.ts` | PORTED | inference/provider/openai/openai_completions_response_model_test.go | Ported all three upstream response-model cases: routed chunk model sets `responseModel` without changing `model`, echoed requested id leaves it empty, and empty/missing chunk model is ignored. Passing. |
 | `test/openai-completions-retry.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-thinking-as-text.test.ts` | DONE | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-tool-choice.test.ts` | DONE | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
