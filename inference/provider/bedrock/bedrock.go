@@ -367,6 +367,14 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	return input
 }
 
+func bedrockToolResultText(text string) string {
+	text = goai.SanitizeSurrogates(text)
+	if strings.TrimSpace(text) == "" {
+		return "<empty>"
+	}
+	return text
+}
+
 func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention string, env goai.ProviderEnv) []types.Message {
 	var result []types.Message
 	transformed := goai.TransformMessages(convCtx.Messages, model)
@@ -379,31 +387,33 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 			for _, b := range msg.Content {
 				switch b.Type {
 				case "text":
-					content = append(content, &types.ContentBlockMemberText{
-						Value: goai.SanitizeSurrogates(b.Text),
-					})
+					text := goai.SanitizeSurrogates(b.Text)
+					if strings.TrimSpace(text) == "" {
+						continue
+					}
+					content = append(content, &types.ContentBlockMemberText{Value: text})
 				case "image":
 					content = append(content, createImageBlock(b.MimeType, b.Data))
 				}
 			}
-			if len(content) > 0 {
-				result = append(result, types.Message{
-					Role:    types.ConversationRoleUser,
-					Content: content,
-				})
+			if len(content) == 0 {
+				content = append(content, &types.ContentBlockMemberText{Value: "<empty>"})
 			}
+			result = append(result, types.Message{
+				Role:    types.ConversationRoleUser,
+				Content: content,
+			})
 
 		case goai.RoleAssistant:
 			var content []types.ContentBlock
 			for _, b := range msg.Content {
 				switch b.Type {
 				case "text":
-					if strings.TrimSpace(b.Text) == "" {
+					text := goai.SanitizeSurrogates(b.Text)
+					if strings.TrimSpace(text) == "" {
 						continue
 					}
-					content = append(content, &types.ContentBlockMemberText{
-						Value: goai.SanitizeSurrogates(b.Text),
-					})
+					content = append(content, &types.ContentBlockMemberText{Value: text})
 				case "toolCall":
 					content = append(content, &types.ContentBlockMemberToolUse{
 						Value: types.ToolUseBlock{
@@ -452,6 +462,7 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 					textResult += b.Text
 				}
 			}
+			textResult = bedrockToolResultText(textResult)
 
 			status := types.ToolResultStatusSuccess
 			if msg.IsError {
@@ -480,6 +491,7 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 						nextText += b.Text
 					}
 				}
+				nextText = bedrockToolResultText(nextText)
 				nextStatus := types.ToolResultStatusSuccess
 				if next.IsError {
 					nextStatus = types.ToolResultStatusError

@@ -8,8 +8,8 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 14 files
-- DONE: 54 files
+- PORTED: 15 files
+- DONE: 53 files
 - PARTIAL: 18 files
 - MISSING: 0 files
 
@@ -32,7 +32,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/anthropic-thinking-disable.test.ts` | PORTED | inference/provider/anthropic/anthropic_thinking_disable_test.go | Ported all six upstream payload cases with identical expected `thinking`/`output_config` values: Sonnet 4.5, Opus 4.6, and Opus 4.8 disable thinking when off; Fable 5 omits disabled thinking; Opus 4.8 uses adaptive summarized thinking with high/xhigh output effort when reasoning is enabled. Also fixed Fable 5 off-map handling. Passing. |
 | `test/anthropic-tool-name-normalization.test.ts` | PORTED | inference/provider/anthropic/anthropic_tool_name_normalization_test.go | Ported upstream four OAuth tool-name normalization cases with identical expected returned tool names: `todowrite`, `read`, `find`, and `my_custom_tool`; also asserts outbound Claude Code canonical casing where applicable. Passing. |
 | `test/azure-openai-base-url.test.ts` | PORTED | inference/provider/openairesponses/azure_openai_base_url_test.go | Ported all 11 upstream Azure base URL / prompt cache / storage cases with identical expected URLs, invalid-URL error substring, 64-char prompt cache clamp, and `store=false`. Passing. |
-| `test/bedrock-convert-messages.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-convert-messages.test.ts` | PORTED | inference/provider/bedrock/bedrock_convert_messages_upstream_test.go | Ported all nine upstream message-conversion cases with identical expected content behavior: unknown user/assistant blocks skipped, empty user content becomes `<empty>`, blank user text filtered, surrogate-emptied user text becomes `<empty>`, surrogate-emptied/unknown-only assistant messages are skipped, and blank tool result content becomes `<empty>`. Passing. |
 | `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-endpoint-resolution.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-models.test.ts` | DONE | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
