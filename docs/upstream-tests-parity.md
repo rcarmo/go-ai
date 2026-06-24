@@ -8,8 +8,8 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 16 files
-- DONE: 52 files
+- PORTED: 17 files
+- DONE: 51 files
 - PARTIAL: 18 files
 - MISSING: 0 files
 
@@ -36,7 +36,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-endpoint-resolution.test.ts` | PORTED | inference/provider/bedrock/bedrock_endpoint_resolution_upstream_test.go | Ported all seven upstream endpoint-resolution cases with identical expected base URL/region/endpoint decisions: EU inference-profile base URL, AWS_REGION standard endpoint unpinning, EU endpoint region derivation, explicit/scoped/ambient profile handling, custom endpoint passthrough, and commercial/GovCloud ARN region extraction. Passing. |
 | `test/bedrock-models.test.ts` | DONE | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/bedrock-thinking-payload.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-thinking-payload.test.ts` | PORTED | inference/provider/bedrock/bedrock_thinking_payload_upstream_test.go | Ported the deterministic upstream payload cases with identical expected fields: Opus 4.8 and Fable 5 adaptive summarized thinking at high/xhigh effort, GovCloud fixed/adaptive display omission, application-inference-profile adaptive detection by model name, cache point injection by model name, and fixed-budget Sonnet fallback. Also aligned Bedrock high thinking budget and region-option GovCloud detection. Passing. |
 | `test/cache-retention.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/compat-env.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/context-overflow.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |

@@ -255,12 +255,10 @@ func GetThinkingBudget(level ThinkingLevel, custom *ThinkingBudgets) int {
 	case ThinkingLow:
 		return 2048
 	case ThinkingMedium:
-		return 4096
-	case ThinkingHigh:
 		return 8192
-	case ThinkingXHigh:
+	case ThinkingHigh, ThinkingXHigh:
 		return 16384
 	default:
-		return 4096
+		return 8192
 	}
 }

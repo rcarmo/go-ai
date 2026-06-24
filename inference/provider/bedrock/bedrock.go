@@ -247,8 +247,8 @@ func shouldUseExplicitBedrockEndpoint(baseURL, configuredRegion string, hasAmbie
 }
 
 // isGovCloudBedrockTarget checks if the model targets a GovCloud region.
-func isGovCloudBedrockTarget(model *goai.Model, env goai.ProviderEnv) bool {
-	region := getConfiguredBedrockRegion(model, nil, env)
+func isGovCloudBedrockTarget(model *goai.Model, opts *goai.StreamOptions, env goai.ProviderEnv) bool {
+	region := getConfiguredBedrockRegion(model, opts, env)
 	if strings.HasPrefix(strings.ToLower(region), "us-gov-") {
 		return true
 	}
@@ -337,7 +337,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	// adaptive thinking with native effort strings; older models use token budgets.
 	if model.Reasoning && opts != nil && opts.Reasoning != nil {
 		var addFields map[string]interface{}
-		govCloud := isGovCloudBedrockTarget(model, goai.ProviderEnvFromOptions(opts))
+		govCloud := isGovCloudBedrockTarget(model, opts, goai.ProviderEnvFromOptions(opts))
 		if supportsAdaptiveThinking(model) {
 			thinkingField := map[string]interface{}{"type": "adaptive"}
 			if !govCloud {
