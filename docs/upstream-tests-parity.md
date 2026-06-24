@@ -8,8 +8,8 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 42 files
-- N/A credential/live/JS-runtime files: 18 files
+- DETERMINISTIC-PORTED: 43 files
+- N/A credential/live/JS-runtime files: 17 files
 - TODO deterministic/needs classification: 26 files
 - Achieved (`DETERMINISTIC-PORTED + N/A`): 60 / 86 files
 
@@ -95,7 +95,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/tokens.test.ts` | DETERMINISTIC-PORTED | tokens_simulated_test.go | Ported token-on-abort behavior using simulated provider usage outputs: final-chunk-only providers report zero usage, Kimi reports input-only, early-usage providers retain input/output and positive cost when priced, zero-cost Copilot does not require positive cost. Passing 3×. |
 | `test/tool-call-id-normalization.test.ts` | TODO | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/tool-call-without-result.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
-| `test/total-tokens.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/total-tokens.test.ts` | DETERMINISTIC-PORTED | total_tokens_simulated_test.go | Ported total-token accounting behavior with simulated provider usage records matching upstream semantics: Anthropic computed components with cache activity, native total fields for OpenAI/Responses/Google and OpenAI-compatible providers. Passing 3×. |
 | `test/transform-messages-copilot-openai-to-anthropic.test.ts` | TODO | inference/provider/anthropic/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/unicode-surrogate.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go`; `context.go` | Ported all three upstream cases: Function-constructor fallback equivalent, AJV-compatible primitive coercions, and invalid coercion rejection. Passing with `go test . -run TestUpstreamValidation`. |
