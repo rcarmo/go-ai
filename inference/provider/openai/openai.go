@@ -168,7 +168,8 @@ type chatRequest struct {
 	Temperature          *float64               `json:"temperature,omitempty"`
 	MaxTokens            *int                   `json:"max_tokens,omitempty"`
 	MaxCompletionToks    *int                   `json:"max_completion_tokens,omitempty"`
-	Tools                []toolDef              `json:"tools,omitempty"`
+	Tools                []toolDef              `json:"-"`
+	EmitEmptyTools       bool                   `json:"-"`
 	ReasoningEffort      string                 `json:"reasoning_effort,omitempty"`
 	Reasoning            map[string]interface{} `json:"reasoning,omitempty"`
 	Thinking             map[string]interface{} `json:"thinking,omitempty"`
@@ -176,6 +177,24 @@ type chatRequest struct {
 	ChatTemplateKwargs   map[string]interface{} `json:"chat_template_kwargs,omitempty"`
 	ToolStream           *bool                  `json:"tool_stream,omitempty"`
 	Store                *bool                  `json:"store,omitempty"`
+}
+
+func (r chatRequest) MarshalJSON() ([]byte, error) {
+	type alias chatRequest
+	m := map[string]interface{}{}
+	b, err := json.Marshal(alias(r))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	if len(r.Tools) > 0 {
+		m["tools"] = r.Tools
+	} else if r.EmitEmptyTools {
+		m["tools"] = []toolDef{}
+	}
+	return json.Marshal(m)
 }
 
 type streamOpts struct {
@@ -358,7 +377,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		applyAnthropicCacheControl(req.Messages, cacheMarker)
 	}
 
-	// Convert tools
+	// Convert tools. Match upstream OpenAI-compatible behavior: omit tools for
+	// empty/no-tool contexts, but preserve an explicit empty tools array when the
+	// conversation contains prior tool-call/tool-result history for proxy replay.
 	if len(convCtx.Tools) > 0 {
 		if compat.ZaiToolStream != nil && *compat.ZaiToolStream {
 			t := true
@@ -377,9 +398,28 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 				},
 			})
 		}
+	} else if hasToolHistory(convCtx) {
+		req.EmitEmptyTools = true
 	}
 
 	return req
+}
+
+func hasToolHistory(convCtx *goai.Context) bool {
+	if convCtx == nil {
+		return false
+	}
+	for _, msg := range convCtx.Messages {
+		if msg.Role == goai.RoleToolResult || msg.ToolCallID != "" {
+			return true
+		}
+		for _, c := range msg.Content {
+			if c.Type == "toolCall" || c.ID != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func applyAnthropicCacheControl(msgs []chatMessage, marker *cacheControl) {

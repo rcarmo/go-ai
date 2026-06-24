@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 37 files
+- DETERMINISTIC-PORTED: 38 files
 - N/A credential/live/JS-runtime files: 18 files
-- TODO deterministic/needs classification: 31 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 55 / 86 files
+- TODO deterministic/needs classification: 30 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 56 / 86 files
 
 ## Test files
 
@@ -68,7 +68,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openai-codex-oauth.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-codex-stream.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-cache-control-format.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_cache_control_upstream_test.go | Ported all three upstream cache-control format cases: custom Anthropic-style cache markers on instruction/tool/last user content, OpenRouter Anthropic marker preservation, and marker omission when cache retention is none. Passing. |
-| `test/openai-completions-empty-tools.test.ts` | TODO | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-empty-tools.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_empty_tools_upstream_test.go | Ported upstream empty-tools and max-token payload assertions: empty/nil tools are omitted, default max-token fields are omitted, explicit maxTokens uses `max_completion_tokens`, and replaying prior tool history emits `tools: []`. Also fixed Go JSON emission for that replay case. Passing. |
 | `test/openai-completions-prompt-cache.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_prompt_cache_test.go | Ported all nine upstream prompt-cache cases: direct OpenAI key/24h/clamp/none/proxy behavior, env long retention, session-affinity headers, cacheRetention none header omission, and explicit header override. Also fixed affinity headers when cacheRetention is none. Passing 3×. |
 | `test/openai-completions-reasoning-details.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_reasoning_details_upstream_test.go | Ported upstream reasoning_details streaming/replay case: encrypted reasoning detail before matching tool call is stored as thoughtSignature and replayed as assistant `reasoning_details` in the next payload. Passing. |
 | `test/openai-completions-response-model.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_response_model_test.go | Ported all three upstream response-model cases: routed chunk model sets `responseModel` without changing `model`, echoed requested id leaves it empty, and empty/missing chunk model is ignored. Passing. |

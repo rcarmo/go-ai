@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Build & Test
+  check:
+    name: Vet, Staticcheck & Deterministic Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,10 +19,22 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Download dependencies
+        run: go mod download
+
       - name: Build
         run: go build ./...
 
-      - name: Test
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+
+      - name: Deterministic tests (3x)
+        run: go test ./... -count=3
+
+      - name: Race tests
         run: go test ./... -count=1 -race
 
       - name: Test with coverage

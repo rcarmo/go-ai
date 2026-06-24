@@ -1,4 +1,4 @@
-.PHONY: help install lint format test coverage fuzz check clean clean-all build build-all deps generate bump-patch push security bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate bump-patch push security bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -44,6 +44,12 @@ format: ## Format code with gofumpt
 test: ## Run tests
 	TMPDIR=$(GO_TMPDIR) $(GO) test ./... -count=1
 
+test-deterministic: ## Run tests three times to catch nondeterminism
+	TMPDIR=$(GO_TMPDIR) $(GO) test ./... -count=3
+
+vet: ## Run go vet
+	TMPDIR=$(GO_TMPDIR) $(GO) vet ./...
+
 coverage: ## Run tests with coverage
 	TMPDIR=$(GO_TMPDIR) $(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out
@@ -58,7 +64,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: lint test check-logging ## Run lint + tests + logging gate
+check: test-deterministic vet staticcheck check-logging ## Run deterministic tests + vet + staticcheck + logging gate
 
 # =============================================================================
 # Reproducible verification targets
