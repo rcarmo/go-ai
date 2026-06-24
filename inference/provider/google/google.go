@@ -135,9 +135,17 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 			baseURL = "https://{location}-aiplatform.googleapis.com"
 		}
 		baseURL = strings.ReplaceAll(baseURL, "{location}", location)
+		trimmedBase := strings.TrimRight(baseURL, "/")
+		if strings.Contains(trimmedBase, "/v1/projects/") {
+			endpoint := fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse", trimmedBase, url.PathEscape(model.ID))
+			if apiKey != "" && !isVertexADCMarker(apiKey) {
+				endpoint += "&key=" + url.QueryEscape(apiKey)
+			}
+			return endpoint, nil
+		}
 		endpoint := fmt.Sprintf("%s/v1/projects/%s/locations/%s/publishers/google/models/%s:streamGenerateContent?alt=sse",
-			strings.TrimRight(baseURL, "/"), url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
-		if apiKey != "" && !strings.HasPrefix(apiKey, "<") {
+			trimmedBase, url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
+		if apiKey != "" && !isVertexADCMarker(apiKey) {
 			endpoint += "&key=" + url.QueryEscape(apiKey)
 		}
 		return endpoint, nil
@@ -148,6 +156,10 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 	// REST streaming endpoint. Escape path/query components so unusual model
 	// aliases or API keys containing reserved characters cannot corrupt the URL.
 	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+}
+
+func isVertexADCMarker(apiKey string) bool {
+	return strings.HasPrefix(apiKey, "<") || apiKey == "gcp-vertex-credentials"
 }
 
 func resolveVertexProjectLocation(opts *goai.StreamOptions) (string, string, error) {
