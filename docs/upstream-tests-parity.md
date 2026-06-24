@@ -8,9 +8,9 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 17 files
-- DONE: 51 files
-- PARTIAL: 18 files
+- PORTED: 22 files
+- DONE: 47 files
+- PARTIAL: 17 files
 - MISSING: 0 files
 
 ## Test files
@@ -51,7 +51,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/google-shared-gemini3-unsigned-tool-call.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/google-shared-image-tool-result-routing.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/google-thinking-disable.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/google-thinking-signature.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-thinking-signature.test.ts` | PORTED | inference/provider/google/google_thinking_signature_test.go | Ported all five upstream thought/signature helper cases: `thought=true` detection, signature-alone not thinking, empty/missing signatures not thinking, retaining previous signature, and updating on new non-empty signature. Passing. |
 | `test/google-vertex-api-key-resolution.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/image-tool-result.test.ts` | DONE | images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/images-models.test.ts` | DONE | images_test.go; images/openrouter<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
@@ -78,15 +78,15 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/openai-completions-tool-result-images.test.ts` | DONE | inference/provider/openai/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-cache-affinity-e2e.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-copilot-provider.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-responses-foreign-toolcall-id.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-responses-message-id.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-responses-partial-json-cleanup.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-responses-foreign-toolcall-id.test.ts` | PORTED | inference/provider/openairesponses/responses_foreign_toolcall_id_test.go | Ported upstream foreign Copilot tool item ID normalization case; Go now hashes foreign item IDs to bounded `fc_<shortHash>` shape. Passing. |
+| `test/openai-responses-message-id.test.ts` | PORTED | inference/provider/openairesponses/responses_message_id_test.go | Ported upstream multiple-text-block fallback message ID case; Go now emits `msg_pi_1` and `msg_pi_1_1` without requiring an existing text signature. Passing. |
+| `test/openai-responses-partial-json-cleanup.test.ts` | PORTED | inference/provider/openairesponses/responses_partial_json_cleanup_test.go | Ported upstream partial function-call JSON cleanup case against Go stream events: final persisted tool call and `toolcall_end` carry parsed arguments without partial JSON leakage. Passing. |
 | `test/openai-responses-reasoning-replay-e2e.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-terminal-event.test.ts` | DONE | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-tool-result-images.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openrouter-cache-write-repro.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openrouter-images.test.ts` | DONE | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/overflow.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/overflow.test.ts` | PORTED | overflow_upstream_test.go | Ported all 13 upstream `isContextOverflow` cases: provider error-string detections/non-detections and Xiaomi length-stop context-fill heuristic. Passing. |
 | `test/providers.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/responseid.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/stream.test.ts` | DONE | transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
