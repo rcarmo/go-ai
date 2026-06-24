@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 48 files
+- DETERMINISTIC-PORTED: 49 files
 - N/A credential/live/JS-runtime files: 14 files
-- TODO deterministic/needs classification: 24 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 62 / 86 files
+- TODO deterministic/needs classification: 23 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 63 / 86 files
 
 ## Test files
 
@@ -61,7 +61,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_reasoning_mode_test.go | Ported all seven upstream Mistral reasoning/cache-key cases with identical expected `reasoning_effort`, `prompt_mode`, and `prompt_cache_key` values. Passing. |
 | `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_tool_schema_test.go | Ported upstream tool schema serialization case with nested object schema preserved and JSON-safe parameters. Passing 3×. |
 | `test/models-runtime.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/node-http-proxy.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/node-http-proxy.test.ts` | DETERMINISTIC-PORTED | retry_proxy_test.go | Ported proxy environment behavior against Go's `http.ProxyFromEnvironment`: `NO_PROXY` exclusions, `HTTPS_PROXY`, and `HTTP_PROXY`, each isolated in a helper subprocess to avoid runtime proxy-env caching. Passing 3×. |
 | `test/oauth-auth.test.ts` | TODO | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/oauth-device-code.test.ts` | DETERMINISTIC-PORTED | oauth/oauth_device_code_upstream_test.go; oauth/device_flow.go | Adopted rs-ai/canonical RFC8628 semantics: poll intervals clamp to the 5s minimum, `authorization_pending` preserves the interval, `slow_down` adds exactly 5s, and terminal OAuth errors stop polling. Fixed both GitHub Copilot and OpenAI Codex device-code pollers. Passing. |
 | credential/live E2E group | N/A | — | Requires live OpenAI/Codex credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |

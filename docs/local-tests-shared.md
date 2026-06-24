@@ -20,9 +20,16 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - OpenAI Chat Completions provider: 8
 - OpenAI Codex transport/provider: 10
 - OpenAI/Azure Responses provider: 10
-- Retry helper: 5
+- Retry/helper and HTTP proxy: 8
 - SSE transport: 4
 - Streaming/partial JSON parser: 3
+
+## Shareable conformance corpus adopted from rs-ai/swift-ai
+
+- HTTP proxy environment support is covered by `retry_proxy_test.go` against Go's `http.ProxyFromEnvironment` for `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`; each case runs in a subprocess so Go's proxy-env cache cannot hide order dependence.
+- Vertex API-key/ADC marker and custom base URL behavior is covered by `inference/provider/google/google_vertex_api_key_resolution_test.go`.
+- Real Codex WebSocket RT1/RT2 method tests are covered by `inference/provider/openaicodex/codex_ws_test.go`; raw handshake bugs are N/A because go-ai uses `coder/websocket` Dial, but real local WS server integration remains present.
+- Caching-gate divergences found during upstream ports are now covered by OpenAI prompt-cache, Anthropic cache-retention, Responses message-ID, and OpenRouter cache-write tests.
 
 ## Tests
 
