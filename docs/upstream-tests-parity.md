@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 41 files
+- DETERMINISTIC-PORTED: 42 files
 - N/A credential/live/JS-runtime files: 18 files
-- TODO deterministic/needs classification: 27 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 59 / 86 files
+- TODO deterministic/needs classification: 26 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 60 / 86 files
 
 ## Test files
 
@@ -73,7 +73,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openai-completions-reasoning-details.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_reasoning_details_upstream_test.go | Ported upstream reasoning_details streaming/replay case: encrypted reasoning detail before matching tool call is stored as thoughtSignature and replayed as assistant `reasoning_details` in the next payload. Passing. |
 | `test/openai-completions-response-model.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_response_model_test.go | Ported all three upstream response-model cases: routed chunk model sets `responseModel` without changing `model`, echoed requested id leaves it empty, and empty/missing chunk model is ignored. Passing. |
 | `test/openai-completions-retry.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-completions-thinking-as-text.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-thinking-as-text.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_thinking_as_text_test.go | Ported all three upstream thinking-as-text replay cases: same-model thinking+text as assistant text parts, thinking-only as text parts, and simulated SSE endpoint request shape/done event. Fixed replay conversion to preserve distinct text content parts. Passing 3×. |
 | `test/openai-completions-tool-choice.test.ts` | TODO | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-tool-result-images.test.ts` | TODO | inference/provider/openai/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | credential/live E2E group | N/A | — | Requires live OpenAI Responses credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
