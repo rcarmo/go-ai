@@ -55,6 +55,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			suppressHeaders = opts.SuppressHeaders
 		}
 		if apiKey == "" && !goai.HasOpenAIAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
 		}

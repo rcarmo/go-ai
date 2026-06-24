@@ -11,6 +11,9 @@ import (
 func TestDiscardLoggerDefault(t *testing.T) {
 	// Default logger should be discard — no panics
 	logger := goai.GetLogger()
+	if logger == nil {
+		t.Fatal("expected non-nil default logger")
+	}
 	logger.Debug("test")
 	logger.Info("test")
 	logger.Warn("test")
@@ -74,5 +77,8 @@ func TestSetLogger(t *testing.T) {
 
 func TestSetLoggerNil(t *testing.T) {
 	goai.SetLogger(nil) // should restore discard, not panic
+	if goai.GetLogger() == nil {
+		t.Fatal("expected nil SetLogger to restore non-nil discard logger")
+	}
 	goai.GetLogger().Error("this should not panic")
 }

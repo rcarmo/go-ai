@@ -52,6 +52,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
+			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
 		}

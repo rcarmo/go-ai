@@ -709,6 +709,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 		switch e := event.(type) {
 		case *types.ConverseStreamOutputMemberMessageStart:
 			if e.Value.Role != types.ConversationRoleAssistant {
+				//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Unexpected assistant message start but got user message start instead")}
 				return
 			}

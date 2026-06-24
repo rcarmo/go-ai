@@ -170,6 +170,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			suppressHeaders = opts.SuppressHeaders
 		}
 		if apiKey == "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
 		}
@@ -738,6 +739,7 @@ func anthropicSSEParseError(evt sse.SSEEvent, err error) error {
 	if raw == "" {
 		raw = "data: " + evt.Data
 	}
+	//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 	return fmt.Errorf("Could not parse Anthropic SSE event %s: %s; data=%s; raw=%s", evt.Event, err.Error(), evt.Data, raw)
 }
 

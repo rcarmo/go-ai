@@ -15,10 +15,14 @@ func TestCompleteNilModelDoesNotPanic(t *testing.T) {
 }
 
 func TestNilRegistrationNoops(t *testing.T) {
+	beforeProviders := len(goai.ListProviders())
 	goai.RegisterApi(nil)
 	goai.RegisterModel(nil)
 	goai.RegisterApi(&goai.ApiProvider{})
 	goai.RegisterModel(&goai.Model{})
+	if got := len(goai.ListProviders()); got != beforeProviders {
+		t.Fatalf("nil/empty registrations changed provider count: got %d want %d", got, beforeProviders)
+	}
 }
 
 func TestCloneContextDeepCopiesNestedFields(t *testing.T) {

@@ -98,6 +98,9 @@ func TestCopilotHeadersWithIntent(t *testing.T) {
 
 func TestNewStderrLogger(t *testing.T) {
 	l := goai.NewStderrLogger(goai.LogLevelWarn)
+	if l == nil {
+		t.Fatal("expected non-nil logger")
+	}
 	l.Debug("should not panic")
 	l.Warn("should not panic")
 }
