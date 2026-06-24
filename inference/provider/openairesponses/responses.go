@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	urlpkg "net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -487,17 +488,18 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 				})
 			}
 		case "text":
-			item := map[string]interface{}{
-				"type":    "message",
-				"role":    "assistant",
-				"content": []map[string]interface{}{{"type": "output_text", "text": goai.SanitizeSurrogates(block.Text)}},
-				"status":  "completed",
-			}
 			fallbackMessageID := fmt.Sprintf("msg_pi_%d", msgIndex)
 			if textBlockIndex > 0 {
 				fallbackMessageID = fmt.Sprintf("msg_pi_%d_%d", msgIndex, textBlockIndex)
 			}
 			textBlockIndex++
+			item := map[string]interface{}{
+				"type":    "message",
+				"id":      fallbackMessageID,
+				"role":    "assistant",
+				"content": []map[string]interface{}{{"type": "output_text", "text": goai.SanitizeSurrogates(block.Text)}},
+				"status":  "completed",
+			}
 			// Include id from TextSignature for proper replay
 			if block.TextSignature != "" {
 				var sig struct {
@@ -532,11 +534,7 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 			if isDifferentModel && strings.HasPrefix(itemID, "fc_") {
 				itemID = ""
 			} else if itemID != "" {
-				// Normalize itemID and ensure fc_ prefix
-				itemID = normalizeResponsesIDPart(itemID)
-				if !strings.HasPrefix(itemID, "fc_") {
-					itemID = normalizeResponsesIDPart("fc_" + itemID)
-				}
+				itemID = normalizeForeignResponsesItemID(itemID)
 			}
 			item := map[string]interface{}{
 				"type":      "function_call",
@@ -571,6 +569,28 @@ func mustJSON(v interface{}) string {
 func crc32Hash(s string) uint32 {
 	return crc32.ChecksumIEEE([]byte(s))
 }
+
+func normalizeForeignResponsesItemID(itemID string) string {
+	if strings.HasPrefix(itemID, "fc_") && len(itemID) <= 64 {
+		return normalizeResponsesIDPart(itemID)
+	}
+	return "fc_" + shortHash(itemID)
+}
+
+func shortHash(str string) string {
+	h1 := uint32(0xdeadbeef)
+	h2 := uint32(0x41c6ce57)
+	for _, r := range str {
+		ch := uint32(r)
+		h1 = bitsMul(h1^ch, 2654435761)
+		h2 = bitsMul(h2^ch, 1597334677)
+	}
+	h1 = bitsMul(h1^(h1>>16), 2246822507) ^ bitsMul(h2^(h2>>13), 3266489909)
+	h2 = bitsMul(h2^(h2>>16), 2246822507) ^ bitsMul(h1^(h1>>13), 3266489909)
+	return strings.ToLower(strconv.FormatUint(uint64(h2), 36) + strconv.FormatUint(uint64(h1), 36))
+}
+
+func bitsMul(a, b uint32) uint32 { return uint32(uint64(a) * uint64(b)) }
 
 // normalizeResponsesIDPart sanitizes an ID part for the OpenAI Responses API.
 // Replaces characters not matching [a-zA-Z0-9_-] with '_', truncates to 64 chars,
