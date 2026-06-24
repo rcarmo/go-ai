@@ -22,6 +22,26 @@ const apiVersion = "2023-06-01"
 const fineGrainedToolStreamingBeta = "fine-grained-tool-streaming-2025-05-14"
 const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 
+var claudeCodeToolCanonicalNames = map[string]string{
+	"read":            "Read",
+	"write":           "Write",
+	"edit":            "Edit",
+	"bash":            "Bash",
+	"grep":            "Grep",
+	"glob":            "Glob",
+	"askuserquestion": "AskUserQuestion",
+	"enterplanmode":   "EnterPlanMode",
+	"exitplanmode":    "ExitPlanMode",
+	"killshell":       "KillShell",
+	"notebookedit":    "NotebookEdit",
+	"skill":           "Skill",
+	"task":            "Task",
+	"taskoutput":      "TaskOutput",
+	"todowrite":       "TodoWrite",
+	"webfetch":        "WebFetch",
+	"websearch":       "WebSearch",
+}
+
 type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
 	supportsLongCacheRetention      bool
@@ -96,6 +116,31 @@ func init() {
 
 func streamAnthropicSimple(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	return streamAnthropic(ctx, model, convCtx, opts)
+}
+
+func usesClaudeCodeToolNames(model *goai.Model) bool {
+	return model != nil && model.Provider == goai.ProviderGitHubCopilot
+}
+
+func toClaudeCodeToolName(name string, model *goai.Model) string {
+	if usesClaudeCodeToolNames(model) {
+		if canonical, ok := claudeCodeToolCanonicalNames[strings.ToLower(name)]; ok {
+			return canonical
+		}
+	}
+	return name
+}
+
+func fromClaudeCodeToolName(name string, tools []goai.Tool, model *goai.Model) string {
+	if usesClaudeCodeToolNames(model) && len(tools) > 0 {
+		lower := strings.ToLower(name)
+		for _, tool := range tools {
+			if strings.ToLower(tool.Name) == lower {
+				return tool.Name
+			}
+		}
+	}
+	return name
 }
 
 func normalizeAnthropicBaseURL(baseURL string) string {
@@ -216,7 +261,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		processAnthropicStream(resp.Body, model, ch)
+		processAnthropicStream(resp.Body, model, convCtx.Tools, ch)
 	}()
 
 	return ch
@@ -419,7 +464,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					blocks = append(blocks, anthropicContentBlock{
 						Type:  "tool_use",
 						ID:    normID,
-						Name:  c.Name,
+						Name:  toClaudeCodeToolName(c.Name, model),
 						Input: inputJSON,
 					})
 				}
@@ -447,7 +492,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	compatForTools := getAnthropicCompat(model)
 	for i, t := range convCtx.Tools {
 		tool := anthropicTool{
-			Name:        t.Name,
+			Name:        toClaudeCodeToolName(t.Name, model),
 			Description: t.Description,
 			InputSchema: t.Parameters,
 		}
@@ -485,7 +530,7 @@ func extractText(blocks []goai.ContentBlock) string {
 
 // --- SSE processing ---
 
-func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, ch chan<- goai.Event) {
 	partial := &goai.Message{
 		Role:     goai.RoleAssistant,
 		Api:      model.Api,
@@ -530,7 +575,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, ch chan<- goai.Ev
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   data.ContentBlock.ID,
-					Name: data.ContentBlock.Name,
+					Name: fromClaudeCodeToolName(data.ContentBlock.Name, tools, model),
 				})
 				ch <- &goai.ToolCallStartEvent{ContentIndex: data.Index, Partial: partial}
 			}

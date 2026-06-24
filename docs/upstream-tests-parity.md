@@ -8,9 +8,9 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 1 files
+- PORTED: 2 files
 - DONE: 63 files
-- PARTIAL: 22 files
+- PARTIAL: 21 files
 - MISSING: 0 files
 
 ## Test files
@@ -30,7 +30,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/anthropic-sse-parsing.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/anthropic-temperature-compat.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-thinking-disable.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/anthropic-tool-name-normalization.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-tool-name-normalization.test.ts` | PORTED | inference/provider/anthropic/anthropic_tool_name_normalization_test.go | Ported upstream four OAuth tool-name normalization cases with identical expected returned tool names: `todowrite`, `read`, `find`, and `my_custom_tool`; also asserts outbound Claude Code canonical casing where applicable. Passing. |
 | `test/azure-openai-base-url.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-convert-messages.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
