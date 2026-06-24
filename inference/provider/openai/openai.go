@@ -582,6 +582,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					}
 				case "toolCall":
 					argsJSON, _ := json.Marshal(c.Arguments)
+					toolCallID := normalizeOpenAIToolCallID(c.ID)
 					if c.ThoughtSignature != "" {
 						var detail reasoningDetail
 						if err := json.Unmarshal([]byte(c.ThoughtSignature), &detail); err == nil && isEncryptedReasoningDetail(detail) {
@@ -589,7 +590,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 						}
 					}
 					msg.ToolCalls = append(msg.ToolCalls, toolCallPart{
-						ID:   c.ID,
+						ID:   toolCallID,
 						Type: "function",
 						Function: toolCallFunction{
 							Name:      c.Name,
@@ -629,7 +630,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 			toolMsg := chatMessage{
 				Role:       "tool",
 				Content:    goai.SanitizeSurrogates(text),
-				ToolCallID: m.ToolCallID,
+				ToolCallID: normalizeOpenAIToolCallID(m.ToolCallID),
 			}
 			// Some providers require the name field
 			if compat.RequiresToolResultName != nil && *compat.RequiresToolResultName && m.ToolName != "" {
@@ -665,6 +666,13 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 
 	return msgs
 }
+func normalizeOpenAIToolCallID(id string) string {
+	if idx := strings.Index(id, "|"); idx >= 0 {
+		return id[:idx]
+	}
+	return id
+}
+
 func extractTextContent(blocks []goai.ContentBlock) string {
 	for _, b := range blocks {
 		if b.Type == "text" {
