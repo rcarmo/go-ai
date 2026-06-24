@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 40 files
+- DETERMINISTIC-PORTED: 41 files
 - N/A credential/live/JS-runtime files: 18 files
-- TODO deterministic/needs classification: 28 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 58 / 86 files
+- TODO deterministic/needs classification: 27 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 59 / 86 files
 
 ## Test files
 
@@ -33,7 +33,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/anthropic-tool-name-normalization.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_tool_name_normalization_test.go | Ported upstream four OAuth tool-name normalization cases with identical expected returned tool names: `todowrite`, `read`, `find`, and `my_custom_tool`; also asserts outbound Claude Code canonical casing where applicable. Passing. |
 | `test/azure-openai-base-url.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/azure_openai_base_url_test.go | Ported all 11 upstream Azure base URL / prompt cache / storage cases with identical expected URLs, invalid-URL error substring, 64-char prompt cache clamp, and `store=false`. Passing. |
 | `test/bedrock-convert-messages.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_convert_messages_upstream_test.go | Ported all nine upstream message-conversion cases with identical expected content behavior: unknown user/assistant blocks skipped, empty user content becomes `<empty>`, blank user text filtered, surrogate-emptied user text becomes `<empty>`, surrogate-emptied/unknown-only assistant messages are skipped, and blank tool result content becomes `<empty>`. Passing. |
-| `test/bedrock-custom-headers.test.ts` | TODO | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-custom-headers.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_test.go | Ported upstream custom-header middleware semantics: reserved auth/host/x-amz headers are skipped case-insensitively, allowed caller headers are applied, non-reserved suppressions are honored, and nil requests are safe. Passing 3×. |
 | `test/bedrock-endpoint-resolution.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_endpoint_resolution_upstream_test.go | Ported all seven upstream endpoint-resolution cases with identical expected base URL/region/endpoint decisions: EU inference-profile base URL, AWS_REGION standard endpoint unpinning, EU endpoint region derivation, explicit/scoped/ambient profile handling, custom endpoint passthrough, and commercial/GovCloud ARN region extraction. Passing. |
 | `test/bedrock-models.test.ts` | TODO | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-thinking-payload.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_thinking_payload_upstream_test.go | Ported the deterministic upstream payload cases with identical expected fields: Opus 4.8 and Fable 5 adaptive summarized thinking at high/xhigh effort, GovCloud fixed/adaptive display omission, application-inference-profile adaptive detection by model name, cache point injection by model name, and fixed-budget Sonnet fallback. Also aligned Bedrock high thinking budget and region-option GovCloud detection. Passing. |

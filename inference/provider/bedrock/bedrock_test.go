@@ -2,11 +2,13 @@ package bedrock
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -52,6 +54,41 @@ func TestBedrockCustomHeaderReservation(t *testing.T) {
 			t.Fatalf("expected %q to be custom-allowed", key)
 		}
 	}
+}
+
+func TestBedrockCustomHeadersMiddlewareSemantics(t *testing.T) {
+	req := &smithyhttp.Request{Request: &http.Request{Header: http.Header{
+		"Authorization": []string{"real-auth"},
+		"Host":          []string{"real-host"},
+		"X-Amz-Date":    []string{"real-date"},
+		"X-Remove":      []string{"gone"},
+	}}}
+	applyBedrockCustomHeaders(req, map[string]string{
+		"authorization": "evil",
+		"Authorization": "evil2",
+		"HOST":          "evil3",
+		"x-amz-date":    "evil4",
+		"X-Amz-Date":    "evil5",
+		"x-allowed":     "ok",
+	}, []string{"x-remove", "authorization", "x-amz-date"})
+
+	if got := req.Header.Get("Authorization"); got != "real-auth" {
+		t.Fatalf("reserved Authorization overwritten: %q", got)
+	}
+	if got := req.Header.Get("Host"); got != "real-host" {
+		t.Fatalf("reserved Host overwritten: %q", got)
+	}
+	if got := req.Header.Get("X-Amz-Date"); got != "real-date" {
+		t.Fatalf("reserved X-Amz-Date overwritten: %q", got)
+	}
+	if got := req.Header.Get("X-Allowed"); got != "ok" {
+		t.Fatalf("allowed custom header missing: %q", got)
+	}
+	if got := req.Header.Get("X-Remove"); got != "" {
+		t.Fatalf("non-reserved suppress header not removed: %q", got)
+	}
+
+	applyBedrockCustomHeaders(nil, map[string]string{"x-custom": "v"}, nil)
 }
 
 func TestBedrockOptionPrecedenceAndRequestMetadata(t *testing.T) {

@@ -203,20 +203,27 @@ func isReservedBedrockHeader(key string) bool {
 	return lower == "authorization" || lower == "host" || strings.HasPrefix(lower, "x-amz-")
 }
 
+func applyBedrockCustomHeaders(req *smithyhttp.Request, headers map[string]string, suppressHeaders []string) {
+	if req == nil {
+		return
+	}
+	for k, v := range headers {
+		if !isReservedBedrockHeader(k) {
+			req.Header.Set(k, v)
+		}
+	}
+	for _, name := range suppressHeaders {
+		if !isReservedBedrockHeader(name) {
+			req.Header.Del(name)
+		}
+	}
+}
+
 func addCustomHeadersMiddleware(headers map[string]string, suppressHeaders []string) func(*middleware.Stack) error {
 	return func(stack *middleware.Stack) error {
 		return stack.Build.Add(middleware.BuildMiddlewareFunc("go-ai-custom-headers", func(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (out middleware.BuildOutput, metadata middleware.Metadata, err error) {
-			if req, ok := in.Request.(*smithyhttp.Request); ok && req != nil {
-				for k, v := range headers {
-					if !isReservedBedrockHeader(k) {
-						req.Header.Set(k, v)
-					}
-				}
-				for _, name := range suppressHeaders {
-					if !isReservedBedrockHeader(name) {
-						req.Header.Del(name)
-					}
-				}
+			if req, ok := in.Request.(*smithyhttp.Request); ok {
+				applyBedrockCustomHeaders(req, headers, suppressHeaders)
 			}
 			return next.HandleBuild(ctx, in)
 		}), middleware.After)
