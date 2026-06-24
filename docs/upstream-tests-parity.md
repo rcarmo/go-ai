@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 38 files
+- DETERMINISTIC-PORTED: 39 files
 - N/A credential/live/JS-runtime files: 18 files
-- TODO deterministic/needs classification: 30 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 56 / 86 files
+- TODO deterministic/needs classification: 29 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 57 / 86 files
 
 ## Test files
 
@@ -84,7 +84,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | credential/live E2E group | N/A | — | Requires live OpenAI Responses credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
 | `test/openai-responses-terminal-event.test.ts` | TODO | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-tool-result-images.test.ts` | TODO | inference/provider/openairesponses/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openrouter-cache-write-repro.test.ts` | TODO | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openrouter-cache-write-repro.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openrouter_cache_write_repro_upstream_test.go | Ported as a simulated OpenRouter SSE fixture with faithful wire usage: `onPayload` adds the ephemeral cache-control marker, the stream completes with `stop`, and `prompt_tokens_details.cache_write_tokens` is preserved as Go `Usage.CacheWrite`. Passing. |
 | `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | images_openrouter_upstream_test.go | Ported all three upstream OpenRouter images cases: text+image output and payload shape, abort signal/canceled context returning `Request aborted`, and `generateImages` wrapper resolving final image output. Passing. |
 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | overflow_upstream_test.go | Ported all 13 upstream `isContextOverflow` cases: provider error-string detections/non-detections and Xiaomi length-stop context-fill heuristic. Passing. |
 | `test/providers.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
