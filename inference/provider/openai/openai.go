@@ -601,12 +601,16 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 
 			// Handle thinking blocks
 			if len(thinkingParts) > 0 && compat.RequiresThinkingAsText != nil && *compat.RequiresThinkingAsText {
-				// Convert thinking to text content
-				allText := joinStrings(thinkingParts)
-				if len(textParts) > 0 {
-					allText += "\n\n" + joinStrings(textParts)
+				// Convert thinking to distinct text parts so replay preserves upstream
+				// OpenAI-compatible content shape instead of collapsing blocks.
+				parts := make([]map[string]any, 0, len(thinkingParts)+len(textParts))
+				for _, text := range thinkingParts {
+					parts = append(parts, map[string]any{"type": "text", "text": goai.SanitizeSurrogates(text)})
 				}
-				msg.Content = goai.SanitizeSurrogates(allText)
+				for _, text := range textParts {
+					parts = append(parts, map[string]any{"type": "text", "text": goai.SanitizeSurrogates(text)})
+				}
+				msg.Content = parts
 			} else if len(textParts) > 0 {
 				msg.Content = goai.SanitizeSurrogates(joinStrings(textParts))
 			}
