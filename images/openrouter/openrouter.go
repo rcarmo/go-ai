@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/rcarmo/go-ai/images"
 	"io"
@@ -76,7 +77,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 	}
 	if ctx.Err() != nil {
 		out.StopReason = goai.StopReasonAborted
-		out.ErrorMessage = ctx.Err().Error()
+		out.ErrorMessage = imageContextErrorMessage(ctx.Err())
 		return out, nil
 	}
 	if timeout := imageTimeout(opts); timeout > 0 {
@@ -93,7 +94,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if ctx.Err() != nil {
 			out.StopReason = goai.StopReasonAborted
-			out.ErrorMessage = ctx.Err().Error()
+			out.ErrorMessage = imageContextErrorMessage(ctx.Err())
 			return out, nil
 		}
 		result, retryAfter, retry, err := doOpenRouterImageRequest(ctx, client, model, opts, apiKey, body)
@@ -118,14 +119,14 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 				}
 			}
 			out.StopReason = goai.StopReasonAborted
-			out.ErrorMessage = ctx.Err().Error()
+			out.ErrorMessage = imageContextErrorMessage(ctx.Err())
 			return out, nil
 		case <-timer.C:
 		}
 	}
 	if ctx.Err() != nil {
 		out.StopReason = goai.StopReasonAborted
-		out.ErrorMessage = ctx.Err().Error()
+		out.ErrorMessage = imageContextErrorMessage(ctx.Err())
 	} else {
 		out.StopReason = goai.StopReasonError
 		if lastErr == nil {
@@ -315,6 +316,13 @@ func retryAfter(h http.Header) time.Duration {
 		return delay
 	}
 	return 0
+}
+
+func imageContextErrorMessage(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return "Request aborted"
+	}
+	return err.Error()
 }
 
 func imageTimeout(opts *images.ImagesOptions) time.Duration {
