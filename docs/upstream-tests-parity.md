@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 43 files
-- N/A credential/live/JS-runtime files: 17 files
-- TODO deterministic/needs classification: 26 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 60 / 86 files
+- DETERMINISTIC-PORTED: 48 files
+- N/A credential/live/JS-runtime files: 14 files
+- TODO deterministic/needs classification: 24 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 62 / 86 files
 
 ## Test files
 
@@ -37,7 +37,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/bedrock-endpoint-resolution.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_endpoint_resolution_upstream_test.go | Ported all seven upstream endpoint-resolution cases with identical expected base URL/region/endpoint decisions: EU inference-profile base URL, AWS_REGION standard endpoint unpinning, EU endpoint region derivation, explicit/scoped/ambient profile handling, custom endpoint passthrough, and commercial/GovCloud ARN region extraction. Passing. |
 | `test/bedrock-models.test.ts` | TODO | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-thinking-payload.test.ts` | DETERMINISTIC-PORTED | inference/provider/bedrock/bedrock_thinking_payload_upstream_test.go | Ported the deterministic upstream payload cases with identical expected fields: Opus 4.8 and Fable 5 adaptive summarized thinking at high/xhigh effort, GovCloud fixed/adaptive display omission, application-inference-profile adaptive detection by model name, cache point injection by model name, and fixed-budget Sonnet fallback. Also aligned Bedrock high thinking budget and region-option GovCloud detection. Passing. |
-| `test/cache-retention.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/cache-retention.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_cache_retention_upstream_test.go | Ported Anthropic simulated request-shape subset: default ephemeral cache_control, long `ttl: 1h`, unsupported-long fallback, `cacheRetention:none`, and cache_control on final user block/tool. Fixed string user messages so cache_control can attach to a content block. Passing 3×. |
 | `test/compat-env.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/context-overflow.test.ts` | DETERMINISTIC-PORTED | context_overflow_simulated_test.go | Ported provider overflow behavior with simulated real provider outputs/error shapes for Anthropic, Copilot, OpenAI, Google, xAI, Groq, Cerebras, Mistral, OpenRouter, z.ai, and Xiaomi length-stop overflow; fixed Cerebras `HTTP 413: (no body)` detection. Passing 3×. |
 | `test/cross-provider-handoff.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
@@ -59,7 +59,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/interleaved-thinking.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/lazy-module-load.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_reasoning_mode_test.go | Ported all seven upstream Mistral reasoning/cache-key cases with identical expected `reasoning_effort`, `prompt_mode`, and `prompt_cache_key` values. Passing. |
-| `test/mistral-tool-schema.test.ts` | TODO | inference/provider/mistral/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_tool_schema_test.go | Ported upstream tool schema serialization case with nested object schema preserved and JSON-safe parameters. Passing 3×. |
 | `test/models-runtime.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/node-http-proxy.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/oauth-auth.test.ts` | TODO | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
@@ -88,16 +88,16 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | images_openrouter_upstream_test.go | Ported all three upstream OpenRouter images cases: text+image output and payload shape, abort signal/canceled context returning `Request aborted`, and `generateImages` wrapper resolving final image output. Passing. |
 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | overflow_upstream_test.go | Ported all 13 upstream `isContextOverflow` cases: provider error-string detections/non-detections and Xiaomi length-stop context-fill heuristic. Passing. |
 | `test/providers.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/responseid.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/responseid.test.ts` | DETERMINISTIC-PORTED | responseid_simulated_test.go | Ported responseId behavior using simulated provider outputs for Google, Vertex, OpenAI Completions/Responses, Anthropic, Azure Responses, Mistral, Copilot OpenAI/Anthropic, and Codex; asserts non-error stop and string response IDs. Passing 3×. |
 | `test/stream.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | supports_xhigh_upstream_test.go | Ported all upstream xhigh support metadata assertions for Anthropic, OpenAI/Codex, OpenRouter, DeepSeek, OpenCode, Moonshot, and Bedrock model IDs. Passing. |
 | `test/together-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Together catalog/env assertions: Kimi K2.6 OpenAI-compatible metadata/cost/compat, gpt-oss, DeepSeek V4, and MiniMax reasoning control maps, and `TOGETHER_API_KEY` resolution. Passing. |
 | `test/tokens.test.ts` | DETERMINISTIC-PORTED | tokens_simulated_test.go | Ported token-on-abort behavior using simulated provider usage outputs: final-chunk-only providers report zero usage, Kimi reports input-only, early-usage providers retain input/output and positive cost when priced, zero-cost Copilot does not require positive cost. Passing 3×. |
-| `test/tool-call-id-normalization.test.ts` | TODO | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/tool-call-id-normalization.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_tool_call_id_normalization_test.go | Ported the prefilled long pipe-separated ID case for OpenAI-compatible handoff; Go now normalizes assistant tool call and tool result IDs to the call_id prefix before replay. Passing 3×. |
 | `test/tool-call-without-result.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/total-tokens.test.ts` | DETERMINISTIC-PORTED | total_tokens_simulated_test.go | Ported total-token accounting behavior with simulated provider usage records matching upstream semantics: Anthropic computed components with cache activity, native total fields for OpenAI/Responses/Google and OpenAI-compatible providers. Passing 3×. |
 | `test/transform-messages-copilot-openai-to-anthropic.test.ts` | TODO | inference/provider/anthropic/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/unicode-surrogate.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/unicode-surrogate.test.ts` | DETERMINISTIC-PORTED | unicode_surrogate_simulated_test.go | Ported Unicode/tool-result behavior using simulated real-world emoji/multilingual tool output: JSON roundtrip remains valid, no unpaired surrogate escapes, and invalid UTF-8 bytes sanitize to JSON-safe text. Passing 3×. |
 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go`; `context.go` | Ported all three upstream cases: Function-constructor fallback equivalent, AJV-compatible primitive coercions, and invalid coercion rejection. Passing with `go test . -run TestUpstreamValidation`. |
 | `test/xhigh.test.ts` | N/A | supports_xhigh_upstream_test.go | Live xhigh reasoning requires `OPENAI_API_KEY`; deterministic xhigh support metadata remains covered separately. Per Rui decision, no skip-only wrapper or fabricated mock substitute. |
 | `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Xiaomi catalog assertions: `mimo-v2-flash` remains on API-billing `xiaomi` provider and is omitted from all three token-plan providers. Passing. |
