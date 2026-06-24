@@ -8,12 +8,12 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 23 files
+- DETERMINISTIC-PORTED: 26 files
 - LIVE-GATED: 0 files
 - LIVE-PENDING: 21 files
 - N/A: 0 files
-- TODO deterministic/needs classification: 42 files
-- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 23 / 86 files
+- TODO deterministic/needs classification: 39 files
+- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 26 / 86 files
 
 ## Test files
 
@@ -46,7 +46,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/empty.test.ts` | LIVE-PENDING | local Go tests: needs exact mapping | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/env-api-keys.test.ts` | DETERMINISTIC-PORTED | env_api_keys_test.go | Ported all three upstream env-key cases: generic GitHub tokens ignored for Copilot, `COPILOT_GITHUB_TOKEN` selected, and `ZAI_CODING_CN_API_KEY` selected. Passing. |
 | `test/faux-provider.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/fireworks-models.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/fireworks-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Fireworks catalog/env/compat assertions: default Kimi K2.6 Anthropic-compatible model metadata and costs, Fire Pass turbo router metadata, `FIREWORKS_API_KEY` resolution, and Fireworks Anthropic compat flags for eager input and long cache retention. Passing. |
 | `test/github-copilot-anthropic.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/github_copilot_anthropic_test.go | Ported upstream Copilot Anthropic metadata/header/payload assertions: adaptive effort overrides, Bearer auth + static/dynamic Copilot headers, Anthropic Messages payload, and no interleaved beta for adaptive models. Passing. |
 | `test/github-copilot-oauth.test.ts` | TODO | oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/google-shared-convert-tools.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
@@ -93,7 +93,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/responseid.test.ts` | LIVE-PENDING | local Go tests: needs exact mapping | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/stream.test.ts` | LIVE-PENDING | transports/sse/*_test.go; provider stream tests | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | supports_xhigh_upstream_test.go | Ported all upstream xhigh support metadata assertions for Anthropic, OpenAI/Codex, OpenRouter, DeepSeek, OpenCode, Moonshot, and Bedrock model IDs. Passing. |
-| `test/together-models.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/together-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Together catalog/env assertions: Kimi K2.6 OpenAI-compatible metadata/cost/compat, gpt-oss, DeepSeek V4, and MiniMax reasoning control maps, and `TOGETHER_API_KEY` resolution. Passing. |
 | `test/tokens.test.ts` | LIVE-PENDING | local Go tests: needs exact mapping | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/tool-call-id-normalization.test.ts` | TODO | context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/tool-call-without-result.test.ts` | LIVE-PENDING | context_test.go; harness_integration_test.go; provider tests | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
@@ -102,6 +102,6 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/unicode-surrogate.test.ts` | LIVE-PENDING | local Go tests: needs exact mapping | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go`; `context.go` | Ported all three upstream cases: Function-constructor fallback equivalent, AJV-compatible primitive coercions, and invalid coercion rejection. Passing with `go test . -run TestUpstreamValidation`. |
 | `test/xhigh.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/xiaomi-models.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Xiaomi catalog assertions: `mimo-v2-flash` remains on API-billing `xiaomi` provider and is omitted from all three token-plan providers. Passing. |
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | TODO | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/zen.test.ts` | LIVE-PENDING | local Go tests: needs exact mapping | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
