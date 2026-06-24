@@ -101,10 +101,7 @@ func startCodexDeviceFlow() (*codexDeviceResponse, error) {
 
 func pollForCodexToken(ctx context.Context, deviceCode string, intervalSecs, expiresIn int) (*Credentials, error) {
 	deadline := time.Now().Add(time.Duration(expiresIn) * time.Second)
-	interval := time.Duration(intervalSecs) * time.Second
-	if interval < time.Second {
-		interval = 5 * time.Second
-	}
+	interval := normalizeDeviceCodePollInterval(intervalSecs)
 
 	for time.Now().Before(deadline) {
 		select {
@@ -139,16 +136,12 @@ func pollForCodexToken(ctx context.Context, deviceCode string, intervalSecs, exp
 		}
 
 		if errStr, ok := raw["error"].(string); ok {
-			switch errStr {
-			case "authorization_pending":
+			if nextInterval, ok := nextDeviceCodePollInterval(interval, errStr); ok {
+				interval = nextInterval
 				continue
-			case "slow_down":
-				interval = interval * 14 / 10
-				continue
-			default:
-				desc, _ := raw["error_description"].(string)
-				return nil, fmt.Errorf("device flow: %s: %s", errStr, desc)
 			}
+			desc, _ := raw["error_description"].(string)
+			return nil, fmt.Errorf("device flow: %s: %s", errStr, desc)
 		}
 	}
 

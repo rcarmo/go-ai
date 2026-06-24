@@ -188,10 +188,7 @@ func startDeviceFlow(domain string) (*deviceFlowResponse, error) {
 func pollForAccessToken(ctx context.Context, domain, deviceCode string, intervalSecs, expiresIn int) (string, error) {
 	u := fmt.Sprintf("https://%s/login/oauth/access_token", domain)
 	deadline := time.Now().Add(time.Duration(expiresIn) * time.Second)
-	interval := time.Duration(intervalSecs) * time.Second
-	if interval < time.Second {
-		interval = time.Second
-	}
+	interval := normalizeDeviceCodePollInterval(intervalSecs)
 
 	for time.Now().Before(deadline) {
 		select {
@@ -225,19 +222,15 @@ func pollForAccessToken(ctx context.Context, domain, deviceCode string, interval
 		}
 
 		if errStr, ok := raw["error"].(string); ok {
-			switch errStr {
-			case "authorization_pending":
+			if nextInterval, ok := nextDeviceCodePollInterval(interval, errStr); ok {
+				interval = nextInterval
 				continue
-			case "slow_down":
-				interval = interval * 14 / 10
-				continue
-			default:
-				desc := ""
-				if d, ok := raw["error_description"].(string); ok {
-					desc = ": " + d
-				}
-				return "", fmt.Errorf("device flow failed: %s%s", errStr, desc)
 			}
+			desc := ""
+			if d, ok := raw["error_description"].(string); ok {
+				desc = ": " + d
+			}
+			return "", fmt.Errorf("device flow failed: %s%s", errStr, desc)
 		}
 	}
 

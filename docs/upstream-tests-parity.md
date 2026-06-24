@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 39 files
+- DETERMINISTIC-PORTED: 40 files
 - N/A credential/live/JS-runtime files: 18 files
-- TODO deterministic/needs classification: 29 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 57 / 86 files
+- TODO deterministic/needs classification: 28 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 58 / 86 files
 
 ## Test files
 
@@ -63,7 +63,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/models-runtime.test.ts` | TODO | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/node-http-proxy.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/oauth-auth.test.ts` | TODO | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/oauth-device-code.test.ts` | TODO | oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/oauth-device-code.test.ts` | DETERMINISTIC-PORTED | oauth/oauth_device_code_upstream_test.go; oauth/device_flow.go | Adopted rs-ai/canonical RFC8628 semantics: poll intervals clamp to the 5s minimum, `authorization_pending` preserves the interval, `slow_down` adds exactly 5s, and terminal OAuth errors stop polling. Fixed both GitHub Copilot and OpenAI Codex device-code pollers. Passing. |
 | credential/live E2E group | N/A | — | Requires live OpenAI/Codex credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
 | `test/openai-codex-oauth.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-codex-stream.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
