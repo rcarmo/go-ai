@@ -392,8 +392,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				req.Thinking = &anthropicThinking{Type: "enabled", BudgetTokens: budget, Display: "summarized"}
 			}
 		} else {
-			// Explicitly disable thinking if model supports it but not requested
-			req.Thinking = &anthropicThinking{Type: "disabled"}
+			// Explicitly disable thinking if the model supports an off state. Some
+			// upstream model metadata marks off as unsupported with a nil mapping; in
+			// that case omit the thinking block entirely.
+			if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; !ok || off != nil {
+				req.Thinking = &anthropicThinking{Type: "disabled"}
+			}
 		}
 	}
 
