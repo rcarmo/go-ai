@@ -8,9 +8,9 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 2 files
+- PORTED: 3 files
 - DONE: 63 files
-- PARTIAL: 21 files
+- PARTIAL: 20 files
 - MISSING: 0 files
 
 ## Test files
@@ -28,7 +28,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/anthropic-oauth.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-opus-4-8-smoke.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-sse-parsing.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/anthropic-temperature-compat.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
+| `test/anthropic-temperature-compat.test.ts` | PORTED | inference/provider/anthropic/anthropic_temperature_compat_test.go | Ported all six upstream payload cases with identical expected `temperature` values: Opus 4.7/4.8 omit explicit `0`, Opus 4.7 omits default `1`, Opus 4.6 and Sonnet 4.6 keep `0`, and custom `supportsTemperature: false` omits `0`. Passing. |
 | `test/anthropic-thinking-disable.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-tool-name-normalization.test.ts` | PORTED | inference/provider/anthropic/anthropic_tool_name_normalization_test.go | Ported upstream four OAuth tool-name normalization cases with identical expected returned tool names: `todowrite`, `read`, `find`, and `my_custom_tool`; also asserts outbound Claude Code canonical casing where applicable. Passing. |
 | `test/azure-openai-base-url.test.ts` | DONE | inference/provider/openairesponses/*_test.go<br>inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
