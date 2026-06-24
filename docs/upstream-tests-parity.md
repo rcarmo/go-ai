@@ -8,8 +8,8 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 9 files
-- DONE: 59 files
+- PORTED: 14 files
+- DONE: 54 files
 - PARTIAL: 18 files
 - MISSING: 0 files
 
@@ -18,12 +18,12 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | Upstream test file | Status | Local Go coverage path | Notes |
 |---|---:|---|---|
 | `test/abort.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/anthropic-adaptive-thinking-models.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-adaptive-thinking-models.test.ts` | PORTED | anthropic_adaptive_thinking_models_test.go | Ported upstream adaptive-thinking metadata assertions: expected current model set contains Fable/Opus/OpenCode/Cloudflare/Vercel entries and all flagged IDs match adaptive-model regex. Passing. |
 | `test/anthropic-cache-write-1h-cost.test.ts` | PORTED | inference/provider/anthropic/anthropic_cache_write_1h_cost_test.go | Ported both upstream cache-write cost cases with exact expected usage/cost values: 1h split `400000` at `7.75`, and no-breakdown fallback at `6.25`. Passing. |
-| `test/anthropic-eager-tool-input-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-eager-tool-input-compat.test.ts` | PORTED | inference/provider/anthropic/anthropic_request_compat_test.go | Ported all three upstream eager tool-input compatibility cases: default per-tool `eager_input_streaming`, legacy beta when disabled, and no beta/tools when no tools. Passing. |
 | `test/anthropic-eager-tool-input-e2e.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Needs detailed test-for-test port or explicit equivalence proof. |
-| `test/anthropic-empty-thinking-signature-compat.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/anthropic-force-adaptive-thinking.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/anthropic-empty-thinking-signature-compat.test.ts` | PORTED | inference/provider/anthropic/anthropic_request_compat_test.go | Ported both upstream empty thinking-signature replay cases: default converts to text, `allowEmptySignature` preserves `thinking` with empty signature. Passing. |
+| `test/anthropic-force-adaptive-thinking.test.ts` | PORTED | inference/provider/anthropic/anthropic_request_compat_test.go | Ported all five upstream force-adaptive-thinking cases: custom legacy default, compat override adaptive, Fable 5 xhigh native effort, built-in opt-out, and reasoning-off disabled payload. Passing. |
 | `test/anthropic-long-cache-retention-e2e.test.ts` | DONE | inference/provider/anthropic/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/anthropic-oauth.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/anthropic-opus-4-8-smoke.test.ts` | PARTIAL | inference/provider/anthropic/*_test.go | Needs detailed test-for-test port or explicit equivalence proof. |
@@ -45,7 +45,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/env-api-keys.test.ts` | PORTED | env_api_keys_test.go | Ported all three upstream env-key cases: generic GitHub tokens ignored for Copilot, `COPILOT_GITHUB_TOKEN` selected, and `ZAI_CODING_CN_API_KEY` selected. Passing. |
 | `test/faux-provider.test.ts` | PARTIAL | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/fireworks-models.test.ts` | DONE | models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/github-copilot-anthropic.test.ts` | DONE | inference/provider/anthropic/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/github-copilot-anthropic.test.ts` | PORTED | inference/provider/anthropic/github_copilot_anthropic_test.go | Ported upstream Copilot Anthropic metadata/header/payload assertions: adaptive effort overrides, Bearer auth + static/dynamic Copilot headers, Anthropic Messages payload, and no interleaved beta for adaptive models. Passing. |
 | `test/github-copilot-oauth.test.ts` | DONE | oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/google-shared-convert-tools.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/google-shared-gemini3-unsigned-tool-call.test.ts` | DONE | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
