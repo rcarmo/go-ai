@@ -8,12 +8,12 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 29 files
+- DETERMINISTIC-PORTED: 31 files
 - LIVE-GATED: 15 files
 - LIVE-PENDING: 6 files
 - N/A: 0 files
-- TODO deterministic/needs classification: 36 files
-- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 44 / 86 files
+- TODO deterministic/needs classification: 34 files
+- Achieved (`DETERMINISTIC-PORTED + LIVE-GATED + N/A`): 46 / 86 files
 
 ## Test files
 
@@ -54,7 +54,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/google-shared-image-tool-result-routing.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported both upstream image tool-result routing cases with identical turn shapes: Gemini 2.x keeps a separate synthetic `Tool result image:` turn, while Gemini 3 nests inline image data inside functionResponse parts. Passing. |
 | LIVE-PENDING | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Live/E2E upstream test; port only as env-gated Go live test (`t.Skip` when required API key/env is absent). Do not replace with deterministic mock assertions. |
 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_thinking_signature_test.go | Ported all five upstream thought/signature helper cases: `thought=true` detection, signature-alone not thinking, empty/missing signatures not thinking, retaining previous signature, and updating on new non-empty signature. Passing. |
-| `test/google-vertex-api-key-resolution.test.ts` | TODO | inference/provider/google/*_test.go; inference/provider/geminicli/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/google-vertex-api-key-resolution.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_vertex_api_key_resolution_test.go | Ported upstream Vertex API-key/ADC marker and custom base URL resolution cases to Go's HTTP URL builder; fixed `gcp-vertex-credentials` marker handling and custom `/v1/projects/...` base URL double-append. Passing. |
 | `test/image-tool-result.test.ts` | LIVE-GATED | upstream_live_e2e_test.go | Added env-gated Go live parity wrapper for upstream `image-tool-result` scenario (`t.Skip` when required API key/env is absent); deterministic mocks intentionally avoided. |
 | `test/images-models.test.ts` | TODO | images_test.go; images/openrouter<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/images.test.ts` | LIVE-GATED | upstream_live_e2e_test.go | Added env-gated Go live parity wrapper for upstream `images` scenario (`t.Skip` when required API key/env is absent); deterministic mocks intentionally avoided. |
@@ -87,7 +87,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openai-responses-terminal-event.test.ts` | TODO | inference/provider/openairesponses/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-responses-tool-result-images.test.ts` | TODO | inference/provider/openairesponses/*_test.go<br>images_test.go; images/openrouter<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openrouter-cache-write-repro.test.ts` | TODO | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openrouter-images.test.ts` | TODO | images_test.go; images/openrouter | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | images_openrouter_upstream_test.go | Ported all three upstream OpenRouter images cases: text+image output and payload shape, abort signal/canceled context returning `Request aborted`, and `generateImages` wrapper resolving final image output. Passing. |
 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | overflow_upstream_test.go | Ported all 13 upstream `isContextOverflow` cases: provider error-string detections/non-detections and Xiaomi length-stop context-fill heuristic. Passing. |
 | `test/providers.test.ts` | TODO | local Go tests: needs exact mapping | Needs detailed test-for-test port or explicit equivalence proof. |
 | `test/responseid.test.ts` | LIVE-GATED | upstream_live_e2e_test.go | Added env-gated Go live parity wrapper for upstream `responseid` scenario (`t.Skip` when required API key/env is absent); deterministic mocks intentionally avoided. |
