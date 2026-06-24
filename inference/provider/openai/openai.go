@@ -96,7 +96,11 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		// Session affinity headers for prompt caching
 		compat := goai.DetectCompatForModel(model)
-		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" {
+		cacheRetentionForHeaders := goai.CacheRetentionShort
+		if opts != nil {
+			cacheRetentionForHeaders = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
+		}
+		if compat.SendSessionAffinityHeaders != nil && *compat.SendSessionAffinityHeaders && opts != nil && opts.SessionID != "" && cacheRetentionForHeaders != goai.CacheRetentionNone {
 			req.Header.Set("session_id", opts.SessionID)
 			req.Header.Set("x-client-request-id", opts.SessionID)
 			req.Header.Set("x-session-affinity", opts.SessionID)
