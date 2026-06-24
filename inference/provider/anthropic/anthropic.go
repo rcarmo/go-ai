@@ -207,6 +207,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				for k, v := range goai.CopilotHeaders() {
 					req.Header.Set(k, v)
 				}
+				for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
+					req.Header.Set(k, v)
+				}
 			} else if model.Provider == goai.ProviderCloudflareAIGateway {
 				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
 			} else {
