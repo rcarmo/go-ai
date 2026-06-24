@@ -8,8 +8,8 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 
 ## Summary
 
-- PORTED: 15 files
-- DONE: 53 files
+- PORTED: 16 files
+- DONE: 52 files
 - PARTIAL: 18 files
 - MISSING: 0 files
 
@@ -34,7 +34,7 @@ Status key: **PORTED** = upstream test file has a named Go port with the same ca
 | `test/azure-openai-base-url.test.ts` | PORTED | inference/provider/openairesponses/azure_openai_base_url_test.go | Ported all 11 upstream Azure base URL / prompt cache / storage cases with identical expected URLs, invalid-URL error substring, 64-char prompt cache clamp, and `store=false`. Passing. |
 | `test/bedrock-convert-messages.test.ts` | PORTED | inference/provider/bedrock/bedrock_convert_messages_upstream_test.go | Ported all nine upstream message-conversion cases with identical expected content behavior: unknown user/assistant blocks skipped, empty user content becomes `<empty>`, blank user text filtered, surrogate-emptied user text becomes `<empty>`, surrogate-emptied/unknown-only assistant messages are skipped, and blank tool result content becomes `<empty>`. Passing. |
 | `test/bedrock-custom-headers.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/bedrock-endpoint-resolution.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/bedrock-endpoint-resolution.test.ts` | PORTED | inference/provider/bedrock/bedrock_endpoint_resolution_upstream_test.go | Ported all seven upstream endpoint-resolution cases with identical expected base URL/region/endpoint decisions: EU inference-profile base URL, AWS_REGION standard endpoint unpinning, EU endpoint region derivation, explicit/scoped/ambient profile handling, custom endpoint passthrough, and commercial/GovCloud ARN region extraction. Passing. |
 | `test/bedrock-models.test.ts` | DONE | inference/provider/bedrock/*_test.go<br>models_test.go; compat tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/bedrock-thinking-payload.test.ts` | DONE | inference/provider/bedrock/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/cache-retention.test.ts` | DONE | local Go tests: needs exact mapping | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
