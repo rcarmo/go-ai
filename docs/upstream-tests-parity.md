@@ -8,10 +8,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 33 files
-- N/A credential/live/JS-runtime files: 19 files
-- TODO deterministic/needs classification: 34 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 52 / 86 files
+- DETERMINISTIC-PORTED: 36 files
+- N/A credential/live/JS-runtime files: 18 files
+- TODO deterministic/needs classification: 32 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 54 / 86 files
 
 ## Test files
 
@@ -50,7 +50,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/google-shared-convert-tools.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported all seven upstream Google shared tool-conversion cases: meta-key stripping for `parameters`, recursive nested stripping, `$ref` preservation, original parameter immutability, `$schema` preservation in `parametersJsonSchema`, no-schema handling, and empty tool list nil result. Passing. |
 | `test/google-shared-gemini3-unsigned-tool-call.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported all four upstream Gemini 3 unsigned tool-call cases: no legacy skip validator for Google GenAI or Vertex, valid same-model thoughtSignature preservation, and non-Gemini-3 unsigned behavior. Passing. |
 | `test/google-shared-image-tool-result-routing.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_shared_upstream_test.go | Ported both upstream image tool-result routing cases with identical turn shapes: Gemini 2.x keeps a separate synthetic `Tool result image:` turn, while Gemini 3 nests inline image data inside functionResponse parts. Passing. |
-| credential/live E2E group | N/A | — | Requires live Google/Gemini credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
+| `test/google-thinking-disable.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_thinking_disable_upstream_test.go | Ported the simulated-fixture subset of upstream thinking-disable cases: Google Gemini 2.5 disables with `thinkingBudget: 0`, Gemini 3 Flash disables with `thinkingLevel: MINIMAL`, and Gemini 3.1 Pro disables without error while preserving max output tokens. Passing. |
 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_thinking_signature_test.go | Ported all five upstream thought/signature helper cases: `thought=true` detection, signature-alone not thinking, empty/missing signatures not thinking, retaining previous signature, and updating on new non-empty signature. Passing. |
 | `test/google-vertex-api-key-resolution.test.ts` | DETERMINISTIC-PORTED | inference/provider/google/google_vertex_api_key_resolution_test.go | Ported upstream Vertex API-key/ADC marker and custom base URL resolution cases to Go's HTTP URL builder; fixed `gcp-vertex-credentials` marker handling and custom `/v1/projects/...` base URL double-append. Passing. |
 | `test/image-tool-result.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
@@ -67,10 +67,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | credential/live E2E group | N/A | — | Requires live OpenAI/Codex credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
 | `test/openai-codex-oauth.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>oauth/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-codex-stream.test.ts` | TODO | inference/provider/openaicodex/*_test.go<br>inference/provider/openai/*_test.go<br>transports/sse/*_test.go; provider stream tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-completions-cache-control-format.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-cache-control-format.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_cache_control_upstream_test.go | Ported all three upstream cache-control format cases: custom Anthropic-style cache markers on instruction/tool/last user content, OpenRouter Anthropic marker preservation, and marker omission when cache retention is none. Passing. |
 | `test/openai-completions-empty-tools.test.ts` | TODO | inference/provider/openai/*_test.go<br>context_test.go; harness_integration_test.go; provider tests | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-prompt-cache.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
-| `test/openai-completions-reasoning-details.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
+| `test/openai-completions-reasoning-details.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_reasoning_details_upstream_test.go | Ported upstream reasoning_details streaming/replay case: encrypted reasoning detail before matching tool call is stored as thoughtSignature and replayed as assistant `reasoning_details` in the next payload. Passing. |
 | `test/openai-completions-response-model.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/openai_completions_response_model_test.go | Ported all three upstream response-model cases: routed chunk model sets `responseModel` without changing `model`, echoed requested id leaves it empty, and empty/missing chunk model is ignored. Passing. |
 | `test/openai-completions-retry.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |
 | `test/openai-completions-thinking-as-text.test.ts` | TODO | inference/provider/openai/*_test.go | Behavior class has targeted Go regression coverage; exact test-for-test assertion audit still recommended. |

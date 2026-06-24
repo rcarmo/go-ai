@@ -179,17 +179,24 @@ type streamOpts struct {
 }
 
 type chatMessage struct {
-	Role       string         `json:"role"`
-	Content    interface{}    `json:"content"` // string or []contentPart
-	ToolCalls  []toolCallPart `json:"tool_calls,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	Name       string         `json:"name,omitempty"`
+	Role             string            `json:"role"`
+	Content          interface{}       `json:"content"` // string or []contentPart
+	ReasoningDetails []reasoningDetail `json:"reasoning_details,omitempty"`
+	ToolCalls        []toolCallPart    `json:"tool_calls,omitempty"`
+	ToolCallID       string            `json:"tool_call_id,omitempty"`
+	Name             string            `json:"name,omitempty"`
+}
+
+type cacheControl struct {
+	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"`
 }
 
 type contentPart struct {
-	Type     string    `json:"type"`
-	Text     string    `json:"text,omitempty"`
-	ImageURL *imageURL `json:"image_url,omitempty"`
+	Type         string        `json:"type"`
+	Text         string        `json:"text,omitempty"`
+	ImageURL     *imageURL     `json:"image_url,omitempty"`
+	CacheControl *cacheControl `json:"cache_control,omitempty"`
 }
 
 type imageURL struct {
@@ -197,8 +204,9 @@ type imageURL struct {
 }
 
 type toolDef struct {
-	Type     string       `json:"type"`
-	Function toolFunction `json:"function"`
+	Type         string        `json:"type"`
+	Function     toolFunction  `json:"function"`
+	CacheControl *cacheControl `json:"cache_control,omitempty"`
 }
 
 type toolFunction struct {
@@ -331,8 +339,20 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		}
 	}
 
+	useAnthropicCacheControl := cacheRetention != goai.CacheRetentionNone && compat.CacheControlFormat == "anthropic"
+	cacheMarker := (*cacheControl)(nil)
+	if useAnthropicCacheControl {
+		cacheMarker = &cacheControl{Type: "ephemeral"}
+		if cacheRetention == goai.CacheRetentionLong {
+			cacheMarker.TTL = "1h"
+		}
+	}
+
 	// Convert messages with compat awareness
 	req.Messages = convertMessages(model, convCtx, &compat)
+	if useAnthropicCacheControl {
+		applyAnthropicCacheControl(req.Messages, cacheMarker)
+	}
 
 	// Convert tools
 	if len(convCtx.Tools) > 0 {
@@ -343,7 +363,8 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
 		for _, t := range convCtx.Tools {
 			req.Tools = append(req.Tools, toolDef{
-				Type: "function",
+				Type:         "function",
+				CacheControl: cacheMarker,
 				Function: toolFunction{
 					Name:        t.Name,
 					Description: t.Description,
@@ -355,6 +376,39 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 
 	return req
+}
+
+func applyAnthropicCacheControl(msgs []chatMessage, marker *cacheControl) {
+	if marker == nil || len(msgs) == 0 {
+		return
+	}
+	for i := range msgs {
+		if msgs[i].Role != "system" && msgs[i].Role != "developer" {
+			continue
+		}
+		if text, ok := msgs[i].Content.(string); ok {
+			msgs[i].Content = []contentPart{{Type: "text", Text: text, CacheControl: marker}}
+		}
+		break
+	}
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != "user" {
+			continue
+		}
+		switch content := msgs[i].Content.(type) {
+		case string:
+			msgs[i].Content = []contentPart{{Type: "text", Text: content, CacheControl: marker}}
+		case []contentPart:
+			for j := range content {
+				if content[j].Type == "text" {
+					content[j].CacheControl = marker
+					break
+				}
+			}
+			msgs[i].Content = content
+		}
+		break
+	}
 }
 
 func buildChatTemplateKwargs(model *goai.Model, opts *goai.StreamOptions, compat goai.OpenAICompletionsCompat, effort string) map[string]interface{} {
@@ -484,6 +538,12 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					}
 				case "toolCall":
 					argsJSON, _ := json.Marshal(c.Arguments)
+					if c.ThoughtSignature != "" {
+						var detail reasoningDetail
+						if err := json.Unmarshal([]byte(c.ThoughtSignature), &detail); err == nil && isEncryptedReasoningDetail(detail) {
+							msg.ReasoningDetails = append(msg.ReasoningDetails, detail)
+						}
+					}
 					msg.ToolCalls = append(msg.ToolCalls, toolCallPart{
 						ID:   c.ID,
 						Type: "function",
