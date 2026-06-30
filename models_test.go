@@ -79,8 +79,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.2 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.95 || openRouterGLM52.Cost.Output != 3 || openRouterGLM52.Cost.CacheRead != 0.18 || openRouterGLM52.MaxTokens != 32768 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.2 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.93 || openRouterGLM52.Cost.Output != 3 || openRouterGLM52.Cost.CacheRead != 0.18 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 32768 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.3 metadata, got %#v", openRouterGLM52)
 	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")

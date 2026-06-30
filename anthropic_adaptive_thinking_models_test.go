@@ -31,7 +31,7 @@ func TestAnthropicAdaptiveThinkingModelsMarksBuiltInMessagesModels(t *testing.T)
 			t.Fatalf("flagged adaptive models missing %q in %#v", want, flagged)
 		}
 	}
-	allowed := regexp.MustCompile(`(opus[-.]4[-.][678]|sonnet[-.]4[-.]6|fable[-.]5)`)
+	allowed := regexp.MustCompile(`(opus[-.]4[-.][678]|sonnet[-.](?:4[-.]6|5)|fable[-.]5)`)
 	for _, modelID := range flagged {
 		if !allowed.MatchString(modelID) {
 			t.Fatalf("unexpected adaptive thinking model %q in %#v", modelID, flagged)

@@ -155,7 +155,7 @@ type costEntry struct {
 }
 
 func inlineModularModels(inputPath, js string) string {
-	importRe := regexp.MustCompile(`(?m)^import \{ ([A-Z0-9_]+) \} from "([^"]+\.models\.js)";`)
+	importRe := regexp.MustCompile(`(?m)^import \{ ([A-Z0-9_]+) \} from "([^"]+\.models\.(?:js|ts))";`)
 	imports := map[string]string{}
 	baseDir := filepath.Dir(inputPath)
 	for _, match := range importRe.FindAllStringSubmatch(js, -1) {
@@ -190,6 +190,10 @@ func inlineModularModels(inputPath, js string) string {
 }
 
 func extractJSObjectLiteral(js string) string {
+	re := regexp.MustCompile(`(?s)export const [A-Z0-9_]+\s*=\s*(\{.*\})\s*(?:as const)?;?`)
+	if match := re.FindStringSubmatch(js); len(match) >= 2 {
+		return match[1]
+	}
 	start := strings.Index(js, "{")
 	end := strings.LastIndex(js, "}")
 	if start < 0 || end < 0 || end <= start {
@@ -212,6 +216,8 @@ func jsObjectToJSON(js string) string {
 		clean = append(clean, line)
 	}
 	js = strings.Join(clean, "\n")
+	js = regexp.MustCompile(`\}\s+satisfies\s+Model<[^>]+>`).ReplaceAllString(js, "}")
+	js = regexp.MustCompile(`\s+as const`).ReplaceAllString(js, "")
 
 	// Extract object between first { and last }
 	start := strings.Index(js, "{")
