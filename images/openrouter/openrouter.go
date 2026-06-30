@@ -204,7 +204,7 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *i
 	}
 	if resp.StatusCode >= 300 {
 		out.StopReason = goai.StopReasonError
-		out.ErrorMessage = string(raw)
+		out.ErrorMessage = fmt.Sprintf("%d: %s", resp.StatusCode, string(raw))
 		return out, 0, false, nil
 	}
 	var decoded map[string]any
