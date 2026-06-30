@@ -6,10 +6,10 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **202**
+- Local Go test functions inventoried: **203**
 - Amazon Bedrock provider: 12
 - Anthropic Messages provider: 8
-- Core API / harness / transforms / utilities: 104
+- Core API / harness / transforms / utilities: 105
 - Faux test provider: 10
 - Gemini CLI provider: 1
 - Google / Vertex provider: 5
@@ -45,6 +45,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestEstimateContextTokensIncludesSystemAndToolsOnlyWithoutUsageAnchor` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream system/tool prefix counting only when no usage anchor exists. |
 | `TestClampMaxTokensToContextUsesEstimateAndSafetyWindow` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `clampMaxTokensToContext` literal safety window: `5000 - estimate("hello")2 - 4096 = 902`. |
 | `TestClampMaxTokensToContextHonorsMinimumAndUnboundedModels` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `MIN_MAX_TOKENS = 1` and unbounded-model behavior. |
+| `TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw` | `provider_error_body_test.go` | provider error body passthrough | Guards upstream v0.80.3 provider-error-body-regression OpenRouter `metadata.raw` duplicate-prevention fixture. |
 | `TestCompleteNilModelDoesNotPanic` | `audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
 | `TestNilRegistrationNoops` | `audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
 | `TestCloneContextDeepCopiesNestedFields` | `audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |

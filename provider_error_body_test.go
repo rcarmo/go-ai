@@ -53,6 +53,29 @@ func TestProviderErrorBodyPassthroughOpenAICompletionsSurfacesStatusAndBody(t *t
 	}
 }
 
+func TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Provider returned error","code":403,"metadata":{"raw":"upstream WAF blocked policy XYZ"}}`))
+	}))
+	defer server.Close()
+	model := &goai.Model{ID: "test-model", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions, BaseURL: server.URL}
+	msg, err := goai.Complete(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, &goai.StreamOptions{APIKey: "test"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	text := err.Error()
+	if msg != nil && msg.ErrorMessage != "" {
+		text += " " + msg.ErrorMessage
+	}
+	if !strings.Contains(text, "upstream WAF blocked policy XYZ") {
+		t.Fatalf("error=%q msg=%#v", err, msg)
+	}
+	if got := strings.Count(text, "upstream WAF blocked policy XYZ"); got != 1 {
+		t.Fatalf("metadata.raw occurrences=%d, want 1 in %q", got, text)
+	}
+}
+
 func TestProviderErrorBodyPassthroughOpenAIResponsesSurfacesStatusAndBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
