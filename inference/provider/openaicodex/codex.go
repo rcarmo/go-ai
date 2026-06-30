@@ -1306,7 +1306,8 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		// Upstream Codex request params use raw options.maxTokens when present.
+		req.MaxOutputTokens = opts.MaxTokens
 		if opts.TextVerbosity != "" {
 			req.Text = map[string]interface{}{"verbosity": opts.TextVerbosity}
 		}

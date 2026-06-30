@@ -168,7 +168,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		// Upstream Mistral request params use raw options.maxTokens.
+		req.MaxTokens = opts.MaxTokens
 		if opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
 			req.PromptCacheKey = opts.SessionID
 		}
