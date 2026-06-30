@@ -134,38 +134,91 @@ func LoadContext(path string) (*Context, error) {
 
 // --- Token estimation ---
 
-// EstimateTokens provides a rough token count estimate for a context.
-// Uses the ~4 chars per token heuristic. For precise counts, use
-// a provider-specific tokenizer.
-func EstimateTokens(ctx *Context) int {
-	if ctx == nil {
+const estimatedImageChars = 4800
+
+type ContextUsageEstimate struct {
+	Tokens         int
+	UsageTokens    int
+	TrailingTokens int
+	LastUsageIndex *int
+}
+
+// EstimateTextTokens estimates tokens using upstream pi-ai's ~4 chars/token heuristic.
+func EstimateTextTokens(text string) int { return ceilDiv(len(text), 4) }
+
+// CalculateContextTokens returns totalTokens when reported, otherwise sums usage parts.
+func CalculateContextTokens(usage *Usage) int {
+	if usage == nil {
 		return 0
 	}
-	total := len(ctx.SystemPrompt) / 4
+	if usage.TotalTokens != 0 {
+		return usage.TotalTokens
+	}
+	return usage.Input + usage.Output + usage.CacheRead + usage.CacheWrite
+}
 
-	for _, msg := range ctx.Messages {
-		total += 4 // message overhead
-		for _, b := range msg.Content {
-			switch b.Type {
-			case "text":
-				total += len(b.Text) / 4
-			case "thinking":
-				total += len(b.Thinking) / 4
-			case "toolCall":
-				argsJSON, _ := json.Marshal(b.Arguments)
-				total += len(b.Name)/4 + len(argsJSON)/4
-			case "image":
-				total += 1000 // rough estimate for image tokens
-			}
+// EstimateMessageTokens estimates tokens for one message, matching upstream utils/estimate.ts.
+func EstimateMessageTokens(msg Message) int {
+	chars := 0
+	for _, b := range msg.Content {
+		switch b.Type {
+		case "text":
+			chars += len(b.Text)
+		case "image":
+			chars += estimatedImageChars
+		case "thinking":
+			chars += len(b.Thinking)
+		case "toolCall":
+			argsJSON, _ := json.Marshal(b.Arguments)
+			chars += len(b.Name) + len(argsJSON)
 		}
 	}
+	return ceilDiv(chars, 4)
+}
 
-	// Tool definitions
-	for _, t := range ctx.Tools {
-		total += len(t.Name)/4 + len(t.Description)/4 + len(t.Parameters)/4
+// EstimateContextTokens returns the upstream-style context estimate split into usage/trailing parts.
+func EstimateContextTokens(ctx *Context) ContextUsageEstimate {
+	if ctx == nil {
+		return ContextUsageEstimate{}
+	}
+	for i := len(ctx.Messages) - 1; i >= 0; i-- {
+		msg := ctx.Messages[i]
+		if msg.Role != RoleAssistant || msg.StopReason == StopReasonAborted || msg.StopReason == StopReasonError {
+			continue
+		}
+		usageTokens := CalculateContextTokens(msg.Usage)
+		if usageTokens <= 0 {
+			continue
+		}
+		trailing := 0
+		for j := i + 1; j < len(ctx.Messages); j++ {
+			trailing += EstimateMessageTokens(ctx.Messages[j])
+		}
+		idx := i
+		return ContextUsageEstimate{Tokens: usageTokens + trailing, UsageTokens: usageTokens, TrailingTokens: trailing, LastUsageIndex: &idx}
 	}
 
-	return total
+	trailing := 0
+	for _, msg := range ctx.Messages {
+		trailing += EstimateMessageTokens(msg)
+	}
+	prefix := EstimateTextTokens(ctx.SystemPrompt)
+	if len(ctx.Tools) > 0 {
+		toolsJSON, _ := json.Marshal(ctx.Tools)
+		prefix += EstimateTextTokens(string(toolsJSON))
+	}
+	return ContextUsageEstimate{Tokens: trailing + prefix, TrailingTokens: trailing + prefix}
+}
+
+// EstimateTokens provides a rough token count estimate for a context.
+// Uses upstream pi-ai's estimateContextTokens heuristic.
+func EstimateTokens(ctx *Context) int { return EstimateContextTokens(ctx).Tokens }
+
+func ceilDiv(n, d int) int {
+	if n <= 0 {
+		return 0
+	}
+	return (n + d - 1) / d
 }
 
 // FitsInContextWindow checks if a context fits within a model's context window.

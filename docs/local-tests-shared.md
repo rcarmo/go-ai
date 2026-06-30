@@ -6,10 +6,10 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **188**
+- Local Go test functions inventoried: **192**
 - Amazon Bedrock provider: 11
 - Anthropic Messages provider: 6
-- Core API / harness / transforms / utilities: 98
+- Core API / harness / transforms / utilities: 102
 - Faux test provider: 10
 - Gemini CLI provider: 1
 - Google / Vertex provider: 4
@@ -30,11 +30,16 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Vertex API-key/ADC marker and custom base URL behavior is covered by `inference/provider/google/google_vertex_api_key_resolution_test.go`.
 - Real Codex WebSocket RT1/RT2 method tests are covered by `inference/provider/openaicodex/codex_ws_test.go`; raw handshake bugs are N/A because go-ai uses `coder/websocket` Dial, but real local WS server integration remains present.
 - Caching-gate divergences found during upstream ports are now covered by OpenAI prompt-cache, Anthropic cache-retention, Responses message-ID, and OpenRouter cache-write tests.
+- Upstream `utils/estimate.ts` semantics are covered by `estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
 
 ## Tests
 
 | Test | File | Covers | Upstream gap / bug guarded |
 |---|---|---|---|
+| `TestEstimateTextTokensUsesCeilFourCharsPerToken` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream `utils/estimate.ts` ceil semantics instead of floor division. |
+| `TestEstimateMessageTokensCountsImagesAsUpstreamChars` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream image estimate of 4800 chars / 1200 tokens. |
+| `TestEstimateContextTokensUsesLastSuccessfulAssistantUsageAsAnchor` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream reuse of the last non-error/non-aborted assistant usage block plus trailing messages. |
+| `TestEstimateContextTokensIncludesSystemAndToolsOnlyWithoutUsageAnchor` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream system/tool prefix counting only when no usage anchor exists. |
 | `TestCompleteNilModelDoesNotPanic` | `audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
 | `TestNilRegistrationNoops` | `audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
 | `TestCloneContextDeepCopiesNestedFields` | `audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |
