@@ -20,10 +20,29 @@ func TestOpenAICompletionsEmptyToolsUpstream(t *testing.T) {
 		assertJSONHasNoKey(t, req, "tools")
 	})
 
-	t.Run("does not send default max token fields", func(t *testing.T) {
-		req := buildRequestBody(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, &goai.StreamOptions{APIKey: "test"})
-		assertJSONHasNoKey(t, req, "max_tokens")
-		assertJSONHasNoKey(t, req, "max_completion_tokens")
+	t.Run("clamps default maxTokens to remaining context", func(t *testing.T) {
+		clampModel := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: "https://api.openai.com/v1", ContextWindow: 10000, MaxTokens: 8000}
+		req := buildRequestBody(clampModel, &goai.Context{Messages: []goai.Message{goai.UserMessage(stringOfLen(8000))}}, &goai.StreamOptions{APIKey: "test"})
+		payload := marshalRequestMap(t, req)
+		if _, ok := payload["max_tokens"]; ok {
+			t.Fatalf("max_tokens should be omitted, got %#v", payload["max_tokens"])
+		}
+		if got := payload["max_completion_tokens"]; got != float64(3904) {
+			t.Fatalf("max_completion_tokens = %#v, want 3904", got)
+		}
+	})
+
+	t.Run("clamps explicit maxTokens to remaining context", func(t *testing.T) {
+		maxTokens := 7000
+		clampModel := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: "https://api.openai.com/v1", ContextWindow: 10000, MaxTokens: 8000}
+		req := buildRequestBody(clampModel, &goai.Context{Messages: []goai.Message{goai.UserMessage(stringOfLen(8000))}}, &goai.StreamOptions{APIKey: "test", MaxTokens: &maxTokens})
+		payload := marshalRequestMap(t, req)
+		if _, ok := payload["max_tokens"]; ok {
+			t.Fatalf("max_tokens should be omitted, got %#v", payload["max_tokens"])
+		}
+		if got := payload["max_completion_tokens"]; got != float64(3904) {
+			t.Fatalf("max_completion_tokens = %#v, want 3904", got)
+		}
 	})
 
 	t.Run("sends explicit maxTokens", func(t *testing.T) {
@@ -73,6 +92,14 @@ func assertJSONHasNoKey(t *testing.T, req chatRequest, key string) {
 	if _, ok := payload[key]; ok {
 		t.Fatalf("%s should be omitted, got %#v", key, payload[key])
 	}
+}
+
+func stringOfLen(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = 'x'
+	}
+	return string(b)
 }
 
 func marshalRequestMap(t *testing.T, req chatRequest) map[string]interface{} {

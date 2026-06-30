@@ -281,12 +281,12 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		// Max tokens field depends on provider. Upstream uses raw options.maxTokens here;
-		// clampMaxTokensToContext is not applied to OpenAI completions request params.
+		clampedMaxTokens := goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		// Max tokens field depends on provider.
 		if compat.MaxTokensField == "max_completion_tokens" {
-			req.MaxCompletionToks = opts.MaxTokens
+			req.MaxCompletionToks = clampedMaxTokens
 		} else {
-			req.MaxTokens = opts.MaxTokens
+			req.MaxTokens = clampedMaxTokens
 		}
 	}
 

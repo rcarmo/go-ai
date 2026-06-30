@@ -291,8 +291,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		// Upstream uses raw options.maxTokens for OpenAI/Azure Responses request params.
-		req.MaxOutputTokens = opts.MaxTokens
+		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 	}
 
 	// Convert messages to Responses API input format
