@@ -6,20 +6,20 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **195**
-- Amazon Bedrock provider: 11
-- Anthropic Messages provider: 7
+- Local Go test functions inventoried: **202**
+- Amazon Bedrock provider: 12
+- Anthropic Messages provider: 8
 - Core API / harness / transforms / utilities: 104
 - Faux test provider: 10
 - Gemini CLI provider: 1
-- Google / Vertex provider: 4
+- Google / Vertex provider: 5
 - Image generation / OpenRouter images: 7
-- Mistral provider: 1
+- Mistral provider: 2
 - Model registry/metadata: 3
 - OAuth providers: 8
-- OpenAI Chat Completions provider: 8
-- OpenAI Codex transport/provider: 10
-- OpenAI/Azure Responses provider: 10
+- OpenAI Chat Completions provider: 9
+- OpenAI Codex transport/provider: 11
+- OpenAI/Azure Responses provider: 11
 - Retry/helper and HTTP proxy: 8
 - SSE transport: 4
 - Streaming/partial JSON parser: 3
@@ -31,7 +31,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Real Codex WebSocket RT1/RT2 method tests are covered by `inference/provider/openaicodex/codex_ws_test.go`; raw handshake bugs are N/A because go-ai uses `coder/websocket` Dial, but real local WS server integration remains present.
 - Caching-gate divergences found during upstream ports are now covered by OpenAI prompt-cache, Anthropic cache-retention, Responses message-ID, and OpenRouter cache-write tests.
 - Upstream `utils/estimate.ts` semantics are covered by `estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
-- Upstream `clampMaxTokensToContext` is covered by `simple_options_clamp_test.go`, including safety-window and minimum-token behavior.
+- Upstream `clampMaxTokensToContext` is covered by `simple_options_clamp_test.go`, including safety-window and minimum-token behavior, and is wired into provider request builders with boundary tests for OpenAI Completions, OpenAI Responses/Codex, Anthropic, Bedrock, Google, and Mistral.
 - Anthropic `output_tokens_details.thinking_tokens` → `usage.reasoning` is covered by `inference/provider/anthropic/anthropic_reasoning_usage_upstream_test.go`.
 - v0.80.3 provider catalog parity is checked by regenerating `models_generated.go` from upstream split `providers/*.models.ts`; the generator now handles `.models.ts` imports and verified 745 upstream IDs with 0 missing/extra.
 

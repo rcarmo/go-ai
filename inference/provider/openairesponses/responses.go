@@ -291,7 +291,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxOutputTokens = opts.MaxTokens
+		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 	}
 
 	// Convert messages to Responses API input format

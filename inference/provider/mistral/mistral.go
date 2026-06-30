@@ -168,7 +168,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxTokens = opts.MaxTokens
+		req.MaxTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 		if opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
 			req.PromptCacheKey = opts.SessionID
 		}

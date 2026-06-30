@@ -308,7 +308,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	inferenceConfig := &types.InferenceConfiguration{}
 	hasConfig := false
 	if opts != nil && opts.MaxTokens != nil {
-		inferenceConfig.MaxTokens = aws.Int32(int32(*opts.MaxTokens))
+		inferenceConfig.MaxTokens = aws.Int32(int32(goai.ClampStreamMaxTokens(model, convCtx, opts)))
 		hasConfig = true
 	}
 	if opts != nil && opts.Temperature != nil {

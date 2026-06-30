@@ -26,6 +26,24 @@ func ClampMaxTokensToContext(model *Model, ctx *Context, maxTokens int) int {
 	return maxTokens
 }
 
+// ClampStreamMaxTokens returns the effective request max token cap for a stream.
+func ClampStreamMaxTokens(model *Model, ctx *Context, opts *StreamOptions) int {
+	maxTokens := 0
+	if model != nil {
+		maxTokens = model.MaxTokens
+	}
+	if opts != nil && opts.MaxTokens != nil {
+		maxTokens = *opts.MaxTokens
+	}
+	return ClampMaxTokensToContext(model, ctx, maxTokens)
+}
+
+// ClampStreamMaxTokensPtr returns a stable pointer to the effective request max token cap.
+func ClampStreamMaxTokensPtr(model *Model, ctx *Context, opts *StreamOptions) *int {
+	v := ClampStreamMaxTokens(model, ctx, opts)
+	return &v
+}
+
 // ClampReasoning downgrades xhigh to high for legacy callers that do not pass a model.
 func ClampReasoning(level ThinkingLevel) ThinkingLevel {
 	if level == ThinkingXHigh {

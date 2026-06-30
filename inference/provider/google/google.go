@@ -283,7 +283,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		hasConfig = true
 	}
 	if opts != nil && opts.MaxTokens != nil {
-		genConfig.MaxOutputTokens = opts.MaxTokens
+		genConfig.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 		hasConfig = true
 	}
 

@@ -339,10 +339,7 @@ type anthropicTool struct {
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) anthropicRequest {
-	maxTokens := model.MaxTokens
-	if opts != nil && opts.MaxTokens != nil {
-		maxTokens = *opts.MaxTokens
-	}
+	maxTokens := goai.ClampStreamMaxTokens(model, convCtx, opts)
 	if maxTokens <= 0 {
 		maxTokens = 4096
 	}
