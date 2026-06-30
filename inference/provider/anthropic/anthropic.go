@@ -668,7 +668,10 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 					} `json:"stop_details"`
 				} `json:"delta"`
 				Usage struct {
-					OutputTokens int `json:"output_tokens"`
+					OutputTokens  int `json:"output_tokens"`
+					OutputDetails struct {
+						ThinkingTokens int `json:"thinking_tokens"`
+					} `json:"output_tokens_details"`
 				} `json:"usage"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
@@ -676,7 +679,8 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				return
 			}
 			partial.Usage.Output = data.Usage.OutputTokens
-			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output
+			partial.Usage.Reasoning = data.Usage.OutputDetails.ThinkingTokens
+			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output + partial.Usage.CacheRead + partial.Usage.CacheWrite
 
 			switch data.Delta.StopReason {
 			case "end_turn", "pause_turn", "stop_sequence":
