@@ -1,7 +1,30 @@
 // Simple options — maps unified ThinkingLevel to provider-specific options.
 package goai
 
+const (
+	contextSafetyTokens = 4096
+	minMaxTokens        = 1
+)
+
 var extendedThinkingLevels = []ModelThinkingLevel{ThinkingOff, ModelThinkingLevel(ThinkingMinimal), ModelThinkingLevel(ThinkingLow), ModelThinkingLevel(ThinkingMedium), ModelThinkingLevel(ThinkingHigh), ModelThinkingLevel(ThinkingXHigh)}
+
+// ClampMaxTokensToContext limits maxTokens to the model's remaining context window.
+func ClampMaxTokensToContext(model *Model, ctx *Context, maxTokens int) int {
+	if maxTokens < minMaxTokens {
+		maxTokens = minMaxTokens
+	}
+	if model == nil || model.ContextWindow <= 0 {
+		return maxTokens
+	}
+	available := model.ContextWindow - EstimateContextTokens(ctx).Tokens - contextSafetyTokens
+	if available < minMaxTokens {
+		available = minMaxTokens
+	}
+	if maxTokens > available {
+		return available
+	}
+	return maxTokens
+}
 
 // ClampReasoning downgrades xhigh to high for legacy callers that do not pass a model.
 func ClampReasoning(level ThinkingLevel) ThinkingLevel {
