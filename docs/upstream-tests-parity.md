@@ -1,17 +1,17 @@
-# Upstream test-for-test parity checklist — pi-ai ec6311b / v0.80.2
+# Upstream test-for-test parity checklist — pi-ai dd87c02 / v0.80.3
 
-Canonical source: `github.com/earendil-works/pi` at commit `ec6311b` (`packages/ai`).
+Canonical source: `github.com/earendil-works/pi` at commit `dd87c02` (`packages/ai`).
 
-Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **86** `packages/ai/**/*.test.ts` files at this commit, not 87 under `packages/ai`.
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **90** `packages/ai/**/*.test.ts` files at this commit. The previous v0.80.2 baseline had 86 files; v0.80.3 adds `error-body.test.ts`, `provider-error-body-passthrough.test.ts`, `provider-error-body-regression.test.ts`, and `retry.test.ts`.
 
 Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, or JS-only packaging behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks; **TODO** = deterministic upstream file not yet ported name-for-name. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 62 files
+- DETERMINISTIC-PORTED: 66 files
 - N/A credential/live/JS-runtime files: 24 files
 - TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 86 / 86 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 90 / 90 files
 
 ## Test files
 
@@ -88,6 +88,10 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | images_openrouter_upstream_test.go | Ported all three upstream OpenRouter images cases: text+image output and payload shape, abort signal/canceled context returning `Request aborted`, and `generateImages` wrapper resolving final image output. Passing. |
 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | overflow_upstream_test.go | Ported all 13 upstream `isContextOverflow` cases: provider error-string detections/non-detections and Xiaomi length-stop context-fill heuristic. Passing. |
 | `test/providers.test.ts` | DETERMINISTIC-PORTED | registry.go; models_test.go; env_api_keys_test.go; coverage_boost_test.go | Builtin provider/model registry, env auth resolution, Cloudflare/Vertex/Bedrock auth markers, and provider dispatch equivalents are covered by Go registry/auth tests; JS `createProvider` instance helpers differ architecturally. Passing under make check. |
+| `test/error-body.test.ts` | DETERMINISTIC-PORTED | error_body.go; error_body_test.go | Ported upstream provider error-body normalization and formatting cases: SDK status/body extraction, parsed OpenAI body, Google message-carries-body, Bedrock response body, non-error JSON fallback, empty parsed body, truncation, and provider prefix formatting. Passing 3×. |
+| `test/provider-error-body-passthrough.test.ts` | DETERMINISTIC-PORTED | provider_error_body_test.go; images/openrouter/openrouter.go | Ported OpenRouter images provider error-body passthrough with simulated 403 gateway body; error message now carries both status and body reason instead of an opaque SDK-style message. Passing 3×. |
+| `test/provider-error-body-regression.test.ts` | DETERMINISTIC-PORTED | provider_error_body_test.go | Ported per-tier provider error-body regressions for OpenAI completions, OpenAI responses, and Bedrock-shaped service exceptions using simulated provider responses/errors; status and body reason are surfaced. Passing 3×. |
+| `test/retry.test.ts` | DETERMINISTIC-PORTED | retry_assistant.go; retry_assistant_test.go | Ported upstream provider retry-classification cases: explicit retry guidance, provider quota/limit errors non-retryable, overloaded assistant errors retryable, non-error messages non-retryable. Passing 3×. |
 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | responseid_simulated_test.go | Ported responseId behavior using simulated provider outputs for Google, Vertex, OpenAI Completions/Responses, Anthropic, Azure Responses, Mistral, Copilot OpenAI/Anthropic, and Codex; asserts non-error stop and string response IDs. Passing 3×. |
 | `test/stream.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | supports_xhigh_upstream_test.go | Ported all upstream xhigh support metadata assertions for Anthropic, OpenAI/Codex, OpenRouter, DeepSeek, OpenCode, Moonshot, and Bedrock model IDs. Passing. |
