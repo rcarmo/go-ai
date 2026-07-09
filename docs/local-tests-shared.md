@@ -33,7 +33,9 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Upstream `utils/estimate.ts` semantics are covered by `estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
 - Upstream `clampMaxTokensToContext` is covered by `simple_options_clamp_test.go` using canonical upstream literals from `simple-options.ts`: `CONTEXT_SAFETY_TOKENS = 4096`, `MIN_MAX_TOKENS = 1`; boundary case `contextWindow=5000`, `"hello"` estimate `2`, requested `2000` clamps to `902`. Provider request builders receive clamped `options.maxTokens` via `buildBaseOptions`/shared options; boundary tests cover OpenAI Completions, Responses/Codex, Anthropic, Bedrock, Google/Vertex, and Mistral.
 - Anthropic `output_tokens_details.thinking_tokens` → `usage.reasoning` is covered by `inference/provider/anthropic/anthropic_reasoning_usage_upstream_test.go`.
-- v0.80.3 provider catalog parity is checked by regenerating `models_generated.go` from upstream split `providers/*.models.ts`; the generator now handles `.models.ts` imports and verified 745 upstream IDs with 0 missing/extra.
+- v0.80.5 provider catalog parity is checked by regenerating `models_generated.go` from upstream split `providers/*.models.ts`; the generator now handles `.models.ts` imports and generated 1059 text models across 35 providers from `cc62baa`.
+- v0.80.5 lax untyped-history content handling is covered by `lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
+- v0.80.5 OpenAI Responses empty tool-result behavior is covered by `inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go`: blank text-only tool outputs serialize as `(no tool output)` without image-placeholder text.
 
 ## Tests
 
@@ -46,6 +48,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestClampMaxTokensToContextUsesEstimateAndSafetyWindow` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `clampMaxTokensToContext` literal safety window: `5000 - estimate("hello")2 - 4096 = 902`. |
 | `TestClampMaxTokensToContextHonorsMinimumAndUnboundedModels` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `MIN_MAX_TOKENS = 1` and unbounded-model behavior. |
 | `TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw` | `provider_error_body_test.go` | provider error body passthrough | Guards upstream v0.80.3 provider-error-body-regression OpenRouter `metadata.raw` duplicate-prevention fixture. |
+| `TestUpstreamLaxMessageContentHandlingNormalizesNilContent` | `lax_message_content_upstream_test.go` | message transform lax content handling | Guards upstream v0.80.5 normalization of null/missing untyped message content to empty arrays before provider conversion. |
 | `TestCompleteNilModelDoesNotPanic` | `audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
 | `TestNilRegistrationNoops` | `audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
 | `TestCloneContextDeepCopiesNestedFields` | `audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |

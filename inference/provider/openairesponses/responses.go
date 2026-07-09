@@ -426,7 +426,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 			input = append(input, items...)
 
 		case goai.RoleToolResult:
-			textResult := extractText(msg.Content)
+			textResult := openAIResponsesToolResultText(msg.Content)
 			callID := msg.ToolCallID
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				callID = callID[:idx]
@@ -441,6 +441,14 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 	}
 
 	return input
+}
+
+func openAIResponsesToolResultText(content []goai.ContentBlock) string {
+	text := extractText(content)
+	if strings.TrimSpace(text) == "" {
+		return "(no tool output)"
+	}
+	return text
 }
 
 func buildUserContent(msg goai.Message) []map[string]interface{} {

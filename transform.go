@@ -19,6 +19,7 @@ func TransformMessages(messages []Message, model *Model) []Message {
 	crossProviderThinking := 0
 
 	for _, msg := range messages {
+		msg.Content = normalizeLaxContent(msg.Content)
 		switch msg.Role {
 		case RoleUser:
 			transformed = append(transformed, msg)
@@ -36,7 +37,7 @@ func TransformMessages(messages []Message, model *Model) []Message {
 				msg.Api == model.Api &&
 				msg.Model == model.ID
 
-			var newContent []ContentBlock
+			newContent := make([]ContentBlock, 0, len(msg.Content))
 			for _, block := range msg.Content {
 				switch block.Type {
 				case "thinking":
@@ -96,6 +97,13 @@ func TransformMessages(messages []Message, model *Model) []Message {
 			"syntheticToolResults", syntheticResults)
 	}
 	return result
+}
+
+func normalizeLaxContent(content []ContentBlock) []ContentBlock {
+	if content == nil {
+		return []ContentBlock{}
+	}
+	return content
 }
 
 func insertSyntheticToolResults(messages []Message) ([]Message, int) {
@@ -163,6 +171,7 @@ func downgradeUnsupportedImages(messages []Message, model *Model) ([]Message, in
 	result := make([]Message, len(messages))
 	replaced := 0
 	for i, msg := range messages {
+		msg.Content = normalizeLaxContent(msg.Content)
 		if msg.Role == RoleUser || msg.Role == RoleToolResult {
 			newContent := make([]ContentBlock, 0, len(msg.Content))
 			prevWasPlaceholder := false

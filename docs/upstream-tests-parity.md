@@ -1,17 +1,17 @@
-# Upstream test-for-test parity checklist — pi-ai dd87c02 / v0.80.3
+# Upstream test-for-test parity checklist — pi-ai cc62baa / v0.80.5
 
-Canonical source: `github.com/earendil-works/pi` at commit `dd87c02` (`packages/ai`).
+Canonical source: `github.com/earendil-works/pi` at commit `cc62baa` (`packages/ai`).
 
-Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **90** `packages/ai/**/*.test.ts` files at this commit. The previous v0.80.2 baseline had 86 files; v0.80.3 adds `error-body.test.ts`, `provider-error-body-passthrough.test.ts`, `provider-error-body-regression.test.ts`, and `retry.test.ts`.
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **92** `packages/ai/**/*.test.ts` files at this commit. The previous v0.80.3 baseline had 90 files; v0.80.5 adds `lax-message-content.test.ts` and `openai-responses-empty-tool-result.test.ts`.
 
 Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, or JS-only packaging behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks; **TODO** = deterministic upstream file not yet ported name-for-name. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 66 files
+- DETERMINISTIC-PORTED: 68 files
 - N/A credential/live/JS-runtime files: 24 files
 - TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 90 / 90 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 92 / 92 files
 
 ## Test files
 
@@ -57,6 +57,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | images_test.go; images_openrouter_upstream_test.go | Deterministic image model/provider registry and OpenRouter image generation wrapper behavior are covered; Go image registry architecture differs from JS `createImagesModels` instance API. Passing under make check. |
 | `test/images.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 | `test/interleaved-thinking.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+| `test/lax-message-content.test.ts` | DETERMINISTIC-PORTED | lax_message_content_upstream_test.go; transform.go | Ported upstream null/missing content normalization case: TransformMessages treats nil user/assistant/toolResult content as an empty content array before provider conversion and image downgrade. Passing 3×. |
 | `test/lazy-module-load.test.ts` | N/A | — | JS lazy module loading/bundler behavior has no Go analogue; Go links providers statically/imports packages directly. |
 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_reasoning_mode_test.go | Ported all seven upstream Mistral reasoning/cache-key cases with identical expected `reasoning_effort`, `prompt_mode`, and `prompt_cache_key` values. Passing. |
 | `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_tool_schema_test.go | Ported upstream tool schema serialization case with nested object schema preserved and JSON-safe parameters. Passing 3×. |
@@ -78,6 +79,7 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/openai-completions-tool-result-images.test.ts` | DETERMINISTIC-PORTED | inference/provider/openai/*_test.go; images_test.go | Simulated multimodal tool-result image routing and OpenAI-compatible payload behavior are covered deterministically; no live provider dependency remains. Passing under make check. |
 | credential/live E2E group | N/A | — | Requires live OpenAI Responses credentials/networked upstream service; per Rui decision, no skip-only Go wrapper or deterministic mock substitute. |
 | `test/openai-responses-copilot-provider.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/*_test.go; oauth/*_test.go | Deterministic Copilot Responses provider behavior is covered: reasoning defaults, cache/session affinity, prompt cache key clamp, service tier/cost, and dynamic Copilot headers. Passing under make check. |
+| `test/openai-responses-empty-tool-result.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go; inference/provider/openairesponses/responses.go | Ported upstream empty tool-result conversion case: Responses `function_call_output.output` uses `(no tool output)` for blank text-only tool results and does not add image placeholder text. Passing 3×. |
 | `test/openai-responses-foreign-toolcall-id.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/responses_foreign_toolcall_id_test.go | Ported upstream foreign Copilot tool item ID normalization case; Go now hashes foreign item IDs to bounded `fc_<shortHash>` shape. Passing. |
 | `test/openai-responses-message-id.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/responses_message_id_test.go | Ported upstream multiple-text-block fallback message ID case; Go now emits `msg_pi_1` and `msg_pi_1_1` without requiring an existing text signature. Passing. |
 | `test/openai-responses-partial-json-cleanup.test.ts` | DETERMINISTIC-PORTED | inference/provider/openairesponses/responses_partial_json_cleanup_test.go | Ported upstream partial function-call JSON cleanup case against Go stream events: final persisted tool call and `toolcall_end` carry parsed arguments without partial JSON leakage. Passing. |
