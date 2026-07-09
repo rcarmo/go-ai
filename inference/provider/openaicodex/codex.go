@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
@@ -272,12 +273,17 @@ type codexWebSocketContinuation struct {
 	lastResponseItems []interface{}
 }
 
-const codexWebSocketSessionCacheTTL = 5 * time.Minute
+const (
+	codexWebSocketSessionCacheTTL    = 5 * time.Minute
+	codexWebSocketSessionMaxAge      = 55 * time.Minute
+	codexRequestCompressionZstdLevel = 3
+)
 
 type codexWebSocketSessionEntry struct {
 	conn         *websocket.Conn
 	continuation *codexWebSocketContinuation
 	idleTimer    *time.Timer
+	createdAt    time.Time
 	mu           sync.Mutex
 }
 
@@ -471,6 +477,10 @@ func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, 
 	}
 }
 
+func codexWebSocketSessionExpired(entry *codexWebSocketSessionEntry, now time.Time) bool {
+	return entry != nil && !entry.createdAt.IsZero() && now.Sub(entry.createdAt) >= codexWebSocketSessionMaxAge
+}
+
 func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*codexWebSocketSessionEntry, bool, error) {
 	codexWebSocketSessionsMu.Lock()
 	if entry := codexWebSocketSessions[sessionID]; entry != nil {
@@ -478,16 +488,25 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 			entry.idleTimer.Stop()
 			entry.idleTimer = nil
 		}
+		if codexWebSocketSessionExpired(entry, time.Now()) {
+			delete(codexWebSocketSessions, sessionID)
+			codexWebSocketSessionsMu.Unlock()
+			if entry.conn != nil {
+				_ = entry.conn.Close(websocket.StatusNormalClosure, "connection_age_limit")
+			}
+		} else {
+			codexWebSocketSessionsMu.Unlock()
+			return entry, true, nil
+		}
+	} else {
 		codexWebSocketSessionsMu.Unlock()
-		return entry, true, nil
 	}
-	codexWebSocketSessionsMu.Unlock()
 
 	conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
 	if err != nil {
 		return nil, false, err
 	}
-	entry := &codexWebSocketSessionEntry{conn: conn}
+	entry := &codexWebSocketSessionEntry{conn: conn, createdAt: time.Now()}
 
 	codexWebSocketSessionsMu.Lock()
 	if existing := codexWebSocketSessions[sessionID]; existing != nil {
@@ -1015,6 +1034,22 @@ readLoop:
 
 // --- SSE fallback ---
 
+func compressCodexRequestBodyZstd(bodyJSON []byte) ([]byte, bool) {
+	var buf bytes.Buffer
+	enc, err := zstd.NewWriter(&buf, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(codexRequestCompressionZstdLevel)))
+	if err != nil {
+		return nil, false
+	}
+	if _, err := enc.Write(bodyJSON); err != nil {
+		_ = enc.Close()
+		return nil, false
+	}
+	if err := enc.Close(); err != nil {
+		return nil, false
+	}
+	return buf.Bytes(), true
+}
+
 func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
 	body := buildCodexRequest(model, convCtx, opts)
 	payload, err := goai.InvokeOnPayload(opts, body, model)
@@ -1027,7 +1062,12 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	url := resolveCodexURL(model.BaseURL)
 	goai.GetLogger().Debug("HTTP request", "url", url, "provider", model.Provider, "model", model.ID)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
+	reqBody := bodyJSON
+	compressedBody, compressed := compressCodexRequestBodyZstd(bodyJSON)
+	if compressed {
+		reqBody = compressedBody
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 	if err != nil {
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 		return
@@ -1052,6 +1092,9 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		return nil
 	}(), accountID, apiKey, sessionID)
+	if compressed {
+		req.Header.Set("Content-Encoding", "zstd")
+	}
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
 	client := retryCfg.NewHTTPClient()

@@ -36,6 +36,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - v0.80.5 provider catalog parity is checked by regenerating `models_generated.go` from upstream split `providers/*.models.ts`; the generator now handles `.models.ts` imports and generated 1059 text models across 35 providers from `cc62baa`.
 - v0.80.5 lax untyped-history content handling is covered by `lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
 - v0.80.5 OpenAI Responses empty tool-result behavior is covered by `inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go`: blank text-only tool outputs serialize as `(no tool output)` without image-placeholder text.
+- v0.80.5 in-place behavior deltas are covered beyond file-count accounting: Codex SSE zstd request compression at level 3, Codex cached WebSocket 55m age recycling, DS4 overflow wording, retryable `524`/Bun socket-drop/`ResourceExhausted` errors, OAuth `slow_down.interval` semantics, and OpenAI Completions `(no tool output)` blank tool-result placeholders.
 
 ## Tests
 
@@ -49,6 +50,8 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestClampMaxTokensToContextHonorsMinimumAndUnboundedModels` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `MIN_MAX_TOKENS = 1` and unbounded-model behavior. |
 | `TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw` | `provider_error_body_test.go` | provider error body passthrough | Guards upstream v0.80.3 provider-error-body-regression OpenRouter `metadata.raw` duplicate-prevention fixture. |
 | `TestUpstreamLaxMessageContentHandlingNormalizesNilContent` | `lax_message_content_upstream_test.go` | message transform lax content handling | Guards upstream v0.80.5 normalization of null/missing untyped message content to empty arrays before provider conversion. |
+| `TestUpstreamOverflowDetectsDS4ConfiguredContextSizeErrors` | `v0805_inplace_deltas_test.go` | context overflow detection | Guards upstream v0.80.5 DS4 configured-context-size overflow wording. |
+| `TestUpstreamRetryMatchesV0805ProviderTransportPatterns` | `v0805_inplace_deltas_test.go` | retry classification | Guards upstream v0.80.5 retryable `524`, Bun socket-drop, and `ResourceExhausted` provider patterns. |
 | `TestCompleteNilModelDoesNotPanic` | `audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
 | `TestNilRegistrationNoops` | `audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
 | `TestCloneContextDeepCopiesNestedFields` | `audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |

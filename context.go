@@ -25,6 +25,7 @@ var overflowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)input \(\d+ tokens\) is longer than the model'?s context length \(\d+ tokens\)`), // Together AI
 	regexp.MustCompile(`(?i)exceeds the limit of \d+`),
 	regexp.MustCompile(`(?i)exceeds the available context size`),
+	regexp.MustCompile(`(?i)prompt has [\d,]+ tokens?, but the configured context size is [\d,]+ tokens?`),
 	regexp.MustCompile(`(?i)greater than the context length`),
 	regexp.MustCompile(`(?i)context window exceeds limit`),
 	regexp.MustCompile(`(?i)exceeded model token limit`),

@@ -17,6 +17,7 @@ func ptrValue[T comparable](p *T) T {
 
 func requireModel(t *testing.T, provider goai.Provider, id string) *goai.Model {
 	t.Helper()
+	goai.RegisterBuiltinModels()
 	model := goai.GetModel(provider, id)
 	if model == nil {
 		t.Fatalf("GetModel(%q, %q) is nil", provider, id)
@@ -51,6 +52,7 @@ func TestFireworksModelsRegistersDefaultKimiK26ViaAnthropicCompatibleMessagesAPI
 }
 
 func TestFireworksModelsRegistersFirePassTurboRouterModel(t *testing.T) {
+	goai.RegisterBuiltinModels()
 	var model *goai.Model
 	for _, candidate := range goai.ListModels(goai.ProviderFireworks) {
 		if candidate.ID == "accounts/fireworks/routers/kimi-k2p6-turbo" {
@@ -164,12 +166,14 @@ func TestTogetherModelsResolvesTogetherAPIKeyFromEnvironment(t *testing.T) {
 }
 
 func TestXiaomiModelsKeepsMimoV2FlashOnTheAPIBillingProvider(t *testing.T) {
+	goai.RegisterBuiltinModels()
 	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash"); model == nil {
 		t.Fatalf("mimo-v2-flash should be present for xiaomi")
 	}
 }
 
 func TestXiaomiModelsOmitsMimoV2FlashFromTokenPlanProviders(t *testing.T) {
+	goai.RegisterBuiltinModels()
 	for _, provider := range []goai.Provider{goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
 		for _, model := range goai.ListModels(provider) {
 			if model.ID == "mimo-v2-flash" {

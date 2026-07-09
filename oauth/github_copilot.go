@@ -222,7 +222,7 @@ func pollForAccessToken(ctx context.Context, domain, deviceCode string, interval
 		}
 
 		if errStr, ok := raw["error"].(string); ok {
-			if nextInterval, ok := nextDeviceCodePollInterval(interval, errStr); ok {
+			if nextInterval, ok := nextDeviceCodePollIntervalWithServerInterval(interval, errStr, deviceCodeServerInterval(raw)); ok {
 				interval = nextInterval
 				continue
 			}

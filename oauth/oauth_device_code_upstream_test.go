@@ -35,3 +35,14 @@ func TestOAuthDeviceCodeSlowDownAddsFiveSeconds(t *testing.T) {
 		t.Fatal("terminal OAuth errors should not continue polling")
 	}
 }
+
+func TestOAuthDeviceCodeSlowDownHonorsServerProvidedInterval(t *testing.T) {
+	got, ok := nextDeviceCodePollIntervalWithServerInterval(7*time.Second, "slow_down", 12)
+	if !ok || got != 12*time.Second {
+		t.Fatalf("slow_down with server interval got (%v, %v), want 12s and continue", got, ok)
+	}
+	got, ok = nextDeviceCodePollIntervalWithServerInterval(7*time.Second, "slow_down", 1)
+	if !ok || got != 5*time.Second {
+		t.Fatalf("slow_down with low server interval got (%v, %v), want clamped 5s and continue", got, ok)
+	}
+}

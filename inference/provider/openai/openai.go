@@ -628,6 +628,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 
 		case goai.RoleToolResult:
 			text := extractTextContent(m.Content)
+			if strings.TrimSpace(text) == "" {
+				text = "(no tool output)"
+			}
 			toolMsg := chatMessage{
 				Role:       "tool",
 				Content:    goai.SanitizeSurrogates(text),
