@@ -12,7 +12,7 @@ Findings:
 - Upstream added tiered model-cost metadata and made cost calculation choose the highest matching request-wide input-token threshold.
 - Upstream Responses usage now accounts for `input_tokens_details.cache_write_tokens`, subtracting cached and cache-write tokens from billed input while preserving cache-write usage.
 - Upstream context estimation now ignores assistant usage snapshots that predate a newer prefix/summary message.
-- Upstream refreshed generated text model metadata (1057 models / 35 providers) and generator behavior.
+- Upstream refreshed generated text model metadata; current upstream-main `0e6909f050eeb15e8f6c05185511f3788357ddb3` now has 1059 models / 35 providers, including OpenAI and Azure OpenAI Responses `gpt-5.6`.
 - Fresh adversarial re-check found image model catalog drift: exact v0.80.6 has 35 OpenRouter image models, while Go still had 34 plus stale Sourceful preview entries.
 - Upstream README/package/changelog and JS-only lazy/module-load plumbing changes are not applicable to the Go library architecture.
 
