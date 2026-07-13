@@ -63,6 +63,27 @@ func TestBuiltinImageModels(t *testing.T) {
 	if flash == nil || flash.Cost.Output != 3 || len(flash.Output) != 2 {
 		t.Fatalf("expected Gemini 3.1 Flash Image metadata, got %#v", flash)
 	}
+	wantIDs := []string{
+		"black-forest-labs/flux.2-flex",
+		"google/gemini-3.1-flash-lite-image",
+		"openai/gpt-image-1",
+		"openai/gpt-image-1-mini",
+		"openai/gpt-image-2",
+		"sourceful/riverflow-v2.5-pro",
+	}
+	if len(models) != 35 {
+		t.Fatalf("openrouter image model count = %d, want 35 from pi-ai v0.80.6", len(models))
+	}
+	for _, id := range wantIDs {
+		if got := images.GetImageModel(images.ImagesProviderOpenRouter, id); got == nil {
+			t.Fatalf("missing pi-ai v0.80.6 image model %q", id)
+		}
+	}
+	for _, removed := range []string{"sourceful/riverflow-v2-fast-preview", "sourceful/riverflow-v2-max-preview", "sourceful/riverflow-v2-standard-preview"} {
+		if got := images.GetImageModel(images.ImagesProviderOpenRouter, removed); got != nil {
+			t.Fatalf("stale image model %q still registered: %#v", removed, got)
+		}
+	}
 }
 
 func TestGenerateImagesErrorPaths(t *testing.T) {

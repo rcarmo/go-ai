@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
 //
-// Source: image-models.generated.js (34 image models, 1 provider)
+// Source: image-models.generated.js (35 image models, 1 provider)
 
 package images
 
@@ -71,7 +71,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.0833333333333333},
+		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333334},
 	},
 	{
 		ID:       "google/gemini-3-pro-image",
@@ -81,7 +81,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
+		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.19999999999999998, CacheWrite: 0.375},
 	},
 	{
 		ID:       "google/gemini-3-pro-image-preview",
@@ -91,7 +91,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.2, CacheWrite: 0.375},
+		Cost:     goai.ModelCost{Input: 2, Output: 12, CacheRead: 0.19999999999999998, CacheWrite: 0.375},
 	},
 	{
 		ID:       "google/gemini-3.1-flash-image",
@@ -112,6 +112,16 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
 		Cost:     goai.ModelCost{Input: 0.5, Output: 3, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "google/gemini-3.1-flash-lite-image",
+		Name:     "Google: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"image", "text"},
+		Output:   []string{"image", "text"},
+		Cost:     goai.ModelCost{Input: 0.25, Output: 1.5, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "microsoft/mai-image-2.5",
@@ -152,6 +162,36 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
 		Cost:     goai.ModelCost{Input: 8, Output: 15, CacheRead: 2, CacheWrite: 0},
+	},
+	{
+		ID:       "openai/gpt-image-1",
+		Name:     "OpenAI: GPT Image 1",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 10, Output: 10, CacheRead: 1.25, CacheWrite: 0},
+	},
+	{
+		ID:       "openai/gpt-image-1-mini",
+		Name:     "OpenAI: GPT Image 1 Mini",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 2.5, Output: 2.5, CacheRead: 0.25, CacheWrite: 0},
+	},
+	{
+		ID:       "openai/gpt-image-2",
+		Name:     "OpenAI: GPT Image 2",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 8, Output: 8, CacheRead: 2, CacheWrite: 0},
 	},
 	{
 		ID:       "openrouter/auto",
@@ -284,38 +324,8 @@ var builtinImageModels = []ImagesModel{
 		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
-		ID:       "sourceful/riverflow-v2-fast-preview",
-		Name:     "Sourceful: Riverflow V2 Fast Preview",
-		Api:      ImagesApi("openrouter-images"),
-		Provider: ImagesProvider("openrouter"),
-		BaseURL:  "https://openrouter.ai/api/v1",
-		Input:    []string{"text", "image"},
-		Output:   []string{"image"},
-		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
-	},
-	{
-		ID:       "sourceful/riverflow-v2-max-preview",
-		Name:     "Sourceful: Riverflow V2 Max Preview",
-		Api:      ImagesApi("openrouter-images"),
-		Provider: ImagesProvider("openrouter"),
-		BaseURL:  "https://openrouter.ai/api/v1",
-		Input:    []string{"text", "image"},
-		Output:   []string{"image"},
-		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
-	},
-	{
 		ID:       "sourceful/riverflow-v2-pro",
 		Name:     "Sourceful: Riverflow V2 Pro",
-		Api:      ImagesApi("openrouter-images"),
-		Provider: ImagesProvider("openrouter"),
-		BaseURL:  "https://openrouter.ai/api/v1",
-		Input:    []string{"text", "image"},
-		Output:   []string{"image"},
-		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
-	},
-	{
-		ID:       "sourceful/riverflow-v2-standard-preview",
-		Name:     "Sourceful: Riverflow V2 Standard Preview",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
