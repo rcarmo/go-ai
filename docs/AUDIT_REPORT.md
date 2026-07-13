@@ -12,18 +12,20 @@ Findings:
 - Upstream added tiered model-cost metadata and made cost calculation choose the highest matching request-wide input-token threshold.
 - Upstream Responses usage now accounts for `input_tokens_details.cache_write_tokens`, subtracting cached and cache-write tokens from billed input while preserving cache-write usage.
 - Upstream context estimation now ignores assistant usage snapshots that predate a newer prefix/summary message.
-- Upstream refreshed generated text model metadata (1057 models / 35 providers) and generator behavior. Image model metadata did not gain a Go-facing delta.
+- Upstream refreshed generated text model metadata (1057 models / 35 providers) and generator behavior.
+- Fresh adversarial re-check found image model catalog drift: exact v0.80.6 has 35 OpenRouter image models, while Go still had 34 plus stale Sourceful preview entries.
 - Upstream README/package/changelog and JS-only lazy/module-load plumbing changes are not applicable to the Go library architecture.
 
 Actions:
 
 - Regenerated `models_generated.go` from upstream `v0.80.6`.
+- Regenerated/synced `images/models_generated.go` to exact v0.80.6 image catalog and added regression assertions for count, newly-added image IDs, and removed stale IDs.
 - Added Go type/runtime support for `ThinkingMax`, tiered `ModelCost`, Responses cache-write token accounting, and prefix-aware context estimates.
 - Updated upstream parity tests for `max`/`xhigh` behavior and generated metadata expectations.
 - Added v0.80.6 regression coverage for thinking `max`, cost tiers, and context estimate invalidation.
 - Retained port-specific GitHub Copilot end-to-end helper work (side-effect provider package, OAuth runtime bridge, model picker/switch helpers, and example) without dropping existing provider functionality.
 
-Result: `go-ai` is synced with upstream `v0.80.6`; all Go-facing runtime/type/provider changes were adopted or adapted, with JS-only packaging/auth-collection internals marked not applicable.
+Result: `go-ai` is synced with upstream `v0.80.6`; the fresh adversarial pass fixed the concrete image-catalog drift and found no remaining Go-facing runtime/type/provider gaps, with JS-only packaging/auth-collection internals marked not applicable.
 
 ## 2026-06-23 v0.80.2 complete comparative audit (`@earendil-works/pi-ai`)
 

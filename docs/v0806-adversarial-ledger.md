@@ -9,6 +9,7 @@ Fresh evidence from this pass:
 - Upstream test inventory: `find packages/ai -name '*.test.ts' | wc -l` = `94`.
 - Published declaration inventory: `148` `dist/**/*.d.ts` files, `627` top-level declaration export lines.
 - Generated text catalog: Go `models_generated.go` header says `1057 models, 35 providers`, matching upstream `models.generated.js`.
+- Generated image catalog discrepancy found and fixed: Go had 34 OpenRouter image models; exact v0.80.6 has 35. The fix adds `google/gemini-3.1-flash-lite-image`, `openai/gpt-image-1`, `openai/gpt-image-1-mini`, `openai/gpt-image-2`, removes stale Sourceful preview IDs, and adds count/ID regression assertions.
 - Validation run after audit: `make test-repro` passed (`go test`, `go vet`, `go build`, pinned `staticcheck@v0.7.0`, logging gate, race suite). `make test-deterministic` passed (`go test ./... -count=3`).
 
 ## Discrepancy ledger
@@ -32,7 +33,7 @@ Fresh evidence from this pass:
 | `src/api/simple-options.ts`, `transform-messages.ts` | `simple_options.go`, `transform.go`, `overflow_upstream_test.go`, `lax_message_content_upstream_test.go` | Implemented. Message/content normalization and overflow behavior covered. |
 | `src/auth/*`, OAuth helpers | `oauth/`, `env.go`, `utils.go`, `githubcopilot` provider tests | Adapted. Go exposes direct provider/env/OAuth helpers rather than JS `CredentialStore` collection objects. Wire-visible auth behavior is covered. |
 | `src/models.generated.ts`, `src/providers/*.models.ts` | `models_generated.go`, `models_test.go`, `models_catalog_upstream_test.go`, `scripts/generate-models.go` | Implemented mechanically. Header and tests verify 1057 models / 35 providers and spot-check changed v0.80.6 metadata. |
-| `src/image-models.generated.ts`, images model files | `images/models_generated.go`, `images_openrouter_upstream_test.go` | Implemented; unchanged by v0.80.6 in Go-facing fields. |
+| `src/image-models.generated.ts`, images model files | `images/models_generated.go`, `images_openrouter_upstream_test.go`, `images_test.go` | **Fixed in this audit.** Exact v0.80.6 has 35 OpenRouter image models; Go had 34 and stale Sourceful preview IDs. Catalog and regression tests now match upstream. |
 | `src/legacy-api-aliases.ts`, `compat.ts`, lazy modules | `compat.go`, package layout, provider init packages | Not a Go wire-runtime gap. Go has idiomatic package imports/registrations; JS barrel/lazy alias names are documented architectural differences. |
 | `src/utils/typebox-helpers.ts` | `types.go` `Tool.Parameters`, `context.go` validation | Not ported 1:1 by design. Go consumes JSON Schema bytes/maps directly; executable validation parity is in `upstream_validation_test.go`. |
 | Cancellation/abort path, `test/abort.test.ts` | provider context handling tests, `harness.go`, transports | Implemented via `context.Context`; race suite passed. |
@@ -51,5 +52,6 @@ High-risk v0.80.6 additions/changes and evidence:
 - OpenAI Responses/Completions terminal/tool-result changes → provider tests under `inference/provider/openai*` plus root upstream tests.
 - Anthropic empty thinking/adaptive thinking changes → `inference/provider/anthropic` tests and catalog tests.
 - Model runtime/catalog changes → `models_generated.go`, `models_test.go`, `models_catalog_upstream_test.go`.
+- Image catalog changes → `images/models_generated.go`, `images_test.go` count/new-ID/removed-ID regression.
 
-No new concrete Go-facing discrepancy was found in this fresh pass beyond the known intentional JS packaging/auth collection/TypeBox surface differences already documented above.
+Concrete gap fixed in this fresh pass: image model catalog drift against exact v0.80.6. No other new Go-facing discrepancy was found beyond the known intentional JS packaging/auth collection/TypeBox surface differences already documented above.
