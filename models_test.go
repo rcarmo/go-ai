@@ -7,6 +7,8 @@ import (
 )
 
 func TestRegisterBuiltinModels(t *testing.T) {
+	goai.ClearModels()
+	t.Cleanup(goai.RegisterBuiltinModels)
 	goai.RegisterBuiltinModels()
 
 	// Check we have the current upstream-main catalog scope.
@@ -18,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total < 1059 {
-		t.Fatalf("expected at least 1059 generated models, got %d", total)
+	if total != 1057 {
+		t.Fatalf("expected exactly 1057 generated models, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -90,13 +92,11 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.6 metadata, got %#v", openRouterGLM52)
 	}
 
-	openAIGPT56 := goai.GetModel(goai.ProviderOpenAI, "gpt-5.6")
-	if openAIGPT56 == nil || openAIGPT56.Api != goai.ApiOpenAIResponses || openAIGPT56.Cost.Input != 5 || len(openAIGPT56.Cost.Tiers) != 1 || openAIGPT56.ContextWindow != 272000 {
-		t.Fatalf("expected OpenAI Responses gpt-5.6 current-main metadata, got %#v", openAIGPT56)
+	if openAIGPT56 := goai.GetModel(goai.ProviderOpenAI, "gpt-5.6"); openAIGPT56 != nil {
+		t.Fatalf("openai/gpt-5.6 is not present in exact upstream 0e6909f provider maps, got %#v", openAIGPT56)
 	}
-	azureGPT56 := goai.GetModel(goai.ProviderAzureOpenAI, "gpt-5.6")
-	if azureGPT56 == nil || azureGPT56.Api != goai.ApiAzureOpenAIResponses || azureGPT56.Cost.CacheWrite != 6.25 || azureGPT56.ContextWindow != 1050000 {
-		t.Fatalf("expected Azure OpenAI Responses gpt-5.6 current-main metadata, got %#v", azureGPT56)
+	if azureGPT56 := goai.GetModel(goai.ProviderAzureOpenAI, "gpt-5.6"); azureGPT56 != nil {
+		t.Fatalf("azure-openai-responses/gpt-5.6 is not present in exact upstream 0e6909f provider maps, got %#v", azureGPT56)
 	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")

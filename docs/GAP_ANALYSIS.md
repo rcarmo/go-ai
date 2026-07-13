@@ -14,7 +14,7 @@ Comparative audit (`@earendil-works/pi-ai v0.80.5` `cc62baa` → `v0.80.6` `2b3f
 - **Cost accounting**: adopted `ModelCost.Tiers` and highest-matching input-token-threshold pricing for request-wide cost calculation.
 - **OpenAI Responses usage**: adopted `cache_write_tokens` parsing and input-token subtraction semantics.
 - **Context estimation**: adopted prefix-aware assistant usage selection so older usage snapshots are ignored after newer prefix/summary messages.
-- **Generated registry**: regenerated text model metadata through current upstream-main `0e6909f050eeb15e8f6c05185511f3788357ddb3` (1059 models / 35 providers), including updated thinking maps, cost tiers, pricing, max-token caps, provider catalogs, and OpenAI/Azure OpenAI Responses `gpt-5.6`.
+- **Generated registry**: regenerated text model metadata through current upstream-main `0e6909f050eeb15e8f6c05185511f3788357ddb3` (1057 models / 35 providers), including updated thinking maps, cost tiers, pricing, max-token caps, and provider catalogs. Direct upstream-map comparison confirms OpenAI/Azure OpenAI Responses `gpt-5.6` are not present upstream and are intentionally absent.
 - **Port-specific Copilot UX bridge**: retained/adapted the Go helper surface for end-to-end Copilot OAuth, filtered model picking, context switching, and package side-effect registration. This is a Go API convenience layer over upstream behavior, not a dropped upstream feature.
 - **Not applicable**: upstream README/changelog/package metadata, JS generator implementation details after regeneration, lazy module-load packaging behavior, and JS credential-store/model-collection internals have no direct Go runtime equivalent.
 
