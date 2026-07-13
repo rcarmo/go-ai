@@ -131,6 +131,7 @@ go-ai/
 │       ├── openai/           # OpenAI Chat Completions + compatible APIs
 │       ├── anthropic/        # Anthropic Messages API
 │       ├── openairesponses/  # OpenAI Responses API + Azure OpenAI
+│       ├── githubcopilot/    # Aggregate Copilot registration (OAuth + transports)
 │       ├── openaicodex/      # OpenAI Codex (WebSocket + SSE)
 │       ├── google/           # Google Generative AI + Vertex AI
 │       ├── geminicli/        # Google Gemini CLI (Cloud Code Assist)
@@ -160,6 +161,7 @@ go-ai/
 ├── examples/            # Runnable usage examples
 │   ├── basic/           # Non-streaming completion
 │   ├── streaming/       # Real-time text output
+│   ├── copilot/         # GitHub Copilot OAuth, model picker, switching, streaming
 │   └── tools/           # Agent loop with tool calling
 │
 ├── scripts/             # Build and maintenance tooling
@@ -191,6 +193,7 @@ go-ai/
 | Amazon Bedrock | `bedrock-converse-stream` | ✅ Implemented |
 | Google Gemini CLI | `google-gemini-cli` | ✅ Implemented |
 | OpenAI Codex | `openai-codex-responses` | ✅ Implemented |
+| GitHub Copilot | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
 | Cloudflare Workers AI / AI Gateway | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
 | Moonshot AI | `openai-completions` | ✅ Implemented |
 | Xiaomi MiMo / Token Plan regions | `anthropic-messages` | ✅ Implemented |
@@ -206,6 +209,55 @@ go-ai/
 | Anthropic (auth code + PKCE) | ✅ Implemented |
 | OpenAI Codex (device flow) | ✅ Implemented |
 | Antigravity | 🔲 Planned |
+
+### GitHub Copilot end-to-end
+
+Import `inference/provider/githubcopilot` for side effects to register the Copilot OAuth provider and all Copilot transports. After login, persist the returned `oauth.Credentials`; on each run, pass the stored credentials through `oauth.RuntimeForGitHubCopilot` to refresh tokens if needed, apply account-specific model availability, and get the API token for `StreamOptions`.
+
+For UI/model switching flows, use the runtime helper methods:
+
+- `runtime.ModelPickerItems(goai.ProviderGitHubCopilot)` to render stable `provider/id` choices.
+- `runtime.SelectModel(...)` to resolve the selected item against the OAuth-filtered runtime model list.
+- `runtime.SwitchContextForModel(ctx, model)` before the next request to transform provider-specific transcript state for the newly selected model.
+- `runtime.StreamOptions()` to pass the refreshed Copilot API key to `goai.Stream` / `goai.Complete`.
+
+The lower-level `goai.ModelPickerItems`, `goai.ParseModelRef`, `goai.FindModelByRef`, and `goai.SwitchModel` helpers are available for non-OAuth providers and custom UI state. See `examples/copilot` for a complete CLI-shaped flow with OAuth callbacks, model selection, model switching, and streaming.
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    goai "github.com/rcarmo/go-ai"
+    _ "github.com/rcarmo/go-ai/inference/provider/githubcopilot"
+    "github.com/rcarmo/go-ai/oauth"
+)
+
+func runWithStoredCopilotCredentials(stored *oauth.Credentials) error {
+    runtime, err := oauth.RuntimeForGitHubCopilot(stored)
+    if err != nil {
+        return err
+    }
+    // Persist runtime.Credentials if it was refreshed.
+
+    model, err := runtime.SelectModel("github-copilot/gpt-5.4")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := &goai.Context{Messages: []goai.Message{goai.UserMessage("Say hello")}}
+    ctx = runtime.SwitchContextForModel(ctx, model)
+    events := goai.Stream(context.Background(), model, ctx, runtime.StreamOptions())
+    for event := range events {
+        if errEvent, ok := event.(*goai.ErrorEvent); ok {
+            return errEvent.Err
+        }
+    }
+    return nil
+}
+```
 
 ## Compatibility with pi-ai
 

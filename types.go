@@ -84,6 +84,7 @@ const (
 	ThinkingMedium  ThinkingLevel = "medium"
 	ThinkingHigh    ThinkingLevel = "high"
 	ThinkingXHigh   ThinkingLevel = "xhigh"
+	ThinkingMax     ThinkingLevel = "max"
 )
 
 // Role identifies the sender of a message.
@@ -284,10 +285,20 @@ type Context struct {
 
 // ModelCost holds per-million-token costs.
 type ModelCost struct {
-	Input      float64 `json:"input"`
-	Output     float64 `json:"output"`
-	CacheRead  float64 `json:"cacheRead"`
-	CacheWrite float64 `json:"cacheWrite"`
+	Input      float64         `json:"input"`
+	Output     float64         `json:"output"`
+	CacheRead  float64         `json:"cacheRead"`
+	CacheWrite float64         `json:"cacheWrite"`
+	Tiers      []ModelCostTier `json:"tiers,omitempty"`
+}
+
+// ModelCostTier overrides model costs when request input usage exceeds a threshold.
+type ModelCostTier struct {
+	InputTokensAbove int     `json:"inputTokensAbove"`
+	Input            float64 `json:"input"`
+	Output           float64 `json:"output"`
+	CacheRead        float64 `json:"cacheRead"`
+	CacheWrite       float64 `json:"cacheWrite"`
 }
 
 // Model identifies a specific LLM endpoint.

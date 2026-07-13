@@ -6,7 +6,7 @@ const (
 	minMaxTokens        = 1
 )
 
-var extendedThinkingLevels = []ModelThinkingLevel{ThinkingOff, ModelThinkingLevel(ThinkingMinimal), ModelThinkingLevel(ThinkingLow), ModelThinkingLevel(ThinkingMedium), ModelThinkingLevel(ThinkingHigh), ModelThinkingLevel(ThinkingXHigh)}
+var extendedThinkingLevels = []ModelThinkingLevel{ThinkingOff, ModelThinkingLevel(ThinkingMinimal), ModelThinkingLevel(ThinkingLow), ModelThinkingLevel(ThinkingMedium), ModelThinkingLevel(ThinkingHigh), ModelThinkingLevel(ThinkingXHigh), ModelThinkingLevel(ThinkingMax)}
 
 // ClampMaxTokensToContext limits maxTokens to the model's remaining context window.
 func ClampMaxTokensToContext(model *Model, ctx *Context, maxTokens int) int {
@@ -46,7 +46,7 @@ func ClampStreamMaxTokensPtr(model *Model, ctx *Context, opts *StreamOptions) *i
 
 // ClampReasoning downgrades xhigh to high for legacy callers that do not pass a model.
 func ClampReasoning(level ThinkingLevel) ThinkingLevel {
-	if level == ThinkingXHigh {
+	if level == ThinkingXHigh || level == ThinkingMax {
 		return ThinkingHigh
 	}
 	return level
@@ -66,7 +66,7 @@ func GetSupportedThinkingLevels(model *Model) []ModelThinkingLevel {
 		if ok && mapped == nil {
 			continue
 		}
-		if level == ModelThinkingLevel(ThinkingXHigh) && !ok {
+		if (level == ModelThinkingLevel(ThinkingXHigh) || level == ModelThinkingLevel(ThinkingMax)) && !ok {
 			continue
 		}
 		out = append(out, level)
@@ -190,11 +190,24 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 		longWrite = usage.CacheWrite
 	}
 	shortWrite := usage.CacheWrite - longWrite
+	rates := model.Cost
+	inputTokens := usage.Input + usage.CacheRead + usage.CacheWrite
+	matchedThreshold := -1
+	for _, tier := range model.Cost.Tiers {
+		if inputTokens > tier.InputTokensAbove && tier.InputTokensAbove > matchedThreshold {
+			rates.Input = tier.Input
+			rates.Output = tier.Output
+			rates.CacheRead = tier.CacheRead
+			rates.CacheWrite = tier.CacheWrite
+			matchedThreshold = tier.InputTokensAbove
+		}
+	}
+
 	c := CostBreakdown{
-		Input:      float64(usage.Input) * model.Cost.Input / m,
-		Output:     float64(usage.Output) * model.Cost.Output / m,
-		CacheRead:  float64(usage.CacheRead) * model.Cost.CacheRead / m,
-		CacheWrite: (float64(shortWrite)*model.Cost.CacheWrite + float64(longWrite)*model.Cost.Input*2) / m,
+		Input:      float64(usage.Input) * rates.Input / m,
+		Output:     float64(usage.Output) * rates.Output / m,
+		CacheRead:  float64(usage.CacheRead) * rates.CacheRead / m,
+		CacheWrite: (float64(shortWrite)*rates.CacheWrite + float64(longWrite)*rates.Input*2) / m,
 	}
 	c.Total = c.Input + c.Output + c.CacheRead + c.CacheWrite
 	return c

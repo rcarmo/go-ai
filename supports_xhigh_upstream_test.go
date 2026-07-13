@@ -52,12 +52,16 @@ func assertThinkingLevels(t *testing.T, model *goai.Model, want []string) {
 	}
 }
 
-func TestSupportsXHighIncludesXHighForAnthropicOpus46OnAnthropicMessagesAPI(t *testing.T) {
-	assertThinkingContains(t, requireModelForThinking(t, goai.ProviderAnthropic, "claude-opus-4-6"), "xhigh")
+func TestSupportsXHighIncludesMaxNotXHighForAnthropicOpus46OnAnthropicMessagesAPI(t *testing.T) {
+	model := requireModelForThinking(t, goai.ProviderAnthropic, "claude-opus-4-6")
+	assertThinkingContains(t, model, "max")
+	assertThinkingNotContains(t, model, "xhigh")
 }
 
-func TestSupportsXHighIncludesXHighForAnthropicOpus48OnAnthropicMessagesAPI(t *testing.T) {
-	assertThinkingContains(t, requireModelForThinking(t, goai.ProviderAnthropic, "claude-opus-4-8"), "xhigh")
+func TestSupportsXHighIncludesXHighAndMaxForAnthropicOpus48OnAnthropicMessagesAPI(t *testing.T) {
+	model := requireModelForThinking(t, goai.ProviderAnthropic, "claude-opus-4-8")
+	assertThinkingContains(t, model, "xhigh")
+	assertThinkingContains(t, model, "max")
 }
 
 func TestSupportsXHighIncludesXHighButNotOffForAnthropicClaudeFable5(t *testing.T) {
@@ -84,12 +88,12 @@ func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenRouterGPT55Pro(t *testin
 	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenRouter, "openai/gpt-5.5-pro"), []string{"medium", "high", "xhigh"})
 }
 
-func TestSupportsXHighIncludesOnlyHighXHighPlusOffForDeepSeekV4FlashOnDeepSeek(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "high", "xhigh"})
+func TestSupportsXHighIncludesOnlyHighMaxPlusOffForDeepSeekV4FlashOnDeepSeek(t *testing.T) {
+	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "high", "max"})
 }
 
-func TestSupportsXHighIncludesOnlyHighXHighPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenCodeGo, "deepseek-v4-flash"), []string{"off", "high", "xhigh"})
+func TestSupportsXHighIncludesOnlyHighMaxPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {
+	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenCodeGo, "deepseek-v4-flash"), []string{"off", "high", "max"})
 }
 
 func TestSupportsXHighIncludesOnlyHighPlusOffForOpenCodeGoKimiK26(t *testing.T) {
@@ -113,12 +117,15 @@ func TestSupportsXHighIncludesOnlyHighXHighPlusOffForDeepSeekV4FlashOnOpenRouter
 	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenRouter, "deepseek/deepseek-v4-flash"), []string{"off", "high", "xhigh"})
 }
 
-func TestSupportsXHighIncludesXHighForOpenRouterOpus46OpenAICompletionsAPI(t *testing.T) {
-	assertThinkingContains(t, requireModelForThinking(t, goai.ProviderOpenRouter, "anthropic/claude-opus-4.6"), "xhigh")
+func TestSupportsXHighIncludesMaxNotXHighForOpenRouterOpus46OpenAICompletionsAPI(t *testing.T) {
+	model := requireModelForThinking(t, goai.ProviderOpenRouter, "anthropic/claude-opus-4.6")
+	assertThinkingContains(t, model, "max")
+	assertThinkingNotContains(t, model, "xhigh")
 }
 
-func TestSupportsXHighIncludesXHighButNotOffForBedrockClaudeFable5(t *testing.T) {
+func TestSupportsXHighIncludesXHighAndMaxButNotOffForBedrockClaudeFable5(t *testing.T) {
 	model := requireModelForThinking(t, goai.ProviderAmazonBedrock, "global.anthropic.claude-fable-5")
 	assertThinkingContains(t, model, "xhigh")
+	assertThinkingContains(t, model, "max")
 	assertThinkingNotContains(t, model, "off")
 }

@@ -46,7 +46,7 @@ func TestFireworksModelsRegistersDefaultKimiK26ViaAnthropicCompatibleMessagesAPI
 		t.Fatalf("contextWindow/maxTokens=%d/%d, want 262000/262000", model.ContextWindow, model.MaxTokens)
 	}
 	wantCost := goai.ModelCost{Input: 0.95, Output: 4, CacheRead: 0.16, CacheWrite: 0}
-	if model.Cost != wantCost {
+	if !reflect.DeepEqual(model.Cost, wantCost) {
 		t.Fatalf("cost=%#v, want %#v", model.Cost, wantCost)
 	}
 }
@@ -116,7 +116,7 @@ func TestTogetherModelsRegistersDefaultKimiK26ViaOpenAICompatibleChatCompletions
 		t.Fatalf("contextWindow/maxTokens=%d/%d, want 262144/131000", model.ContextWindow, model.MaxTokens)
 	}
 	wantCost := goai.ModelCost{Input: 1.2, Output: 4.5, CacheRead: 0.2, CacheWrite: 0}
-	if model.Cost != wantCost {
+	if !reflect.DeepEqual(model.Cost, wantCost) {
 		t.Fatalf("cost=%#v, want %#v", model.Cost, wantCost)
 	}
 	compat := model.CompletionsCompat

@@ -42,8 +42,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	if deepseek.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingLow)] != nil {
 		t.Fatalf("expected DeepSeek low thinking level to be explicitly unsupported")
 	}
-	if v := deepseek.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)]; v == nil || *v != "max" {
-		t.Fatalf("expected DeepSeek xhigh to map to max, got %#v", v)
+	if v := deepseek.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)]; v == nil || *v != "max" {
+		t.Fatalf("expected DeepSeek max to map to max, got %#v", v)
 	}
 
 	copilot := firstModelMatching(goai.ProviderGitHubCopilot, func(m *goai.Model) bool {
@@ -79,8 +79,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.5 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.54 || openRouterGLM52.Cost.Output != 1.76 || openRouterGLM52.Cost.CacheRead != 0.1 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 101376 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.5 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.532 || openRouterGLM52.Cost.Output != 1.672 || openRouterGLM52.Cost.CacheRead != 0.0988 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.6 metadata, got %#v", openRouterGLM52)
 	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")

@@ -148,6 +148,74 @@ func TestGetAPIKeyKeepsValidCredential(t *testing.T) {
 	}
 }
 
+func TestRuntimeForProviderReturnsAPIKeyAndModels(t *testing.T) {
+	goai.ClearModels()
+	defer goai.RegisterBuiltinModels()
+
+	provider := &testOAuthProvider{}
+	RegisterProvider(provider)
+	runtime, err := RuntimeForProvider(provider.ID(), &Credentials{Access: "valid-token", Expires: time.Now().Add(time.Hour).UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.APIKey != "valid-token" {
+		t.Fatalf("APIKey = %q, want valid-token", runtime.APIKey)
+	}
+	if runtime.Credentials == nil || runtime.Credentials.Access != "valid-token" {
+		t.Fatalf("unexpected runtime credentials: %#v", runtime.Credentials)
+	}
+	if len(runtime.Models) == 0 {
+		t.Fatal("expected built-in models")
+	}
+}
+
+func TestRuntimeForProviderRejectsUnknownProvider(t *testing.T) {
+	if _, err := RuntimeForProvider("missing-provider", &Credentials{}); err == nil {
+		t.Fatal("expected unknown provider error")
+	}
+}
+
+func TestRuntimeCredentialsUIHelpers(t *testing.T) {
+	runtime := &RuntimeCredentials{
+		APIKey: "token",
+		Models: []*goai.Model{{ID: "gpt-5.4", Name: "GPT", Provider: goai.ProviderGitHubCopilot}},
+	}
+	if opts := runtime.StreamOptions(); opts == nil || opts.APIKey != "token" {
+		t.Fatalf("unexpected stream options: %#v", opts)
+	}
+	items := runtime.ModelPickerItems(goai.ProviderGitHubCopilot)
+	if len(items) != 1 || items[0] != "github-copilot/gpt-5.4" {
+		t.Fatalf("unexpected picker items: %#v", items)
+	}
+	model, err := runtime.SelectModel("github-copilot/gpt-5.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil || model.ID != "gpt-5.4" {
+		t.Fatalf("unexpected selected model: %#v", model)
+	}
+	if _, err := runtime.SelectModel("github-copilot/missing"); err == nil {
+		t.Fatal("expected unavailable model error")
+	}
+	ctx := runtime.SwitchContextForModel(&goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, model)
+	if ctx == nil || len(ctx.Messages) != 1 {
+		t.Fatalf("unexpected switched context: %#v", ctx)
+	}
+}
+
+func TestNilRuntimeCredentialsUIHelpersAreSafe(t *testing.T) {
+	var runtime *RuntimeCredentials
+	if opts := runtime.StreamOptions(); opts == nil || opts.APIKey != "" {
+		t.Fatalf("unexpected nil runtime stream options: %#v", opts)
+	}
+	if items := runtime.ModelPickerItems(goai.ProviderGitHubCopilot); items != nil {
+		t.Fatalf("unexpected nil runtime picker items: %#v", items)
+	}
+	if model := runtime.FindModel(goai.ModelRef{Provider: goai.ProviderGitHubCopilot, ID: "gpt-5.4"}); model != nil {
+		t.Fatalf("unexpected nil runtime model: %#v", model)
+	}
+}
+
 func TestOAuthRegistryRoundTrip(t *testing.T) {
 	// GitHub Copilot should be auto-registered via init()
 	p := GetProvider("github-copilot")

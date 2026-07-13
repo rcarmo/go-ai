@@ -830,7 +830,8 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					OutputTokens int `json:"output_tokens"`
 					TotalTokens  int `json:"total_tokens"`
 					InputDetails *struct {
-						CachedTokens int `json:"cached_tokens"`
+						CachedTokens     int `json:"cached_tokens"`
+						CacheWriteTokens int `json:"cache_write_tokens"`
 					} `json:"input_tokens_details"`
 				} `json:"usage"`
 			}
@@ -841,13 +842,20 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			}
 			if resp.Usage != nil {
 				cached := 0
+				cacheWrite := 0
 				if resp.Usage.InputDetails != nil {
 					cached = resp.Usage.InputDetails.CachedTokens
+					cacheWrite = resp.Usage.InputDetails.CacheWriteTokens
+				}
+				input := resp.Usage.InputTokens - cached - cacheWrite
+				if input < 0 {
+					input = 0
 				}
 				partial.Usage = &goai.Usage{
-					Input:       resp.Usage.InputTokens - cached,
+					Input:       input,
 					Output:      resp.Usage.OutputTokens,
 					CacheRead:   cached,
+					CacheWrite:  cacheWrite,
 					TotalTokens: resp.Usage.TotalTokens,
 				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)

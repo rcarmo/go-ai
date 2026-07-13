@@ -2,9 +2,29 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.80.2
+## Source: `@earendil-works/pi-ai` v0.80.6
 
 ## Sync history
+
+### v0.80.6 (2026-07-13)
+
+Comparative audit (`@earendil-works/pi-ai v0.80.5` `cc62baa` → `v0.80.6` `2b3fda9921b5590f285165287bd442a25817f17b`) found:
+
+- **Thinking levels**: adopted upstream `max` as a first-class `ThinkingLevel`, updated supported-level filtering, clamped simple reasoning `max` to `high`, and refreshed deterministic `max`/`xhigh` parity tests.
+- **Cost accounting**: adopted `ModelCost.Tiers` and highest-matching input-token-threshold pricing for request-wide cost calculation.
+- **OpenAI Responses usage**: adopted `cache_write_tokens` parsing and input-token subtraction semantics.
+- **Context estimation**: adopted prefix-aware assistant usage selection so older usage snapshots are ignored after newer prefix/summary messages.
+- **Generated registry**: regenerated text model metadata from upstream v0.80.6 (1057 models / 35 providers), including updated thinking maps, cost tiers, pricing, max-token caps, and provider catalogs.
+- **Port-specific Copilot UX bridge**: retained/adapted the Go helper surface for end-to-end Copilot OAuth, filtered model picking, context switching, and package side-effect registration. This is a Go API convenience layer over upstream behavior, not a dropped upstream feature.
+- **Not applicable**: upstream README/changelog/package metadata, JS generator implementation details after regeneration, lazy module-load packaging behavior, and JS credential-store/model-collection internals have no direct Go runtime equivalent.
+
+Actions:
+
+- Regenerated `models_generated.go` from upstream v0.80.6.
+- Added/updated regression tests for `max` thinking support, tiered costs, context estimation, Responses cache-write usage, generated metadata, and GitHub Copilot runtime helpers.
+- Ran deterministic full tests, vet, staticcheck, logging gate, and race tests.
+
+Result: upstream v0.80.6 is fully synced in Go; no open Go-facing gap remains.
 
 ### v0.80.2 (2026-06-23)
 

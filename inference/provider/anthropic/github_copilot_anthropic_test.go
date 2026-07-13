@@ -24,6 +24,9 @@ func TestGitHubCopilotAnthropicAppliesAdaptiveThinkingEffortOverrides(t *testing
 	if got := opus47.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)]; got == nil || *got != "xhigh" {
 		t.Fatalf("opus47 xhigh=%v, want xhigh", got)
 	}
+	if got := opus47.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)]; got == nil || *got != "max" {
+		t.Fatalf("opus47 max=%v, want max", got)
+	}
 	if !goai.SupportsXhigh(opus47) {
 		t.Fatal("opus47 should support xhigh")
 	}
@@ -35,11 +38,11 @@ func TestGitHubCopilotAnthropicAppliesAdaptiveThinkingEffortOverrides(t *testing
 	if got := sonnet46.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMinimal)]; got == nil || *got != "low" {
 		t.Fatalf("sonnet46 minimal=%v, want low", got)
 	}
-	if got := sonnet46.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)]; got == nil || *got != "max" {
-		t.Fatalf("sonnet46 xhigh=%v, want max", got)
+	if got := sonnet46.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)]; got == nil || *got != "max" {
+		t.Fatalf("sonnet46 max=%v, want max", got)
 	}
-	if !goai.SupportsXhigh(sonnet46) {
-		t.Fatal("sonnet46 should support xhigh")
+	if goai.SupportsXhigh(sonnet46) {
+		t.Fatal("sonnet46 should not support xhigh")
 	}
 }
 

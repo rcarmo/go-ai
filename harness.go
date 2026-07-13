@@ -181,20 +181,29 @@ func EstimateContextTokens(ctx *Context) ContextUsageEstimate {
 	if ctx == nil {
 		return ContextUsageEstimate{}
 	}
-	for i := len(ctx.Messages) - 1; i >= 0; i-- {
-		msg := ctx.Messages[i]
-		if msg.Role != RoleAssistant || msg.StopReason == StopReasonAborted || msg.StopReason == StopReasonError {
-			continue
+	latestPrefixTimestamp := int64(-1 << 63)
+	lastUsageIndex := -1
+	usageTokens := 0
+	for i, msg := range ctx.Messages {
+		if msg.Role == RoleAssistant {
+			usageAppliesToPrefix := msg.Timestamp >= latestPrefixTimestamp
+			if usageAppliesToPrefix && msg.StopReason != StopReasonAborted && msg.StopReason != StopReasonError {
+				if tokens := CalculateContextTokens(msg.Usage); tokens > 0 {
+					lastUsageIndex = i
+					usageTokens = tokens
+				}
+			}
 		}
-		usageTokens := CalculateContextTokens(msg.Usage)
-		if usageTokens <= 0 {
-			continue
+		if msg.Timestamp > latestPrefixTimestamp {
+			latestPrefixTimestamp = msg.Timestamp
 		}
+	}
+	if lastUsageIndex >= 0 {
 		trailing := 0
-		for j := i + 1; j < len(ctx.Messages); j++ {
+		for j := lastUsageIndex + 1; j < len(ctx.Messages); j++ {
 			trailing += EstimateMessageTokens(ctx.Messages[j])
 		}
-		idx := i
+		idx := lastUsageIndex
 		return ContextUsageEstimate{Tokens: usageTokens + trailing, UsageTokens: usageTokens, TrailingTokens: trailing, LastUsageIndex: &idx}
 	}
 

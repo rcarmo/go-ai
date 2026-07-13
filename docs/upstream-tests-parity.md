@@ -1,17 +1,17 @@
-# Upstream test-for-test parity checklist — pi-ai cc62baa / v0.80.5
+# Upstream test-for-test parity checklist — pi-ai 2b3fda9921b5590f285165287bd442a25817f17b / v0.80.6
 
-Canonical source: `github.com/earendil-works/pi` at commit `cc62baa` (`packages/ai`).
+Canonical source: `github.com/earendil-works/pi` at commit `2b3fda9921b5590f285165287bd442a25817f17b` (`packages/ai`).
 
-Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **92** `packages/ai/**/*.test.ts` files at this commit. The previous v0.80.3 baseline had 90 files; v0.80.5 adds `lax-message-content.test.ts` and `openai-responses-empty-tool-result.test.ts`, and changes assertions in 11 existing files: `fireworks-models.test.ts`, `github-copilot-oauth.test.ts`, `oauth-device-code.test.ts`, `openai-codex-stream.test.ts`, `openai-completions-tool-result-images.test.ts`, `openai-responses-copilot-provider.test.ts`, `openai-responses-tool-result-images.test.ts`, `overflow.test.ts`, `retry.test.ts`, `supports-xhigh.test.ts`, and `xiaomi-models.test.ts`.
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. I find **94** `packages/ai/**/*.test.ts` files at this commit. Relative to v0.80.5, v0.80.6 adds `context-estimate.test.ts` and `max-thinking.test.ts`, and changes assertions in `anthropic-empty-thinking-signature-compat.test.ts`, `github-copilot-anthropic.test.ts`, `models-runtime.test.ts`, `openai-completions-tool-choice.test.ts`, `openai-responses-copilot-provider.test.ts`, `openai-responses-terminal-event.test.ts`, and `supports-xhigh.test.ts`.
 
 Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, or JS-only packaging behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks; **TODO** = deterministic upstream file not yet ported name-for-name. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 68 files
+- DETERMINISTIC-PORTED: 70 files
 - N/A credential/live/JS-runtime files: 24 files
 - TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 92 / 92 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 94 / 94 files
 
 ## Test files
 
