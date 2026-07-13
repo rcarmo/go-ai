@@ -45,6 +45,7 @@ var claudeCodeToolCanonicalNames = map[string]string{
 type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
 	supportsLongCacheRetention      bool
+	supportsToolReferences          bool
 	forceAdaptiveThinking           bool
 	allowEmptySignature             bool
 }
@@ -53,6 +54,7 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 	c := anthropicCompat{
 		supportsEagerToolInputStreaming: true,
 		supportsLongCacheRetention:      true,
+		supportsToolReferences:          strings.Contains(model.ID, "opus-4-6") || strings.Contains(model.ID, "opus-4-7") || strings.Contains(model.ID, "opus-4-8"),
 	}
 	if model.AnthropicCompat != nil {
 		if model.AnthropicCompat.SupportsEagerToolInputStreaming != nil {
@@ -60,6 +62,9 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		}
 		if model.AnthropicCompat.SupportsLongCacheRetention != nil {
 			c.supportsLongCacheRetention = *model.AnthropicCompat.SupportsLongCacheRetention
+		}
+		if model.AnthropicCompat.SupportsToolReferences != nil {
+			c.supportsToolReferences = *model.AnthropicCompat.SupportsToolReferences
 		}
 		if model.AnthropicCompat.ForceAdaptiveThinking != nil {
 			c.forceAdaptiveThinking = *model.AnthropicCompat.ForceAdaptiveThinking
@@ -309,7 +314,7 @@ type anthropicContentBlock struct {
 	Name         string          `json:"name,omitempty"`
 	Input        json.RawMessage `json:"input,omitempty"`
 	ToolUseID    string          `json:"tool_use_id,omitempty"`
-	Content      string          `json:"content,omitempty"`
+	Content      interface{}     `json:"content,omitempty"`
 	IsError      bool            `json:"is_error,omitempty"`
 	CacheControl *cacheControl   `json:"cache_control,omitempty"`
 	Thinking     string          `json:"thinking,omitempty"`
@@ -336,6 +341,7 @@ type anthropicTool struct {
 	InputSchema         json.RawMessage `json:"input_schema"`
 	CacheControl        *cacheControl   `json:"cache_control,omitempty"`
 	EagerInputStreaming *bool           `json:"eager_input_streaming,omitempty"`
+	DeferLoading        bool            `json:"defer_loading,omitempty"`
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) anthropicRequest {
@@ -404,6 +410,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Convert messages with cross-provider normalization
 	transformed := goai.TransformMessages(convCtx.Messages, model)
+	compatForDeferred := getAnthropicCompat(model)
+	canonicalizeOAuthTools := opts != nil && strings.HasPrefix(opts.APIKey, "sk-ant-oat-")
+	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolReferences, canonicalizeOAuthTools)
 	toolCallIDMap := make(map[string]string) // original → normalized
 	for _, m := range transformed {
 		switch m.Role {
@@ -485,22 +494,45 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			if mapped, ok := toolCallIDMap[toolUseID]; ok {
 				toolUseID = mapped
 			}
-			req.Messages = append(req.Messages, anthropicMessage{
-				Role: "user",
-				Content: []anthropicContentBlock{{
-					Type:      "tool_result",
-					ToolUseID: toolUseID,
-					Content:   extractText(m.Content),
-					IsError:   m.IsError,
-				}},
-			})
+			refs := goai.DeferredToolsForMarker(deferredPlan, m.AddedToolNames, canonicalizeOAuthTools)
+			resultContent := interface{}(extractText(m.Content))
+			if len(refs) > 0 {
+				var refBlocks []map[string]string
+				for _, t := range refs {
+					refBlocks = append(refBlocks, map[string]string{"type": "tool_reference", "tool_name": toClaudeCodeToolName(t.Name, model)})
+				}
+				resultContent = refBlocks
+			}
+			blocks := []anthropicContentBlock{{Type: "tool_result", ToolUseID: toolUseID, Content: resultContent, IsError: m.IsError}}
+			if len(refs) > 0 {
+				for _, b := range m.Content {
+					switch b.Type {
+					case "text":
+						if strings.TrimSpace(b.Text) != "" {
+							blocks = append(blocks, anthropicContentBlock{Type: "text", Text: b.Text})
+						}
+					case "image":
+						blocks = append(blocks, anthropicContentBlock{Type: "image", Source: &anthropicImageSource{Type: "base64", MediaType: b.MimeType, Data: b.Data}})
+					}
+				}
+			}
+			req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: blocks})
 		}
 	}
 
 	// Convert tools
 	cc := resolveCacheControl(model, opts)
 	compatForTools := getAnthropicCompat(model)
-	for i, t := range convCtx.Tools {
+	activeTools := append([]goai.Tool{}, deferredPlan.Immediate...)
+	activeTools = append(activeTools, deferredPlan.Deferred...)
+	if len(activeTools) == 0 {
+		activeTools = convCtx.Tools
+	}
+	deferredNames := map[string]bool{}
+	for _, t := range deferredPlan.Deferred {
+		deferredNames[t.Name] = true
+	}
+	for i, t := range activeTools {
 		tool := anthropicTool{
 			Name:        toClaudeCodeToolName(t.Name, model),
 			Description: t.Description,
@@ -509,7 +541,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		if compatForTools.supportsEagerToolInputStreaming {
 			tool.EagerInputStreaming = boolPtr(true)
 		}
-		if cc != nil && i == len(convCtx.Tools)-1 {
+		if deferredNames[t.Name] {
+			tool.DeferLoading = true
+		}
+		if cc != nil && i == len(activeTools)-1 {
 			tool.CacheControl = cc
 		}
 		req.Tools = append(req.Tools, tool)

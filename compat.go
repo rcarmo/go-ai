@@ -87,10 +87,16 @@ type OpenAIResponsesCompat struct {
 
 	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
+
+	// Whether the provider supports client-side deferred tool loading through tool_search_call/output.
+	SupportsToolSearch *bool `json:"supportsToolSearch,omitempty"`
 }
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
 type AnthropicMessagesCompat struct {
+	// Whether the provider supports deferred tool definitions via tool_reference blocks.
+	SupportsToolReferences *bool `json:"supportsToolReferences,omitempty"`
+
 	// Whether the provider accepts per-tool eager_input_streaming.
 	// When false, the provider sends the legacy fine-grained-tool-streaming beta header.
 	// Default: true.

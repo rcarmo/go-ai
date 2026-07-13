@@ -201,7 +201,9 @@ func EstimateContextTokens(ctx *Context) ContextUsageEstimate {
 	if lastUsageIndex >= 0 {
 		trailing := 0
 		for j := lastUsageIndex + 1; j < len(ctx.Messages); j++ {
-			trailing += EstimateMessageTokens(ctx.Messages[j])
+			msg := ctx.Messages[j]
+			trailing += EstimateMessageTokens(msg)
+			trailing += estimateAddedToolDefinitions(ctx, msg)
 		}
 		idx := lastUsageIndex
 		return ContextUsageEstimate{Tokens: usageTokens + trailing, UsageTokens: usageTokens, TrailingTokens: trailing, LastUsageIndex: &idx}
@@ -210,6 +212,7 @@ func EstimateContextTokens(ctx *Context) ContextUsageEstimate {
 	trailing := 0
 	for _, msg := range ctx.Messages {
 		trailing += EstimateMessageTokens(msg)
+		trailing += estimateAddedToolDefinitions(ctx, msg)
 	}
 	prefix := EstimateTextTokens(ctx.SystemPrompt)
 	if len(ctx.Tools) > 0 {
@@ -217,6 +220,29 @@ func EstimateContextTokens(ctx *Context) ContextUsageEstimate {
 		prefix += EstimateTextTokens(string(toolsJSON))
 	}
 	return ContextUsageEstimate{Tokens: trailing + prefix, TrailingTokens: trailing + prefix}
+}
+
+func estimateAddedToolDefinitions(ctx *Context, msg Message) int {
+	if msg.Role != RoleToolResult || len(msg.AddedToolNames) == 0 || ctx == nil || len(ctx.Tools) == 0 {
+		return 0
+	}
+	byName := map[string]Tool{}
+	for _, t := range ctx.Tools {
+		byName[t.Name] = t
+	}
+	var tools []Tool
+	seen := map[string]bool{}
+	for _, name := range msg.AddedToolNames {
+		if t, ok := byName[name]; ok && !seen[name] {
+			tools = append(tools, t)
+			seen[name] = true
+		}
+	}
+	if len(tools) == 0 {
+		return 0
+	}
+	toolsJSON, _ := json.Marshal(tools)
+	return EstimateTextTokens(string(toolsJSON))
 }
 
 // EstimateTokens provides a rough token count estimate for a context.

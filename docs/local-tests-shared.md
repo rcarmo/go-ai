@@ -6,23 +6,20 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **203**
-- Amazon Bedrock provider: 12
-- Anthropic Messages provider: 8
-- Core API / harness / transforms / utilities: 105
+- Local Go test functions inventoried: **457**
+- Amazon Bedrock provider: 21
+- Anthropic Messages provider: 47
+- Core API / harness / transforms / utilities: 212
 - Faux test provider: 10
 - Gemini CLI provider: 1
-- Google / Vertex provider: 5
-- Image generation / OpenRouter images: 7
-- Mistral provider: 2
-- Model registry/metadata: 3
-- OAuth providers: 8
-- OpenAI Chat Completions provider: 9
-- OpenAI Codex transport/provider: 11
-- OpenAI/Azure Responses provider: 11
-- Retry/helper and HTTP proxy: 8
-- SSE transport: 4
-- Streaming/partial JSON parser: 3
+- Google / Vertex provider: 34
+- Image generation / OpenRouter images: 11
+- Mistral provider: 10
+- OAuth providers: 15
+- OpenAI Chat Completions provider: 33
+- OpenAI Codex transport/provider: 17
+- OpenAI/Azure Responses provider: 30
+- Retry/helper and HTTP proxy: 16
 
 ## Shareable conformance corpus adopted from rs-ai/swift-ai
 
@@ -37,6 +34,8 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - v0.80.5 lax untyped-history content handling is covered by `lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
 - v0.80.5 OpenAI Responses empty tool-result behavior is covered by `inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go`: blank text-only tool outputs serialize as `(no tool output)` without image-placeholder text.
 - v0.80.5 in-place behavior deltas are covered beyond file-count accounting: Codex SSE zstd request compression at level 3, Codex cached WebSocket 55m age recycling, DS4 overflow wording, retryable `524`/Bun socket-drop/`ResourceExhausted` errors, OAuth `slow_down.interval` semantics, and OpenAI Completions `(no tool output)` blank tool-result placeholders.
+- Reopened upstream 96-file parity is covered for `deferred-tools.test.ts` by core deferred-tool planning tests, Anthropic `defer_loading`/`tool_reference` request and replay tests, and OpenAI Responses `tool_search` request/output tests.
+- Upstream `azure-openai-responses-reasoning-replay.test.ts` is covered by deterministic Azure Responses stream tests that preserve `output_item.done` encrypted reasoning content and backfill missing content from `response.completed.output`.
 
 ## Tests
 

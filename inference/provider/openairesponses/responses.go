@@ -191,10 +191,11 @@ type reasoningConfig struct {
 }
 
 type toolDef struct {
-	Type        string          `json:"type"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"`
+	Type         string          `json:"type"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description,omitempty"`
+	Parameters   json.RawMessage `json:"parameters,omitempty"`
+	DeferLoading bool            `json:"defer_loading,omitempty"`
 }
 
 func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (baseURL string, deploymentName string, apiVersion string, err error) {
@@ -294,8 +295,20 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 	}
 
+	compatForDeferred := getResponsesCompat(model)
+	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolSearch, false)
+
 	// Convert messages to Responses API input format
 	input := convertMessages(model, convCtx)
+	if deferredPlan.HasDeferred() {
+		callID := "tool_search_1"
+		input = append(input, map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed"})
+		var searched []toolDef
+		for _, t := range deferredPlan.Deferred {
+			searched = append(searched, toolDef{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters, DeferLoading: true})
+		}
+		input = append(input, map[string]interface{}{"type": "tool_search_output", "call_id": callID, "execution": "client", "status": "completed", "tools": searched})
+	}
 	if model.Api == goai.ApiAzureOpenAIResponses {
 		limited := goai.ApplyToolCallLimit(input, goai.DefaultToolCallLimitConfig())
 		input = limited.Messages
@@ -304,7 +317,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	req.Input = inputJSON
 
 	// Convert tools
-	for _, t := range convCtx.Tools {
+	activeTools := deferredPlan.Immediate
+	if len(activeTools) == 0 && !deferredPlan.HasDeferred() {
+		activeTools = convCtx.Tools
+	}
+	for _, t := range activeTools {
 		req.Tools = append(req.Tools, toolDef{
 			Type:        "function",
 			Name:        t.Name,
@@ -371,12 +388,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 type responsesCompat struct {
 	sendSessionIdHeader        bool
 	supportsLongCacheRetention bool
+	supportsToolSearch         bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
 	c := responsesCompat{
 		sendSessionIdHeader:        true,
 		supportsLongCacheRetention: true,
+		supportsToolSearch:         model != nil && (model.ID == "gpt-5.4" || strings.HasPrefix(model.ID, "gpt-5.4-")),
 	}
 	if goai.IsCloudflareProvider(model.Provider) {
 		c.supportsLongCacheRetention = false
@@ -387,6 +406,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		}
 		if model.ResponsesCompat.SupportsLongCacheRetention != nil {
 			c.supportsLongCacheRetention = *model.ResponsesCompat.SupportsLongCacheRetention
+		}
+		if model.ResponsesCompat.SupportsToolSearch != nil {
+			c.supportsToolSearch = *model.ResponsesCompat.SupportsToolSearch
 		}
 	}
 	return c
@@ -823,8 +845,9 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 		case "response.completed":
 			var resp struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
+				ID     string            `json:"id"`
+				Status string            `json:"status"`
+				Output []json.RawMessage `json:"output"`
 				Usage  *struct {
 					InputTokens  int `json:"input_tokens"`
 					OutputTokens int `json:"output_tokens"`
@@ -840,6 +863,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			if resp.ID != "" {
 				partial.ResponseID = resp.ID
 			}
+			backfillReasoningEncryptedContent(partial, resp.Output)
 			if resp.Usage != nil {
 				cached := 0
 				cacheWrite := 0
@@ -907,6 +931,44 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+}
+
+func backfillReasoningEncryptedContent(partial *goai.Message, output []json.RawMessage) {
+	if partial == nil || len(output) == 0 {
+		return
+	}
+	byID := make(map[string]string)
+	for _, raw := range output {
+		var item map[string]interface{}
+		if json.Unmarshal(raw, &item) != nil || item["type"] != "reasoning" {
+			continue
+		}
+		id, _ := item["id"].(string)
+		enc, _ := item["encrypted_content"].(string)
+		if id != "" && enc != "" {
+			byID[id] = enc
+		}
+	}
+	if len(byID) == 0 {
+		return
+	}
+	for i := range partial.Content {
+		block := &partial.Content[i]
+		if block.Type != "thinking" || block.ThinkingSignature == "" || strings.Contains(block.ThinkingSignature, "encrypted_content") {
+			continue
+		}
+		var item map[string]interface{}
+		if json.Unmarshal([]byte(block.ThinkingSignature), &item) != nil {
+			continue
+		}
+		id, _ := item["id"].(string)
+		if enc := byID[id]; enc != "" {
+			item["encrypted_content"] = enc
+			if b, err := json.Marshal(item); err == nil {
+				block.ThinkingSignature = string(b)
+			}
+		}
+	}
 }
 
 func mapStatus(status string) goai.StopReason {

@@ -249,10 +249,11 @@ type Message struct {
 	ErrorMessage  string                       `json:"errorMessage,omitempty"`
 
 	// ToolResult-only fields
-	ToolCallID string `json:"toolCallId,omitempty"`
-	ToolName   string `json:"toolName,omitempty"`
-	IsError    bool   `json:"isError,omitempty"`
-	Details    any    `json:"details,omitempty"`
+	ToolCallID     string   `json:"toolCallId,omitempty"`
+	ToolName       string   `json:"toolName,omitempty"`
+	AddedToolNames []string `json:"addedToolNames,omitempty"`
+	IsError        bool     `json:"isError,omitempty"`
+	Details        any      `json:"details,omitempty"`
 }
 
 // UserMessage creates a simple text user message.
