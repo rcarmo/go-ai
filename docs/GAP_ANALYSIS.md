@@ -9,7 +9,7 @@ All gaps from the original analysis have been addressed.
 
 ### v0.80.7 (2026-07-14)
 
-Comparative audit (`0e6909f050eeb15e8f6c05185511f3788357ddb3` → `v0.80.7` / `818d67457cdd6b60bce6b121d16b23141c252dd8`) found 25 changed `packages/ai` paths. Adopted Go-facing changes: regenerated text model metadata to 1065 models / 35 providers, added exported `ApiPiMessages` metadata constant, and ported the public `pi-messages`/Radius runtime backend for custom providers. The backend covers API-key/env resolution, `POST /messages`, debug query support, headers/hooks, SSE text/thinking/tool/error/done conversion, rewrite/response diagnostics, missing-key and missing-terminal errors, and cancellation/resource cleanup. Radius OAuth helper remains out of scope for the Go runtime. Image catalog unchanged. No open Go-facing gap remains.
+Comparative audit (`0e6909f050eeb15e8f6c05185511f3788357ddb3` → `v0.80.7` / `818d67457cdd6b60bce6b121d16b23141c252dd8`) found 25 changed `packages/ai` paths. Adopted Go-facing changes: regenerated text model metadata to 1065 models / 35 providers, added exported `ApiPiMessages` metadata constant, ported the public `pi-messages`/Radius runtime backend for custom providers, and ported Radius OAuth into the public `oauth` package. The backend covers API-key/env resolution, `POST /messages`, debug query support, headers/hooks, SSE text/thinking/tool/error/done conversion, rewrite/response diagnostics, missing-key and missing-terminal errors, and cancellation/resource cleanup. Radius OAuth covers gateway `/v1/oauth` discovery, device-code token exchange, refresh, `/v1/config` catalog caching/model injection, previous-cache fallback, and typed OAuth errors. Image catalog unchanged. No open Go-facing gap remains.
 
 ### v0.80.6 (2026-07-13)
 

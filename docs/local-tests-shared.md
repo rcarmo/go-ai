@@ -6,7 +6,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **457**
+- Local Go test functions inventoried: **464**
 - Amazon Bedrock provider: 21
 - Anthropic Messages provider: 47
 - Core API / harness / transforms / utilities: 212
@@ -15,10 +15,11 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Google / Vertex provider: 34
 - Image generation / OpenRouter images: 11
 - Mistral provider: 10
-- OAuth providers: 15
+- OAuth providers: 19
 - OpenAI Chat Completions provider: 33
 - OpenAI Codex transport/provider: 17
 - OpenAI/Azure Responses provider: 30
+- Pi Messages provider: 3
 - Retry/helper and HTTP proxy: 16
 
 ## Shareable conformance corpus adopted from rs-ai/swift-ai
@@ -36,6 +37,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - v0.80.5 in-place behavior deltas are covered beyond file-count accounting: Codex SSE zstd request compression at level 3, Codex cached WebSocket 55m age recycling, DS4 overflow wording, retryable `524`/Bun socket-drop/`ResourceExhausted` errors, OAuth `slow_down.interval` semantics, and OpenAI Completions `(no tool output)` blank tool-result placeholders.
 - Reopened upstream 96-file parity is covered for `deferred-tools.test.ts` by core deferred-tool planning tests, Anthropic `defer_loading`/`tool_reference` request and replay tests, and OpenAI Responses `tool_search` request/output tests.
 - Upstream `azure-openai-responses-reasoning-replay.test.ts` is covered by deterministic Azure Responses stream tests that preserve `output_item.done` encrypted reasoning content and backfill missing content from `response.completed.output`.
+- v0.80.7 Radius OAuth parity is covered by `oauth/radius_test.go`: local-server tests exercise `/v1/oauth` discovery, device authorization, token refresh, `/v1/config` catalog caching/model injection, previous-config fallback, and typed OAuth errors.
 
 ## Tests
 
