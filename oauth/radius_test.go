@@ -1,12 +1,14 @@
 package oauth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,3 +167,149 @@ func findModel(models []*goai.Model, id string) *goai.Model {
 	}
 	return nil
 }
+
+func TestRadiusOAuthLoginWithDeviceCodePollsToSuccess(t *testing.T) {
+	server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusOK, body: map[string]interface{}{"access_token": "access-login", "refresh_token": "refresh-login", "expires_in": 3600}}})
+	provider := NewRadiusProvider(RadiusProviderOptions{Gateway: server.URL, Client: server.Client()})
+	provider.pollWait = immediateRadiusPollWait
+	oauthCfg, err := provider.loadOAuthConfig(t.Context())
+	if err != nil {
+		t.Fatalf("load oauth: %v", err)
+	}
+	var auth AuthInfo
+	creds, err := provider.loginWithDeviceCode(t.Context(), oauthCfg, LoginCallbacks{OnAuth: func(info AuthInfo) { auth = info }})
+	if err != nil {
+		t.Fatalf("loginWithDeviceCode: %v", err)
+	}
+	if creds.Access != "access-login" || auth.URL != server.URL+"/verify?user_code=USER-1" || !strings.Contains(auth.Instructions, "USER-1") {
+		t.Fatalf("unexpected login result creds=%#v auth=%#v", creds, auth)
+	}
+}
+
+func TestRadiusOAuthPollDeviceTokenPendingThenSuccess(t *testing.T) {
+	server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusBadRequest, body: map[string]string{"error": "authorization_pending"}}, {status: http.StatusOK, body: map[string]interface{}{"access_token": "access-after-pending", "refresh_token": "refresh", "expires_in": 3600}}})
+	provider, oauthCfg := newRadiusPollProvider(t, server)
+	creds, err := provider.pollDeviceToken(t.Context(), oauthCfg, radiusTestDevice())
+	if err != nil {
+		t.Fatalf("pollDeviceToken: %v", err)
+	}
+	if creds.Access != "access-after-pending" {
+		t.Fatalf("unexpected creds: %#v", creds)
+	}
+}
+
+func TestRadiusOAuthPollDeviceTokenSlowDownThenSuccess(t *testing.T) {
+	server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusBadRequest, body: map[string]string{"error": "slow_down"}}, {status: http.StatusOK, body: map[string]interface{}{"access_token": "access-after-slow", "refresh_token": "refresh", "expires_in": 3600}}})
+	provider, oauthCfg := newRadiusPollProvider(t, server)
+	var intervals []time.Duration
+	provider.pollWait = func(ctx context.Context, d time.Duration) error {
+		intervals = append(intervals, d)
+		return nil
+	}
+	creds, err := provider.pollDeviceToken(t.Context(), oauthCfg, radiusTestDevice())
+	if err != nil {
+		t.Fatalf("pollDeviceToken: %v", err)
+	}
+	if creds.Access != "access-after-slow" || len(intervals) != 2 || intervals[0] != 5*time.Second || intervals[1] != 10*time.Second {
+		t.Fatalf("unexpected slow_down result creds=%#v intervals=%v", creds, intervals)
+	}
+}
+
+func TestRadiusOAuthPollDeviceTokenTerminalErrors(t *testing.T) {
+	for _, tc := range []struct{ name, oauthError, want string }{
+		{"expired", "expired_token", "device authorization expired"},
+		{"denied", "access_denied", "device authorization was denied"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusBadRequest, body: map[string]string{"error": tc.oauthError, "error_description": "terminal"}}})
+			provider, oauthCfg := newRadiusPollProvider(t, server)
+			_, err := provider.pollDeviceToken(t.Context(), oauthCfg, radiusTestDevice())
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+func TestRadiusOAuthPollDeviceTokenContextCancellationAndDeadline(t *testing.T) {
+	t.Run("cancelled before request", func(t *testing.T) {
+		server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusOK, body: map[string]interface{}{"access_token": "never", "expires_in": 3600}}})
+		provider, oauthCfg := newRadiusPollProvider(t, server)
+		ctx, cancel := context.WithCancel(t.Context())
+		provider.pollWait = func(context.Context, time.Duration) error {
+			cancel()
+			return ctx.Err()
+		}
+		_, err := provider.pollDeviceToken(ctx, oauthCfg, radiusTestDevice())
+		if err == nil || !errors.Is(err, context.Canceled) || server.polls() != 0 {
+			t.Fatalf("expected cancellation before polling request, polls=%d err=%v", server.polls(), err)
+		}
+	})
+	t.Run("deadline", func(t *testing.T) {
+		server := newRadiusPollServer(t, []radiusPollResponse{{status: http.StatusOK, body: map[string]interface{}{"access_token": "never", "expires_in": 3600}}})
+		provider, oauthCfg := newRadiusPollProvider(t, server)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+		defer cancel()
+		provider.pollWait = waitRadiusPollInterval
+		_, err := provider.pollDeviceToken(ctx, oauthCfg, radiusTestDevice())
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) || server.polls() != 0 {
+			t.Fatalf("expected deadline before polling request, polls=%d err=%v", server.polls(), err)
+		}
+	})
+}
+
+type radiusPollResponse struct {
+	status int
+	body   interface{}
+}
+
+type radiusPollServer struct {
+	*httptest.Server
+	pollCount int
+}
+
+func newRadiusPollServer(t *testing.T, responses []radiusPollResponse) *radiusPollServer {
+	t.Helper()
+	state := &radiusPollServer{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/oauth", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, map[string]interface{}{"issuer": state.URL, "authorizationEndpoint": state.URL + "/authorize", "tokenEndpoint": state.URL + "/token", "deviceAuthorizationEndpoint": state.URL + "/device", "verificationEndpoint": state.URL + "/verify", "clientId": "radius-client", "scope": "openid radius", "deviceCodeGrantType": radiusDeviceGrant})
+	})
+	mux.HandleFunc("/device", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, map[string]interface{}{"device_code": "device-1", "user_code": "USER-1", "verification_uri": state.URL + "/verify", "verification_uri_complete": state.URL + "/verify?user_code=USER-1", "expires_in": 600, "interval": 5})
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		idx := state.pollCount
+		state.pollCount++
+		if idx >= len(responses) {
+			idx = len(responses) - 1
+		}
+		resp := responses[idx]
+		if resp.status != 0 {
+			w.WriteHeader(resp.status)
+		}
+		writeJSON(t, w, resp.body)
+	})
+	state.Server = httptest.NewServer(mux)
+	t.Cleanup(state.Close)
+	return state
+}
+
+func (s *radiusPollServer) polls() int { return s.pollCount }
+
+func newRadiusPollProvider(t *testing.T, server *radiusPollServer) (*RadiusProvider, *radiusOAuthConfig) {
+	t.Helper()
+	provider := NewRadiusProvider(RadiusProviderOptions{Gateway: server.URL, Client: server.Client()})
+	provider.pollWait = immediateRadiusPollWait
+	oauthCfg, err := provider.loadOAuthConfig(t.Context())
+	if err != nil {
+		t.Fatalf("load oauth config: %v", err)
+	}
+	return provider, oauthCfg
+}
+
+func radiusTestDevice() *radiusDeviceAuthorization {
+	return &radiusDeviceAuthorization{DeviceCode: "device-1", UserCode: "USER-1", ExpiresIn: 600, Interval: 1}
+}
+
+func immediateRadiusPollWait(context.Context, time.Duration) error { return nil }

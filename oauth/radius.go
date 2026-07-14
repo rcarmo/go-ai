@@ -22,10 +22,11 @@ const (
 
 // RadiusProvider implements OAuth for Radius pi-messages gateways.
 type RadiusProvider struct {
-	id      string
-	name    string
-	gateway string
-	client  *http.Client
+	id       string
+	name     string
+	gateway  string
+	client   *http.Client
+	pollWait func(context.Context, time.Duration) error
 }
 
 // RadiusProviderOptions configures a Radius OAuth provider.
@@ -118,7 +119,7 @@ func NewRadiusProvider(options RadiusProviderOptions) *RadiusProvider {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &RadiusProvider{id: id, name: name, gateway: gateway, client: client}
+	return &RadiusProvider{id: id, name: name, gateway: gateway, client: client, pollWait: waitRadiusPollInterval}
 }
 
 func (p *RadiusProvider) ID() string   { return p.id }
@@ -333,10 +334,12 @@ func (p *RadiusProvider) pollDeviceToken(ctx context.Context, oauthCfg *radiusOA
 	deadline := time.Now().Add(time.Duration(device.ExpiresIn) * time.Second)
 	interval := normalizeDeviceCodePollInterval(device.Interval)
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("login cancelled: %w", ctx.Err())
-		case <-time.After(interval):
+		wait := p.pollWait
+		if wait == nil {
+			wait = waitRadiusPollInterval
+		}
+		if err := wait(ctx, interval); err != nil {
+			return nil, fmt.Errorf("login cancelled: %w", err)
 		}
 		creds, err := p.requestToken(ctx, oauthCfg, url.Values{"grant_type": {oauthCfg.DeviceCodeGrantType}, "client_id": {oauthCfg.ClientID}, "device_code": {device.DeviceCode}})
 		if err == nil {
@@ -376,6 +379,17 @@ func (p *RadiusProvider) attachGatewayConfig(ctx context.Context, creds *Credent
 	creds.Extra = cloneExtra(creds.Extra)
 	creds.Extra["gatewayConfig"] = cfg
 	return creds, nil
+}
+
+func waitRadiusPollInterval(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func normalizeRadiusGatewayURL(value string) string {
