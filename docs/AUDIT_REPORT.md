@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-14 v0.80.7 complete comparative audit (`@earendil-works/pi-ai`)
+
+Compared accepted upstream baseline `0e6909f050eeb15e8f6c05185511f3788357ddb3` against published `v0.80.7` / npm `gitHead` `818d67457cdd6b60bce6b121d16b23141c252dd8`; current upstream `main` HEAD was `9d09075c53812f7af955ce4397d0508c4a62efac`. The npm package is `0.80.7`, shasum `6125379d71fe8314c2166e7cddb6e4b847213562`, downloaded SHA-256 `83da6f7122ccc45bfc9d13ebe5db3d6171131c919e3b8cc0cbeefce304704bd1`.
+
+Mechanical diff found 25 `packages/ai` paths changed. Go-facing adoption: regenerated the text provider catalog to exact v0.80.7 package output (`1065 models / 35 providers`), added the exported `ApiPiMessages` constant/alias for custom model metadata round-trip, and updated deterministic catalog regressions for v0.80.7 pricing/window/token changes plus split GPT-5.6 IDs. N/A: the new TS `pi-messages` Radius backend and Radius OAuth helper have no built-in model consumer in v0.80.7 and are outside current Go provider runtime scope; image model catalog did not change.
+
+Validation: `go test ./...`, `go test -shuffle=on ./...`, `go test -race ./...`, `make check`, and `make test-repro` all passed. Full ledger: `docs/v0807-adversarial-ledger.md`.
+
 ## 2026-07-13 v0.80.6 complete comparative audit (`@earendil-works/pi-ai`)
 
 Compared `@earendil-works/pi-ai v0.80.5` (`cc62baa`) against `v0.80.6` (`2b3fda9921b5590f285165287bd442a25817f17b`) and audited `go-ai` parity file-by-file across `packages/ai/src`, generated provider registries, and upstream deterministic tests.

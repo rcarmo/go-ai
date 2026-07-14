@@ -23,6 +23,7 @@ const (
 	ApiGoogleGeminiCLI       Api = "google-gemini-cli"
 	ApiGoogleVertex          Api = "google-vertex"
 	ApiMistralConversations  Api = "mistral-conversations"
+	ApiPiMessages            Api = "pi-messages"
 )
 
 // Provider identifies a model hosting service.

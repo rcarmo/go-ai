@@ -30,6 +30,7 @@ const (
 	ApiGoogleGeminiCLI       = goai.ApiGoogleGeminiCLI
 	ApiGoogleVertex          = goai.ApiGoogleVertex
 	ApiMistralConversations  = goai.ApiMistralConversations
+	ApiPiMessages            = goai.ApiPiMessages
 )
 
 func RegisterApi(p *ApiProvider)          { goai.RegisterApi(p) }

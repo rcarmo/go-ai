@@ -2,9 +2,14 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.80.6
+## Source: `@earendil-works/pi-ai` v0.80.7
 
 ## Sync history
+
+
+### v0.80.7 (2026-07-14)
+
+Comparative audit (`0e6909f050eeb15e8f6c05185511f3788357ddb3` → `v0.80.7` / `818d67457cdd6b60bce6b121d16b23141c252dd8`) found 25 changed `packages/ai` paths. Adopted Go-facing changes: regenerated text model metadata to 1065 models / 35 providers and added exported `ApiPiMessages` metadata constant. Explicit N/A: new TS `pi-messages`/Radius runtime and OAuth helper are not exercised by any v0.80.7 built-in model and would be a new Go provider backend, not a parity fix for existing providers. Image catalog unchanged. No open Go-facing gap remains.
 
 ### v0.80.6 (2026-07-13)
 

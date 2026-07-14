@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1057 {
-		t.Fatalf("expected exactly 1057 generated models, got %d", total)
+	if total != 1065 {
+		t.Fatalf("expected exactly 1065 generated models from pi-ai v0.80.7, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,19 +84,28 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.72 || kimi.Cost.Output != 3.49 || kimi.Cost.CacheRead != 0.159 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.5 metadata, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.719 || kimi.Cost.Output != 3.49 || kimi.Cost.CacheRead != 0.149 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.7 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.532 || openRouterGLM52.Cost.Output != 1.672 || openRouterGLM52.Cost.CacheRead != 0.0988 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.6 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.924 || openRouterGLM52.Cost.Output != 2.904 || openRouterGLM52.Cost.CacheRead != 0.1716 || openRouterGLM52.ContextWindow != 1024000 || openRouterGLM52.MaxTokens != 128000 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.7 metadata, got %#v", openRouterGLM52)
 	}
 
 	if openAIGPT56 := goai.GetModel(goai.ProviderOpenAI, "gpt-5.6"); openAIGPT56 != nil {
-		t.Fatalf("openai/gpt-5.6 is not present in exact upstream 0e6909f provider maps, got %#v", openAIGPT56)
+		t.Fatalf("openai/gpt-5.6 umbrella ID is not present in exact upstream v0.80.7 provider maps, got %#v", openAIGPT56)
 	}
 	if azureGPT56 := goai.GetModel(goai.ProviderAzureOpenAI, "gpt-5.6"); azureGPT56 != nil {
-		t.Fatalf("azure-openai-responses/gpt-5.6 is not present in exact upstream 0e6909f provider maps, got %#v", azureGPT56)
+		t.Fatalf("azure-openai-responses/gpt-5.6 umbrella ID is not present in exact upstream v0.80.7 provider maps, got %#v", azureGPT56)
+	}
+
+	for _, id := range []string{"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"} {
+		if m := goai.GetModel(goai.ProviderOpenAI, id); m == nil || m.Api != goai.ApiOpenAIResponses || !m.Reasoning {
+			t.Fatalf("expected OpenAI split GPT-5.6 v0.80.7 model %s with responses/reasoning metadata, got %#v", id, m)
+		}
+		if m := goai.GetModel(goai.ProviderAzureOpenAI, id); m == nil || m.Api != goai.ApiAzureOpenAIResponses || !m.Reasoning {
+			t.Fatalf("expected Azure OpenAI split GPT-5.6 v0.80.7 model %s with responses/reasoning metadata, got %#v", id, m)
+		}
 	}
 
 	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
