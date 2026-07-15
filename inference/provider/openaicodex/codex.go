@@ -241,7 +241,7 @@ func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHe
 	h.Set("Accept", "text/event-stream")
 	h.Set("Content-Type", "application/json")
 	if sessionID != "" {
-		h.Set("session_id", sessionID)
+		h.Set("session-id", sessionID)
 		h.Set("x-client-request-id", sessionID)
 	}
 	goai.SuppressHeaders(h, suppressHeaders)
@@ -258,7 +258,7 @@ func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, supp
 	h.Set("User-Agent", fmt.Sprintf("go-ai (%s %s)", runtime.GOOS, runtime.GOARCH))
 	h.Set("OpenAI-Beta", "responses_websockets=2026-02-06")
 	if requestID != "" {
-		h.Set("session_id", requestID)
+		h.Set("session-id", requestID)
 		h.Set("x-client-request-id", requestID)
 	}
 	goai.SuppressHeaders(h, suppressHeaders)
@@ -654,7 +654,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	requestID := ""
 	if opts != nil {
-		requestID = opts.SessionID
+		requestID = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
 	headers := buildCodexWebSocketHeaders(model.Headers, func() map[string]string {
 		if opts != nil {
@@ -1079,7 +1079,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 	sessionID := ""
 	if opts != nil {
-		sessionID = opts.SessionID
+		sessionID = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
 	req.Header = buildCodexSSEHeaders(model.Headers, func() map[string]string {
 		if opts != nil {

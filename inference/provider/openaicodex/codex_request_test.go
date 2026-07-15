@@ -109,11 +109,11 @@ func TestBuildCodexHeadersAddsAccountAndExperimentalHeaders(t *testing.T) {
 		t.Fatalf("unexpected account id: %q", accountID)
 	}
 	h := buildCodexSSEHeaders(map[string]string{"x-model": "1", "x-remove": "model"}, map[string]string{"x-opt": "2", "x-remove": "opt"}, []string{"x-remove"}, accountID, token, "sess-1")
-	if h.Get("chatgpt-account-id") != "acct_123" || h.Get("OpenAI-Beta") != "responses=experimental" || h.Get("session_id") != "sess-1" || h.Get("x-remove") != "" {
+	if h.Get("chatgpt-account-id") != "acct_123" || h.Get("OpenAI-Beta") != "responses=experimental" || h.Get("session-id") != "sess-1" || h.Get("session_id") != "" || h.Get("x-remove") != "" {
 		t.Fatalf("unexpected SSE headers: %#v", h)
 	}
 	wh := buildCodexWebSocketHeaders(nil, nil, nil, accountID, token, "req-1")
-	if wh.Get("OpenAI-Beta") != "responses_websockets=2026-02-06" || wh.Get("x-client-request-id") != "req-1" {
+	if wh.Get("OpenAI-Beta") != "responses_websockets=2026-02-06" || wh.Get("x-client-request-id") != "req-1" || wh.Get("session-id") != "req-1" || wh.Get("session_id") != "" {
 		t.Fatalf("unexpected WS headers: %#v", wh)
 	}
 }
