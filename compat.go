@@ -72,6 +72,11 @@ type OpenAICompletionsCompat struct {
 	// Whether to send session affinity headers for prompt caching.
 	SendSessionAffinityHeaders *bool `json:"sendSessionAffinityHeaders,omitempty"`
 
+	// Provider-specific deferred tool serialization mode. "kimi" replays newly-added
+	// deferred tools in a post-tool-result system message and omits them from the
+	// active top-level tools list until introduced.
+	DeferredToolsMode string `json:"deferredToolsMode,omitempty"`
+
 	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
 
@@ -185,6 +190,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.SendSessionAffinityHeaders != nil {
 		c.SendSessionAffinityHeaders = o.SendSessionAffinityHeaders
+	}
+	if o.DeferredToolsMode != "" {
+		c.DeferredToolsMode = o.DeferredToolsMode
 	}
 	if o.SupportsLongCacheRetention != nil {
 		c.SupportsLongCacheRetention = o.SupportsLongCacheRetention

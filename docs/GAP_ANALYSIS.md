@@ -2,10 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.80.7
+## Source: `@earendil-works/pi-ai` v0.80.9
 
 ## Sync history
 
+### v0.80.9 (2026-07-16)
+
+Release-only audit (`2be9efa19cd64aed40ca63f92c0c0f9a6bac7c9d` → `v0.80.9` / `2d16f92973230a7e095aa984f150ba8702784f50`) found 30 changed `packages/ai` paths.
+
+| Upstream delta | Disposition |
+|---|---|
+| OpenAI Completions Kimi deferred-tool mode (`deferredToolsMode: "kimi"`): omit deferred tools from active top-level tools and re-introduce `addedToolNames` as a contentless system message carrying `tools`. | **IMPLEMENTED**: added `OpenAICompletionsCompat.DeferredToolsMode`, active-tool filtering, contentless Kimi system tool-introduction messages, and regression coverage in `inference/provider/openai/openai_deferred_kimi_test.go`. |
+| Model refresh `force` option propagated to dynamic providers. | **IMPLEMENTED**: added `ModelRuntimeRefreshOptions`, `RefreshWithOptions`, package-level `RefreshModelsWithOptions`, `ModelRefreshContext.Force`, and regression coverage in `models_runtime_test.go`. |
+| xAI OAuth UX: optional `verification_uri_complete` notification URL and login label (`Sign in with SuperGrok or X Premium`). | **ALREADY COVERED / N/A**: Go xAI OAuth already validates and prefers complete verification URIs; Go has no JS selector UI surface for `loginLabel`. Existing `oauth/xai_test.go` covers complete URI validation. |
+| Bundled Bun OAuth static loader registration. | **N/A**: JS/Bun packaging-only entry point; Go has static package registration and no dynamic TS import boundary. |
+| Generated model catalog updates (Kimi Coding, Moonshot AI/CN, OpenRouter, Vercel AI Gateway, xAI `grok-4.5` now completions). | **IMPLEMENTED**: regenerated `models_generated.go` from upstream v0.80.9. Regression updated for xAI `grok-4.5` completions metadata in `inference/provider/openairesponses/xai_responses_upstream_test.go`. |
+| Upstream test fixture whitespace/flow edits and README/changelog/package metadata. | **N/A**: documentation/package or TS-only fixture maintenance; no Go runtime behavior beyond tests listed above. |
+
+Result: upstream v0.80.9 production behavior with Go-facing impact is synced; no open Go-facing gap remains.
 
 ### v0.80.7 (2026-07-14)
 

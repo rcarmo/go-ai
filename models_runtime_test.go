@@ -107,6 +107,19 @@ func TestModelRuntimeRefreshCancellation(t *testing.T) {
 	}
 }
 
+func TestModelRuntimeRefreshWithOptionsPassesForce(t *testing.T) {
+	provider := &testDynamicProvider{id: "dynamic", refreshed: []*goai.Model{runtimeModel("fresh")}}
+	runtime := goai.NewModelRuntime(nil)
+	runtime.SetProvider(provider)
+	result := runtime.RefreshWithOptions(t.Context(), goai.ModelRuntimeRefreshOptions{AllowNetwork: true, Force: true})
+	if result.Aborted || len(result.Errors) != 0 {
+		t.Fatalf("unexpected refresh result: %#v", result)
+	}
+	if !provider.lastForce {
+		t.Fatal("provider did not receive Force=true")
+	}
+}
+
 type testDynamicProvider struct {
 	id        goai.Provider
 	refreshed []*goai.Model
@@ -114,6 +127,7 @@ type testDynamicProvider struct {
 	block     chan struct{}
 	mu        sync.Mutex
 	calls     int
+	lastForce bool
 }
 
 func (p *testDynamicProvider) ID() string                  { return string(p.id) }
@@ -121,6 +135,7 @@ func (p *testDynamicProvider) StaticModels() []*goai.Model { return nil }
 func (p *testDynamicProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
 	p.mu.Lock()
 	p.calls++
+	p.lastForce = ctx.Force
 	p.mu.Unlock()
 	if p.block != nil {
 		select {

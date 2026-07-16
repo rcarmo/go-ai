@@ -208,6 +208,26 @@ type chatMessage struct {
 	ToolCalls        []toolCallPart    `json:"tool_calls,omitempty"`
 	ToolCallID       string            `json:"tool_call_id,omitempty"`
 	Name             string            `json:"name,omitempty"`
+	Tools            []toolDef         `json:"tools,omitempty"`
+	OmitContent      bool              `json:"-"`
+}
+
+func (m chatMessage) MarshalJSON() ([]byte, error) {
+	type alias chatMessage
+	raw := alias(m)
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	if !m.OmitContent {
+		return b, nil
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return nil, err
+	}
+	delete(obj, "content")
+	return json.Marshal(obj)
 }
 
 type cacheControl struct {
@@ -237,6 +257,27 @@ type toolFunction struct {
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
 	Strict      bool            `json:"strict,omitempty"`
+}
+
+func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cacheMarker *cacheControl) []toolDef {
+	if len(tools) == 0 {
+		return nil
+	}
+	strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
+	defs := make([]toolDef, 0, len(tools))
+	for _, t := range tools {
+		defs = append(defs, toolDef{
+			Type:         "function",
+			CacheControl: cacheMarker,
+			Function: toolFunction{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  t.Parameters,
+				Strict:      strictMode,
+			},
+		})
+	}
+	return defs
 }
 
 type toolCallPart struct {
@@ -381,29 +422,57 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	// Convert tools. Match upstream OpenAI-compatible behavior: omit tools for
 	// empty/no-tool contexts, but preserve an explicit empty tools array when the
 	// conversation contains prior tool-call/tool-result history for proxy replay.
-	if len(convCtx.Tools) > 0 {
+	activeTools := convCtx.Tools
+	if compat.DeferredToolsMode == "kimi" {
+		deferred := getDeferredToolNames(convCtx.Messages)
+		if len(deferred) > 0 {
+			activeTools = activeTools[:0]
+			for _, tool := range convCtx.Tools {
+				if !deferred[tool.Name] {
+					activeTools = append(activeTools, tool)
+				}
+			}
+		}
+	}
+	if len(activeTools) > 0 {
 		if compat.ZaiToolStream != nil && *compat.ZaiToolStream {
 			t := true
 			req.ToolStream = &t
 		}
-		strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
-		for _, t := range convCtx.Tools {
-			req.Tools = append(req.Tools, toolDef{
-				Type:         "function",
-				CacheControl: cacheMarker,
-				Function: toolFunction{
-					Name:        t.Name,
-					Description: t.Description,
-					Parameters:  t.Parameters,
-					Strict:      strictMode,
-				},
-			})
-		}
+		req.Tools = append(req.Tools, convertToolDefs(activeTools, compat, cacheMarker)...)
 	} else if hasToolHistory(convCtx) {
 		req.EmitEmptyTools = true
 	}
 
 	return req
+}
+
+func getDeferredToolNames(messages []goai.Message) map[string]bool {
+	names := map[string]bool{}
+	for _, msg := range messages {
+		if msg.Role != goai.RoleToolResult {
+			continue
+		}
+		for _, name := range msg.AddedToolNames {
+			if name != "" {
+				names[name] = true
+			}
+		}
+	}
+	return names
+}
+
+func toolsByName(tools []goai.Tool, names map[string]bool) []goai.Tool {
+	if len(names) == 0 || len(tools) == 0 {
+		return nil
+	}
+	out := make([]goai.Tool, 0, len(names))
+	for _, tool := range tools {
+		if names[tool.Name] {
+			out = append(out, tool)
+		}
+	}
+	return out
 }
 
 func hasToolHistory(convCtx *goai.Context) bool {
@@ -627,6 +696,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 			msgs = append(msgs, msg)
 
 		case goai.RoleToolResult:
+			deferredToolNames := map[string]bool{}
 			text := extractTextContent(m.Content)
 			if strings.TrimSpace(text) == "" {
 				text = "(no tool output)"
@@ -641,6 +711,13 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 				toolMsg.Name = m.ToolName
 			}
 			msgs = append(msgs, toolMsg)
+			if compat.DeferredToolsMode == "kimi" {
+				for _, name := range m.AddedToolNames {
+					if name != "" {
+						deferredToolNames[name] = true
+					}
+				}
+			}
 
 			// If tool result has images, add them as a follow-up user message
 			var imageBlocks []contentPart
@@ -662,6 +739,11 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					Role:    "user",
 					Content: append([]contentPart{{Type: "text", Text: "Tool result image:"}}, imageBlocks...),
 				})
+			}
+			if len(deferredToolNames) > 0 {
+				if deferredTools := toolsByName(convCtx.Tools, deferredToolNames); len(deferredTools) > 0 {
+					msgs = append(msgs, chatMessage{Role: "system", Tools: convertToolDefs(deferredTools, *compat, nil), OmitContent: true})
+				}
 			}
 		}
 

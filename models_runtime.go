@@ -55,7 +55,14 @@ type ModelRefreshContext struct {
 	Provider     Provider
 	Store        ModelsStore
 	AllowNetwork bool
-	Signal       context.Context
+	// Force asks dynamic providers to bypass their own freshness checks and fetch immediately.
+	Force  bool
+	Signal context.Context
+}
+
+type ModelRuntimeRefreshOptions struct {
+	AllowNetwork bool
+	Force        bool
 }
 
 type DynamicModelProvider interface {
@@ -134,6 +141,10 @@ func (r *ModelRuntime) GetModel(provider Provider, id string) *Model {
 }
 
 func (r *ModelRuntime) Refresh(ctx context.Context, allowNetwork bool) ModelRuntimeRefreshResult {
+	return r.RefreshWithOptions(ctx, ModelRuntimeRefreshOptions{AllowNetwork: allowNetwork})
+}
+
+func (r *ModelRuntime) RefreshWithOptions(ctx context.Context, opts ModelRuntimeRefreshOptions) ModelRuntimeRefreshResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -156,7 +167,7 @@ func (r *ModelRuntime) Refresh(ctx context.Context, allowNetwork bool) ModelRunt
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := r.refreshProvider(ctx, provider, allowNetwork); err != nil && ctx.Err() == nil {
+			if err := r.refreshProvider(ctx, provider, opts.AllowNetwork, opts.Force); err != nil && ctx.Err() == nil {
 				mu.Lock()
 				result.Errors[Provider(provider.ID())] = err
 				mu.Unlock()
@@ -170,7 +181,7 @@ func (r *ModelRuntime) Refresh(ctx context.Context, allowNetwork bool) ModelRunt
 	return result
 }
 
-func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicModelProvider, allowNetwork bool) error {
+func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicModelProvider, allowNetwork bool, force bool) error {
 	id := Provider(provider.ID())
 	r.mu.Lock()
 	if call := r.inflight[id]; call != nil {
@@ -201,7 +212,7 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 		call.err = ctx.Err()
 		return call.err
 	}
-	models, err := provider.RefreshModels(ModelRefreshContext{Provider: id, Store: r.store, AllowNetwork: allowNetwork, Signal: ctx})
+	models, err := provider.RefreshModels(ModelRefreshContext{Provider: id, Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx})
 	if err != nil {
 		call.err = err
 		return err
@@ -259,10 +270,14 @@ func RegisterDynamicModelProvider(provider DynamicModelProvider) {
 // RefreshModels refreshes the package default runtime and synchronizes the
 // legacy registry snapshot used by older callers.
 func RefreshModels(ctx context.Context, allowNetwork bool) ModelRuntimeRefreshResult {
+	return RefreshModelsWithOptions(ctx, ModelRuntimeRefreshOptions{AllowNetwork: allowNetwork})
+}
+
+func RefreshModelsWithOptions(ctx context.Context, opts ModelRuntimeRefreshOptions) ModelRuntimeRefreshResult {
 	modelRuntimeMu.RLock()
 	runtime := defaultRuntime
 	modelRuntimeMu.RUnlock()
-	result := runtime.Refresh(ctx, allowNetwork)
+	result := runtime.RefreshWithOptions(ctx, opts)
 	syncLegacyModelRegistry(runtime.GetModels(""))
 	return result
 }

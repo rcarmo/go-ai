@@ -112,6 +112,7 @@ type compatEntry struct {
 	SupportsStrictMode                          *bool                        `json:"supportsStrictMode"`
 	CacheControlFormat                          string                       `json:"cacheControlFormat"`
 	SendSessionAffinityHeaders                  *bool                        `json:"sendSessionAffinityHeaders"`
+	DeferredToolsMode                           string                       `json:"deferredToolsMode"`
 	SupportsLongCacheRetention                  *bool                        `json:"supportsLongCacheRetention"`
 	SupportsTemperature                         *bool                        `json:"supportsTemperature"`
 	ForceAdaptiveThinking                       *bool                        `json:"forceAdaptiveThinking"`
@@ -370,6 +371,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
 		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
+		writeStringField(b, "DeferredToolsMode", c.DeferredToolsMode)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
@@ -390,7 +392,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
