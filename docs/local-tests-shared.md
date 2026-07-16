@@ -6,19 +6,19 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **469**
+- Local Go test functions inventoried: **482**
 - Amazon Bedrock provider: 21
 - Anthropic Messages provider: 47
-- Core API / harness / transforms / utilities: 212
+- Core API / harness / transforms / utilities: 217
 - Faux test provider: 10
 - Gemini CLI provider: 1
 - Google / Vertex provider: 34
 - Image generation / OpenRouter images: 11
 - Mistral provider: 10
-- OAuth providers: 24
+- OAuth providers: 31
 - OpenAI Chat Completions provider: 33
 - OpenAI Codex transport/provider: 17
-- OpenAI/Azure Responses provider: 30
+- OpenAI/Azure Responses provider: 31
 - Pi Messages provider: 3
 - Retry/helper and HTTP proxy: 16
 
@@ -38,6 +38,8 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Reopened upstream 96-file parity is covered for `deferred-tools.test.ts` by core deferred-tool planning tests, Anthropic `defer_loading`/`tool_reference` request and replay tests, and OpenAI Responses `tool_search` request/output tests.
 - Upstream `azure-openai-responses-reasoning-replay.test.ts` is covered by deterministic Azure Responses stream tests that preserve `output_item.done` encrypted reasoning content and backfill missing content from `response.completed.output`.
 - v0.80.7 Radius OAuth parity is covered by `oauth/radius_test.go`: local-server tests exercise `/v1/oauth` discovery, full device-code polling (pending→success, `slow_down`, `expired_token`, `access_denied`), context cancellation/deadline at the internal context-aware boundary, token refresh, `/v1/config` catalog caching/model injection, previous-config fallback, and typed OAuth errors. Public `Login` remains context-free because the existing Go OAuth interface has no context parameter.
+- Upstream-main `2be9efa` model runtime parity is covered by `models_runtime_test.go`: provider-scoped model store, dynamic refresh, cached restore, fetch-error fallback, offline cache-only initialization, in-flight refresh deduplication, and cancellation.
+- Upstream-main `2be9efa` xAI parity is covered by `oauth/xai_test.go` and `inference/provider/openairesponses/xai_responses_upstream_test.go`: xAI device OAuth, refresh token rotation/preservation/default expiry/error surfacing, HTTPS verification URI validation, and `grok-4.5` OpenAI Responses request shape.
 
 ## Tests
 
