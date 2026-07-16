@@ -2,7 +2,7 @@
 
 Source audited: authoritative `packages/ai` upstream main `2be9efa19cd64aed40ca63f92c0c0f9a6bac7c9d` compared with previously accepted `dcfe36c79702ec240b146c45f167ab75ecddd205`. npm remains `0.80.7` / `818d67457cdd6b60bce6b121d16b23141c252dd8`, so this is an upstream-main delta, not an npm release.
 
-Mechanical enumeration: `git diff --name-status --no-index` across `packages/ai` found 58 changed package paths plus package docs/metadata. Test inventory is now 101 `packages/ai/test/*.test.ts` files, adding `cloudflare-stream.test.ts`, `providers.test.ts`, `xai-oauth.test.ts`, and `xai-responses.test.ts` relative to the prior accepted baseline.
+Mechanical enumeration: `git diff --name-status --no-index` across `packages/ai` found 58 changed package paths plus package docs/metadata. Test inventory is now 100 `packages/ai/test/*.test.ts` files, adding `cloudflare-stream.test.ts`, `providers.test.ts`, `xai-oauth.test.ts`, and `xai-responses.test.ts` relative to the prior accepted baseline.
 
 ## Adopted Go-facing changes
 
