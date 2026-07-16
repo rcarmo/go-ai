@@ -116,7 +116,7 @@ type testDynamicProvider struct {
 	calls     int
 }
 
-func (p *testDynamicProvider) ID() goai.Provider           { return p.id }
+func (p *testDynamicProvider) ID() string                  { return string(p.id) }
 func (p *testDynamicProvider) StaticModels() []*goai.Model { return nil }
 func (p *testDynamicProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
 	p.mu.Lock()

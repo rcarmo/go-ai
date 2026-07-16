@@ -60,17 +60,23 @@ func GetApiProvider(api Api) *ApiProvider {
 // ClearModels removes all registered models.
 func ClearModels() {
 	modelsMu.Lock()
-	defer modelsMu.Unlock()
 	for k := range models {
 		delete(models, k)
 	}
+	modelsMu.Unlock()
+
+	modelRuntimeMu.Lock()
+	defaultRuntime = NewModelRuntime(nil)
+	modelRuntimeMu.Unlock()
 }
 
 // --- Model Registry ---
 
 var (
-	modelsMu sync.RWMutex
-	models   = map[string]*Model{} // key: "provider/id"
+	modelsMu       sync.RWMutex
+	models         = map[string]*Model{} // key: "provider/id"
+	modelRuntimeMu sync.RWMutex
+	defaultRuntime = NewModelRuntime(nil)
 )
 
 // RegisterModel adds a model to the global registry.
@@ -79,13 +85,24 @@ func RegisterModel(m *Model) {
 		return
 	}
 	modelsMu.Lock()
-	defer modelsMu.Unlock()
 	models[string(m.Provider)+"/"+m.ID] = m
+	modelsMu.Unlock()
+
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	runtime.SetProvider(StaticModelProvider{Provider: m.Provider, Models: append(runtime.GetModels(m.Provider), m)})
 }
 
 // GetModel retrieves a model by provider and ID.
 // Returns nil if not found.
 func GetModel(provider Provider, id string) *Model {
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	if model := runtime.GetModel(provider, id); model != nil {
+		return model
+	}
 	modelsMu.RLock()
 	defer modelsMu.RUnlock()
 	return models[string(provider)+"/"+id]
@@ -93,23 +110,25 @@ func GetModel(provider Provider, id string) *Model {
 
 // ListModels returns all registered models, optionally filtered by provider.
 func ListModels(provider Provider) []*Model {
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	out := runtime.GetModels(provider)
+	if len(out) != 0 || provider != "" {
+		return out
+	}
 	modelsMu.RLock()
 	defer modelsMu.RUnlock()
-	var out []*Model
 	for _, m := range models {
-		if provider == "" || m.Provider == provider {
-			out = append(out, m)
-		}
+		out = append(out, m)
 	}
 	return out
 }
 
 // ListProviders returns all provider names that have at least one model registered.
 func ListProviders() []Provider {
-	modelsMu.RLock()
-	defer modelsMu.RUnlock()
 	seen := map[Provider]bool{}
-	for _, m := range models {
+	for _, m := range ListModels("") {
 		seen[m.Provider] = true
 	}
 	out := make([]Provider, 0, len(seen))

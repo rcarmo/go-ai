@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -27,6 +28,8 @@ type RadiusProvider struct {
 	gateway  string
 	client   *http.Client
 	pollWait func(context.Context, time.Duration) error
+	mu       sync.RWMutex
+	creds    *Credentials
 }
 
 // RadiusProviderOptions configures a Radius OAuth provider.
@@ -175,11 +178,55 @@ func (p *RadiusProvider) ModifyModels(models []*goai.Model, creds *Credentials) 
 		}
 	}
 	out := append([]*goai.Model{}, models...)
-	for _, gatewayModel := range config.Models {
-		if gatewayModel.ID == "" || existing[gatewayModel.ID] {
+	for _, model := range p.modelsFromGatewayConfig(config) {
+		if model.ID == "" || existing[model.ID] {
 			continue
 		}
-		existing[gatewayModel.ID] = true
+		existing[model.ID] = true
+		out = append(out, model)
+	}
+	return out
+}
+
+func (p *RadiusProvider) StaticModels() []*goai.Model {
+	p.mu.RLock()
+	creds := cloneCredentials(p.creds)
+	p.mu.RUnlock()
+	if cfg, ok := radiusCredentialConfig(creds); ok {
+		return p.modelsFromGatewayConfig(cfg)
+	}
+	return nil
+}
+
+func (p *RadiusProvider) SetRuntimeCredentials(creds *Credentials) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.creds = cloneCredentials(creds)
+}
+
+func (p *RadiusProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
+	p.mu.RLock()
+	creds := cloneCredentials(p.creds)
+	p.mu.RUnlock()
+	if creds == nil || creds.Access == "" {
+		return nil, fmt.Errorf("radius dynamic model refresh requires OAuth credentials")
+	}
+	cfg, err := p.loadGatewayConfig(ctx.Signal, creds.Access)
+	if err != nil {
+		return nil, err
+	}
+	return p.modelsFromGatewayConfig(cfg), nil
+}
+
+func (p *RadiusProvider) modelsFromGatewayConfig(config *RadiusGatewayConfig) []*goai.Model {
+	if config == nil {
+		return nil
+	}
+	out := make([]*goai.Model, 0, len(config.Models))
+	for _, gatewayModel := range config.Models {
+		if gatewayModel.ID == "" {
+			continue
+		}
 		out = append(out, &goai.Model{
 			ID:               gatewayModel.ID,
 			Name:             gatewayModel.Name,
@@ -442,6 +489,15 @@ func cloneExtra(extra map[string]interface{}) map[string]interface{} {
 		out[k] = v
 	}
 	return out
+}
+
+func cloneCredentials(creds *Credentials) *Credentials {
+	if creds == nil {
+		return nil
+	}
+	copy := *creds
+	copy.Extra = cloneExtra(creds.Extra)
+	return &copy
 }
 
 func readRadiusOAuthResponseError(resp *http.Response, message string) error {

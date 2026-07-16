@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"context"
 	"fmt"
 
 	goai "github.com/rcarmo/go-ai"
@@ -77,6 +78,25 @@ func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, err
 		return nil, err
 	}
 	goai.RegisterBuiltinModels()
+	if dynamic, ok := provider.(interface {
+		goai.DynamicModelProvider
+		SetRuntimeCredentials(*Credentials)
+	}); ok {
+		dynamic.SetRuntimeCredentials(updated)
+		if len(dynamic.StaticModels()) == 0 && updated != nil && updated.Refresh != "" {
+			refreshed, err := provider.RefreshToken(updated)
+			if err != nil {
+				return nil, err
+			}
+			if refreshed != nil {
+				updated = refreshed
+				apiKey = provider.GetAPIKey(updated)
+				dynamic.SetRuntimeCredentials(updated)
+			}
+		}
+		goai.RegisterDynamicModelProvider(dynamic)
+		goai.RefreshModels(context.Background(), true)
+	}
 	models := provider.ModifyModels(goai.ListModels(""), updated)
 	return &RuntimeCredentials{Credentials: updated, APIKey: apiKey, Models: models}, nil
 }

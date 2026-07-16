@@ -59,7 +59,7 @@ type ModelRefreshContext struct {
 }
 
 type DynamicModelProvider interface {
-	ID() Provider
+	ID() string
 	StaticModels() []*Model
 	RefreshModels(ctx ModelRefreshContext) ([]*Model, error)
 }
@@ -69,7 +69,7 @@ type StaticModelProvider struct {
 	Models   []*Model
 }
 
-func (p StaticModelProvider) ID() Provider           { return p.Provider }
+func (p StaticModelProvider) ID() string             { return string(p.Provider) }
 func (p StaticModelProvider) StaticModels() []*Model { return cloneModels(p.Models) }
 func (p StaticModelProvider) RefreshModels(ModelRefreshContext) ([]*Model, error) {
 	return cloneModels(p.Models), nil
@@ -106,8 +106,9 @@ func (r *ModelRuntime) SetProvider(provider DynamicModelProvider) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.providers[provider.ID()] = provider
-	r.models[provider.ID()] = cloneModels(provider.StaticModels())
+	id := Provider(provider.ID())
+	r.providers[id] = provider
+	r.models[id] = cloneModels(provider.StaticModels())
 }
 
 func (r *ModelRuntime) GetModels(provider Provider) []*Model {
@@ -157,7 +158,7 @@ func (r *ModelRuntime) Refresh(ctx context.Context, allowNetwork bool) ModelRunt
 			defer wg.Done()
 			if err := r.refreshProvider(ctx, provider, allowNetwork); err != nil && ctx.Err() == nil {
 				mu.Lock()
-				result.Errors[provider.ID()] = err
+				result.Errors[Provider(provider.ID())] = err
 				mu.Unlock()
 			}
 		}()
@@ -170,7 +171,7 @@ func (r *ModelRuntime) Refresh(ctx context.Context, allowNetwork bool) ModelRunt
 }
 
 func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicModelProvider, allowNetwork bool) error {
-	id := provider.ID()
+	id := Provider(provider.ID())
 	r.mu.Lock()
 	if call := r.inflight[id]; call != nil {
 		r.mu.Unlock()
@@ -234,10 +235,49 @@ func RegisterRuntimeModels(runtime *ModelRuntime) error {
 	if runtime == nil {
 		return fmt.Errorf("nil model runtime")
 	}
-	for _, model := range runtime.GetModels("") {
-		RegisterModel(model)
-	}
+	modelRuntimeMu.Lock()
+	defaultRuntime = runtime
+	modelRuntimeMu.Unlock()
+	syncLegacyModelRegistry(runtime.GetModels(""))
 	return nil
+}
+
+// RegisterDynamicModelProvider installs a production dynamic model provider in
+// the package default runtime. Package-level GetModel/ListModels observe its
+// models immediately and after RefreshModels.
+func RegisterDynamicModelProvider(provider DynamicModelProvider) {
+	if provider == nil || provider.ID() == "" {
+		return
+	}
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	runtime.SetProvider(provider)
+	syncLegacyModelRegistry(runtime.GetModels(""))
+}
+
+// RefreshModels refreshes the package default runtime and synchronizes the
+// legacy registry snapshot used by older callers.
+func RefreshModels(ctx context.Context, allowNetwork bool) ModelRuntimeRefreshResult {
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	result := runtime.Refresh(ctx, allowNetwork)
+	syncLegacyModelRegistry(runtime.GetModels(""))
+	return result
+}
+
+func syncLegacyModelRegistry(all []*Model) {
+	modelsMu.Lock()
+	defer modelsMu.Unlock()
+	for k := range models {
+		delete(models, k)
+	}
+	for _, model := range all {
+		if model != nil && model.Provider != "" && model.ID != "" {
+			models[string(model.Provider)+"/"+model.ID] = cloneModel(model)
+		}
+	}
 }
 
 func cloneModelsStoreEntry(entry *ModelsStoreEntry) *ModelsStoreEntry {

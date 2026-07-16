@@ -10,8 +10,13 @@ import "encoding/json"
 // RegisterBuiltinModels registers all known models from pi-ai's model registry.
 // Call this during init() or at program startup to populate the model registry.
 func RegisterBuiltinModels() {
+	byProvider := map[Provider][]*Model{}
 	for i := range builtinModels {
-		RegisterModel(&builtinModels[i])
+		model := cloneModel(&builtinModels[i])
+		byProvider[model.Provider] = append(byProvider[model.Provider], model)
+	}
+	for provider, models := range byProvider {
+		RegisterDynamicModelProvider(StaticModelProvider{Provider: provider, Models: models})
 	}
 }
 
