@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1075 {
-		t.Fatalf("expected exactly 1075 generated models from pi-ai v0.80.9 tag 2d16f92, got %d", total)
+	if total != 1072 {
+		t.Fatalf("expected exactly 1072 generated models from pi-ai v0.80.10 tag 8dc78834, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -88,8 +88,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.9 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.9212 || openRouterGLM52.Cost.Output != 2.8952 || openRouterGLM52.Cost.CacheRead != 0.17108 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.9 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.9086 || openRouterGLM52.Cost.Output != 2.8556 || openRouterGLM52.Cost.CacheRead != 0.16874 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.10 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -112,8 +112,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		}
 	}
 	kimiK3 := goai.GetModel(goai.ProviderMoonshotAI, "kimi-k3")
-	if kimiK3.Api != goai.ApiOpenAICompletions || kimiK3.ContextWindow != 1048576 || kimiK3.MaxTokens != 131072 || kimiK3.CompletionsCompat == nil || kimiK3.CompletionsCompat.DeferredToolsMode != "kimi" {
-		t.Fatalf("expected Moonshot Kimi K3 v0.80.9 metadata, got %#v", kimiK3)
+	if kimiK3.Api != goai.ApiOpenAICompletions || kimiK3.ContextWindow != 1048576 || kimiK3.MaxTokens != 131072 || kimiK3.Cost.Input != 3 || kimiK3.Cost.Output != 15 || kimiK3.Cost.CacheRead != 0.3 || kimiK3.CompletionsCompat == nil || kimiK3.CompletionsCompat.DeferredToolsMode != "kimi" {
+		t.Fatalf("expected Moonshot Kimi K3 v0.80.10 metadata, got %#v", kimiK3)
 	}
 	vercelInkling := goai.GetModel(goai.ProviderVercelAIGateway, "thinkingmachines/inkling")
 	if vercelInkling.Api != goai.ApiAnthropicMessages || vercelInkling.ContextWindow != 256000 || vercelInkling.MaxTokens != 256000 || vercelInkling.BaseURL == "" {

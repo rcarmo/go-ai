@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-17 v0.80.10 release-only audit (`@earendil-works/pi-ai`)
+
+Compared accepted upstream `v0.80.9` baseline `2d16f92973230a7e095aa984f150ba8702784f50` against official release `v0.80.10` / `8dc78834cde4e329284cf505f9e3f99763df5529` only. Exact changed-path disposition for `packages/ai`: docs/package-only (`CHANGELOG.md`, `README.md`, `package.json`) noted with no Go runtime port; `scripts/generate-models.ts` was an upstream generator-side xAI removal fix and Go consumed the resulting provider maps; provider catalog files regenerated into `models_generated.go` (`kimi-coding.models.ts`, `moonshotai.models.ts`, `moonshotai-cn.models.ts`, `opencode-go.models.ts`, `openrouter.models.ts`, `xai.models.ts`); upstream tests (`anthropic-adaptive-thinking-models.test.ts`, `anthropic-empty-thinking-signature-compat.test.ts`, `anthropic-force-adaptive-thinking.test.ts`, `providers.test.ts`, `supports-xhigh.test.ts`, `xai-responses.test.ts`) were mapped to existing Go compat behavior plus new regressions; context/stream/total-token/cross-provider test edits were TypeScript harness expectation maintenance with no Go code delta.
+
+Adoption: regenerated the text model catalog from exact tag `8dc78834`, yielding `1072 models / 35 providers`; carried Kimi Coding `forceAdaptiveThinking`, K3/Kimi For Coding empty-signature compatibility, K3 max-only thinking map, corrected Kimi K3 Moonshot/Moonshot-CN/OpenCode Go pricing (`3/15/0.3`), OpenCode Go `grok-4.5` and `kimi-k3` additions, OpenRouter metadata updates, and xAI removed-model deletions. Production runtime already had the Anthropic adaptive thinking and empty-signature compatibility fields/serialization required by this release; no provider request-path code changes were required.
+
+Validation: `python3 scripts/compare-upstream-models.py /workspace/tmp/pi-upstream-805/packages/ai/src/providers` reports exact `1072`/`1072` provider-id parity; `go test ./...`, `make check`, and `make test-repro` pass after catalog/test updates.
+
 ## 2026-07-16 v0.80.9 catalog gate correction (`@earendil-works/pi-ai`)
 
 Auditor reopened the v0.80.9 catalog gate after an independent comparator against exact tag `2d16f92973230a7e095aa984f150ba8702784f50` found Go had 1065 generated text models while upstream provider maps exposed 1075. The missing provider/id pairs were Kimi Coding `k3` and `kimi-for-coding-highspeed`, Moonshot AI/CN `kimi-k3`, OpenRouter `meta/muse-spark-1.1` and `moonshotai/kimi-k3`, and Vercel AI Gateway `anthropic/claude-opus-4.7-fast`, `anthropic/claude-opus-4.8-fast`, `moonshotai/kimi-k3`, and `thinkingmachines/inkling`.
