@@ -6,22 +6,24 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestXAIUpstreamV0809Grok45UsesCompletions(t *testing.T) {
+func TestXAIUpstreamV0809Grok45UsesResponses(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	model := goai.GetModel(goai.ProviderXAI, "grok-4.5")
 	if model == nil {
 		t.Fatal("missing xAI grok-4.5")
 	}
-	if model.Api != goai.ApiOpenAICompletions {
-		t.Fatalf("api=%q, want openai-completions per upstream v0.80.9", model.Api)
+	if model.Api != goai.ApiOpenAIResponses {
+		t.Fatalf("api=%q, want openai-responses per exact upstream v0.80.9 tag 2d16f92", model.Api)
+	}
+	if model.ContextWindow != 500000 || model.MaxTokens != 500000 || model.Cost.Input != 2 || model.Cost.Output != 6 || model.Cost.CacheRead != 0.5 {
+		t.Fatalf("unexpected xAI grok-4.5 v0.80.9 metadata: %#v", model)
 	}
 	levels := goai.GetSupportedThinkingLevels(model)
-	if !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingMinimal)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingLow)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingMedium)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingHigh)) {
+	if hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingMinimal)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingLow)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingMedium)) || !hasThinkingLevel(levels, goai.ModelThinkingLevel(goai.ThinkingHigh)) {
 		t.Fatalf("unexpected thinking levels: %#v", levels)
 	}
-	compat := goai.DetectCompatForModel(model)
-	if compat.SupportsStore == nil || *compat.SupportsStore || compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort || compat.SupportsDeveloperRole == nil || *compat.SupportsDeveloperRole {
-		t.Fatalf("unexpected xAI completions compat: %#v", compat)
+	if model.ResponsesCompat == nil || model.ResponsesCompat.SupportsLongCacheRetention == nil || *model.ResponsesCompat.SupportsLongCacheRetention {
+		t.Fatalf("expected xAI responses long cache retention disabled, got %#v", model.ResponsesCompat)
 	}
 }
 
