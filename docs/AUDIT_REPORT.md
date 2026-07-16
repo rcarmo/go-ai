@@ -8,7 +8,7 @@ Compared accepted upstream `v0.80.9` baseline `2d16f92973230a7e095aa984f150ba870
 
 Adoption: regenerated the text model catalog from exact tag `8dc78834`, yielding `1072 models / 35 providers`; carried Kimi Coding `forceAdaptiveThinking`, K3/Kimi For Coding empty-signature compatibility, K3 max-only thinking map, corrected Kimi K3 Moonshot/Moonshot-CN/OpenCode Go pricing (`3/15/0.3`), OpenCode Go `grok-4.5` and `kimi-k3` additions, OpenRouter metadata updates, and xAI removed-model deletions. Production runtime already had the Anthropic adaptive thinking and empty-signature compatibility fields/serialization required by this release; no provider request-path code changes were required.
 
-Validation: `python3 scripts/compare-upstream-models.py /workspace/tmp/pi-upstream-805/packages/ai/src/providers` reports exact `1072`/`1072` provider-id parity; `go test ./...`, `make check`, and `make test-repro` pass after catalog/test updates.
+Validation: `python3 scripts/compare-upstream-models.py /workspace/tmp/pi-src/packages/ai/src/providers` against exact `v0.80.10` checkout `8dc78834cde4e329284cf505f9e3f99763df5529` reports exact `1072`/`1072` provider-id parity; `go test ./...`, `make check`, and `make test-repro` pass after catalog/test updates.
 
 ## 2026-07-16 v0.80.9 catalog gate correction (`@earendil-works/pi-ai`)
 
