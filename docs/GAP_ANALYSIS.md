@@ -2,9 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.80.9
+## Source: `@earendil-works/pi-ai` v0.81.1
 
 ## Sync history
+
+### v0.81.1 (2026-07-21)
+
+Release-only audit (`v0.80.10` / `8dc78834cde4e329284cf505f9e3f99763df5529` → `v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6`) found 88 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0811-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| JSON-backed generated model-data validation and provider shards. | **IMPLEMENTED**: `scripts/generate-models.go` and `scripts/compare-upstream-models.py` support exact tag-generated JSON shards via `PI_AI_MODEL_DATA_DIR`; regenerated text catalog to `1103 models / 37 providers`; exact comparator passes `1103/1103`. |
+| Generated image model/result metadata. | **IMPLEMENTED**: added `scripts/generate-image-models.py`, regenerated Go image catalog to `39` OpenRouter image models, and updated image tests/metadata expectations. |
+| Qwen Token Plan providers. | **IMPLEMENTED**: added provider constants/env keys and tests for both global and CN token-plan providers, including omission of image-only Qwen/Wan models. |
+| Shared UUIDv7/text utilities. | **IMPLEMENTED**: added `UUIDv7` and `ContentText` with deterministic tests matching upstream layout/extraction behavior. |
+| Retry runtime aborted retry attempts reported unsuccessful. | **IMPLEMENTED**: added `RetryAssistantCall` and tests for aborted retried calls/backoff aborts reporting unsuccessful completion. |
+| OpenCode Go Responses support and Gemini/OpenRouter/Vercel catalog metadata updates. | **IMPLEMENTED**: covered by regenerated catalog and metadata regressions for OpenCode Go Responses, Laguna additions, Kimi/GLM pricing, xAI Grok 4.5 Responses metadata, and image model counts. |
+
+Result: upstream v0.81.1 production behavior with Go-facing impact is synced once the recorded full gate passes; no known Go-facing gap remains.
 
 ### v0.80.9 (2026-07-16)
 

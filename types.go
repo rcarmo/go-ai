@@ -61,6 +61,8 @@ const (
 	ProviderMoonshotAI          Provider = "moonshotai"
 	ProviderMoonshotAICN        Provider = "moonshotai-cn"
 	ProviderXiaomi              Provider = "xiaomi"
+	ProviderQwenTokenPlan       Provider = "qwen-token-plan"
+	ProviderQwenTokenPlanCN     Provider = "qwen-token-plan-cn"
 	ProviderXiaomiTokenPlanCN   Provider = "xiaomi-token-plan-cn"
 	ProviderXiaomiTokenPlanAMS  Provider = "xiaomi-token-plan-ams"
 	ProviderXiaomiTokenPlanSGP  Provider = "xiaomi-token-plan-sgp"

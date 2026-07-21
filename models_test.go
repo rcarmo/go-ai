@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1072 {
-		t.Fatalf("expected exactly 1072 generated models from pi-ai v0.80.10 tag 8dc78834, got %d", total)
+	if total != 1103 {
+		t.Fatalf("expected exactly 1103 generated models from pi-ai v0.81.1 tag 20be4b18, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,12 +84,12 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.75 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.16 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.80.9 metadata, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.82 || kimi.Cost.Output != 3.75 || kimi.Cost.CacheRead != 0.16 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.81.1 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.9086 || openRouterGLM52.Cost.Output != 2.8556 || openRouterGLM52.Cost.CacheRead != 0.16874 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.80.10 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.7896 || openRouterGLM52.Cost.Output != 2.4816 || openRouterGLM52.Cost.CacheRead != 0.14664 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.81.1 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -118,6 +118,20 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	vercelInkling := goai.GetModel(goai.ProviderVercelAIGateway, "thinkingmachines/inkling")
 	if vercelInkling.Api != goai.ApiAnthropicMessages || vercelInkling.ContextWindow != 256000 || vercelInkling.MaxTokens != 256000 || vercelInkling.BaseURL == "" {
 		t.Fatalf("expected Vercel Inkling v0.80.9 metadata, got %#v", vercelInkling)
+	}
+	for _, tc := range []struct {
+		provider goai.Provider
+		id       string
+	}{
+		{goai.ProviderOpenCode, "laguna-s-2.1-free"},
+		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1"},
+		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1:free"},
+		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1"},
+		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1-free"},
+	} {
+		if model := goai.GetModel(tc.provider, tc.id); model == nil || model.ContextWindow == 0 || model.MaxTokens == 0 {
+			t.Fatalf("expected v0.81.1 Laguna model %s/%s, got %#v", tc.provider, tc.id, model)
+		}
 	}
 
 	if openAIGPT56 := goai.GetModel(goai.ProviderOpenAI, "gpt-5.6"); openAIGPT56 != nil {

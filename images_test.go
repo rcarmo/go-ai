@@ -71,8 +71,8 @@ func TestBuiltinImageModels(t *testing.T) {
 		"openai/gpt-image-2",
 		"sourceful/riverflow-v2.5-pro",
 	}
-	if len(models) != 35 {
-		t.Fatalf("openrouter image model count = %d, want 35 from pi-ai v0.80.6", len(models))
+	if len(models) != 39 {
+		t.Fatalf("openrouter image model count = %d, want 39 from pi-ai v0.81.1", len(models))
 	}
 	for _, id := range wantIDs {
 		if got := images.GetImageModel(images.ImagesProviderOpenRouter, id); got == nil {

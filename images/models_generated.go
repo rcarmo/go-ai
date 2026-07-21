@@ -1,6 +1,6 @@
-// Code generated from @earendil-works/pi-ai image-models.generated.js. DO NOT EDIT.
+// Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.js (35 image models, 1 provider)
+// Source: image-models.generated.ts (39 image models, 1 provider)
 
 package images
 
@@ -124,6 +124,36 @@ var builtinImageModels = []ImagesModel{
 		Cost:     goai.ModelCost{Input: 0.25, Output: 1.5, CacheRead: 0, CacheWrite: 0},
 	},
 	{
+		ID:       "krea/krea-2-large",
+		Name:     "Krea: Krea 2 Large",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "krea/krea-2-medium",
+		Name:     "Krea: Krea 2 Medium",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "krea/krea-2-medium-turbo",
+		Name:     "Krea: Krea 2 Medium Turbo",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
 		ID:       "microsoft/mai-image-2.5",
 		Name:     "Microsoft: MAI-Image-2.5",
 		Api:      ImagesApi("openrouter-images"),
@@ -196,6 +226,16 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "openrouter/auto",
 		Name:     "Auto Router",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"text", "image"},
+		Cost:     goai.ModelCost{Input: -1000000, Output: -1000000, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "openrouter/auto-beta",
+		Name:     "Auto Router (Beta)",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

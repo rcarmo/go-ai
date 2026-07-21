@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-21 v0.81.1 release-only audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6` from accepted `v0.80.10` / `8dc78834cde4e329284cf505f9e3f99763df5529`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0811-release-ledger.md`.
+
+Adoption: regenerated the text catalog from exact v0.81.1 JSON-backed model data (`1103 models / 37 providers`) and the image catalog from exact v0.81.1 image metadata (`39 image models / 1 provider`); added generator/comparator support for JSON provider shards; added Qwen Token Plan provider constants/env mapping; ported shared `UUIDv7` and `ContentText` utilities; ported retry assistant-call abort reporting semantics; updated deterministic regressions for OpenCode Go Responses, Qwen Token Plan text-only model sets, image model count/result metadata, and current OpenRouter/Kimi/Gemini pricing.
+
+Validation evidence: `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0811-json/providers python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0811/packages/ai/src/providers` reports exact `1103`/`1103` provider-id parity; image pair comparator reports exact `39`/`39` parity. Full Go gates passed: `make check`, shuffled tests, race tests, `go vet`, `make staticcheck`, `make check-logging`, and `make test-repro`.
+
 ## 2026-07-17 v0.80.10 release-only audit (`@earendil-works/pi-ai`)
 
 Compared accepted upstream `v0.80.9` baseline `2d16f92973230a7e095aa984f150ba8702784f50` against official release `v0.80.10` / `8dc78834cde4e329284cf505f9e3f99763df5529` only. Exact changed-path disposition for `packages/ai`: docs/package-only (`CHANGELOG.md`, `README.md`, `package.json`) noted with no Go runtime port; `scripts/generate-models.ts` was an upstream generator-side xAI removal fix and Go consumed the resulting provider maps; provider catalog files regenerated into `models_generated.go` (`kimi-coding.models.ts`, `moonshotai.models.ts`, `moonshotai-cn.models.ts`, `opencode-go.models.ts`, `openrouter.models.ts`, `xai.models.ts`); upstream tests (`anthropic-adaptive-thinking-models.test.ts`, `anthropic-empty-thinking-signature-compat.test.ts`, `anthropic-force-adaptive-thinking.test.ts`, `providers.test.ts`, `supports-xhigh.test.ts`, `xai-responses.test.ts`) were mapped to existing Go compat behavior plus new regressions; context/stream/total-token/cross-provider test edits were TypeScript harness expectation maintenance with no Go code delta.

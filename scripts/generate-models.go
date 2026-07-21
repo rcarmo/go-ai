@@ -165,7 +165,7 @@ func inlineModularModels(inputPath, js string) string {
 		if err != nil {
 			continue
 		}
-		imports[match[1]] = extractJSObjectLiteral(string(data))
+		imports[match[1]] = extractProviderModelsObject(modulePath, string(data))
 	}
 	if len(imports) == 0 {
 		return js
@@ -190,7 +190,19 @@ func inlineModularModels(inputPath, js string) string {
 	return b.String()
 }
 
-func extractJSObjectLiteral(js string) string {
+func extractProviderModelsObject(modulePath string, js string) string {
+	jsonImportRe := regexp.MustCompile(`(?s)import\s+values\s+from\s+"([^"]+\.json)"`)
+	if match := jsonImportRe.FindStringSubmatch(js); len(match) >= 2 {
+		jsonPath := filepath.Join(filepath.Dir(modulePath), filepath.FromSlash(strings.TrimPrefix(match[1], "./")))
+		if data, err := os.ReadFile(jsonPath); err == nil {
+			return string(data)
+		}
+		if dataDir := os.Getenv("PI_AI_MODEL_DATA_DIR"); dataDir != "" {
+			if data, err := os.ReadFile(filepath.Join(dataDir, filepath.Base(match[1]))); err == nil {
+				return string(data)
+			}
+		}
+	}
 	re := regexp.MustCompile(`(?s)export const [A-Z0-9_]+\s*=\s*(\{.*\})\s*(?:as const)?;?`)
 	if match := re.FindStringSubmatch(js); len(match) >= 2 {
 		return match[1]

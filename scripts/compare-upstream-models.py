@@ -10,6 +10,8 @@ metadata parity remains covered by generator/tests.
 """
 from __future__ import annotations
 
+import json
+import os
 import pathlib
 import re
 import sys
@@ -20,10 +22,20 @@ def upstream_pairs(providers_dir: pathlib.Path) -> set[tuple[str, str]]:
     if not providers_dir.is_dir():
         raise SystemExit(f"providers dir not found: {providers_dir}")
     pairs: set[tuple[str, str]] = set()
-    pattern = re.compile(r'id:\s*"([^"]+)".*?provider:\s*"([^"]+)"', re.S)
+    inline_pattern = re.compile(r'id:\s*"([^"]+)".*?provider:\s*"([^"]+)"', re.S)
+    json_import_pattern = re.compile(r'import\s+values\s+from\s+"([^"]+\.json)"')
     for path in sorted(providers_dir.glob("*.models.ts")):
         text = path.read_text(encoding="utf-8")
-        for model_id, provider in pattern.findall(text):
+        json_match = json_import_pattern.search(text)
+        if json_match:
+            data_path = path.parent / json_match.group(1).removeprefix("./")
+            if not data_path.exists() and (data_dir := os.environ.get("PI_AI_MODEL_DATA_DIR")):
+                data_path = pathlib.Path(data_dir) / pathlib.Path(json_match.group(1)).name
+            data = json.loads(data_path.read_text(encoding="utf-8"))
+            for value in data.values():
+                pairs.add((value["provider"], value["id"]))
+            continue
+        for model_id, provider in inline_pattern.findall(text):
             pairs.add((provider, model_id))
     return pairs
 
