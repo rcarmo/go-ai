@@ -748,9 +748,10 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	sawCompletion := false
 
 	type activeItem struct {
-		itemType    string
-		contentIdx  int
-		partialJSON string
+		itemType      string
+		contentIdx    int
+		partialJSON   string
+		customPayload string
 	}
 	var current *activeItem
 
@@ -830,14 +831,14 @@ readLoop:
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "message", contentIdx: idx}
 				ch <- &goai.TextStartEvent{ContentIndex: idx, Partial: partial}
-			case "function_call":
+			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
 					Name: item.Name,
 				})
 				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: "function_call", contentIdx: idx}
+				current = &activeItem{itemType: item.Type, contentIdx: idx}
 				ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
 			}
 
@@ -863,6 +864,22 @@ readLoop:
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
 			}
 
+		case "response.custom_tool_call_input.delta":
+			if current != nil && current.itemType == "custom_tool_call" {
+				current.customPayload += raw.Delta
+				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.custom_tool_call_input.done":
+			if current != nil && current.itemType == "custom_tool_call" {
+				var done struct {
+					Input string `json:"input"`
+				}
+				if json.Unmarshal(data, &done) == nil && done.Input != "" {
+					current.customPayload = done.Input
+					partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": done.Input}
+				}
+			}
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
 				var done struct {
@@ -895,6 +912,10 @@ readLoop:
 				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
 			case "message":
 				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+			case "custom_tool_call":
+				args := map[string]interface{}{"input": current.customPayload}
+				partial.Content[idx].Arguments = args
+				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
 				if args == nil {
@@ -1130,9 +1151,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	ch <- &goai.StartEvent{Partial: partial}
 
 	type activeItem struct {
-		itemType    string
-		contentIdx  int
-		partialJSON string
+		itemType      string
+		contentIdx    int
+		partialJSON   string
+		customPayload string
 	}
 	var current *activeItem
 
@@ -1182,9 +1204,9 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				current = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
 				ch <- &goai.TextStartEvent{ContentIndex: current.contentIdx, Partial: partial}
-			case "function_call":
+			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
-				current = &activeItem{itemType: "function_call", contentIdx: len(partial.Content) - 1}
+				current = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
 				ch <- &goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial}
 			}
 		case "response.reasoning_summary_text.delta":
@@ -1205,6 +1227,22 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 					partial.Content[current.contentIdx].Arguments = args
 				}
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.custom_tool_call_input.delta":
+			if current != nil && current.itemType == "custom_tool_call" {
+				current.customPayload += raw.Delta
+				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+		case "response.custom_tool_call_input.done":
+			if current != nil && current.itemType == "custom_tool_call" {
+				var done struct {
+					Input string `json:"input"`
+				}
+				if json.Unmarshal([]byte(evt.Data), &done) == nil && done.Input != "" {
+					current.customPayload = done.Input
+					partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": done.Input}
+				}
 			}
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
@@ -1237,6 +1275,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
 			case "message":
 				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+			case "custom_tool_call":
+				args := map[string]interface{}{"input": current.customPayload}
+				partial.Content[idx].Arguments = args
+				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
 				if args == nil {
@@ -1302,6 +1344,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
+	}
+	for _, c := range partial.Content {
+		if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
+			partial.StopReason = goai.StopReasonToolUse
+			break
+		}
 	}
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
 }

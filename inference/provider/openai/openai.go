@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -800,6 +801,24 @@ func joinStrings(parts []string) string {
 	return result
 }
 
+func appendGrammarInputDelta(previous, next string, close bool) (string, error) {
+	if !strings.HasPrefix(next, previous) {
+		return "", fmt.Errorf("grammar tool input changed non-monotonically")
+	}
+	delta := next[len(previous):]
+	if !close && delta == "" {
+		return "", nil
+	}
+	encoded := strings.TrimSuffix(strings.TrimPrefix(strconv.Quote(delta), "\""), "\"")
+	if close {
+		return encoded + "\"}", nil
+	}
+	if previous == "" {
+		return "{\"input\":\"" + encoded, nil
+	}
+	return encoded, nil
+}
+
 // --- SSE response processing ---
 
 type sseChunk struct {
@@ -841,11 +860,17 @@ type sseToolCall struct {
 	ID       string          `json:"id,omitempty"`
 	Type     string          `json:"type,omitempty"`
 	Function sseToolFunction `json:"function"`
+	Custom   sseToolCustom   `json:"custom"`
 }
 
 type sseToolFunction struct {
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
+}
+
+type sseToolCustom struct {
+	Name  string `json:"name,omitempty"`
+	Input string `json:"input,omitempty"`
 }
 
 type sseUsage struct {
@@ -872,11 +897,13 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
-		index      int
-		id         string
-		name       string
-		argsBuf    string
-		contentIdx int
+		index       int
+		id          string
+		name        string
+		argsBuf     string
+		customInput string
+		custom      bool
+		contentIdx  int
 	}
 	var activeTools []activeToolCall
 	pendingReasoningDetailsByToolCallID := map[string]string{}
@@ -970,6 +997,11 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 		// Tool calls
 		for _, tc := range delta.ToolCalls {
+			name := tc.Function.Name
+			isCustom := tc.Type == "custom" || tc.Custom.Name != "" || tc.Custom.Input != ""
+			if name == "" {
+				name = tc.Custom.Name
+			}
 			// Find or create active tool call
 			var at *activeToolCall
 			for i := range activeTools {
@@ -983,28 +1015,38 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   tc.ID,
-					Name: tc.Function.Name,
+					Name: name,
 				})
 				activeTools = append(activeTools, activeToolCall{
 					index:      tc.Index,
 					id:         tc.ID,
-					name:       tc.Function.Name,
+					name:       name,
+					custom:     isCustom,
 					contentIdx: contentIdx,
 				})
 				at = &activeTools[len(activeTools)-1]
-				ch <- &goai.ToolCallStartEvent{
-					ContentIndex: contentIdx,
-					Partial:      partial,
-				}
+				ch <- &goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial}
+			}
+			if isCustom {
+				at.custom = true
 			}
 
-			// Accumulate arguments
+			// Accumulate arguments/input
 			if tc.Function.Arguments != "" {
 				at.argsBuf += tc.Function.Arguments
-				ch <- &goai.ToolCallDeltaEvent{
-					ContentIndex: at.contentIdx,
-					Delta:        tc.Function.Arguments,
-					Partial:      partial,
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial}
+			}
+			if tc.Custom.Input != "" {
+				next := at.customInput + tc.Custom.Input
+				deltaJSON, err := appendGrammarInputDelta(at.customInput, next, false)
+				if err != nil {
+					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+					return
+				}
+				at.customInput = next
+				partial.Content[at.contentIdx].Arguments = map[string]interface{}{"input": next}
+				if deltaJSON != "" {
+					ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial}
 				}
 			}
 
@@ -1016,9 +1058,9 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					partial.Content[at.contentIdx].ThoughtSignature = sig
 				}
 			}
-			if tc.Function.Name != "" {
-				at.name = tc.Function.Name
-				partial.Content[at.contentIdx].Name = tc.Function.Name
+			if name != "" {
+				at.name = name
+				partial.Content[at.contentIdx].Name = name
 			}
 		}
 
@@ -1058,9 +1100,22 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	// Close tool calls and parse arguments
 	for _, at := range activeTools {
-		args, _ := jsonparse.ParsePartialJSON(at.argsBuf)
-		if args == nil {
-			args = map[string]interface{}{}
+		var args map[string]interface{}
+		if at.custom {
+			deltaJSON, err := appendGrammarInputDelta(at.customInput, at.customInput, true)
+			if err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				return
+			}
+			if deltaJSON != "" {
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial}
+			}
+			args = map[string]interface{}{"input": at.customInput}
+		} else {
+			args, _ = jsonparse.ParsePartialJSON(at.argsBuf)
+			if args == nil {
+				args = map[string]interface{}{}
+			}
 		}
 		partial.Content[at.contentIdx].Arguments = args
 		ch <- &goai.ToolCallEndEvent{
