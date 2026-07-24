@@ -274,6 +274,17 @@ type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"` // JSON Schema
+	// ConstrainedSampling requests provider-supported constrained sampling for tool inputs.
+	// Type may be "json_schema" or "grammar". Strict is used by json_schema
+	// constraints ("prefer" or "require"); Variants carries provider grammar
+	// definitions such as "openai_lark" or "openai_regex".
+	ConstrainedSampling *ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
+}
+
+type ToolConstrainedSampling struct {
+	Type     string            `json:"type"`
+	Strict   string            `json:"strict,omitempty"`
+	Variants map[string]string `json:"variants,omitempty"`
 }
 
 // --- Context ---

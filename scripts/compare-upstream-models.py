@@ -32,7 +32,13 @@ def upstream_pairs(providers_dir: pathlib.Path) -> set[tuple[str, str]]:
             if not data_path.exists() and (data_dir := os.environ.get("PI_AI_MODEL_DATA_DIR")):
                 data_path = pathlib.Path(data_dir) / pathlib.Path(json_match.group(1)).name
             data = json.loads(data_path.read_text(encoding="utf-8"))
+            values = []
             for value in data.values():
+                if isinstance(value, dict) and "id" in value and "provider" in value:
+                    values.append(value)
+                elif isinstance(value, dict):
+                    values.extend(value.values())
+            for value in values:
                 pairs.add((value["provider"], value["id"]))
             continue
         for model_id, provider in inline_pattern.findall(text):

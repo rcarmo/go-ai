@@ -171,7 +171,7 @@ func inlineModularModels(inputPath, js string) string {
 		return js
 	}
 
-	modelsRe := regexp.MustCompile(`(?s)export const MODELS = \{(.*)\};?`)
+	modelsRe := regexp.MustCompile(`(?s)export const MODELS.*?=\s*\{(.*)\};?\s*$`)
 	modelsMatch := modelsRe.FindStringSubmatch(js)
 	if len(modelsMatch) < 2 {
 		return js
@@ -195,11 +195,11 @@ func extractProviderModelsObject(modulePath string, js string) string {
 	if match := jsonImportRe.FindStringSubmatch(js); len(match) >= 2 {
 		jsonPath := filepath.Join(filepath.Dir(modulePath), filepath.FromSlash(strings.TrimPrefix(match[1], "./")))
 		if data, err := os.ReadFile(jsonPath); err == nil {
-			return string(data)
+			return flattenProviderDataJSON(data)
 		}
 		if dataDir := os.Getenv("PI_AI_MODEL_DATA_DIR"); dataDir != "" {
 			if data, err := os.ReadFile(filepath.Join(dataDir, filepath.Base(match[1]))); err == nil {
-				return string(data)
+				return flattenProviderDataJSON(data)
 			}
 		}
 	}
@@ -213,6 +213,39 @@ func extractProviderModelsObject(modulePath string, js string) string {
 		return "{}"
 	}
 	return js[start : end+1]
+}
+
+func flattenProviderDataJSON(data []byte) string {
+	var outer map[string]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil || len(outer) == 0 {
+		return string(data)
+	}
+	for _, raw := range outer {
+		var probe struct {
+			ID       string `json:"id"`
+			Provider string `json:"provider"`
+		}
+		_ = json.Unmarshal(raw, &probe)
+		if probe.ID != "" && probe.Provider != "" {
+			return string(data)
+		}
+		break
+	}
+	flat := map[string]json.RawMessage{}
+	for _, groupRaw := range outer {
+		var group map[string]json.RawMessage
+		if err := json.Unmarshal(groupRaw, &group); err != nil {
+			return string(data)
+		}
+		for id, raw := range group {
+			flat[id] = raw
+		}
+	}
+	out, err := json.Marshal(flat)
+	if err != nil {
+		return string(data)
+	}
+	return string(out)
 }
 
 // jsObjectToJSON converts the JS module to a JSON object.

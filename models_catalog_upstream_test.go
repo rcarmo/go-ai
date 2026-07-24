@@ -130,7 +130,8 @@ func TestTogetherModelsRegistersDefaultKimiK26ViaOpenAICompatibleChatCompletions
 
 func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 	gptOss := requireModel(t, goai.ProviderTogether, "openai/gpt-oss-120b")
-	wantGPTOSS := map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: nil, goai.ModelThinkingLevel(goai.ThinkingMinimal): nil}
+	low, medium, high := "low", "medium", "high"
+	wantGPTOSS := map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: nil, goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): &low, goai.ModelThinkingLevel(goai.ThinkingMedium): &medium, goai.ModelThinkingLevel(goai.ThinkingHigh): &high, goai.ModelThinkingLevel(goai.ThinkingMax): nil, goai.ModelThinkingLevel(goai.ThinkingXHigh): nil}
 	if !reflect.DeepEqual(gptOss.ThinkingLevelMap, wantGPTOSS) {
 		t.Fatalf("gpt-oss thinkingLevelMap=%#v, want %#v", gptOss.ThinkingLevelMap, wantGPTOSS)
 	}
@@ -139,7 +140,6 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 	}
 
 	deepSeekV4 := requireModel(t, goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro")
-	high := "high"
 	wantDeepSeek := map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil, goai.ModelThinkingLevel(goai.ThinkingHigh): &high, goai.ModelThinkingLevel(goai.ThinkingXHigh): nil}
 	if !reflect.DeepEqual(deepSeekV4.ThinkingLevelMap, wantDeepSeek) {
 		t.Fatalf("DeepSeek-V4 thinkingLevelMap=%#v, want %#v", deepSeekV4.ThinkingLevelMap, wantDeepSeek)

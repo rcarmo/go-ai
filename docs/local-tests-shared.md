@@ -6,7 +6,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **494**
+- Local Go test functions inventoried: **504**
 - Amazon Bedrock provider: 21
 - Anthropic Messages provider: 47
 - Core API / harness / transforms / utilities: 222
@@ -15,12 +15,12 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Google / Vertex provider: 34
 - Image generation / OpenRouter images: 11
 - Mistral provider: 10
-- OAuth providers: 33
+- OAuth providers: 37
 - OpenAI Chat Completions provider: 34
 - OpenAI Codex transport/provider: 17
-- OpenAI/Azure Responses provider: 31
+- OpenAI/Azure Responses provider: 33
 - Pi Messages provider: 3
-- Retry/helper and HTTP proxy: 20
+- Retry/helper and HTTP proxy: 24
 
 ## Shareable conformance corpus adopted from rs-ai/swift-ai
 
@@ -31,7 +31,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Upstream `utils/estimate.ts` semantics are covered by `estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
 - Upstream `clampMaxTokensToContext` is covered by `simple_options_clamp_test.go` using canonical upstream literals from `simple-options.ts`: `CONTEXT_SAFETY_TOKENS = 4096`, `MIN_MAX_TOKENS = 1`; boundary case `contextWindow=5000`, `"hello"` estimate `2`, requested `2000` clamps to `902`. Provider request builders receive clamped `options.maxTokens` via `buildBaseOptions`/shared options; boundary tests cover OpenAI Completions, Responses/Codex, Anthropic, Bedrock, Google/Vertex, and Mistral.
 - Anthropic `output_tokens_details.thinking_tokens` → `usage.reasoning` is covered by `inference/provider/anthropic/anthropic_reasoning_usage_upstream_test.go`.
-- Provider catalog parity is checked by regenerating `models_generated.go` from exact upstream provider shards; `scripts/compare-upstream-models.py` reads exact upstream provider maps directly and currently verifies 1103 generated text models across 37 providers from exact upstream v0.81.1 tag `20be4b18d4c57487f8993d2762bace129f0cf7c6` using `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0811-json/providers`. Image catalog parity is checked against exact upstream `image-models.generated.ts` and currently verifies 39/39 image provider/id pairs.
+- Provider catalog parity is checked by regenerating `models_generated.go` from exact upstream provider shards; `scripts/compare-upstream-models.py` reads exact upstream provider maps directly and currently verifies 1116 generated text models across 37 providers from exact upstream v0.82.0 tag `083e61621276bff9f6faefab87ce07fcd98734e2` using `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0820-json/providers`. Image catalog parity is checked against exact upstream `image-models.generated.ts` and currently verifies 40/40 image provider/id pairs.
 - v0.80.5 lax untyped-history content handling is covered by `lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
 - v0.80.5 OpenAI Responses empty tool-result behavior is covered by `inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go`: blank text-only tool outputs serialize as `(no tool output)` without image-placeholder text.
 - v0.80.5 in-place behavior deltas are covered beyond file-count accounting: Codex SSE zstd request compression at level 3, Codex cached WebSocket 55m age recycling, DS4 overflow wording, retryable `524`/Bun socket-drop/`ResourceExhausted` errors, OAuth `slow_down.interval` semantics, and OpenAI Completions `(no tool output)` blank tool-result placeholders.
@@ -42,7 +42,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Upstream-main `2be9efa` xAI parity is covered by `oauth/xai_test.go` and `inference/provider/openairesponses/xai_responses_upstream_test.go`: xAI device OAuth, refresh token rotation/preservation/default expiry/error surfacing, HTTPS verification URI validation, and `grok-4.5` metadata parity.
 - Upstream v0.80.9 Kimi deferred-tool serialization is covered by `inference/provider/openai/openai_deferred_kimi_test.go`: `deferredToolsMode: "kimi"` filters newly added deferred tools out of top-level tools and emits a contentless system tool-definition message after the relevant tool result.
 - Upstream v0.80.9 model-refresh force propagation is covered by `models_runtime_test.go`: `RefreshWithOptions(... Force:true)` reaches dynamic provider refresh contexts.
-- Upstream v0.81.1 JSON-backed model data, Qwen Token Plan providers, UUID/text utilities, image metadata, and retry abort reporting are covered by `qwen_token_plan_upstream_test.go`, `v0811_utils_retry_test.go`, updated image/model metadata tests, and the exact 1103/1103 text plus 39/39 image comparators.
+- Upstream v0.82.0 grouped JSON model data, constrained sampling, OpenRouter/Kimi Code OAuth, abortable/DNS provider retry, image metadata, and catalog metadata are covered by `constrained_sampling_upstream_test.go`, `provider_retry_test.go`, `oauth/v0820_oauth_test.go`, updated image/model metadata tests, and the exact 1116/1116 text plus 40/40 image comparators.
 
 ## Tests
 

@@ -2,9 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.81.1
+## Source: `@earendil-works/pi-ai` v0.82.0
 
 ## Sync history
+
+### v0.82.0 (2026-07-24)
+
+Release-only audit (`v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6` → `v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2`) found 96 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0820-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Grouped generated model/image JSON type changes and catalog metadata. | **IMPLEMENTED**: generator/comparator support for API-grouped JSON shards, text catalog `1116/1116`, image catalog `40/40`, metadata regressions updated. |
+| Constrained sampling. | **IMPLEMENTED**: `Tool.ConstrainedSampling`, OpenAI Responses strict/grammar conversion, validation, and tests. |
+| OpenRouter OAuth. | **IMPLEMENTED**: OAuth provider/key exchange and local-server tests. |
+| Kimi Code subscription OAuth. | **IMPLEMENTED**: device authorization, polling, refresh, trusted URI validation, and local-server tests. |
+| Abortable provider retries / DNS transport retry. | **IMPLEMENTED**: `RetryProviderRequest` with retryability headers/statuses, delay cap, abortable sleep, no-status/DNS retry tests. |
+| Provider/model/tool/stream/error/usage fixes. | **IMPLEMENTED/ADAPTED**: applicable behavior covered by regenerated metadata, constrained sampling/retry/OAuth tests, and existing provider stream/error/usage regressions; live credential TS harness changes marked N/A in ledger matrix. |
+
+Result: upstream v0.82.0 production behavior with Go-facing impact is synced once the recorded full gate passes; no known Go-facing gap remains.
 
 ### v0.81.1 (2026-07-21)
 

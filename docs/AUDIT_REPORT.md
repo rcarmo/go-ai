@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-24 v0.82.0 release-only audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2` from accepted `v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0820-release-ledger.md`.
+
+Adoption: regenerated the text catalog from exact v0.82.0 grouped JSON-backed model data (`1116 models / 37 providers`) and the image catalog from exact v0.82.0 image metadata (`40 image models / 1 provider`); extended generator/comparator support for v0.82 API-grouped JSON shards; ported constrained sampling metadata/conversion, OpenRouter OAuth, Kimi Code subscription OAuth, and abortable provider/DNS retry; updated deterministic regressions for Together reasoning maps, OpenRouter Kimi/GLM pricing, xAI/OpenCode/OpenRouter/Vercel metadata, and image model counts.
+
+Validation evidence: `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0820-json/providers python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0820/packages/ai/src/providers` reports exact `1116`/`1116` provider-id parity; image pair comparator reports exact `40`/`40` parity. Full Go gates passed: `make check`, shuffled tests, race tests, `go vet`, `make staticcheck`, `make check-logging`, and `make test-repro`.
+
 ## 2026-07-21 v0.81.1 release-only audit (`@earendil-works/pi-ai`)
 
 Audited official release `v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6` from accepted `v0.80.10` / `8dc78834cde4e329284cf505f9e3f99763df5529`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0811-release-ledger.md`.

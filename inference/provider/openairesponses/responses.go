@@ -191,11 +191,81 @@ type reasoningConfig struct {
 }
 
 type toolDef struct {
-	Type         string          `json:"type"`
-	Name         string          `json:"name"`
-	Description  string          `json:"description,omitempty"`
-	Parameters   json.RawMessage `json:"parameters,omitempty"`
-	DeferLoading bool            `json:"defer_loading,omitempty"`
+	Type         string                 `json:"type"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	Parameters   json.RawMessage        `json:"parameters,omitempty"`
+	Strict       *bool                  `json:"strict,omitempty"`
+	Format       map[string]interface{} `json:"format,omitempty"`
+	DeferLoading bool                   `json:"defer_loading,omitempty"`
+}
+
+func convertResponsesTool(t goai.Tool, supportsStrictMode, supportsGrammar bool) (toolDef, error) {
+	out := toolDef{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters}
+	cfg := t.ConstrainedSampling
+	if cfg == nil || cfg.Type == "" || cfg.Type == "false" {
+		return out, nil
+	}
+	switch cfg.Type {
+	case "json_schema":
+		if supportsStrictMode {
+			b := true
+			out.Strict = &b
+			return out, nil
+		}
+		if cfg.Strict == "require" {
+			return out, fmt.Errorf("tool %q requires JSON-schema constrained sampling, but strict tools are unsupported", t.Name)
+		}
+		return out, nil
+	case "grammar":
+		if !supportsGrammar {
+			return out, nil
+		}
+		definition := strings.TrimSpace(cfg.Variants["openai_lark"])
+		syntax := "lark"
+		if definition == "" {
+			definition = strings.TrimSpace(cfg.Variants["openai_regex"])
+			syntax = "regex"
+		}
+		if definition == "" {
+			return out, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", t.Name)
+		}
+		if _, err := inferGrammarInputProperty(t); err != nil {
+			return out, fmt.Errorf("tool %q cannot use grammar constrained sampling: %w", t.Name, err)
+		}
+		out.Type = "custom"
+		out.Parameters = nil
+		out.Format = map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}
+		return out, nil
+	default:
+		return out, nil
+	}
+}
+
+func inferGrammarInputProperty(t goai.Tool) (string, error) {
+	var schema struct {
+		Type       string                            `json:"type"`
+		Required   []string                          `json:"required"`
+		Properties map[string]map[string]interface{} `json:"properties"`
+	}
+	if err := json.Unmarshal(t.Parameters, &schema); err != nil {
+		return "", err
+	}
+	if schema.Type != "object" {
+		return "", fmt.Errorf("grammar constrained sampling requires an object parameter schema")
+	}
+	if len(schema.Required) != 1 {
+		return "", fmt.Errorf("grammar constrained sampling requires exactly one required string property")
+	}
+	name := schema.Required[0]
+	prop := schema.Properties[name]
+	if prop == nil {
+		return "", fmt.Errorf("grammar constrained sampling requires a properties entry for %s", name)
+	}
+	if prop["type"] != "string" {
+		return "", fmt.Errorf("grammar constrained sampling property %s must have type string", name)
+	}
+	return name, nil
 }
 
 func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (baseURL string, deploymentName string, apiVersion string, err error) {
@@ -322,12 +392,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		activeTools = convCtx.Tools
 	}
 	for _, t := range activeTools {
-		req.Tools = append(req.Tools, toolDef{
-			Type:        "function",
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  t.Parameters,
-		})
+		tool, err := convertResponsesTool(t, true, true)
+		if err != nil {
+			inputJSON, _ := json.Marshal([]map[string]interface{}{{"type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": err.Error()}}}})
+			req.Input = inputJSON
+			continue
+		}
+		req.Tools = append(req.Tools, tool)
 	}
 
 	// Reasoning — match pi-ai's format: {effort, summary} object + include encrypted content.
