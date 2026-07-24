@@ -1098,7 +1098,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
 	client := retryCfg.NewHTTPClient()
-	resp, err := goai.DoWithRetry(ctx, client, req, retryCfg)
+	resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 	if err != nil {
 		if ctx.Err() != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
@@ -1328,10 +1328,11 @@ type codexRequest struct {
 }
 
 type codexTool struct {
-	Type        string          `json:"type"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"`
+	Type        string                 `json:"type"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Parameters  json.RawMessage        `json:"parameters,omitempty"`
+	Format      map[string]interface{} `json:"format,omitempty"`
 }
 
 func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) codexRequest {
@@ -1378,7 +1379,20 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 
+	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
 	for _, t := range convCtx.Tools {
+		if supportsGrammar && t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" {
+			definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
+			syntax := "lark"
+			if definition == "" {
+				definition = strings.TrimSpace(t.ConstrainedSampling.Variants["openai_regex"])
+				syntax = "regex"
+			}
+			if definition != "" {
+				req.Tools = append(req.Tools, codexTool{Type: "custom", Name: t.Name, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}})
+				continue
+			}
+		}
 		req.Tools = append(req.Tools, codexTool{
 			Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters,
 		})

@@ -14,6 +14,7 @@ type ProviderRequestError struct {
 	Status  int
 	Headers http.Header
 	Message string
+	Cause   error
 }
 
 func (e *ProviderRequestError) Error() string {
@@ -30,6 +31,48 @@ type ProviderRetryOptions struct {
 	MaxRetries      int
 	MaxRetryDelay   time.Duration
 	DisableDelayCap bool
+}
+
+func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
+	cfg.applyDefaults()
+	if client == nil {
+		client = cfg.NewHTTPClient()
+	}
+	if req == nil {
+		return nil, fmt.Errorf("nil request")
+	}
+	if req.Body != nil && req.GetBody == nil && cfg.MaxRetries > 0 {
+		return nil, fmt.Errorf("retry requires request.GetBody for replayable request body")
+	}
+	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: time.Duration(cfg.MaxRetryDelayMs) * time.Millisecond, DisableDelayCap: cfg.MaxRetryDelayMs == 0}
+	attempt := 0
+	return RetryProviderRequest(ctx, func() (*http.Response, error) {
+		attemptReq := req.Clone(ctx)
+		if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("clone request body: %w", err)
+			}
+			attemptReq.Body = body
+		}
+		resp, err := client.Do(attemptReq)
+		if err != nil {
+			return nil, &ProviderRequestError{Status: 0, Headers: http.Header{}, Message: err.Error(), Cause: err}
+		}
+		if !isRetryableProviderStatus(resp.StatusCode, cfg) {
+			return resp, nil
+		}
+		if attempt >= cfg.MaxRetries {
+			return resp, nil
+		}
+		attempt++
+		headers := resp.Header.Clone()
+		resp.Body.Close()
+		if cfg.OnRetry != nil {
+			cfg.OnRetry(attempt-1, 0, resp.StatusCode)
+		}
+		return nil, &ProviderRequestError{Status: resp.StatusCode, Headers: headers, Message: fmt.Sprintf("HTTP %d", resp.StatusCode)}
+	}, options)
 }
 
 func RetryProviderRequest[T any](ctx context.Context, request func() (T, error), options ProviderRetryOptions) (T, error) {
@@ -63,6 +106,18 @@ func RetryProviderRequest[T any](ctx context.Context, request func() (T, error),
 			return zero, err
 		}
 	}
+}
+
+func isRetryableProviderStatus(code int, cfg RetryConfig) bool {
+	if cfg.RetryableStatuses != nil {
+		for _, status := range cfg.RetryableStatuses {
+			if status == code {
+				return true
+			}
+		}
+		return false
+	}
+	return code == 408 || code == 409 || code == 429 || code >= 500
 }
 
 func isRetryableProviderRequestError(err *ProviderRequestError) bool {

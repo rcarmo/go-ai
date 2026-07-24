@@ -137,7 +137,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := goai.DoWithRetry(ctx, client, req, retryCfg)
+		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
@@ -391,8 +391,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if len(activeTools) == 0 && !deferredPlan.HasDeferred() {
 		activeTools = convCtx.Tools
 	}
+	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
 	for _, t := range activeTools {
-		tool, err := convertResponsesTool(t, true, true)
+		tool, err := convertResponsesTool(t, true, supportsGrammar)
 		if err != nil {
 			inputJSON, _ := json.Marshal([]map[string]interface{}{{"type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": err.Error()}}}})
 			req.Input = inputJSON
@@ -729,9 +730,10 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	ch <- &goai.StartEvent{Partial: partial}
 
 	type activeItem struct {
-		itemType    string // "reasoning", "message", "function_call"
-		contentIdx  int
-		partialJSON string
+		itemType      string // "reasoning", "message", "function_call", "custom_tool_call"
+		contentIdx    int
+		partialJSON   string
+		customPayload string
 	}
 	var current *activeItem
 
@@ -762,6 +764,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			Response  json.RawMessage `json:"response,omitempty"`
 			Delta     string          `json:"delta,omitempty"`
 			Arguments string          `json:"arguments,omitempty"`
+			Input     string          `json:"input,omitempty"`
 			Part      json.RawMessage `json:"part,omitempty"`
 			Code      string          `json:"code,omitempty"`
 			Message   string          `json:"message,omitempty"`
@@ -801,14 +804,14 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				current = &activeItem{itemType: "message", contentIdx: idx}
 				ch <- &goai.TextStartEvent{ContentIndex: idx, Partial: partial}
 
-			case "function_call":
+			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
 					Name: item.Name,
 				})
 				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: "function_call", contentIdx: idx}
+				current = &activeItem{itemType: item.Type, contentIdx: idx}
 				ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
 			}
 
@@ -853,6 +856,25 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					partial.Content[current.contentIdx].Arguments = args
 				}
 				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+
+		case "response.custom_tool_call_input.delta":
+			if current != nil && current.itemType == "custom_tool_call" {
+				current.customPayload += raw.Delta
+				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
+				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+			}
+
+		case "response.custom_tool_call_input.done":
+			if current != nil && current.itemType == "custom_tool_call" {
+				current.customPayload = raw.Input
+				if current.customPayload == "" {
+					current.customPayload = raw.Arguments
+				}
+				if current.customPayload == "" {
+					current.customPayload = raw.Delta
+				}
+				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
 			}
 
 		case "response.function_call_arguments.done":

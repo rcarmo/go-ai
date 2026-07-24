@@ -125,7 +125,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := goai.DoWithRetry(ctx, client, req, retryCfg)
+		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
@@ -247,9 +247,11 @@ type imageURL struct {
 }
 
 type toolDef struct {
-	Type         string        `json:"type"`
-	Function     toolFunction  `json:"function"`
-	CacheControl *cacheControl `json:"cache_control,omitempty"`
+	Type         string                 `json:"type"`
+	Function     *toolFunction          `json:"function,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Format       map[string]interface{} `json:"format,omitempty"`
+	CacheControl *cacheControl          `json:"cache_control,omitempty"`
 }
 
 type toolFunction struct {
@@ -259,6 +261,19 @@ type toolFunction struct {
 	Strict      bool            `json:"strict,omitempty"`
 }
 
+func openAIGrammarToolDef(t goai.Tool, cacheMarker *cacheControl) (toolDef, error) {
+	definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
+	syntax := "lark"
+	if definition == "" {
+		definition = strings.TrimSpace(t.ConstrainedSampling.Variants["openai_regex"])
+		syntax = "regex"
+	}
+	if definition == "" {
+		return toolDef{}, fmt.Errorf("tool %q cannot use grammar constrained sampling", t.Name)
+	}
+	return toolDef{Type: "custom", Name: t.Name, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}, CacheControl: cacheMarker}, nil
+}
+
 func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cacheMarker *cacheControl) []toolDef {
 	if len(tools) == 0 {
 		return nil
@@ -266,10 +281,16 @@ func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cac
 	strictMode := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
 	defs := make([]toolDef, 0, len(tools))
 	for _, t := range tools {
+		if t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" && compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
+			if def, err := openAIGrammarToolDef(t, cacheMarker); err == nil {
+				defs = append(defs, def)
+				continue
+			}
+		}
 		defs = append(defs, toolDef{
 			Type:         "function",
 			CacheControl: cacheMarker,
-			Function: toolFunction{
+			Function: &toolFunction{
 				Name:        t.Name,
 				Description: t.Description,
 				Parameters:  t.Parameters,

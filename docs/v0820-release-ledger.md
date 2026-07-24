@@ -11,8 +11,8 @@ Exact source checkouts used:
 
 - Text model catalog regenerated from exact v0.82.0 grouped JSON-backed provider data. `scripts/generate-models.go` and `scripts/compare-upstream-models.py` now flatten both v0.81 flat JSON shards and v0.82 API-grouped JSON shards. Comparator evidence: `upstream pairs: 1116`, `generated pairs: 1116`, exact match.
 - Image model catalog regenerated from exact v0.82.0 `src/image-models.generated.ts`; comparator evidence: `upstream image pairs: 40`, `generated image pairs: 40`, exact match.
-- Constrained sampling ported: `Tool.ConstrainedSampling`, JSON-schema strict conversion, grammar custom tool conversion, schema validation, and deterministic OpenAI Responses tests.
-- Provider retries ported: `RetryProviderRequest` mirrors SDK-style retryability headers/statuses, provider retry-delay cap, abortable retry sleeps, and DNS/no-status transport retry with deterministic tests.
+- Constrained sampling ported: `Tool.ConstrainedSampling`, `SupportsOpenAIGrammarTools` compatibility metadata from generated catalogs, JSON-schema strict conversion, grammar custom tool conversion in OpenAI Completions, OpenAI Responses/Azure-shared, and Codex Responses, schema validation, and deterministic request/stream tests.
+- Provider retries ported and production-wired: `DoProviderRequestWithRetry`/`RetryProviderRequest` mirror SDK-style retryability headers/statuses, provider retry-delay cap, abortable retry sleeps, DNS/no-status transport retry, and are used by actual OpenAI, Responses/Azure-shared, Anthropic, and Codex HTTP request paths with local-server/DNS/cancel tests.
 - OpenRouter OAuth ported: OAuth key exchange provider and local-server tests for success/error handling.
 - Kimi Code subscription OAuth ported: device authorization, polling, refresh, trusted verification URI validation, and local-server tests.
 - Catalog/provider metadata regressions updated for v0.82.0: 1116 text models, 40 image models, Together reasoning maps, OpenRouter Kimi/GLM pricing, xAI/OpenCode/OpenRouter/Vercel model additions/removals.

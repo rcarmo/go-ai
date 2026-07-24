@@ -66,6 +66,9 @@ type OpenAICompletionsCompat struct {
 	// Whether the provider supports `strict` in tool definitions.
 	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
 
+	// Whether the provider supports OpenAI grammar custom tools.
+	SupportsOpenAIGrammarTools *bool `json:"supportsOpenAIGrammarTools,omitempty"`
+
 	// Cache control convention: "anthropic" applies cache_control markers.
 	CacheControlFormat string `json:"cacheControlFormat,omitempty"`
 
@@ -95,6 +98,9 @@ type OpenAIResponsesCompat struct {
 
 	// Whether the provider supports client-side deferred tool loading through tool_search_call/output.
 	SupportsToolSearch *bool `json:"supportsToolSearch,omitempty"`
+
+	// Whether the provider supports OpenAI grammar custom tools.
+	SupportsOpenAIGrammarTools *bool `json:"supportsOpenAIGrammarTools,omitempty"`
 }
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.

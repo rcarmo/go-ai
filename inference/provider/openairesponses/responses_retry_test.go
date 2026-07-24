@@ -10,6 +10,28 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+func TestStreamResponsesHonorsProviderNoRetryHeader(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.Header().Set("x-should-retry", "false")
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte("rate limited"))
+	}))
+	defer server.Close()
+	model := &goai.Model{ID: "gpt-4.1", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, BaseURL: server.URL}
+	opts := &goai.StreamOptions{APIKey: "test-key", RetryConfig: &goai.RetryConfig{MaxRetries: 2, InitialDelay: time.Millisecond, MaxDelay: time.Millisecond, BackoffMultiplier: 1, ConnectTimeout: time.Second, RequestTimeout: time.Second}}
+	var sawError bool
+	for ev := range streamResponses(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, opts) {
+		if _, ok := ev.(*goai.ErrorEvent); ok {
+			sawError = true
+		}
+	}
+	if attempts != 1 || !sawError {
+		t.Fatalf("attempts=%d sawError=%v", attempts, sawError)
+	}
+}
+
 func TestStreamResponsesRetries429AndSucceeds(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

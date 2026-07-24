@@ -110,6 +110,7 @@ type compatEntry struct {
 	VercelGatewayRouting                        map[string]interface{}       `json:"vercelGatewayRouting"`
 	ZaiToolStream                               *bool                        `json:"zaiToolStream"`
 	SupportsStrictMode                          *bool                        `json:"supportsStrictMode"`
+	SupportsOpenAIGrammarTools                  *bool                        `json:"supportsOpenAIGrammarTools"`
 	CacheControlFormat                          string                       `json:"cacheControlFormat"`
 	SendSessionAffinityHeaders                  *bool                        `json:"sendSessionAffinityHeaders"`
 	DeferredToolsMode                           string                       `json:"deferredToolsMode"`
@@ -414,6 +415,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
 		writeBoolField(b, "ZaiToolStream", c.ZaiToolStream)
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
 		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
 		writeStringField(b, "DeferredToolsMode", c.DeferredToolsMode)
@@ -424,6 +426,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
 		b.WriteString("},\n")
 	case "anthropic-messages":
 		b.WriteString("\t\tAnthropicCompat: &AnthropicMessagesCompat{")
@@ -437,7 +440,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
