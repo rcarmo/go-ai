@@ -93,23 +93,26 @@ func ListProviders() []ProviderInterface {
 func GetAPIKey(id string, creds *Credentials) (*Credentials, string, error) {
 	p := GetProvider(id)
 	if p == nil {
-		return nil, "", fmt.Errorf("OAuth provider %q not registered", id)
+		return nil, "", goai.NewModelsError(goai.ModelsErrorAuth, fmt.Sprintf("OAuth provider %q not registered", id), nil)
 	}
 	if creds == nil {
-		return nil, "", fmt.Errorf("no credentials for OAuth provider %q", id)
+		return nil, "", goai.NewModelsError(goai.ModelsErrorAuth, fmt.Sprintf("no credentials for OAuth provider %q", id), nil)
 	}
 
 	// Credentials.Expires already includes each provider's early-refresh buffer.
-	if creds.Expires > 0 && time.Now().UnixMilli() >= creds.Expires {
+	if (creds.Expires > 0 && time.Now().UnixMilli() >= creds.Expires) || (creds.Access == "" && creds.Refresh != "") {
 		refreshed, err := p.RefreshToken(creds)
 		if err != nil {
-			return creds, "", err
+			return creds, "", goai.NewModelsError(goai.ModelsErrorOAuth, fmt.Sprintf("OAuth refresh failed for %s", id), err)
 		}
 		if refreshed != nil {
 			creds = refreshed
 		}
 	}
 	key := p.GetAPIKey(creds)
+	if key == "" {
+		return creds, "", goai.NewModelsError(goai.ModelsErrorAuth, fmt.Sprintf("OAuth auth derivation failed for %s", id), fmt.Errorf("provider returned empty API key"))
+	}
 	return creds, key, nil
 }
 

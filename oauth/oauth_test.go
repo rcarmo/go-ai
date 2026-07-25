@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -109,7 +110,9 @@ func TestIsSelectableCopilotModel(t *testing.T) {
 }
 
 type testOAuthProvider struct {
-	refreshes int
+	refreshes   int
+	failRefresh error
+	emptyKey    bool
 }
 
 func (p *testOAuthProvider) ID() string                                 { return "test-refresh" }
@@ -117,9 +120,17 @@ func (p *testOAuthProvider) Name() string                               { return
 func (p *testOAuthProvider) Login(LoginCallbacks) (*Credentials, error) { return nil, nil }
 func (p *testOAuthProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
 	p.refreshes++
+	if p.failRefresh != nil {
+		return nil, p.failRefresh
+	}
 	return &Credentials{Refresh: creds.Refresh, Access: "new-token", Expires: time.Now().Add(time.Hour).UnixMilli()}, nil
 }
-func (p *testOAuthProvider) GetAPIKey(creds *Credentials) string { return creds.Access }
+func (p *testOAuthProvider) GetAPIKey(creds *Credentials) string {
+	if p.emptyKey {
+		return ""
+	}
+	return creds.Access
+}
 func (p *testOAuthProvider) ModifyModels(models []*goai.Model, creds *Credentials) []*goai.Model {
 	return models
 }
@@ -133,6 +144,39 @@ func TestGetAPIKeyRefreshesExpiredCredential(t *testing.T) {
 	}
 	if key != "new-token" || creds.Access != "new-token" || provider.refreshes != 1 {
 		t.Fatalf("expected refreshed key, got key=%q creds=%#v refreshes=%d", key, creds, provider.refreshes)
+	}
+}
+
+func TestGetAPIKeyWrapsAuthAndOAuthFailuresInModelsError(t *testing.T) {
+	if _, _, err := GetAPIKey("missing-oauth-provider", &Credentials{}); err == nil {
+		t.Fatal("expected missing provider error")
+	} else {
+		var modelsErr *goai.ModelsError
+		if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorAuth {
+			t.Fatalf("expected auth ModelsError, got %T %v", err, err)
+		}
+	}
+	if _, _, err := GetAPIKey("test-refresh", nil); err == nil {
+		t.Fatal("expected missing credentials error")
+	} else {
+		var modelsErr *goai.ModelsError
+		if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorAuth {
+			t.Fatalf("expected auth ModelsError, got %T %v", err, err)
+		}
+	}
+	cause := errors.New("refresh exploded")
+	provider := &testOAuthProvider{failRefresh: cause}
+	RegisterProvider(provider)
+	_, _, err := GetAPIKey(provider.ID(), &Credentials{Refresh: "refresh", Expires: time.Now().Add(-time.Minute).UnixMilli()})
+	var modelsErr *goai.ModelsError
+	if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorOAuth || !errors.Is(err, cause) {
+		t.Fatalf("expected oauth ModelsError wrapping cause, got %T %v", err, err)
+	}
+	provider = &testOAuthProvider{emptyKey: true}
+	RegisterProvider(provider)
+	_, _, err = GetAPIKey(provider.ID(), &Credentials{Access: "present", Expires: time.Now().Add(time.Hour).UnixMilli()})
+	if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorAuth {
+		t.Fatalf("expected auth derivation ModelsError, got %T %v", err, err)
 	}
 }
 

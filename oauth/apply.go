@@ -71,7 +71,7 @@ func (r *RuntimeCredentials) SwitchContextForModel(ctx *goai.Context, model *goa
 func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, error) {
 	provider := GetProvider(id)
 	if provider == nil {
-		return nil, fmt.Errorf("OAuth provider %q not registered", id)
+		return nil, goai.NewModelsError(goai.ModelsErrorAuth, fmt.Sprintf("OAuth provider %q not registered", id), nil)
 	}
 	updated, apiKey, err := GetAPIKey(id, creds)
 	if err != nil {

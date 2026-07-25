@@ -6,16 +6,16 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **515**
+- Local Go test functions inventoried: **517**
 - Amazon Bedrock provider: 21
 - Anthropic Messages provider: 48
-- Core API / harness / transforms / utilities: 226
+- Core API / harness / transforms / utilities: 227
 - Faux test provider: 10
 - Gemini CLI provider: 1
 - Google / Vertex provider: 34
 - Image generation / OpenRouter images: 11
 - Mistral provider: 10
-- OAuth providers: 38
+- OAuth providers: 39
 - OpenAI Chat Completions provider: 36
 - OpenAI Codex transport/provider: 19
 - OpenAI/Azure Responses provider: 34
