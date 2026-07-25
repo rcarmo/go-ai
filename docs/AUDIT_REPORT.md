@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-25 v0.82.1 release-only audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5` from accepted `v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2`, without chasing beyond tag. Exact 23-path changed-path matrix is in `docs/v0821-release-ledger.md`.
+
+Adoption: regenerated the text catalog from exact v0.82.1 model data (`1109 models / 37 providers`); image catalog remains exact at `40 image models / 1 provider`; added `ModelsError` cause preservation; added ETag/Last-Modified model-catalog revalidation helpers and store preservation; ported Claude Opus 5/Bedrock metadata; routed Radius OAuth refresh/device flows directly through gateway endpoints with legacy-discovery fallback; added Anthropic `ANTHROPIC_AUTH_TOKEN` bearer-header env auth.
+
+Validation evidence: `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0821-json/providers python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0821/packages/ai/src/providers` reports exact `1109`/`1109` provider-id parity; image pair comparator reports exact `40`/`40` parity. Full Go gates passed: `make check`, shuffled tests, race tests, `go vet`, `make staticcheck`, `make check-logging`, and `make test-repro`.
+
 ## 2026-07-24 v0.82.0 release-only audit (`@earendil-works/pi-ai`)
 
 Audited official release `v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2` from accepted `v0.81.1` / `20be4b18d4c57487f8993d2762bace129f0cf7c6`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0820-release-ledger.md`.

@@ -2,9 +2,23 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.82.0
+## Source: `@earendil-works/pi-ai` v0.82.1
 
 ## Sync history
+
+### v0.82.1 (2026-07-25)
+
+Release-only audit (`v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2` → `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5`) found 23 non-generated-data changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0821-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| ModelsError cause preservation. | **IMPLEMENTED**: `ModelsError` includes cause in message and supports `Unwrap`, with tests. |
+| ETag model-catalog revalidation. | **IMPLEMENTED**: `ModelsStoreEntry` preserves `ETag`/`LastModified`, with helpers to set `If-None-Match`/`If-Modified-Since` and update validators from responses. |
+| Claude Opus 5 Bedrock support/settings. | **IMPLEMENTED**: regenerated catalog plus explicit Opus 5 Anthropic/Bedrock metadata tests. |
+| Radius OAuth gateway routing. | **IMPLEMENTED**: Radius OAuth device/refresh uses gateway endpoints directly, with legacy discovery fallback and tests. |
+| Anthropic bearer-token env auth. | **IMPLEMENTED**: `ANTHROPIC_AUTH_TOKEN` becomes `Authorization: Bearer ...`, not `X-Api-Key`, with provider test. |
+
+Result: upstream v0.82.1 production behavior with Go-facing impact is synced once the recorded full gate passes; no known Go-facing gap remains.
 
 ### v0.82.0 (2026-07-24)
 

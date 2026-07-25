@@ -168,13 +168,17 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		goai.GetLogger().Debug("stream start", "api", "anthropic-messages", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
+		authToken := ""
+		if model.Provider == goai.ProviderAnthropic {
+			authToken = goai.GetProviderEnvValue("ANTHROPIC_AUTH_TOKEN", goai.ProviderEnvFromOptions(opts))
+		}
 		var optHeaders map[string]string
 		var suppressHeaders []string
 		if opts != nil {
 			optHeaders = opts.Headers
 			suppressHeaders = opts.SuppressHeaders
 		}
-		if apiKey == "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+		if apiKey == "" && authToken == "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
@@ -207,7 +211,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
-		if apiKey != "" {
+		if authToken != "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+			req.Header.Set("Authorization", "Bearer "+authToken)
+		} else if apiKey != "" {
 			if model.Provider == goai.ProviderGitHubCopilot {
 				req.Header.Set("Authorization", "Bearer "+apiKey)
 				for k, v := range goai.CopilotHeaders() {

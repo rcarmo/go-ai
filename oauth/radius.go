@@ -129,11 +129,13 @@ func (p *RadiusProvider) ID() string   { return p.id }
 func (p *RadiusProvider) Name() string { return p.name }
 
 func (p *RadiusProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
-	oauthCfg, err := p.loadOAuthConfig(context.Background())
-	if err != nil {
-		return nil, err
-	}
+	oauthCfg := p.directOAuthConfig()
 	creds, err := p.loginWithDeviceCode(context.Background(), oauthCfg, callbacks)
+	if err != nil {
+		if discovered, loadErr := p.loadOAuthConfig(context.Background()); loadErr == nil {
+			creds, err = p.loginWithDeviceCode(context.Background(), discovered, callbacks)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -144,15 +146,22 @@ func (p *RadiusProvider) RefreshToken(creds *Credentials) (*Credentials, error) 
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("radius OAuth refresh token is missing")
 	}
-	oauthCfg, err := p.loadOAuthConfig(context.Background())
-	if err != nil {
-		return nil, err
-	}
+	oauthCfg := p.directOAuthConfig()
 	refreshed, err := p.requestToken(context.Background(), oauthCfg, url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {oauthCfg.ClientID},
 		"refresh_token": {creds.Refresh},
 	})
+	if err != nil {
+		if discovered, loadErr := p.loadOAuthConfig(context.Background()); loadErr == nil {
+			oauthCfg = discovered
+			refreshed, err = p.requestToken(context.Background(), oauthCfg, url.Values{
+				"grant_type":    {"refresh_token"},
+				"client_id":     {oauthCfg.ClientID},
+				"refresh_token": {creds.Refresh},
+			})
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +251,10 @@ func (p *RadiusProvider) modelsFromGatewayConfig(config *RadiusGatewayConfig) []
 		})
 	}
 	return out
+}
+
+func (p *RadiusProvider) directOAuthConfig() *radiusOAuthConfig {
+	return &radiusOAuthConfig{Issuer: p.gateway, TokenEndpoint: p.gateway + "/v1/oauth/token", DeviceAuthorizationEndpoint: p.gateway + "/v1/oauth/device", VerificationEndpoint: p.gateway + "/v1/oauth", ClientID: "pi-gateway", Scope: "gateway offline_access", DeviceCodeGrantType: radiusDeviceGrant}
 }
 
 func (p *RadiusProvider) loadOAuthConfig(ctx context.Context) (*radiusOAuthConfig, error) {

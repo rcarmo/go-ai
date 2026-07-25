@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1116 {
-		t.Fatalf("expected exactly 1116 generated models from pi-ai v0.82.0 tag 083e6162, got %d", total)
+	if total != 1109 {
+		t.Fatalf("expected exactly 1109 generated models from pi-ai v0.82.1 tag b4f29368, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,12 +84,12 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.71 || kimi.Cost.Output != 3.49 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.82.0 metadata, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.78 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.82.1 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.8218 || openRouterGLM52.Cost.Output != 2.5828 || openRouterGLM52.Cost.CacheRead != 0.15262 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.82.0 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.7056 || openRouterGLM52.Cost.Output != 2.2176 || openRouterGLM52.Cost.CacheRead != 0.13104 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.82.1 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -102,13 +102,11 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		{goai.ProviderMoonshotAICN, "kimi-k3"},
 		{goai.ProviderOpenRouter, "meta/muse-spark-1.1"},
 		{goai.ProviderOpenRouter, "moonshotai/kimi-k3"},
-		{goai.ProviderVercelAIGateway, "anthropic/claude-opus-4.7-fast"},
-		{goai.ProviderVercelAIGateway, "anthropic/claude-opus-4.8-fast"},
 		{goai.ProviderVercelAIGateway, "moonshotai/kimi-k3"},
 		{goai.ProviderVercelAIGateway, "thinkingmachines/inkling"},
 	} {
 		if model := goai.GetModel(tc.provider, tc.id); model == nil {
-			t.Fatalf("expected v0.80.9 tag 2d16f92 catalog model %s/%s", tc.provider, tc.id)
+			t.Fatalf("expected retained generated catalog model %s/%s", tc.provider, tc.id)
 		}
 	}
 	kimiK3 := goai.GetModel(goai.ProviderMoonshotAI, "kimi-k3")

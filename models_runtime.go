@@ -9,8 +9,10 @@ import (
 
 // ModelsStoreEntry is a provider-scoped cached dynamic model catalog.
 type ModelsStoreEntry struct {
-	Models    []*Model
-	CheckedAt int64
+	Models       []*Model
+	CheckedAt    int64
+	LastModified int64
+	ETag         string
 }
 
 // ModelsStore persists dynamic catalogs keyed by provider ID.
@@ -299,7 +301,7 @@ func cloneModelsStoreEntry(entry *ModelsStoreEntry) *ModelsStoreEntry {
 	if entry == nil {
 		return nil
 	}
-	return &ModelsStoreEntry{Models: cloneModels(entry.Models), CheckedAt: entry.CheckedAt}
+	return &ModelsStoreEntry{Models: cloneModels(entry.Models), CheckedAt: entry.CheckedAt, LastModified: entry.LastModified, ETag: entry.ETag}
 }
 
 func cloneModels(models []*Model) []*Model {

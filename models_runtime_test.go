@@ -70,8 +70,7 @@ func TestModelRuntimeRefreshDeduplicatesConcurrentFetches(t *testing.T) {
 	runtime := goai.NewModelRuntime(nil)
 	runtime.SetProvider(provider)
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); runtime.Refresh(t.Context(), true) }()
+	wg.Add(1)
 	go func() { defer wg.Done(); runtime.Refresh(t.Context(), true) }()
 	deadline := time.After(time.Second)
 	for {
@@ -88,6 +87,10 @@ func TestModelRuntimeRefreshDeduplicatesConcurrentFetches(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 	}
+	wg.Add(1)
+	go func() { defer wg.Done(); runtime.Refresh(t.Context(), true) }()
+	// Give the second refresh a deterministic chance to observe the in-flight call.
+	time.Sleep(10 * time.Millisecond)
 	close(provider.block)
 	wg.Wait()
 	if provider.calls != 1 {
