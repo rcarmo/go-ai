@@ -214,17 +214,32 @@ func (p *RadiusProvider) SetRuntimeCredentials(creds *Credentials) {
 }
 
 func (p *RadiusProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
+	entry, err := p.RefreshModelEntry(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return entry.Models, nil
+}
+
+func (p *RadiusProvider) RefreshModelEntry(ctx goai.ModelRefreshContext) (*goai.ModelsStoreEntry, error) {
 	p.mu.RLock()
 	creds := cloneCredentials(p.creds)
 	p.mu.RUnlock()
 	if creds == nil || creds.Access == "" {
 		return nil, fmt.Errorf("radius dynamic model refresh requires OAuth credentials")
 	}
-	cfg, err := p.loadGatewayConfig(ctx.Signal, creds.Access)
+	cached, _ := ctx.Store.Read(goai.Provider(p.id))
+	cfg, resp, err := p.loadGatewayConfigWithValidators(ctx.Signal, creds.Access, cached)
 	if err != nil {
 		return nil, err
 	}
-	return p.modelsFromGatewayConfig(cfg), nil
+	if resp != nil && resp.StatusCode == http.StatusNotModified && cached != nil {
+		cached.CheckedAt = time.Now().UnixMilli()
+		return cached, nil
+	}
+	entry := &goai.ModelsStoreEntry{Models: p.modelsFromGatewayConfig(cfg), CheckedAt: time.Now().UnixMilli()}
+	goai.UpdateModelCatalogValidators(entry, resp)
+	return entry, nil
 }
 
 func (p *RadiusProvider) modelsFromGatewayConfig(config *RadiusGatewayConfig) []*goai.Model {
@@ -272,15 +287,41 @@ func (p *RadiusProvider) loadOAuthConfig(ctx context.Context) (*radiusOAuthConfi
 }
 
 func (p *RadiusProvider) loadGatewayConfig(ctx context.Context, apiKey string) (*RadiusGatewayConfig, error) {
+	cfg, _, err := p.loadGatewayConfigWithValidators(ctx, apiKey, nil)
+	return cfg, err
+}
+
+func (p *RadiusProvider) loadGatewayConfigWithValidators(ctx context.Context, apiKey string, cached *goai.ModelsStoreEntry) (*RadiusGatewayConfig, *http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.gateway+"/v1/config", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	goai.ApplyModelCatalogRevalidationHeaders(req, cached)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp.StatusCode == http.StatusNotModified {
+		resp.Body.Close()
+		return nil, resp, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, resp, readRadiusOAuthResponseError(resp, "Radius config failed")
+	}
 	var cfg RadiusGatewayConfig
-	if err := p.getJSON(ctx, p.gateway+"/v1/config", "Radius config", apiKey, &cfg); err != nil {
-		return nil, err
+	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+		return nil, resp, err
 	}
 	cfg.Models = sanitizeRadiusGatewayModels(cfg.Models)
 	if cfg.BaseURL == "" || cfg.Models == nil {
-		return nil, fmt.Errorf("invalid Radius config from %s", p.gateway)
+		return nil, resp, fmt.Errorf("invalid Radius config from %s", p.gateway)
 	}
-	return &cfg, nil
+	return &cfg, resp, nil
 }
 
 func (p *RadiusProvider) getJSON(ctx context.Context, endpoint, label, apiKey string, out interface{}) error {

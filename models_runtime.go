@@ -73,6 +73,11 @@ type DynamicModelProvider interface {
 	RefreshModels(ctx ModelRefreshContext) ([]*Model, error)
 }
 
+type DynamicModelEntryProvider interface {
+	DynamicModelProvider
+	RefreshModelEntry(ctx ModelRefreshContext) (*ModelsStoreEntry, error)
+}
+
 type StaticModelProvider struct {
 	Provider Provider
 	Models   []*Model
@@ -214,16 +219,30 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 		call.err = ctx.Err()
 		return call.err
 	}
-	models, err := provider.RefreshModels(ModelRefreshContext{Provider: id, Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx})
-	if err != nil {
-		call.err = err
-		return err
+	refreshCtx := ModelRefreshContext{Provider: id, Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx}
+	var entry *ModelsStoreEntry
+	var err error
+	if entryProvider, ok := provider.(DynamicModelEntryProvider); ok {
+		entry, err = entryProvider.RefreshModelEntry(refreshCtx)
+	} else {
+		var models []*Model
+		models, err = provider.RefreshModels(refreshCtx)
+		if err == nil {
+			entry = &ModelsStoreEntry{Models: models, CheckedAt: time.Now().UnixMilli()}
+		}
 	}
-	models = filterProviderModels(id, models)
-	r.setProviderModels(id, models)
-	if err := r.store.Write(id, &ModelsStoreEntry{Models: models, CheckedAt: time.Now().UnixMilli()}); err != nil {
-		call.err = err
-		return err
+	if err != nil {
+		call.err = NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model refresh failed for %s", id), err)
+		return call.err
+	}
+	if entry == nil {
+		entry = &ModelsStoreEntry{CheckedAt: time.Now().UnixMilli()}
+	}
+	entry.Models = filterProviderModels(id, entry.Models)
+	r.setProviderModels(id, entry.Models)
+	if err := r.store.Write(id, entry); err != nil {
+		call.err = NewModelsError(ModelsErrorModelSource, fmt.Sprintf("model store write failed for %s", id), err)
+		return call.err
 	}
 	return nil
 }

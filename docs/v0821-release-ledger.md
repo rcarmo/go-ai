@@ -12,7 +12,7 @@ Exact source checkouts used:
 - Text model catalog regenerated from exact v0.82.1 data. Comparator evidence: `upstream pairs: 1109`, `generated pairs: 1109`, exact match.
 - Image model catalog unchanged in count and regenerated/compared against exact v0.82.1 `src/image-models.generated.ts`. Comparator evidence: `upstream image pairs: 40`, `generated image pairs: 40`, exact match.
 - `ModelsError` added to preserve cause in `Error()` and `Unwrap()`.
-- `ModelsStoreEntry` now preserves remote catalog `ETag` and `LastModified` metadata for revalidation-aware stores.
+- `ModelsStoreEntry` now preserves remote catalog `ETag` and `LastModified` metadata; Radius dynamic catalog refresh sends validators, persists updated validators, updates `CheckedAt`, and reuses cached models on `304 Not Modified`.
 - Claude Opus 5 / Bedrock catalog support covered by regenerated metadata and Opus 5 tests.
 - Radius OAuth now routes device/refresh through gateway endpoints directly, with fallback to legacy discovery for compatibility; local-server routing test added.
 - Anthropic bearer-token env auth: `ANTHROPIC_AUTH_TOKEN` is used as an `Authorization: Bearer` header instead of `X-Api-Key`; deterministic provider test added.

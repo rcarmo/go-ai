@@ -13,7 +13,7 @@ Release-only audit (`v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2` → `
 | Upstream delta | Disposition |
 |---|---|
 | ModelsError cause preservation. | **IMPLEMENTED**: `ModelsError` includes cause in message and supports `Unwrap`, with tests. |
-| ETag model-catalog revalidation. | **IMPLEMENTED**: `ModelsStoreEntry` preserves `ETag`/`LastModified`, with helpers to set `If-None-Match`/`If-Modified-Since` and update validators from responses. |
+| ETag model-catalog revalidation. | **IMPLEMENTED**: `ModelsStoreEntry` preserves `ETag`/`LastModified`; helpers set `If-None-Match`/`If-Modified-Since` and update validators; Radius dynamic catalog refresh sends validators, persists them, and reuses cached models on `304 Not Modified`. |
 | Claude Opus 5 Bedrock support/settings. | **IMPLEMENTED**: regenerated catalog plus explicit Opus 5 Anthropic/Bedrock metadata tests. |
 | Radius OAuth gateway routing. | **IMPLEMENTED**: Radius OAuth device/refresh uses gateway endpoints directly, with legacy discovery fallback and tests. |
 | Anthropic bearer-token env auth. | **IMPLEMENTED**: `ANTHROPIC_AUTH_TOKEN` becomes `Authorization: Bearer ...`, not `X-Api-Key`, with provider test. |
