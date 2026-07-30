@@ -2,9 +2,22 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.82.1
+## Source: `@earendil-works/pi-ai` v0.83.0
 
 ## Sync history
+
+### v0.83.0 (2026-07-30)
+
+Release-only audit (`v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5` → `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39`) found 39 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0830-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Generated model metadata refresh. | **IMPLEMENTED**: regenerated text catalog to exact `1153/1153` provider-id parity and updated metadata regressions. |
+| Raw provider stop reason preservation. | **IMPLEMENTED**: added `Message.RawStopReason`, populated it in OpenAI Completions, Mistral, Google, and Bedrock stream paths, and added deterministic tests. |
+| Bedrock credential priority. | **IMPLEMENTED**: explicit/scoped profiles now take precedence over ambient access keys, while ambient profile+keys remains compatible. |
+| Custom fetch option. | **N/A/ADAPTED**: TS `fetch` option is JS runtime plumbing; Go uses explicit HTTP client/transport hooks and existing retry/client options. |
+
+Result: upstream v0.83.0 production behavior with Go-facing impact is synced once the recorded full gate passes; no known Go-facing gap remains.
 
 ### v0.82.1 (2026-07-25)
 

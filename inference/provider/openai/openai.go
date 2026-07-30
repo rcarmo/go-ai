@@ -948,6 +948,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 		if choice.FinishReason != nil {
 			finishReason = choice.FinishReason
+			partial.RawStopReason = *choice.FinishReason
 		}
 
 		// Text content

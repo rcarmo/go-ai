@@ -360,6 +360,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 		if choice.FinishReason != nil {
 			finishReason = choice.FinishReason
+			partial.RawStopReason = *choice.FinishReason
 		}
 
 		// Text
@@ -457,6 +458,10 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			reason = goai.StopReasonToolUse
 		case "error":
 			reason = goai.StopReasonError
+			partial.ErrorMessage = "Provider stopped with: " + *finishReason
+		default:
+			reason = goai.StopReasonError
+			partial.ErrorMessage = "Provider stopped with: " + *finishReason
 		}
 	}
 	partial.StopReason = reason

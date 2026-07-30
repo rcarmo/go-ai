@@ -726,7 +726,11 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 			// Finish reason
 			if cand.FinishReason != "" {
+				partial.RawStopReason = cand.FinishReason
 				partial.StopReason = mapFinishReason(cand.FinishReason)
+				if partial.StopReason == goai.StopReasonError {
+					partial.ErrorMessage = "Provider stopped with: " + cand.FinishReason
+				}
 				for _, c := range partial.Content {
 					if c.Type == "toolCall" {
 						partial.StopReason = goai.StopReasonToolUse

@@ -249,6 +249,7 @@ type Message struct {
 	Diagnostics   []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
 	Usage         *Usage                       `json:"usage,omitempty"`
 	StopReason    StopReason                   `json:"stopReason,omitempty"`
+	RawStopReason string                       `json:"rawStopReason,omitempty"`
 	ErrorMessage  string                       `json:"errorMessage,omitempty"`
 
 	// ToolResult-only fields

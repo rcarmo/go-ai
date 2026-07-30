@@ -70,14 +70,21 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		loadOpts := []func(*config.LoadOptions) error{config.WithRegion(region)}
 		profile := goai.GetProviderEnvValue("AWS_PROFILE", env)
+		scopedProfile := false
+		if env != nil && env["AWS_PROFILE"] != "" {
+			scopedProfile = true
+		}
 		if opts != nil && opts.Profile != "" {
 			profile = opts.Profile
+			scopedProfile = true
 		}
 		if profile != "" {
 			loadOpts = append(loadOpts, config.WithSharedConfigProfile(profile))
 		}
-		if creds := getConfiguredBedrockCredentials(env); creds != nil {
-			loadOpts = append(loadOpts, config.WithCredentialsProvider(creds))
+		if !scopedProfile {
+			if creds := getConfiguredBedrockCredentials(env); creds != nil {
+				loadOpts = append(loadOpts, config.WithCredentialsProvider(creds))
+			}
 		}
 		if goai.GetProviderEnvValue("AWS_BEDROCK_SKIP_AUTH", env) == "1" {
 			loadOpts = append(loadOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy-access-key", "dummy-secret-key", "")))
@@ -827,7 +834,11 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 			}
 
 		case *types.ConverseStreamOutputMemberMessageStop:
+			partial.RawStopReason = string(e.Value.StopReason)
 			partial.StopReason = mapStopReason(e.Value.StopReason)
+			if partial.StopReason == goai.StopReasonError {
+				partial.ErrorMessage = "Provider stopped with: " + string(e.Value.StopReason)
+			}
 
 		case *types.ConverseStreamOutputMemberMetadata:
 			if e.Value.Usage != nil {

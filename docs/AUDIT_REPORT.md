@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-07-30 v0.83.0 release-only audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` from accepted `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0830-release-ledger.md`.
+
+Adoption: regenerated the text catalog from exact v0.83.0 model data (`1153 models / 37 providers`); image catalog remains exact at `40 image models / 1 provider`; added `Message.RawStopReason` and provider tests for raw stop reasons in OpenAI Completions, Mistral, Google, and Bedrock; adjusted Bedrock credential priority for explicit/scoped profiles versus ambient AWS access keys.
+
+Validation evidence: `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0830-json/providers python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0830/packages/ai/src/providers` reports exact `1153`/`1153` provider-id parity; image pair comparator reports exact `40`/`40` parity. Full Go gates passed: `make check`, shuffled tests, race tests, `go vet`, `make staticcheck`, `make check-logging`, and `make test-repro`.
+
 ## 2026-07-25 v0.82.1 release-only audit (`@earendil-works/pi-ai`)
 
 Audited official release `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5` from accepted `v0.82.0` / `083e61621276bff9f6faefab87ce07fcd98734e2`, without chasing beyond tag. Exact 23-path changed-path matrix is in `docs/v0821-release-ledger.md`.
