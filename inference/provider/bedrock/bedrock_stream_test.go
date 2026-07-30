@@ -77,6 +77,30 @@ func TestProcessConverseStreamSurfacesStreamErr(t *testing.T) {
 	}
 }
 
+func TestProcessConverseStreamPreservesRawStopReason(t *testing.T) {
+	events := make(chan types.ConverseStreamOutput, 2)
+	events <- &types.ConverseStreamOutputMemberMessageStart{Value: types.MessageStartEvent{Role: types.ConversationRoleAssistant}}
+	events <- &types.ConverseStreamOutputMemberMessageStop{Value: types.MessageStopEvent{StopReason: types.StopReason("guardrail_intervened")}}
+	close(events)
+	resp := &bedrockruntime.ConverseStreamOutput{}
+	stream := bedrockruntime.NewConverseStreamEventStream(func(es *bedrockruntime.ConverseStreamEventStream) {
+		es.Reader = &fakeConverseReader{events: events}
+	})
+	setConverseEventStream(resp, stream)
+	ch := make(chan goai.Event, 8)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	close(ch)
+	for ev := range ch {
+		if done, ok := ev.(*goai.DoneEvent); ok {
+			if done.Message.RawStopReason != "guardrail_intervened" || done.Message.StopReason != goai.StopReasonError || done.Message.ErrorMessage != "Provider stopped with: guardrail_intervened" {
+				t.Fatalf("message=%#v", done.Message)
+			}
+			return
+		}
+	}
+	t.Fatal("missing done")
+}
+
 func TestMapStopReason(t *testing.T) {
 	if got := mapStopReason(types.StopReasonToolUse); got != goai.StopReasonToolUse {
 		t.Fatalf("expected toolUse, got %v", got)

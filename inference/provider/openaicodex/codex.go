@@ -737,11 +737,12 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 	// Process responses
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReasonPending,
 	}
 
 	started := false
@@ -1047,8 +1048,11 @@ readLoop:
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
-	if partial.StopReason == "" {
-		partial.StopReason = goai.StopReasonStop
+	if partial.StopReason == goai.StopReasonPending {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Codex stream ended before a terminal response event"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Codex stream ended before a terminal response event")}
+		return nil
 	}
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
 	return nil
@@ -1147,7 +1151,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
 func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
 	partial := &goai.Message{
-		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics,
+		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
 	}
 	ch <- &goai.StartEvent{Partial: partial}
 
@@ -1348,7 +1352,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
-	if partial.StopReason == "" {
+	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Codex stream ended before a terminal response event")}

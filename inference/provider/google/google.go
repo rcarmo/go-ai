@@ -606,11 +606,12 @@ type geminiUsage struct {
 
 func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReasonPending,
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}
@@ -759,6 +760,12 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if partial.StopReason == goai.StopReasonPending {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Google stream ended without a finish reason"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Google stream ended without a finish reason")}
+		return
+	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}

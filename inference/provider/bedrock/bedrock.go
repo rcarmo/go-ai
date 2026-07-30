@@ -704,11 +704,12 @@ func mustJSON(v interface{}) json.RawMessage {
 
 func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, ch chan<- goai.Event) {
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReasonPending,
 	}
 
 	// Track content blocks by their Bedrock index
@@ -868,6 +869,12 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if partial.StopReason == goai.StopReasonPending {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Bedrock stream ended without a stop reason"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Bedrock stream ended without a stop reason")}
+		return
+	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}

@@ -6,8 +6,8 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **525**
-- Amazon Bedrock provider: 21
+- Local Go test functions inventoried: **527**
+- Amazon Bedrock provider: 22
 - Anthropic Messages provider: 49
 - Core API / harness / transforms / utilities: 227
 - Faux test provider: 10

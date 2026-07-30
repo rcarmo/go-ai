@@ -310,11 +310,12 @@ type sseUsage struct {
 
 func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReasonPending,
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}
@@ -463,6 +464,12 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			reason = goai.StopReasonError
 			partial.ErrorMessage = "Provider stopped with: " + *finishReason
 		}
+	}
+	if finishReason == nil {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Mistral stream ended without a finish reason"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Mistral stream ended without a finish reason")}
+		return
 	}
 	partial.StopReason = reason
 

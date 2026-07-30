@@ -13,7 +13,7 @@ Release-only audit (`v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5` → `
 | Upstream delta | Disposition |
 |---|---|
 | Generated model metadata refresh. | **IMPLEMENTED**: regenerated text catalog to exact `1153/1153` provider-id parity and updated metadata regressions. |
-| Raw provider stop reason preservation. | **IMPLEMENTED**: added `Message.RawStopReason`, populated it in OpenAI Completions, Mistral, Google, Bedrock, Anthropic, Responses/Azure-shared, and Codex stream paths, added pending-terminal error semantics where upstream requires them, and added deterministic tests. |
+| Raw provider stop reason preservation. | **IMPLEMENTED**: added public `StopReasonPending` and `Message.RawStopReason`, populated raw stop/status in OpenAI Completions, Mistral, Google, Bedrock, Anthropic, Responses/Azure-shared, and Codex stream paths, added pending/missing-terminal error semantics where upstream requires them, and added deterministic tests. |
 | Bedrock credential priority. | **IMPLEMENTED**: explicit/scoped profiles now take precedence over ambient access keys, while ambient profile+keys remains compatible. |
 | Custom fetch option. | **N/A/ADAPTED**: TS `fetch` option is JS runtime plumbing; Go uses explicit HTTP client/transport hooks and existing retry/client options. |
 

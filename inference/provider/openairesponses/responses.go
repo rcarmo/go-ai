@@ -720,11 +720,12 @@ func normalizeResponsesIDPart(s string) string {
 
 func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReasonPending,
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}

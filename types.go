@@ -108,6 +108,7 @@ const (
 	StopReasonToolUse StopReason = "toolUse"
 	StopReasonError   StopReason = "error"
 	StopReasonAborted StopReason = "aborted"
+	StopReasonPending StopReason = "pending"
 )
 
 // CacheRetention controls prompt cache lifetime preference.

@@ -588,7 +588,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 		Provider:   model.Provider,
 		Model:      model.ID,
 		Usage:      &goai.Usage{},
-		StopReason: goai.StopReason("pending"),
+		StopReason: goai.StopReasonPending,
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}
@@ -778,7 +778,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	partial.Timestamp = time.Now().UnixMilli()
 	computeCosts(partial.Usage, model)
 
-	if partial.StopReason == goai.StopReason("pending") {
+	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Anthropic stream ended without a stop reason"
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Anthropic stream ended without a stop reason")}
