@@ -6,19 +6,19 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Summary
 
-- Local Go test functions inventoried: **520**
+- Local Go test functions inventoried: **525**
 - Amazon Bedrock provider: 21
-- Anthropic Messages provider: 48
+- Anthropic Messages provider: 49
 - Core API / harness / transforms / utilities: 227
 - Faux test provider: 10
 - Gemini CLI provider: 1
 - Google / Vertex provider: 35
 - Image generation / OpenRouter images: 11
 - Mistral provider: 11
-- OAuth providers: 40
-- OpenAI Chat Completions provider: 37
+- OAuth providers: 42
+- OpenAI Chat Completions provider: 38
 - OpenAI Codex transport/provider: 19
-- OpenAI/Azure Responses provider: 34
+- OpenAI/Azure Responses provider: 35
 - Pi Messages provider: 3
 - Retry/helper and HTTP proxy: 24
 
@@ -42,7 +42,7 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 - Upstream-main `2be9efa` xAI parity is covered by `oauth/xai_test.go` and `inference/provider/openairesponses/xai_responses_upstream_test.go`: xAI device OAuth, refresh token rotation/preservation/default expiry/error surfacing, HTTPS verification URI validation, and `grok-4.5` metadata parity.
 - Upstream v0.80.9 Kimi deferred-tool serialization is covered by `inference/provider/openai/openai_deferred_kimi_test.go`: `deferredToolsMode: "kimi"` filters newly added deferred tools out of top-level tools and emits a contentless system tool-definition message after the relevant tool result.
 - Upstream v0.80.9 model-refresh force propagation is covered by `models_runtime_test.go`: `RefreshWithOptions(... Force:true)` reaches dynamic provider refresh contexts.
-- Upstream v0.83.0 raw stop reason preservation, Bedrock credential priority, and catalog metadata are covered by provider raw-stop tests, Bedrock credential behavior, updated image/model metadata tests, and the exact 1153/1153 text plus 40/40 image comparators.
+- Upstream v0.83.0 raw stop reason preservation, pending terminal errors, OAuth minimum-validity refresh, malformed tool-delta handling, Bedrock credential priority, and catalog metadata are covered by provider raw-stop tests, OAuth/auth tests, OpenAI tool-delta regressions, Bedrock credential behavior, updated image/model metadata tests, and the exact 1153/1153 text plus 40/40 image comparators.
 
 ## Tests
 

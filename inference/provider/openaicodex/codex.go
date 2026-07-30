@@ -967,6 +967,7 @@ readLoop:
 				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 			}
+			partial.RawStopReason = resp.Status
 			partial.StopReason = mapCodexStatus(resp.Status)
 			for _, c := range partial.Content {
 				if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
@@ -1303,7 +1304,8 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 		case "response.failed":
 			var failed struct {
 				Response *struct {
-					Error *struct {
+					Status string `json:"status"`
+					Error  *struct {
 						Message string `json:"message"`
 					} `json:"error"`
 				} `json:"response"`
@@ -1313,7 +1315,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			if failed.Response != nil && failed.Response.Error != nil && failed.Response.Error.Message != "" {
 				message = failed.Response.Error.Message
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("%s", message)}
+			if failed.Response != nil {
+				partial.RawStopReason = failed.Response.Status
+			}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", message)}
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {
@@ -1337,13 +1342,17 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 			}
+			partial.RawStopReason = resp.Status
 			partial.StopReason = mapCodexStatus(resp.Status)
 		}
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == "" {
-		partial.StopReason = goai.StopReasonStop
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Codex stream ended before a terminal response event"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Codex stream ended before a terminal response event")}
+		return
 	}
 	for _, c := range partial.Content {
 		if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {

@@ -583,11 +583,12 @@ func extractText(blocks []goai.ContentBlock) string {
 
 func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, ch chan<- goai.Event) {
 	partial := &goai.Message{
-		Role:     goai.RoleAssistant,
-		Api:      model.Api,
-		Provider: model.Provider,
-		Model:    model.ID,
-		Usage:    &goai.Usage{},
+		Role:       goai.RoleAssistant,
+		Api:        model.Api,
+		Provider:   model.Provider,
+		Model:      model.ID,
+		Usage:      &goai.Usage{},
+		StopReason: goai.StopReason("pending"),
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}
@@ -719,6 +720,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			partial.Usage.Output = data.Usage.OutputTokens
 			partial.Usage.Reasoning = data.Usage.OutputDetails.ThinkingTokens
 			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output + partial.Usage.CacheRead + partial.Usage.CacheWrite
+			if data.Delta.StopReason != "" {
+				partial.RawStopReason = data.Delta.StopReason
+			}
 
 			switch data.Delta.StopReason {
 			case "end_turn", "pause_turn", "stop_sequence":
@@ -774,8 +778,11 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	partial.Timestamp = time.Now().UnixMilli()
 	computeCosts(partial.Usage, model)
 
-	if partial.StopReason == "" {
-		partial.StopReason = goai.StopReasonStop
+	if partial.StopReason == goai.StopReason("pending") {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "Anthropic stream ended without a stop reason"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Anthropic stream ended without a stop reason")}
+		return
 	}
 
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}

@@ -32,6 +32,7 @@ func TestStreamAnthropicUsesBearerForCopilot(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.Copy(io.Discard, r.Body)
 		_, _ = w.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"usage\":{}}}\n\n" +
+			"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n" +
 			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
 	}))
 	defer server.Close()

@@ -736,6 +736,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		customPayload string
 	}
 	var current *activeItem
+	terminalResponseSeen := false
 
 	events := sse.Parse(body)
 	for evt := range events {
@@ -936,7 +937,8 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			}
 			current = nil
 
-		case "response.completed":
+		case "response.completed", "response.incomplete":
+			terminalResponseSeen = true
 			var resp struct {
 				ID     string            `json:"id"`
 				Status string            `json:"status"`
@@ -978,6 +980,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 			}
 
+			partial.RawStopReason = resp.Status
 			partial.StopReason = mapStatus(resp.Status)
 			// If we have tool calls and status is "stop", upgrade to "toolUse"
 			for _, c := range partial.Content {
@@ -995,8 +998,10 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			return
 
 		case "response.failed":
+			terminalResponseSeen = true
 			var resp struct {
-				Error *struct {
+				Status string `json:"status"`
+				Error  *struct {
 					Code    string `json:"code"`
 					Message string `json:"message"`
 				} `json:"error"`
@@ -1013,12 +1018,19 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			} else {
 				msg = "Unknown error (no error details in response)"
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("%s", msg)}
+			partial.RawStopReason = resp.Status
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", msg)}
 			return
 		}
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if !terminalResponseSeen {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = "OpenAI Responses stream ended before a terminal response event"
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Responses stream ended before a terminal response event")}
+		return
+	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}

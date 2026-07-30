@@ -180,6 +180,28 @@ func TestGetAPIKeyWrapsAuthAndOAuthFailuresInModelsError(t *testing.T) {
 	}
 }
 
+func TestGetAPIKeyRefreshesWithinMinimumValidityWindow(t *testing.T) {
+	provider := &testOAuthProvider{}
+	RegisterProvider(provider)
+	creds, key, err := GetAPIKey(provider.ID(), &Credentials{Refresh: "refresh", Access: "old-token", Expires: time.Now().Add(2 * time.Minute).UnixMilli()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "new-token" || creds.Access != "new-token" || provider.refreshes != 1 {
+		t.Fatalf("expected min-validity refresh, got key=%q creds=%#v refreshes=%d", key, creds, provider.refreshes)
+	}
+}
+
+func TestGetAPIKeyWithMinValidityRejectsTooShortRefresh(t *testing.T) {
+	provider := &testOAuthProvider{}
+	RegisterProvider(provider)
+	_, _, err := GetAPIKeyWithMinValidity(provider.ID(), &Credentials{Refresh: "refresh", Access: "old-token", Expires: time.Now().Add(time.Minute).UnixMilli()}, 2*time.Hour)
+	var modelsErr *goai.ModelsError
+	if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorOAuth {
+		t.Fatalf("expected oauth ModelsError, got %T %v", err, err)
+	}
+}
+
 func TestGetAPIKeyKeepsValidCredential(t *testing.T) {
 	provider := &testOAuthProvider{}
 	RegisterProvider(provider)

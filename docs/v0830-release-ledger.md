@@ -11,7 +11,9 @@ Exact source checkouts used:
 
 - Text model catalog regenerated from exact v0.83.0 data. Comparator evidence: `upstream pairs: 1153`, `generated pairs: 1153`, exact match.
 - Image model catalog unchanged in count and compared against exact v0.83.0 `src/image-models.generated.ts`: `40`/`40` exact match.
-- `Message.RawStopReason` added and populated for OpenAI Completions, Mistral, Google, and Bedrock stream stops; provider error stop messages now preserve raw stop reasons in deterministic tests.
+- `Message.RawStopReason` added and populated for OpenAI Completions, Mistral, Google, Bedrock, Anthropic, and Responses/Azure/Codex stream stops; provider error stop messages now preserve raw stop reasons in deterministic tests. Anthropic/Responses/Codex pending streams now error instead of defaulting to success when no terminal stop/status is seen.
+- OAuth minimum-validity refresh now refreshes tokens within the default five-minute window and exposes `GetAPIKeyWithMinValidity` for stricter callers; tests cover default refresh and explicit too-short refresh rejection.
+- Malformed OpenAI streaming tool deltas carrying valid `function` plus empty `custom` preserve function arguments; regression test added.
 - Bedrock credential priority adjusted so explicit/scoped profiles are not silently overridden by ambient AWS access keys; ambient profile remains compatible with ambient keys.
 - Other API/test deltas were catalog metadata, TS fetch-option plumbing, or live SDK harness changes with no direct Go analogue beyond existing HTTP client/retry hooks.
 
