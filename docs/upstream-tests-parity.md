@@ -118,8 +118,8 @@ Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127*
 
 Whole-corpus summary:
 
-- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 104 files
-- N/A credential/live/JS-runtime only: 23 files
+- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 101 files
+- N/A credential/live/JS-runtime/generator-policy-adapted only: 26 files
 - TODO deterministic/needs classification: 0 files
 - Achieved (`DETERMINISTIC + N/A`): 127 / 127 files
 

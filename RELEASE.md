@@ -64,8 +64,10 @@ Auditor whole-corpus parity-hardening slice addressed:
 - Added exact cumulative 127-file upstream test disposition manifest: `docs/v0840-127-test-manifest.md`.
 - Explicitly classified the five credential-gated E2E files as N/A/live-only, never as passing: `anthropic-eager-tool-input-e2e.test.ts`, `anthropic-long-cache-retention-e2e.test.ts`, `openai-codex-cache-affinity-e2e.test.ts`, `openai-responses-cache-affinity-e2e.test.ts`, and `openai-responses-reasoning-replay-e2e.test.ts`.
 - Ported deterministic `openai-responses-compat.test.ts` gaps in `inference/provider/openairesponses`: session-affinity formats, OpenRouter provider/baseURL auto-detection, `openai-nosession`/OpenCode behavior, `cacheRetention:none` header/body suppression, explicit header override, required `ToolChoice`, service-tier cost multipliers, off→`none` vs unsupported omission, and xAI encrypted reasoning include.
+- Corrected whole-corpus evidence labels: `image-model-data.test.ts`, `model-data-validation.test.ts`, and `reasoning-options.test.ts` are classified N/A/adapted-generator-policy because upstream exercises private TS generator/script helpers; exact final Go artifacts remain verified separately by catalog tests and 1153/1153 plus 42/42 comparators.
+- Strengthened `xai-responses.test.ts` evidence with executable request-shape coverage for exact low/medium/high-only levels, bearer auth, developer prompt, `/responses`, `session_id` + `prompt_cache_key`, `store=false`, medium reasoning, encrypted reasoning include, and no long retention.
 - Ported `cloudflare-stream.test.ts` placeholder parity: unresolved `{VAR}` placeholders are preserved, and resolved/unresolved behavior is covered through ordinary stream and `streamSimple`/request dispatch.
-- Focused tests and `go test ./...` passed before full gates.
+- Focused tests (`OpenAIResponsesCompat|OpenAIResponsesCacheRetention|OpenAIResponsesExplicitHeaders|OpenAIResponsesRequiredToolChoice|OpenAIResponsesServiceTier|OpenAIResponsesOffReasoning|XAI|ResolveCloudflare|CloudflareBaseURL`) and `go test ./...` passed before full gates.
 
 ## Correction cycle 3 (OAuth refresh cancellation and telemetry context)
 
@@ -138,8 +140,8 @@ Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
 Correction cycle 4 gate evidence:
 
 ```text
-docs/v0840-127-test-manifest.md row check: 127 rows, 104 deterministic/covered, 23 N/A, 0 TODO
-go test ./... -run 'OpenAIResponsesCompat|OpenAIResponsesCacheRetention|OpenAIResponsesExplicitHeaders|OpenAIResponsesRequiredToolChoice|OpenAIResponsesServiceTier|OpenAIResponsesOffReasoning|XAIResponsesAlways|ResolveCloudflare|CloudflareBaseURL'
+docs/v0840-127-test-manifest.md row check: 127 rows, 101 deterministic/covered, 26 N/A/adapted, 0 TODO
+go test ./... -run 'OpenAIResponsesCompat|OpenAIResponsesCacheRetention|OpenAIResponsesExplicitHeaders|OpenAIResponsesRequiredToolChoice|OpenAIResponsesServiceTier|OpenAIResponsesOffReasoning|XAI|ResolveCloudflare|CloudflareBaseURL'
 go test ./...
 PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact
 python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_whole_corpus.go  # 42 image models, exact diff
@@ -152,7 +154,9 @@ make check-logging
 make test-repro
 ```
 
-Retained logs: `/workspace/tmp/go-ai-v0840-whole-corpus-gates/`.
+Retained logs: `/workspace/tmp/go-ai-v0840-evidence-label-gates/`.
+
+Prior whole-corpus logs retained: `/workspace/tmp/go-ai-v0840-whole-corpus-gates/`.
 
 Correction cycle 3 gate evidence:
 

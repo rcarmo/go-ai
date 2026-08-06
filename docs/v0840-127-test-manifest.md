@@ -13,8 +13,8 @@ find /workspace/tmp/pi-v0840/packages/ai/test -name '*.test.ts' | sort
 ## Summary
 
 - Upstream test files: **127**
-- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / covered by deterministic local tests: **104**
-- N/A credential/live/JS-runtime only: **23**
+- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / covered by deterministic local tests: **101**
+- N/A credential/live/JS-runtime/generator-policy-adapted only: **26**
 - TODO / needs classification: **0**
 - Achieved (`DETERMINISTIC + N/A`): **127 / 127**
 
@@ -81,7 +81,7 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 49 | `test/google-thinking-disable.test.ts` | DETERMINISTIC-PORTED | `google_thinking_disable_upstream_test.go`. |
 | 50 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | `google_thinking_signature_test.go`. |
 | 51 | `test/google-vertex-api-key-resolution.test.ts` | DETERMINISTIC-PORTED | `google_vertex_api_key_resolution_test.go`. |
-| 52 | `test/image-model-data.test.ts` | DETERMINISTIC-PORTED | Image generated catalog exact comparator and `images_test.go` metadata checks. |
+| 52 | `test/image-model-data.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS generator helper malformed-input paths (`parseOpenRouterImageModels`) that are not a Go public/runtime API. Go consumes exact generated image artifacts and verifies them separately via `scripts/generate-image-models.py` plus exact 42/42 comparator and `images_test.go`; do not label as a test-for-test port. |
 | 53 | `test/image-tool-result.test.ts` | N/A/live-provider | Live image tool-result matrix; deterministic serialization/routing covered by OpenAI/Responses/Google image tool-result tests. |
 | 54 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | `images_test.go`, `images_openrouter_upstream_test.go`. |
 | 55 | `test/images.test.ts` | N/A/live-provider | Requires live image provider credentials/network. Deterministic OpenRouter image wrapper tests exist. |
@@ -94,7 +94,7 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 62 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | `mistral_reasoning_mode_test.go`. |
 | 63 | `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED | `mistral_tool_schema_test.go`. |
 | 64 | `test/model-catalog-types.test.ts` | DETERMINISTIC-PORTED | Generated catalog compile/type checks and exact model comparator. |
-| 65 | `test/model-data-validation.test.ts` | DETERMINISTIC-PORTED | `models_catalog_upstream_test.go`, `models_test.go`, catalog comparator. |
+| 65 | `test/model-data-validation.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS model-data shard validation helper failures (wrong id/provider/api/group, duplicates, stale hash/stamp, timestamp, missing dir/shard). Go generator consumes upstream/source/package artifacts and final generated catalog is verified by exact 1153/1153 comparator plus catalog tests; do not label helper-policy assertions as test-for-test ports. |
 | 66 | `test/models-runtime.test.ts` | DETERMINISTIC-PORTED | `models_runtime_test.go`. |
 | 67 | `test/node-http-proxy.test.ts` | DETERMINISTIC-PORTED | `retry_proxy_test.go`. |
 | 68 | `test/oauth-auth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `GetAPIKeyWithContext` / `RuntimeForProviderContext` cancellation/cause tests; JS credential-store UI N/A. |
@@ -134,7 +134,7 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 102 | `test/providers.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Registry/env/provider/runtime/faux deferred tests; JS instance helper surfaces mapped to Go registries. |
 | 103 | `test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED | `qwen_token_plan_upstream_test.go`. |
 | 104 | `test/radius-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/radius_test.go` plus context refresh tests. |
-| 105 | `test/reasoning-options.test.ts` | DETERMINISTIC-PORTED | Thinking/reasoning option mapping tests across providers. |
+| 105 | `test/reasoning-options.test.ts` | N/A/adapted-generator-policy | Upstream tests a TS generator helper (`getEffortThinkingLevelMap`) for model-data reasoning-control policy. Go verifies the resulting generated thinking maps and provider request behavior through catalog tests and reasoning/payload tests; do not label script-helper policy assertions as a test-for-test port. |
 | 106 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | `responseid_simulated_test.go`. |
 | 107 | `test/retry.test.ts` | DETERMINISTIC-PORTED | `retry_assistant_test.go`, `v0805_inplace_deltas_test.go`. |
 | 108 | `test/sampling-options.test.ts` | DETERMINISTIC-PORTED | `openai_v0840_test.go`, `responses_v0840_test.go` sampling matrices. |
@@ -152,7 +152,7 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 120 | `test/uuid.test.ts` | DETERMINISTIC-PORTED | `TestUUIDv7UsesRFC9562LayoutAndPreservesMonotonicOrder`. |
 | 121 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go`. |
 | 122 | `test/xai-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/xai_test.go` plus context refresh tests. |
-| 123 | `test/xai-responses.test.ts` | DETERMINISTIC-PORTED | `xai_responses_upstream_test.go` plus `TestXAIResponsesAlwaysRequestsEncryptedReasoningInclude`. |
+| 123 | `test/xai-responses.test.ts` | DETERMINISTIC-PORTED | `xai_responses_upstream_test.go` verifies exact low/medium/high-only levels, Responses API catalog routing, bearer auth, developer prompt, `/responses`, `session_id` + `prompt_cache_key`, `store=false`, medium reasoning, encrypted reasoning include, and no long retention. |
 | 124 | `test/xhigh.test.ts` | N/A/live-provider | Live OpenAI xhigh test requiring credentials; deterministic xhigh support metadata is covered. |
 | 125 | `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | `models_catalog_upstream_test.go`. |
 | 126 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | Xiaomi empty-signature request-shape/catalog tests. |
