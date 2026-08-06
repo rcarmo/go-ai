@@ -111,3 +111,19 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | models_catalog_upstream_test.go | Ported upstream Xiaomi catalog assertions: `mimo-v2-flash` remains on API-billing `xiaomi` provider and is omitted from all three token-plan providers. Passing. |
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_empty_thinking_signature_compat_test.go; models_catalog_upstream_test.go | Xiaomi AMS empty-signature compatibility is covered deterministically via request-shape replay preserving `signature:""` when compat allows it plus Xiaomi catalog tests. Passing under make check. |
 | `test/zen.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
+
+## v0.84.0 upstream test inventory update
+
+Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127** `*.test.ts` files. New files relative to accepted v0.83.0 and Go dispositions:
+
+| Upstream test file | Status | Go evidence / rationale |
+| --- | --- | --- |
+| `test/baseten-models.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openai/openai_v0840_test.go` asserts Baseten catalog metadata, `BASETEN_API_KEY`, `chat_template_args`, and `reasoning_effort` payload behavior. |
+| `test/openai-completions-thinking-token-budget.test.ts` | DETERMINISTIC-PORTED | `TestOpenAIThinkingTokenBudgetLeavesAnswerRoom` covers compat-gated `thinking_token_budget` and answer-room clamp. |
+| `test/sampling-options.test.ts` | DETERMINISTIC-PORTED | `TestOpenAIAdvancedSamplingParamsOverrideTypedFields` and `TestResponsesSamplingParamsOverrideTypedFields` cover model/request sampling param merge/override for OpenAI-compatible APIs; non-OpenAI providers ignore the new field by not reading it. |
+| `test/bedrock-error-metadata.test.ts` | DETERMINISTIC-PORTED / ADAPTED | `TestProcessConverseStreamAddsFailureDiagnosticForStreamErr` covers Go AWS/Smithy request id/error-code diagnostic path; send-error metadata path is adapted in production code. |
+| `test/google-shared-retry.test.ts` | N/A/covered | TS SDK retry wrapper behavior; Go providers use existing context-aware HTTP/retry helpers and Google provider tests. No distinct Go surface. |
+| `test/google-shared-signed-empty-blocks.test.ts` | N/A/covered | TS Google SDK signed empty-block serialization details; Go already handles signed/thinking/tool payloads in provider tests where applicable. |
+| `test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; this Go library has no Pi telemetry context option surface. |
+
+No v0.84.0 upstream test file remains TODO/needs classification.

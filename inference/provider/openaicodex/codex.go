@@ -1051,7 +1051,7 @@ readLoop:
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Codex stream ended before a terminal response event")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")}
 		return nil
 	}
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
@@ -1355,7 +1355,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Codex stream ended before a terminal response event")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")}
 		return
 	}
 	for _, c := range partial.Content {

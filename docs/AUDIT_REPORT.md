@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-08-06 v0.84.0 release-only audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256` from accepted `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0840-release-ledger.md`.
+
+Adoption: added Baseten provider metadata/env/payload behavior; added model/request sampling params for OpenAI-compatible adapters; added vLLM `thinking_token_budget` clamping; added `supportsFinishReason=false` stream completion semantics; preserved Anthropic initial `content_block_start` text/thinking/signature; mapped OpenAI Responses incomplete details precisely; adapted Bedrock failure diagnostics to Go AWS/Smithy metadata; regenerated text catalog to 1153 models / 38 providers and image catalog to 42 models / 1 provider.
+
+Validation evidence: text comparator reports exact `1153`/`1153` provider-id parity; image catalog regeneration/diff is exact at `42` models. Full Go gates passed: `make check`, shuffled tests, race tests, `go vet`, `make staticcheck`, `make check-logging`, and `make test-repro`.
+
 ## 2026-07-30 v0.83.0 release-only audit (`@earendil-works/pi-ai`)
 
 Audited official release `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` from accepted `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0830-release-ledger.md`.

@@ -763,7 +763,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Google stream ended without a finish reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Google stream ended without a finish reason")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("google stream ended without a finish reason")}
 		return
 	}
 	if partial.StopReason == "" {

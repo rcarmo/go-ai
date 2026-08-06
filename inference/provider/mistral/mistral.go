@@ -468,7 +468,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	if finishReason == nil {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Mistral stream ended without a finish reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Mistral stream ended without a finish reason")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("mistral stream ended without a finish reason")}
 		return
 	}
 	partial.StopReason = reason

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,11 +18,14 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrockdoc "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/aws/smithy-go"
 	bearer "github.com/aws/smithy-go/auth/bearer"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -146,7 +150,9 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
 			} else {
 				goai.GetLogger().Warn("Bedrock API error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("bedrock: %w", err)}
+				msg := bedrockErrorMessage(model, err)
+				appendBedrockFailureDiagnostic(msg, err, "")
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("bedrock: %w", err)}
 			}
 			return
 		}
@@ -703,6 +709,7 @@ func mustJSON(v interface{}) json.RawMessage {
 // --- Stream processing ---
 
 func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, ch chan<- goai.Event) {
+	responseRequestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata)
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -864,6 +871,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	if err := stream.Err(); err != nil {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = err.Error()
+		appendBedrockFailureDiagnostic(partial, err, responseRequestID)
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
 		return
 	}
@@ -872,7 +880,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Bedrock stream ended without a stop reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Bedrock stream ended without a stop reason")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("bedrock stream ended without a stop reason")}
 		return
 	}
 	if partial.StopReason == "" {
@@ -893,4 +901,86 @@ func mapStopReason(reason types.StopReason) goai.StopReason {
 	default:
 		return goai.StopReasonError
 	}
+}
+
+const maxBedrockDiagnosticValueChars = 200
+
+func bedrockErrorMessage(model *goai.Model, err error) *goai.Message {
+	msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonError, ErrorMessage: err.Error(), Timestamp: time.Now().UnixMilli()}
+	return msg
+}
+
+func appendBedrockFailureDiagnostic(message *goai.Message, err error, fallbackRequestID string) {
+	details := map[string]any{}
+	if status := extractBedrockHTTPStatus(err); status != 0 {
+		details["status"] = status
+	}
+	if code := extractBedrockErrorCode(err); code != "" {
+		details["errorCode"] = code
+	}
+	if requestID := normalizeBedrockDiagnosticValue(extractBedrockRequestID(err, fallbackRequestID)); requestID != "" {
+		details["requestId"] = requestID
+	}
+	if len(details) == 0 {
+		return
+	}
+	goai.AppendAssistantMessageDiagnostic(message, goai.AssistantMessageDiagnostic{Type: "bedrock_response_failure", Timestamp: time.Now().UnixMilli(), Details: details})
+}
+
+func extractBedrockHTTPStatus(err error) int {
+	var responseErr *awshttp.ResponseError
+	if errors.As(err, &responseErr) && responseErr.HTTPStatusCode() > 0 {
+		return responseErr.HTTPStatusCode()
+	}
+	var statusErr interface{ HTTPStatusCode() int }
+	if errors.As(err, &statusErr) && statusErr.HTTPStatusCode() > 0 {
+		return statusErr.HTTPStatusCode()
+	}
+	return 0
+}
+
+func extractBedrockRequestID(err error, fallback string) string {
+	var responseErr *awshttp.ResponseError
+	if errors.As(err, &responseErr) {
+		if id := responseErr.ServiceRequestID(); id != "" {
+			return id
+		}
+	}
+	if fallback != "" {
+		return fallback
+	}
+	return ""
+}
+
+func extractBedrockErrorCode(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := normalizeBedrockDiagnosticValue(apiErr.ErrorCode())
+		if code != "" && code != "Unknown" {
+			return code
+		}
+	}
+	var named interface{ ErrorCode() string }
+	if errors.As(err, &named) {
+		code := normalizeBedrockDiagnosticValue(named.ErrorCode())
+		if code != "" && code != "Unknown" {
+			return code
+		}
+	}
+	var nameErr interface{ ErrorName() string }
+	if errors.As(err, &nameErr) {
+		code := normalizeBedrockDiagnosticValue(nameErr.ErrorName())
+		if code != "" && code != "Unknown" && strings.HasSuffix(code, "Exception") {
+			return code
+		}
+	}
+	return ""
+}
+
+func normalizeBedrockDiagnosticValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > maxBedrockDiagnosticValueChars {
+		return ""
+	}
+	return value
 }

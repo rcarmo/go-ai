@@ -5,63 +5,74 @@ This file is the release-audit source of truth for `github.com/rcarmo/go-ai` par
 ## Current upstream baseline
 
 - Upstream package: `@earendil-works/pi-ai`
-- Current audited release: `v0.83.0`
-- Upstream tag/SHA: `845d6ff1f6643aba440341cce877ce1c43ebbc39`
-- Previous accepted baseline: `v0.82.1` / `b4f293684bba718d59cc1157679bcf6157b3a7f5`
-- Go parity commits for this release:
-  - `63e27f4` — `Sync pi-ai v0.83.0 parity`
-  - `9976049` — `Complete v0.83 runtime stop and OAuth fixes`
-  - `2f17e7b` — `Complete v0.83 pending stop reason semantics`
-- Exact upstream checkout used: `/workspace/tmp/pi-v0830`
-- Exact previous checkout used: `/workspace/tmp/pi-v0821`
-- Detailed path matrix: `docs/v0830-release-ledger.md`
+- Current audited release: `v0.84.0`
+- Upstream tag/SHA: `a5f43bf8aff3c55752432655f7334e3dafd1e256`
+- Published: 2026-08-06
+- Previous accepted baseline: `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39`
+- Exact upstream checkout used: `/workspace/tmp/pi-v0840`
+- Exact previous checkout used: `/workspace/tmp/pi-v0830-fresh`
+- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0.84.0-package/package`
+- Detailed path matrix: `docs/v0840-release-ledger.md`
 
 ## Exact upstream changes audited
 
-Release-only diff: `packages/ai` from `v0.82.1` to `v0.83.0`, no later `main` changes.
+Release-only diff: `packages/ai` from `v0.83.0` to `v0.84.0`, no unpublished `main` changes.
 
-Material upstream deltas:
+Audited scope:
 
-1. Generated text model catalog refresh.
-2. Raw provider stop reason preservation across streaming providers.
-3. Pending stop reason as a public/breaking stop reason value.
-4. Missing terminal stop/status handling: streams that never produce a terminal provider stop reason/status must not default to successful `stop`.
-5. Bedrock credential precedence updates for explicit/scoped profiles vs ambient AWS keys.
-6. JavaScript `fetch` option plumbing across TS adapters.
-7. Test/fixture updates for provider stop reasons and catalog metadata.
+- 101 changed `packages/ai` paths.
+- Official tag SHA verified: `a5f43bf8aff3c55752432655f7334e3dafd1e256`.
+- Material upstream deltas: Baseten provider, advanced sampling params, vLLM thinking-token budget, missing-finish compatibility, Anthropic initial `content_block_start` assembly, Responses incomplete detail mapping, Bedrock diagnostics, model/image catalog refresh, runtime publication/auth refresh changes, and JS-only monorepo protocol changes.
 
 ## Go implementation and decisions
 
 | Upstream delta | Go disposition |
 | --- | --- |
-| Text model catalog refresh | Implemented. `models_generated.go` regenerated from exact `v0.83.0` upstream model data. Comparator: `1153/1153` provider/id pairs. Metadata regressions updated for current OpenRouter Kimi/GLM values and current retained/removed model IDs. |
-| Image catalog | Compared and unchanged in count. Exact image comparator: `40/40` provider/id pairs. |
-| Public pending stop reason | Implemented. Added `goai.StopReasonPending` with JSON serialization coverage in `stop_reason_pending_test.go`. |
-| Raw stop reason preservation | Implemented. Added `Message.RawStopReason`; populated for OpenAI Completions, Mistral, Google, Bedrock, Anthropic, OpenAI Responses/Azure-shared, and Codex stream paths. |
-| Missing terminal stop/status must not become success | Implemented. Anthropic, Responses/Azure-shared, Codex, OpenAI Completions, Mistral, Google, and Bedrock partial messages initialize as pending where applicable and emit an error on missing terminal stop/status instead of successful `Done`. |
-| Anthropic pending/raw semantics | Implemented. `processAnthropicStream` initializes pending, sets raw stop reason from `message_delta.delta.stop_reason`, and errors if `message_stop`/end occurs without a stop reason. Tests: `anthropic_raw_stop_reason_test.go` plus adjusted request-capture fixtures. |
-| Responses/Azure/Codex raw status and pending terminal behavior | Implemented. Responses parser sets raw status from terminal response status; missing terminal response event errors. Codex parser mirrors this. Tests: `raw_status_upstream_test.go`, existing Codex custom stream tests. |
-| Bedrock raw stop reason | Implemented. Converse stream message stop now records raw Bedrock stop reason and maps unknown provider stops to error with provider message. Test: `TestProcessConverseStreamPreservesRawStopReason`. |
-| OpenAI malformed tool delta (`function` plus empty `custom`) | Implemented. Function arguments are preserved. Test: `openai_malformed_tool_delta_test.go`. |
-| OAuth minimum-validity refresh | Implemented during v0.83 corrective pass. `oauth.GetAPIKey` refreshes tokens inside the default 5-minute validity window. `GetAPIKeyWithMinValidity` supports stricter callers and rejects too-short refreshed tokens. Tests in `oauth/oauth_test.go`. |
-| Bedrock credential precedence | Implemented. Explicit `StreamOptions.Profile` and scoped `ProviderEnv{"AWS_PROFILE": ...}` take precedence over ambient AWS access keys; ambient profile plus ambient keys remains compatible. Covered by Bedrock credential tests and existing endpoint/option tests. |
-| JavaScript `fetch` option plumbing | N/A/adapted. Go does not use JS `fetch`; request customization is via explicit HTTP clients/transports, retry configuration, payload/response hooks, and provider env/options. Existing Go HTTP request paths and retry/provider tests cover the equivalent Go surfaces. |
-| TypeScript SDK/mock harness changes | N/A unless they expose Go-facing behavior above. Classified in `docs/v0830-release-ledger.md`. |
+| Baseten provider and models | Implemented. Added `ProviderBaseten`, `BASETEN_API_KEY`, exact generated Baseten models, Baseten `thinkingFormat`, `chat_template_args`, and reasoning-effort payload behavior. Tests: `inference/provider/openai/openai_v0840_test.go`. |
+| Advanced sampling parameters | Implemented for OpenAI-compatible adapters. Added `Model.SamplingParams` and `StreamOptions.SamplingParams`; model defaults merge with request overrides and marshal last so advanced keys override typed fields. Tests cover OpenAI Completions and Responses. |
+| `thinking_token_budget` | Implemented. Compat flag emits top-level `thinking_token_budget` and reserves 1024 answer tokens. Test: `TestOpenAIThinkingTokenBudgetLeavesAnswerRoom`. |
+| Missing `finish_reason` compatibility | Implemented. `SupportsFinishReason=false` allows non-standard OpenAI-compatible streams to finish without `finish_reason`, inferring `stop` or `toolUse`. |
+| Anthropic initial block assembly | Implemented. `content_block_start` text/thinking/signature are preserved and signature deltas append. Test: `TestAnthropicContentBlockStartInitialContentAndSignature`. |
+| OpenAI Responses incomplete details | Implemented. `rawStopReason` preserves `status.reason`; `max_output_tokens` maps to `length`; other incomplete reasons map to error with an error message. Test: `TestResponsesIncompleteTerminalReasonMapping`. |
+| Bedrock diagnostics metadata | Adapted. Go AWS/Smithy errors produce bounded `bedrock_response_failure` diagnostics with status, provider error code, and request id where available. Test: `TestProcessConverseStreamAddsFailureDiagnosticForStreamErr`. |
+| Text model catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84 source plus official package provider data. Comparator: `1153/1153` provider/id pairs, exact. Provider count now 38 including Baseten. |
+| Image model catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84 image metadata: 42 image models, adding `qwen/qwen-image-3` and `qwen/qwen-image-3-pro`. |
+| Model runtime/provider refresh publication changes | Already present/adapted. Existing Go runtime has provider-scoped refresh, generation checks, in-flight dedupe, cache fallback and deterministic tests; no public Go API change required. |
+| OAuth refresh callback/auth-operation cancellation changes | Adapted/N/A. Go OAuth uses direct provider helpers and context-aware internal network calls; TS `AuthOperationOptions`/credential-store/prompt abort surfaces are JS app API and not a Go runtime surface. Existing OAuth cancellation/refresh tests remain applicable. |
+| `message_update` delta-only semantics | N/A for this Go AI library. Upstream change is in `packages/agent`/`packages/coding-agent` JSON/RPC session events, not `packages/ai`; Go emits typed in-process stream events rather than Pi coding-agent JSON timeline events. |
+| JS package/docs/test harness changes | N/A or documented unless a runtime behavior above was ported. See detailed matrix. |
+
+## Comparator evidence
+
+```text
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers
+upstream pairs: 1153
+generated pairs: 1153
+model provider/id pairs match exactly
+
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840.go
+wrote /workspace/tmp/images_v0840.go with 42 image models
+```
 
 ## Validation evidence
 
-Final v0.83 corrective gate passed before commit `2f17e7b`:
+Focused validation already run during implementation:
 
 ```text
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-v0830-json/providers python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0830/packages/ai/src/providers
+go test ./...
+```
+
+Final full gate passed before commit/push:
+
+```text
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers
 # upstream pairs: 1153
 # generated pairs: 1153
 # model provider/id pairs match exactly
 
-# image comparator against /workspace/tmp/pi-v0830/packages/ai/src/image-models.generated.ts
-# upstream image pairs: 40
-# generated image pairs: 40
-# image provider/id pairs match exactly
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_gate.go
+# wrote /workspace/tmp/images_v0840_gate.go with 42 image models
+# diff against images/models_generated.go: exact
 
 make check
 TMPDIR=/workspace/tmp go test -shuffle=on ./...
@@ -72,7 +83,7 @@ make check-logging
 make test-repro
 ```
 
-All listed gates passed.
+Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
 
 ## Maintenance policy
 

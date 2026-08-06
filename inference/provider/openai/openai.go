@@ -176,8 +176,11 @@ type chatRequest struct {
 	Thinking             map[string]interface{} `json:"thinking,omitempty"`
 	EnableThinking       *bool                  `json:"enable_thinking,omitempty"`
 	ChatTemplateKwargs   map[string]interface{} `json:"chat_template_kwargs,omitempty"`
+	ChatTemplateArgs     map[string]interface{} `json:"chat_template_args,omitempty"`
+	ThinkingTokenBudget  *int                   `json:"thinking_token_budget,omitempty"`
 	ToolStream           *bool                  `json:"tool_stream,omitempty"`
 	Store                *bool                  `json:"store,omitempty"`
+	SamplingParams       map[string]interface{} `json:"-"`
 }
 
 func (r chatRequest) MarshalJSON() ([]byte, error) {
@@ -194,6 +197,9 @@ func (r chatRequest) MarshalJSON() ([]byte, error) {
 		m["tools"] = r.Tools
 	} else if r.EmitEmptyTools {
 		m["tools"] = []toolDef{}
+	}
+	for k, v := range r.SamplingParams {
+		m[k] = v
 	}
 	return json.Marshal(m)
 }
@@ -318,8 +324,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	compat := goai.DetectCompatForModel(model)
 
 	req := chatRequest{
-		Model:  model.ID,
-		Stream: true,
+		Model:          model.ID,
+		Stream:         true,
+		SamplingParams: mergeSamplingParams(model, opts),
 	}
 
 	// Stream options — some providers don't support include_usage
@@ -388,8 +395,19 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 			enabled := reasoningRequested && effort != ""
 			req.ChatTemplateKwargs = map[string]interface{}{"enable_thinking": enabled, "preserve_thinking": true}
 		case "chat-template":
-			if kwargs := buildChatTemplateKwargs(model, opts, compat, effort); len(kwargs) > 0 {
+			if kwargs := buildChatTemplateValues(model, opts, effort, compat.ChatTemplateKwargs); len(kwargs) > 0 {
 				req.ChatTemplateKwargs = kwargs
+			}
+		case "baseten":
+			if args := buildChatTemplateValues(model, opts, effort, compat.ChatTemplateArgs); len(args) > 0 {
+				req.ChatTemplateArgs = args
+			}
+			if compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort {
+				if effort != "" {
+					req.ReasoningEffort = effort
+				} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil {
+					req.ReasoningEffort = *off
+				}
 			}
 		case "deepseek":
 			typeValue := "disabled"
@@ -456,6 +474,17 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 			}
 		}
 	}
+	if compat.SupportsThinkingTokenBudget != nil && *compat.SupportsThinkingTokenBudget && reasoningRequested && model.Reasoning {
+		ceiling := model.MaxTokens
+		if opts != nil && opts.MaxTokens != nil {
+			ceiling = goai.ClampStreamMaxTokens(model, convCtx, opts)
+		}
+		_, budget := goai.AdjustThinkingTokenBudget(ceiling, *opts.Reasoning, opts.ThinkingBudgets)
+		if budget > 0 {
+			req.ThinkingTokenBudget = &budget
+		}
+	}
+
 	if len(activeTools) > 0 {
 		if compat.ZaiToolStream != nil && *compat.ZaiToolStream {
 			t := true
@@ -547,12 +576,31 @@ func applyAnthropicCacheControl(msgs []chatMessage, marker *cacheControl) {
 	}
 }
 
-func buildChatTemplateKwargs(model *goai.Model, opts *goai.StreamOptions, compat goai.OpenAICompletionsCompat, effort string) map[string]interface{} {
-	if len(compat.ChatTemplateKwargs) == 0 {
+func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string]interface{} {
+	var out map[string]interface{}
+	if model != nil && len(model.SamplingParams) > 0 {
+		out = make(map[string]interface{}, len(model.SamplingParams))
+		for k, v := range model.SamplingParams {
+			out[k] = v
+		}
+	}
+	if opts != nil && len(opts.SamplingParams) > 0 {
+		if out == nil {
+			out = make(map[string]interface{}, len(opts.SamplingParams))
+		}
+		for k, v := range opts.SamplingParams {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func buildChatTemplateValues(model *goai.Model, opts *goai.StreamOptions, effort string, values map[string]goai.ChatTemplateKwargValue) map[string]interface{} {
+	if len(values) == 0 {
 		return nil
 	}
-	out := make(map[string]interface{}, len(compat.ChatTemplateKwargs))
-	for key, value := range compat.ChatTemplateKwargs {
+	out := make(map[string]interface{}, len(values))
+	for key, value := range values {
 		resolved, ok := resolveChatTemplateKwargValue(model, opts, effort, value)
 		if ok {
 			out[key] = resolved
@@ -1151,11 +1199,21 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			partial.ErrorMessage = "Provider finish_reason: " + *finishReason
 		}
 	}
+	compat := goai.DetectCompatForModel(model)
 	if finishReason == nil {
-		partial.StopReason = goai.StopReasonError
-		partial.ErrorMessage = "OpenAI Completions stream ended without a finish reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Completions stream ended without a finish reason")}
-		return
+		if compat.SupportsFinishReason != nil && !*compat.SupportsFinishReason {
+			for _, block := range partial.Content {
+				if block.Type == "toolCall" {
+					reason = goai.StopReasonToolUse
+					break
+				}
+			}
+		} else {
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = "OpenAI Completions stream ended without a finish reason"
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Completions stream ended without a finish reason")}
+			return
+		}
 	}
 	partial.StopReason = reason
 

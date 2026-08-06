@@ -147,6 +147,26 @@ func DefaultThinkingBudgets() ThinkingBudgets {
 	}
 }
 
+// AdjustThinkingTokenBudget computes a provider-side reasoning budget inside
+// an existing response-token ceiling, always leaving room for a final answer.
+func AdjustThinkingTokenBudget(ceiling int, level ThinkingLevel, custom *ThinkingBudgets) (maxTokens, thinkingBudget int) {
+	defaults := DefaultThinkingBudgets()
+	budgets := mergeThinkingBudgets(defaults, custom)
+	const minOutputTokens = 1024
+	clamped := ClampReasoning(level)
+	thinkingBudget = budgetForLevel(budgets, clamped)
+	if ceiling < 0 {
+		ceiling = 0
+	}
+	if maxBudget := ceiling - minOutputTokens; maxBudget < thinkingBudget {
+		thinkingBudget = maxBudget
+		if thinkingBudget < 0 {
+			thinkingBudget = 0
+		}
+	}
+	return ceiling, thinkingBudget
+}
+
 // AdjustMaxTokensForThinking computes the maxTokens and thinkingBudget
 // for a given reasoning level, ensuring the total fits in the model's limit.
 func AdjustMaxTokensForThinking(baseMaxTokens, modelMaxTokens int, level ThinkingLevel, custom *ThinkingBudgets) (maxTokens, thinkingBudget int) {

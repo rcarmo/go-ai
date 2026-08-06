@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (40 image models, 1 provider)
+// Source: image-models.generated.ts (42 image models, 1 provider)
 
 package images
 
@@ -71,7 +71,7 @@ var builtinImageModels = []ImagesModel{
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
-		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.08333333333333334},
+		Cost:     goai.ModelCost{Input: 0.3, Output: 2.5, CacheRead: 0.03, CacheWrite: 0.0833333333333333},
 	},
 	{
 		ID:       "google/gemini-3-pro-image",
@@ -254,6 +254,26 @@ var builtinImageModels = []ImagesModel{
 		Cost:     goai.ModelCost{Input: -1000000, Output: -1000000, CacheRead: 0, CacheWrite: 0},
 	},
 	{
+		ID:       "qwen/qwen-image-3",
+		Name:     "Qwen: Qwen Image 3",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "qwen/qwen-image-3-pro",
+		Name:     "Qwen: Qwen Image 3 Pro",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
 		ID:       "recraft/recraft-v3",
 		Name:     "Recraft: Recraft V3",
 		Api:      ImagesApi("openrouter-images"),
@@ -405,7 +425,7 @@ var builtinImageModels = []ImagesModel{
 	},
 	{
 		ID:       "x-ai/grok-imagine-image-quality",
-		Name:     "xAI: Grok Imagine Image Quality",
+		Name:     "SpaceXAI: Grok Imagine Image Quality",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

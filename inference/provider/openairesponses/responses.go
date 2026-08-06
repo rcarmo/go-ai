@@ -171,18 +171,36 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type responsesRequest struct {
-	Model                string           `json:"model"`
-	Input                json.RawMessage  `json:"input"`
-	Stream               bool             `json:"stream"`
-	Store                bool             `json:"store"`
-	Tools                []toolDef        `json:"tools,omitempty"`
-	Temperature          *float64         `json:"temperature,omitempty"`
-	MaxOutputTokens      *int             `json:"max_output_tokens,omitempty"`
-	Reasoning            *reasoningConfig `json:"reasoning,omitempty"`
-	Include              []string         `json:"include,omitempty"`
-	PromptCacheKey       string           `json:"prompt_cache_key,omitempty"`
-	PromptCacheRetention string           `json:"prompt_cache_retention,omitempty"`
-	ServiceTier          string           `json:"service_tier,omitempty"`
+	Model                string                 `json:"model"`
+	Input                json.RawMessage        `json:"input"`
+	Stream               bool                   `json:"stream"`
+	Store                bool                   `json:"store"`
+	Tools                []toolDef              `json:"tools,omitempty"`
+	Temperature          *float64               `json:"temperature,omitempty"`
+	MaxOutputTokens      *int                   `json:"max_output_tokens,omitempty"`
+	Reasoning            *reasoningConfig       `json:"reasoning,omitempty"`
+	Include              []string               `json:"include,omitempty"`
+	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
+	ServiceTier          string                 `json:"service_tier,omitempty"`
+	SamplingParams       map[string]interface{} `json:"-"`
+}
+
+func (r responsesRequest) MarshalJSON() ([]byte, error) {
+	type alias responsesRequest
+	raw := alias(r)
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return nil, err
+	}
+	for k, v := range r.SamplingParams {
+		obj[k] = v
+	}
+	return json.Marshal(obj)
 }
 
 type reasoningConfig struct {
@@ -353,11 +371,31 @@ func normalizeAzureBaseURL(baseURL string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
+func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string]interface{} {
+	var out map[string]interface{}
+	if model != nil && len(model.SamplingParams) > 0 {
+		out = make(map[string]interface{}, len(model.SamplingParams))
+		for k, v := range model.SamplingParams {
+			out[k] = v
+		}
+	}
+	if opts != nil && len(opts.SamplingParams) > 0 {
+		if out == nil {
+			out = make(map[string]interface{}, len(opts.SamplingParams))
+		}
+		for k, v := range opts.SamplingParams {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {
 	req := responsesRequest{
-		Model:  model.ID,
-		Stream: true,
-		Store:  false,
+		Model:          model.ID,
+		Stream:         true,
+		Store:          false,
+		SamplingParams: mergeSamplingParams(model, opts),
 	}
 
 	if opts != nil {
@@ -941,10 +979,11 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		case "response.completed", "response.incomplete":
 			terminalResponseSeen = true
 			var resp struct {
-				ID     string            `json:"id"`
-				Status string            `json:"status"`
-				Output []json.RawMessage `json:"output"`
-				Usage  *struct {
+				ID                string                   `json:"id"`
+				Status            string                   `json:"status"`
+				IncompleteDetails *struct{ Reason string } `json:"incomplete_details"`
+				Output            []json.RawMessage        `json:"output"`
+				Usage             *struct {
 					InputTokens  int `json:"input_tokens"`
 					OutputTokens int `json:"output_tokens"`
 					TotalTokens  int `json:"total_tokens"`
@@ -981,8 +1020,15 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 			}
 
+			incompleteReason := ""
+			if resp.IncompleteDetails != nil {
+				incompleteReason = resp.IncompleteDetails.Reason
+			}
 			partial.RawStopReason = resp.Status
-			partial.StopReason = mapStatus(resp.Status)
+			if incompleteReason != "" {
+				partial.RawStopReason += "." + incompleteReason
+			}
+			partial.StopReason, partial.ErrorMessage = mapStatusWithIncompleteReason(resp.Status, incompleteReason)
 			// If we have tool calls and status is "stop", upgrade to "toolUse"
 			for _, c := range partial.Content {
 				if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
@@ -1029,7 +1075,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	if !terminalResponseSeen {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "OpenAI Responses stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Responses stream ended before a terminal response event")}
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("openai responses stream ended before a terminal response event")}
 		return
 	}
 	if partial.StopReason == "" {
@@ -1077,15 +1123,18 @@ func backfillReasoningEncryptedContent(partial *goai.Message, output []json.RawM
 	}
 }
 
-func mapStatus(status string) goai.StopReason {
+func mapStatusWithIncompleteReason(status, incompleteReason string) (goai.StopReason, string) {
 	switch status {
-	case "completed":
-		return goai.StopReasonStop
+	case "", "completed", "in_progress", "queued":
+		return goai.StopReasonStop, ""
 	case "incomplete":
-		return goai.StopReasonLength
+		if incompleteReason == "" || incompleteReason == "max_output_tokens" {
+			return goai.StopReasonLength, ""
+		}
+		return goai.StopReasonError, "OpenAI Responses incomplete: " + incompleteReason
 	case "failed", "cancelled":
-		return goai.StopReasonError
+		return goai.StopReasonError, ""
 	default:
-		return goai.StopReasonStop
+		return goai.StopReasonStop, ""
 	}
 }

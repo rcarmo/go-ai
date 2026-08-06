@@ -68,6 +68,7 @@ const (
 	ProviderXiaomiTokenPlanSGP  Provider = "xiaomi-token-plan-sgp"
 	ProviderAntLing             Provider = "ant-ling"
 	ProviderNvidia              Provider = "nvidia"
+	ProviderBaseten             Provider = "baseten"
 	ProviderZAICodingCN         Provider = "zai-coding-cn"
 )
 
@@ -331,6 +332,9 @@ type Model struct {
 	Cost             ModelCost                      `json:"cost"`
 	ContextWindow    int                            `json:"contextWindow"`
 	MaxTokens        int                            `json:"maxTokens"`
+	// SamplingParams carries model-default OpenAI-compatible sampling parameters.
+	// Request-level StreamOptions.SamplingParams override these per key.
+	SamplingParams map[string]any `json:"samplingParams,omitempty"`
 
 	// Optional overrides
 	Headers           map[string]string        `json:"headers,omitempty"`
@@ -354,7 +358,11 @@ type ThinkingBudgets struct {
 type ProviderEnv map[string]string
 
 type StreamOptions struct {
-	Temperature    *float64          `json:"temperature,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+	// SamplingParams is an OpenAI-compatible escape hatch for advanced sampling
+	// controls (for example top_p, top_k, min_p, repetition_penalty). Providers
+	// that do not support arbitrary request-body parameters ignore it.
+	SamplingParams map[string]any    `json:"samplingParams,omitempty"`
 	MaxTokens      *int              `json:"maxTokens,omitempty"`
 	APIKey         string            `json:"-"`
 	Transport      Transport         `json:"transport,omitempty"`

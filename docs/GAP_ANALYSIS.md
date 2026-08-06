@@ -2,9 +2,21 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.83.0
+## Source: `@earendil-works/pi-ai` v0.84.0
 
 ## Sync history
+
+### v0.84.0 (2026-08-06)
+
+Release-only audit (`v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` → `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`) found 101 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0840-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Baseten provider, advanced sampling params, thinking-token budget, finish-reason compatibility, Anthropic initial block content, Responses incomplete details, and Bedrock diagnostics. | **IMPLEMENTED/ADAPTED** with executable Go regressions in provider packages. |
+| Text/image catalog refresh. | **IMPLEMENTED**: exact text comparator `1153/1153` across 38 providers; image catalog regenerated to 42 OpenRouter models. |
+| `message_update` delta-only JSON protocol. | **N/A**: monorepo coding-agent/agent JSON event protocol, not a Go AI runtime surface. |
+
+Result: no known Go-facing v0.84.0 gap remains pending final full-gate evidence.
 
 ### v0.83.0 (2026-07-30)
 
@@ -297,6 +309,18 @@ Result: upstream v0.79.0 is fully synced in Go; this was a metadata-and-compat p
 
 ## Sync history
 
+### v0.84.0 (2026-08-06)
+
+Release-only audit (`v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` → `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`) found 101 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0840-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Baseten provider, advanced sampling params, thinking-token budget, finish-reason compatibility, Anthropic initial block content, Responses incomplete details, and Bedrock diagnostics. | **IMPLEMENTED/ADAPTED** with executable Go regressions in provider packages. |
+| Text/image catalog refresh. | **IMPLEMENTED**: exact text comparator `1153/1153` across 38 providers; image catalog regenerated to 42 OpenRouter models. |
+| `message_update` delta-only JSON protocol. | **N/A**: monorepo coding-agent/agent JSON event protocol, not a Go AI runtime surface. |
+
+Result: no known Go-facing v0.84.0 gap remains pending final full-gate evidence.
+
 ### v0.78.1 (2026-06-04)
 
 Comparative audit (`@earendil-works/pi-ai v0.78.0` → `v0.78.1`) found:
@@ -381,6 +405,18 @@ Result: upstream v0.76.0 is synced in Go; the only Go-facing change is the regen
 
 ## Sync history
 
+### v0.84.0 (2026-08-06)
+
+Release-only audit (`v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` → `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`) found 101 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0840-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Baseten provider, advanced sampling params, thinking-token budget, finish-reason compatibility, Anthropic initial block content, Responses incomplete details, and Bedrock diagnostics. | **IMPLEMENTED/ADAPTED** with executable Go regressions in provider packages. |
+| Text/image catalog refresh. | **IMPLEMENTED**: exact text comparator `1153/1153` across 38 providers; image catalog regenerated to 42 OpenRouter models. |
+| `message_update` delta-only JSON protocol. | **N/A**: monorepo coding-agent/agent JSON event protocol, not a Go AI runtime surface. |
+
+Result: no known Go-facing v0.84.0 gap remains pending final full-gate evidence.
+
 ### v0.75.5 (2026-05-25)
 
 Comparative audit (`@earendil-works/pi-ai v0.75.4` → `v0.75.5`) found:
@@ -400,6 +436,18 @@ Actions:
 Result: upstream v0.75.5 is synced in Go; the only Go-facing change is the regenerated model registry and the accompanying audit/doc updates.
 
 ## Sync history
+
+### v0.84.0 (2026-08-06)
+
+Release-only audit (`v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39` → `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`) found 101 changed `packages/ai` paths. Exact path dispositions are recorded in `docs/v0840-release-ledger.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Baseten provider, advanced sampling params, thinking-token budget, finish-reason compatibility, Anthropic initial block content, Responses incomplete details, and Bedrock diagnostics. | **IMPLEMENTED/ADAPTED** with executable Go regressions in provider packages. |
+| Text/image catalog refresh. | **IMPLEMENTED**: exact text comparator `1153/1153` across 38 providers; image catalog regenerated to 42 OpenRouter models. |
+| `message_update` delta-only JSON protocol. | **N/A**: monorepo coding-agent/agent JSON event protocol, not a Go AI runtime surface. |
+
+Result: no known Go-facing v0.84.0 gap remains pending final full-gate evidence.
 
 ### v0.75.3 (2026-05-19)
 

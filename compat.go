@@ -31,6 +31,10 @@ type OpenAICompletionsCompat struct {
 	// Whether the provider supports `stream_options: { include_usage: true }`.
 	SupportsUsageInStreaming *bool `json:"supportsUsageInStreaming,omitempty"`
 
+	// Whether streamed chunks include finish_reason. When false, a stream that
+	// ends without a finish_reason is inferred as stop/toolUse instead of error.
+	SupportsFinishReason *bool `json:"supportsFinishReason,omitempty"`
+
 	// Which field to use for max tokens: "max_completion_tokens" or "max_tokens".
 	MaxTokensField string `json:"maxTokensField,omitempty"`
 
@@ -53,6 +57,12 @@ type OpenAICompletionsCompat struct {
 
 	// Kwargs to send as chat_template_kwargs when ThinkingFormat is "chat-template".
 	ChatTemplateKwargs map[string]ChatTemplateKwargValue `json:"chatTemplateKwargs,omitempty"`
+
+	// Arguments to send as chat_template_args when ThinkingFormat is "baseten".
+	ChatTemplateArgs map[string]ChatTemplateKwargValue `json:"chatTemplateArgs,omitempty"`
+
+	// Whether to emit top-level thinking_token_budget for vLLM-compatible reasoning endpoints.
+	SupportsThinkingTokenBudget *bool `json:"supportsThinkingTokenBudget,omitempty"`
 
 	// OpenRouter-specific routing preferences.
 	OpenRouterRouting map[string]interface{} `json:"openRouterRouting,omitempty"`
@@ -101,6 +111,15 @@ type OpenAIResponsesCompat struct {
 
 	// Whether the provider supports OpenAI grammar custom tools.
 	SupportsOpenAIGrammarTools *bool `json:"supportsOpenAIGrammarTools,omitempty"`
+
+	// Whether the provider supports strict JSON-schema function tools.
+	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
+
+	// Provider-specific session affinity header format.
+	SessionAffinityFormat string `json:"sessionAffinityFormat,omitempty"`
+
+	// Whether the provider supports explicit prompt cache mode options.
+	SupportsExplicitPromptCacheMode *bool `json:"supportsExplicitPromptCacheMode,omitempty"`
 }
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
@@ -119,6 +138,15 @@ type AnthropicMessagesCompat struct {
 
 	// Whether empty Anthropic thinking signatures should be replayed as `signature: ""` instead of text fallbacks.
 	AllowEmptySignature *bool `json:"allowEmptySignature,omitempty"`
+
+	// Whether the provider supports Anthropic strict tool schemas. Default: false.
+	SupportsStrictTools *bool `json:"supportsStrictTools,omitempty"`
+
+	// Whether the provider supports cache_control markers on tool definitions. Default: true.
+	SupportsCacheControlOnTools *bool `json:"supportsCacheControlOnTools,omitempty"`
+
+	// Whether the provider should emit session-affinity headers when caching is enabled.
+	SendSessionAffinityHeaders *bool `json:"sendSessionAffinityHeaders,omitempty"`
 
 	// Whether the provider supports the temperature parameter. Default: true.
 	SupportsTemperature *bool `json:"supportsTemperature,omitempty"`
@@ -158,6 +186,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	if o.SupportsUsageInStreaming != nil {
 		c.SupportsUsageInStreaming = o.SupportsUsageInStreaming
 	}
+	if o.SupportsFinishReason != nil {
+		c.SupportsFinishReason = o.SupportsFinishReason
+	}
 	if o.MaxTokensField != "" {
 		c.MaxTokensField = o.MaxTokensField
 	}
@@ -179,6 +210,12 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	if len(o.ChatTemplateKwargs) > 0 {
 		c.ChatTemplateKwargs = o.ChatTemplateKwargs
 	}
+	if len(o.ChatTemplateArgs) > 0 {
+		c.ChatTemplateArgs = o.ChatTemplateArgs
+	}
+	if o.SupportsThinkingTokenBudget != nil {
+		c.SupportsThinkingTokenBudget = o.SupportsThinkingTokenBudget
+	}
 	if o.OpenRouterRouting != nil {
 		c.OpenRouterRouting = o.OpenRouterRouting
 	}
@@ -191,6 +228,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	if o.SupportsStrictMode != nil {
 		c.SupportsStrictMode = o.SupportsStrictMode
 	}
+	if o.SupportsOpenAIGrammarTools != nil {
+		c.SupportsOpenAIGrammarTools = o.SupportsOpenAIGrammarTools
+	}
 	if o.CacheControlFormat != "" {
 		c.CacheControlFormat = o.CacheControlFormat
 	}
@@ -202,6 +242,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.SupportsLongCacheRetention != nil {
 		c.SupportsLongCacheRetention = o.SupportsLongCacheRetention
+	}
+	if o.SupportsTemperature != nil {
+		c.SupportsTemperature = o.SupportsTemperature
 	}
 	return c
 }
@@ -218,6 +261,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURL, "gateway.ai.cloudflare.com")
 	isNvidia := provider == ProviderNvidia || contains(baseURL, "integrate.api.nvidia.com")
 	isAntLing := provider == ProviderAntLing || contains(baseURL, "api.ant-ling.com")
+	isBaseten := provider == ProviderBaseten || contains(baseURL, "inference.baseten.co")
 	isGrok := provider == ProviderXAI || contains(baseURL, "api.x.ai")
 	isDeepSeek := provider == ProviderDeepSeek || contains(baseURL, "deepseek.com")
 	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURL, "xiaomimimo.com")
@@ -225,8 +269,8 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	isNonStandard := isNvidia || provider == ProviderCerebras || contains(baseURL, "cerebras.ai") ||
 		isGrok || isTogether || contains(baseURL, "chutes.ai") || isDeepSeek || isXiaomi ||
 		isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") ||
-		isCloudflareWorkersAI || isCloudflareAIGW || isAntLing || isOllama
-	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isOllama
+		isCloudflareWorkersAI || isCloudflareAIGW || isAntLing || isBaseten || isOllama
+	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isBaseten || isOllama
 
 	isOpenRouterDevRole := isOpenRouter && (strings.HasPrefix(modelID, "anthropic/") || strings.HasPrefix(modelID, "openai/"))
 
@@ -255,6 +299,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	}
 
 	c.SupportsUsageInStreaming = &t
+	c.SupportsFinishReason = &t
 
 	// maxTokensField
 	if useMaxTokens {
@@ -276,6 +321,8 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		c.ThinkingFormat = "zai"
 	case isTogether:
 		c.ThinkingFormat = "together"
+	case isBaseten:
+		c.ThinkingFormat = "baseten"
 	case isAntLing:
 		c.ThinkingFormat = "ant-ling"
 	case isOpenRouter:
@@ -292,7 +339,7 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	}
 
 	// supportsLongCacheRetention
-	if isTogether || isCloudflareWorkersAI || isCloudflareAIGW || isNvidia || isAntLing {
+	if isTogether || isCloudflareWorkersAI || isCloudflareAIGW || isNvidia || isAntLing || isBaseten {
 		c.SupportsLongCacheRetention = &f
 	} else {
 		c.SupportsLongCacheRetention = &t
@@ -301,6 +348,9 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 	// cacheControlFormat
 	if isOpenRouter && strings.HasPrefix(modelID, "anthropic/") {
 		c.CacheControlFormat = "anthropic"
+	}
+	if isBaseten {
+		c.ChatTemplateArgs = map[string]ChatTemplateKwargValue{"enable_thinking": {Var: "thinking.enabled"}}
 	}
 
 	// Ollama-specific overrides

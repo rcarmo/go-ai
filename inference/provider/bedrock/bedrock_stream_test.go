@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	goai "github.com/rcarmo/go-ai"
@@ -48,6 +49,37 @@ func TestProcessConverseStreamRejectsNonAssistantMessageStart(t *testing.T) {
 		}
 	}
 	t.Fatal("expected ErrorEvent for non-assistant message start")
+}
+
+type bedrockNamedError struct{ name string }
+
+func (e bedrockNamedError) Error() string     { return "stream broke" }
+func (e bedrockNamedError) ErrorName() string { return e.name }
+
+func TestProcessConverseStreamAddsFailureDiagnosticForStreamErr(t *testing.T) {
+	events := make(chan types.ConverseStreamOutput, 1)
+	events <- &types.ConverseStreamOutputMemberMessageStart{Value: types.MessageStartEvent{Role: types.ConversationRoleAssistant}}
+	close(events)
+	resp := &bedrockruntime.ConverseStreamOutput{}
+	awsmiddleware.SetRequestIDMetadata(&resp.ResultMetadata, "request-id")
+	stream := bedrockruntime.NewConverseStreamEventStream(func(es *bedrockruntime.ConverseStreamEventStream) {
+		es.Reader = &fakeConverseReader{events: events, err: bedrockNamedError{name: "ModelStreamErrorException"}}
+	})
+	setConverseEventStream(resp, stream)
+
+	ch := make(chan goai.Event, 4)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	close(ch)
+
+	for ev := range ch {
+		if e, ok := ev.(*goai.ErrorEvent); ok {
+			if len(e.Error.Diagnostics) != 1 || e.Error.Diagnostics[0].Type != "bedrock_response_failure" || e.Error.Diagnostics[0].Details["requestId"] != "request-id" || e.Error.Diagnostics[0].Details["errorCode"] != "ModelStreamErrorException" {
+				t.Fatalf("unexpected diagnostic: %#v", e.Error.Diagnostics)
+			}
+			return
+		}
+	}
+	t.Fatal("expected ErrorEvent from stream.Err")
 }
 
 func TestProcessConverseStreamSurfacesStreamErr(t *testing.T) {

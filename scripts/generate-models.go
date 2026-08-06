@@ -79,19 +79,20 @@ func main() {
 }
 
 type modelEntry struct {
-	ID               string             `json:"id"`
-	Name             string             `json:"name"`
-	Api              string             `json:"api"`
-	Provider         string             `json:"provider"`
-	BaseURL          string             `json:"baseUrl"`
-	Headers          map[string]string  `json:"headers"`
-	Compat           compatEntry        `json:"compat"`
-	Reasoning        bool               `json:"reasoning"`
-	ThinkingLevelMap map[string]*string `json:"thinkingLevelMap"`
-	Input            []string           `json:"input"`
-	Cost             costEntry          `json:"cost"`
-	ContextWindow    int                `json:"contextWindow"`
-	MaxTokens        int                `json:"maxTokens"`
+	ID               string                 `json:"id"`
+	Name             string                 `json:"name"`
+	Api              string                 `json:"api"`
+	Provider         string                 `json:"provider"`
+	BaseURL          string                 `json:"baseUrl"`
+	Headers          map[string]string      `json:"headers"`
+	Compat           compatEntry            `json:"compat"`
+	Reasoning        bool                   `json:"reasoning"`
+	ThinkingLevelMap map[string]*string     `json:"thinkingLevelMap"`
+	Input            []string               `json:"input"`
+	Cost             costEntry              `json:"cost"`
+	ContextWindow    int                    `json:"contextWindow"`
+	MaxTokens        int                    `json:"maxTokens"`
+	SamplingParams   map[string]interface{} `json:"samplingParams"`
 }
 
 type compatEntry struct {
@@ -99,6 +100,7 @@ type compatEntry struct {
 	SupportsDeveloperRole                       *bool                        `json:"supportsDeveloperRole"`
 	SupportsReasoningEffort                     *bool                        `json:"supportsReasoningEffort"`
 	SupportsUsageInStreaming                    *bool                        `json:"supportsUsageInStreaming"`
+	SupportsFinishReason                        *bool                        `json:"supportsFinishReason"`
 	MaxTokensField                              string                       `json:"maxTokensField"`
 	RequiresToolResultName                      *bool                        `json:"requiresToolResultName"`
 	RequiresAssistantAfterToolResult            *bool                        `json:"requiresAssistantAfterToolResult"`
@@ -106,6 +108,8 @@ type compatEntry struct {
 	RequiresReasoningContentOnAssistantMessages *bool                        `json:"requiresReasoningContentOnAssistantMessages"`
 	ThinkingFormat                              string                       `json:"thinkingFormat"`
 	ChatTemplateKwargs                          map[string]chatTemplateKwarg `json:"chatTemplateKwargs"`
+	ChatTemplateArgs                            map[string]chatTemplateKwarg `json:"chatTemplateArgs"`
+	SupportsThinkingTokenBudget                 *bool                        `json:"supportsThinkingTokenBudget"`
 	OpenRouterRouting                           map[string]interface{}       `json:"openRouterRouting"`
 	VercelGatewayRouting                        map[string]interface{}       `json:"vercelGatewayRouting"`
 	ZaiToolStream                               *bool                        `json:"zaiToolStream"`
@@ -120,6 +124,12 @@ type compatEntry struct {
 	AllowEmptySignature                         *bool                        `json:"allowEmptySignature"`
 	SendSessionIdHeader                         *bool                        `json:"sendSessionIdHeader"`
 	SupportsEagerToolInputStreaming             *bool                        `json:"supportsEagerToolInputStreaming"`
+	SupportsToolReferences                      *bool                        `json:"supportsToolReferences"`
+	SupportsToolSearch                          *bool                        `json:"supportsToolSearch"`
+	SupportsCacheControlOnTools                 *bool                        `json:"supportsCacheControlOnTools"`
+	SupportsStrictTools                         *bool                        `json:"supportsStrictTools"`
+	SessionAffinityFormat                       string                       `json:"sessionAffinityFormat"`
+	SupportsExplicitPromptCacheMode             *bool                        `json:"supportsExplicitPromptCacheMode"`
 }
 
 type chatTemplateKwarg struct {
@@ -381,6 +391,7 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 				m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite))
 			b.WriteString(fmt.Sprintf("\t\tContextWindow: %d,\n", m.ContextWindow))
 			b.WriteString(fmt.Sprintf("\t\tMaxTokens:     %d,\n", m.MaxTokens))
+			writeMapField(&b, "SamplingParams", m.SamplingParams)
 			b.WriteString("\t},\n")
 		}
 	}
@@ -404,13 +415,16 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsDeveloperRole", c.SupportsDeveloperRole)
 		writeBoolField(b, "SupportsReasoningEffort", c.SupportsReasoningEffort)
 		writeBoolField(b, "SupportsUsageInStreaming", c.SupportsUsageInStreaming)
+		writeBoolField(b, "SupportsFinishReason", c.SupportsFinishReason)
 		writeStringField(b, "MaxTokensField", c.MaxTokensField)
 		writeBoolField(b, "RequiresToolResultName", c.RequiresToolResultName)
 		writeBoolField(b, "RequiresAssistantAfterToolResult", c.RequiresAssistantAfterToolResult)
 		writeBoolField(b, "RequiresThinkingAsText", c.RequiresThinkingAsText)
 		writeBoolField(b, "RequiresReasoningContentOnAssistantMessages", c.RequiresReasoningContentOnAssistantMessages)
 		writeStringField(b, "ThinkingFormat", c.ThinkingFormat)
-		writeChatTemplateKwargsField(b, c.ChatTemplateKwargs)
+		writeChatTemplateKwargsField(b, "ChatTemplateKwargs", c.ChatTemplateKwargs)
+		writeChatTemplateKwargsField(b, "ChatTemplateArgs", c.ChatTemplateArgs)
+		writeBoolField(b, "SupportsThinkingTokenBudget", c.SupportsThinkingTokenBudget)
 		writeMapField(b, "OpenRouterRouting", c.OpenRouterRouting)
 		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
 		writeBoolField(b, "ZaiToolStream", c.ZaiToolStream)
@@ -420,13 +434,18 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
 		writeStringField(b, "DeferredToolsMode", c.DeferredToolsMode)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
 	case "openai-responses", "azure-openai-responses":
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "SupportsToolSearch", c.SupportsToolSearch)
 		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
+		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		writeStringField(b, "SessionAffinityFormat", c.SessionAffinityFormat)
+		writeBoolField(b, "SupportsExplicitPromptCacheMode", c.SupportsExplicitPromptCacheMode)
 		b.WriteString("},\n")
 	case "anthropic-messages":
 		b.WriteString("\t\tAnthropicCompat: &AnthropicMessagesCompat{")
@@ -435,12 +454,16 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
 		writeBoolField(b, "ForceAdaptiveThinking", c.ForceAdaptiveThinking)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
+		writeBoolField(b, "SupportsStrictTools", c.SupportsStrictTools)
+		writeBoolField(b, "SupportsCacheControlOnTools", c.SupportsCacheControlOnTools)
+		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
+		writeBoolField(b, "SupportsToolReferences", c.SupportsToolReferences)
 		b.WriteString("},\n")
 	}
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsEagerToolInputStreaming != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
@@ -463,7 +486,7 @@ func writeMapField(b *strings.Builder, name string, value map[string]interface{}
 	b.WriteString(fmt.Sprintf("%s: mustMap(%q), ", name, string(data)))
 }
 
-func writeChatTemplateKwargsField(b *strings.Builder, value map[string]chatTemplateKwarg) {
+func writeChatTemplateKwargsField(b *strings.Builder, fieldName string, value map[string]chatTemplateKwarg) {
 	if len(value) == 0 {
 		return
 	}
@@ -472,7 +495,7 @@ func writeChatTemplateKwargsField(b *strings.Builder, value map[string]chatTempl
 		keys = append(keys, k)
 	}
 	sortStrings(keys)
-	b.WriteString("ChatTemplateKwargs: map[string]ChatTemplateKwargValue{")
+	b.WriteString(fieldName + ": map[string]ChatTemplateKwargValue{")
 	for _, k := range keys {
 		v := value[k]
 		b.WriteString(fmt.Sprintf("%q: {", k))

@@ -11,17 +11,17 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	t.Cleanup(goai.RegisterBuiltinModels)
 	goai.RegisterBuiltinModels()
 
-	// Check we have the current upstream-main catalog scope.
+	// Check we have the current official upstream release catalog scope.
 	providers := goai.ListProviders()
-	if len(providers) < 35 {
-		t.Fatalf("expected at least 35 providers, got %d", len(providers))
+	if len(providers) != 38 {
+		t.Fatalf("expected exactly 38 providers from pi-ai v0.84.0 tag a5f43bf, got %d", len(providers))
 	}
 	total := 0
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
 	if total != 1153 {
-		t.Fatalf("expected exactly 1153 generated models from pi-ai v0.83.0 tag 845d6ff1, got %d", total)
+		t.Fatalf("expected exactly 1153 generated models from pi-ai v0.84.0 tag a5f43bf, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,12 +84,12 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.73 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.83.0 metadata, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.7 || kimi.Cost.Output != 3.5 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.84.0 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.6993 || openRouterGLM52.Cost.Output != 2.1978 || openRouterGLM52.Cost.CacheRead != 0.12987 || openRouterGLM52.ContextWindow != 1024000 || openRouterGLM52.MaxTokens != 128000 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.83.0 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.76 || openRouterGLM52.Cost.Output != 2.42 || openRouterGLM52.Cost.CacheRead != 0.14 || openRouterGLM52.ContextWindow != 262144 || openRouterGLM52.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.84.0 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
