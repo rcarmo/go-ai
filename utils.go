@@ -197,16 +197,19 @@ func ResolveCloudflareBaseURL(model *Model, env ...ProviderEnv) string {
 		return url
 	}
 	result := url
-	for {
-		start := strings.Index(result, "{")
-		if start < 0 {
+	searchFrom := 0
+	for searchFrom < len(result) {
+		relStart := strings.Index(result[searchFrom:], "{")
+		if relStart < 0 {
 			break
 		}
-		end := strings.Index(result[start:], "}")
-		if end < 0 {
+		start := searchFrom + relStart
+		relEnd := strings.Index(result[start:], "}")
+		if relEnd < 0 {
 			break
 		}
-		name := result[start+1 : start+end]
+		end := start + relEnd
+		name := result[start+1 : end]
 		var providerEnv ProviderEnv
 		if len(env) > 0 {
 			providerEnv = env[0]
@@ -214,8 +217,10 @@ func ResolveCloudflareBaseURL(model *Model, env ...ProviderEnv) string {
 		value := GetProviderEnvValue(name, providerEnv)
 		if value == "" {
 			logWarn("cloudflare base URL placeholder not set", "var", name, "provider", model.Provider)
+			value = "{" + name + "}"
 		}
-		result = result[:start] + value + result[start+end+1:]
+		result = result[:start] + value + result[end+1:]
+		searchFrom = start + len(value)
 	}
 	return result
 }

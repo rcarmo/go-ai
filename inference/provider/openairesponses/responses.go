@@ -106,18 +106,25 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			}
 		}
 		req.Header.Set("Accept", "text/event-stream")
+		cacheRetention := goai.CacheRetentionShort
+		if opts != nil {
+			cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
+		}
 		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
 			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
 				req.Header.Set(k, v)
 			}
-		} else if opts != nil && opts.SessionID != "" {
-			// Standard OpenAI: send session_id header if compat allows; always
-			// send x-client-request-id for session affinity (matches upstream).
+		} else if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
 			compat := getResponsesCompat(model)
-			if compat.sendSessionIdHeader {
-				req.Header.Set("session_id", opts.SessionID)
+			switch compat.sessionAffinityFormat {
+			case "openrouter":
+				req.Header.Set("x-session-id", opts.SessionID)
+			default:
+				if compat.sessionAffinityFormat == "openai" {
+					req.Header.Set("session_id", opts.SessionID)
+				}
+				req.Header.Set("x-client-request-id", opts.SessionID)
 			}
-			req.Header.Set("x-client-request-id", opts.SessionID)
 		}
 
 		if opts != nil {
@@ -162,7 +169,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		processStream(resp.Body, model, ch)
+		processStreamWithOptions(resp.Body, model, opts, ch)
 	}()
 
 	return ch
@@ -183,6 +190,7 @@ type responsesRequest struct {
 	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
 	ServiceTier          string                 `json:"service_tier,omitempty"`
+	ToolChoice           string                 `json:"tool_choice,omitempty"`
 	SamplingParams       map[string]interface{} `json:"-"`
 }
 
@@ -440,27 +448,33 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		req.Tools = append(req.Tools, tool)
 	}
 
-	// Reasoning — match pi-ai's format: {effort, summary} object + include encrypted content.
+	// Reasoning — match pi-ai's Responses format. Explicit reasoning requests
+	// include summaries/encrypted content; otherwise newer OpenAI models with an
+	// off mapping send effort:"none" while models with off explicitly unsupported
+	// omit reasoning entirely.
 	if model.Reasoning {
-		effort := ""
-		if opts != nil && opts.Reasoning != nil {
-			if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
-				effort = mapped
+		explicitReasoning := opts != nil && (opts.ReasoningSummary != "" || (opts.Reasoning != nil && *opts.Reasoning != goai.ThinkingLevel(goai.ThinkingOff)))
+		if explicitReasoning {
+			effort := "medium"
+			if opts.Reasoning != nil {
+				if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
+					effort = mapped
+				}
 			}
-		}
-		if effort == "" && model.Provider != goai.ProviderGitHubCopilot {
-			effort = "medium"
-		}
-		if model.Provider == goai.ProviderGitHubCopilot && effort == "" {
-			// Copilot: omit reasoning block entirely if no effort requested,
-			// matching pi-ai's behavior for github-copilot without explicit effort.
-		} else {
 			summary := "auto"
-			if opts != nil && opts.ReasoningSummary != "" {
+			if opts.ReasoningSummary != "" {
 				summary = opts.ReasoningSummary
 			}
 			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
 			req.Include = []string{"reasoning.encrypted_content"}
+		} else if model.Provider != goai.ProviderGitHubCopilot {
+			if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; !ok || off != nil {
+				effort := "none"
+				if off != nil {
+					effort = *off
+				}
+				req.Reasoning = &reasoningConfig{Effort: effort}
+			}
 		}
 	} else if opts != nil && opts.Reasoning != nil {
 		// Non-reasoning model but explicit reasoning requested — pass through if supported.
@@ -472,8 +486,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
 			req.Include = []string{"reasoning.encrypted_content"}
 		}
-	} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil && model.Provider != goai.ProviderGitHubCopilot {
-		req.Reasoning = &reasoningConfig{Effort: *off}
+	}
+	if model.Provider == goai.ProviderXAI && len(req.Include) == 0 {
+		req.Include = []string{"reasoning.encrypted_content"}
 	}
 
 	// Cache retention (compat-driven)
@@ -488,31 +503,44 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
 		req.PromptCacheRetention = "24h"
 	}
-	if opts != nil && opts.ServiceTier != "" {
-		req.ServiceTier = opts.ServiceTier
+	if opts != nil {
+		if opts.ServiceTier != "" {
+			req.ServiceTier = opts.ServiceTier
+		}
+		if opts.ToolChoice != "" {
+			req.ToolChoice = string(opts.ToolChoice)
+		}
 	}
 
 	return req
 }
 
 type responsesCompat struct {
-	sendSessionIdHeader        bool
+	sessionAffinityFormat      string
 	supportsLongCacheRetention bool
 	supportsToolSearch         bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
 	c := responsesCompat{
-		sendSessionIdHeader:        true,
+		sessionAffinityFormat:      "openai",
 		supportsLongCacheRetention: true,
 		supportsToolSearch:         model != nil && (model.ID == "gpt-5.4" || strings.HasPrefix(model.ID, "gpt-5.4-")),
+	}
+	if model == nil {
+		return c
+	}
+	if model.Provider == goai.ProviderOpenRouter || strings.Contains(model.BaseURL, "openrouter.ai") {
+		c.sessionAffinityFormat = "openrouter"
 	}
 	if goai.IsCloudflareProvider(model.Provider) {
 		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
-		if model.ResponsesCompat.SendSessionIdHeader != nil {
-			c.sendSessionIdHeader = *model.ResponsesCompat.SendSessionIdHeader
+		if model.ResponsesCompat.SessionAffinityFormat != "" {
+			c.sessionAffinityFormat = model.ResponsesCompat.SessionAffinityFormat
+		} else if model.ResponsesCompat.SendSessionIdHeader != nil && !*model.ResponsesCompat.SendSessionIdHeader {
+			c.sessionAffinityFormat = "openai-nosession"
 		}
 		if model.ResponsesCompat.SupportsLongCacheRetention != nil {
 			c.supportsLongCacheRetention = *model.ResponsesCompat.SupportsLongCacheRetention
@@ -757,6 +785,10 @@ func normalizeResponsesIDPart(s string) string {
 // --- Stream processing ---
 
 func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+	processStreamWithOptions(body, model, nil, ch)
+}
+
+func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, ch chan<- goai.Event) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -981,6 +1013,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			var resp struct {
 				ID                string                   `json:"id"`
 				Status            string                   `json:"status"`
+				ServiceTier       string                   `json:"service_tier"`
 				IncompleteDetails *struct{ Reason string } `json:"incomplete_details"`
 				Output            []json.RawMessage        `json:"output"`
 				Usage             *struct {
@@ -1018,6 +1051,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					TotalTokens: resp.Usage.TotalTokens,
 				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
+				applyServiceTierPricing(partial.Usage, resolveServiceTier(resp.ServiceTier, opts), model)
 			}
 
 			incompleteReason := ""
@@ -1083,6 +1117,45 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	}
 
 	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+}
+
+func resolveServiceTier(responseTier string, opts *goai.StreamOptions) string {
+	if responseTier != "" {
+		return responseTier
+	}
+	if opts != nil {
+		return opts.ServiceTier
+	}
+	return ""
+}
+
+func serviceTierCostMultiplier(model *goai.Model, serviceTier string) float64 {
+	switch serviceTier {
+	case "flex":
+		return 0.5
+	case "priority":
+		if model != nil && model.ID == "gpt-5.5" {
+			return 2.5
+		}
+		return 2
+	default:
+		return 1
+	}
+}
+
+func applyServiceTierPricing(usage *goai.Usage, serviceTier string, model *goai.Model) {
+	if usage == nil {
+		return
+	}
+	multiplier := serviceTierCostMultiplier(model, serviceTier)
+	if multiplier == 1 {
+		return
+	}
+	usage.Cost.Input *= multiplier
+	usage.Cost.Output *= multiplier
+	usage.Cost.CacheRead *= multiplier
+	usage.Cost.CacheWrite *= multiplier
+	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
 }
 
 func backfillReasoningEncryptedContent(partial *goai.Message, output []json.RawMessage) {

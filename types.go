@@ -122,6 +122,16 @@ const (
 	CacheRetentionLong  CacheRetention = "long"
 )
 
+// ToolChoice controls model tool-selection policy for providers that expose a
+// native tool_choice request field.
+type ToolChoice string
+
+const (
+	ToolChoiceAuto     ToolChoice = "auto"
+	ToolChoiceRequired ToolChoice = "required"
+	ToolChoiceNone     ToolChoice = "none"
+)
+
 // Transport selects the wire transport.
 type Transport string
 
@@ -437,6 +447,7 @@ type StreamOptions struct {
 	ThinkingBudgets  *ThinkingBudgets `json:"thinkingBudgets,omitempty"`
 	ReasoningSummary string           `json:"reasoningSummary,omitempty"`
 	ServiceTier      string           `json:"serviceTier,omitempty"`
+	ToolChoice       ToolChoice       `json:"toolChoice,omitempty"`
 
 	// Hooks for request/response interception
 

@@ -33,9 +33,9 @@ func TestBuildRequestClampsPromptCacheKey(t *testing.T) {
 	}
 }
 
-func TestBuildRequestDefaultsReasoningForNonCopilotReasoningModels(t *testing.T) {
+func TestBuildRequestDefaultsReasoningNoneForResponsesReasoningModels(t *testing.T) {
 	model := &goai.Model{
-		ID:        "gpt-4.1",
+		ID:        "gpt-5.4",
 		Provider:  goai.ProviderOpenAI,
 		Api:       goai.ApiOpenAIResponses,
 		Reasoning: true,
@@ -46,8 +46,8 @@ func TestBuildRequestDefaultsReasoningForNonCopilotReasoningModels(t *testing.T)
 	if req.Reasoning == nil {
 		t.Fatal("expected default reasoning block")
 	}
-	if req.Reasoning.Effort != "medium" {
-		t.Fatalf("expected medium effort, got %q", req.Reasoning.Effort)
+	if req.Reasoning.Effort != "none" {
+		t.Fatalf("expected none effort, got %q", req.Reasoning.Effort)
 	}
 }
 

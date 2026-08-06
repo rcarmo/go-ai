@@ -114,7 +114,16 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 
 ## v0.84.0 upstream test inventory update
 
-Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127** `*.test.ts` files. New files relative to accepted v0.83.0 and Go dispositions:
+Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127** `*.test.ts` files. The cumulative whole-corpus manifest is `docs/v0840-127-test-manifest.md` and classifies every file with no TODO/needs-classification entries.
+
+Whole-corpus summary:
+
+- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 104 files
+- N/A credential/live/JS-runtime only: 23 files
+- TODO deterministic/needs classification: 0 files
+- Achieved (`DETERMINISTIC + N/A`): 127 / 127 files
+
+New files relative to accepted v0.83.0 and Go dispositions:
 
 | Upstream test file | Status | Go evidence / rationale |
 | --- | --- | --- |
@@ -127,7 +136,9 @@ Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127*
 | `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED | Opaque `TelemetryContext` plus stream/deferred/image hook propagation tests: `TestTelemetryContextHooks`, faux deferred telemetry assertions, OpenRouter image telemetry hooks. |
 
 No v0.84.0 upstream test file remains TODO/needs classification.
+- Whole-corpus hardening: `openai-responses-compat.test.ts` is now ported via `inference/provider/openairesponses/responses_compat_upstream_test.go`; `cloudflare-stream.test.ts` unresolved-placeholder behavior is ported via `cloudflare_stream_upstream_test.go`; five credential-gated E2E files are explicitly N/A/live-only in `docs/v0840-127-test-manifest.md` and are not represented as passing.
 - Correction cycle 3: OAuth refresh cancellation and telemetry context contracts are now ported/adapted; see `RELEASE.md` and `docs/v0840-release-ledger.md` correction cycle 3.
 - Correction cycle 2: `providers.test.ts` deferred response lifecycle assertions from upstream commit `382aa641` are ported in `inference/provider/faux/faux_test.go`; `telemetry-options.test.ts` is now ported via opaque `TelemetryContext` hook propagation tests.
 
 Full path-addressable v0.84 changed-test delta appendix: `docs/v0840-release-ledger.md#v0840-changed-test-delta-appendix-46-paths`.
+Full v0.84 127-file whole-corpus manifest: `docs/v0840-127-test-manifest.md`.
