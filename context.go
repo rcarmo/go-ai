@@ -158,58 +158,145 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 }
 
 func validateAndCoerceType(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
+	return coerceWithJSONSchema(name, value, schema)
+}
+
+func coerceWithJSONSchema(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
+	if schemas, ok := schemaList(schema["allOf"]); ok {
+		next := value
+		for _, nested := range schemas {
+			coerced, err := coerceWithJSONSchema(name, next, nested)
+			if err != nil {
+				return nil, err
+			}
+			next = coerced
+		}
+		value = next
+	}
+	if schemas, ok := schemaList(schema["anyOf"]); ok {
+		return coerceWithUnionSchema(name, value, schemas)
+	}
+	if schemas, ok := schemaList(schema["oneOf"]); ok {
+		return coerceWithUnionSchema(name, value, schemas)
+	}
+
 	types := schemaTypes(schema["type"])
 	if len(types) == 0 {
 		return value, nil
 	}
-	for _, expectedType := range types {
-		if matchesJSONSchemaType(value, expectedType) {
-			if expectedType == "string" {
-				if enum, ok := schema["enum"].([]interface{}); ok {
-					s := value.(string)
-					found := false
-					for _, e := range enum {
-						if e == s {
-							found = true
-							break
-						}
-					}
-					if !found {
-						continue
-					}
-				}
+	matchesUnionMember := len(types) > 1 && anyMatchesJSONSchemaType(value, types)
+	if !matchesUnionMember {
+		var lastErr error
+		for _, expectedType := range types {
+			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+				return value, nil
 			}
+			coerced, err := coerceJSONSchemaType(value, expectedType)
+			if err == nil && schemaConstraintsMatch(coerced, expectedType, schema) {
+				return coerced, nil
+			}
+			if err != nil {
+				lastErr = err
+			} else if expectedType == "string" {
+				lastErr = fmt.Errorf("field %q: value %q not in enum", name, coerced)
+			}
+		}
+		if lastErr == nil {
+			lastErr = fmt.Errorf("field %q: expected %v, got %T", name, types, value)
+		}
+		return nil, lastErr
+	}
+	return value, nil
+}
+
+func coerceWithUnionSchema(name string, value interface{}, schemas []map[string]interface{}) (interface{}, error) {
+	for _, schema := range schemas {
+		if schemaAcceptsValue(value, schema) {
 			return value, nil
 		}
 	}
 	var lastErr error
-	for _, expectedType := range types {
-		coerced, err := coerceJSONSchemaType(value, expectedType)
-		if err == nil {
-			if expectedType == "string" {
-				if enum, ok := schema["enum"].([]interface{}); ok {
-					s := coerced.(string)
-					found := false
-					for _, e := range enum {
-						if e == s {
-							found = true
-							break
-						}
-					}
-					if !found {
-						lastErr = fmt.Errorf("field %q: value %q not in enum", name, s)
-						continue
-					}
-				}
-			}
+	for _, schema := range schemas {
+		coerced, err := coerceWithJSONSchema(name, cloneValidationValue(value), schema)
+		if err == nil && schemaAcceptsValue(coerced, schema) {
 			return coerced, nil
 		}
-		lastErr = err
+		if err != nil {
+			lastErr = err
+		}
 	}
 	if lastErr == nil {
-		lastErr = fmt.Errorf("field %q: expected %v, got %T", name, types, value)
+		return value, nil
 	}
 	return nil, lastErr
+}
+
+func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
+	items, ok := raw.([]interface{})
+	if !ok {
+		return nil, false
+	}
+	out := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		if schema, ok := item.(map[string]interface{}); ok {
+			out = append(out, schema)
+		}
+	}
+	return out, len(out) > 0
+}
+
+func schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
+	types := schemaTypes(schema["type"])
+	if len(types) == 0 {
+		return true
+	}
+	for _, expectedType := range types {
+		if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+			return true
+		}
+	}
+	return false
+}
+
+func schemaConstraintsMatch(value interface{}, expectedType string, schema map[string]interface{}) bool {
+	if expectedType != "string" {
+		return true
+	}
+	enum, ok := schema["enum"].([]interface{})
+	if !ok {
+		return true
+	}
+	s, ok := value.(string)
+	if !ok {
+		return false
+	}
+	for _, e := range enum {
+		if e == s {
+			return true
+		}
+	}
+	return false
+}
+
+func anyMatchesJSONSchemaType(value interface{}, types []string) bool {
+	for _, expectedType := range types {
+		if matchesJSONSchemaType(value, expectedType) {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneValidationValue(value interface{}) interface{} {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return value
+	}
+	var out interface{}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return value
+	}
+	return out
 }
 
 func schemaTypes(raw interface{}) []string {

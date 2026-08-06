@@ -2,13 +2,18 @@ package bedrock
 
 import (
 	"errors"
+	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"unsafe"
 
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -139,5 +144,68 @@ func TestMapStopReason(t *testing.T) {
 	}
 	if got := mapStopReason(types.StopReasonMaxTokens); got != goai.StopReasonLength {
 		t.Fatalf("expected length, got %v", got)
+	}
+}
+
+func makeBedrockSendError(status int, requestID, code string) error {
+	return &awshttp.ResponseError{
+		ResponseError: &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: status}},
+			Err:      &smithy.GenericAPIError{Code: code, Message: "validation failed"},
+		},
+		RequestID: requestID,
+	}
+}
+
+func diagnosticDetailsForBedrockErr(err error, fallbackRequestID string) map[string]any {
+	msg := &goai.Message{}
+	appendBedrockFailureDiagnostic(msg, err, fallbackRequestID)
+	if len(msg.Diagnostics) == 0 {
+		return nil
+	}
+	return msg.Diagnostics[0].Details
+}
+
+func TestBedrockFailureDiagnosticSendErrorMatrix(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		fallback string
+		want     map[string]any
+	}{
+		{
+			name: "modeled send failure status code request id",
+			err:  makeBedrockSendError(400, "request-id", "ValidationException"),
+			want: map[string]any{"status": 400, "requestId": "request-id", "errorCode": "ValidationException"},
+		},
+		{
+			name: "unknown code suppressed",
+			err:  makeBedrockSendError(403, "request-id", "Unknown"),
+			want: map[string]any{"status": 403, "requestId": "request-id"},
+		},
+		{
+			name: "oversized code and request id dropped",
+			err:  makeBedrockSendError(400, strings.Repeat("X", maxBedrockDiagnosticValueChars+1), strings.Repeat("X", maxBedrockDiagnosticValueChars+1)),
+			want: map[string]any{"status": 400},
+		},
+		{
+			name:     "fallback request id for stream object error",
+			err:      bedrockNamedError{name: "ModelStreamErrorException"},
+			fallback: "stream-request-id",
+			want:     map[string]any{"requestId": "stream-request-id", "errorCode": "ModelStreamErrorException"},
+		},
+		{
+			name: "transport error name not treated as provider code",
+			err:  errors.New("socket hang up"),
+			want: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := diagnosticDetailsForBedrockErr(tc.err, tc.fallback)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("details=%#v, want %#v", got, tc.want)
+			}
+		})
 	}
 }

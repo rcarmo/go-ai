@@ -127,3 +127,5 @@ Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127*
 | `test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; this Go library has no Pi telemetry context option surface. |
 
 No v0.84.0 upstream test file remains TODO/needs classification.
+
+Full path-addressable v0.84 changed-test delta appendix: `docs/v0840-release-ledger.md#v0840-changed-test-delta-appendix-46-paths`.

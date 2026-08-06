@@ -97,3 +97,53 @@ func TestUpstreamValidationRejectsInvalidCoercions(t *testing.T) {
 		}
 	}
 }
+
+// Port of upstream packages/ai/test/validation.test.ts v0.84.0 nullable union cases:
+// - preserves a value that already matches a TypeBox nullable union arm
+// - preserves a value that already matches a oneOf nullable union arm
+// - coerces when the original value matches no anyOf union arm
+func TestUpstreamValidationNullableUnionMatchBeforeCoerce(t *testing.T) {
+	tests := []struct {
+		name     string
+		schema   map[string]interface{}
+		input    interface{}
+		expected interface{}
+	}{
+		{
+			name:     "typebox nullable union preserves null",
+			schema:   map[string]interface{}{"type": []interface{}{"array", "null"}, "items": map[string]interface{}{"type": "string"}},
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name: "oneOf nullable union preserves null",
+			schema: map[string]interface{}{"oneOf": []interface{}{
+				map[string]interface{}{"type": "number"},
+				map[string]interface{}{"type": "null"},
+			}},
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name: "anyOf nullable union coerces non-matching number string",
+			schema: map[string]interface{}{"anyOf": []interface{}{
+				map[string]interface{}{"type": "number"},
+				map[string]interface{}{"type": "null"},
+			}},
+			input:    "42",
+			expected: float64(42),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool, toolCall := upstreamCreateToolCallWithPlainSchema(t, tt.schema, tt.input)
+			got, err := goai.ValidateToolArguments(&tool, toolCall)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got["value"] != tt.expected {
+				t.Fatalf("expected %#v, got %#v", tt.expected, got["value"])
+			}
+		})
+	}
+}

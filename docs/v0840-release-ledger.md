@@ -59,6 +59,19 @@ wrote /workspace/tmp/images_v0840.go with 42 image models
 # images/models_generated.go regenerated to the same 42-model catalog.
 ```
 
+
+## Correction cycle 1 (post-`f6112ee`)
+
+Auditor correction addressed before final acceptance:
+
+- Ported v0.84 `src/utils/validation.ts` union semantics: nullable union arms are matched before coercion, `oneOf`/`anyOf` are traversed, and `anyOf` number/null coercion is supported. Tests: `upstream_validation_test.go` v0.84 nullable union cases.
+- Expanded OpenAI `thinking_token_budget` regressions to the upstream edge matrix: capability disabled, reasoning off, xhigh/max→high, defaults, custom budgets, model/caller ceilings, answer-room clamp, and zero/no emission.
+- Expanded sampling regressions: zero preservation, absent omission, model defaults, request precedence, typed-field override, OpenAI Responses override, and Anthropic/Google ignore behavior.
+- Expanded Bedrock diagnostic matrix with Go/AWS-idiomatic production paths for send/stream errors, status/requestId/errorCode, Unknown suppression, oversized metadata filtering, and no-metadata suppression.
+- Added `docs/v0840-release-ledger.md` changed-test delta appendix covering all 46 upstream changed test-related paths with named Go evidence or precise N/A rationale.
+
+Final corrective gate passed before commit/push. Retained logs: `/workspace/tmp/go-ai-v0840-correction-gates/`.
+
 ## Validation gate
 
 Passed before commit/push:
@@ -83,3 +96,72 @@ make test-repro
 ```
 
 Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
+
+Correction cycle 1 gate evidence:
+
+```text
+go test ./... -run 'ValidationNullableUnion|ThinkingTokenBudgetUpstreamMatrix|AdvancedSamplingParamsUpstreamMatrix|IgnoresAdvancedSamplingParams|BedrockFailureDiagnostic'
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_correction.go  # 42 image models, exact diff
+make check
+TMPDIR=/workspace/tmp go test -shuffle=on ./...
+TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
+go vet ./...
+make staticcheck
+make check-logging
+make test-repro
+```
+
+
+## v0.84.0 changed-test delta appendix (46 paths)
+
+Exact command: `git diff --name-only v0.83.0..v0.84.0 -- packages/ai/test` from upstream tag `a5f43bf8aff3c55752432655f7334e3dafd1e256`. This appendix covers all 46 changed test-related paths (45 `*.test.ts` files plus `test/oauth.ts` helper), including modified assertions rather than only newly added files.
+
+| Upstream changed test path | Disposition | Named Go evidence / rationale |
+| --- | --- | --- |
+| `packages/ai/test/abort.test.ts` | N/A/live-provider expanded Baseten coverage | Live abort matrix adds Baseten; Go has existing provider abort/context tests, Baseten covered by deterministic payload/catalog tests, no credentials in native gate. |
+| `packages/ai/test/anthropic-adaptive-thinking-models.test.ts` | UNCHANGED Go-facing assertions / covered | Metadata expectations remain covered by generated catalog and Anthropic thinking tests; v0.84 did not require new Go code beyond catalog regen. |
+| `packages/ai/test/anthropic-auth-token.test.ts` | covered existing | Anthropic bearer/API-key precedence already ported in provider auth tests; changed assertions are auth plumbing, not new v0.84 behavior. |
+| `packages/ai/test/anthropic-oauth.test.ts` | covered existing / N/A JS store | OAuth callback/store option changes are JS app API; Go has direct OAuth helpers and existing refresh/cancellation tests. |
+| `packages/ai/test/anthropic-sse-parsing.test.ts` | DETERMINISTIC-PORTED | New initial content/signature assertion ported in `inference/provider/anthropic/anthropic_v0840_test.go`; parsing no-usage/refusal cases already covered. |
+| `packages/ai/test/baseten-models.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openai/openai_v0840_test.go` covers Baseten metadata/env/chat_template_args/reasoning_effort. |
+| `packages/ai/test/bedrock-error-metadata.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `inference/provider/bedrock/bedrock_stream_test.go` covers send/stream diagnostics, requestId/status/errorCode, Unknown/oversized filtering, no metadata suppression. Abort-specific JS promise path N/A to extraction helper; production skips diagnostics on context abort. |
+| `packages/ai/test/context-overflow.test.ts` | N/A/live-provider plus existing simulated coverage | Changed live matrices add Baseten/other provider observations; Go simulated overflow tests cover deterministic classification without credentials. |
+| `packages/ai/test/cross-provider-handoff.test.ts` | N/A/live-provider | Live cross-provider handoff matrix; no new deterministic Go runtime semantics beyond existing transform/replay tests. |
+| `packages/ai/test/deferred-tools.test.ts` | covered existing | Deferred tool planning/tool_search/Kimi/Anthropic references already covered by Go deferred tool tests; no new v0.84 assertion needing code change. |
+| `packages/ai/test/empty.test.ts` | N/A/live-provider plus existing coverage | Live empty-message matrix adds Baseten; Go has deterministic empty tool-result/request tests and Baseten payload metadata. |
+| `packages/ai/test/error-body.test.ts` | covered existing | Provider error-body normalization already ported; Bedrock metadata additions covered in this correction. |
+| `packages/ai/test/fireworks-models.test.ts` | catalog covered | Fireworks metadata changes covered by exact catalog generation/comparator and model metadata tests where deterministic. |
+| `packages/ai/test/github-copilot-oauth.test.ts` | covered existing / N/A JS auth operation options | Go Copilot OAuth tests cover token/model behavior; TS auth-operation signal/store changes are JS app API. |
+| `packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts` | covered existing | Google signed/unsigned tool-call behavior covered by existing Google provider tests; no new Go-facing v0.84 semantic gap found. |
+| `packages/ai/test/google-shared-retry.test.ts` | N/A/covered by Go retry helpers | TS Google SDK retry wrapper behavior; Go uses HTTP/context retry helpers and provider tests. |
+| `packages/ai/test/google-shared-signed-empty-blocks.test.ts` | N/A/covered | TS SDK signed empty block serialization; Go signed/thinking/tool payload behavior is covered where applicable. |
+| `packages/ai/test/image-tool-result.test.ts` | N/A/live-provider plus existing coverage | Live provider matrix adds Baseten; Go deterministic image tool result serialization tests remain applicable. |
+| `packages/ai/test/kimi-coding-oauth.test.ts` | covered existing | Go Kimi Coding OAuth device/refresh tests cover deterministic behavior; JS auth operation option changes N/A. |
+| `packages/ai/test/model-catalog-types.test.ts` | catalog covered | Generated catalog type/data metadata covered by generator, exact comparator, and compile/tests. |
+| `packages/ai/test/models-runtime.test.ts` | covered existing | Go `models_runtime_test.go` covers refresh publication, generation checks, cache fallback, cancellation, in-flight dedupe; no new public API needed. |
+| `packages/ai/test/oauth-auth.test.ts` | covered existing / N/A JS store | Credential-store/AuthOperationOptions changes are TS app-store API; Go direct OAuth auth helpers already tested. |
+| `packages/ai/test/oauth-device-code.test.ts` | covered existing | Device-code interval/slow_down/cancel tests already present in Go OAuth tests. |
+| `packages/ai/test/oauth.ts` | N/A helper | Shared TS test helper changes only support auth test options; no Go runtime file. |
+| `packages/ai/test/openai-codex-oauth.test.ts` | covered existing | OpenAI Codex OAuth refresh/device behavior already covered; JS signal options N/A. |
+| `packages/ai/test/openai-codex-stream.test.ts` | covered existing | Codex Responses status/raw/pending behavior already covered; lint-only error string changes do not alter public ErrorMessage. |
+| `packages/ai/test/openai-completions-prompt-cache.test.ts` | covered existing | Prompt cache/session affinity behavior already covered; v0.84 changes did not create new Go gap. |
+| `packages/ai/test/openai-completions-thinking-as-text.test.ts` | covered existing | Thinking-as-text compat remains covered; sampling/finish fields expanded separately. |
+| `packages/ai/test/openai-completions-thinking-token-budget.test.ts` | DETERMINISTIC-PORTED | Expanded `TestOpenAIThinkingTokenBudgetUpstreamMatrix` covers disabled capability, reasoning off, xhigh/max, defaults, custom budgets, model/caller ceiling, answer room and zero omission. |
+| `packages/ai/test/openai-completions-tool-choice.test.ts` | covered/catalog | Tool choice/constrained sampling existing Go tests plus exact catalog metadata; Baseten-specific payload covered in new test. |
+| `packages/ai/test/openai-completions-tool-result-images.test.ts` | covered existing | OpenAI-compatible image tool-result serialization already covered; no v0.84-specific Go behavior beyond sampling/Baseten. |
+| `packages/ai/test/openai-responses-terminal-event.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openairesponses/responses_v0840_test.go` covers incomplete_details raw status and length/error mapping. |
+| `packages/ai/test/openrouter-oauth.test.ts` | covered existing / N/A JS signal | OpenRouter OAuth key exchange tests exist; JS auth operation signal plumbing N/A. |
+| `packages/ai/test/overflow.test.ts` | covered existing | Recoverable length/overflow helpers covered by Go overflow tests; no new v0.84 semantics beyond catalog/live provider additions. |
+| `packages/ai/test/providers.test.ts` | DETERMINISTIC-PORTED/catalog | Baseten provider count/catalog and constrained metadata covered by exact comparator, `models_test.go`, Baseten tests, and image catalog tests. |
+| `packages/ai/test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED/catalog | `qwen_token_plan_upstream_test.go` updated for v0.84 `qwen3.8-max` and `deepseek-v4-flash-0731` IDs. |
+| `packages/ai/test/radius-oauth.test.ts` | covered existing | Radius OAuth dynamic catalog/refresh tests already ported; TS auth option changes N/A. |
+| `packages/ai/test/sampling-options.test.ts` | DETERMINISTIC-PORTED | OpenAI/Responses sampling merge/override tests plus Anthropic/Google ignored tests added. |
+| `packages/ai/test/stream.test.ts` | covered existing/live | General stream/live provider matrix changes covered by provider stream tests; Baseten live stream N/A without credentials. |
+| `packages/ai/test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; no Go telemetry context option surface. |
+| `packages/ai/test/tokens.test.ts` | N/A/live-provider plus existing simulated coverage | Live token accounting matrix adds Baseten; Go token accounting covered by simulated provider tests. |
+| `packages/ai/test/tool-call-without-result.test.ts` | N/A/live-provider plus existing coverage | Live matrix additions; Go deterministic tool-call filtering tests already cover runtime behavior. |
+| `packages/ai/test/total-tokens.test.ts` | N/A/live-provider plus existing coverage | Live total-token matrix adds Baseten; Go cost/token computations covered by deterministic tests. |
+| `packages/ai/test/unicode-surrogate.test.ts` | covered existing | Unicode surrogate sanitization tests already ported; v0.84 changes do not alter Go-facing behavior. |
+| `packages/ai/test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go` now includes v0.84 nullable union match-before-coerce cases and anyOf number/null coercion. |
+| `packages/ai/test/xai-oauth.test.ts` | covered existing | xAI OAuth device/refresh tests already ported; JS auth option changes N/A. |
