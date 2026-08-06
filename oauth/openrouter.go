@@ -44,6 +44,13 @@ func (p *OpenRouterProvider) ModifyModels(models []*goai.Model, creds *Credentia
 	return models
 }
 func (p *OpenRouterProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *OpenRouterProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if creds == nil || creds.Access == "" {
 		return nil, fmt.Errorf("OpenRouter OAuth key is missing")
 	}

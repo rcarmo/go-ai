@@ -143,19 +143,23 @@ func (p *RadiusProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
 }
 
 func (p *RadiusProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *RadiusProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("radius OAuth refresh token is missing")
 	}
 	oauthCfg := p.directOAuthConfig()
-	refreshed, err := p.requestToken(context.Background(), oauthCfg, url.Values{
+	refreshed, err := p.requestToken(ctx, oauthCfg, url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {oauthCfg.ClientID},
 		"refresh_token": {creds.Refresh},
 	})
 	if err != nil {
-		if discovered, loadErr := p.loadOAuthConfig(context.Background()); loadErr == nil {
+		if discovered, loadErr := p.loadOAuthConfig(ctx); loadErr == nil {
 			oauthCfg = discovered
-			refreshed, err = p.requestToken(context.Background(), oauthCfg, url.Values{
+			refreshed, err = p.requestToken(ctx, oauthCfg, url.Values{
 				"grant_type":    {"refresh_token"},
 				"client_id":     {oauthCfg.ClientID},
 				"refresh_token": {creds.Refresh},
@@ -165,7 +169,7 @@ func (p *RadiusProvider) RefreshToken(creds *Credentials) (*Credentials, error) 
 	if err != nil {
 		return nil, err
 	}
-	return p.attachGatewayConfig(context.Background(), refreshed, creds)
+	return p.attachGatewayConfig(ctx, refreshed, creds)
 }
 
 func (p *RadiusProvider) GetAPIKey(creds *Credentials) string {

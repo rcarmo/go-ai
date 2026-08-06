@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	googleAuthURL    = "https://accounts.google.com/o/oauth2/v2/auth"
-	googleTokenURL   = "https://oauth2.googleapis.com/token"
+	googleAuthURL     = "https://accounts.google.com/o/oauth2/v2/auth"
+	googleTokenURL    = "https://oauth2.googleapis.com/token"
 	geminiCLIClientID = "962486aborv6v47vfgk7feun3q" // Cloud Code Assist client
 	geminiCLIRedirect = "http://localhost:19140/callback"
 	geminiCLIScopes   = "openid https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language"
@@ -116,7 +116,14 @@ func (p *GeminiCLIProvider) Login(callbacks LoginCallbacks) (*Credentials, error
 }
 
 func (p *GeminiCLIProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
-	newCreds, err := refreshGoogleToken(creds.Refresh)
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *GeminiCLIProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if creds == nil || creds.Refresh == "" {
+		return nil, fmt.Errorf("google Gemini CLI OAuth refresh token is missing")
+	}
+	newCreds, err := refreshGoogleToken(ctx, creds.Refresh)
 	if err != nil {
 		return nil, err
 	}
@@ -179,14 +186,19 @@ func exchangeGoogleCode(code, verifier string) (*Credentials, error) {
 	}, nil
 }
 
-func refreshGoogleToken(refreshToken string) (*Credentials, error) {
+func refreshGoogleToken(ctx context.Context, refreshToken string) (*Credentials, error) {
 	body := url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {geminiCLIClientID},
 		"refresh_token": {refreshToken},
 	}
 
-	resp, err := http.Post(googleTokenURL, "application/x-www-form-urlencoded", strings.NewReader(body.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenURL, strings.NewReader(body.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

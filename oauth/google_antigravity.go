@@ -3,6 +3,8 @@
 package oauth
 
 import (
+	"context"
+
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -25,7 +27,11 @@ func (p *AntigravityProvider) Login(callbacks LoginCallbacks) (*Credentials, err
 }
 
 func (p *AntigravityProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
-	return p.GeminiCLIProvider.RefreshToken(creds)
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *AntigravityProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	return p.GeminiCLIProvider.RefreshTokenContext(ctx, creds)
 }
 
 func (p *AntigravityProvider) GetAPIKey(creds *Credentials) string {

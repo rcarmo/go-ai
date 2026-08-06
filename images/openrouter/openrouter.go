@@ -44,15 +44,28 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 		out.ErrorMessage = err.Error()
 		return out, nil
 	}
-	if opts != nil && opts.OnPayload != nil {
-		next, err := opts.OnPayload(payload, model)
-		if err != nil {
-			out.StopReason = goai.StopReasonError
-			out.ErrorMessage = err.Error()
-			return out, nil
+	if opts != nil {
+		if opts.OnPayloadWithTelemetry != nil {
+			next, err := opts.OnPayloadWithTelemetry(payload, model, opts.TelemetryContext)
+			if err != nil {
+				out.StopReason = goai.StopReasonError
+				out.ErrorMessage = err.Error()
+				return out, nil
+			}
+			if next != nil {
+				payload = next
+			}
 		}
-		if next != nil {
-			payload = next
+		if opts.OnPayload != nil {
+			next, err := opts.OnPayload(payload, model)
+			if err != nil {
+				out.StopReason = goai.StopReasonError
+				out.ErrorMessage = err.Error()
+				return out, nil
+			}
+			if next != nil {
+				payload = next
+			}
 		}
 	}
 	body, err := json.Marshal(payload)
@@ -190,17 +203,13 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *i
 		return nil, retryAfter(resp.Header), true, fmt.Errorf("reading openrouter images response body (status %d): %w", resp.StatusCode, readErr)
 	}
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
-		if opts != nil && opts.OnResponse != nil {
-			if err := opts.OnResponse(images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
-				return nil, 0, false, err
-			}
+		if err := invokeImagesOnResponse(opts, images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
+			return nil, 0, false, err
 		}
 		return nil, retryAfter(resp.Header), true, fmt.Errorf("openrouter images request failed: status %d: %s", resp.StatusCode, string(raw))
 	}
-	if opts != nil && opts.OnResponse != nil {
-		if err := opts.OnResponse(images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
-			return nil, 0, false, err
-		}
+	if err := invokeImagesOnResponse(opts, images.ImagesResponseMetadata{Status: resp.StatusCode, Headers: headersToMap(resp.Header)}, model); err != nil {
+		return nil, 0, false, err
 	}
 	if resp.StatusCode >= 300 {
 		out.StopReason = goai.StopReasonError
@@ -358,4 +367,19 @@ func intFromAny(v any) int {
 	default:
 		return 0
 	}
+}
+
+func invokeImagesOnResponse(opts *images.ImagesOptions, metadata images.ImagesResponseMetadata, model *images.ImagesModel) error {
+	if opts == nil {
+		return nil
+	}
+	if opts.OnResponseWithTelemetry != nil {
+		if err := opts.OnResponseWithTelemetry(metadata, model, opts.TelemetryContext); err != nil {
+			return err
+		}
+	}
+	if opts.OnResponse != nil {
+		return opts.OnResponse(metadata, model)
+	}
+	return nil
 }

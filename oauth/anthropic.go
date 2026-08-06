@@ -102,7 +102,14 @@ func (p *AnthropicProvider) Login(callbacks LoginCallbacks) (*Credentials, error
 }
 
 func (p *AnthropicProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
-	return refreshAnthropicToken(creds.Refresh)
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *AnthropicProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if creds == nil || creds.Refresh == "" {
+		return nil, fmt.Errorf("anthropic OAuth refresh token is missing")
+	}
+	return refreshAnthropicToken(ctx, creds.Refresh)
 }
 
 func (p *AnthropicProvider) GetAPIKey(creds *Credentials) string {
@@ -149,14 +156,19 @@ func exchangeAnthropicCode(code, verifier string) (*Credentials, error) {
 	}, nil
 }
 
-func refreshAnthropicToken(refreshToken string) (*Credentials, error) {
+func refreshAnthropicToken(ctx context.Context, refreshToken string) (*Credentials, error) {
 	body := url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {anthropicClientID},
 		"refresh_token": {refreshToken},
 	}
 
-	resp, err := http.Post(anthropicTokenURL, "application/x-www-form-urlencoded", strings.NewReader(body.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicTokenURL, strings.NewReader(body.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

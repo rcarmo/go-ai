@@ -302,12 +302,22 @@ func TestFauxDeferredSubmitPollReady(t *testing.T) {
 		t.Fatalf("unexpected deferred handle: %#v", deferred.Deferred)
 	}
 
-	pending, err := goai.FetchDeferred(context.Background(), model, *deferred.Deferred, &goai.StreamOptions{WaitMs: intPtr(0)})
+	telemetry := &goai.TelemetryContext{Value: "deferred-trace"}
+	var fetchTelemetrySeen bool
+	pending, err := goai.FetchDeferred(context.Background(), model, *deferred.Deferred, &goai.StreamOptions{WaitMs: intPtr(0), TelemetryContext: telemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+		if got != telemetry {
+			t.Fatalf("fetch telemetry=%#v", got)
+		}
+		fetchTelemetrySeen = true
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if pending.StopReason != goai.StopReasonDeferred || pending.Deferred == nil || pending.Deferred.ID != deferred.Deferred.ID {
 		t.Fatalf("unexpected pending fetch: %#v", pending)
+	}
+	if !fetchTelemetrySeen {
+		t.Fatal("fetch telemetry hook was not called")
 	}
 
 	ready, err := goai.FetchDeferred(context.Background(), model, *deferred.Deferred, &goai.StreamOptions{WaitMs: intPtr(0)})
@@ -344,8 +354,18 @@ func TestFauxDeferredFailureAndCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := goai.CancelDeferred(context.Background(), model, *cancelledSubmission.Deferred, nil); err != nil {
+	cancelTelemetry := &goai.TelemetryContext{Value: "cancel-trace"}
+	var cancelTelemetrySeen bool
+	if err := goai.CancelDeferred(context.Background(), model, *cancelledSubmission.Deferred, &goai.StreamOptions{TelemetryContext: cancelTelemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+		if got != cancelTelemetry {
+			t.Fatalf("cancel telemetry=%#v", got)
+		}
+		cancelTelemetrySeen = true
+	}}); err != nil {
 		t.Fatal(err)
+	}
+	if !cancelTelemetrySeen {
+		t.Fatal("cancel telemetry hook was not called")
 	}
 	if len(reg.State.CancelledDeferred) != 1 || reg.State.CancelledDeferred[0].ID != cancelledSubmission.Deferred.ID {
 		t.Fatalf("cancel not recorded: %#v", reg.State.CancelledDeferred)

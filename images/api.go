@@ -67,7 +67,9 @@ type ImagesResponseMetadata struct {
 }
 
 type ImagesPayloadHook func(payload map[string]any, model *ImagesModel) (map[string]any, error)
+type ImagesPayloadTelemetryHook func(payload map[string]any, model *ImagesModel, telemetry *goai.TelemetryContext) (map[string]any, error)
 type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel) error
+type ImagesResponseTelemetryHook func(response ImagesResponseMetadata, model *ImagesModel, telemetry *goai.TelemetryContext) error
 
 type ImagesOptions struct {
 	APIKey  string
@@ -82,14 +84,17 @@ type ImagesOptions struct {
 	Timeout time.Duration
 	// TimeoutMs mirrors upstream's timeoutMs option for JSON/JS parity. Prefer
 	// Timeout in idiomatic Go code.
-	TimeoutMs       int
-	MaxRetries      int
-	MaxRetryDelayMs int
-	Metadata        map[string]any
-	Env             goai.ProviderEnv
-	HTTPClient      *http.Client
-	OnPayload       ImagesPayloadHook
-	OnResponse      ImagesResponseHook
+	TimeoutMs               int
+	MaxRetries              int
+	MaxRetryDelayMs         int
+	Metadata                map[string]any
+	TelemetryContext        *goai.TelemetryContext
+	Env                     goai.ProviderEnv
+	HTTPClient              *http.Client
+	OnPayload               ImagesPayloadHook
+	OnPayloadWithTelemetry  ImagesPayloadTelemetryHook
+	OnResponse              ImagesResponseHook
+	OnResponseWithTelemetry ImagesResponseTelemetryHook
 }
 
 type ImagesFunction func(model *ImagesModel, ctx ImagesContext, options *ImagesOptions) (*AssistantImages, error)

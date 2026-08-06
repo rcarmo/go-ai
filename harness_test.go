@@ -2,6 +2,7 @@ package goai_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -241,5 +242,34 @@ func TestInvokeOnPayloadNil(t *testing.T) {
 	}
 	if result != "payload" {
 		t.Fatal("should pass through unchanged")
+	}
+}
+
+func TestTelemetryContextHooks(t *testing.T) {
+	telemetry := &goai.TelemetryContext{Value: "trace-1"}
+	payloadSeen := false
+	responseSeen := false
+	opts := &goai.StreamOptions{
+		TelemetryContext: telemetry,
+		OnPayloadWithTelemetry: func(payload interface{}, model *goai.Model, got *goai.TelemetryContext) (interface{}, error) {
+			if got != telemetry {
+				t.Fatalf("payload telemetry = %#v", got)
+			}
+			payloadSeen = true
+			return payload, nil
+		},
+		OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+			if got != telemetry {
+				t.Fatalf("response telemetry = %#v", got)
+			}
+			responseSeen = true
+		},
+	}
+	if _, err := goai.InvokeOnPayload(opts, map[string]any{"ok": true}, &goai.Model{}); err != nil {
+		t.Fatal(err)
+	}
+	goai.InvokeOnResponse(opts, &http.Response{StatusCode: 204, Header: http.Header{}}, &goai.Model{})
+	if !payloadSeen || !responseSeen {
+		t.Fatalf("telemetry hooks payload=%v response=%v", payloadSeen, responseSeen)
 	}
 }

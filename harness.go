@@ -388,7 +388,19 @@ func NeedsToolExecution(msg *Message) bool {
 
 // InvokeOnPayload calls the OnPayload hook if set, returning the (possibly replaced) payload.
 func InvokeOnPayload(opts *StreamOptions, payload interface{}, model *Model) (interface{}, error) {
-	if opts == nil || opts.OnPayload == nil {
+	if opts == nil {
+		return payload, nil
+	}
+	if opts.OnPayloadWithTelemetry != nil {
+		replaced, err := opts.OnPayloadWithTelemetry(payload, model, opts.TelemetryContext)
+		if err != nil {
+			return nil, err
+		}
+		if replaced != nil {
+			payload = replaced
+		}
+	}
+	if opts.OnPayload == nil {
 		return payload, nil
 	}
 	replaced, err := opts.OnPayload(payload, model)
@@ -403,12 +415,17 @@ func InvokeOnPayload(opts *StreamOptions, payload interface{}, model *Model) (in
 
 // InvokeOnResponse calls the OnResponse hook if set.
 func InvokeOnResponse(opts *StreamOptions, resp *http.Response, model *Model) {
-	if opts == nil || opts.OnResponse == nil || resp == nil {
+	if opts == nil || resp == nil {
 		return
 	}
 	headers := make(map[string]string)
 	for k := range resp.Header {
 		headers[k] = resp.Header.Get(k)
 	}
-	opts.OnResponse(resp.StatusCode, headers, model)
+	if opts.OnResponseWithTelemetry != nil {
+		opts.OnResponseWithTelemetry(resp.StatusCode, headers, model, opts.TelemetryContext)
+	}
+	if opts.OnResponse != nil {
+		opts.OnResponse(resp.StatusCode, headers, model)
+	}
 }

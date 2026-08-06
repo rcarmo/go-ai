@@ -457,6 +457,15 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 	go func() {
 		defer close(ch)
 		atomic.AddInt64(&r.State.DeferredFetchCount, 1)
+		if opts != nil {
+			headers := map[string]string{}
+			if opts.OnResponseWithTelemetry != nil {
+				opts.OnResponseWithTelemetry(200, headers, model, opts.TelemetryContext)
+			}
+			if opts.OnResponse != nil {
+				opts.OnResponse(200, headers, model)
+			}
+		}
 		r.mu.Lock()
 		entry := r.deferred[handle.ID]
 		if entry != nil && (entry.handle.Provider != handle.Provider || entry.handle.ModelID != handle.ModelID || entry.handle.Api != handle.Api) {
@@ -500,6 +509,15 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 func (r *Registration) cancelDeferred(ctx context.Context, model *goai.Model, handle goai.DeferredHandle, opts *goai.StreamOptions) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if opts != nil {
+		headers := map[string]string{}
+		if opts.OnResponseWithTelemetry != nil {
+			opts.OnResponseWithTelemetry(200, headers, model, opts.TelemetryContext)
+		}
+		if opts.OnResponse != nil {
+			opts.OnResponse(200, headers, model)
+		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

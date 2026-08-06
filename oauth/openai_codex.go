@@ -50,7 +50,14 @@ func (p *OpenAICodexProvider) Login(callbacks LoginCallbacks) (*Credentials, err
 }
 
 func (p *OpenAICodexProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
-	return refreshCodexToken(creds.Refresh)
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *OpenAICodexProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if creds == nil || creds.Refresh == "" {
+		return nil, fmt.Errorf("OpenAI Codex OAuth refresh token is missing")
+	}
+	return refreshCodexToken(ctx, creds.Refresh)
 }
 
 func (p *OpenAICodexProvider) GetAPIKey(creds *Credentials) string {
@@ -148,14 +155,19 @@ func pollForCodexToken(ctx context.Context, deviceCode string, intervalSecs, exp
 	return nil, fmt.Errorf("device flow timed out")
 }
 
-func refreshCodexToken(refreshToken string) (*Credentials, error) {
+func refreshCodexToken(ctx context.Context, refreshToken string) (*Credentials, error) {
 	body := url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {codexClientID},
 		"refresh_token": {refreshToken},
 	}
 
-	resp, err := http.Post(codexAccessTokenURL, "application/x-www-form-urlencoded", strings.NewReader(body.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codexAccessTokenURL, strings.NewReader(body.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -69,11 +69,18 @@ func (r *RuntimeCredentials) SwitchContextForModel(ctx *goai.Context, model *goa
 // key, registers built-in models, and returns provider-adjusted models. This is
 // the end-to-end bridge from oauth.Login/RefreshToken to goai.Stream/Complete.
 func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, error) {
+	return RuntimeForProviderContext(context.Background(), id, creds)
+}
+
+func RuntimeForProviderContext(ctx context.Context, id string, creds *Credentials) (*RuntimeCredentials, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	provider := GetProvider(id)
 	if provider == nil {
 		return nil, goai.NewModelsError(goai.ModelsErrorAuth, fmt.Sprintf("OAuth provider %q not registered", id), nil)
 	}
-	updated, apiKey, err := GetAPIKey(id, creds)
+	updated, apiKey, err := GetAPIKeyWithContext(ctx, id, creds)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +91,7 @@ func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, err
 	}); ok {
 		dynamic.SetRuntimeCredentials(updated)
 		if len(dynamic.StaticModels()) == 0 && updated != nil && updated.Refresh != "" {
-			refreshed, err := provider.RefreshToken(updated)
+			refreshed, err := refreshTokenWithContext(ctx, provider, updated)
 			if err != nil {
 				return nil, err
 			}
@@ -95,7 +102,13 @@ func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, err
 			}
 		}
 		goai.RegisterDynamicModelProvider(dynamic)
-		goai.RefreshModels(context.Background(), true)
+		result := goai.RefreshModels(ctx, true)
+		if result.Aborted {
+			return nil, goai.NewModelsError(goai.ModelsErrorModelSource, fmt.Sprintf("model refresh cancelled for %s", id), ctx.Err())
+		}
+		if err := result.Errors[goai.Provider(id)]; err != nil {
+			return nil, err
+		}
 	}
 	models := provider.ModifyModels(goai.ListModels(""), updated)
 	return &RuntimeCredentials{Credentials: updated, APIKey: apiKey, Models: models}, nil

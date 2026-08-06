@@ -6,6 +6,7 @@
 package oauth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -56,6 +57,12 @@ type ProviderInterface interface {
 	ModifyModels(models []*goai.Model, creds *Credentials) []*goai.Model
 }
 
+// ContextRefreshProvider is implemented by providers that can refresh OAuth
+// tokens with caller-owned cancellation/deadline propagation.
+type ContextRefreshProvider interface {
+	RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error)
+}
+
 // --- Registry ---
 
 var (
@@ -93,10 +100,24 @@ const defaultOAuthMinimumValidity = 5 * time.Minute
 // GetAPIKey returns the API key for a provider, refreshing if needed.
 // Returns the (possibly updated) credentials and the API key.
 func GetAPIKey(id string, creds *Credentials) (*Credentials, string, error) {
-	return GetAPIKeyWithMinValidity(id, creds, defaultOAuthMinimumValidity)
+	return GetAPIKeyWithContext(context.Background(), id, creds)
+}
+
+func GetAPIKeyWithContext(ctx context.Context, id string, creds *Credentials) (*Credentials, string, error) {
+	return GetAPIKeyWithMinValidityContext(ctx, id, creds, defaultOAuthMinimumValidity)
 }
 
 func GetAPIKeyWithMinValidity(id string, creds *Credentials, minValidity time.Duration) (*Credentials, string, error) {
+	return GetAPIKeyWithMinValidityContext(context.Background(), id, creds, minValidity)
+}
+
+func GetAPIKeyWithMinValidityContext(ctx context.Context, id string, creds *Credentials, minValidity time.Duration) (*Credentials, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return creds, "", goai.NewModelsError(goai.ModelsErrorOAuth, fmt.Sprintf("OAuth refresh cancelled for %s", id), err)
+	}
 	if minValidity < defaultOAuthMinimumValidity {
 		minValidity = defaultOAuthMinimumValidity
 	}
@@ -111,7 +132,7 @@ func GetAPIKeyWithMinValidity(id string, creds *Credentials, minValidity time.Du
 	// Credentials.Expires already includes each provider's early-refresh buffer.
 	expiresSoon := creds.Expires > 0 && time.Now().Add(minValidity).UnixMilli() >= creds.Expires
 	if expiresSoon || (creds.Access == "" && creds.Refresh != "") {
-		refreshed, err := p.RefreshToken(creds)
+		refreshed, err := refreshTokenWithContext(ctx, p, creds)
 		if err != nil {
 			return creds, "", goai.NewModelsError(goai.ModelsErrorOAuth, fmt.Sprintf("OAuth refresh failed for %s", id), err)
 		}
@@ -127,6 +148,16 @@ func GetAPIKeyWithMinValidity(id string, creds *Credentials, minValidity time.Du
 		return creds, "", goai.NewModelsError(goai.ModelsErrorOAuth, fmt.Sprintf("OAuth refresh returned a token that expires too soon for %s", id), nil)
 	}
 	return creds, key, nil
+}
+
+func refreshTokenWithContext(ctx context.Context, p ProviderInterface, creds *Credentials) (*Credentials, error) {
+	if cp, ok := p.(ContextRefreshProvider); ok {
+		return cp.RefreshTokenContext(ctx, creds)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return p.RefreshToken(creds)
 }
 
 // --- PKCE ---

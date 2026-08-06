@@ -380,6 +380,12 @@ type ThinkingBudgets struct {
 // StreamOptions controls a single stream/complete request.
 type ProviderEnv map[string]string
 
+// TelemetryContext is an opaque vendor-neutral request context propagated to
+// provider hooks. go-ai does not interpret the payload.
+type TelemetryContext struct {
+	Value any `json:"-"`
+}
+
 type StreamOptions struct {
 	Temperature *float64 `json:"temperature,omitempty"`
 	// SamplingParams is an OpenAI-compatible escape hatch for advanced sampling
@@ -394,11 +400,12 @@ type StreamOptions struct {
 	Headers        map[string]string `json:"headers,omitempty"`
 	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
 	// removes a provider/model/default header after normal header merging.
-	SuppressHeaders []string       `json:"suppressHeaders,omitempty"`
-	MaxRetryDelayMs *int           `json:"maxRetryDelayMs,omitempty"`
-	RetryConfig     *RetryConfig   `json:"-"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
-	Env             ProviderEnv    `json:"env,omitempty"`
+	SuppressHeaders  []string          `json:"suppressHeaders,omitempty"`
+	MaxRetryDelayMs  *int              `json:"maxRetryDelayMs,omitempty"`
+	RetryConfig      *RetryConfig      `json:"-"`
+	Metadata         map[string]any    `json:"metadata,omitempty"`
+	TelemetryContext *TelemetryContext `json:"telemetryContext,omitempty"`
+	Env              ProviderEnv       `json:"env,omitempty"`
 
 	// Provider-specific options that mirror upstream option names where Go has
 	// equivalent transport/payload support.
@@ -436,7 +443,11 @@ type StreamOptions struct {
 	// OnPayload is called with the serialized request body before sending.
 	// Return a modified payload to replace it, or nil to keep the original.
 	OnPayload func(payload interface{}, model *Model) (interface{}, error) `json:"-"`
+	// OnPayloadWithTelemetry is the telemetry-aware form of OnPayload.
+	OnPayloadWithTelemetry func(payload interface{}, model *Model, telemetry *TelemetryContext) (interface{}, error) `json:"-"`
 
 	// OnResponse is called after receiving the HTTP response headers.
 	OnResponse func(status int, headers map[string]string, model *Model) `json:"-"`
+	// OnResponseWithTelemetry is the telemetry-aware form of OnResponse.
+	OnResponseWithTelemetry func(status int, headers map[string]string, model *Model, telemetry *TelemetryContext) `json:"-"`
 }

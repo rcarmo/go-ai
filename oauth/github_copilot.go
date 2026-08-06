@@ -88,7 +88,7 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 	}
 
 	// Exchange for Copilot token, enable known models, then fetch account availability.
-	creds, err := refreshGitHubCopilotAccessToken(githubToken, enterpriseDomain)
+	creds, err := refreshGitHubCopilotAccessToken(ctx, githubToken, enterpriseDomain)
 	if err != nil {
 		return nil, fmt.Errorf("copilot token: %w", err)
 	}
@@ -96,7 +96,7 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 		callbacks.OnProgress("Enabling models...")
 	}
 	EnableAllGitHubCopilotModels(creds.Access, enterpriseDomain)
-	ids, err := FetchAvailableGitHubCopilotModelIDs(creds.Access, enterpriseDomain)
+	ids, err := FetchAvailableGitHubCopilotModelIDsContext(ctx, creds.Access, enterpriseDomain)
 	if err != nil {
 		return nil, fmt.Errorf("copilot models: %w", err)
 	}
@@ -108,13 +108,20 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 }
 
 func (p *GitHubCopilotProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *GitHubCopilotProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if creds == nil || creds.Refresh == "" {
+		return nil, fmt.Errorf("GitHub Copilot OAuth refresh token is missing")
+	}
 	domain := ""
 	if creds.Extra != nil {
 		if d, ok := creds.Extra["enterpriseUrl"].(string); ok {
 			domain = d
 		}
 	}
-	return RefreshGitHubCopilotToken(creds.Refresh, domain)
+	return RefreshGitHubCopilotTokenContext(ctx, creds.Refresh, domain)
 }
 
 func (p *GitHubCopilotProvider) GetAPIKey(creds *Credentials) string {
@@ -239,11 +246,15 @@ func pollForAccessToken(ctx context.Context, domain, deviceCode string, interval
 
 // RefreshGitHubCopilotToken exchanges a GitHub access token for a Copilot API token.
 func RefreshGitHubCopilotToken(refreshToken, enterpriseDomain string) (*Credentials, error) {
-	creds, err := refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain)
+	return RefreshGitHubCopilotTokenContext(context.Background(), refreshToken, enterpriseDomain)
+}
+
+func RefreshGitHubCopilotTokenContext(ctx context.Context, refreshToken, enterpriseDomain string) (*Credentials, error) {
+	creds, err := refreshGitHubCopilotAccessToken(ctx, refreshToken, enterpriseDomain)
 	if err != nil {
 		return nil, err
 	}
-	ids, err := FetchAvailableGitHubCopilotModelIDs(creds.Access, enterpriseDomain)
+	ids, err := FetchAvailableGitHubCopilotModelIDsContext(ctx, creds.Access, enterpriseDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -254,14 +265,14 @@ func RefreshGitHubCopilotToken(refreshToken, enterpriseDomain string) (*Credenti
 	return creds, nil
 }
 
-func refreshGitHubCopilotAccessToken(refreshToken, enterpriseDomain string) (*Credentials, error) {
+func refreshGitHubCopilotAccessToken(ctx context.Context, refreshToken, enterpriseDomain string) (*Credentials, error) {
 	domain := "github.com"
 	if enterpriseDomain != "" {
 		domain = enterpriseDomain
 	}
 
 	u := fmt.Sprintf("https://api.%s/copilot_internal/v2/token", domain)
-	req, _ := http.NewRequest("GET", u, nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+refreshToken)
 	for k, v := range copilotHeaders {
@@ -327,8 +338,12 @@ func EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain string) bo
 
 // FetchAvailableGitHubCopilotModelIDs returns account-selectable Copilot model IDs.
 func FetchAvailableGitHubCopilotModelIDs(copilotToken, enterpriseDomain string) ([]string, error) {
+	return FetchAvailableGitHubCopilotModelIDsContext(context.Background(), copilotToken, enterpriseDomain)
+}
+
+func FetchAvailableGitHubCopilotModelIDsContext(ctx context.Context, copilotToken, enterpriseDomain string) ([]string, error) {
 	baseURL := GetGitHubCopilotBaseURL(copilotToken, enterpriseDomain)
-	req, _ := http.NewRequest("GET", strings.TrimRight(baseURL, "/")+"/models", nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(baseURL, "/")+"/models", nil)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+copilotToken)
 	req.Header.Set("X-GitHub-Api-Version", copilotAPIVersion)

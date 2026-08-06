@@ -38,7 +38,7 @@ Audited scope:
 | Text model catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84 source plus official package provider data. Comparator: `1153/1153` provider/id pairs, exact. Provider count now 38 including Baseten. |
 | Image model catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84 image metadata: 42 image models, adding `qwen/qwen-image-3` and `qwen/qwen-image-3-pro`. |
 | Model runtime/provider refresh publication changes | Already present/adapted. Existing Go runtime has provider-scoped refresh, generation checks, in-flight dedupe, cache fallback and deterministic tests; no public Go API change required. |
-| OAuth refresh callback/auth-operation cancellation changes | Adapted/N/A. Go OAuth uses direct provider helpers and context-aware internal network calls; TS `AuthOperationOptions`/credential-store/prompt abort surfaces are JS app API and not a Go runtime surface. Existing OAuth cancellation/refresh tests remain applicable. |
+| OAuth refresh callback/auth-operation cancellation changes | Implemented/adapted. Added context-aware OAuth refresh/runtime APIs, patched network refresh paths to honor caller context, and retained JS credential-store/prompt UI pieces as N/A. |
 | `message_update` delta-only semantics | N/A for this Go AI library. Upstream change is in `packages/agent`/`packages/coding-agent` JSON/RPC session events, not `packages/ai`; Go emits typed in-process stream events rather than Pi coding-agent JSON timeline events. |
 | JS package/docs/test harness changes | N/A or documented unless a runtime behavior above was ported. See detailed matrix. |
 
@@ -56,6 +56,19 @@ wrote /workspace/tmp/images_v0840.go with 42 image models
 
 
 
+
+## Correction cycle 3 (OAuth refresh cancellation and telemetry context)
+
+Auditor OAuth/telemetry correction addressed:
+
+- Added context-aware OAuth refresh entry points: optional `ContextRefreshProvider`, `GetAPIKeyWithContext`, `GetAPIKeyWithMinValidityContext`, and `RuntimeForProviderContext`; legacy context-free APIs wrap `context.Background()` for compatibility.
+- Patched real OAuth refresh paths to honor caller context where they perform network refresh: Anthropic, OpenAI Codex, Google Gemini CLI/Antigravity, GitHub Copilot, Kimi Coding, Radius, xAI; OpenRouter refresh checks context before returning the stored key.
+- `RuntimeForProviderContext` propagates caller cancellation into OAuth refresh and package dynamic model refresh (`goai.RefreshModels(ctx, true)`).
+- Added deterministic OAuth tests for pre-cancelled context, cancellation during refresh, retained `ModelsError` cause typing, and dynamic model refresh cancellation via `ModelRefreshContext.Signal`.
+- Added typed opaque `TelemetryContext` and telemetry-aware hooks for text streams/deferred fetch/deferred cancel and image generation. `RequestMetadata` remains provider request metadata and is not used as telemetry.
+- Added tests for telemetry propagation through `InvokeOnPayload`/`InvokeOnResponse`, deferred fetch/cancel faux callbacks, and OpenRouter image payload/response hooks.
+- OAuth/telemetry correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-oauth-telemetry-gates/`.
+
 ## Correction cycle 2 (deferred response lifecycle)
 
 Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addressed:
@@ -63,7 +76,7 @@ Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addre
 - Added public deferred/background response lifecycle surface: `DeferredHandle`, `StopReasonDeferred`, `Message.Deferred`, `StreamOptions.Deferred`, `StreamOptions.WaitMs`, `ApiProvider.FetchDeferred`, `ApiProvider.CancelDeferred`, top-level `FetchDeferred`, and top-level `CancelDeferred`.
 - Added context cancellation and unsupported-capability errors for deferred fetch/cancel. Provider fetch failures are returned in-band as assistant messages with `stopReason: "error"`, matching the background lifecycle shape.
 - Extended faux provider with deterministic deferred submission, pending polling, ready redemption, failed redemption, cancellation recording, cancelled fetch, and state counters.
-- Re-audited `providers.test.ts`, `telemetry-options.test.ts`, `types.ts`, `models.ts`, `api/lazy.ts`, and `providers/faux.ts`. Go maps lazy API capability exposure to optional `ApiProvider` function fields; telemetry context remains N/A because this library has no vendor-neutral telemetry context API argument.
+- Re-audited `providers.test.ts`, `telemetry-options.test.ts`, `types.ts`, `models.ts`, `api/lazy.ts`, and `providers/faux.ts`. Go maps lazy API capability exposure to optional `ApiProvider` function fields; telemetry context is implemented as opaque `TelemetryContext` propagated through stream/deferred/image hooks.
 - Verified `ProviderHeaders` null deletion is already represented by `SuppressHeaders`/`MergeProviderHeaders`, model refresh options/results by `ModelRuntimeRefreshOptions`/`ModelRuntimeRefreshResult`, and runtime API-key/OAuth refresh separation by Go's explicit OAuth runtime helpers rather than a JS `setRuntimeApiKey` mutator.
 - Deferred correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-deferred-gates/`.
 
@@ -110,6 +123,22 @@ make test-repro
 
 Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
 
+
+
+Correction cycle 3 gate evidence:
+
+```text
+go test ./... -run 'GetAPIKeyWithContext|RuntimeForProviderContext|TelemetryContext|GenerateImagesOpenRouterHooksAndResponse|FauxDeferred'
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_oauth_telemetry.go  # 42 image models, exact diff
+make check
+TMPDIR=/workspace/tmp go test -shuffle=on ./...
+TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
+go vet ./...
+make staticcheck
+make check-logging
+make test-repro
+```
 
 Correction cycle 2 gate evidence:
 

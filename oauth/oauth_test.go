@@ -1,7 +1,9 @@
 package oauth
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -305,5 +307,119 @@ func TestOAuthRegistryRoundTrip(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("github-copilot not in ListProviders()")
+	}
+}
+
+type contextOAuthProvider struct {
+	testOAuthProvider
+	id       string
+	started  chan struct{}
+	release  chan struct{}
+	mu       sync.Mutex
+	ctxCalls int
+}
+
+func (p *contextOAuthProvider) ID() string { return p.id }
+func (p *contextOAuthProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	p.ctxCalls++
+	p.mu.Unlock()
+	if p.started != nil {
+		close(p.started)
+	}
+	if p.release != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-p.release:
+		}
+	}
+	return p.testOAuthProvider.RefreshToken(creds)
+}
+
+func (p *contextOAuthProvider) calls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ctxCalls
+}
+
+func TestGetAPIKeyWithContextPreCancelledPreventsRefresh(t *testing.T) {
+	provider := &contextOAuthProvider{id: "ctx-precancel"}
+	RegisterProvider(provider)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err := GetAPIKeyWithContext(ctx, provider.ID(), &Credentials{Refresh: "refresh", Expires: time.Now().Add(-time.Minute).UnixMilli()})
+	if err == nil || provider.calls() != 0 {
+		t.Fatalf("expected pre-cancel before refresh, calls=%d err=%v", provider.calls(), err)
+	}
+	var modelsErr *goai.ModelsError
+	if !errors.As(err, &modelsErr) || modelsErr.Code != goai.ModelsErrorOAuth || !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected OAuth ModelsError wrapping context.Canceled, got %T %v", err, err)
+	}
+}
+
+func TestGetAPIKeyWithContextCancelsDuringRefresh(t *testing.T) {
+	provider := &contextOAuthProvider{id: "ctx-during", started: make(chan struct{}), release: make(chan struct{})}
+	RegisterProvider(provider)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := GetAPIKeyWithContext(ctx, provider.ID(), &Credentials{Refresh: "refresh", Expires: time.Now().Add(-time.Minute).UnixMilli()})
+		done <- err
+	}()
+	<-provider.started
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context cancellation, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("refresh did not abort promptly")
+	}
+}
+
+type contextDynamicOAuthProvider struct {
+	contextOAuthProvider
+	refreshStarted chan struct{}
+}
+
+func (p *contextDynamicOAuthProvider) SetRuntimeCredentials(*Credentials) {}
+func (p *contextDynamicOAuthProvider) StaticModels() []*goai.Model {
+	return []*goai.Model{{ID: "seed", Provider: goai.Provider(p.ID()), Api: goai.Api("ctx-dynamic"), ContextWindow: 1, MaxTokens: 1}}
+}
+func (p *contextDynamicOAuthProvider) RefreshModels(ctx goai.ModelRefreshContext) ([]*goai.Model, error) {
+	close(p.refreshStarted)
+	<-ctx.Signal.Done()
+	return nil, ctx.Signal.Err()
+}
+
+func TestRuntimeForProviderContextPropagatesCancellationToDynamicRefresh(t *testing.T) {
+	provider := &contextDynamicOAuthProvider{contextOAuthProvider: contextOAuthProvider{id: "ctx-dynamic"}, refreshStarted: make(chan struct{})}
+	RegisterProvider(provider)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := RuntimeForProviderContext(ctx, provider.ID(), &Credentials{Access: "valid-token", Expires: time.Now().Add(time.Hour).UnixMilli()})
+		done <- err
+	}()
+	select {
+	case <-provider.refreshStarted:
+	case err := <-done:
+		t.Fatalf("runtime returned before dynamic refresh observed context: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("dynamic refresh was not started")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected runtime refresh cancellation, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runtime dynamic refresh did not observe cancellation")
 	}
 }

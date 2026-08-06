@@ -124,9 +124,10 @@ Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127*
 | `test/bedrock-error-metadata.test.ts` | DETERMINISTIC-PORTED / ADAPTED | `TestProcessConverseStreamAddsFailureDiagnosticForStreamErr` covers Go AWS/Smithy request id/error-code diagnostic path; send-error metadata path is adapted in production code. |
 | `test/google-shared-retry.test.ts` | N/A/covered | TS SDK retry wrapper behavior; Go providers use existing context-aware HTTP/retry helpers and Google provider tests. No distinct Go surface. |
 | `test/google-shared-signed-empty-blocks.test.ts` | N/A/covered | TS Google SDK signed empty-block serialization details; Go already handles signed/thinking/tool payloads in provider tests where applicable. |
-| `test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; this Go library has no Pi telemetry context option surface. |
+| `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED | Opaque `TelemetryContext` plus stream/deferred/image hook propagation tests: `TestTelemetryContextHooks`, faux deferred telemetry assertions, OpenRouter image telemetry hooks. |
 
 No v0.84.0 upstream test file remains TODO/needs classification.
-- Correction cycle 2: `providers.test.ts` deferred response lifecycle assertions from upstream commit `382aa641` are ported in `inference/provider/faux/faux_test.go`; `telemetry-options.test.ts` remains N/A because Go exposes no vendor-neutral telemetry context API argument.
+- Correction cycle 3: OAuth refresh cancellation and telemetry context contracts are now ported/adapted; see `RELEASE.md` and `docs/v0840-release-ledger.md` correction cycle 3.
+- Correction cycle 2: `providers.test.ts` deferred response lifecycle assertions from upstream commit `382aa641` are ported in `inference/provider/faux/faux_test.go`; `telemetry-options.test.ts` is now ported via opaque `TelemetryContext` hook propagation tests.
 
 Full path-addressable v0.84 changed-test delta appendix: `docs/v0840-release-ledger.md#v0840-changed-test-delta-appendix-46-paths`.

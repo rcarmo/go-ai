@@ -52,10 +52,14 @@ func (p *XAIProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
 }
 
 func (p *XAIProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *XAIProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("xAI OAuth refresh token is missing")
 	}
-	return p.refreshToken(context.Background(), creds.Refresh)
+	return p.refreshToken(ctx, creds.Refresh)
 }
 
 func (p *XAIProvider) GetAPIKey(creds *Credentials) string {

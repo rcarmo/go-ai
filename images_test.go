@@ -100,7 +100,8 @@ func TestGenerateImagesErrorPaths(t *testing.T) {
 }
 
 func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
-	var sawAuth, sawPayload, sawResponse bool
+	var sawAuth, sawPayload, sawResponse, sawTelemetryPayload, sawTelemetryResponse bool
+	telemetry := &goai.TelemetryContext{Value: "image-trace"}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "Bearer test-key" {
 			sawAuth = true
@@ -126,11 +127,26 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 
 	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image", "text"}}
 	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{
-		APIKey: "test-key",
-		Signal: context.Background(),
+		APIKey:           "test-key",
+		Signal:           context.Background(),
+		TelemetryContext: telemetry,
+		OnPayloadWithTelemetry: func(payload map[string]any, model *images.ImagesModel, got *goai.TelemetryContext) (map[string]any, error) {
+			if got != telemetry {
+				t.Fatalf("image payload telemetry=%#v", got)
+			}
+			sawTelemetryPayload = true
+			return payload, nil
+		},
 		OnPayload: func(payload map[string]any, model *images.ImagesModel) (map[string]any, error) {
 			payload["custom"] = "yes"
 			return payload, nil
+		},
+		OnResponseWithTelemetry: func(response images.ImagesResponseMetadata, model *images.ImagesModel, got *goai.TelemetryContext) error {
+			if got != telemetry {
+				t.Fatalf("image response telemetry=%#v", got)
+			}
+			sawTelemetryResponse = true
+			return nil
 		},
 		OnResponse: func(response images.ImagesResponseMetadata, model *images.ImagesModel) error {
 			if response.Status == 200 && response.Headers["X-Test"] == "ok" {
@@ -142,8 +158,8 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sawAuth || !sawPayload || !sawResponse {
-		t.Fatalf("missing hook/auth observations: auth=%v payload=%v response=%v", sawAuth, sawPayload, sawResponse)
+	if !sawAuth || !sawPayload || !sawResponse || !sawTelemetryPayload || !sawTelemetryResponse {
+		t.Fatalf("missing hook/auth observations: auth=%v payload=%v response=%v telemetryPayload=%v telemetryResponse=%v", sawAuth, sawPayload, sawResponse, sawTelemetryPayload, sawTelemetryResponse)
 	}
 	if out.StopReason != goai.StopReasonStop || out.ResponseID != "resp-1" || out.Usage == nil || out.Usage.TotalTokens != 15 {
 		t.Fatalf("unexpected image output: %#v", out)

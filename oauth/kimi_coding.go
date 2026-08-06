@@ -56,10 +56,14 @@ func (p *KimiCodingProvider) Login(callbacks LoginCallbacks) (*Credentials, erro
 }
 
 func (p *KimiCodingProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+	return p.RefreshTokenContext(context.Background(), creds)
+}
+
+func (p *KimiCodingProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("kimi code OAuth refresh token is missing")
 	}
-	body, status, err := p.postForm(context.Background(), "/api/oauth/token", url.Values{"client_id": {kimiCodeClientID}, "grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}})
+	body, status, err := p.postForm(ctx, "/api/oauth/token", url.Values{"client_id": {kimiCodeClientID}, "grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}})
 	if err != nil {
 		return nil, err
 	}
