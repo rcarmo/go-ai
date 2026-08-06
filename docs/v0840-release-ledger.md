@@ -23,6 +23,7 @@ Exact checkouts/artifacts:
 | Bedrock failure diagnostics metadata | **Adapted.** JS SDK `$metadata` diagnostics mapped to Go AWS/Smithy metadata/error interfaces; bounded diagnostic details include status, modeled/unmodeled `*Exception` code, and request id without changing main error text. | `inference/provider/bedrock/bedrock.go`, `bedrock_stream_test.go` |
 | Text model catalog/provider metadata refresh | **Adopted mechanically.** Generated from exact v0.84 source plus official npm data shards; 1153 text models across 38 providers. | `models_generated.go`, `models_test.go`, `qwen_token_plan_upstream_test.go`, comparator exact `1153/1153` |
 | Image model catalog refresh | **Adopted mechanically.** Exact v0.84 image catalog is 42 OpenRouter image models, adding `qwen/qwen-image-3` and `qwen/qwen-image-3-pro`. | `images/models_generated.go`, `images_test.go`, image generator diff exact |
+| Deferred/background response lifecycle APIs | **Implemented.** Added `DeferredHandle`, `StopReasonDeferred`, `Message.Deferred`, `StreamOptions.Deferred`/`WaitMs`, optional `ApiProvider.FetchDeferred`/`CancelDeferred`, top-level `FetchDeferred`/`CancelDeferred`, unsupported-capability errors, context cancellation, and faux pending/ready/failed/cancelled lifecycle tests. | `types.go`, `registry.go`, `inference/provider/faux/faux.go`, `inference/provider/faux/faux_test.go` |
 | Model runtime/provider refresh publication changes | **Already present / adapted.** Existing Go runtime has provider-scoped `ModelRuntime`, stores, generation/in-flight dedupe, cache restore/fallback and publication tests from prior parity; v0.84 TS publication refinements do not require public Go API change. | `models_runtime.go`, `models_runtime_test.go` |
 | OAuth refresh callback/auth operation cancellation changes | **Adapted / mostly N/A.** Go OAuth providers expose context-aware internal network paths and deterministic cancellation tests; TS `AuthOperationOptions`/prompt abort plumbing is JS app/store API and has no direct Go store analogue. | `oauth/*`, existing `oauth/*_test.go`; docs N/A rationale |
 | Google shared retry/signed empty block tests | **Audited.** Go Google provider already has context/retry and signed thinking/tool-block behavior coverage where applicable; TS SDK-specific retry wrapper surfaces are N/A. | `inference/provider/google/*`, existing Google tests |
@@ -43,7 +44,7 @@ Exact checkouts/artifacts:
 | `src/api/bedrock-converse-stream.ts` | Adapted Bedrock diagnostics with Go AWS SDK metadata and stream errors. |
 | `src/api/google-shared.ts`, `src/api/google-vertex.ts`, `src/api/openai-codex-responses.ts`, `src/api/openai-codex.ts`, `src/api/openai-codex-websocket.ts`, `src/api/cloudflare-ai-gateway-stream.ts` | Audited. Existing Go provider paths already cover current material behavior or JS SDK/transport-specific deltas are N/A; no untested Go behavior identified. |
 | `src/auth/**`, `src/oauth.ts`, `src/bun-oauth.ts`, `src/utils/abort.ts` | Adapted/N/A. Go has direct provider OAuth helpers and context-aware network functions; JS app credential-store/prompt abort interfaces do not map 1:1. |
-| `src/types.ts`, `src/compat.ts`, `src/index.ts`, `src/env-api-keys.ts`, `src/legacy-api-aliases.ts` | Adopted where Go-facing: Baseten provider, sampling params, new compat fields. TS barrel/lazy aliasing is N/A. |
+| `src/types.ts`, `src/models.ts`, `src/api/lazy.ts`, `src/providers/faux.ts`, `src/compat.ts`, `src/index.ts`, `src/env-api-keys.ts`, `src/legacy-api-aliases.ts` | Adopted where Go-facing: Baseten provider, sampling params, new compat fields, public deferred lifecycle types and optional API capabilities. TS barrel/lazy module loading is N/A; Go exposes capabilities by non-nil `ApiProvider` function fields. |
 | All changed `test/*.test.ts` | Classified: deterministic Go regressions added for adopted behavior; live-provider Baseten/tokens/abort/empty/image/tool-result cases are represented by payload/catalog/env tests and existing provider stream tests rather than hidden skips. |
 
 ## Comparator evidence
@@ -59,6 +60,18 @@ wrote /workspace/tmp/images_v0840.go with 42 image models
 # images/models_generated.go regenerated to the same 42-model catalog.
 ```
 
+
+
+## Correction cycle 2 (deferred response lifecycle)
+
+Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addressed:
+
+- Added public deferred/background response lifecycle surface: `DeferredHandle`, `StopReasonDeferred`, `Message.Deferred`, `StreamOptions.Deferred`, `StreamOptions.WaitMs`, `ApiProvider.FetchDeferred`, `ApiProvider.CancelDeferred`, top-level `FetchDeferred`, and top-level `CancelDeferred`.
+- Added context cancellation and unsupported-capability errors for deferred fetch/cancel. Provider fetch failures are returned in-band as assistant messages with `stopReason: "error"`, matching the background lifecycle shape.
+- Extended faux provider with deterministic deferred submission, pending polling, ready redemption, failed redemption, cancellation recording, cancelled fetch, and state counters.
+- Re-audited `providers.test.ts`, `telemetry-options.test.ts`, `types.ts`, `models.ts`, `api/lazy.ts`, and `providers/faux.ts`. Go maps lazy API capability exposure to optional `ApiProvider` function fields; telemetry context remains N/A because this library has no vendor-neutral telemetry context API argument.
+- Verified `ProviderHeaders` null deletion is already represented by `SuppressHeaders`/`MergeProviderHeaders`, model refresh options/results by `ModelRuntimeRefreshOptions`/`ModelRuntimeRefreshResult`, and runtime API-key/OAuth refresh separation by Go's explicit OAuth runtime helpers rather than a JS `setRuntimeApiKey` mutator.
+- Deferred correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-deferred-gates/`.
 
 ## Correction cycle 1 (post-`f6112ee`)
 
@@ -96,6 +109,22 @@ make test-repro
 ```
 
 Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
+
+
+Correction cycle 2 gate evidence:
+
+```text
+go test ./... -run 'Deferred|FauxDeferred|StopReasonDeferred|UnsupportedAndContextCancellation'
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_deferred.go  # 42 image models, exact diff
+make check
+TMPDIR=/workspace/tmp go test -shuffle=on ./...
+TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
+go vet ./...
+make staticcheck
+make check-logging
+make test-repro
+```
 
 Correction cycle 1 gate evidence:
 
@@ -153,12 +182,12 @@ Exact command: `git diff --name-only v0.83.0..v0.84.0 -- packages/ai/test` from 
 | `packages/ai/test/openai-responses-terminal-event.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openairesponses/responses_v0840_test.go` covers incomplete_details raw status and length/error mapping. |
 | `packages/ai/test/openrouter-oauth.test.ts` | covered existing / N/A JS signal | OpenRouter OAuth key exchange tests exist; JS auth operation signal plumbing N/A. |
 | `packages/ai/test/overflow.test.ts` | covered existing | Recoverable length/overflow helpers covered by Go overflow tests; no new v0.84 semantics beyond catalog/live provider additions. |
-| `packages/ai/test/providers.test.ts` | DETERMINISTIC-PORTED/catalog | Baseten provider count/catalog and constrained metadata covered by exact comparator, `models_test.go`, Baseten tests, and image catalog tests. |
+| `packages/ai/test/providers.test.ts` | DETERMINISTIC-PORTED | Baseten/catalog/provider metadata covered by comparators and `models_test.go`; deferred submit/poll/ready/fail/cancel lifecycle assertions ported in `inference/provider/faux/faux_test.go`. |
 | `packages/ai/test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED/catalog | `qwen_token_plan_upstream_test.go` updated for v0.84 `qwen3.8-max` and `deepseek-v4-flash-0731` IDs. |
 | `packages/ai/test/radius-oauth.test.ts` | covered existing | Radius OAuth dynamic catalog/refresh tests already ported; TS auth option changes N/A. |
 | `packages/ai/test/sampling-options.test.ts` | DETERMINISTIC-PORTED | OpenAI/Responses sampling merge/override tests plus Anthropic/Google ignored tests added. |
 | `packages/ai/test/stream.test.ts` | covered existing/live | General stream/live provider matrix changes covered by provider stream tests; Baseten live stream N/A without credentials. |
-| `packages/ai/test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; no Go telemetry context option surface. |
+| `packages/ai/test/telemetry-options.test.ts` | N/A | TS telemetry option propagation; this Go library has no vendor-neutral telemetry context API argument. `StreamOptions.RequestMetadata` remains provider request metadata and is intentionally not counted as telemetry context. |
 | `packages/ai/test/tokens.test.ts` | N/A/live-provider plus existing simulated coverage | Live token accounting matrix adds Baseten; Go token accounting covered by simulated provider tests. |
 | `packages/ai/test/tool-call-without-result.test.ts` | N/A/live-provider plus existing coverage | Live matrix additions; Go deterministic tool-call filtering tests already cover runtime behavior. |
 | `packages/ai/test/total-tokens.test.ts` | N/A/live-provider plus existing coverage | Live total-token matrix adds Baseten; Go cost/token computations covered by deterministic tests. |

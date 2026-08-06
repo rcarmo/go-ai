@@ -104,12 +104,13 @@ const (
 type StopReason string
 
 const (
-	StopReasonStop    StopReason = "stop"
-	StopReasonLength  StopReason = "length"
-	StopReasonToolUse StopReason = "toolUse"
-	StopReasonError   StopReason = "error"
-	StopReasonAborted StopReason = "aborted"
-	StopReasonPending StopReason = "pending"
+	StopReasonStop     StopReason = "stop"
+	StopReasonLength   StopReason = "length"
+	StopReasonToolUse  StopReason = "toolUse"
+	StopReasonError    StopReason = "error"
+	StopReasonAborted  StopReason = "aborted"
+	StopReasonPending  StopReason = "pending"
+	StopReasonDeferred StopReason = "deferred"
 )
 
 // CacheRetention controls prompt cache lifetime preference.
@@ -236,6 +237,27 @@ type AssistantMessageDiagnostic struct {
 
 // --- Messages ---
 
+// DeferredHandle identifies a provider-side background/deferred response that
+// can be fetched or cancelled later.
+type DeferredHandle struct {
+	Provider    string `json:"provider"`
+	ModelID     string `json:"modelId"`
+	Api         string `json:"api"`
+	ID          string `json:"id"`
+	ExpiresAt   int64  `json:"expiresAt,omitempty"`
+	PollAfterMs int    `json:"pollAfterMs,omitempty"`
+	Data        any    `json:"data,omitempty"`
+}
+
+// DeferredOptions requests a background/deferred response. Window is provider-specific
+// and may be "15m", "1h", or "24h" for providers that expose a choice.
+type DeferredOptions struct {
+	Window      string `json:"window,omitempty"`
+	PollAfterMs int    `json:"pollAfterMs,omitempty"`
+}
+
+// --- Messages ---
+
 // Message is a single conversation turn.
 type Message struct {
 	Role      Role           `json:"role"`
@@ -251,6 +273,7 @@ type Message struct {
 	Diagnostics   []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
 	Usage         *Usage                       `json:"usage,omitempty"`
 	StopReason    StopReason                   `json:"stopReason,omitempty"`
+	Deferred      *DeferredHandle              `json:"deferred,omitempty"`
 	RawStopReason string                       `json:"rawStopReason,omitempty"`
 	ErrorMessage  string                       `json:"errorMessage,omitempty"`
 
@@ -386,6 +409,9 @@ type StreamOptions struct {
 	Project         string            `json:"project,omitempty"`
 	Location        string            `json:"location,omitempty"`
 	TextVerbosity   string            `json:"textVerbosity,omitempty"`
+	Deferred        *DeferredOptions  `json:"deferred,omitempty"`
+	// WaitMs controls fetch-deferred polling wait. Zero checks once.
+	WaitMs *int `json:"wait,omitempty"`
 
 	// Azure OpenAI Responses provider-specific options.
 	AzureAPIVersion     string `json:"azureApiVersion,omitempty"`

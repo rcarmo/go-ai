@@ -55,6 +55,18 @@ wrote /workspace/tmp/images_v0840.go with 42 image models
 ```
 
 
+
+## Correction cycle 2 (deferred response lifecycle)
+
+Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addressed:
+
+- Added public deferred/background response lifecycle surface: `DeferredHandle`, `StopReasonDeferred`, `Message.Deferred`, `StreamOptions.Deferred`, `StreamOptions.WaitMs`, `ApiProvider.FetchDeferred`, `ApiProvider.CancelDeferred`, top-level `FetchDeferred`, and top-level `CancelDeferred`.
+- Added context cancellation and unsupported-capability errors for deferred fetch/cancel. Provider fetch failures are returned in-band as assistant messages with `stopReason: "error"`, matching the background lifecycle shape.
+- Extended faux provider with deterministic deferred submission, pending polling, ready redemption, failed redemption, cancellation recording, cancelled fetch, and state counters.
+- Re-audited `providers.test.ts`, `telemetry-options.test.ts`, `types.ts`, `models.ts`, `api/lazy.ts`, and `providers/faux.ts`. Go maps lazy API capability exposure to optional `ApiProvider` function fields; telemetry context remains N/A because this library has no vendor-neutral telemetry context API argument.
+- Verified `ProviderHeaders` null deletion is already represented by `SuppressHeaders`/`MergeProviderHeaders`, model refresh options/results by `ModelRuntimeRefreshOptions`/`ModelRuntimeRefreshResult`, and runtime API-key/OAuth refresh separation by Go's explicit OAuth runtime helpers rather than a JS `setRuntimeApiKey` mutator.
+- Deferred correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-deferred-gates/`.
+
 ## Correction cycle 1 (post-`f6112ee`)
 
 Auditor correction addressed before final acceptance:
@@ -97,6 +109,22 @@ make test-repro
 ```
 
 Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
+
+
+Correction cycle 2 gate evidence:
+
+```text
+go test ./... -run 'Deferred|FauxDeferred|StopReasonDeferred|UnsupportedAndContextCancellation'
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_deferred.go  # 42 image models, exact diff
+make check
+TMPDIR=/workspace/tmp go test -shuffle=on ./...
+TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
+go vet ./...
+make staticcheck
+make check-logging
+make test-repro
+```
 
 Correction cycle 1 gate evidence:
 

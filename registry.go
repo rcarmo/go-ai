@@ -12,11 +12,19 @@ import (
 // It returns a channel of events that the caller reads until closed.
 type ProviderStream func(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event
 
-// ApiProvider holds the stream implementations for a wire protocol.
+// ProviderFetchDeferred fetches or polls a provider-side deferred/background response.
+type ProviderFetchDeferred func(ctx context.Context, model *Model, handle DeferredHandle, opts *StreamOptions) <-chan Event
+
+// ProviderCancelDeferred cancels a provider-side deferred/background response.
+type ProviderCancelDeferred func(ctx context.Context, model *Model, handle DeferredHandle, opts *StreamOptions) error
+
+// ApiProvider holds stream and deferred-response implementations for a wire protocol.
 type ApiProvider struct {
-	Api          Api
-	Stream       ProviderStream
-	StreamSimple ProviderStream
+	Api            Api
+	Stream         ProviderStream
+	StreamSimple   ProviderStream
+	FetchDeferred  ProviderFetchDeferred
+	CancelDeferred ProviderCancelDeferred
 }
 
 var (
@@ -223,4 +231,79 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 		return result, resultErr
 	}
 	return result, nil
+}
+
+// FetchDeferred fetches or polls a provider-side deferred/background response.
+// Provider failures are returned in-band as assistant messages with stopReason
+// "error"; structural errors (nil model, unsupported API, cancellation) are
+// returned as Go errors.
+func FetchDeferred(ctx context.Context, model *Model, handle DeferredHandle, opts *StreamOptions) (*Message, error) {
+	if model == nil {
+		return nil, fmt.Errorf("nil model")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	p := GetApiProvider(model.Api)
+	if p == nil {
+		return nil, fmt.Errorf("no provider registered for API %q", model.Api)
+	}
+	if p.FetchDeferred == nil {
+		return nil, fmt.Errorf("API %q does not support deferred responses", model.Api)
+	}
+	if handle.Provider != "" && handle.Provider != string(model.Provider) {
+		return nil, fmt.Errorf("deferred handle provider %q does not match model provider %q", handle.Provider, model.Provider)
+	}
+	if handle.ModelID != "" && handle.ModelID != model.ID {
+		return nil, fmt.Errorf("deferred handle modelId %q does not match model %q", handle.ModelID, model.ID)
+	}
+	if handle.Api != "" && handle.Api != string(model.Api) {
+		return nil, fmt.Errorf("deferred handle api %q does not match model API %q", handle.Api, model.Api)
+	}
+	return drainDeferredEvents(ctx, p.FetchDeferred(ctx, model, handle, opts))
+}
+
+// CancelDeferred cancels a provider-side deferred/background response.
+func CancelDeferred(ctx context.Context, model *Model, handle DeferredHandle, opts *StreamOptions) error {
+	if model == nil {
+		return fmt.Errorf("nil model")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	p := GetApiProvider(model.Api)
+	if p == nil {
+		return fmt.Errorf("no provider registered for API %q", model.Api)
+	}
+	if p.CancelDeferred == nil {
+		return fmt.Errorf("API %q cannot cancel deferred responses", model.Api)
+	}
+	return p.CancelDeferred(ctx, model, handle, opts)
+}
+
+func drainDeferredEvents(ctx context.Context, events <-chan Event) (*Message, error) {
+	var result *Message
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case event, ok := <-events:
+			if !ok {
+				if result == nil {
+					return nil, fmt.Errorf("deferred response stream ended without a terminal event")
+				}
+				return result, nil
+			}
+			switch e := event.(type) {
+			case *DoneEvent:
+				result = e.Message
+			case *ErrorEvent:
+				if e.Error != nil {
+					result = e.Error
+				} else if e.Err != nil {
+					return nil, e.Err
+				}
+			}
+		}
+	}
 }

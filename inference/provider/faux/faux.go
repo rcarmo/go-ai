@@ -21,9 +21,11 @@ type ResponseFactory func(ctx *goai.Context, opts *goai.StreamOptions, state *St
 // ResponseStep is either a static *goai.Message or a ResponseFactory.
 type ResponseStep interface{}
 
-// State tracks call count for the faux provider.
+// State tracks call count and deferred lifecycle counters for the faux provider.
 type State struct {
-	CallCount int64
+	CallCount          int64
+	DeferredFetchCount int64
+	CancelledDeferred  []goai.DeferredHandle
 }
 
 // Registration holds the faux provider's models and response queue.
@@ -34,7 +36,9 @@ type Registration struct {
 
 	mu              sync.Mutex
 	responses       []ResponseStep
+	deferred        map[string]*deferredEntry
 	tokensPerSecond int
+	deferredOptions FauxDeferredOptions
 }
 
 // ModelDef defines a faux model for registration.
@@ -48,12 +52,30 @@ type ModelDef struct {
 	MaxTokens     int
 }
 
+// FauxDeferredOptions configures deterministic deferred-response behavior.
+type FauxDeferredOptions struct {
+	PendingFetches int
+	PollAfterMs    int
+}
+
 // Options configures the faux provider registration.
 type Options struct {
 	Api             string
 	Provider        string
 	Models          []ModelDef
 	TokensPerSecond int // simulated streaming speed (default: 1000)
+	Deferred        FauxDeferredOptions
+}
+
+type deferredEntry struct {
+	handle         goai.DeferredHandle
+	step           ResponseStep
+	context        *goai.Context
+	options        *goai.StreamOptions
+	model          *goai.Model
+	pendingFetches int
+	cancelled      bool
+	final          *goai.Message
 }
 
 // Register creates and registers a new faux provider.
@@ -80,7 +102,9 @@ func Register(opts *Options) *Registration {
 	reg := &Registration{
 		Api:             api,
 		State:           &State{},
+		deferred:        map[string]*deferredEntry{},
 		tokensPerSecond: tps,
+		deferredOptions: opts.Deferred,
 	}
 
 	// Create models
@@ -121,9 +145,11 @@ func Register(opts *Options) *Registration {
 
 	// Register the API provider
 	goai.RegisterApi(&goai.ApiProvider{
-		Api:          api,
-		Stream:       reg.stream,
-		StreamSimple: reg.stream,
+		Api:            api,
+		Stream:         reg.stream,
+		StreamSimple:   reg.stream,
+		FetchDeferred:  reg.fetchDeferred,
+		CancelDeferred: reg.cancelDeferred,
 	})
 
 	return reg
@@ -301,17 +327,23 @@ func (r *Registration) stream(ctx context.Context, model *goai.Model, convCtx *g
 		}
 		r.mu.Unlock()
 
-		var msg *goai.Message
-		switch s := step.(type) {
-		case *goai.Message:
-			msg = s
-		case ResponseFactory:
-			msg = s(convCtx, opts, &State{CallCount: callNum})
-		case nil:
-			msg = TextMessage(fmt.Sprintf("Faux response #%d (no responses queued)", callNum))
-		default:
-			msg = ErrorMessage(fmt.Sprintf("unknown response step type: %T", step))
+		if opts != nil && opts.Deferred != nil {
+			handle := goai.DeferredHandle{Provider: string(model.Provider), ModelID: model.ID, Api: string(model.Api), ID: fmt.Sprintf("deferred_%d", time.Now().UnixNano())}
+			if opts.Deferred.PollAfterMs > 0 {
+				handle.PollAfterMs = opts.Deferred.PollAfterMs
+			} else if r.deferredOptions.PollAfterMs > 0 {
+				handle.PollAfterMs = r.deferredOptions.PollAfterMs
+			}
+			r.mu.Lock()
+			r.deferred[handle.ID] = &deferredEntry{handle: handle, step: step, context: convCtx, options: opts, model: model, pendingFetches: r.deferredOptions.PendingFetches}
+			r.mu.Unlock()
+			msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Content: []goai.ContentBlock{}, Usage: &goai.Usage{}, StopReason: goai.StopReasonDeferred, Deferred: &handle, Timestamp: time.Now().UnixMilli()}
+			ch <- &goai.StartEvent{Partial: msg}
+			ch <- &goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg}
+			return
 		}
+
+		msg := r.resolveStep(step, convCtx, opts, callNum)
 
 		// Fill in model info
 		msg.Api = model.Api
@@ -403,4 +435,122 @@ func chunkText(text string, size int) []string {
 		chunks = append(chunks, text[i:end])
 	}
 	return chunks
+}
+
+func (r *Registration) resolveStep(step ResponseStep, convCtx *goai.Context, opts *goai.StreamOptions, callNum int64) *goai.Message {
+	switch s := step.(type) {
+	case *goai.Message:
+		return s
+	case ResponseFactory:
+		return s(convCtx, opts, &State{CallCount: callNum})
+	case error:
+		return ErrorMessage(s.Error())
+	case nil:
+		return TextMessage(fmt.Sprintf("Faux response #%d (no responses queued)", callNum))
+	default:
+		return ErrorMessage(fmt.Sprintf("unknown response step type: %T", step))
+	}
+}
+
+func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, handle goai.DeferredHandle, opts *goai.StreamOptions) <-chan goai.Event {
+	ch := make(chan goai.Event, 16)
+	go func() {
+		defer close(ch)
+		atomic.AddInt64(&r.State.DeferredFetchCount, 1)
+		r.mu.Lock()
+		entry := r.deferred[handle.ID]
+		if entry != nil && (entry.handle.Provider != handle.Provider || entry.handle.ModelID != handle.ModelID || entry.handle.Api != handle.Api) {
+			entry = nil
+		}
+		if entry == nil {
+			r.mu.Unlock()
+			msg := ErrorMessage("unknown faux deferred response: " + handle.ID)
+			msg.Api, msg.Provider, msg.Model = model.Api, model.Provider, model.ID
+			ch <- &goai.StartEvent{Partial: msg}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+			return
+		}
+		if entry.cancelled {
+			r.mu.Unlock()
+			msg := ErrorMessage("faux deferred response was cancelled: " + handle.ID)
+			msg.Api, msg.Provider, msg.Model = model.Api, model.Provider, model.ID
+			ch <- &goai.StartEvent{Partial: msg}
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+			return
+		}
+		if entry.pendingFetches > 0 {
+			entry.pendingFetches--
+			pending := entry.handle
+			r.mu.Unlock()
+			msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Content: []goai.ContentBlock{}, Usage: &goai.Usage{}, StopReason: goai.StopReasonDeferred, Deferred: &pending, Timestamp: time.Now().UnixMilli()}
+			ch <- &goai.StartEvent{Partial: msg}
+			ch <- &goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg}
+			return
+		}
+		if entry.final == nil {
+			entry.final = r.resolveStep(entry.step, entry.context, entry.options, atomic.LoadInt64(&r.State.CallCount))
+		}
+		msg := entry.final
+		r.mu.Unlock()
+		r.emitMessage(ctx, model, msg, ch)
+	}()
+	return ch
+}
+
+func (r *Registration) cancelDeferred(ctx context.Context, model *goai.Model, handle goai.DeferredHandle, opts *goai.StreamOptions) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.State.CancelledDeferred = append(r.State.CancelledDeferred, handle)
+	if entry := r.deferred[handle.ID]; entry != nil {
+		entry.cancelled = true
+	}
+	return nil
+}
+
+func (r *Registration) emitMessage(ctx context.Context, model *goai.Model, msg *goai.Message, ch chan<- goai.Event) {
+	if msg == nil {
+		msg = ErrorMessage("nil faux response")
+	}
+	msg.Api = model.Api
+	msg.Provider = model.Provider
+	msg.Model = model.ID
+	if msg.Timestamp == 0 {
+		msg.Timestamp = time.Now().UnixMilli()
+	}
+	if msg.Usage == nil {
+		msg.Usage = &goai.Usage{Input: 100, Output: 1, TotalTokens: 101}
+	}
+	ch <- &goai.StartEvent{Partial: msg}
+	for i, block := range msg.Content {
+		switch block.Type {
+		case "text":
+			ch <- &goai.TextStartEvent{ContentIndex: i, Partial: msg}
+			if block.Text != "" {
+				ch <- &goai.TextDeltaEvent{ContentIndex: i, Delta: block.Text, Partial: msg}
+			}
+			ch <- &goai.TextEndEvent{ContentIndex: i, Content: block.Text, Partial: msg}
+		case "thinking":
+			ch <- &goai.ThinkingStartEvent{ContentIndex: i, Partial: msg}
+			if block.Thinking != "" {
+				ch <- &goai.ThinkingDeltaEvent{ContentIndex: i, Delta: block.Thinking, Partial: msg}
+			}
+			ch <- &goai.ThinkingEndEvent{ContentIndex: i, Content: block.Thinking, Partial: msg}
+		case "toolCall":
+			ch <- &goai.ToolCallStartEvent{ContentIndex: i, Partial: msg}
+			ch <- &goai.ToolCallEndEvent{ContentIndex: i, ToolCall: goai.ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: block.Arguments}, Partial: msg}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		msg.StopReason = goai.StopReasonAborted
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: err}
+		return
+	}
+	if msg.StopReason == goai.StopReasonError {
+		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+		return
+	}
+	ch <- &goai.DoneEvent{Reason: msg.StopReason, Message: msg}
 }
