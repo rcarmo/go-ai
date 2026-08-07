@@ -385,6 +385,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		case "qwen":
 			enabled := reasoningRequested && effort != ""
 			req.EnableThinking = &enabled
+			if enabled && (compat.SupportsReasoningEffort == nil || *compat.SupportsReasoningEffort) {
+				req.ReasoningEffort = effort
+			}
 		case "string-thinking":
 			if reasoningRequested && effort != "" {
 				req.Thinking = map[string]interface{}{"type": effort}

@@ -5,26 +5,39 @@ This file is the release-audit source of truth for `github.com/rcarmo/go-ai` par
 ## Current upstream baseline
 
 - Upstream package: `@earendil-works/pi-ai`
-- Current audited release: `v0.84.0`
-- Upstream tag/SHA: `a5f43bf8aff3c55752432655f7334e3dafd1e256`
-- Published: 2026-08-06
-- Previous accepted baseline: `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39`
-- Exact upstream checkout used: `/workspace/tmp/pi-v0840`
-- Exact previous checkout used: `/workspace/tmp/pi-v0830-fresh`
-- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0.84.0-package/package`
-- Detailed path matrix: `docs/v0840-release-ledger.md`
+- Current audited release: `v0.84.1`
+- Upstream tag/SHA: `53fa77ccd8a279eb87e92294ef3687b03ff80112`
+- Published: 2026-08-07T06:07:00Z
+- Previous accepted baseline: `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`
+- Exact upstream checkout used: `/workspace/tmp/pi-v0841`
+- Exact previous checkout used: `/workspace/tmp/pi-v0840`
+- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0.84.1-package/package`
+- Previous official npm data artifact: `/workspace/tmp/pi-ai-0.84.0-package/package`
+- Detailed path matrix: `docs/v0841-release-ledger.md`
 
 ## Exact upstream changes audited
 
-Release-only diff: `packages/ai` from `v0.83.0` to `v0.84.0`, no unpublished `main` changes.
+Release-only diff: `packages/ai` from official `v0.84.0` to official `v0.84.1`, no unpublished `main` changes.
 
 Audited scope:
 
-- 101 changed `packages/ai` paths.
-- Official tag SHA verified: `a5f43bf8aff3c55752432655f7334e3dafd1e256`.
-- Material upstream deltas: Baseten provider, advanced sampling params, vLLM thinking-token budget, missing-finish compatibility, Anthropic initial `content_block_start` assembly, Responses incomplete detail mapping, Bedrock diagnostics, model/image catalog refresh, runtime publication/auth refresh changes, and JS-only monorepo protocol changes.
+- 25 changed `packages/ai` paths.
+- Official tag SHA verified: `53fa77ccd8a279eb87e92294ef3687b03ff80112`.
+- Material upstream deltas: new `qwen-token-plan-individual` provider/models, generator/model-data/env/type/provider registration updates, 14 modified AI tests plus new `generate-models-strict.test.ts`, and package/docs/version updates.
 
-## Go implementation and decisions
+## v0.84.1 Go implementation and decisions
+
+| Upstream delta | Go disposition |
+| --- | --- |
+| `qwen-token-plan-individual` provider | Implemented. Added `ProviderQwenTokenPlanIndividual`, `QWEN_TOKEN_PLAN_API_KEY` reuse, OpenAI Completions catalog entries, and exact international endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`. |
+| Exact Individual seven-model allowlist | Implemented mechanically from exact v0.84.1 provider data: `deepseek-v4-flash-0731`, `deepseek-v4-pro`, `glm-5.2`, `qwen3.6-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.8-max`. Tests: `qwen_token_plan_upstream_test.go`. |
+| Qwen request fields | Implemented/fixed. Qwen `thinkingFormat:"qwen"` now emits `enable_thinking` and, when compat supports it, `reasoning_effort`. Tests: `inference/provider/openai/qwen_token_plan_individual_upstream_test.go`. |
+| Text catalog refresh | Implemented mechanically. Exact npm artifact comparison: `1153/38` → `1220/39`, with 70 added, 3 removed, 9 metadata-changed pairs. Go comparator: `1220/1220` exact. |
+| Image catalog | Proved unchanged. v0.84.1 image generation writes 42 image models and diffs clean against `images/models_generated.go`. |
+| Strict generator rollback/failure policy | N/A/adapted-generator-policy. Upstream test targets private TS `generate-models.ts --strict` rollback behavior; Go consumes exact release artifacts and proves final output via exact comparators rather than claiming helper-policy parity. |
+| 128-file corpus | Updated. `docs/v0841-128-test-manifest.md` has exact 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 TODO. Credential-gated live Qwen Individual additions are labeled, not claimed as passing. |
+
+## v0.84.0 Go implementation and decisions (retained baseline history)
 
 | Upstream delta | Go disposition |
 | --- | --- |
@@ -45,19 +58,22 @@ Audited scope:
 ## Comparator evidence
 
 ```text
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers
-upstream pairs: 1153
-generated pairs: 1153
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0841/packages/ai/src/providers
+upstream pairs: 1220
+generated pairs: 1220
 model provider/id pairs match exactly
 
-python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840.go
-wrote /workspace/tmp/images_v0840.go with 42 image models
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0841/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0841.go
+wrote /workspace/tmp/images_v0841.go with 42 image models
+# diff against images/models_generated.go: exact
+
+0.84.0 -> 0.84.1 text artifact diff: 1153/38 -> 1220/39, 70 added, 3 removed, 9 metadata changed.
 ```
 
 
 
 
-## Correction cycle 4 (whole-corpus Responses/Cloudflare parity)
+## v0.84.0 correction cycle 4 (whole-corpus Responses/Cloudflare parity)
 
 Auditor whole-corpus parity-hardening slice addressed:
 
@@ -69,7 +85,7 @@ Auditor whole-corpus parity-hardening slice addressed:
 - Ported `cloudflare-stream.test.ts` placeholder parity: unresolved `{VAR}` placeholders are preserved, and resolved/unresolved behavior is covered through ordinary stream and `streamSimple`/request dispatch.
 - Focused tests (`OpenAIResponsesCompat|OpenAIResponsesCacheRetention|OpenAIResponsesExplicitHeaders|OpenAIResponsesRequiredToolChoice|OpenAIResponsesServiceTier|OpenAIResponsesOffReasoning|XAI|ResolveCloudflare|CloudflareBaseURL`) and `go test ./...` passed before full gates.
 
-## Correction cycle 3 (OAuth refresh cancellation and telemetry context)
+## v0.84.0 correction cycle 3 (OAuth refresh cancellation and telemetry context)
 
 Auditor OAuth/telemetry correction addressed:
 
@@ -81,7 +97,7 @@ Auditor OAuth/telemetry correction addressed:
 - Added tests for telemetry propagation through `InvokeOnPayload`/`InvokeOnResponse`, deferred fetch/cancel faux callbacks, and OpenRouter image payload/response hooks.
 - OAuth/telemetry correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-oauth-telemetry-gates/`.
 
-## Correction cycle 2 (deferred response lifecycle)
+## v0.84.0 correction cycle 2 (deferred response lifecycle)
 
 Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addressed:
 
@@ -92,7 +108,7 @@ Auditor contrary evidence from upstream commit `382aa641` inside `v0.84.0` addre
 - Verified `ProviderHeaders` null deletion is already represented by `SuppressHeaders`/`MergeProviderHeaders`, model refresh options/results by `ModelRuntimeRefreshOptions`/`ModelRuntimeRefreshResult`, and runtime API-key/OAuth refresh separation by Go's explicit OAuth runtime helpers rather than a JS `setRuntimeApiKey` mutator.
 - Deferred correction gate passed; retained logs: `/workspace/tmp/go-ai-v0840-deferred-gates/`.
 
-## Correction cycle 1 (post-`f6112ee`)
+## v0.84.0 correction cycle 1 (post-`f6112ee`)
 
 Auditor correction addressed before final acceptance:
 
@@ -106,22 +122,18 @@ Final corrective gate passed before commit/push. Retained logs: `/workspace/tmp/
 
 ## Validation evidence
 
-Focused validation already run during implementation:
+Focused validation and full gate passed before commit/push:
 
 ```text
-go test ./...
-```
-
-Final full gate passed before commit/push:
-
-```text
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers
-# upstream pairs: 1153
-# generated pairs: 1153
+docs/v0841-128-test-manifest.md row check: 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 TODO
+TMPDIR=/workspace/tmp go test ./... -run 'QwenTokenPlan|QwenTokenPlanIndividual|RegisterBuiltinModels|OpenAICompletionsEmptyTools'
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0841/packages/ai/src/providers
+# upstream pairs: 1220
+# generated pairs: 1220
 # model provider/id pairs match exactly
 
-python3 scripts/generate-image-models.py /workspace/tmp/pi-v0840/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0840_gate.go
-# wrote /workspace/tmp/images_v0840_gate.go with 42 image models
+python3 scripts/generate-image-models.py /workspace/tmp/pi-v0841/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0841_gate.go
+# wrote /workspace/tmp/images_v0841_gate.go with 42 image models
 # diff against images/models_generated.go: exact
 
 make check
@@ -133,7 +145,7 @@ make check-logging
 make test-repro
 ```
 
-Retained logs: `/workspace/tmp/go-ai-v0840-gates/`.
+Retained logs: `/workspace/tmp/go-ai-v0841-gates/`.
 
 
 

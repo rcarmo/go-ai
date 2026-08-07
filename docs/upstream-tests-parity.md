@@ -112,18 +112,18 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_empty_thinking_signature_compat_test.go; models_catalog_upstream_test.go | Xiaomi AMS empty-signature compatibility is covered deterministically via request-shape replay preserving `signature:""` when compat allows it plus Xiaomi catalog tests. Passing under make check. |
 | `test/zen.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 
-## v0.84.0 upstream test inventory update
+## v0.84.1 upstream test inventory update
 
-Exact upstream source `/workspace/tmp/pi-v0840/packages/ai/test` contains **127** `*.test.ts` files. The cumulative whole-corpus manifest is `docs/v0840-127-test-manifest.md` and classifies every file with no TODO/needs-classification entries.
+Exact upstream source `/workspace/tmp/pi-v0841/packages/ai/test` contains **128** `*.test.ts` files. The current cumulative whole-corpus manifest is `docs/v0841-128-test-manifest.md` and classifies every file with no TODO/needs-classification entries. The prior accepted v0.84.0 manifest remains in `docs/v0840-127-test-manifest.md`.
 
 Whole-corpus summary:
 
 - DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 101 files
-- N/A credential/live/JS-runtime/generator-policy-adapted only: 26 files
+- N/A credential/live/JS-runtime/generator-policy-adapted only: 27 files
 - TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC + N/A`): 127 / 127 files
+- Achieved (`DETERMINISTIC + N/A`): 128 / 128 files
 
-New files relative to accepted v0.83.0 and Go dispositions:
+New files relative to accepted v0.83.0/v0.84.0 and Go dispositions:
 
 | Upstream test file | Status | Go evidence / rationale |
 | --- | --- | --- |
@@ -134,11 +134,13 @@ New files relative to accepted v0.83.0 and Go dispositions:
 | `test/google-shared-retry.test.ts` | N/A/covered | TS SDK retry wrapper behavior; Go providers use existing context-aware HTTP/retry helpers and Google provider tests. No distinct Go surface. |
 | `test/google-shared-signed-empty-blocks.test.ts` | N/A/covered | TS Google SDK signed empty-block serialization details; Go already handles signed/thinking/tool payloads in provider tests where applicable. |
 | `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED | Opaque `TelemetryContext` plus stream/deferred/image hook propagation tests: `TestTelemetryContextHooks`, faux deferred telemetry assertions, OpenRouter image telemetry hooks. |
+| `test/generate-models-strict.test.ts` | N/A/adapted-generator-policy | v0.84.1 private TS generator rollback/failure policy for Qwen Token Plan Individual allowlist. Go validates exact final artifacts with source/package comparator and documents helper policy as N/A/adapted rather than claiming a test-for-test port. |
 
-No v0.84.0 upstream test file remains TODO/needs classification.
-- Whole-corpus hardening: `openai-responses-compat.test.ts` is now ported via `inference/provider/openairesponses/responses_compat_upstream_test.go`; `cloudflare-stream.test.ts` unresolved-placeholder behavior is ported via `cloudflare_stream_upstream_test.go`; five credential-gated E2E files are explicitly N/A/live-only in `docs/v0840-127-test-manifest.md` and are not represented as passing.
+No v0.84.1 upstream test file remains TODO/needs classification.
+- v0.84.1 update: `qwen-token-plan-models.test.ts` is ported for exact Individual provider exposure/env/request behavior; `generate-models-strict.test.ts` and private generator helper policy are labeled N/A/adapted-generator-policy with exact release-artifact comparison retained.
+- Whole-corpus hardening retained: `openai-responses-compat.test.ts` is ported via `inference/provider/openairesponses/responses_compat_upstream_test.go`; `cloudflare-stream.test.ts` unresolved-placeholder behavior is ported via `cloudflare_stream_upstream_test.go`; credential-gated E2E/live files are explicitly N/A/live-only in the manifest and are not represented as passing.
 - Correction cycle 3: OAuth refresh cancellation and telemetry context contracts are now ported/adapted; see `RELEASE.md` and `docs/v0840-release-ledger.md` correction cycle 3.
 - Correction cycle 2: `providers.test.ts` deferred response lifecycle assertions from upstream commit `382aa641` are ported in `inference/provider/faux/faux_test.go`; `telemetry-options.test.ts` is now ported via opaque `TelemetryContext` hook propagation tests.
 
 Full path-addressable v0.84 changed-test delta appendix: `docs/v0840-release-ledger.md#v0840-changed-test-delta-appendix-46-paths`.
-Full v0.84 127-file whole-corpus manifest: `docs/v0840-127-test-manifest.md`.
+Full v0.84.1 128-file whole-corpus manifest: `docs/v0841-128-test-manifest.md`.
