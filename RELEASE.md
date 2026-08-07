@@ -154,7 +154,20 @@ make check-logging
 make test-repro
 ```
 
-Retained logs: `/workspace/tmp/go-ai-v0841-metadata-gates/`.
+Portability/fault-injection proof:
+
+```text
+# Clean worktree copy with no PI_AI_* overrides and no pre-existing fixtures:
+GO_AI_MODEL_REGEN_CACHE=/workspace/tmp/go-ai-clean-cache-wt make check GO_TMPDIR=/tmp
+# check-model-regeneration fetched exact tag/package into the cache and passed
+
+# Fault injection in clean worktree copy:
+# openrouter/google/gemini-3-flash-preview MaxTokens 65536 -> 65537
+GO_AI_MODEL_REGEN_CACHE=/workspace/tmp/go-ai-clean-cache-fault ./scripts/check-model-regeneration.sh
+# failed with normalized regeneration diff showing 65537 vs 65536
+```
+
+Retained logs: `/workspace/tmp/go-ai-v0841-portable-gates/` and `/workspace/tmp/go-ai-v0841-metadata-gates/`.
 
 Prior v0.84.1 logs retained: `/workspace/tmp/go-ai-v0841-gates/`.
 
