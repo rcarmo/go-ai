@@ -23,7 +23,7 @@ Audited scope:
 
 - 25 changed `packages/ai` paths.
 - Official tag SHA verified: `53fa77ccd8a279eb87e92294ef3687b03ff80112`.
-- Material upstream deltas: new `qwen-token-plan-individual` provider/models, generator/model-data/env/type/provider registration updates, 14 modified AI tests plus new `generate-models-strict.test.ts`, and package/docs/version updates.
+- Material upstream deltas: new `qwen-token-plan-individual` provider/models, generator/model-data/env/type/provider registration updates, 14 changed AI test paths total (13 existing tests modified plus new `generate-models-strict.test.ts`), and package/docs/version updates.
 
 ## v0.84.1 Go implementation and decisions
 
