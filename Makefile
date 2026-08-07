@@ -1,4 +1,4 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate bump-patch push security bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration bump-patch push security bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -64,7 +64,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: test-deterministic vet staticcheck check-logging ## Run deterministic tests + vet + staticcheck + logging gate
+check: test-deterministic vet staticcheck check-logging check-model-regeneration ## Run deterministic tests + vet + staticcheck + logging + model regeneration gates
 
 # =============================================================================
 # Reproducible verification targets
@@ -89,6 +89,7 @@ test-repro-fast: ## Reproducible local gate (no race)
 	TMPDIR=$(GO_TMPDIR) $(GO) build ./...
 	$(MAKE) staticcheck
 	$(MAKE) check-logging
+	$(MAKE) check-model-regeneration
 
 test-repro: ## Full reproducible gate (includes race detector)
 	$(MAKE) toolchain-info
@@ -107,6 +108,9 @@ build: ## Build the library (verify compilation)
 
 generate: ## Regenerate models_generated.go from pi-ai (with legacy fallback support)
 	$(GO) run scripts/generate-models.go
+
+check-model-regeneration: ## Verify models_generated.go matches exact normalized regeneration
+	GO=$(GO) GO_TMPDIR=$(GO_TMPDIR) TMPDIR=$(GO_TMPDIR) ./scripts/check-model-regeneration.sh
 
 # =============================================================================
 # Clean targets

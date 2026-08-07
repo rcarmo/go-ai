@@ -32,7 +32,7 @@ Audited scope:
 | `qwen-token-plan-individual` provider | Implemented. Added `ProviderQwenTokenPlanIndividual`, `QWEN_TOKEN_PLAN_API_KEY` reuse, OpenAI Completions catalog entries, and exact international endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`. |
 | Exact Individual seven-model allowlist | Implemented mechanically from exact v0.84.1 provider data: `deepseek-v4-flash-0731`, `deepseek-v4-pro`, `glm-5.2`, `qwen3.6-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.8-max`. Tests: `qwen_token_plan_upstream_test.go`. |
 | Qwen request fields | Implemented/fixed. Qwen `thinkingFormat:"qwen"` now emits `enable_thinking` and, when compat supports it, `reasoning_effort`. Tests: `inference/provider/openai/qwen_token_plan_individual_upstream_test.go`. |
-| Text catalog refresh | Implemented mechanically. Exact npm artifact comparison: `1153/38` → `1220/39`, with 70 added, 3 removed, 9 metadata-changed pairs. Go comparator: `1220/1220` exact. |
+| Text catalog refresh | Implemented mechanically. Exact npm artifact comparison: `1153/38` → `1220/39`, with 70 added, 3 removed, 9 metadata-changed pairs. Go provider/id pair comparator: `1220/1220` exact; normalized full regeneration comparator proves all Go-representable metadata across 1220 entries. |
 | Image catalog | Proved unchanged. v0.84.1 image generation writes 42 image models and diffs clean against `images/models_generated.go`. |
 | Strict generator rollback/failure policy | N/A/adapted-generator-policy. Upstream test targets private TS `generate-models.ts --strict` rollback behavior; Go consumes exact release artifacts and proves final output via exact comparators rather than claiming helper-policy parity. |
 | 128-file corpus | Updated. `docs/v0841-128-test-manifest.md` has exact 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 TODO. Credential-gated live Qwen Individual additions are labeled, not claimed as passing. |
@@ -63,11 +63,17 @@ upstream pairs: 1220
 generated pairs: 1220
 model provider/id pairs match exactly
 
+PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0841/packages/ai/src/models.generated.ts \
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data \
+./scripts/check-model-regeneration.sh
+model regeneration metadata comparator passed
+
 python3 scripts/generate-image-models.py /workspace/tmp/pi-v0841/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0841.go
 wrote /workspace/tmp/images_v0841.go with 42 image models
 # diff against images/models_generated.go: exact
 
 0.84.0 -> 0.84.1 text artifact diff: 1153/38 -> 1220/39, 70 added, 3 removed, 9 metadata changed.
+Pair equality is verified by `scripts/compare-upstream-models.py`; full Go-representable metadata equality is verified by normalized regeneration diff in `scripts/check-model-regeneration.sh`.
 ```
 
 
@@ -132,11 +138,14 @@ PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/
 # generated pairs: 1220
 # model provider/id pairs match exactly
 
+PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0841/packages/ai/src/models.generated.ts PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data ./scripts/check-model-regeneration.sh
+# model regeneration metadata comparator passed
+
 python3 scripts/generate-image-models.py /workspace/tmp/pi-v0841/packages/ai/src/image-models.generated.ts /workspace/tmp/images_v0841_gate.go
 # wrote /workspace/tmp/images_v0841_gate.go with 42 image models
 # diff against images/models_generated.go: exact
 
-make check
+make check  # includes check-model-regeneration
 TMPDIR=/workspace/tmp go test -shuffle=on ./...
 TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
 go vet ./...
@@ -145,7 +154,9 @@ make check-logging
 make test-repro
 ```
 
-Retained logs: `/workspace/tmp/go-ai-v0841-gates/`.
+Retained logs: `/workspace/tmp/go-ai-v0841-metadata-gates/`.
+
+Prior v0.84.1 logs retained: `/workspace/tmp/go-ai-v0841-gates/`.
 
 
 
