@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -66,15 +67,27 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			baseURL = defaultBaseURL
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewReader(bodyJSON))
+		requestCtx := ctx
+		var cancel context.CancelFunc
+		if opts != nil && opts.TimeoutMs != nil && *opts.TimeoutMs > 0 {
+			requestCtx, cancel = context.WithTimeout(ctx, time.Duration(*opts.TimeoutMs)*time.Millisecond)
+			defer cancel()
+		}
+
+		req, err := http.NewRequestWithContext(requestCtx, "POST", baseURL+"/chat/completions", bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return
 		}
 
+		req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(bodyJSON)), nil }
+
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Accept", "text/event-stream")
+		if shouldUsePromptCaching(opts) && !hasHeaderOverride(model.Headers, "x-affinity") && (opts == nil || !hasHeaderOverride(opts.Headers, "x-affinity")) {
+			req.Header.Set("x-affinity", opts.SessionID)
+		}
 
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		if opts != nil {
@@ -85,7 +98,7 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
-		resp, err := goai.DoWithRetry(ctx, client, req, retryCfg)
+		resp, err := goai.DoWithRetry(requestCtx, client, req, retryCfg)
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
@@ -315,9 +328,45 @@ type sseToolCallFunc struct {
 }
 
 type sseUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	TotalTokens         int `json:"total_tokens"`
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+	PromptTokenDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_token_details"`
+	NumCachedTokens int `json:"num_cached_tokens"`
+}
+
+func shouldUsePromptCaching(opts *goai.StreamOptions) bool {
+	if opts == nil || opts.SessionID == "" {
+		return false
+	}
+	return opts.CacheRetention != goai.CacheRetentionNone
+}
+
+func hasHeaderOverride(headers map[string]string, target string) bool {
+	for name := range headers {
+		if strings.EqualFold(name, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func getMistralCachedPromptTokens(usage *sseUsage) int {
+	if usage == nil {
+		return 0
+	}
+	cached := usage.NumCachedTokens
+	if usage.PromptTokensDetails != nil {
+		cached = usage.PromptTokensDetails.CachedTokens
+	} else if usage.PromptTokenDetails != nil {
+		cached = usage.PromptTokenDetails.CachedTokens
+	}
+	return cached
 }
 
 func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
@@ -358,9 +407,20 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		}
 
 		if chunk.Usage != nil {
-			partial.Usage.Input = chunk.Usage.PromptTokens
+			cached := getMistralCachedPromptTokens(chunk.Usage)
+			if cached > chunk.Usage.PromptTokens {
+				cached = chunk.Usage.PromptTokens
+			}
+			if cached < 0 {
+				cached = 0
+			}
+			partial.Usage.Input = max(0, chunk.Usage.PromptTokens-cached)
 			partial.Usage.Output = chunk.Usage.CompletionTokens
+			partial.Usage.CacheRead = cached
 			partial.Usage.TotalTokens = chunk.Usage.TotalTokens
+			if partial.Usage.TotalTokens == 0 {
+				partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output + partial.Usage.CacheRead + partial.Usage.CacheWrite
+			}
 			partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 		}
 

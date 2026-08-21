@@ -254,26 +254,27 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 
 func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompletionsCompat {
 	c := OpenAICompletionsCompat{}
+	baseURLLower := strings.ToLower(baseURL)
 
-	isOpenRouter := provider == ProviderOpenRouter || contains(baseURL, "openrouter.ai")
+	isOpenRouter := provider == ProviderOpenRouter || contains(baseURLLower, "openrouter.ai")
 	isOllama := isLocalOllamaURL(baseURL)
-	isZAI := provider == ProviderZAI || provider == ProviderZAICodingCN || contains(baseURL, "api.z.ai") || contains(baseURL, "open.bigmodel.cn")
-	isTogether := provider == ProviderTogether || contains(baseURL, "api.together.ai") || contains(baseURL, "api.together.xyz")
-	isMoonshot := provider == ProviderMoonshotAI || provider == ProviderMoonshotAICN || contains(baseURL, "api.moonshot.")
-	isCloudflareWorkersAI := provider == ProviderCloudflareWorkersAI || contains(baseURL, "api.cloudflare.com")
-	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURL, "gateway.ai.cloudflare.com")
-	isNvidia := provider == ProviderNvidia || contains(baseURL, "integrate.api.nvidia.com")
-	isAntLing := provider == ProviderAntLing || contains(baseURL, "api.ant-ling.com")
-	isBaseten := provider == ProviderBaseten || contains(baseURL, "inference.baseten.co")
-	isGrok := provider == ProviderXAI || contains(baseURL, "api.x.ai")
-	isDeepSeek := provider == ProviderDeepSeek || contains(baseURL, "deepseek.com")
-	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURL, "xiaomimimo.com")
+	isZAI := provider == ProviderZAI || provider == ProviderZAICodingCN || contains(baseURLLower, "api.z.ai") || contains(baseURLLower, "open.bigmodel.cn")
+	isTogether := provider == ProviderTogether || contains(baseURLLower, "api.together.ai") || contains(baseURLLower, "api.together.xyz")
+	isMoonshot := provider == ProviderMoonshotAI || provider == ProviderMoonshotAICN || contains(baseURLLower, "api.moonshot.")
+	isCloudflareWorkersAI := provider == ProviderCloudflareWorkersAI || contains(baseURLLower, "api.cloudflare.com")
+	isCloudflareAIGW := provider == ProviderCloudflareAIGateway || contains(baseURLLower, "gateway.ai.cloudflare.com")
+	isNvidia := provider == ProviderNvidia || contains(baseURLLower, "integrate.api.nvidia.com")
+	isAntLing := provider == ProviderAntLing || contains(baseURLLower, "api.ant-ling.com")
+	isBaseten := provider == ProviderBaseten || contains(baseURLLower, "inference.baseten.co")
+	isGrok := provider == ProviderXAI || contains(baseURLLower, "api.x.ai")
+	isDeepSeek := provider == ProviderDeepSeek || contains(baseURLLower, "deepseek.com")
+	isXiaomi := provider == ProviderXiaomi || provider == ProviderXiaomiTokenPlanCN || provider == ProviderXiaomiTokenPlanAMS || provider == ProviderXiaomiTokenPlanSGP || contains(baseURLLower, "xiaomimimo.com")
 
-	isNonStandard := isNvidia || provider == ProviderCerebras || contains(baseURL, "cerebras.ai") ||
-		isGrok || isTogether || contains(baseURL, "chutes.ai") || isDeepSeek || isXiaomi ||
-		isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURL, "opencode.ai") ||
+	isNonStandard := isNvidia || provider == ProviderCerebras || contains(baseURLLower, "cerebras.ai") ||
+		isGrok || isTogether || contains(baseURLLower, "chutes.ai") || isDeepSeek || isXiaomi ||
+		isZAI || isMoonshot || provider == ProviderOpenCode || contains(baseURLLower, "opencode.ai") ||
 		isCloudflareWorkersAI || isCloudflareAIGW || isAntLing || isBaseten || isOllama
-	useMaxTokens := contains(baseURL, "chutes.ai") || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isBaseten || isOllama
+	useMaxTokens := contains(baseURLLower, "chutes.ai") || isDeepSeek || isMoonshot || isCloudflareAIGW || isTogether || isNvidia || isAntLing || isBaseten || isOllama
 
 	isOpenRouterDevRole := isOpenRouter && (strings.HasPrefix(modelID, "anthropic/") || strings.HasPrefix(modelID, "openai/"))
 

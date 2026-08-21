@@ -124,6 +124,26 @@ func TestStreamOpenAICloudflareAIGatewayHeadersAndURL(t *testing.T) {
 	}
 }
 
+func TestV0842DeepSeekMixedCaseURLUsesMaxTokensField(t *testing.T) {
+	maxTokens := 123
+	model := &goai.Model{ID: "deepseek-v4-flash", Provider: "proxy", Api: goai.ApiOpenAICompletions, BaseURL: "https://API.DeepSeek.COM/v1"}
+	req := buildRequestBody(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{MaxTokens: &maxTokens})
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["max_tokens"] != float64(123) {
+		t.Fatalf("expected max_tokens=123 for mixed-case DeepSeek URL, got %#v in %s", payload["max_tokens"], data)
+	}
+	if _, ok := payload["max_completion_tokens"]; ok {
+		t.Fatalf("unexpected max_completion_tokens for DeepSeek URL: %s", data)
+	}
+}
+
 func TestBuildRequestBodyClampsPromptCacheKey(t *testing.T) {
 	model := &goai.Model{ID: "gpt-4o-mini", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: "https://api.openai.com/v1"}
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}

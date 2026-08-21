@@ -383,6 +383,11 @@ func TestDetectCompat(t *testing.T) {
 		t.Fatalf("unexpected Moonshot compat: %+v", moonshot)
 	}
 
+	deepSeekProxy := goai.DetectCompatForModel(&goai.Model{BaseURL: "https://API.DeepSeek.COM/v1"})
+	if deepSeekProxy.MaxTokensField != "max_tokens" || deepSeekProxy.ThinkingFormat != "deepseek" || deepSeekProxy.RequiresReasoningContentOnAssistantMessages == nil || !*deepSeekProxy.RequiresReasoningContentOnAssistantMessages {
+		t.Fatalf("unexpected mixed-case DeepSeek compat: %+v", deepSeekProxy)
+	}
+
 	cf := goai.DetectCompatForModel(&goai.Model{Provider: goai.ProviderCloudflareAIGateway, BaseURL: "https://gateway.ai.cloudflare.com/v1/a/b/compat"})
 	if cf.MaxTokensField != "max_tokens" || cf.SupportsLongCacheRetention == nil || *cf.SupportsLongCacheRetention {
 		t.Fatalf("unexpected Cloudflare AI Gateway compat: %+v", cf)

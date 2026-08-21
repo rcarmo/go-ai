@@ -30,6 +30,13 @@ var copilotHeaders = map[string]string{
 
 const copilotAPIVersion = "2026-06-01"
 
+var copilotPolicyHTTPClient = &http.Client{Timeout: 5 * time.Second}
+var copilotPolicyListModels = func() []*goai.Model {
+	goai.RegisterBuiltinModels()
+	return goai.ListModels(goai.ProviderGitHubCopilot)
+}
+var copilotPolicyBaseURL = GetGitHubCopilotBaseURL
+
 // GitHubCopilotProvider implements the OAuth flow for GitHub Copilot.
 type GitHubCopilotProvider struct{}
 
@@ -310,8 +317,7 @@ const copilotPolicyConcurrency = 4
 
 // EnableAllGitHubCopilotModels enables known Copilot model policies where required.
 func EnableAllGitHubCopilotModels(copilotToken, enterpriseDomain string) {
-	goai.RegisterBuiltinModels()
-	models := goai.ListModels(goai.ProviderGitHubCopilot)
+	models := copilotPolicyListModels()
 	for start := 0; start < len(models); start += copilotPolicyConcurrency {
 		end := start + copilotPolicyConcurrency
 		if end > len(models) {
@@ -333,7 +339,7 @@ func EnableAllGitHubCopilotModels(copilotToken, enterpriseDomain string) {
 
 // EnableGitHubCopilotModel enables one Copilot model policy where required.
 func EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain string) bool {
-	baseURL := GetGitHubCopilotBaseURL(copilotToken, enterpriseDomain)
+	baseURL := copilotPolicyBaseURL(copilotToken, enterpriseDomain)
 	endpoint := strings.TrimRight(baseURL, "/") + "/models/" + url.PathEscape(modelID) + "/policy"
 	body := strings.NewReader(`{"state":"enabled"}`)
 	req, _ := http.NewRequest("POST", endpoint, body)
@@ -344,8 +350,7 @@ func EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain string) bo
 	for k, v := range copilotHeaders {
 		req.Header.Set(k, v)
 	}
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := copilotPolicyHTTPClient.Do(req)
 	if err != nil {
 		return false
 	}
