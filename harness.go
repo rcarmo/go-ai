@@ -342,6 +342,7 @@ func GetToolCalls(msg *Message) []ToolCall {
 				ID:        b.ID,
 				Name:      b.Name,
 				Arguments: deepCopyStringAnyMap(b.Arguments),
+				Namespace: b.Namespace,
 			})
 		}
 	}

@@ -229,21 +229,7 @@ type toolDef struct {
 func convertResponsesTool(t goai.Tool, supportsStrictMode, supportsGrammar bool) (toolDef, error) {
 	out := toolDef{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters}
 	cfg := t.ConstrainedSampling
-	if cfg == nil || cfg.Type == "" || cfg.Type == "false" {
-		return out, nil
-	}
-	switch cfg.Type {
-	case "json_schema":
-		if supportsStrictMode {
-			b := true
-			out.Strict = &b
-			return out, nil
-		}
-		if cfg.Strict == "require" {
-			return out, fmt.Errorf("tool %q requires JSON-schema constrained sampling, but strict tools are unsupported", t.Name)
-		}
-		return out, nil
-	case "grammar":
+	if cfg != nil && cfg.Type == "grammar" {
 		if !supportsGrammar {
 			return out, nil
 		}
@@ -263,9 +249,33 @@ func convertResponsesTool(t goai.Tool, supportsStrictMode, supportsGrammar bool)
 		out.Parameters = nil
 		out.Format = map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}
 		return out, nil
-	default:
-		return out, nil
 	}
+
+	strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode)
+	if err != nil {
+		return out, err
+	}
+	if strict != nil && *strict {
+		parameters, err := goai.JSONSchemaToolParameters(t, true)
+		if err != nil {
+			return out, err
+		}
+		out.Parameters = parameters
+	}
+	if supportsStrictMode {
+		v := strict != nil && *strict
+		out.Strict = &v
+	}
+	return out, nil
+}
+
+func convertResponsesToolWithDefer(t goai.Tool, supportsStrictMode, supportsGrammar, deferLoading bool) (toolDef, error) {
+	out, err := convertResponsesTool(t, supportsStrictMode, supportsGrammar)
+	if err != nil {
+		return out, err
+	}
+	out.DeferLoading = deferLoading
+	return out, nil
 }
 
 func inferGrammarInputProperty(t goai.Tool) (string, error) {
@@ -411,20 +421,17 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 	}
 
-	compatForDeferred := getResponsesCompat(model)
-	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolSearch, false)
+	compat := getResponsesCompat(model)
+	deferredMode := ""
+	if compat.supportsAdditionalTools {
+		deferredMode = "additional-tools"
+	} else if compat.supportsToolSearch {
+		deferredMode = "tool-search"
+	}
+	deferredPlan := goai.PlanDeferredTools(convCtx, deferredMode != "", false)
 
 	// Convert messages to Responses API input format
-	input := convertMessages(model, convCtx)
-	if deferredPlan.HasDeferred() {
-		callID := "tool_search_1"
-		input = append(input, map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed"})
-		var searched []toolDef
-		for _, t := range deferredPlan.Deferred {
-			searched = append(searched, toolDef{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters, DeferLoading: true})
-		}
-		input = append(input, map[string]interface{}{"type": "tool_search_output", "call_id": callID, "execution": "client", "status": "completed", "tools": searched})
-	}
+	input := convertMessagesWithDeferred(model, convCtx, deferredPlan, deferredMode, compat)
 	if model.Api == goai.ApiAzureOpenAIResponses {
 		limited := goai.ApplyToolCallLimit(input, goai.DefaultToolCallLimitConfig())
 		input = limited.Messages
@@ -437,9 +444,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if len(activeTools) == 0 && !deferredPlan.HasDeferred() {
 		activeTools = convCtx.Tools
 	}
-	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
 	for _, t := range activeTools {
-		tool, err := convertResponsesTool(t, true, supportsGrammar)
+		tool, err := convertResponsesTool(t, compat.supportsStrictMode, compat.supportsGrammarTools)
 		if err != nil {
 			inputJSON, _ := json.Marshal([]map[string]interface{}{{"type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": err.Error()}}}})
 			req.Input = inputJSON
@@ -492,7 +498,6 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Cache retention (compat-driven)
-	compat := getResponsesCompat(model)
 	cacheRetention := goai.CacheRetentionShort
 	if opts != nil {
 		cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
@@ -518,7 +523,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 type responsesCompat struct {
 	sessionAffinityFormat      string
 	supportsLongCacheRetention bool
+	supportsAdditionalTools    bool
 	supportsToolSearch         bool
+	supportsStrictMode         bool
+	supportsGrammarTools       bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
@@ -526,6 +534,7 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		sessionAffinityFormat:      "openai",
 		supportsLongCacheRetention: true,
 		supportsToolSearch:         model != nil && (model.ID == "gpt-5.4" || strings.HasPrefix(model.ID, "gpt-5.4-")),
+		supportsStrictMode:         model != nil && model.Provider == goai.ProviderCloudflareAIGateway,
 	}
 	if model == nil {
 		return c
@@ -537,6 +546,15 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
+		if model.ResponsesCompat.SupportsAdditionalTools != nil {
+			c.supportsAdditionalTools = *model.ResponsesCompat.SupportsAdditionalTools
+		}
+		if model.ResponsesCompat.SupportsStrictMode != nil {
+			c.supportsStrictMode = *model.ResponsesCompat.SupportsStrictMode
+		}
+		if model.ResponsesCompat.SupportsOpenAIGrammarTools != nil {
+			c.supportsGrammarTools = *model.ResponsesCompat.SupportsOpenAIGrammarTools
+		}
 		if model.ResponsesCompat.SessionAffinityFormat != "" {
 			c.sessionAffinityFormat = model.ResponsesCompat.SessionAffinityFormat
 		} else if model.ResponsesCompat.SendSessionIdHeader != nil && !*model.ResponsesCompat.SendSessionIdHeader {
@@ -554,6 +572,10 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 
 // convertMessages builds the Responses API input array.
 func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
+	return convertMessagesWithDeferred(model, convCtx, goai.DeferredToolPlan{}, "", responsesCompat{})
+}
+
+func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, deferredPlan goai.DeferredToolPlan, deferredMode string, compat responsesCompat) []interface{} {
 	var input []interface{}
 
 	// System prompt
@@ -597,10 +619,43 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 				"call_id": callID,
 				"output":  goai.SanitizeSurrogates(textResult),
 			})
+			deferredTools := goai.DeferredToolsForMarker(deferredPlan, msg.AddedToolNames, false)
+			if len(deferredTools) > 0 {
+				input = append(input, buildDeferredToolsInputItems(msgIndex, msg, deferredTools, deferredMode, compat)...)
+			}
 		}
 	}
 
 	return input
+}
+
+func buildDeferredToolsInputItems(msgIndex int, msg goai.Message, tools []goai.Tool, mode string, compat responsesCompat) []interface{} {
+	if len(tools) == 0 || mode == "" {
+		return nil
+	}
+	converted := make([]toolDef, 0, len(tools))
+	for _, t := range tools {
+		tool, err := convertResponsesToolWithDefer(t, compat.supportsStrictMode, compat.supportsGrammarTools, mode == "tool-search")
+		if err != nil {
+			continue
+		}
+		converted = append(converted, tool)
+	}
+	if len(converted) == 0 {
+		return nil
+	}
+	if mode == "additional-tools" {
+		return []interface{}{map[string]interface{}{"type": "additional_tools", "role": "developer", "tools": converted}}
+	}
+	names := make([]string, 0, len(tools))
+	for _, t := range tools {
+		names = append(names, t.Name)
+	}
+	callID := fmt.Sprintf("pi_tool_load_%x", crc32.ChecksumIEEE([]byte(fmt.Sprintf("%s:%d:%s", msg.ToolCallID, msgIndex, strings.Join(names, ",")))))
+	return []interface{}{
+		map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed"},
+		map[string]interface{}{"type": "tool_search_output", "call_id": callID, "execution": "client", "status": "completed", "tools": converted},
+	}
 }
 
 func openAIResponsesToolResultText(content []goai.ContentBlock) string {
@@ -638,6 +693,7 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 	isDifferentModel := msg.Model != "" && msg.Model != model.ID &&
 		msg.Provider == model.Provider &&
 		msg.Api == model.Api
+	canReplayNamespace := msg.Model == model.ID && msg.Provider == model.Provider && msg.Api == model.Api
 
 	var items []interface{}
 	textBlockIndex := 0
@@ -710,6 +766,9 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 				"call_id":   callID,
 				"name":      block.Name,
 				"arguments": mustJSON(block.Arguments),
+			}
+			if canReplayNamespace && block.Namespace != "" {
+				item["namespace"] = block.Namespace
 			}
 			if itemID != "" {
 				item["id"] = itemID
@@ -855,11 +914,12 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 		case "response.output_item.added":
 			var item struct {
-				Type   string `json:"type"`
-				ID     string `json:"id"`
-				CallID string `json:"call_id"`
-				Name   string `json:"name"`
-				Args   string `json:"arguments"`
+				Type      string `json:"type"`
+				ID        string `json:"id"`
+				CallID    string `json:"call_id"`
+				Name      string `json:"name"`
+				Args      string `json:"arguments"`
+				Namespace string `json:"namespace"`
 			}
 			json.Unmarshal(raw.Item, &item)
 
@@ -878,9 +938,10 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
-					Type: "toolCall",
-					ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
-					Name: item.Name,
+					Type:      "toolCall",
+					ID:        fmt.Sprintf("%s|%s", item.CallID, item.ID),
+					Name:      item.Name,
+					Namespace: item.Namespace,
 				})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: item.Type, contentIdx: idx}
@@ -969,7 +1030,16 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			if current == nil {
 				continue
 			}
+			var doneItem struct {
+				Arguments string `json:"arguments"`
+				Input     string `json:"input"`
+				Namespace string `json:"namespace"`
+			}
+			_ = json.Unmarshal(raw.Item, &doneItem)
 			idx := current.contentIdx
+			if doneItem.Namespace != "" {
+				partial.Content[idx].Namespace = doneItem.Namespace
+			}
 			switch current.itemType {
 			case "reasoning":
 				// Store the full item as thinkingSignature for replay
@@ -989,7 +1059,31 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				sigJSON, _ := json.Marshal(sig)
 				partial.Content[idx].TextSignature = string(sigJSON)
 				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+			case "custom_tool_call":
+				input := current.customPayload
+				if input == "" {
+					input = doneItem.Input
+				}
+				if input == "" {
+					input = doneItem.Arguments
+				}
+				args := map[string]interface{}{"input": input}
+				partial.Content[idx].Arguments = args
+				ch <- &goai.ToolCallEndEvent{
+					ContentIndex: idx,
+					ToolCall: goai.ToolCall{
+						Type:      "toolCall",
+						ID:        partial.Content[idx].ID,
+						Name:      partial.Content[idx].Name,
+						Arguments: args,
+						Namespace: partial.Content[idx].Namespace,
+					},
+					Partial: partial,
+				}
 			case "function_call":
+				if doneItem.Arguments != "" {
+					current.partialJSON = doneItem.Arguments
+				}
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
 				if args == nil {
 					args = map[string]interface{}{}
@@ -1002,6 +1096,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 						ID:        partial.Content[idx].ID,
 						Name:      partial.Content[idx].Name,
 						Arguments: args,
+						Namespace: partial.Content[idx].Namespace,
 					},
 					Partial: partial,
 				}
@@ -1013,6 +1108,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			var resp struct {
 				ID                string                   `json:"id"`
 				Status            string                   `json:"status"`
+				EndTurn           *bool                    `json:"end_turn"`
 				ServiceTier       string                   `json:"service_tier"`
 				IncompleteDetails *struct{ Reason string } `json:"incomplete_details"`
 				Output            []json.RawMessage        `json:"output"`
@@ -1030,6 +1126,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 			if resp.ID != "" {
 				partial.ResponseID = resp.ID
+			}
+			if resp.EndTurn != nil {
+				partial.EndTurn = resp.EndTurn
 			}
 			backfillReasoningEncryptedContent(partial, resp.Output)
 			if resp.Usage != nil {

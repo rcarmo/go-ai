@@ -8,10 +8,10 @@ tmp_root="${TMPDIR:-${GO_TMPDIR:-/tmp}}"
 cache_base="${GO_AI_MODEL_REGEN_CACHE:-${XDG_CACHE_HOME:-${HOME:-$tmp_root}/.cache}/go-ai/model-regeneration}"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v0.84.1"
-upstream_sha="53fa77ccd8a279eb87e92294ef3687b03ff80112"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.1.tgz}"
-npm_sha256="6ab689189e7cb3de5cdb126312a3e60e8ac35fe5ee5f1b63d00f711c8a430c73"
+upstream_tag="v0.84.2"
+upstream_sha="914cf1472e715297caa30db4b9535d534a9eb718"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.2.tgz}"
+npm_sha256="0262785a76b0eb2eec596cd8a7ab2ee23eef89d2ef1bb1211c4f0a1944dacf41"
 
 workdir="$(mktemp -d "${tmp_root%/}/go-ai-model-regen.XXXXXX")"
 cleanup() {
@@ -83,12 +83,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-0.84.1-package"
+  local dir="$cache_base/pi-ai-0.84.2-package"
   local marker="$dir/.sha256"
   if [[ ! -d "$dir/package/dist/providers/data" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-0.84.1.tgz"
+    local tgz="$workdir/pi-ai-0.84.2.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"
@@ -109,6 +109,14 @@ else
   source_models_ts="$source_checkout/packages/ai/src/models.generated.ts"
 fi
 
+if [[ -n "${PI_AI_IMAGE_MODELS_GENERATED_TS:-}" ]]; then
+  source_image_models_ts="$PI_AI_IMAGE_MODELS_GENERATED_TS"
+elif [[ -n "${source_checkout:-}" ]]; then
+  source_image_models_ts="$source_checkout/packages/ai/src/image-models.generated.ts"
+else
+  source_image_models_ts="$(dirname "$source_models_ts")/image-models.generated.ts"
+fi
+
 if [[ -n "${PI_AI_MODEL_DATA_DIR:-}" ]]; then
   provider_data_dir="$PI_AI_MODEL_DATA_DIR"
 else
@@ -117,8 +125,11 @@ else
 fi
 
 generated="$workdir/models_generated.go"
+generated_images="$workdir/images_models_generated.go"
 want_norm="$workdir/want.go"
 got_norm="$workdir/got.go"
+want_images_norm="$workdir/want-images.go"
+got_images_norm="$workdir/got-images.go"
 
 if [[ ! -f "$source_models_ts" ]]; then
   echo "model regeneration source not found: $source_models_ts" >&2
@@ -128,6 +139,11 @@ fi
 if [[ ! -d "$provider_data_dir" ]]; then
   echo "model provider data dir not found: $provider_data_dir" >&2
   echo "Set PI_AI_MODEL_DATA_DIR to the exact published provider data directory" >&2
+  exit 1
+fi
+if [[ ! -f "$source_image_models_ts" ]]; then
+  echo "image model regeneration source not found: $source_image_models_ts" >&2
+  echo "Set PI_AI_IMAGE_MODELS_GENERATED_TS to the exact upstream src/image-models.generated.ts" >&2
   exit 1
 fi
 
@@ -152,4 +168,19 @@ diff -u "$want_norm" "$got_norm" >/dev/null || {
   exit 1
 }
 
+(
+  cd "$repo_root"
+  python3 scripts/generate-image-models.py "$source_image_models_ts" "$generated_images" >/dev/null
+)
+"$go_cmd" fmt "$generated_images" >/dev/null
+normalize "$repo_root/images/models_generated.go" > "$want_images_norm"
+normalize "$generated_images" > "$got_images_norm"
+diff -u "$want_images_norm" "$got_images_norm" >/dev/null || {
+  echo "images/models_generated.go does not match normalized regeneration from exact upstream source" >&2
+  echo "source: $source_image_models_ts" >&2
+  diff -u "$want_images_norm" "$got_images_norm" >&2 || true
+  exit 1
+}
+
 echo "model regeneration metadata comparator passed"
+echo "image model regeneration comparator passed"

@@ -88,8 +88,8 @@ func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenRouterGPT55Pro(t *testin
 	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenRouter, "openai/gpt-5.5-pro"), []string{"medium", "high", "xhigh"})
 }
 
-func TestSupportsXHighIncludesOnlyHighMaxPlusOffForDeepSeekV4FlashOnDeepSeek(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "high", "max"})
+func TestSupportsXHighIncludesLowHighMaxPlusOffForDeepSeekV4FlashOnDeepSeek(t *testing.T) {
+	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "low", "high", "max"})
 }
 
 func TestSupportsXHighIncludesOnlyHighMaxPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {

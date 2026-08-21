@@ -106,6 +106,9 @@ type OpenAIResponsesCompat struct {
 	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
 
+	// Whether the provider supports message-anchored additional_tools input items.
+	SupportsAdditionalTools *bool `json:"supportsAdditionalTools,omitempty"`
+
 	// Whether the provider supports client-side deferred tool loading through tool_search_call/output.
 	SupportsToolSearch *bool `json:"supportsToolSearch,omitempty"`
 

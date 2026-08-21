@@ -73,12 +73,12 @@ func TestBuiltinImageModels(t *testing.T) {
 		"qwen/qwen-image-3-pro",
 		"sourceful/riverflow-v2.5-pro",
 	}
-	if len(models) != 42 {
-		t.Fatalf("openrouter image model count = %d, want 42 from pi-ai v0.84.0", len(models))
+	if len(models) != 45 {
+		t.Fatalf("openrouter image model count = %d, want 45 from pi-ai v0.84.2", len(models))
 	}
 	for _, id := range wantIDs {
 		if got := images.GetImageModel(images.ImagesProviderOpenRouter, id); got == nil {
-			t.Fatalf("missing pi-ai v0.84.0 image model %q", id)
+			t.Fatalf("missing pi-ai v0.84.2 image model %q", id)
 		}
 	}
 	for _, removed := range []string{"sourceful/riverflow-v2-fast-preview", "sourceful/riverflow-v2-max-preview", "sourceful/riverflow-v2-standard-preview"} {

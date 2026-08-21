@@ -158,6 +158,7 @@ type mistralToolFuncDef struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
+	Strict      bool            `json:"strict"`
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) mistralRequest {
@@ -259,12 +260,23 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	// Tools
 	for _, t := range convCtx.Tools {
+		parameters := t.Parameters
+		strictTool := false
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, true); err == nil && strict != nil {
+			strictTool = *strict
+			if *strict {
+				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+					parameters = strictParameters
+				}
+			}
+		}
 		req.Tools = append(req.Tools, mistralTool{
 			Type: "function",
 			Function: mistralToolFuncDef{
 				Name:        t.Name,
 				Description: t.Description,
-				Parameters:  t.Parameters,
+				Parameters:  parameters,
+				Strict:      strictTool,
 			},
 		})
 	}

@@ -32,6 +32,9 @@ func TestRetryAssistantErrorClassifiesAssistantErrorMessages(t *testing.T) {
 	if !goai.IsRetryableAssistantError(retryMessage("overloaded_error")) {
 		t.Fatal("overloaded_error should be retryable")
 	}
+	if !goai.IsRetryableAssistantError(retryMessage("Error: exceeded request buffer limit while retrying upstream")) {
+		t.Fatal("upstream request-buffer exhaustion should be retryable")
+	}
 	if goai.IsRetryableAssistantError(&goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop}) {
 		t.Fatal("non-error assistant message should not be retryable")
 	}

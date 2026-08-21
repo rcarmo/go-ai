@@ -5,37 +5,76 @@ This file is the release-audit source of truth for `github.com/rcarmo/go-ai` par
 ## Current upstream baseline
 
 - Upstream package: `@earendil-works/pi-ai`
-- Current audited release: `v0.84.1`
-- Upstream tag/SHA: `53fa77ccd8a279eb87e92294ef3687b03ff80112`
-- Published: 2026-08-07T06:07:00Z
-- Previous accepted baseline: `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256`
-- Exact upstream checkout used: `/workspace/tmp/pi-v0841`
-- Exact previous checkout used: `/workspace/tmp/pi-v0840`
-- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0.84.1-package/package`
-- Previous official npm data artifact: `/workspace/tmp/pi-ai-0.84.0-package/package`
-- Detailed path matrix: `docs/v0841-release-ledger.md`
+- Current audited release: `v0.84.2`
+- Upstream tag/SHA: `914cf1472e715297caa30db4b9535d534a9eb718`
+- Published: 2026-08-14T10:14:32Z
+- Previous accepted baseline: `v0.84.1` / `53fa77ccd8a279eb87e92294ef3687b03ff80112`
+- Exact upstream checkout used: `/workspace/tmp/pi-v0842`
+- Exact previous checkout used: v0.84.1 tag in `/workspace/tmp/pi-v0842` plus accepted local baseline commit `870cc2f628275ceb8020ee50091b40344ae1a28f`
+- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/v0842/npm0842/package`
+- Previous official npm data artifact: `/workspace/tmp/v0842/npm0841/package`
+- Official npm tarball SHA-256: `0262785a76b0eb2eec596cd8a7ab2ee23eef89d2ef1bb1211c4f0a1944dacf41`
+- Detailed path matrix: `docs/v0842-release-ledger.md`
+- Whole-corpus test crosswalk: `docs/v0842-131-test-manifest.md`
 
 ## Exact upstream changes audited
 
-Release-only diff: `packages/ai` from official `v0.84.0` to official `v0.84.1`, no unpublished `main` changes.
+Release-only diff: `packages/ai` from official `v0.84.1` to official `v0.84.2`, no unpublished `main` changes.
 
 Audited scope:
 
-- 25 changed `packages/ai` paths.
-- Official tag SHA verified: `53fa77ccd8a279eb87e92294ef3687b03ff80112`.
-- Material upstream deltas: new `qwen-token-plan-individual` provider/models, generator/model-data/env/type/provider registration updates, 14 changed AI test paths total (13 existing tests modified plus new `generate-models-strict.test.ts`), and package/docs/version updates.
+- 42 changed `packages/ai` paths: 18 source, 21 tests, 3 package/docs/generator paths.
+- Changed tests: 21 total, 18 modified plus 3 new (`cloudflare-gateway-binding.test.ts`, `mistral-http-transport.test.ts`, `openai-responses-namespace.test.ts`).
+- Whole test corpus: 131 `packages/ai/test/*.test.ts` files, fully classified with 0 unclassified rows.
+- Text model catalog: 1267 models across 39 providers, exact provider/id pair parity with upstream.
+- Image model catalog: 45 OpenRouter image models, exact regeneration from upstream `image-models.generated.ts`.
+- Material runtime deltas: strict JSON-schema tool conversion, optional non-nullable null omission, Responses namespace replay and `additional_tools`, Codex `end_turn` plus browser-safe `pi (...)` user agent, Bedrock schema/input sanitization, Google stop/toolUse mapping, Mistral direct HTTP strict schema behavior, Copilot OAuth policy concurrency cap, retry buffer-limit classification, and Cloudflare Workers binding N/A rationale.
 
-## v0.84.1 Go implementation and decisions
+## v0.84.2 Go implementation and decisions
 
 | Upstream delta | Go disposition |
 | --- | --- |
-| `qwen-token-plan-individual` provider | Implemented. Added `ProviderQwenTokenPlanIndividual`, `QWEN_TOKEN_PLAN_API_KEY` reuse, OpenAI Completions catalog entries, and exact international endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`. |
-| Exact Individual seven-model allowlist | Implemented mechanically from exact v0.84.1 provider data: `deepseek-v4-flash-0731`, `deepseek-v4-pro`, `glm-5.2`, `qwen3.6-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.8-max`. Tests: `qwen_token_plan_upstream_test.go`. |
-| Qwen request fields | Implemented/fixed. Qwen `thinkingFormat:"qwen"` now emits `enable_thinking` and, when compat supports it, `reasoning_effort`. Tests: `inference/provider/openai/qwen_token_plan_individual_upstream_test.go`. |
-| Text catalog refresh | Implemented mechanically. Exact npm artifact comparison: `1153/38` → `1220/39`, with 70 added, 3 removed, 9 metadata-changed pairs. Go provider/id pair comparator: `1220/1220` exact; normalized full regeneration comparator proves all Go-representable metadata across 1220 entries. |
-| Image catalog | Proved unchanged. v0.84.1 image generation writes 42 image models and diffs clean against `images/models_generated.go`. |
-| Strict generator rollback/failure policy | N/A/adapted-generator-policy. Upstream test targets private TS `generate-models.ts --strict` rollback behavior; Go consumes exact release artifacts and proves final output via exact comparators rather than claiming helper-policy parity. |
-| 128-file corpus | Updated. `docs/v0841-128-test-manifest.md` has exact 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 TODO. Credential-gated live Qwen Individual additions are labeled, not claimed as passing. |
+| Strict JSON-schema tool conversion | Implemented in `schema_strict.go`. Strict conversion clones schema, rejects unsupported constructs (`$ref`, `$defs`, `allOf`, `oneOf`, schema-valued/true `additionalProperties`, structured unions, tuple schemas, etc.), makes object properties required, adds `additionalProperties:false`, and widens optional non-nullable properties to `anyOf[..., {type:"null"}]`. Tests: `schema_strict_test.go`, provider strict-schema tests. |
+| Optional non-nullable null omission | Implemented in `ValidateToolArguments`: nulls on optional non-nullable properties are deleted before coercion/validation, including nested objects; nullable/reference nulls are preserved. Tests: `upstream_validation_v0842_test.go`. |
+| Provider strict schema propagation | Implemented/adapted for OpenAI Completions, OpenAI Responses, Codex/Responses tool conversion path, Anthropic, Bedrock, Google, and Mistral. Tests: `openai/v0842_strict_schema_test.go`, `mistral/v0842_strict_schema_test.go`, `bedrock/v0842_sanitization_test.go`, existing constrained sampling tests. |
+| OpenAI Responses namespace | Implemented. `ToolCall`/`ContentBlock` now include `Namespace`; streamed `output_item.done` namespace is persisted and same-model replay emits it. Test: `openairesponses/v0842_namespace_additional_tools_test.go`. |
+| OpenAI Responses `additional_tools` | Implemented. `SupportsAdditionalTools` compat is generated, deferred tool planning now emits message-anchored `additional_tools` instead of `tool_search_*` where supported; tool-search fallback retained. Test: `openairesponses/v0842_namespace_additional_tools_test.go`. |
+| Codex `end_turn` and user-agent | Implemented. Codex SSE/WS terminal responses preserve `Message.EndTurn`; Codex headers use shared `pi (...)` shape instead of `go-ai (...)`. Test: `openaicodex/v0842_endturn_useragent_test.go`. |
+| Bedrock tool input/schema sanitization | Implemented. Bedrock tool-use replay strips empty object keys recursively, and strict provider schema conversion feeds tool input schemas when supported. Test: `bedrock/v0842_sanitization_test.go`. |
+| Google strict tool schema / stop mapping | Implemented. Google tools receive strict-converted JSON schemas for Gemini 3+ strict sampling, and tool calls only upgrade stop reason to `toolUse` when the provider stop reason maps to `stop`, not for error finish reasons. Test: `raw_stop_reason_upstream_test.go`. |
+| Mistral HTTP transport rewrite | Adapted. Go already used direct HTTP/SSE rather than the TS SDK; v0.84.2 Go work keeps that architecture and ports Go-facing strict schema serialization. JS fetch injection/camelCase SDK remapping is N/A to Go. |
+| Cloudflare Workers AI Gateway binding | N/A/JS-Workers-binding. Upstream adds a Workers `env.AI.gateway().run()` fetch shim; Go has no Workers binding/fetch abstraction. Existing Cloudflare HTTPS gateway base URL/auth/placeholder behavior remains covered; ledger records the precise N/A boundary. |
+| GitHub Copilot OAuth policy enablement | Implemented/adapted. Go policy enablement now batches model policy calls at concurrency 4, matching upstream throttling intent; live GitHub policy endpoint remains credential/network-bound. |
+| Retry classification | Implemented. `exceeded request buffer limit while retrying upstream` is classified retryable. Test: `retry_assistant_test.go`. |
+| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.2 source and official npm provider shards. `compare-upstream-models.py`: 1267/1267 exact. Portable full metadata gate passes from local exact inputs and empty self-fetch cache. |
+| Image catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84.2 `image-models.generated.ts`: 45 image models. `scripts/check-model-regeneration.sh` now also verifies image catalog regeneration. |
+| Upstream test corpus | Updated. `docs/v0842-131-test-manifest.md` has 131 rows, 103 deterministic/covered, 28 N/A/adapted, 0 unclassified. |
+
+## Comparator evidence
+
+```text
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0842/npm0842/package/dist/providers/data \
+  python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0842/packages/ai/src/providers
+upstream pairs: 1267
+generated pairs: 1267
+model provider/id pairs match exactly
+
+PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0842/packages/ai/src/models.generated.ts \
+PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/pi-v0842/packages/ai/src/image-models.generated.ts \
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0842/npm0842/package/dist/providers/data \
+TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
+model regeneration metadata comparator passed
+image model regeneration comparator passed
+
+unset PI_AI_MODELS_GENERATED_TS PI_AI_IMAGE_MODELS_GENERATED_TS PI_AI_MODEL_DATA_DIR
+GO_AI_MODEL_REGEN_CACHE=/workspace/tmp/go-ai-v0842-gate-cache TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
+model regeneration metadata comparator passed
+image model regeneration comparator passed
+
+text pairs: 1267 / 1267, providers: 39
+image pairs: 45, providers: 1
+```
+
 
 ## v0.84.0 Go implementation and decisions (retained baseline history)
 
@@ -131,7 +170,7 @@ Final corrective gate passed before commit/push. Retained logs: `/workspace/tmp/
 Focused validation and full gate passed before commit/push:
 
 ```text
-docs/v0841-128-test-manifest.md row check: 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 TODO
+docs/v0841-128-test-manifest.md row check: 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 unclassified
 TMPDIR=/workspace/tmp go test ./... -run 'QwenTokenPlan|QwenTokenPlanIndividual|RegisterBuiltinModels|OpenAICompletionsEmptyTools'
 PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0841/packages/ai/src/providers
 # upstream pairs: 1220
@@ -176,7 +215,7 @@ Prior v0.84.1 logs retained: `/workspace/tmp/go-ai-v0841-gates/`.
 Correction cycle 4 gate evidence:
 
 ```text
-docs/v0840-127-test-manifest.md row check: 127 rows, 101 deterministic/covered, 26 N/A/adapted, 0 TODO
+docs/v0840-127-test-manifest.md row check: 127 rows, 101 deterministic/covered, 26 N/A/adapted, 0 unclassified
 go test ./... -run 'OpenAIResponsesCompat|OpenAIResponsesCacheRetention|OpenAIResponsesExplicitHeaders|OpenAIResponsesRequiredToolChoice|OpenAIResponsesServiceTier|OpenAIResponsesOffReasoning|XAI|ResolveCloudflare|CloudflareBaseURL'
 go test ./...
 PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.0-package/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0840/packages/ai/src/providers  # 1153/1153 exact

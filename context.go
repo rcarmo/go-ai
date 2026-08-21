@@ -126,20 +126,21 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 	if err := json.Unmarshal(tool.Parameters, &schema); err != nil {
 		return tc.Arguments, nil
 	}
+	out := make(map[string]interface{}, len(tc.Arguments))
+	for k, v := range tc.Arguments {
+		out[k] = v
+	}
+	normalizeOptionalNulls(out, schema)
 	if required, ok := schema["required"].([]interface{}); ok {
 		for _, r := range required {
 			name, ok := r.(string)
 			if !ok {
 				continue
 			}
-			if _, exists := tc.Arguments[name]; !exists {
+			if _, exists := out[name]; !exists {
 				return nil, fmt.Errorf("validation failed for tool %q: missing required field %q", tool.Name, name)
 			}
 		}
-	}
-	out := make(map[string]interface{}, len(tc.Arguments))
-	for k, v := range tc.Arguments {
-		out[k] = v
 	}
 	if properties, ok := schema["properties"].(map[string]interface{}); ok {
 		for name, val := range out {
@@ -159,6 +160,61 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 
 func validateAndCoerceType(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
 	return coerceWithJSONSchema(name, value, schema)
+}
+
+func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) {
+	switch v := value.(type) {
+	case []interface{}:
+		if itemSchemas, ok := schema["items"].([]interface{}); ok {
+			for i := range v {
+				if i >= len(itemSchemas) {
+					break
+				}
+				if itemSchema, ok := itemSchemas[i].(map[string]interface{}); ok {
+					normalizeOptionalNulls(v[i], itemSchema)
+				}
+			}
+			return
+		}
+		if itemSchema, ok := schema["items"].(map[string]interface{}); ok {
+			for i := range v {
+				normalizeOptionalNulls(v[i], itemSchema)
+			}
+		}
+	case map[string]interface{}:
+		properties, ok := schema["properties"].(map[string]interface{})
+		if !ok {
+			return
+		}
+		required := map[string]bool{}
+		if rawRequired, ok := schema["required"].([]interface{}); ok {
+			for _, r := range rawRequired {
+				if name, ok := r.(string); ok {
+					required[name] = true
+				}
+			}
+		}
+		for key, rawProperty := range properties {
+			propertySchema, ok := rawProperty.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			current, exists := v[key]
+			if !exists {
+				continue
+			}
+			if current == nil && !required[key] && !hasStringRef(propertySchema) && !schemaAllowsNull(propertySchema) {
+				delete(v, key)
+				continue
+			}
+			normalizeOptionalNulls(current, propertySchema)
+		}
+	}
+}
+
+func hasStringRef(schema map[string]interface{}) bool {
+	_, ok := schema["$ref"].(string)
+	return ok
 }
 
 func coerceWithJSONSchema(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {

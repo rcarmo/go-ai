@@ -46,6 +46,7 @@ type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
 	supportsLongCacheRetention      bool
 	supportsToolReferences          bool
+	supportsStrictTools             bool
 	forceAdaptiveThinking           bool
 	allowEmptySignature             bool
 }
@@ -65,6 +66,9 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		}
 		if model.AnthropicCompat.SupportsToolReferences != nil {
 			c.supportsToolReferences = *model.AnthropicCompat.SupportsToolReferences
+		}
+		if model.AnthropicCompat.SupportsStrictTools != nil {
+			c.supportsStrictTools = *model.AnthropicCompat.SupportsStrictTools
 		}
 		if model.AnthropicCompat.ForceAdaptiveThinking != nil {
 			c.forceAdaptiveThinking = *model.AnthropicCompat.ForceAdaptiveThinking
@@ -345,6 +349,7 @@ type anthropicTool struct {
 	Name                string          `json:"name"`
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
+	Strict              bool            `json:"strict,omitempty"`
 	CacheControl        *cacheControl   `json:"cache_control,omitempty"`
 	EagerInputStreaming *bool           `json:"eager_input_streaming,omitempty"`
 	DeferLoading        bool            `json:"defer_loading,omitempty"`
@@ -539,10 +544,19 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		deferredNames[t.Name] = true
 	}
 	for i, t := range activeTools {
+		parameters := t.Parameters
+		strictTool := false
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, compatForTools.supportsStrictTools); err == nil && strict != nil && *strict {
+			strictTool = true
+			if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+				parameters = strictParameters
+			}
+		}
 		tool := anthropicTool{
 			Name:        toClaudeCodeToolName(t.Name, model),
 			Description: t.Description,
-			InputSchema: t.Parameters,
+			InputSchema: parameters,
+			Strict:      strictTool,
 		}
 		if compatForTools.supportsEagerToolInputStreaming {
 			tool.EagerInputStreaming = boolPtr(true)

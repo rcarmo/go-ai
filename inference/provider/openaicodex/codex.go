@@ -229,6 +229,10 @@ func extractCodexAccountID(token string) (string, error) {
 	return accountID, nil
 }
 
+func codexPiUserAgent() string {
+	return fmt.Sprintf("pi (%s; %s)", runtime.GOOS, runtime.GOARCH)
+}
+
 func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string) http.Header {
 	h := http.Header{}
 	goai.ApplyHeaders(h, modelHeaders)
@@ -236,7 +240,7 @@ func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHe
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
 	h.Set("originator", "pi")
-	h.Set("User-Agent", fmt.Sprintf("go-ai (%s %s)", runtime.GOOS, runtime.GOARCH))
+	h.Set("User-Agent", codexPiUserAgent())
 	h.Set("OpenAI-Beta", "responses=experimental")
 	h.Set("Accept", "text/event-stream")
 	h.Set("Content-Type", "application/json")
@@ -255,7 +259,7 @@ func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, supp
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
 	h.Set("originator", "pi")
-	h.Set("User-Agent", fmt.Sprintf("go-ai (%s %s)", runtime.GOOS, runtime.GOARCH))
+	h.Set("User-Agent", codexPiUserAgent())
 	h.Set("OpenAI-Beta", "responses_websockets=2026-02-06")
 	if requestID != "" {
 		h.Set("session-id", requestID)
@@ -942,9 +946,10 @@ readLoop:
 		case "response.completed", "response.incomplete", "response.done":
 			sawCompletion = true
 			var resp struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
-				Usage  *struct {
+				ID      string `json:"id"`
+				Status  string `json:"status"`
+				EndTurn *bool  `json:"end_turn"`
+				Usage   *struct {
 					InputTokens  int `json:"input_tokens"`
 					OutputTokens int `json:"output_tokens"`
 					TotalTokens  int `json:"total_tokens"`
@@ -956,6 +961,9 @@ readLoop:
 			json.Unmarshal(raw.Response, &resp)
 			if resp.ID != "" {
 				partial.ResponseID = resp.ID
+			}
+			if resp.EndTurn != nil {
+				partial.EndTurn = resp.EndTurn
 			}
 			if resp.Usage != nil {
 				cached := 0
@@ -1326,9 +1334,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
-				Usage  *struct {
+				ID      string `json:"id"`
+				Status  string `json:"status"`
+				EndTurn *bool  `json:"end_turn"`
+				Usage   *struct {
 					InputTokens  int `json:"input_tokens"`
 					OutputTokens int `json:"output_tokens"`
 					TotalTokens  int `json:"total_tokens"`
@@ -1339,6 +1348,9 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			}
 			json.Unmarshal(raw.Response, &resp)
 			partial.ResponseID = resp.ID
+			if resp.EndTurn != nil {
+				partial.EndTurn = resp.EndTurn
+			}
 			if resp.Usage != nil {
 				partial.Usage = &goai.Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens, TotalTokens: resp.Usage.TotalTokens}
 				if resp.Usage.InputDetails != nil {
@@ -1393,6 +1405,7 @@ type codexTool struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description,omitempty"`
 	Parameters  json.RawMessage        `json:"parameters,omitempty"`
+	Strict      *bool                  `json:"strict,omitempty"`
 	Format      map[string]interface{} `json:"format,omitempty"`
 }
 
@@ -1441,6 +1454,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	req.Input = inputJSON
 
 	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
+	supportsStrictMode := model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || *model.ResponsesCompat.SupportsStrictMode
 	for _, t := range convCtx.Tools {
 		if supportsGrammar && t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" {
 			definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
@@ -1454,8 +1468,22 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 				continue
 			}
 		}
+		parameters := t.Parameters
+		strictValue := false
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil {
+			strictValue = *strict
+			if *strict {
+				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+					parameters = strictParameters
+				}
+			}
+		}
+		var strictPtr *bool
+		if supportsStrictMode {
+			strictPtr = &strictValue
+		}
 		req.Tools = append(req.Tools, codexTool{
-			Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters,
+			Type: "function", Name: t.Name, Description: t.Description, Parameters: parameters, Strict: strictPtr,
 		})
 	}
 

@@ -319,23 +319,34 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Tools
-	req.Tools = convertTools(convCtx.Tools, false)
+	supportsStrictMode := supportsGoogleStrictToolSampling(model.ID)
+	req.Tools = convertTools(convCtx.Tools, false, supportsStrictMode)
 
 	return req
 }
 
-func convertTools(tools []goai.Tool, useParameters ...bool) []geminiToolDecl {
+func convertTools(tools []goai.Tool, args ...bool) []geminiToolDecl {
 	if len(tools) == 0 {
 		return nil
 	}
-	useSchemaParameters := len(useParameters) > 0 && useParameters[0]
+	useSchemaParameters := len(args) > 0 && args[0]
+	supportsStrictMode := true
+	if len(args) > 1 {
+		supportsStrictMode = args[1]
+	}
 	funcs := make([]geminiToolFunc, 0, len(tools))
 	for _, t := range tools {
+		parameters := t.Parameters
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil && *strict {
+			if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+				parameters = strictParameters
+			}
+		}
 		decl := geminiToolFunc{Name: t.Name, Description: t.Description}
 		if useSchemaParameters {
-			decl.Parameters = stripGoogleSchemaMeta(t.Parameters)
+			decl.Parameters = stripGoogleSchemaMeta(parameters)
 		} else {
-			decl.ParametersJsonSchema = t.Parameters
+			decl.ParametersJsonSchema = parameters
 		}
 		funcs = append(funcs, decl)
 	}
@@ -519,6 +530,11 @@ func requiresToolCallID(modelID string) bool {
 
 // supportsMultimodalFunctionResponse returns true for Gemini 3+ models which
 // support image parts directly in functionResponse.
+func supportsGoogleStrictToolSampling(modelID string) bool {
+	v := getGeminiMajorVersion(modelID)
+	return v >= 3
+}
+
 func supportsMultimodalFunctionResponse(modelID string) bool {
 	v := getGeminiMajorVersion(modelID)
 	if v > 0 {
@@ -733,7 +749,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					partial.ErrorMessage = "Provider stopped with: " + cand.FinishReason
 				}
 				for _, c := range partial.Content {
-					if c.Type == "toolCall" {
+					if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
 						partial.StopReason = goai.StopReasonToolUse
 						break
 					}

@@ -339,13 +339,20 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	// Tools
 	if len(convCtx.Tools) > 0 {
 		toolConfig := &types.ToolConfiguration{}
+		supportsStrictMode := model != nil && model.ResponsesCompat != nil && model.ResponsesCompat.SupportsStrictMode != nil && *model.ResponsesCompat.SupportsStrictMode
 		for _, t := range convCtx.Tools {
+			parameters := t.Parameters
+			if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil && *strict {
+				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+					parameters = strictParameters
+				}
+			}
 			toolConfig.Tools = append(toolConfig.Tools, &types.ToolMemberToolSpec{
 				Value: types.ToolSpecification{
 					Name:        aws.String(t.Name),
 					Description: aws.String(t.Description),
 					InputSchema: &types.ToolInputSchemaMemberJson{
-						Value: mustDocument(t.Parameters),
+						Value: mustDocument(parameters),
 					},
 				},
 			})
@@ -439,7 +446,7 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 						Value: types.ToolUseBlock{
 							ToolUseId: aws.String(b.ID),
 							Name:      aws.String(b.Name),
-							Input:     mustDocument(mustJSON(b.Arguments)),
+							Input:     mustDocument(mustJSON(sanitizeBedrockDocumentValue(b.Arguments))),
 						},
 					})
 				case "thinking":
@@ -692,6 +699,28 @@ func createImageBlock(mimeType, data string) types.ContentBlock {
 			Source: &types.ImageSourceMemberBytes{Value: decoded},
 			Format: format,
 		},
+	}
+}
+
+func sanitizeBedrockDocumentValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(v))
+		for key, nested := range v {
+			if key == "" {
+				continue
+			}
+			out[key] = sanitizeBedrockDocumentValue(nested)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(v))
+		for i, nested := range v {
+			out[i] = sanitizeBedrockDocumentValue(nested)
+		}
+		return out
+	default:
+		return value
 	}
 }
 

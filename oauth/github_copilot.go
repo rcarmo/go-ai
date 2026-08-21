@@ -306,11 +306,28 @@ func refreshGitHubCopilotAccessToken(ctx context.Context, refreshToken, enterpri
 	}, nil
 }
 
+const copilotPolicyConcurrency = 4
+
 // EnableAllGitHubCopilotModels enables known Copilot model policies where required.
 func EnableAllGitHubCopilotModels(copilotToken, enterpriseDomain string) {
 	goai.RegisterBuiltinModels()
-	for _, model := range goai.ListModels(goai.ProviderGitHubCopilot) {
-		_ = EnableGitHubCopilotModel(copilotToken, model.ID, enterpriseDomain)
+	models := goai.ListModels(goai.ProviderGitHubCopilot)
+	for start := 0; start < len(models); start += copilotPolicyConcurrency {
+		end := start + copilotPolicyConcurrency
+		if end > len(models) {
+			end = len(models)
+		}
+		done := make(chan struct{}, end-start)
+		for _, model := range models[start:end] {
+			modelID := model.ID
+			go func() {
+				defer func() { done <- struct{}{} }()
+				_ = EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain)
+			}()
+		}
+		for i := start; i < end; i++ {
+			<-done
+		}
 	}
 }
 

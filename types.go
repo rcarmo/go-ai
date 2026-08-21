@@ -174,6 +174,7 @@ type ToolCall struct {
 	Name             string                 `json:"name"`
 	Arguments        map[string]interface{} `json:"arguments"`
 	ThoughtSignature string                 `json:"thoughtSignature,omitempty"`
+	Namespace        string                 `json:"namespace,omitempty"`
 }
 
 // ContentBlock is any content element in a message.
@@ -200,6 +201,7 @@ type ContentBlock struct {
 	Name             string                 `json:"name,omitempty"`
 	Arguments        map[string]interface{} `json:"arguments,omitempty"`
 	ThoughtSignature string                 `json:"thoughtSignature,omitempty"`
+	Namespace        string                 `json:"namespace,omitempty"`
 }
 
 // --- Usage ---
@@ -287,6 +289,7 @@ type Message struct {
 	Deferred      *DeferredHandle              `json:"deferred,omitempty"`
 	RawStopReason string                       `json:"rawStopReason,omitempty"`
 	ErrorMessage  string                       `json:"errorMessage,omitempty"`
+	EndTurn       *bool                        `json:"endTurn,omitempty"`
 
 	// ToolResult-only fields
 	ToolCallID     string   `json:"toolCallId,omitempty"`

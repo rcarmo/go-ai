@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (42 image models, 1 provider)
+// Source: image-models.generated.ts (45 image models, 1 provider)
 
 package images
 
@@ -60,6 +60,26 @@ var builtinImageModels = []ImagesModel{
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
 		Input:    []string{"image", "text"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "bytedance-seed/seedream-5-0-lite",
+		Name:     "ByteDance Seed: Seedream 5.0 Lite",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "bytedance-seed/seedream-5-0-pro",
+		Name:     "ByteDance Seed: Seedream 5.0 Pro",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
 		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
@@ -416,6 +436,16 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "sourceful/riverflow-v2.5-pro",
 		Name:     "Sourceful: Riverflow V2.5 Pro",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "x-ai/grok-imagine-image-2.0",
+		Name:     "xAI: Grok Imagine Image 2.0",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

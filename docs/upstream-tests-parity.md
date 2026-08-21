@@ -1,17 +1,17 @@
-# Upstream test-for-test parity checklist — pi-ai 2b3fda9921b5590f285165287bd442a25817f17b / v0.80.6
+# Upstream test-for-test parity checklist — pi-ai v0.84.2
 
-Canonical source: `github.com/earendil-works/pi` at commit `2b3fda9921b5590f285165287bd442a25817f17b` (`packages/ai`).
+Canonical source: `github.com/earendil-works/pi` tag `v0.84.2`, SHA `914cf1472e715297caa30db4b9535d534a9eb718` (`packages/ai`).
 
-Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. The pinned v0.80.6 source contains **94** `packages/ai/**/*.test.ts` files; the current upstream source baseline used for reopened parity contains **96** files after adding `azure-openai-responses-reasoning-replay.test.ts` and `deferred-tools.test.ts`. Relative to v0.80.5, v0.80.6 adds `context-estimate.test.ts` and `max-thinking.test.ts`, and changes assertions in `anthropic-empty-thinking-signature-compat.test.ts`, `github-copilot-anthropic.test.ts`, `models-runtime.test.ts`, `openai-completions-tool-choice.test.ts`, `openai-responses-copilot-provider.test.ts`, `openai-responses-terminal-event.test.ts`, and `supports-xhigh.test.ts`.
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. The current exact upstream test corpus contains **131** `packages/ai/test/*.test.ts` files. The path-addressable current manifest is `docs/v0842-131-test-manifest.md`; historical rows below are retained for earlier-audit traceability.
 
-Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, or JS-only packaging behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks; **TODO** = deterministic upstream file not yet ported name-for-name. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
+Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, JS-only packaging behavior, or Workers-only binding behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
 
 ## Summary
 
-- DETERMINISTIC-PORTED: 72 files
-- N/A credential/live/JS-runtime files: 24 files
-- TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 96 / 96 files
+- DETERMINISTIC-PORTED / deterministic covered: 103 files
+- N/A credential/live/JS-runtime/generator-policy/Workers-binding files: 28 files
+- Unclassified upstream test files: 0
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 131 / 131 files
 
 ## Test files
 
@@ -112,35 +112,34 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_empty_thinking_signature_compat_test.go; models_catalog_upstream_test.go | Xiaomi AMS empty-signature compatibility is covered deterministically via request-shape replay preserving `signature:""` when compat allows it plus Xiaomi catalog tests. Passing under make check. |
 | `test/zen.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 
-## v0.84.1 upstream test inventory update
+## v0.84.2 upstream test inventory update
 
-Exact upstream source `/workspace/tmp/pi-v0841/packages/ai/test` contains **128** `*.test.ts` files. The current cumulative whole-corpus manifest is `docs/v0841-128-test-manifest.md` and classifies every file with no TODO/needs-classification entries. The prior accepted v0.84.0 manifest remains in `docs/v0840-127-test-manifest.md`.
+Exact upstream source `/workspace/tmp/pi-v0842/packages/ai/test` contains **131** `*.test.ts` files. The current cumulative whole-corpus manifest is `docs/v0842-131-test-manifest.md` and classifies every file with no unclassified entries. The prior accepted v0.84.1 manifest remains in `docs/v0841-128-test-manifest.md`.
 
 Whole-corpus summary:
 
-- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 101 files
-- N/A credential/live/JS-runtime/generator-policy-adapted only: 27 files
-- TODO deterministic/needs classification: 0 files
-- Achieved (`DETERMINISTIC + N/A`): 128 / 128 files
+- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 103 files
+- N/A credential/live/JS-runtime/generator-policy/Workers-binding adapted only: 28 files
+- Unclassified upstream test files: 0
+- Achieved (`DETERMINISTIC + N/A`): 131 / 131 files
 
-New files relative to accepted v0.83.0/v0.84.0 and Go dispositions:
+New files in v0.84.2 and Go dispositions:
 
 | Upstream test file | Status | Go evidence / rationale |
 | --- | --- | --- |
-| `test/baseten-models.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openai/openai_v0840_test.go` asserts Baseten catalog metadata, `BASETEN_API_KEY`, `chat_template_args`, and `reasoning_effort` payload behavior. |
-| `test/openai-completions-thinking-token-budget.test.ts` | DETERMINISTIC-PORTED | `TestOpenAIThinkingTokenBudgetLeavesAnswerRoom` covers compat-gated `thinking_token_budget` and answer-room clamp. |
-| `test/sampling-options.test.ts` | DETERMINISTIC-PORTED | `TestOpenAIAdvancedSamplingParamsOverrideTypedFields` and `TestResponsesSamplingParamsOverrideTypedFields` cover model/request sampling param merge/override for OpenAI-compatible APIs; non-OpenAI providers ignore the new field by not reading it. |
-| `test/bedrock-error-metadata.test.ts` | DETERMINISTIC-PORTED / ADAPTED | `TestProcessConverseStreamAddsFailureDiagnosticForStreamErr` covers Go AWS/Smithy request id/error-code diagnostic path; send-error metadata path is adapted in production code. |
-| `test/google-shared-retry.test.ts` | N/A/covered | TS SDK retry wrapper behavior; Go providers use existing context-aware HTTP/retry helpers and Google provider tests. No distinct Go surface. |
-| `test/google-shared-signed-empty-blocks.test.ts` | N/A/covered | TS Google SDK signed empty-block serialization details; Go already handles signed/thinking/tool payloads in provider tests where applicable. |
-| `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED | Opaque `TelemetryContext` plus stream/deferred/image hook propagation tests: `TestTelemetryContextHooks`, faux deferred telemetry assertions, OpenRouter image telemetry hooks. |
-| `test/generate-models-strict.test.ts` | N/A/adapted-generator-policy | v0.84.1 private TS generator rollback/failure policy for Qwen Token Plan Individual allowlist. Go validates exact final artifacts with source/package comparator and documents helper policy as N/A/adapted rather than claiming a test-for-test port. |
+| `test/cloudflare-gateway-binding.test.ts` | N/A/JS-Workers-binding | Upstream tests a Workers `env.AI.gateway().run()` fetch shim. Go has no Workers binding/fetch-injection surface; Cloudflare HTTPS gateway URL/auth/placeholder behavior remains covered by existing Go tests. |
+| `test/mistral-http-transport.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Go already used direct HTTP/SSE rather than the TS SDK. Existing Mistral request/retry/raw-stop tests plus `inference/provider/mistral/v0842_strict_schema_test.go` cover the Go-facing v0.84.2 behavior. |
+| `test/openai-responses-namespace.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openairesponses/v0842_namespace_additional_tools_test.go` covers namespace capture from `output_item.done`, persistence on `ContentBlock`/`ToolCall`, and same-model replay. |
 
-No v0.84.1 upstream test file remains TODO/needs classification.
-- v0.84.1 update: `qwen-token-plan-models.test.ts` is ported for exact Individual provider exposure/env/request behavior; `generate-models-strict.test.ts` and private generator helper policy are labeled N/A/adapted-generator-policy with exact release-artifact comparison retained.
-- Whole-corpus hardening retained: `openai-responses-compat.test.ts` is ported via `inference/provider/openairesponses/responses_compat_upstream_test.go`; `cloudflare-stream.test.ts` unresolved-placeholder behavior is ported via `cloudflare_stream_upstream_test.go`; credential-gated E2E/live files are explicitly N/A/live-only in the manifest and are not represented as passing.
-- Correction cycle 3: OAuth refresh cancellation and telemetry context contracts are now ported/adapted; see `RELEASE.md` and `docs/v0840-release-ledger.md` correction cycle 3.
-- Correction cycle 2: `providers.test.ts` deferred response lifecycle assertions from upstream commit `382aa641` are ported in `inference/provider/faux/faux_test.go`; `telemetry-options.test.ts` is now ported via opaque `TelemetryContext` hook propagation tests.
+Changed-test highlights:
 
-Full path-addressable v0.84 changed-test delta appendix: `docs/v0840-release-ledger.md#v0840-changed-test-delta-appendix-46-paths`.
-Full v0.84.1 128-file whole-corpus manifest: `docs/v0841-128-test-manifest.md`.
+- `constrained-sampling.test.ts` / `validation.test.ts`: strict JSON Schema conversion and optional-null omission ported via `schema_strict.go`, `context.go`, and focused tests.
+- `deferred-tools.test.ts` / `openai-responses-compat.test.ts`: Responses `additional_tools` mode and strict Cloudflare tool behavior ported.
+- `openai-codex-stream.test.ts`: Codex `end_turn` and `pi (...)` user-agent shape ported.
+- `google-raw-stop-reason.test.ts`: tool calls only upgrade stop-mapped finishes to `toolUse`; malformed finish reasons remain errors.
+- `retry.test.ts`: request-buffer exhaustion wording classified retryable.
+- `supports-xhigh.test.ts`: v0.84.2 catalog thinking-level changes adopted.
+
+Full changed-path ledger: `docs/v0842-release-ledger.md`.
+Full v0.84.2 131-file whole-corpus manifest: `docs/v0842-131-test-manifest.md`.
+Prior manifests retained: `docs/v0841-128-test-manifest.md`, `docs/v0840-127-test-manifest.md`.

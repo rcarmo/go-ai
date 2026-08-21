@@ -125,6 +125,7 @@ type compatEntry struct {
 	SendSessionIdHeader                         *bool                        `json:"sendSessionIdHeader"`
 	SupportsEagerToolInputStreaming             *bool                        `json:"supportsEagerToolInputStreaming"`
 	SupportsToolReferences                      *bool                        `json:"supportsToolReferences"`
+	SupportsAdditionalTools                     *bool                        `json:"supportsAdditionalTools"`
 	SupportsToolSearch                          *bool                        `json:"supportsToolSearch"`
 	SupportsCacheControlOnTools                 *bool                        `json:"supportsCacheControlOnTools"`
 	SupportsStrictTools                         *bool                        `json:"supportsStrictTools"`
@@ -441,6 +442,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
+		writeBoolField(b, "SupportsAdditionalTools", c.SupportsAdditionalTools)
 		writeBoolField(b, "SupportsToolSearch", c.SupportsToolSearch)
 		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
@@ -463,7 +465,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {

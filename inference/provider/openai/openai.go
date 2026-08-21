@@ -294,14 +294,24 @@ func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cac
 				continue
 			}
 		}
+		parameters := t.Parameters
+		strictForTool := strictMode
+		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, strictMode); err == nil && strict != nil {
+			strictForTool = *strict
+			if *strict {
+				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
+					parameters = strictParameters
+				}
+			}
+		}
 		defs = append(defs, toolDef{
 			Type:         "function",
 			CacheControl: cacheMarker,
 			Function: &toolFunction{
 				Name:        t.Name,
 				Description: t.Description,
-				Parameters:  t.Parameters,
-				Strict:      strictMode,
+				Parameters:  parameters,
+				Strict:      strictForTool,
 			},
 		})
 	}
