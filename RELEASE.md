@@ -48,7 +48,7 @@ Audited scope:
 | Retry classification | Implemented. `exceeded request buffer limit while retrying upstream` is classified retryable. Test: `retry_assistant_test.go`. |
 | Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.2 source and official npm provider shards. `compare-upstream-models.py`: 1267/1267 exact. Portable full metadata gate passes from local exact inputs and empty self-fetch cache. |
 | Image catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84.2 `image-models.generated.ts`: 45 image models. `scripts/check-model-regeneration.sh` now also verifies image catalog regeneration. |
-| Upstream test corpus | Updated. `docs/v0842-131-test-manifest.md` has 131 rows, 103 deterministic/covered, 28 N/A/adapted, 0 unclassified. |
+| Upstream test corpus | Updated. `docs/v0842-131-test-manifest.md` has 131 well-formed rows, 131 unique upstream test paths, exact set equality with `/workspace/tmp/v0842_test_files.txt`, 21 changed-row markers, 103 deterministic/covered, 28 N/A/adapted, 0 unclassified. |
 
 ## Comparator evidence
 
@@ -171,6 +171,9 @@ Focused validation and full gate passed before commit/push:
 
 ```text
 docs/v0841-128-test-manifest.md row check: 128 rows, 101 deterministic/covered, 27 N/A/adapted, 0 unclassified
+scripts/validate-test-manifest.py docs/v0842-131-test-manifest.md /workspace/tmp/v0842_test_files.txt
+# manifest rows: 131; unique paths: 131; expected paths: 131; changed-row markers: 21; manifest validation passed
+
 TMPDIR=/workspace/tmp go test ./... -run 'QwenTokenPlan|QwenTokenPlanIndividual|RegisterBuiltinModels|OpenAICompletionsEmptyTools'
 PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0.84.1-package/package/dist/providers/data scripts/compare-upstream-models.py /workspace/tmp/pi-v0841/packages/ai/src/providers
 # upstream pairs: 1220

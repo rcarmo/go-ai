@@ -75,7 +75,7 @@ Exact command: `git diff --name-status v0.84.1..v0.84.2 -- packages/ai`.
 | Cloudflare gateway binding | N/A/JS-Workers-binding | No Go Workers `env.AI` binding surface; HTTPS gateway behavior remains covered. |
 | Text catalog | Implemented mechanically | `models_generated.go`: 1267 models / 39 providers; pair comparator exact 1267/1267; full metadata regeneration gate passed. |
 | Image catalog | Implemented mechanically | `images/models_generated.go`: 45 image models; image regeneration gate added to `scripts/check-model-regeneration.sh` and passed. |
-| Whole-corpus test crosswalk | Updated | `docs/v0842-131-test-manifest.md`: 131 rows, 103 deterministic/covered, 28 N/A/adapted, 0 unclassified. |
+| Whole-corpus test crosswalk | Updated | `docs/v0842-131-test-manifest.md`: 131 well-formed rows, 131 unique upstream test paths, exact set equality with `/workspace/tmp/v0842_test_files.txt`, 21 changed-row markers, 103 deterministic/covered, 28 N/A/adapted, 0 unclassified. |
 
 ## Comparator evidence
 
@@ -115,6 +115,9 @@ whole test corpus: 131
 Final validation evidence before commit/push:
 
 ```text
+scripts/validate-test-manifest.py docs/v0842-131-test-manifest.md /workspace/tmp/v0842_test_files.txt
+# manifest rows: 131; unique paths: 131; expected paths: 131; changed-row markers: 21; manifest validation passed
+
 TMPDIR=/workspace/tmp go test ./...
 PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0842/npm0842/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0842/packages/ai/src/providers
 PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0842/packages/ai/src/models.generated.ts PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/pi-v0842/packages/ai/src/image-models.generated.ts PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0842/npm0842/package/dist/providers/data TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
