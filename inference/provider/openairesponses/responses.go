@@ -131,6 +131,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

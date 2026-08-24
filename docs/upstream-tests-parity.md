@@ -1,17 +1,17 @@
-# Upstream test-for-test parity checklist — pi-ai v0.84.2
+# Upstream test-for-test parity checklist — pi-ai v0.84.3
 
-Canonical source: `github.com/earendil-works/pi` tag `v0.84.2`, SHA `914cf1472e715297caa30db4b9535d534a9eb718` (`packages/ai`).
+Canonical source: `github.com/earendil-works/pi` tag `v0.84.3`, SHA `4e58f324fae8ebfa98a3d45181fb248072a2afac` (`packages/ai`).
 
-Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. The current exact upstream test corpus contains **131** `packages/ai/test/*.test.ts` files. The path-addressable current manifest is `docs/v0842-131-test-manifest.md`; historical rows below are retained for earlier-audit traceability.
+Finding: the npm tarball omits upstream tests; this checklist is based on the GitHub source tree. The current exact upstream test corpus contains **136** `packages/ai/test/*.test.ts` files. The path-addressable current manifest is `docs/v0843-136-test-manifest.md`; historical rows below are retained for earlier-audit traceability.
 
 Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port with the same deterministic cases/expected values and is passing; **N/A** = upstream file is not runnable in this Go-library/no-credential environment (live/E2E requiring API keys, Node module-load/proxy runtime checks, JS-only packaging behavior, or Workers-only binding behavior) and must not be represented by skip-only Go wrappers or fabricated deterministic mocks. Achievable parity is `DETERMINISTIC-PORTED + N/A`.
 
 ## Summary
 
-- DETERMINISTIC-PORTED / deterministic covered: 103 files
-- N/A credential/live/JS-runtime/generator-policy/Workers-binding files: 28 files
+- DETERMINISTIC-PORTED / deterministic covered: 107 files
+- N/A credential/live/JS-runtime/generator-policy/Workers-binding files: 29 files
 - Unclassified upstream test files: 0
-- Achieved (`DETERMINISTIC-PORTED + N/A`): 131 / 131 files
+- Achieved (`DETERMINISTIC-PORTED + N/A`): 136 / 136 files
 
 ## Test files
 
@@ -112,24 +112,26 @@ Status key: **DETERMINISTIC-PORTED** = upstream test file has a named Go port wi
 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | inference/provider/anthropic/anthropic_empty_thinking_signature_compat_test.go; models_catalog_upstream_test.go | Xiaomi AMS empty-signature compatibility is covered deterministically via request-shape replay preserving `signature:""` when compat allows it plus Xiaomi catalog tests. Passing under make check. |
 | `test/zen.test.ts` | N/A | — | Requires live credentials/networked upstream service; per Rui decision, no keys means no tests, so the skip-only wrapper was removed and no deterministic mock substitute will be fabricated. |
 
-## v0.84.2 upstream test inventory update
+## v0.84.3 upstream test inventory update
 
-Exact upstream source `/workspace/tmp/pi-v0842/packages/ai/test` contains **131** `*.test.ts` files. The current cumulative whole-corpus manifest is `docs/v0842-131-test-manifest.md` and classifies every file with no unclassified entries. The prior accepted v0.84.1 manifest remains in `docs/v0841-128-test-manifest.md`.
+Exact upstream source `/workspace/tmp/pi-v0843/packages/ai/test` contains **136** `*.test.ts` files. The current cumulative whole-corpus manifest is `docs/v0843-136-test-manifest.md` and classifies every file with no unclassified entries. The prior accepted v0.84.2 manifest remains in `docs/v0842-131-test-manifest.md`.
 
 Whole-corpus summary:
 
-- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 103 files
-- N/A credential/live/JS-runtime/generator-policy/Workers-binding adapted only: 28 files
+- DETERMINISTIC-PORTED / DETERMINISTIC-PORTED-ADAPTED / deterministic covered: 107 files
+- N/A credential/live/JS-runtime/generator-policy/Workers-binding adapted only: 29 files
 - Unclassified upstream test files: 0
-- Achieved (`DETERMINISTIC + N/A`): 131 / 131 files
+- Achieved (`DETERMINISTIC + N/A`): 136 / 136 files
 
-New files in v0.84.2 and Go dispositions:
+New files in v0.84.3 and Go dispositions:
 
 | Upstream test file | Status | Go evidence / rationale |
 | --- | --- | --- |
-| `test/cloudflare-gateway-binding.test.ts` | N/A/JS-Workers-binding | Upstream tests a Workers `env.AI.gateway().run()` fetch shim. Go has no Workers binding/fetch-injection surface; Cloudflare HTTPS gateway URL/auth/placeholder behavior remains covered by existing Go tests. |
-| `test/mistral-http-transport.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Go already used direct HTTP/SSE rather than the TS SDK. Existing Mistral request/retry/raw-stop tests plus `inference/provider/mistral/v0842_strict_schema_test.go` cover the Go-facing v0.84.2 behavior. |
-| `test/openai-responses-namespace.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openairesponses/v0842_namespace_additional_tools_test.go` covers namespace capture from `output_item.done`, persistence on `ContentBlock`/`ToolCall`, and same-model replay. |
+| `test/azure-openai-tool-choice.test.ts` | DETERMINISTIC-PORTED | `inference/provider/openairesponses/v0843_azure_tool_choice_test.go` verifies Azure Responses `tool_choice` serialization and tool preservation. |
+| `test/bedrock-redacted-reasoning.test.ts` | DETERMINISTIC-PORTED | `inference/provider/bedrock/v0843_redacted_reasoning_test.go` verifies redacted reasoning preservation and replay. |
+| `test/bedrock-response-headers.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Bedrock response hooks expose modeled request-id metadata in Go; raw Smithy gateway headers are an SDK-bound adaptation. |
+| `test/google-thinking-level-map.test.ts` | DETERMINISTIC-PORTED | `inference/provider/google/v0843_thinking_level_map_test.go` verifies mapped levels, errors, and budgets. |
+| `test/zai-coding-plan-models.test.ts` | DETERMINISTIC-PORTED | `zai_coding_plan_upstream_test.go` verifies global/CN ZAI coding plan catalogs and env keys. |
 
 Changed-test highlights:
 
@@ -143,3 +145,5 @@ Changed-test highlights:
 Full changed-path ledger: `docs/v0842-release-ledger.md`.
 Full v0.84.2 131-file whole-corpus manifest: `docs/v0842-131-test-manifest.md`.
 Prior manifests retained: `docs/v0841-128-test-manifest.md`, `docs/v0840-127-test-manifest.md`.
+
+Full v0.84.3 136-file whole-corpus manifest: `docs/v0843-136-test-manifest.md`.

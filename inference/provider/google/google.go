@@ -87,6 +87,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
@@ -291,8 +292,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if model.Reasoning {
 		reasoningRequested := opts != nil && opts.Reasoning != nil && *opts.Reasoning != ""
 		if reasoningRequested {
-			level, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
-			if !ok || level == "off" {
+			level, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+			if err != nil {
 				level = string(goai.ThinkingHigh)
 			}
 			tc := &geminiThinkingConfig{}
@@ -851,6 +852,25 @@ func getDisabledThinkingConfig(model *goai.Model) *geminiThinkingConfig {
 	// Gemini 2.x: disable via budget=0
 	zero := 0
 	return &geminiThinkingConfig{ThinkingBudget: &zero}
+}
+
+func resolveGoogleThinkingLevel(model *goai.Model, level goai.ModelThinkingLevel) (string, error) {
+	if level == goai.ThinkingOff {
+		return string(goai.ThinkingHigh), nil
+	}
+	resolved := string(level)
+	if mapped, ok := model.ThinkingLevelMap[level]; ok {
+		if mapped == nil {
+			return "", fmt.Errorf("unsupported google thinking level %s", level)
+		}
+		resolved = strings.ToLower(*mapped)
+	}
+	switch resolved {
+	case "minimal", "low", "medium", "high":
+		return resolved, nil
+	default:
+		return "", fmt.Errorf("unsupported google thinking level mapping %s -> %s", level, resolved)
+	}
 }
 
 func getGoogleThinkingLevel(effort string, model *goai.Model) string {

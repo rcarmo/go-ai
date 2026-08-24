@@ -157,6 +157,9 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			return
 		}
 
+		if requestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata); requestID != "" {
+			goai.InvokeOnResponse(opts, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"x-amzn-requestid": []string{requestID}}}, model)
+		}
 		processConverseStream(resp, model, ch)
 	}()
 
@@ -450,6 +453,12 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 						},
 					})
 				case "thinking":
+					if b.Redacted {
+						if decoded, err := base64.StdEncoding.DecodeString(b.ThinkingSignature); err == nil && len(decoded) > 0 {
+							content = append(content, &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: decoded}})
+						}
+						continue
+					}
 					if strings.TrimSpace(b.Thinking) == "" {
 						continue
 					}
@@ -735,6 +744,13 @@ func mustJSON(v interface{}) json.RawMessage {
 	return b
 }
 
+func finalizeBedrockThinkingBlock(block *goai.ContentBlock, redacted []byte) {
+	if block == nil || block.Type != "thinking" || !block.Redacted || len(redacted) == 0 {
+		return
+	}
+	block.ThinkingSignature = base64.StdEncoding.EncodeToString(redacted)
+}
+
 // --- Stream processing ---
 
 func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, ch chan<- goai.Event) {
@@ -752,6 +768,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	type blockState struct {
 		contentIdx  int
 		partialJSON string
+		redacted    []byte
 	}
 	blockMap := map[int]*blockState{}
 
@@ -835,7 +852,17 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 					partial.Content[bs.contentIdx].Thinking += rc.Value
 					ch <- &goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: rc.Value, Partial: partial}
 				case *types.ReasoningContentBlockDeltaMemberSignature:
-					partial.Content[bs.contentIdx].ThinkingSignature += rc.Value
+					if !partial.Content[bs.contentIdx].Redacted {
+						partial.Content[bs.contentIdx].ThinkingSignature += rc.Value
+					}
+				case *types.ReasoningContentBlockDeltaMemberRedactedContent:
+					if !partial.Content[bs.contentIdx].Redacted {
+						partial.Content[bs.contentIdx].Redacted = true
+						partial.Content[bs.contentIdx].Thinking = "[Reasoning redacted]"
+						partial.Content[bs.contentIdx].ThinkingSignature = ""
+						ch <- &goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: "[Reasoning redacted]", Partial: partial}
+					}
+					bs.redacted = append(bs.redacted, rc.Value...)
 				}
 			}
 
@@ -854,7 +881,8 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 			case "text":
 				ch <- &goai.TextEndEvent{ContentIndex: ci, Content: block.Text, Partial: partial}
 			case "thinking":
-				ch <- &goai.ThinkingEndEvent{ContentIndex: ci, Content: block.Thinking, Partial: partial}
+				finalizeBedrockThinkingBlock(&partial.Content[ci], bs.redacted)
+				ch <- &goai.ThinkingEndEvent{ContentIndex: ci, Content: partial.Content[ci].Thinking, Partial: partial}
 			case "toolCall":
 				args, _ := jsonparse.ParsePartialJSON(bs.partialJSON)
 				if args == nil {
@@ -903,6 +931,12 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 		appendBedrockFailureDiagnostic(partial, err, responseRequestID)
 		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
 		return
+	}
+
+	for _, bs := range blockMap {
+		if bs.contentIdx >= 0 && bs.contentIdx < len(partial.Content) {
+			finalizeBedrockThinkingBlock(&partial.Content[bs.contentIdx], bs.redacted)
+		}
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()

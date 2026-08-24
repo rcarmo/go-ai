@@ -90,6 +90,7 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		}
 
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)

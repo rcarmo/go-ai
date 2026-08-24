@@ -92,8 +92,8 @@ func TestSupportsXHighIncludesLowHighMaxPlusOffForDeepSeekV4FlashOnDeepSeek(t *t
 	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "low", "high", "max"})
 }
 
-func TestSupportsXHighIncludesOnlyHighMaxPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenCodeGo, "deepseek-v4-flash"), []string{"off", "high", "max"})
+func TestSupportsXHighIncludesLowHighMaxPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {
+	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenCodeGo, "deepseek-v4-flash"), []string{"off", "low", "high", "max"})
 }
 
 func TestSupportsXHighIncludesOnlyHighPlusOffForOpenCodeGoKimiK26(t *testing.T) {

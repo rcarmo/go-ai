@@ -14,14 +14,14 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	// Check we have the current official upstream release catalog scope.
 	providers := goai.ListProviders()
 	if len(providers) != 39 {
-		t.Fatalf("expected exactly 39 providers from pi-ai v0.84.2 tag 914cf14, got %d", len(providers))
+		t.Fatalf("expected exactly 39 providers from pi-ai v0.84.3 tag 4e58f32, got %d", len(providers))
 	}
 	total := 0
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1267 {
-		t.Fatalf("expected exactly 1267 generated models from pi-ai v0.84.2 tag 914cf14, got %d", total)
+	if total != 1312 {
+		t.Fatalf("expected exactly 1312 generated models from pi-ai v0.84.3 tag 4e58f32, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,12 +84,12 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.67 || kimi.Cost.Output != 3.4 || kimi.Cost.CacheRead != 0.15 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.84.2 metadata, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.67 || kimi.Cost.Output != 3.4 || kimi.Cost.CacheRead != 0.17 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 262144 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.84.3 metadata, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.63 || openRouterGLM52.Cost.Output != 1.98 || openRouterGLM52.Cost.CacheRead != 0.0945 || openRouterGLM52.ContextWindow != 262144 || openRouterGLM52.MaxTokens != 4096 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.84.2 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.966 || openRouterGLM52.Cost.Output != 3.036 || openRouterGLM52.Cost.CacheRead != 0.1932 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.84.3 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -121,7 +121,6 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		provider goai.Provider
 		id       string
 	}{
-		{goai.ProviderOpenCode, "laguna-s-2.1-free"},
 		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1"},
 		{goai.ProviderOpenRouter, "poolside/laguna-s-2.1:free"},
 		{goai.ProviderVercelAIGateway, "poolside/laguna-s-2.1"},
@@ -148,9 +147,9 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		}
 	}
 
-	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash")
+	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.5")
 	if xiaomi == nil {
-		t.Fatal("expected Xiaomi mimo-v2-flash model")
+		t.Fatal("expected Xiaomi mimo-v2.5 model")
 	}
 	if xiaomi.CompletionsCompat == nil || xiaomi.CompletionsCompat.ThinkingFormat != "deepseek" || xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages == nil || !*xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages {
 		t.Fatalf("expected Xiaomi OpenAI-compatible DeepSeek thinking compat metadata, got %#v", xiaomi.CompletionsCompat)

@@ -21,6 +21,7 @@ const defaultBaseURL = "https://api.anthropic.com/v1"
 const apiVersion = "2023-06-01"
 const fineGrainedToolStreamingBeta = "fine-grained-tool-streaming-2025-05-14"
 const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
+const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
 
 var claudeCodeToolCanonicalNames = map[string]string{
 	"read":            "Read",
@@ -49,6 +50,7 @@ type anthropicCompat struct {
 	supportsStrictTools             bool
 	forceAdaptiveThinking           bool
 	allowEmptySignature             bool
+	allowedFallbackModels           []goai.AnthropicAllowedFallbackModel
 }
 
 func getAnthropicCompat(model *goai.Model) anthropicCompat {
@@ -75,6 +77,9 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		}
 		if model.AnthropicCompat.AllowEmptySignature != nil {
 			c.allowEmptySignature = *model.AnthropicCompat.AllowEmptySignature
+		}
+		if len(model.AnthropicCompat.AllowedFallbackModels) > 0 {
+			c.allowedFallbackModels = model.AnthropicCompat.AllowedFallbackModels
 		}
 	}
 	return c
@@ -242,11 +247,15 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
 			betas = append(betas, fineGrainedToolStreamingBeta)
 		}
+		if len(compat.allowedFallbackModels) > 0 {
+			betas = append(betas, serverSideFallbackBeta)
+		}
 		if len(betas) > 0 {
 			req.Header.Set("Anthropic-Beta", joinBetas(betas))
 		}
 
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, opts.Headers)
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
@@ -289,15 +298,20 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type anthropicRequest struct {
-	Model        string             `json:"model"`
-	MaxTokens    int                `json:"max_tokens"`
-	System       json.RawMessage    `json:"system,omitempty"`
-	Messages     []anthropicMessage `json:"messages"`
-	Stream       bool               `json:"stream"`
-	Tools        []anthropicTool    `json:"tools,omitempty"`
-	Temperature  *float64           `json:"temperature,omitempty"`
-	Thinking     *anthropicThinking `json:"thinking,omitempty"`
-	OutputConfig *anthropicOutput   `json:"output_config,omitempty"`
+	Model        string              `json:"model"`
+	MaxTokens    int                 `json:"max_tokens"`
+	System       json.RawMessage     `json:"system,omitempty"`
+	Messages     []anthropicMessage  `json:"messages"`
+	Stream       bool                `json:"stream"`
+	Tools        []anthropicTool     `json:"tools,omitempty"`
+	Temperature  *float64            `json:"temperature,omitempty"`
+	Thinking     *anthropicThinking  `json:"thinking,omitempty"`
+	OutputConfig *anthropicOutput    `json:"output_config,omitempty"`
+	Fallbacks    []anthropicFallback `json:"fallbacks,omitempty"`
+}
+
+type anthropicFallback struct {
+	Model string `json:"model"`
 }
 
 type anthropicThinking struct {
@@ -365,6 +379,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		Model:     model.ID,
 		MaxTokens: maxTokens,
 		Stream:    true,
+	}
+	if compat := getAnthropicCompat(model); len(compat.allowedFallbackModels) > 0 {
+		for _, fallback := range compat.allowedFallbackModels {
+			req.Fallbacks = append(req.Fallbacks, anthropicFallback{Model: fallback.Model})
+		}
 	}
 
 	// System prompt with cache control
@@ -607,6 +626,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 
 	ch <- &goai.StartEvent{Partial: partial}
 
+	usageModel := model
 	toolJSON := map[int]string{}
 	sawMessageStart := false
 	sawMessageStop := false
@@ -765,6 +785,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			var data struct {
 				Message struct {
 					ID    string `json:"id"`
+					Model string `json:"model"`
 					Usage struct {
 						InputTokens   int `json:"input_tokens"`
 						CacheRead     int `json:"cache_read_input_tokens"`
@@ -780,6 +801,20 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				return
 			}
 			partial.ResponseID = data.Message.ID
+			if data.Message.Model != "" {
+				partial.Model = data.Message.Model
+				if data.Message.Model != model.ID {
+					for _, fallback := range getAnthropicCompat(model).allowedFallbackModels {
+						if fallback.Provider == model.Provider && fallback.Model == data.Message.Model {
+							copy := *model
+							copy.ID = data.Message.Model
+							copy.Cost = fallback.Cost
+							usageModel = &copy
+							break
+						}
+					}
+				}
+			}
 			partial.Usage.Input = data.Message.Usage.InputTokens
 			partial.Usage.CacheRead = data.Message.Usage.CacheRead
 			partial.Usage.CacheWrite = data.Message.Usage.CacheCreate
@@ -796,7 +831,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
-	computeCosts(partial.Usage, model)
+	computeCosts(partial.Usage, usageModel)
 
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError

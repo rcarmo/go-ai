@@ -158,6 +158,13 @@ func HasAnthropicAuthHeader(headers ...map[string]string) bool {
 	return false
 }
 
+// PiUserAgent returns the default pi runtime user-agent used by providers
+// that do not need an upstream product-specific user-agent.
+func PiUserAgent() string { return "pi (go)" }
+
+// PiUserAgentHeader returns a ProviderHeaders-style default User-Agent map.
+func PiUserAgentHeader() map[string]string { return map[string]string{"User-Agent": PiUserAgent()} }
+
 // ApplyHeaders applies header values to h.
 func ApplyHeaders(h http.Header, headers map[string]string) {
 	for k, v := range headers {

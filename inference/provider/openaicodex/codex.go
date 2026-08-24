@@ -1447,6 +1447,9 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	if opts != nil && opts.ServiceTier != "" {
 		req.ServiceTier = opts.ServiceTier
 	}
+	if opts != nil && opts.ToolChoice != "" {
+		req.ToolChoice = string(opts.ToolChoice)
+	}
 
 	// Build input in Responses-compatible format, but with system prompt carried in top-level instructions.
 	input := buildCodexInput(model, convCtx)

@@ -165,20 +165,23 @@ func TestTogetherModelsResolvesTogetherAPIKeyFromEnvironment(t *testing.T) {
 	}
 }
 
-func TestXiaomiModelsKeepsMimoV2FlashOnTheAPIBillingProvider(t *testing.T) {
+func TestXiaomiModelsKeepsMimoV25OnAPIBillingAndTokenPlanProviders(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2-flash"); model == nil {
-		t.Fatalf("mimo-v2-flash should be present for xiaomi")
+	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.5"); model == nil {
+		t.Fatalf("mimo-v2.5 should be present for xiaomi")
+	}
+	for _, provider := range []goai.Provider{goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
+		if model := goai.GetModel(provider, "mimo-v2.5"); model == nil {
+			t.Fatalf("mimo-v2.5 should be present for %s", provider)
+		}
 	}
 }
 
-func TestXiaomiModelsOmitsMimoV2FlashFromTokenPlanProviders(t *testing.T) {
+func TestXiaomiModelsOmitRetiredMimoV2Flash(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	for _, provider := range []goai.Provider{goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
-		for _, model := range goai.ListModels(provider) {
-			if model.ID == "mimo-v2-flash" {
-				t.Fatalf("mimo-v2-flash should be omitted from %s", provider)
-			}
+	for _, provider := range []goai.Provider{goai.ProviderXiaomi, goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
+		if model := goai.GetModel(provider, "mimo-v2-flash"); model != nil {
+			t.Fatalf("retired mimo-v2-flash should be omitted from %s", provider)
 		}
 	}
 }

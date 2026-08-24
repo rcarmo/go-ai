@@ -109,6 +109,7 @@ type compatEntry struct {
 	ThinkingFormat                              string                       `json:"thinkingFormat"`
 	ChatTemplateKwargs                          map[string]chatTemplateKwarg `json:"chatTemplateKwargs"`
 	ChatTemplateArgs                            map[string]chatTemplateKwarg `json:"chatTemplateArgs"`
+	ThinkingTokenBudgetField                    string                       `json:"thinkingTokenBudgetField"`
 	SupportsThinkingTokenBudget                 *bool                        `json:"supportsThinkingTokenBudget"`
 	OpenRouterRouting                           map[string]interface{}       `json:"openRouterRouting"`
 	VercelGatewayRouting                        map[string]interface{}       `json:"vercelGatewayRouting"`
@@ -121,6 +122,7 @@ type compatEntry struct {
 	SupportsLongCacheRetention                  *bool                        `json:"supportsLongCacheRetention"`
 	SupportsTemperature                         *bool                        `json:"supportsTemperature"`
 	ForceAdaptiveThinking                       *bool                        `json:"forceAdaptiveThinking"`
+	AllowedFallbackModels                       []allowedFallbackModel       `json:"allowedFallbackModels"`
 	AllowEmptySignature                         *bool                        `json:"allowEmptySignature"`
 	SendSessionIdHeader                         *bool                        `json:"sendSessionIdHeader"`
 	SupportsEagerToolInputStreaming             *bool                        `json:"supportsEagerToolInputStreaming"`
@@ -131,6 +133,12 @@ type compatEntry struct {
 	SupportsStrictTools                         *bool                        `json:"supportsStrictTools"`
 	SessionAffinityFormat                       string                       `json:"sessionAffinityFormat"`
 	SupportsExplicitPromptCacheMode             *bool                        `json:"supportsExplicitPromptCacheMode"`
+}
+
+type allowedFallbackModel struct {
+	Provider string    `json:"provider"`
+	Model    string    `json:"model"`
+	Cost     costEntry `json:"cost"`
 }
 
 type chatTemplateKwarg struct {
@@ -425,6 +433,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeStringField(b, "ThinkingFormat", c.ThinkingFormat)
 		writeChatTemplateKwargsField(b, "ChatTemplateKwargs", c.ChatTemplateKwargs)
 		writeChatTemplateKwargsField(b, "ChatTemplateArgs", c.ChatTemplateArgs)
+		writeStringField(b, "ThinkingTokenBudgetField", c.ThinkingTokenBudgetField)
 		writeBoolField(b, "SupportsThinkingTokenBudget", c.SupportsThinkingTokenBudget)
 		writeMapField(b, "OpenRouterRouting", c.OpenRouterRouting)
 		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
@@ -455,6 +464,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
 		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
 		writeBoolField(b, "ForceAdaptiveThinking", c.ForceAdaptiveThinking)
+		writeAllowedFallbackModelsField(b, c.AllowedFallbackModels)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		writeBoolField(b, "SupportsStrictTools", c.SupportsStrictTools)
 		writeBoolField(b, "SupportsCacheControlOnTools", c.SupportsCacheControlOnTools)
@@ -465,7 +475,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
@@ -510,6 +520,20 @@ func writeChatTemplateKwargsField(b *strings.Builder, fieldName string, value ma
 			data, _ := json.Marshal(v.Value)
 			b.WriteString(fmt.Sprintf("Value: mustValue(%q), ", string(data)))
 		}
+		b.WriteString("}, ")
+	}
+	b.WriteString("}, ")
+}
+
+func writeAllowedFallbackModelsField(b *strings.Builder, value []allowedFallbackModel) {
+	if len(value) == 0 {
+		return
+	}
+	b.WriteString("AllowedFallbackModels: []AnthropicAllowedFallbackModel{")
+	for _, fallback := range value {
+		b.WriteString("{")
+		b.WriteString(fmt.Sprintf("Provider: Provider(%q), Model: %q, ", fallback.Provider, fallback.Model))
+		b.WriteString(fmt.Sprintf("Cost: ModelCost{Input: %g, Output: %g, CacheRead: %g, CacheWrite: %g}, ", fallback.Cost.Input, fallback.Cost.Output, fallback.Cost.CacheRead, fallback.Cost.CacheWrite))
 		b.WriteString("}, ")
 	}
 	b.WriteString("}, ")

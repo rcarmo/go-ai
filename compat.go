@@ -15,6 +15,14 @@ type ChatTemplateKwargValue struct {
 	OmitWhenOff bool        `json:"omitWhenOff,omitempty"`
 }
 
+// AnthropicAllowedFallbackModel describes a server-side Anthropic fallback
+// target plus the local pricing metadata to use when that model is returned.
+type AnthropicAllowedFallbackModel struct {
+	Provider Provider  `json:"provider"`
+	Model    string    `json:"model"`
+	Cost     ModelCost `json:"cost"`
+}
+
 // OpenAICompletionsCompat holds compatibility overrides for OpenAI-compatible APIs.
 // These control wire-format differences across Ollama, Groq, xAI, OpenRouter,
 // vLLM, LM Studio, z.ai, and other providers.
@@ -60,6 +68,9 @@ type OpenAICompletionsCompat struct {
 
 	// Arguments to send as chat_template_args when ThinkingFormat is "baseten".
 	ChatTemplateArgs map[string]ChatTemplateKwargValue `json:"chatTemplateArgs,omitempty"`
+
+	// Top-level request field used to cap reasoning tokens on compatible endpoints.
+	ThinkingTokenBudgetField string `json:"thinkingTokenBudgetField,omitempty"`
 
 	// Whether to emit top-level thinking_token_budget for vLLM-compatible reasoning endpoints.
 	SupportsThinkingTokenBudget *bool `json:"supportsThinkingTokenBudget,omitempty"`
@@ -157,6 +168,9 @@ type AnthropicMessagesCompat struct {
 	// Whether the model uses adaptive thinking (type: "adaptive") instead of budget-based thinking.
 	// Models like Opus 4.7+, Fable 5 use this mode.
 	ForceAdaptiveThinking *bool `json:"forceAdaptiveThinking,omitempty"`
+
+	// Server-side fallback targets accepted by Anthropic for this model.
+	AllowedFallbackModels []AnthropicAllowedFallbackModel `json:"allowedFallbackModels,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
@@ -215,6 +229,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if len(o.ChatTemplateArgs) > 0 {
 		c.ChatTemplateArgs = o.ChatTemplateArgs
+	}
+	if o.ThinkingTokenBudgetField != "" {
+		c.ThinkingTokenBudgetField = o.ThinkingTokenBudgetField
 	}
 	if o.SupportsThinkingTokenBudget != nil {
 		c.SupportsThinkingTokenBudget = o.SupportsThinkingTokenBudget

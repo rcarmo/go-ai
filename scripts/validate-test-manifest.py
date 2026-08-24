@@ -82,7 +82,7 @@ def main(argv: list[str]) -> int:
             print("extra:", *extra, sep="\n  ", file=sys.stderr)
         return fail("manifest path set differs from expected")
 
-    changed_marked = sum(1 for line in manifest.read_text(encoding="utf-8").splitlines() if "v0.84.2 changed" in line)
+    changed_marked = sum(1 for line in manifest.read_text(encoding="utf-8").splitlines() if re.search(r"v\d+\.\d+\.\d+ changed", line))
     print(f"manifest rows: {len(rows)}")
     print(f"unique paths: {len(got_set)}")
     print(f"expected paths: {len(expected_set)}")

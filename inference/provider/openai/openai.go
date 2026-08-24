@@ -119,6 +119,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			goai.ApplyHeaders(req.Header, opts.Headers)
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
@@ -160,27 +161,28 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 // --- Request building ---
 
 type chatRequest struct {
-	Model                string                 `json:"model"`
-	Messages             []chatMessage          `json:"messages"`
-	Stream               bool                   `json:"stream"`
-	StreamOptions        *streamOpts            `json:"stream_options,omitempty"`
-	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
-	PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
-	Temperature          *float64               `json:"temperature,omitempty"`
-	MaxTokens            *int                   `json:"max_tokens,omitempty"`
-	MaxCompletionToks    *int                   `json:"max_completion_tokens,omitempty"`
-	Tools                []toolDef              `json:"-"`
-	EmitEmptyTools       bool                   `json:"-"`
-	ReasoningEffort      string                 `json:"reasoning_effort,omitempty"`
-	Reasoning            map[string]interface{} `json:"reasoning,omitempty"`
-	Thinking             map[string]interface{} `json:"thinking,omitempty"`
-	EnableThinking       *bool                  `json:"enable_thinking,omitempty"`
-	ChatTemplateKwargs   map[string]interface{} `json:"chat_template_kwargs,omitempty"`
-	ChatTemplateArgs     map[string]interface{} `json:"chat_template_args,omitempty"`
-	ThinkingTokenBudget  *int                   `json:"thinking_token_budget,omitempty"`
-	ToolStream           *bool                  `json:"tool_stream,omitempty"`
-	Store                *bool                  `json:"store,omitempty"`
-	SamplingParams       map[string]interface{} `json:"-"`
+	Model                    string                 `json:"model"`
+	Messages                 []chatMessage          `json:"messages"`
+	Stream                   bool                   `json:"stream"`
+	StreamOptions            *streamOpts            `json:"stream_options,omitempty"`
+	PromptCacheKey           string                 `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention     string                 `json:"prompt_cache_retention,omitempty"`
+	Temperature              *float64               `json:"temperature,omitempty"`
+	MaxTokens                *int                   `json:"max_tokens,omitempty"`
+	MaxCompletionToks        *int                   `json:"max_completion_tokens,omitempty"`
+	Tools                    []toolDef              `json:"-"`
+	EmitEmptyTools           bool                   `json:"-"`
+	ReasoningEffort          string                 `json:"reasoning_effort,omitempty"`
+	Reasoning                map[string]interface{} `json:"reasoning,omitempty"`
+	Thinking                 map[string]interface{} `json:"thinking,omitempty"`
+	EnableThinking           *bool                  `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs       map[string]interface{} `json:"chat_template_kwargs,omitempty"`
+	ChatTemplateArgs         map[string]interface{} `json:"chat_template_args,omitempty"`
+	ThinkingTokenBudget      *int                   `json:"thinking_token_budget,omitempty"`
+	ThinkingTokenBudgetField string                 `json:"-"`
+	ToolStream               *bool                  `json:"tool_stream,omitempty"`
+	Store                    *bool                  `json:"store,omitempty"`
+	SamplingParams           map[string]interface{} `json:"-"`
 }
 
 func (r chatRequest) MarshalJSON() ([]byte, error) {
@@ -197,6 +199,10 @@ func (r chatRequest) MarshalJSON() ([]byte, error) {
 		m["tools"] = r.Tools
 	} else if r.EmitEmptyTools {
 		m["tools"] = []toolDef{}
+	}
+	if r.ThinkingTokenBudgetField != "" && r.ThinkingTokenBudget != nil && r.ThinkingTokenBudgetField != "thinking_token_budget" {
+		delete(m, "thinking_token_budget")
+		m[r.ThinkingTokenBudgetField] = *r.ThinkingTokenBudget
 	}
 	for k, v := range r.SamplingParams {
 		m[k] = v
@@ -487,14 +493,19 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 			}
 		}
 	}
-	if compat.SupportsThinkingTokenBudget != nil && *compat.SupportsThinkingTokenBudget && reasoningRequested && model.Reasoning {
+	thinkingBudgetField := compat.ThinkingTokenBudgetField
+	if thinkingBudgetField == "" && compat.SupportsThinkingTokenBudget != nil && *compat.SupportsThinkingTokenBudget {
+		thinkingBudgetField = "thinking_token_budget"
+	}
+	if thinkingBudgetField != "" && reasoningRequested && model.Reasoning && opts != nil && opts.Reasoning != nil {
 		ceiling := model.MaxTokens
-		if opts != nil && opts.MaxTokens != nil {
+		if opts.MaxTokens != nil {
 			ceiling = goai.ClampStreamMaxTokens(model, convCtx, opts)
 		}
 		_, budget := goai.AdjustThinkingTokenBudget(ceiling, *opts.Reasoning, opts.ThinkingBudgets)
 		if budget > 0 {
 			req.ThinkingTokenBudget = &budget
+			req.ThinkingTokenBudgetField = thinkingBudgetField
 		}
 	}
 
@@ -625,7 +636,7 @@ func buildChatTemplateValues(model *goai.Model, opts *goai.StreamOptions, effort
 	return out
 }
 
-func resolveChatTemplateKwargValue(model *goai.Model, _ *goai.StreamOptions, effort string, value goai.ChatTemplateKwargValue) (interface{}, bool) {
+func resolveChatTemplateKwargValue(model *goai.Model, opts *goai.StreamOptions, effort string, value goai.ChatTemplateKwargValue) (interface{}, bool) {
 	if value.Var == "" {
 		return value.Value, true
 	}
@@ -646,6 +657,19 @@ func resolveChatTemplateKwargValue(model *goai.Model, _ *goai.StreamOptions, eff
 			return *mapped, true
 		}
 		return nil, false
+	case "thinking.budget":
+		if opts == nil || opts.Reasoning == nil || !model.Reasoning {
+			return nil, !value.OmitWhenOff
+		}
+		ceiling := model.MaxTokens
+		if opts.MaxTokens != nil {
+			ceiling = goai.ClampStreamMaxTokens(model, &goai.Context{}, opts)
+		}
+		_, budget := goai.AdjustThinkingTokenBudget(ceiling, *opts.Reasoning, opts.ThinkingBudgets)
+		if budget <= 0 && value.OmitWhenOff {
+			return nil, false
+		}
+		return budget, true
 	default:
 		return value.Value, true
 	}

@@ -38,6 +38,30 @@ func TestXAIUpstreamV0811Grok45UsesResponses(t *testing.T) {
 	}
 }
 
+func TestV0843XAIGrok46ResponsesMetadata(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	model := goai.GetModel(goai.ProviderXAI, "grok-4.6")
+	if model == nil {
+		t.Fatal("missing xAI grok-4.6")
+	}
+	if model.Api != goai.ApiOpenAIResponses || model.BaseURL != "https://api.x.ai/v1" || !model.Reasoning {
+		t.Fatalf("unexpected grok-4.6 metadata: %#v", model)
+	}
+	levels := goai.GetSupportedThinkingLevels(model)
+	want := []goai.ModelThinkingLevel{goai.ModelThinkingLevel(goai.ThinkingLow), goai.ModelThinkingLevel(goai.ThinkingMedium), goai.ModelThinkingLevel(goai.ThinkingHigh), goai.ModelThinkingLevel(goai.ThinkingXHigh)}
+	if len(levels) != len(want) {
+		t.Fatalf("levels=%#v want %#v", levels, want)
+	}
+	for i := range want {
+		if levels[i] != want[i] {
+			t.Fatalf("levels=%#v want %#v", levels, want)
+		}
+	}
+	if model.Cost.CacheRead != 0.5 {
+		t.Fatalf("grok-4.6 cache read cost=%v", model.Cost.CacheRead)
+	}
+}
+
 func TestXAIResponsesRequestShapeMatchesUpstream(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	model := goai.GetModel(goai.ProviderXAI, "grok-4.5")

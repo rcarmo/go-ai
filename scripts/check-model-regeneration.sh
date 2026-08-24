@@ -8,10 +8,10 @@ tmp_root="${TMPDIR:-${GO_TMPDIR:-/tmp}}"
 cache_base="${GO_AI_MODEL_REGEN_CACHE:-${XDG_CACHE_HOME:-${HOME:-$tmp_root}/.cache}/go-ai/model-regeneration}"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v0.84.2"
-upstream_sha="914cf1472e715297caa30db4b9535d534a9eb718"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.2.tgz}"
-npm_sha256="0262785a76b0eb2eec596cd8a7ab2ee23eef89d2ef1bb1211c4f0a1944dacf41"
+upstream_tag="v0.84.3"
+upstream_sha="4e58f324fae8ebfa98a3d45181fb248072a2afac"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.3.tgz}"
+npm_sha256="9c40af2f43950f8e94e7bbcd0c1b3548f000972da00c4fb9c0d0529d4d7d5431"
 
 workdir="$(mktemp -d "${tmp_root%/}/go-ai-model-regen.XXXXXX")"
 cleanup() {
@@ -83,12 +83,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-0.84.2-package"
+  local dir="$cache_base/pi-ai-0.84.3-package"
   local marker="$dir/.sha256"
   if [[ ! -d "$dir/package/dist/providers/data" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-0.84.2.tgz"
+    local tgz="$workdir/pi-ai-0.84.3.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"

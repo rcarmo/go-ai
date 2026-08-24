@@ -154,6 +154,21 @@ func TestOpenAIThinkingTokenBudgetUpstreamMatrix(t *testing.T) {
 	}
 }
 
+func TestV0843OpenAIThinkingTokenBudgetFieldVariants(t *testing.T) {
+	reasoning := goai.ThinkingMedium
+	budget := 4096
+	for _, field := range []string{"thinking_budget", "thinking_budget_tokens"} {
+		model := &goai.Model{ID: "glm", Provider: goai.ProviderZAI, Api: goai.ApiOpenAICompletions, Reasoning: true, MaxTokens: 16384, CompletionsCompat: &goai.OpenAICompletionsCompat{ThinkingFormat: "zai", ThinkingTokenBudgetField: field, MaxTokensField: "max_tokens"}}
+		payload := captureThinkingTokenBudgetPayload(t, model, &reasoning, &goai.ThinkingBudgets{Medium: &budget}, nil)
+		if got := payload[field]; got != float64(4096) {
+			t.Fatalf("%s=%#v, want 4096; payload=%#v", field, got, payload)
+		}
+		if _, ok := payload["thinking_token_budget"]; ok {
+			t.Fatalf("thinking_token_budget should be omitted for field %s: %#v", field, payload)
+		}
+	}
+}
+
 func TestOpenAICompletionsAllowsMissingFinishReasonWhenCompatDisablesIt(t *testing.T) {
 	body := strings.NewReader("data: {\"id\":\"chatcmpl\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n")
 	ch := make(chan goai.Event, 8)
