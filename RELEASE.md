@@ -37,13 +37,14 @@ Audited scope:
 | Generator/type compat | Implemented `ThinkingTokenBudgetField`, `$var:"thinking.budget"` support, and Anthropic fallback metadata generation. |
 | Provider-neutral toolChoice | Implemented/adapted where Go exposes the field: Responses/Azure already serializes it; Codex simple/request path now honors it; Azure test added. |
 | Default Pi User-Agent | Added shared `PiUserAgent` default and applied to HTTP adapters while preserving model/caller override precedence. |
-| Anthropic server-side fallback | Implemented fallback request field, beta flag, and fallback pricing based on returned `message.model`; tests added. |
-| Bedrock redacted reasoning | Implemented preservation/finalization/replay of `redactedContent` as redacted thinking with base64 `thinkingSignature`; tests added. Bedrock response header callback is adapted to modeled request-id metadata due Go SDK raw-header constraints. |
+| Anthropic server-side fallback | Implemented fallback request field, beta flag, and fallback pricing based on returned `message.model`; focused raw `streamAnthropic` HTTP/SSE test now proves `fallbacks`, `server-side-fallback-2026-07-01`, default/explicit User-Agent precedence, returned fallback model, and fallback pricing end-to-end. |
+| Bedrock redacted reasoning / response hooks | Implemented preservation/finalization/replay of `redactedContent` as redacted thinking with base64 `thinkingSignature`; response callback adapted to modeled AWS SDK request-id metadata and covered for status 200/request-id and absent-request-id behavior. Raw Smithy gateway response headers remain unavailable through Go SDK modeled `ConverseStreamOutput`. |
 | Google thinking level mapping | Implemented mapping resolution/error path and mapped budget lookup; tests added. |
 | OpenAI-compatible thinking budgets | Implemented configurable `thinkingTokenBudgetField` variants and `thinking.budget` chat-template variable support. |
-| xAI migration | Generated xAI models now use Responses API; Grok 4.6 metadata/reasoning coverage added. |
+| xAI migration | Generated xAI models now use Responses API; Grok 4.6 metadata/reasoning coverage added, plus raw production `/responses` request tests for low/medium/high/xhigh mapping, encrypted reasoning include, endpoint, auth, and explicit User-Agent override while retaining the Grok 4.5 regression. |
+| GitHub Copilot OAuth policy workflow | Implemented/adapted v0.84.3 catalog/policy workflow: known + tool-capable + unconfigured filtering, policy fallback for Individual accounts, no refresh-time catalog retry, 429 `Retry-After` policy retry, continuation after transport failure, 5s login policy retry budget, and returning credentials when policy enabling stops so caller persistence can proceed. |
 | ZAI Coding Plan | Generated global/CN ZAI coding plan catalogs and env-key tests added. |
-| JS-only/runtime-specific surfaces | Narrowly N/A/adapted where no Go equivalent exists (JS sleep helper internals, Cloudflare Workers binding, private TS generator policy, live credential-only Copilot/GitHub persistence). |
+| JS-only/runtime-specific surfaces | Narrowly N/A/adapted where no Go equivalent exists (JS sleep helper internals, Cloudflare Workers binding, private TS generator policy, JS credential-store implementation details beyond Go's returned-credential boundary). |
 | Upstream test corpus | Updated. `docs/v0843-136-test-manifest.md` has 136 well-formed rows, exact set equality with `/workspace/tmp/v0843/test_files.txt`, 25 changed-row markers, and 0 unclassified rows. |
 
 ## Comparator evidence
@@ -84,6 +85,9 @@ PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/models.generat
 
 # deliberate text/image faults failed as expected; logs under /workspace/tmp/go-ai-v0843-fault-logs/
 
+TMPDIR=/workspace/tmp go test ./oauth ./inference/provider/anthropic ./inference/provider/openairesponses ./inference/provider/bedrock
+# focused v0.84.3 correction packages PASS: Copilot OAuth, Anthropic fallback stream, xAI Grok 4.6 raw Responses, Bedrock modeled response hook
+
 TMPDIR=/workspace/tmp go test ./...
 make check GO_TMPDIR=/workspace/tmp
 TMPDIR=/workspace/tmp go test -shuffle=on ./...
@@ -93,4 +97,5 @@ make staticcheck GO_TMPDIR=/workspace/tmp
 make check-logging
 make test-repro GO_TMPDIR=/workspace/tmp
 # all PASS
+
 ```

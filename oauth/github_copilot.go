@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +33,14 @@ var copilotHeaders = map[string]string{
 const copilotAPIVersion = "2026-06-01"
 
 var copilotPolicyHTTPClient = &http.Client{Timeout: 5 * time.Second}
+var githubCopilotDevicePollWait = func(ctx context.Context, delay time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
+}
 var copilotPolicyListModels = func() []*goai.Model {
 	goai.RegisterBuiltinModels()
 	return goai.ListModels(goai.ProviderGitHubCopilot)
@@ -39,6 +49,11 @@ var copilotPolicyBaseURL = GetGitHubCopilotBaseURL
 
 // GitHubCopilotProvider implements the OAuth flow for GitHub Copilot.
 type GitHubCopilotProvider struct{}
+
+type copilotModelCatalog struct {
+	AvailableModelIDs []string
+	PolicyModelIDs    []string
+}
 
 func init() {
 	RegisterProvider(&GitHubCopilotProvider{})
@@ -94,19 +109,20 @@ func (p *GitHubCopilotProvider) Login(callbacks LoginCallbacks) (*Credentials, e
 		return nil, fmt.Errorf("access token: %w", err)
 	}
 
-	// Exchange for Copilot token, enable known models, then fetch account availability.
+	// Exchange for Copilot token, fetch account availability, then enable requested policies.
 	creds, err := refreshGitHubCopilotAccessToken(ctx, githubToken, enterpriseDomain)
 	if err != nil {
 		return nil, fmt.Errorf("copilot token: %w", err)
 	}
-	if callbacks.OnProgress != nil {
-		callbacks.OnProgress("Enabling models...")
-	}
-	EnableAllGitHubCopilotModels(creds.Access, enterpriseDomain)
-	ids, err := FetchAvailableGitHubCopilotModelIDsContext(ctx, creds.Access, enterpriseDomain)
+	catalog, err := FetchGitHubCopilotModelCatalogContext(ctx, creds.Access, enterpriseDomain)
 	if err != nil {
 		return nil, fmt.Errorf("copilot models: %w", err)
 	}
+	ids := append([]string(nil), catalog.AvailableModelIDs...)
+	if callbacks.OnProgress != nil && len(catalog.PolicyModelIDs) > 0 {
+		callbacks.OnProgress("Enabling models...")
+	}
+	ids = uniqueCopilotModelIDs(append(ids, EnableGitHubCopilotModels(ctx, creds.Access, enterpriseDomain, catalog.PolicyModelIDs)...))
 	if creds.Extra == nil {
 		creds.Extra = map[string]interface{}{}
 	}
@@ -205,10 +221,8 @@ func pollForAccessToken(ctx context.Context, domain, deviceCode string, interval
 	interval := normalizeDeviceCodePollInterval(intervalSecs)
 
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(interval):
+		if err := githubCopilotDevicePollWait(ctx, interval); err != nil {
+			return "", err
 		}
 
 		body := url.Values{
@@ -261,10 +275,11 @@ func RefreshGitHubCopilotTokenContext(ctx context.Context, refreshToken, enterpr
 	if err != nil {
 		return nil, err
 	}
-	ids, err := FetchAvailableGitHubCopilotModelIDsContext(ctx, creds.Access, enterpriseDomain)
+	catalog, err := FetchGitHubCopilotModelCatalogContext(ctx, creds.Access, enterpriseDomain)
 	if err != nil {
 		return nil, err
 	}
+	ids := catalog.AvailableModelIDs
 	if creds.Extra == nil {
 		creds.Extra = map[string]interface{}{}
 	}
@@ -314,48 +329,117 @@ func refreshGitHubCopilotAccessToken(ctx context.Context, refreshToken, enterpri
 }
 
 const copilotPolicyConcurrency = 4
+const copilotPolicyRetryBudget = 5 * time.Second
 
-// EnableAllGitHubCopilotModels enables known Copilot model policies where required.
+var errCopilotPolicyRateLimited = fmt.Errorf("copilot model policy rate limited")
+
+// EnableAllGitHubCopilotModels enables all known Copilot model policies where required.
 func EnableAllGitHubCopilotModels(copilotToken, enterpriseDomain string) {
 	models := copilotPolicyListModels()
-	for start := 0; start < len(models); start += copilotPolicyConcurrency {
-		end := start + copilotPolicyConcurrency
-		if end > len(models) {
-			end = len(models)
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		ids = append(ids, model.ID)
+	}
+	_ = EnableGitHubCopilotModels(context.Background(), copilotToken, enterpriseDomain, ids)
+}
+
+// EnableGitHubCopilotModels enables selected model policies in catalog order.
+func EnableGitHubCopilotModels(ctx context.Context, copilotToken, enterpriseDomain string, modelIDs []string) []string {
+	enabled := make([]string, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if ctx.Err() != nil {
+			return enabled
 		}
-		done := make(chan struct{}, end-start)
-		for _, model := range models[start:end] {
-			modelID := model.ID
-			go func() {
-				defer func() { done <- struct{}{} }()
-				_ = EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain)
-			}()
+		ok, err := EnableGitHubCopilotModelContext(ctx, copilotToken, modelID, enterpriseDomain)
+		if err != nil {
+			if ctx.Err() != nil || errors.Is(err, errCopilotPolicyRateLimited) {
+				return enabled
+			}
+			continue
 		}
-		for i := start; i < end; i++ {
-			<-done
+		if ok {
+			enabled = append(enabled, modelID)
 		}
 	}
+	return enabled
 }
 
 // EnableGitHubCopilotModel enables one Copilot model policy where required.
 func EnableGitHubCopilotModel(copilotToken, modelID, enterpriseDomain string) bool {
+	ok, _ := EnableGitHubCopilotModelContext(context.Background(), copilotToken, modelID, enterpriseDomain)
+	return ok
+}
+
+func EnableGitHubCopilotModelContext(ctx context.Context, copilotToken, modelID, enterpriseDomain string) (bool, error) {
 	baseURL := copilotPolicyBaseURL(copilotToken, enterpriseDomain)
 	endpoint := strings.TrimRight(baseURL, "/") + "/models/" + url.PathEscape(modelID) + "/policy"
-	body := strings.NewReader(`{"state":"enabled"}`)
-	req, _ := http.NewRequest("POST", endpoint, body)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+copilotToken)
-	req.Header.Set("openai-intent", "chat-policy")
-	req.Header.Set("x-interaction-type", "chat-policy")
-	for k, v := range copilotHeaders {
-		req.Header.Set(k, v)
+	deadline := time.Now().Add(copilotPolicyRetryBudget)
+	for attempt := 0; attempt <= 2; attempt++ {
+		body := strings.NewReader(`{"state":"enabled"}`)
+		req, _ := http.NewRequestWithContext(ctx, "POST", endpoint, body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+copilotToken)
+		req.Header.Set("openai-intent", "chat-policy")
+		req.Header.Set("x-interaction-type", "chat-policy")
+		for k, v := range copilotHeaders {
+			req.Header.Set(k, v)
+		}
+		resp, err := copilotPolicyHTTPClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+			return false, nil
+		}
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < 2 {
+			delay := copilotRetryAfter(resp.Header, attempt)
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+			resp.Body.Close()
+			if delay >= time.Until(deadline) {
+				return false, errCopilotPolicyRateLimited
+			}
+			if err := sleepContext(ctx, delay); err != nil {
+				return false, err
+			}
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusTooManyRequests {
+			b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			return false, fmt.Errorf("%w: HTTP %d: %s", errCopilotPolicyRateLimited, resp.StatusCode, string(b))
+		}
+		return resp.StatusCode >= 200 && resp.StatusCode < 300, nil
 	}
-	resp, err := copilotPolicyHTTPClient.Do(req)
-	if err != nil {
-		return false
+	return false, nil
+}
+
+func copilotRetryAfter(header http.Header, attempt int) time.Duration {
+	if raw := header.Get("Retry-After"); raw != "" {
+		if seconds, err := strconv.ParseFloat(raw, 64); err == nil && seconds >= 0 {
+			return time.Duration(seconds * float64(time.Second))
+		}
+		if when, err := http.ParseTime(raw); err == nil {
+			if d := time.Until(when); d > 0 {
+				return d
+			}
+			return 0
+		}
 	}
-	defer resp.Body.Close()
-	return resp.StatusCode >= 200 && resp.StatusCode < 300
+	return time.Duration(500*(1<<attempt)) * time.Millisecond
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // FetchAvailableGitHubCopilotModelIDs returns account-selectable Copilot model IDs.
@@ -364,7 +448,15 @@ func FetchAvailableGitHubCopilotModelIDs(copilotToken, enterpriseDomain string) 
 }
 
 func FetchAvailableGitHubCopilotModelIDsContext(ctx context.Context, copilotToken, enterpriseDomain string) ([]string, error) {
-	baseURL := GetGitHubCopilotBaseURL(copilotToken, enterpriseDomain)
+	catalog, err := FetchGitHubCopilotModelCatalogContext(ctx, copilotToken, enterpriseDomain)
+	if err != nil {
+		return nil, err
+	}
+	return catalog.AvailableModelIDs, nil
+}
+
+func FetchGitHubCopilotModelCatalogContext(ctx context.Context, copilotToken, enterpriseDomain string) (copilotModelCatalog, error) {
+	baseURL := copilotPolicyBaseURL(copilotToken, enterpriseDomain)
 	req, _ := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(baseURL, "/")+"/models", nil)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+copilotToken)
@@ -372,30 +464,96 @@ func FetchAvailableGitHubCopilotModelIDsContext(ctx context.Context, copilotToke
 	for k, v := range copilotHeaders {
 		req.Header.Set(k, v)
 	}
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := copilotPolicyHTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return copilotModelCatalog{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+		return copilotModelCatalog{}, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
 	}
 	var raw struct {
 		Data []map[string]interface{} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, err
+		return copilotModelCatalog{}, err
 	}
-	ids := make([]string, 0, len(raw.Data))
-	for _, item := range raw.Data {
+	return parseGitHubCopilotModelCatalog(raw.Data, strings.TrimRight(baseURL, "/") == "https://api.individual.githubcopilot.com"), nil
+}
+
+func parseGitHubCopilotModelCatalog(items []map[string]interface{}, allowPolicyFallback bool) copilotModelCatalog {
+	known := map[string]bool{}
+	for _, model := range copilotPolicyListModels() {
+		known[model.ID] = true
+	}
+	var available []string
+	var policy []string
+	type accountModel struct {
+		id          string
+		picker      bool
+		policyState string
+		toolCapable bool
+	}
+	account := make([]accountModel, 0, len(items))
+	for _, item := range items {
 		id, _ := item["id"].(string)
-		if id != "" && isSelectableCopilotModel(item) {
-			ids = append(ids, id)
+		if id == "" {
+			continue
+		}
+		toolCapable := true
+		if capabilities, ok := item["capabilities"].(map[string]interface{}); ok {
+			if supports, ok := capabilities["supports"].(map[string]interface{}); ok {
+				if toolCalls, ok := supports["tool_calls"].(bool); ok {
+					toolCapable = toolCalls
+				}
+			}
+		}
+		if !toolCapable {
+			continue
+		}
+		policyState := ""
+		if p, ok := item["policy"].(map[string]interface{}); ok {
+			policyState, _ = p["state"].(string)
+		}
+		picker, _ := item["model_picker_enabled"].(bool)
+		account = append(account, accountModel{id: id, picker: picker, policyState: policyState, toolCapable: toolCapable})
+	}
+	for _, model := range account {
+		if model.picker && model.policyState != "disabled" {
+			available = append(available, model.id)
 		}
 	}
-	return ids, nil
+	usePolicyFallback := allowPolicyFallback && len(available) == 0
+	if usePolicyFallback {
+		for _, model := range account {
+			if model.policyState == "enabled" {
+				available = append(available, model.id)
+			}
+		}
+	}
+	for _, model := range account {
+		if model.policyState == "unconfigured" && known[model.id] && (model.picker || usePolicyFallback) {
+			policy = append(policy, model.id)
+		}
+	}
+	return copilotModelCatalog{AvailableModelIDs: uniqueCopilotModelIDs(available), PolicyModelIDs: uniqueCopilotModelIDs(policy)}
+}
+
+func uniqueCopilotModelIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return ids
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 func isSelectableCopilotModel(item map[string]interface{}) bool {

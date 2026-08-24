@@ -16,9 +16,9 @@ Exact command: `git diff --name-status v0.84.2..v0.84.3 -- packages/ai`.
 | `packages/ai/README.md` | N/A/docs/package metadata | Recorded in RELEASE; no Go runtime surface beyond audited deltas. |
 | `packages/ai/package.json` | N/A/docs/package metadata | Recorded in RELEASE; no Go runtime surface beyond audited deltas. |
 | `packages/ai/scripts/generate-models.ts` | Adopted mechanically | Go generator/check script updated; exact v0.84.3 regeneration proves final artifacts. |
-| `packages/ai/src/api/anthropic-messages.ts` | Implemented/adapted | Fallback request field/beta and fallback pricing added; default User-Agent covered. |
+| `packages/ai/src/api/anthropic-messages.ts` | Implemented/adapted | Fallback request field/beta and fallback pricing added; raw `streamAnthropic` HTTP/SSE test covers `fallbacks`, beta, UA precedence, returned fallback model, and pricing. |
 | `packages/ai/src/api/azure-openai-responses.ts` | Implemented | Azure Responses toolChoice and default User-Agent behavior covered. |
-| `packages/ai/src/api/bedrock-converse-stream.ts` | Implemented/adapted | Redacted reasoning preservation/replay/finalization implemented; response hook metadata adapted to Go SDK. |
+| `packages/ai/src/api/bedrock-converse-stream.ts` | Implemented/adapted | Redacted reasoning preservation/replay/finalization implemented; response hook metadata adapted to Go SDK modeled request-id and covered for present/absent request-id. |
 | `packages/ai/src/api/google-generative-ai.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
 | `packages/ai/src/api/google-shared.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
 | `packages/ai/src/api/google-vertex.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
@@ -29,10 +29,10 @@ Exact command: `git diff --name-status v0.84.2..v0.84.3 -- packages/ai`.
 | `packages/ai/src/api/pi-messages.ts` | Reviewed/adapted | No additional Go runtime surface beyond generated catalog/tests. |
 | `packages/ai/src/api/simple-options.ts` | Reviewed/adapted | No additional Go runtime surface beyond generated catalog/tests. |
 | `packages/ai/src/auth/oauth/device-code.ts` | Reviewed/adapted | No additional Go runtime surface beyond generated catalog/tests. |
-| `packages/ai/src/auth/oauth/github-copilot.ts` | Implemented/adapted | Existing concurrency cap proof retained; live throttling/persistence remains credential-bound. |
+| `packages/ai/src/auth/oauth/github-copilot.ts` | Implemented/adapted | Real Go Copilot login/policy workflow now covers account catalog filtering, Individual fallback, known/tool-capable/unconfigured policy selection, 429 `Retry-After` retry, continuation after transport failure, bounded 5s policy retry budget, and returned credentials after policy stop for caller persistence. |
 | `packages/ai/src/auth/oauth/kimi-coding.ts` | Reviewed/adapted | No additional Go runtime surface beyond generated catalog/tests. |
 | `packages/ai/src/index.ts` | Reviewed/adapted | No additional Go runtime surface beyond generated catalog/tests. |
-| `packages/ai/src/providers/xai.ts` | Implemented mechanically | xAI generated models now use Responses only; Grok 4.6 test added. |
+| `packages/ai/src/providers/xai.ts` | Implemented mechanically | xAI generated models now use Responses only; Grok 4.6 raw `/responses` test covers low/medium/high/xhigh reasoning mapping, encrypted reasoning include, endpoint/auth, and explicit User-Agent override. |
 | `packages/ai/src/types.ts` | Implemented | ToolChoice type, thinking budget field, allowed fallback model fields mirrored in Go types. |
 | `packages/ai/src/utils/sleep.ts` | N/A/adapted | Go retry sleeps already accept context cancellation; existing retry tests remain passing. |
 | `packages/ai/test/anthropic-auth-token.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
@@ -40,9 +40,9 @@ Exact command: `git diff --name-status v0.84.2..v0.84.3 -- packages/ai`.
 | `packages/ai/test/azure-openai-tool-choice.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 | `packages/ai/test/baseten-models.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 | `packages/ai/test/bedrock-redacted-reasoning.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
-| `packages/ai/test/bedrock-response-headers.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
+| `packages/ai/test/bedrock-response-headers.test.ts` | Implemented/adapted | `v0843_redacted_reasoning_test.go` covers modeled request-id/status 200 hook invocation and absent-request-id non-invocation; raw Smithy response headers remain Go SDK-adapted. |
 | `packages/ai/test/generate-models-strict.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
-| `packages/ai/test/github-copilot-oauth.test.ts` | Implemented/adapted | Existing concurrency cap proof retained; live throttling/persistence remains credential-bound. |
+| `packages/ai/test/github-copilot-oauth.test.ts` | Implemented/adapted | `oauth/github_copilot_v0843_test.go` covers policy filtering, retry-after, transport failure continuation, bounded policy retry budget, and login returning credentials for caller persistence. |
 | `packages/ai/test/google-raw-stop-reason.test.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
 | `packages/ai/test/google-thinking-level-map.test.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
 | `packages/ai/test/google-vertex-api-key-resolution.test.ts` | Implemented | Mapped Google thinking levels/budgets and default User-Agent covered. |
@@ -57,7 +57,7 @@ Exact command: `git diff --name-status v0.84.2..v0.84.3 -- packages/ai`.
 | `packages/ai/test/qwen-token-plan-models.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 | `packages/ai/test/stream.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 | `packages/ai/test/supports-xhigh.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
-| `packages/ai/test/xai-responses.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
+| `packages/ai/test/xai-responses.test.ts` | Implemented | `xai_responses_upstream_test.go` retains Grok 4.5 regression and adds Grok 4.6 raw Responses request-shape coverage. |
 | `packages/ai/test/xiaomi-models.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 | `packages/ai/test/zai-coding-plan-models.test.ts` | Classified in corpus manifest | See docs/v0843-136-test-manifest.md; exact path row retained. |
 
@@ -83,6 +83,9 @@ PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/models.generat
 
 # deliberate text/image faults failed as expected; logs under /workspace/tmp/go-ai-v0843-fault-logs/
 
+TMPDIR=/workspace/tmp go test ./oauth ./inference/provider/anthropic ./inference/provider/openairesponses ./inference/provider/bedrock
+# focused v0.84.3 correction packages PASS
+
 TMPDIR=/workspace/tmp go test ./...
 make check GO_TMPDIR=/workspace/tmp
 TMPDIR=/workspace/tmp go test -shuffle=on ./...
@@ -92,4 +95,5 @@ make staticcheck GO_TMPDIR=/workspace/tmp
 make check-logging
 make test-repro GO_TMPDIR=/workspace/tmp
 # all PASS
+
 ```

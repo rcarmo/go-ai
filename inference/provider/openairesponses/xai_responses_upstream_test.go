@@ -136,3 +136,76 @@ func TestXAIResponsesRequestShapeMatchesUpstream(t *testing.T) {
 		t.Fatalf("developer input=%#v", input[0])
 	}
 }
+
+func TestV0843XAIGrok46ResponsesRawRequestShape(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	model := goai.GetModel(goai.ProviderXAI, "grok-4.6")
+	if model == nil {
+		t.Fatal("missing xAI grok-4.6")
+	}
+	if model.Api != goai.ApiOpenAIResponses {
+		t.Fatalf("grok-4.6 api=%q", model.Api)
+	}
+
+	wantEfforts := map[goai.ThinkingLevel]string{
+		goai.ThinkingLow:    "low",
+		goai.ThinkingMedium: "medium",
+		goai.ThinkingHigh:   "high",
+		goai.ThinkingXHigh:  "xhigh",
+	}
+	seenEfforts := map[string]bool{}
+	var paths []string
+	var userAgents []string
+	var authHeaders []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		userAgents = append(userAgents, r.Header.Get("User-Agent"))
+		authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body map[string]any
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("unmarshal grok-4.6 request: %v; body=%s", err, raw)
+		}
+		if body["model"] != "grok-4.6" || body["stream"] != true || body["store"] != false {
+			t.Fatalf("unexpected body core fields: %#v", body)
+		}
+		if _, ok := body["prompt_cache_retention"]; ok {
+			t.Fatalf("xAI should omit prompt_cache_retention: %#v", body)
+		}
+		include, ok := body["include"].([]any)
+		if !ok || len(include) != 1 || include[0] != "reasoning.encrypted_content" {
+			t.Fatalf("include=%#v, want encrypted reasoning include", body["include"])
+		}
+		reasoning, ok := body["reasoning"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing reasoning: %#v", body)
+		}
+		effort, _ := reasoning["effort"].(string)
+		seenEfforts[effort] = true
+		w.Header().Set("content-type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_xai_grok46\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2,\"input_tokens_details\":{\"cached_tokens\":0}}}}\n\n"))
+	}))
+	defer server.Close()
+
+	requestModel := *model
+	requestModel.BaseURL = server.URL
+	for level, want := range wantEfforts {
+		level := level
+		for range streamResponses(context.Background(), &requestModel, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "xai-test-token", Reasoning: &level, Headers: map[string]string{"User-Agent": "custom-xai-agent"}}) {
+		}
+		if !seenEfforts[want] {
+			t.Fatalf("missing mapped effort %q after level %q; seen=%#v", want, level, seenEfforts)
+		}
+	}
+	if len(paths) != len(wantEfforts) {
+		t.Fatalf("requests=%d want %d", len(paths), len(wantEfforts))
+	}
+	for i := range paths {
+		if paths[i] != "/responses" || userAgents[i] != "custom-xai-agent" || authHeaders[i] != "Bearer xai-test-token" {
+			t.Fatalf("request[%d] path=%q ua=%q auth=%q", i, paths[i], userAgents[i], authHeaders[i])
+		}
+	}
+}

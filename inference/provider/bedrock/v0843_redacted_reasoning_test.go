@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	goai "github.com/rcarmo/go-ai"
@@ -39,6 +40,34 @@ func TestV0843BedrockPreservesRedactedReasoning(t *testing.T) {
 		}
 	}
 	t.Fatal("missing done")
+}
+
+func TestV0843BedrockResponseHookUsesModeledRequestID(t *testing.T) {
+	model := &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}
+	resp := &bedrockruntime.ConverseStreamOutput{}
+	awsmiddleware.SetRequestIDMetadata(&resp.ResultMetadata, "request-id")
+	var gotStatus int
+	var gotHeaders map[string]string
+	invokeBedrockResponseHook(&goai.StreamOptions{OnResponse: func(status int, headers map[string]string, gotModel *goai.Model) {
+		gotStatus = status
+		gotHeaders = headers
+		if gotModel != model {
+			t.Fatalf("model=%#v want %#v", gotModel, model)
+		}
+	}}, resp, model)
+	if gotStatus != 200 || gotHeaders["X-Amzn-Requestid"] != "request-id" {
+		t.Fatalf("status=%d headers=%#v", gotStatus, gotHeaders)
+	}
+
+	gotStatus = 0
+	gotHeaders = nil
+	invokeBedrockResponseHook(&goai.StreamOptions{OnResponse: func(status int, headers map[string]string, gotModel *goai.Model) {
+		gotStatus = status
+		gotHeaders = headers
+	}}, &bedrockruntime.ConverseStreamOutput{}, model)
+	if gotStatus != 0 || gotHeaders != nil {
+		t.Fatalf("hook should not run without modeled request id: status=%d headers=%#v", gotStatus, gotHeaders)
+	}
 }
 
 func TestV0843BedrockReplaysRedactedReasoning(t *testing.T) {

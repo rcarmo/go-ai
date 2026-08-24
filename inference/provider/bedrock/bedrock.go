@@ -157,13 +157,20 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			return
 		}
 
-		if requestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata); requestID != "" {
-			goai.InvokeOnResponse(opts, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"x-amzn-requestid": []string{requestID}}}, model)
-		}
+		invokeBedrockResponseHook(opts, resp, model)
 		processConverseStream(resp, model, ch)
 	}()
 
 	return ch
+}
+
+func invokeBedrockResponseHook(opts *goai.StreamOptions, resp *bedrockruntime.ConverseStreamOutput, model *goai.Model) {
+	if resp == nil {
+		return
+	}
+	if requestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata); requestID != "" {
+		goai.InvokeOnResponse(opts, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"X-Amzn-Requestid": []string{requestID}}}, model)
+	}
 }
 
 var standardBedrockEndpointRe = regexp.MustCompile(`^bedrock-runtime(?:-fips)?\.([a-z0-9-]+)\.amazonaws\.com(?:\.cn)?$`)
