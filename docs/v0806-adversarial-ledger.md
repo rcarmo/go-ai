@@ -17,7 +17,7 @@ Fresh evidence from this pass:
 | Upstream area / symbol or file | Go file/test evidence | Disposition |
 |---|---|---|
 | `src/types.ts` content/message/event/model/usage shapes | `types.go`, `events.go`, `context.go`, `tests/goai_test.go`, `tests/logic_audit_test.go` | Implemented idiomatically as exported Go structs/constants. TS discriminated unions map to Go typed structs plus event constructors. |
-| `src/types.ts` `ThinkingLevel = ... | "max"` | `types.go`, `v0806_parity_test.go::TestUpstreamV0806ThinkingMaxSupportAndClamp` | Implemented. `ThinkingMax` is exported; clamp behavior mirrors upstream fallback to high for request effort. |
+| `src/types.ts` `ThinkingLevel = ... | "max"` | `types.go`, `tests/v0806_parity_test.go::TestUpstreamV0806ThinkingMaxSupportAndClamp` | Implemented. `ThinkingMax` is exported; clamp behavior mirrors upstream fallback to high for request effort. |
 | `src/models.ts` cost tiers / context helpers | `types.go` `ModelCostTier`, `simple_options.go` `CalculateCost`, `tests/v0806_parity_test.go` | Implemented. Highest matching `inputTokensAbove` tier is selected and covered. |
 | `src/utils/estimate.ts`, `test/context-estimate.test.ts` | `context.go` `EstimateContextTokens`, `tests/estimate_upstream_test.go`, `tests/v0806_parity_test.go` | Implemented. Prefix/newer-message invalidation is covered. |
 | `src/utils/error-body.ts`, provider error passthrough regressions | `error_body.go`, `tests/error_body_test.go`, `tests/provider_error_body_test.go`, provider packages | Implemented. Body extraction is bounded and provider errors preserve upstream details. |

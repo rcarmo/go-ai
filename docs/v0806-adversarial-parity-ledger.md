@@ -7,7 +7,7 @@ Audit source: `/workspace/tmp/pi-upstream` at `2b3fda9` (`v0.80.6`), plus the ex
 | Upstream catalog/API | Rust/Go port file/test | Disposition/evidence |
 | --- | --- | --- |
 | `packages/ai/src/models.generated.ts` — 1,057 chat models across 35 providers | `models_generated.go`, `tests/models_catalog_upstream_test.go` | Regenerated from `2b3fda9`; diff against generated output is timestamp-only. |
-| `packages/ai/src/image-models.generated.ts` — 35 OpenRouter image models | `images/models_generated.go`, `images_test.go::TestBuiltinImageModels` | **Fixed in this audit.** Port had 34 models, missing `google/gemini-3.1-flash-lite-image`, `openai/gpt-image-1`, `openai/gpt-image-1-mini`, `openai/gpt-image-2`, and retained three stale `sourceful/*preview` IDs. Catalog now matches v0.80.6; regression checks count, new IDs, and removed IDs. |
+| `packages/ai/src/image-models.generated.ts` — 35 OpenRouter image models | `images/models_generated.go`, `tests/images_test.go::TestBuiltinImageModels` | **Fixed in this audit.** Port had 34 models, missing `google/gemini-3.1-flash-lite-image`, `openai/gpt-image-1`, `openai/gpt-image-1-mini`, `openai/gpt-image-2`, and retained three stale `sourceful/*preview` IDs. Catalog now matches v0.80.6; regression checks count, new IDs, and removed IDs. |
 | `packages/ai/src/providers/*.ts` / `*.models.ts` — provider registry | `types.go`, `models_generated.go`, provider packages under `inference/provider/*` | Chat model provider catalog matches generated upstream count/provider set; implemented wire protocols cover OpenAI completions/responses, Azure responses, Anthropic, Google, Bedrock, Mistral, OpenAI Codex, Gemini CLI, Faux. Model-only OpenAI-compatible providers are represented by catalog/API metadata. |
 | `packages/ai/src/types.ts` — exported request/response/event/model fields | `types.go`, `events.go`, `simple_options.go`, `images/api.go` | Exported Go surface includes stream events, usage/cost/context fields, model thinking/cost tiers, image model fields, options hooks and cancellation contexts. |
 | `packages/ai/src/utils/estimate.ts` / cost tiers | `context.go`, `tests/v0806_parity_test.go`, `tests/estimate_upstream_test.go`, `tests/tokens_simulated_test.go`, `tests/total_tokens_simulated_test.go` | Deterministic parity covered, including v0.80.6 highest matching cost tier and prefix-anchor context estimation. |
@@ -18,7 +18,7 @@ Audit source: `/workspace/tmp/pi-upstream` at `2b3fda9` (`v0.80.6`), plus the ex
 ## Concrete discrepancy fixed
 
 - **Upstream file/symbol:** `packages/ai/src/image-models.generated.ts` / `IMAGE_MODELS.openrouter`
-- **Port file/test:** `images/models_generated.go`; `images_test.go::TestBuiltinImageModels`
+- **Port file/test:** `images/models_generated.go`; `tests/images_test.go::TestBuiltinImageModels`
 - **Problem:** generated image catalog drifted from exact v0.80.6 tree.
 - **Fix:** replaced the image model list with the 35-entry upstream catalog, added checks for the newly-added OpenAI/Gemini image IDs and removed stale Sourceful preview IDs.
 - **Evidence:** `go test ./...`, `go vet ./...`, `go build ./...`, `staticcheck ./...`, and `scripts/check-logging.sh` pass.

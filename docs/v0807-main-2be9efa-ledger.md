@@ -21,7 +21,7 @@ Mechanical enumeration: `git diff --name-status --no-index` across `packages/ai`
 
 Focused validation passed before full gate:
 
-- `TMPDIR=/workspace/tmp go test . ./oauth ./inference/provider/openairesponses -run 'ModelRuntime|RadiusRuntime|XAI' -count=3`
+- `TMPDIR=/workspace/tmp go test ./tests ./oauth ./inference/provider/openairesponses -run 'ModelRuntime|RadiusRuntime|XAI' -count=3`
 - `scripts/compare-upstream-models.py /workspace/tmp/pi-src-2be9efa/pi-2be9efa19cd64aed40ca63f92c0c0f9a6bac7c9d/packages/ai/src/providers` → exact 1065/1065 match.
 
 Full gate to run before commit/push:
