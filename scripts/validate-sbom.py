@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """Validate the generated CycloneDX SBOM has required Go module content."""
 from __future__ import annotations
+import argparse
 import hashlib
 import json
 import pathlib
 import sys
+from typing import Any
+
+ROOT_MODULE = "github.com/rcarmo/go-ai"
+REQUIRED_DEPENDENCIES = {
+    "github.com/aws/aws-sdk-go-v2/config",
+    "github.com/aws/aws-sdk-go-v2/service/bedrockruntime",
+    "github.com/coder/websocket",
+}
 
 
 def fail(msg: str) -> int:
@@ -12,12 +21,20 @@ def fail(msg: str) -> int:
     return 1
 
 
+def component_name(component: dict[str, Any]) -> str | None:
+    name = component.get("name")
+    return name if isinstance(name, str) else None
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print("usage: scripts/validate-sbom.py artifacts/sbom.cdx.json artifacts/sbom.cdx.json.sha256", file=sys.stderr)
-        return 2
-    sbom_path = pathlib.Path(argv[1])
-    sha_path = pathlib.Path(argv[2])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("sbom", type=pathlib.Path)
+    parser.add_argument("checksum", type=pathlib.Path)
+    parser.add_argument("--expected-revision", required=True, help="expected root component revision/version, usually git rev-parse --short=12 HEAD")
+    args = parser.parse_args(argv[1:])
+
+    sbom_path = args.sbom
+    sha_path = args.checksum
     if not sbom_path.is_file():
         return fail(f"missing SBOM {sbom_path}")
     if not sha_path.is_file():
@@ -39,26 +56,37 @@ def main(argv: list[str]) -> int:
         return fail("missing CycloneDX specVersion")
     metadata = data.get("metadata") or {}
     component = metadata.get("component") or {}
-    if component.get("name") != "github.com/rcarmo/go-ai":
+    if not isinstance(component, dict):
+        return fail("missing metadata component")
+    if component_name(component) != ROOT_MODULE:
         return fail(f"unexpected root component name {component.get('name')!r}")
+    if component.get("version") != args.expected_revision:
+        return fail(f"unexpected root component revision {component.get('version')!r}, want {args.expected_revision!r}")
     if component.get("type") not in {"application", "library"}:
         return fail(f"unexpected root component type {component.get('type')!r}")
+    root_ref = component.get("bom-ref")
+    if not isinstance(root_ref, str) or ROOT_MODULE not in root_ref:
+        return fail(f"unexpected root component bom-ref {root_ref!r}")
     components = data.get("components")
     if not isinstance(components, list) or not components:
         return fail("empty components list")
-    names = {c.get("name") for c in components if isinstance(c, dict)}
-    required = {
-        "github.com/aws/aws-sdk-go-v2/config",
-        "github.com/aws/aws-sdk-go-v2/service/bedrockruntime",
-        "github.com/coder/websocket",
-    }
-    missing = sorted(required - names)
+    names = {component_name(c) for c in components if isinstance(c, dict)}
+    missing = sorted(REQUIRED_DEPENDENCIES - names)
     if missing:
         return fail("missing expected resolved dependencies: " + ", ".join(missing))
     deps = data.get("dependencies")
     if not isinstance(deps, list) or not deps:
         return fail("empty dependency graph")
-    print(f"SBOM valid: {len(components)} components, sha256 {got_sha}")
+    root_dep = next((dep for dep in deps if isinstance(dep, dict) and dep.get("ref") == root_ref), None)
+    if root_dep is None:
+        return fail(f"missing root dependency graph ref {root_ref!r}")
+    depends_on = root_dep.get("dependsOn")
+    if not isinstance(depends_on, list) or not depends_on:
+        return fail("root dependency graph has empty dependsOn")
+    for required in sorted(REQUIRED_DEPENDENCIES):
+        if not any(isinstance(ref, str) and required in ref for ref in depends_on):
+            return fail(f"root dependency graph missing dependency ref for {required}")
+    print(f"SBOM valid: {len(components)} components, sha256 {got_sha}, revision {args.expected_revision}")
     return 0
 
 

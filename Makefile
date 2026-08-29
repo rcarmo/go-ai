@@ -1,4 +1,4 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration bump-patch push security vuln-check license-check sbom sbom-check ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration bump-patch push security vuln-check license-check sbom sbom-check sbom-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -44,7 +44,7 @@ lint: ## Run golangci-lint
 security: vuln-check ## Run pinned vulnerability scan
 
 vuln-check: ## Run govulncheck at a pinned version and enforce security-vuln-policy.json
-	python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
+	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
 
 license-check: ## Review dependency licenses; unknown/forbidden fail unless documented and explicitly allowed
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) check --include_tests --allowed_licenses=$(ALLOWED_LICENSES) ./...
@@ -56,9 +56,12 @@ sbom: ## Generate normalized CycloneDX JSON SBOM and SHA-256 checksum under arti
 	@sha256sum $(SBOM_FILE) > $(SBOM_SHA_FILE)
 
 sbom-check: sbom ## Validate SBOM schema/required fields/checksum/dependency output
-	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE)
+	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION)
 
-ci-artifacts: sbom-check vuln-check license-check ## Generate and validate release CI security artifacts
+sbom-self-test: ## Run negative SBOM validator self-tests
+	python3 scripts/test-validate-sbom.py
+
+ci-artifacts: sbom-check sbom-self-test vuln-check license-check ## Generate and validate release CI security artifacts
 
 format: ## Format code with gofumpt
 	@which $(GOFMT) > /dev/null || (echo "Installing gofumpt..." && $(GO) install mvdan.cc/gofumpt@latest)

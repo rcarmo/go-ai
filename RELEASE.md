@@ -70,8 +70,9 @@ Current workflow policy adds pinned Go supply-chain targets:
 
 - SBOM generator: `github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0`
 - SBOM format/artifacts: CycloneDX JSON `artifacts/sbom.cdx.json` plus `artifacts/sbom.cdx.json.sha256` (gitignored, CI-uploaded artifact)
-- Current local SBOM digest: `338bc70e7dedbf8890f544da20b5dd7f1a883c468d5d052e9bb06b8faa19f30b`
-- SBOM validation: `scripts/validate-sbom.py` checks JSON/schema identity, normalized checksum, root module, non-empty dependencies, required Go deps, and absence of local absolute paths.
+- SBOM digest: produced by `make sbom` in `artifacts/sbom.cdx.json.sha256` for the exact checked-out candidate SHA; do not copy stale pre-commit digests across commits.
+- SBOM validation: `scripts/validate-sbom.py` checks JSON/schema identity, normalized checksum, root module, expected Git revision, root dependency ref, non-empty dependencies, required Go deps, and absence of local absolute paths.
+- SBOM validator self-tests: `scripts/test-validate-sbom.py` proves the validator rejects revision tampering even with a recomputed checksum, checksum mismatch, malformed JSON, local absolute path leakage, empty dependency graphs, and missing root dependency refs.
 - Vulnerability scanner: `golang.org/x/vuln/cmd/govulncheck@v1.7.0`
 - Vulnerability disposition: `make vuln-check` passes only with explicit, expiring `security-vuln-policy.json` entries. Current allowed findings are Go toolchain standard-library advisories observed under `go1.26.3`, owned by Rui Carmo, expiring `2026-09-30`, and requiring upgrade to Go `1.26.6` or later; dependency findings remain blocking unless separately documented.
 - License scanner: `github.com/google/go-licenses@v1.6.0`; `make license-check` passes with the pinned allowlist in `Makefile`.
