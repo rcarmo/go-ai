@@ -14,22 +14,24 @@ def fail(msg: str) -> int:
     return 1
 
 
-def load_policy(path: pathlib.Path) -> dict[str, dict[str, Any]]:
+def load_policy(path: pathlib.Path) -> list[dict[str, Any]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     today = dt.date.today()
-    allowed: dict[str, dict[str, Any]] = {}
+    entries: list[dict[str, Any]] = []
     for entry in data.get("allowedFindings", []):
         vuln_id = entry.get("id")
         owner = entry.get("owner")
         rationale = entry.get("rationale")
         expires = entry.get("expires")
-        if not all(isinstance(v, str) and v.strip() for v in (vuln_id, owner, rationale, expires)):
+        go_version = entry.get("goVersion")
+        scope = entry.get("scope")
+        if not all(isinstance(v, str) and v.strip() for v in (vuln_id, owner, rationale, expires, go_version, scope)):
             raise ValueError(f"invalid policy entry: {entry!r}")
         expiry = dt.date.fromisoformat(expires)
         if expiry < today:
             raise ValueError(f"policy entry {vuln_id} expired on {expires}")
-        allowed[vuln_id] = entry
-    return allowed
+        entries.append(entry)
+    return entries
 
 
 def main(argv: list[str]) -> int:
@@ -65,9 +67,14 @@ def main(argv: list[str]) -> int:
         if isinstance(event, dict):
             events.append(event)
 
+    go_version = ""
     vulns: dict[str, dict[str, Any]] = {}
     findings: dict[str, int] = {}
     for event in events:
+        if "config" in event and isinstance(event["config"], dict):
+            raw_go_version = event["config"].get("go_version")
+            if isinstance(raw_go_version, str):
+                go_version = raw_go_version
         if "osv" in event:
             osv = event["osv"]
             if isinstance(osv, dict) and isinstance(osv.get("id"), str):
@@ -80,13 +87,26 @@ def main(argv: list[str]) -> int:
     if proc.returncode not in (0, 3):
         return fail(f"govulncheck exited {proc.returncode}")
 
+    if not go_version:
+        return fail("govulncheck JSON did not report go_version")
+
+    active_allowed = {entry["id"]: entry for entry in allowed if entry.get("goVersion") == go_version}
+    inactive_matches = sorted(vuln_id for vuln_id in findings if vuln_id in {entry["id"] for entry in allowed} and vuln_id not in active_allowed)
+    if inactive_matches:
+        return fail("findings documented only for a different Go version: " + ", ".join(inactive_matches))
+
     if not findings:
-        print("govulncheck: no reachable vulnerabilities")
+        if active_allowed:
+            return fail("unused active vulnerability policy entries for " + go_version + ": " + ", ".join(sorted(active_allowed)))
+        print(f"govulncheck: no reachable vulnerabilities for {go_version}")
         return 0
 
-    unknown = sorted(set(findings) - set(allowed))
+    unknown = sorted(set(findings) - set(active_allowed))
     if unknown:
-        return fail("undocumented reachable findings: " + ", ".join(unknown))
+        return fail("undocumented reachable findings for " + go_version + ": " + ", ".join(unknown))
+    unused = sorted(set(active_allowed) - set(findings))
+    if unused:
+        return fail("unused active vulnerability policy entries for " + go_version + ": " + ", ".join(unused))
 
     for vuln_id in sorted(findings):
         osv = vulns.get(vuln_id, {})
@@ -105,7 +125,7 @@ def main(argv: list[str]) -> int:
                     for event in r.get("events", []):
                         if isinstance(event, dict) and isinstance(event.get("fixed"), str):
                             fixed.append(event["fixed"])
-        print(f"govulncheck: {vuln_id} allowed by policy until {allowed[vuln_id]['expires']} (findings={findings[vuln_id]}, fixed={','.join(sorted(set(fixed))) or 'unknown'})")
+        print(f"govulncheck: {vuln_id} allowed for {go_version} by policy until {active_allowed[vuln_id]['expires']} (findings={findings[vuln_id]}, fixed={','.join(sorted(set(fixed))) or 'unknown'})")
     return 0
 
 
