@@ -10,6 +10,7 @@ This file is the release-audit source of truth for `github.com/rcarmo/go-ai` par
 - Published: 2026-08-28T22:05:13.974Z
 - Previous accepted baseline: `v0.84.3` / `4e58f324fae8ebfa98a3d45181fb248072a2afac`
 - Accepted local baseline before this audit: `e25cd2e0b454767c35ac53831d2c1a5bb4641299`
+- Accepted local candidate SHA for this audit: `3e996243d34e5e4568a58cf4f85ca098c5d098f8`
 - Exact upstream checkout used: `/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4`
 - Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0844-npm/package`
 - Official npm tarball SHA-256: `dfd3c929cee5a7387199a0a24dfc1be2096f1ea8f59ffb8285198a0ed01ebf93`
@@ -26,13 +27,14 @@ Audited scope:
 - Added test: `openrouter-reasoning-options.test.ts`.
 - Whole test corpus: 137 `packages/ai/test/*.test.ts` files, fully classified with 0 unclassified rows.
 - Text model catalog: 1290 models across 39 providers and 9 APIs, exact provider/id pair parity with upstream.
+- Full-record text catalog delta versus v0.84.3: `1312→1290`, with `+57` added records, `-79` removed records, and `227` changed records.
 - Image model catalog: 50 OpenRouter image models, +5 vs v0.84.3 (`meta/muse-image` and Recraft v4 variants).
 
 ## v0.84.4 Go implementation and decisions
 
 | Upstream delta | Go disposition |
 | --- | --- |
-| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.4 source and official npm provider shards: 1290 models / 39 providers / 9 APIs. |
+| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.4 source and official npm provider shards: 1290 models / 39 providers / 9 APIs. Full-record delta recorded as `1312→1290`, `+57/-79/227 changed`. |
 | Image catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84.4 source: 50 OpenRouter image models, including `meta/muse-image` and Recraft v4 variants. |
 | Generator OpenRouter reasoning metadata | Implemented/adapted into generated Go `ThinkingLevelMap` and `OpenAICompletionsCompat` fields. OpenRouter `supported_efforts` maps to mandatory/optional/off behavior, including `off:null` for mandatory reasoning and `off:"none"` for optional disable semantics where applicable. |
 | Cloudflare AI Gateway Workers AI mirror | Implemented mechanically in generated catalog: tool-capable Workers AI models are mirrored under Cloudflare AI Gateway with `workers-ai/` prefix, `/compat` endpoint, session-affinity compat, and deduped IDs. |
@@ -78,4 +80,10 @@ TMPDIR=/workspace/tmp go vet ./...
 make staticcheck GO_TMPDIR=/workspace/tmp
 make check-logging
 make test-repro GO_TMPDIR=/workspace/tmp
+# all PASS
+
+Hosted CI for candidate `3e996243d34e5e4568a58cf4f85ca098c5d098f8` passed:
+- Run: https://github.com/rcarmo/go-ai/actions/runs/33251362203 (`CI`, conclusion `success`)
+- Job `Vet, Staticcheck & Deterministic Tests (1.24.x)`: success; build, check (vet/staticcheck/deterministic tests), race tests, coverage, and logging quality gate all succeeded.
+- Job `Fuzz Tests`: success; partial JSON parser, SSE parser, context round-trip, message transformation, and overflow detection fuzz jobs all succeeded.
 ```
