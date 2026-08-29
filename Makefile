@@ -9,6 +9,7 @@ GOTOOLCHAIN ?= auto
 STATICCHECK_VERSION ?= v0.7.0
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
 GOVULNCHECK_VERSION ?= v1.7.0
+GOVULNCHECK_GOTOOLCHAIN ?= go1.26.6
 GO_LICENSES_VERSION ?= v1.6.0
 SBOM_DIR ?= artifacts
 SBOM_FILE ?= $(SBOM_DIR)/sbom.cdx.json
@@ -43,8 +44,8 @@ lint: ## Run golangci-lint
 
 security: vuln-check ## Run pinned vulnerability scan
 
-vuln-check: ## Run govulncheck at a pinned version and enforce security-vuln-policy.json
-	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
+vuln-check: ## Run govulncheck at a pinned version/toolchain and enforce security-vuln-policy.json
+	GOTOOLCHAIN=$(GOVULNCHECK_GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
 
 vuln-self-test: ## Run negative vulnerability policy self-tests
 	python3 scripts/test-check-vuln-policy.py
@@ -103,6 +104,7 @@ toolchain-info: ## Print toolchain and environment used by reproducible targets
 	@echo "GO=$(GO)"
 	@echo "GO_TMPDIR=$(GO_TMPDIR)"
 	@echo "GOTOOLCHAIN=$(GOTOOLCHAIN)"
+	@echo "GOVULNCHECK_GOTOOLCHAIN=$(GOVULNCHECK_GOTOOLCHAIN)"
 	@$(GO) version
 	@$(GO) env GOVERSION GOOS GOARCH CGO_ENABLED
 
