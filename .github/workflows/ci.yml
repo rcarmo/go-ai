@@ -40,6 +40,19 @@ jobs:
       - name: Logging quality gate
         run: ./scripts/check-logging.sh
 
+      - name: Generate and validate SBOM/security artifacts
+        run: make ci-artifacts GO_TMPDIR=/tmp
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ai-sbom-${{ github.sha }}
+          path: |
+            artifacts/sbom.cdx.json
+            artifacts/sbom.cdx.json.sha256
+          if-no-files-found: error
+          retention-days: 30
+
   fuzz:
     name: Fuzz Tests
     runs-on: ubuntu-latest

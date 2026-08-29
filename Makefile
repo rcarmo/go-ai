@@ -1,4 +1,4 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration bump-patch push security bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration bump-patch push security vuln-check license-check sbom sbom-check ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -7,6 +7,14 @@ GOSEC ?= gosec
 GO_TMPDIR ?= /workspace/tmp
 GOTOOLCHAIN ?= auto
 STATICCHECK_VERSION ?= v0.7.0
+CYCLONEDX_GOMOD_VERSION ?= v1.12.0
+GOVULNCHECK_VERSION ?= v1.7.0
+GO_LICENSES_VERSION ?= v1.6.0
+SBOM_DIR ?= artifacts
+SBOM_FILE ?= $(SBOM_DIR)/sbom.cdx.json
+SBOM_SHA_FILE ?= $(SBOM_FILE).sha256
+SBOM_REVISION ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+ALLOWED_LICENSES ?= Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MIT,MPL-2.0
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -33,9 +41,24 @@ lint: ## Run golangci-lint
 	@which $(GOLINT) > /dev/null || (echo "Installing golangci-lint..." && brew install golangci-lint)
 	$(GOLINT) run ./...
 
-security: ## Run gosec security scan
-	@which $(GOSEC) > /dev/null || (echo "Installing gosec..." && $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest)
-	$$(go env GOPATH)/bin/$(GOSEC) ./...
+security: vuln-check ## Run pinned vulnerability scan
+
+vuln-check: ## Run govulncheck at a pinned version and enforce security-vuln-policy.json
+	python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
+
+license-check: ## Review dependency licenses; unknown/forbidden fail unless documented and explicitly allowed
+	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) check --include_tests --allowed_licenses=$(ALLOWED_LICENSES) ./...
+
+sbom: ## Generate normalized CycloneDX JSON SBOM and SHA-256 checksum under artifacts/
+	@mkdir -p $(SBOM_DIR)
+	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@$(CYCLONEDX_GOMOD_VERSION) mod -json -licenses -assert-licenses -output-version 1.6 -type library -output $(SBOM_FILE) .
+	python3 scripts/normalize-sbom.py $(SBOM_FILE) $(SBOM_REVISION)
+	@sha256sum $(SBOM_FILE) > $(SBOM_SHA_FILE)
+
+sbom-check: sbom ## Validate SBOM schema/required fields/checksum/dependency output
+	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE)
+
+ci-artifacts: sbom-check vuln-check license-check ## Generate and validate release CI security artifacts
 
 format: ## Format code with gofumpt
 	@which $(GOFMT) > /dev/null || (echo "Installing gofumpt..." && $(GO) install mvdan.cc/gofumpt@latest)
@@ -64,7 +87,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: test-deterministic vet staticcheck check-logging check-model-regeneration ## Run deterministic tests + vet + staticcheck + logging + model regeneration gates
+check: test-deterministic vet staticcheck check-logging check-model-regeneration sbom-check vuln-check license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
 
 # =============================================================================
 # Reproducible verification targets
@@ -90,6 +113,9 @@ test-repro-fast: ## Reproducible local gate (no race)
 	$(MAKE) staticcheck
 	$(MAKE) check-logging
 	$(MAKE) check-model-regeneration
+	$(MAKE) sbom-check
+	$(MAKE) vuln-check
+	$(MAKE) license-check
 
 test-repro: ## Full reproducible gate (includes race detector)
 	$(MAKE) toolchain-info
@@ -118,7 +144,7 @@ check-model-regeneration: ## Verify models_generated.go matches exact normalized
 
 clean: ## Remove build artifacts and cache
 	$(GO) clean
-	rm -rf coverage.out
+	rm -rf coverage.out $(SBOM_DIR)
 
 clean-all: clean ## Remove everything including vendor
 	rm -rf vendor

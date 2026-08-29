@@ -8,6 +8,7 @@
 *.out
 coverage.out
 models_debug.json
+artifacts/
 
 # Fuzz corpus (regenerated on each run)
 testdata/fuzz/
