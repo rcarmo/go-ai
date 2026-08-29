@@ -89,7 +89,7 @@
 - Runtime/provider behavior has production-path evidence for every applicable delta.
 - Text/image catalogs regenerate cleanly from pinned inputs and deliberate text + image fault gates fail as expected.
 - Required Go gates pass with no hidden skips or weakened assertions.
-- SBOM generation/check, vulnerability scan, and license review pass or have documented owner/rationale/expiry.
+- SBOM generation/check, vulnerability scan, and license review pass or have documented owner/rationale/mitigation/expiry.
 - `RELEASE.md` records final release evidence, SBOM/security evidence, CI run, and rollback pointers.
 - Exactly one final hosted CI run is green for the candidate, unless a docs-only `[skip ci]` evidence update is explicitly used.
 - Git is clean and synced with `origin/main`; commits are Rui-authored and non-rebased.

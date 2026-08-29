@@ -25,7 +25,8 @@ def load_policy(path: pathlib.Path) -> list[dict[str, Any]]:
         expires = entry.get("expires")
         go_version = entry.get("goVersion")
         scope = entry.get("scope")
-        if not all(isinstance(v, str) and v.strip() for v in (vuln_id, owner, rationale, expires, go_version, scope)):
+        mitigation = entry.get("mitigation")
+        if not all(isinstance(v, str) and v.strip() for v in (vuln_id, owner, rationale, mitigation, expires, go_version, scope)):
             raise ValueError(f"invalid policy entry: {entry!r}")
         expiry = dt.date.fromisoformat(expires)
         if expiry < today:
@@ -125,7 +126,7 @@ def main(argv: list[str]) -> int:
                     for event in r.get("events", []):
                         if isinstance(event, dict) and isinstance(event.get("fixed"), str):
                             fixed.append(event["fixed"])
-        print(f"govulncheck: {vuln_id} allowed for {go_version} by policy until {active_allowed[vuln_id]['expires']} (findings={findings[vuln_id]}, fixed={','.join(sorted(set(fixed))) or 'unknown'})")
+        print(f"govulncheck: {vuln_id} allowed for {go_version} by policy until {active_allowed[vuln_id]['expires']} (findings={findings[vuln_id]}, fixed={','.join(sorted(set(fixed))) or 'unknown'}, mitigation={active_allowed[vuln_id]['mitigation']})")
     return 0
 
 

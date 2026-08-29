@@ -93,7 +93,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: test-deterministic vet staticcheck check-logging check-model-regeneration sbom-check vuln-check license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
+check: test-deterministic vet staticcheck check-logging check-model-regeneration sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
 
 # =============================================================================
 # Reproducible verification targets
@@ -120,7 +120,9 @@ test-repro-fast: ## Reproducible local gate (no race)
 	$(MAKE) check-logging
 	$(MAKE) check-model-regeneration
 	$(MAKE) sbom-check
+	$(MAKE) sbom-self-test
 	$(MAKE) vuln-check
+	$(MAKE) vuln-self-test
 	$(MAKE) license-check
 
 test-repro: ## Full reproducible gate (includes race detector)

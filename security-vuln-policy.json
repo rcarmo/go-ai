@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewedAt": "2026-08-29",
-  "notes": "Toolchain-scoped vulnerability policy. CI currently runs Go 1.24.13 and must have no reachable findings. Local Go 1.26.3 findings are documented only for that exact toolchain and expire 2026-09-30; upgrade to Go 1.26.6 or later before expiry. Dependency/module findings remain blocking unless listed with owner/rationale/expiry and an exact affected Go/toolchain scope.",
+  "notes": "Toolchain-scoped vulnerability policy. CI currently runs Go 1.24.13 and must have no reachable findings. Local Go 1.26.3 findings are documented only for that exact toolchain and expire 2026-09-30; mitigation is to upgrade to Go 1.26.6 or later before expiry. Dependency/module findings remain blocking unless listed with owner/rationale/mitigation/expiry and an exact affected Go/toolchain scope.",
   "allowedFindings": [
     {
       "id": "GO-2026-4970",
@@ -9,7 +9,8 @@
       "rationale": "Standard-library os finding in runner Go 1.26.3; fixed in Go 1.26.5. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5026",
@@ -17,7 +18,8 @@
       "rationale": "Standard-library net/http / x/net/idna finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5037",
@@ -25,7 +27,8 @@
       "rationale": "Standard-library crypto/x509 finding in runner Go 1.26.3; fixed in Go 1.26.4. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5038",
@@ -33,7 +36,8 @@
       "rationale": "Standard-library os finding in runner Go 1.26.3; fixed in Go 1.26.5. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5039",
@@ -41,7 +45,8 @@
       "rationale": "Standard-library net/textproto finding in runner Go 1.26.3; fixed in Go 1.26.4. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5856",
@@ -49,7 +54,8 @@
       "rationale": "Standard-library crypto/tls finding in runner Go 1.26.3; fixed in Go 1.26.5. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5942",
@@ -57,7 +63,8 @@
       "rationale": "Standard-library archive/tar finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-5972",
@@ -65,7 +72,8 @@
       "rationale": "Standard-library encoding/asn1 finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-6088",
@@ -73,7 +81,8 @@
       "rationale": "Standard-library encoding/xml finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-6089",
@@ -81,7 +90,8 @@
       "rationale": "Standard-library net/http finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-6090",
@@ -89,7 +99,8 @@
       "rationale": "Standard-library crypto/tls finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-6091",
@@ -97,7 +108,8 @@
       "rationale": "Standard-library path/filepath finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     },
     {
       "id": "GO-2026-6218",
@@ -105,7 +117,8 @@
       "rationale": "Standard-library net/url finding in runner Go 1.26.3; fixed in Go 1.26.6. No dependency code change can remediate except toolchain upgrade.",
       "expires": "2026-09-30",
       "goVersion": "go1.26.3",
-      "scope": "standard-library toolchain"
+      "scope": "standard-library toolchain",
+      "mitigation": "Upgrade local and CI toolchains to Go 1.26.6 or later, then remove this exception after govulncheck reports no reachable finding for this ID."
     }
   ]
 }
