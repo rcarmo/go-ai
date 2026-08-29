@@ -57,7 +57,8 @@
   - `git config --global user.name "Rui Carmo"`
   - `git config --global user.email "rui.carmo@gmail.com"`
 - Use a local-first workflow: finish implementation, docs, regeneration, deliberate fault gates, focused/full tests, race/static checks, SBOM/security checks, and git hygiene locally before pushing.
-- Hosted CI must run only once at the end of the local validation cycle. Do not use hosted CI as an iterative debugging loop; batch fixes locally into the final candidate push unless explicitly instructed otherwise.
+- Hosted CI for developer/release candidate pushes must run only once at the end of the local validation cycle. Do not use hosted CI as an iterative debugging loop; batch fixes locally into the final candidate push unless explicitly instructed otherwise.
+- Scheduled CI maintenance (`.github/workflows/ci.yml` weekly cron) is independent of developer candidate pushes and exists to refresh security/SBOM/license/fuzz evidence against live advisory databases.
 - If final CI run metadata must be recorded after the final runtime candidate, use a docs-only `[skip ci]` commit or a proven paths-ignore mechanism, and record both the separately tested runtime SHA and final docs SHA.
 - Final release parity state must be clean and synced with `origin/main`, Rui-authored, and non-rebased.
 
@@ -75,13 +76,13 @@
 ## Lifecycle maintenance
 
 - Keep lockfiles/manifests consistent with `go.mod` and `go.sum`; dependency changes must run `go mod tidy`, tests, SBOM, vulnerability, and license checks.
-- Review dependencies and security posture on a scheduled cadence and immediately for urgent advisories.
+- Review dependencies and security posture at least weekly through the scheduled CI maintenance scan and immediately when urgent advisories are published or reported.
 - Treat generated-data drift as a release blocker until explained by pinned upstream inputs and regeneration evidence.
 - Review deprecations/removals for backward compatibility, migration notes, and tests before accepting upstream removals.
 - Release/tag/changelog work must identify the accepted runtime SHA, final docs SHA if different, and rollback SHA.
 - Preserve provenance/evidence pointers: upstream tag/artifact, npm SHA-256, local logs, CI run IDs, SBOM digest, scan dispositions, and fault-gate logs.
 - After release, verify published artifacts/CI status and track any follow-up issues to closure.
-- Lifecycle triggers include upstream release parity, dependency changes, release builds, security advisories, generated-data drift, and reviewer/auditor findings.
+- Lifecycle triggers include upstream release parity, dependency changes, release builds, scheduled weekly security scans, urgent security advisories, generated-data drift, and reviewer/auditor findings.
 
 ## Definition of Done
 
