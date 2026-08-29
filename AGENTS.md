@@ -2,6 +2,13 @@
 
 * Follow YAGNI principles.
 
+## Source tree layout
+
+- The repository root is the public `goai` package. Keep production `.go` files and generated `models_generated.go` at the root unless a package-neutral move is proven necessary.
+- Black-box tests that declare `package goai_test` live under `tests/` so the root public package stays focused on exported implementation files.
+- White-box tests that need unexported access remain beside their package code, including any root tests that declare `package goai`.
+- Generated files stay at their documented generator destinations; update generators and pinned inputs rather than hand-editing generated output.
+
 ## Change discipline
 
 - Read relevant files before editing; never edit blind.

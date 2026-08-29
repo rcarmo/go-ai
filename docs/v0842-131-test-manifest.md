@@ -58,14 +58,14 @@ Changed upstream test files in v0.84.2: **21** (18 modified + 3 added). New file
 | 28 | `test/cloudflare-gateway-binding.test.ts` | N/A/JS-Workers-binding | —. New TS Workers AI binding fetch shim (`createGatewayBindingFetch`) is a JavaScript/Cloudflare Worker transport adapter around `fetch` and `env.AI.gateway()`. The Go library has no Workers binding/fetch-injection surface; existing Go Cloudflare gateway HTTPS URL/auth/placeholder behavior remains covered by Cloudflare stream/provider tests. v0.84.2 changed. |
 | 29 | `test/cloudflare-stream.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 30 | `test/compat-env.test.ts` | N/A/JS-runtime | JS legacy registry/env compatibility surface (`registerApiProvider`/module runtime); Go uses typed provider registration. |
-| 31 | `test/constrained-sampling.test.ts` | DETERMINISTIC-PORTED | schema_strict_test.go; inference/provider/openairesponses/constrained_sampling_upstream_test.go; inference/provider/openai/v0842_strict_schema_test.go; inference/provider/mistral/v0842_strict_schema_test.go. v0.84.2 strict JSON Schema conversion implemented: object strictification, optional non-nullable null widening, unsupported schema fallback/reject behavior, and provider parameter conversion. v0.84.2 changed. |
-| 32 | `test/context-estimate.test.ts` | DETERMINISTIC-PORTED | `estimate_upstream_test.go`, `TestUpstreamV0806ContextEstimateIgnoresUsageBeforeNewerPrefixMessage`. |
-| 33 | `test/context-overflow.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | context_overflow_simulated_test.go. v0.84.2 catalog/live-matrix adjustments retain existing deterministic overflow coverage; credential/live provider additions remain N/A-live. v0.84.2 changed. |
+| 31 | `test/constrained-sampling.test.ts` | DETERMINISTIC-PORTED | tests/schema_strict_test.go; inference/provider/openairesponses/constrained_sampling_upstream_test.go; inference/provider/openai/v0842_strict_schema_test.go; inference/provider/mistral/v0842_strict_schema_test.go. v0.84.2 strict JSON Schema conversion implemented: object strictification, optional non-nullable null widening, unsupported schema fallback/reject behavior, and provider parameter conversion. v0.84.2 changed. |
+| 32 | `test/context-estimate.test.ts` | DETERMINISTIC-PORTED | `tests/estimate_upstream_test.go`, `TestUpstreamV0806ContextEstimateIgnoresUsageBeforeNewerPrefixMessage`. |
+| 33 | `test/context-overflow.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | tests/context_overflow_simulated_test.go. v0.84.2 catalog/live-matrix adjustments retain existing deterministic overflow coverage; credential/live provider additions remain N/A-live. v0.84.2 changed. |
 | 34 | `test/cross-provider-handoff.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual cases to a live cross-provider handoff matrix requiring credentials/network. Deterministic replay/handoff transforms are covered locally. |
-| 35 | `test/deferred-tools.test.ts` | DETERMINISTIC-PORTED | deferred_tools_upstream_test.go; inference/provider/openairesponses/deferred_tools_upstream_test.go; inference/provider/openairesponses/v0842_namespace_additional_tools_test.go. v0.84.2 Responses `additional_tools` mode and namespace-safe deferred-tool replay are implemented; prior `tool_search` semantics retained. v0.84.2 changed. |
+| 35 | `test/deferred-tools.test.ts` | DETERMINISTIC-PORTED | tests/deferred_tools_upstream_test.go; inference/provider/openairesponses/deferred_tools_upstream_test.go; inference/provider/openairesponses/v0842_namespace_additional_tools_test.go. v0.84.2 Responses `additional_tools` mode and namespace-safe deferred-tool replay are implemented; prior `tool_search` semantics retained. v0.84.2 changed. |
 | 36 | `test/empty.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to the live empty-message matrix. Deterministic empty tool-result/request behavior is covered locally. |
 | 37 | `test/env-api-keys.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 38 | `test/error-body.test.ts` | DETERMINISTIC-PORTED | `error_body_test.go`. |
+| 38 | `test/error-body.test.ts` | DETERMINISTIC-PORTED | `tests/error_body_test.go`. |
 | 39 | `test/faux-provider.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 40 | `test/fetch-option.test.ts` | N/A/JS-runtime | Custom `fetch` injection into JS SDK adapters has no Go public API analogue; Go uses `http.Client`/retry transport hooks. |
 | 41 | `test/fireworks-models.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
@@ -81,22 +81,22 @@ Changed upstream test files in v0.84.2: **21** (18 modified + 3 added). New file
 | 51 | `test/google-thinking-disable.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 52 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | `google_thinking_signature_test.go`. |
 | 53 | `test/google-vertex-api-key-resolution.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 54 | `test/image-model-data.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS generator helper malformed-input paths (`parseOpenRouterImageModels`) that are not a Go public/runtime API. Go consumes exact generated image artifacts and verifies them separately via `scripts/generate-image-models.py` plus exact 42/42 comparator and `images_test.go`; do not label as a test-for-test port. |
+| 54 | `test/image-model-data.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS generator helper malformed-input paths (`parseOpenRouterImageModels`) that are not a Go public/runtime API. Go consumes exact generated image artifacts and verifies them separately via `scripts/generate-image-models.py` plus exact 42/42 comparator and `tests/images_test.go`; do not label as a test-for-test port. |
 | 55 | `test/image-tool-result.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 56 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | `images_test.go`, `images_openrouter_upstream_test.go`. |
+| 56 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | `tests/images_test.go`, `tests/images_openrouter_upstream_test.go`. |
 | 57 | `test/images.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 58 | `test/interleaved-thinking.test.ts` | N/A/live-provider | Requires live provider credentials/network; deterministic thinking replay/serialization tests cover local behavior. |
 | 59 | `test/kimi-coding-oauth.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 60 | `test/lax-message-content.test.ts` | DETERMINISTIC-PORTED | `lax_message_content_upstream_test.go`. |
+| 60 | `test/lax-message-content.test.ts` | DETERMINISTIC-PORTED | `tests/lax_message_content_upstream_test.go`. |
 | 61 | `test/lazy-module-load.test.ts` | N/A/JS-runtime | —. JS lazy module load import-count change has no Go analogue; providers are statically linked/registered. v0.84.2 changed. |
-| 62 | `test/max-thinking.test.ts` | DETERMINISTIC-PORTED | `supports_xhigh_upstream_test.go`, thinking-level clamp tests, and Codex request tests. |
+| 62 | `test/max-thinking.test.ts` | DETERMINISTIC-PORTED | `tests/supports_xhigh_upstream_test.go`, thinking-level clamp tests, and Codex request tests. |
 | 63 | `test/mistral-http-transport.test.ts` | DETERMINISTIC-PORTED/ADAPTED | inference/provider/mistral/*_test.go; inference/provider/mistral/v0842_strict_schema_test.go. Go Mistral already uses direct HTTP/SSE rather than the TS SDK. Existing request/retry/reasoning/raw-stop tests plus v0.84.2 strict schema conversion cover the Go-facing HTTP transport behavior; JS `fetch` injection and camelCase remapping are N/A to Go. v0.84.2 changed. |
 | 64 | `test/mistral-raw-stop-reason.test.ts` | DETERMINISTIC-PORTED | inference/provider/mistral/mistral_raw_stop_reason_test.go. Existing Mistral raw stop reason fixture remains passing after v0.84.2 direct HTTP transport/catalog refresh. v0.84.2 changed. |
 | 65 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | `mistral_reasoning_mode_test.go`. |
 | 66 | `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 67 | `test/model-catalog-types.test.ts` | DETERMINISTIC-PORTED | Generated catalog compile/type checks and exact model comparator. |
 | 68 | `test/model-data-validation.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 69 | `test/models-runtime.test.ts` | DETERMINISTIC-PORTED | `models_runtime_test.go`. |
+| 69 | `test/models-runtime.test.ts` | DETERMINISTIC-PORTED | `tests/models_runtime_test.go`. |
 | 70 | `test/node-http-proxy.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 71 | `test/oauth-auth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `GetAPIKeyWithContext` / `RuntimeForProviderContext` cancellation/cause tests; JS credential-store UI N/A. |
 | 72 | `test/oauth-device-code.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
@@ -131,28 +131,28 @@ Changed upstream test files in v0.84.2: **21** (18 modified + 3 added). New file
 | 101 | `test/overflow.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 102 | `test/pi-messages.test.ts` | DETERMINISTIC-PORTED | `inference/provider/pimessages/pimessages_test.go`. |
 | 103 | `test/provider-error-body-passthrough.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 104 | `test/provider-error-body-regression.test.ts` | DETERMINISTIC-PORTED | `provider_error_body_test.go`. |
+| 104 | `test/provider-error-body-regression.test.ts` | DETERMINISTIC-PORTED | `tests/provider_error_body_test.go`. |
 | 105 | `test/provider-retry.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 106 | `test/providers.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Registry/env/provider/runtime/faux deferred tests; JS instance helper surfaces mapped to Go registries. |
 | 107 | `test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 108 | `test/radius-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/radius_test.go` plus context refresh tests. |
 | 109 | `test/reasoning-options.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 110 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | `responseid_simulated_test.go`. |
-| 111 | `test/retry.test.ts` | DETERMINISTIC-PORTED | retry_assistant.go; retry_assistant_test.go. v0.84.2 retryable provider wording `exceeded request buffer limit while retrying upstream` is classified retryable. v0.84.2 changed. |
+| 110 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | `tests/responseid_simulated_test.go`. |
+| 111 | `test/retry.test.ts` | DETERMINISTIC-PORTED | retry_assistant.go; tests/retry_assistant_test.go. v0.84.2 retryable provider wording `exceeded request buffer limit while retrying upstream` is classified retryable. v0.84.2 changed. |
 | 112 | `test/sampling-options.test.ts` | DETERMINISTIC-PORTED | `openai_v0840_test.go`, `responses_v0840_test.go` sampling matrices. |
 | 113 | `test/stream.test.ts` | N/A/live-provider | —. v0.84.2 live stream matrix update requires provider credentials/network; deterministic streaming fixtures remain covered locally. v0.84.2 changed. |
-| 114 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | supports_xhigh_upstream_test.go; models_test.go. v0.84.2 catalog thinking-level changes adopted, including DeepSeek V4 Flash low/high/max/off and refreshed generated metadata. v0.84.2 changed. |
+| 114 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | tests/supports_xhigh_upstream_test.go; tests/models_test.go. v0.84.2 catalog thinking-level changes adopted, including DeepSeek V4 Flash low/high/max/off and refreshed generated metadata. v0.84.2 changed. |
 | 115 | `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 116 | `test/text.test.ts` | DETERMINISTIC-PORTED | `TestContentTextExtractsTextBlocks`. |
 | 117 | `test/together-models.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
-| 118 | `test/tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated token accounting remains ported in `tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live token-stat case requires credentials and is N/A/live-only. |
+| 118 | `test/tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated token accounting remains ported in `tests/tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live token-stat case requires credentials and is N/A/live-only. |
 | 119 | `test/tool-call-id-normalization.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 120 | `test/tool-call-without-result.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to a live provider matrix requiring credentials; deterministic missing-tool-result filtering/replay behavior remains covered locally. |
-| 121 | `test/total-tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | total_tokens_simulated_test.go; models_test.go. v0.84.2 catalog/live matrix update retains deterministic token-accounting fixtures; credential/live additions remain N/A-live. v0.84.2 changed. |
+| 121 | `test/total-tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | tests/total_tokens_simulated_test.go; tests/models_test.go. v0.84.2 catalog/live matrix update retains deterministic token-accounting fixtures; credential/live additions remain N/A-live. v0.84.2 changed. |
 | 122 | `test/transform-messages-copilot-openai-to-anthropic.test.ts` | DETERMINISTIC-PORTED | Anthropic/OpenAI replay transform tests. |
 | 123 | `test/unicode-surrogate.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 124 | `test/uuid.test.ts` | DETERMINISTIC-PORTED | `TestUUIDv7UsesRFC9562LayoutAndPreservesMonotonicOrder`. |
-| 125 | `test/validation.test.ts` | DETERMINISTIC-PORTED | upstream_validation_v0842_test.go; context.go. v0.84.2 optional non-nullable `null` is treated as omission before validation while nullable/reference nulls are preserved. v0.84.2 changed. |
+| 125 | `test/validation.test.ts` | DETERMINISTIC-PORTED | tests/upstream_validation_v0842_test.go; context.go. v0.84.2 optional non-nullable `null` is treated as omission before validation while nullable/reference nulls are preserved. v0.84.2 changed. |
 | 126 | `test/xai-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/xai_test.go` plus context refresh tests. |
 | 127 | `test/xai-responses.test.ts` | DETERMINISTIC-PORTED/covered | existing v0.84.1 Go corpus. Inherited from v0.84.1 manifest; not changed in the official v0.84.2 range. |
 | 128 | `test/xhigh.test.ts` | N/A/live-provider | Live OpenAI xhigh test requiring credentials; deterministic xhigh support metadata is covered. |

@@ -24,21 +24,21 @@ Exact command: `git diff --name-status v0.84.1..v0.84.2 -- packages/ai`.
 | `packages/ai/src/api/anthropic-messages.ts` | Implemented/adapted | Anthropic tools use strict-converted schemas when `SupportsStrictTools` allows them; existing Anthropic request architecture retained. |
 | `packages/ai/src/api/bedrock-converse-stream.ts` | Implemented | Strict-converted tool schemas and recursive empty-key input sanitization; `bedrock/v0842_sanitization_test.go`. |
 | `packages/ai/src/api/cloudflare-gateway-binding.ts` | N/A/JS-Workers-binding | Workers `env.AI.gateway().run()` fetch shim; Go has no Workers binding/fetch-injection surface. HTTPS gateway behavior remains covered. |
-| `packages/ai/src/api/constrained-sampling.ts` | Implemented | `schema_strict.go`, `schema_strict_test.go`, provider strict-schema tests, and existing constrained sampling tests. |
+| `packages/ai/src/api/constrained-sampling.ts` | Implemented | `schema_strict.go`, `tests/schema_strict_test.go`, provider strict-schema tests, and existing constrained sampling tests. |
 | `packages/ai/src/api/google-generative-ai.ts` | Implemented | Google request path passes strict-support into tool conversion and preserves stop/error distinction. |
 | `packages/ai/src/api/google-shared.ts` | Implemented | Strict schema parameters for Google tools and Gemini 3 strict sampling; covered by Google/provider tests. |
 | `packages/ai/src/api/google-vertex.ts` | Implemented | Vertex shares Google strict conversion and stop/error behavior. |
 | `packages/ai/src/api/mistral-conversations.ts` | Implemented/adapted | Direct HTTP/SSE Go transport now proves x-affinity, prompt cache key, byte-split UTF-8, abort/timeout, bounded 403 body, replay/tool fields, and cache-read usage in `mistral/v0842_wire_contract_test.go`. |
 | `packages/ai/src/api/openai-codex-responses.ts` | Implemented | Codex `end_turn`, `pi (...)` user-agent, and strict JSON-schema tools. Tests: `openaicodex/v0842_endturn_useragent_test.go`, `openaicodex/v0842_strict_schema_test.go`. |
-| `packages/ai/src/api/openai-completions.ts` | Implemented | Strict JSON-schema tool parameter conversion; DeepSeek mixed-case URL detection and `max_tokens` behavior tested in `goai_test.go`. |
+| `packages/ai/src/api/openai-completions.ts` | Implemented | Strict JSON-schema tool parameter conversion; DeepSeek mixed-case URL detection and `max_tokens` behavior tested in `tests/goai_test.go`. |
 | `packages/ai/src/api/openai-responses-shared.ts` | Implemented | Responses strict schema conversion, namespace capture/replay, and deferred `additional_tools` support. |
 | `packages/ai/src/api/openai-responses.ts` | Implemented | `SupportsAdditionalTools` compat selection and Cloudflare strict tool behavior; `openairesponses/v0842_namespace_additional_tools_test.go`. |
 | `packages/ai/src/auth/oauth/github-copilot.ts` | Implemented/adapted | Policy enablement batches concurrency at 4 with injectable httptest proof in `oauth/github_copilot_policy_test.go`. |
 | `packages/ai/src/image-models.generated.ts` | Adopted mechanically | `images/models_generated.go` regenerated to 45 image models; clean and fault image gates documented. |
 | `packages/ai/src/types.ts` | Implemented | Added `Namespace`, `EndTurn`, and `SupportsAdditionalTools` Go fields/generator support. |
 | `packages/ai/src/utils/pi-user-agent.ts` | Implemented/adapted | Go Codex uses `codexPiUserAgent`; browser-safe TS import mechanics are N/A. |
-| `packages/ai/src/utils/retry.ts` | Implemented | Request-buffer exhaustion wording is retryable; `retry_assistant_test.go`. |
-| `packages/ai/src/utils/validation.ts` | Implemented | Optional non-nullable null omission before validation; `upstream_validation_v0842_test.go`. |
+| `packages/ai/src/utils/retry.ts` | Implemented | Request-buffer exhaustion wording is retryable; `tests/retry_assistant_test.go`. |
+| `packages/ai/src/utils/validation.ts` | Implemented | Optional non-nullable null omission before validation; `tests/upstream_validation_v0842_test.go`. |
 | `packages/ai/test/anthropic-auth-token.test.ts` | DETERMINISTIC-PORTED/covered | Anthropic auth/header tests plus Codex user-agent shape cover Go-facing header behavior. |
 | `packages/ai/test/anthropic-eager-tool-input-compat.test.ts` | DETERMINISTIC-PORTED | Anthropic eager-input compat remains covered; strict schema conversion wired into Anthropic tools. |
 | `packages/ai/test/bedrock-convert-messages.test.ts` | DETERMINISTIC-PORTED | Existing conversion tests plus `bedrock/v0842_sanitization_test.go` for empty-key sanitization. |
@@ -65,8 +65,8 @@ Exact command: `git diff --name-status v0.84.1..v0.84.2 -- packages/ai`.
 
 | Upstream area | Disposition | Evidence |
 | --- | --- | --- |
-| Strict JSON-schema constrained sampling | Implemented | `schema_strict.go`, `schema_strict_test.go`, `openai/v0842_strict_schema_test.go`, `mistral/v0842_strict_schema_test.go`, `mistral/v0842_wire_contract_test.go`, `openairesponses/constrained_sampling_upstream_test.go` |
-| Optional non-nullable null validation | Implemented | `context.go`, `upstream_validation_v0842_test.go` |
+| Strict JSON-schema constrained sampling | Implemented | `schema_strict.go`, `tests/schema_strict_test.go`, `openai/v0842_strict_schema_test.go`, `mistral/v0842_strict_schema_test.go`, `mistral/v0842_wire_contract_test.go`, `openairesponses/constrained_sampling_upstream_test.go` |
+| Optional non-nullable null validation | Implemented | `context.go`, `tests/upstream_validation_v0842_test.go` |
 | Responses namespace and additional tools | Implemented | `types.go`, `compat.go`, `scripts/generate-models.go`, `openairesponses/responses.go`, `openairesponses/v0842_namespace_additional_tools_test.go` |
 | Codex end-turn/user-agent | Implemented | `openaicodex/codex.go`, `openaicodex/v0842_endturn_useragent_test.go` |
 | Bedrock sanitization | Implemented | `bedrock/bedrock.go`, `bedrock/v0842_sanitization_test.go` |

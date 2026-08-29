@@ -54,7 +54,7 @@ Validation: `python3 scripts/compare-upstream-models.py /workspace/tmp/pi-src/pa
 
 Auditor reopened the v0.80.9 catalog gate after an independent comparator against exact tag `2d16f92973230a7e095aa984f150ba8702784f50` found Go had 1065 generated text models while upstream provider maps exposed 1075. The missing provider/id pairs were Kimi Coding `k3` and `kimi-for-coding-highspeed`, Moonshot AI/CN `kimi-k3`, OpenRouter `meta/muse-spark-1.1` and `moonshotai/kimi-k3`, and Vercel AI Gateway `anthropic/claude-opus-4.7-fast`, `anthropic/claude-opus-4.8-fast`, `moonshotai/kimi-k3`, and `thinkingmachines/inkling`.
 
-Correction: regenerated `models_generated.go` from `/workspace/tmp/pi-src/packages/ai/src/models.generated.ts` at tag `2d16f92`, not from an incomplete package artifact. `scripts/compare-upstream-models.py /workspace/tmp/pi-src/packages/ai/src/providers` now reports `upstream pairs: 1075`, `generated pairs: 1075`, exact match. `models_test.go` asserts the exact 1075 count and includes regressions for all ten reopened IDs plus Kimi K3, Vercel Inkling, OpenRouter Kimi K2.7, and OpenRouter GLM-5.2 v0.80.9 metadata.
+Correction: regenerated `models_generated.go` from `/workspace/tmp/pi-src/packages/ai/src/models.generated.ts` at tag `2d16f92`, not from an incomplete package artifact. `scripts/compare-upstream-models.py /workspace/tmp/pi-src/packages/ai/src/providers` now reports `upstream pairs: 1075`, `generated pairs: 1075`, exact match. `tests/models_test.go` asserts the exact 1075 count and includes regressions for all ten reopened IDs plus Kimi K3, Vercel Inkling, OpenRouter Kimi K2.7, and OpenRouter GLM-5.2 v0.80.9 metadata.
 
 ## 2026-07-15 upstream main recheck after accepted v0.80.7 (`@earendil-works/pi-ai`)
 

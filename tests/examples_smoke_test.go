@@ -8,10 +8,10 @@ import (
 )
 
 func TestExamplesBuild(t *testing.T) {
-	cmd := exec.Command("go", "build", "./examples/...")
+	cmd := exec.Command("go", "build", "../examples/...")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go build ./examples/... failed: %v\n%s", err, string(out))
+		t.Fatalf("go build ../examples/... failed: %v\n%s", err, string(out))
 	}
 }
 
@@ -20,9 +20,9 @@ func TestExamplesMissingCredentialMessages(t *testing.T) {
 		path string
 		want string
 	}{
-		{"./examples/basic", "set OPENAI_API_KEY to run this example"},
-		{"./examples/streaming", "set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_TOKEN to run this example"},
-		{"./examples/tools", "set OPENAI_API_KEY to run this example"},
+		{"../examples/basic", "set OPENAI_API_KEY to run this example"},
+		{"../examples/streaming", "set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_TOKEN to run this example"},
+		{"../examples/tools", "set OPENAI_API_KEY to run this example"},
 	}
 
 	for _, tt := range tests {

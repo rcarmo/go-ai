@@ -24,139 +24,139 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 
 ## Shareable conformance corpus adopted from rs-ai/swift-ai
 
-- HTTP proxy environment support is covered by `retry_proxy_test.go` against Go's `http.ProxyFromEnvironment` for `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`; each case runs in a subprocess so Go's proxy-env cache cannot hide order dependence.
+- HTTP proxy environment support is covered by `tests/retry_proxy_test.go` against Go's `http.ProxyFromEnvironment` for `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`; each case runs in a subprocess so Go's proxy-env cache cannot hide order dependence.
 - Vertex API-key/ADC marker and custom base URL behavior is covered by `inference/provider/google/google_vertex_api_key_resolution_test.go`.
 - Real Codex WebSocket RT1/RT2 method tests are covered by `inference/provider/openaicodex/codex_ws_test.go`; raw handshake bugs are N/A because go-ai uses `coder/websocket` Dial, but real local WS server integration remains present.
 - Caching-gate divergences found during upstream ports are now covered by OpenAI prompt-cache, Anthropic cache-retention, Responses message-ID, and OpenRouter cache-write tests.
-- Upstream `utils/estimate.ts` semantics are covered by `estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
-- Upstream `clampMaxTokensToContext` is covered by `simple_options_clamp_test.go` using canonical upstream literals from `simple-options.ts`: `CONTEXT_SAFETY_TOKENS = 4096`, `MIN_MAX_TOKENS = 1`; boundary case `contextWindow=5000`, `"hello"` estimate `2`, requested `2000` clamps to `902`. Provider request builders receive clamped `options.maxTokens` via `buildBaseOptions`/shared options; boundary tests cover OpenAI Completions, Responses/Codex, Anthropic, Bedrock, Google/Vertex, and Mistral.
+- Upstream `utils/estimate.ts` semantics are covered by `tests/estimate_upstream_test.go`: ceil-based text estimates, 4800-char image estimates, last successful assistant usage anchoring, and system/tool prefix counting only when no usage anchor exists.
+- Upstream `clampMaxTokensToContext` is covered by `tests/simple_options_clamp_test.go` using canonical upstream literals from `simple-options.ts`: `CONTEXT_SAFETY_TOKENS = 4096`, `MIN_MAX_TOKENS = 1`; boundary case `contextWindow=5000`, `"hello"` estimate `2`, requested `2000` clamps to `902`. Provider request builders receive clamped `options.maxTokens` via `buildBaseOptions`/shared options; boundary tests cover OpenAI Completions, Responses/Codex, Anthropic, Bedrock, Google/Vertex, and Mistral.
 - Anthropic `output_tokens_details.thinking_tokens` → `usage.reasoning` is covered by `inference/provider/anthropic/anthropic_reasoning_usage_upstream_test.go`.
 - Provider catalog parity is checked by regenerating `models_generated.go` from exact upstream provider shards; `scripts/compare-upstream-models.py` reads exact upstream provider maps directly and currently verifies 1312 generated text models across 39 providers from exact upstream v0.84.3 tag `4e58f324fae8ebfa98a3d45181fb248072a2afac` using `PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0843/npm0843/package/dist/providers/data`. `scripts/check-model-regeneration.sh` also verifies `images/models_generated.go` from exact upstream `image-models.generated.ts` and currently verifies 45 image models.
-- v0.80.5 lax untyped-history content handling is covered by `lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
+- v0.80.5 lax untyped-history content handling is covered by `tests/lax_message_content_upstream_test.go`: nil/missing user, assistant, and tool-result content is normalized to an empty content slice before provider conversion/image downgrade.
 - v0.80.5 OpenAI Responses empty tool-result behavior is covered by `inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go`: blank text-only tool outputs serialize as `(no tool output)` without image-placeholder text.
 - v0.80.5 in-place behavior deltas are covered beyond file-count accounting: Codex SSE zstd request compression at level 3, Codex cached WebSocket 55m age recycling, DS4 overflow wording, retryable `524`/Bun socket-drop/`ResourceExhausted` errors, OAuth `slow_down.interval` semantics, and OpenAI Completions `(no tool output)` blank tool-result placeholders.
 - Reopened upstream 96-file parity is covered for `deferred-tools.test.ts` by core deferred-tool planning tests, Anthropic `defer_loading`/`tool_reference` request and replay tests, and OpenAI Responses `tool_search` request/output tests.
 - Upstream `azure-openai-responses-reasoning-replay.test.ts` is covered by deterministic Azure Responses stream tests that preserve `output_item.done` encrypted reasoning content and backfill missing content from `response.completed.output`.
 - v0.80.7 Radius OAuth parity is covered by `oauth/radius_test.go`: local-server tests exercise `/v1/oauth` discovery, full device-code polling (pending→success, `slow_down`, `expired_token`, `access_denied`), context cancellation/deadline at the internal context-aware boundary, token refresh, `/v1/config` catalog caching/model injection, previous-config fallback, and typed OAuth errors. Public `Login` remains context-free because the existing Go OAuth interface has no context parameter.
-- Upstream-main `2be9efa` model runtime parity is covered by `models_runtime_test.go`: provider-scoped model store, dynamic refresh, cached restore, fetch-error fallback, offline cache-only initialization, in-flight refresh deduplication, and cancellation. Production integration is covered by `oauth/radius_runtime_test.go`, which verifies Radius OAuth materializes a dynamic provider into package-level `GetModel`/`ListModels`, network refresh replaces normal lookups, and failed/offline refresh retains cached models.
+- Upstream-main `2be9efa` model runtime parity is covered by `tests/models_runtime_test.go`: provider-scoped model store, dynamic refresh, cached restore, fetch-error fallback, offline cache-only initialization, in-flight refresh deduplication, and cancellation. Production integration is covered by `oauth/radius_runtime_test.go`, which verifies Radius OAuth materializes a dynamic provider into package-level `GetModel`/`ListModels`, network refresh replaces normal lookups, and failed/offline refresh retains cached models.
 - Upstream-main `2be9efa` xAI parity is covered by `oauth/xai_test.go` and `inference/provider/openairesponses/xai_responses_upstream_test.go`: xAI device OAuth, refresh token rotation/preservation/default expiry/error surfacing, HTTPS verification URI validation, and `grok-4.5` metadata parity.
 - Upstream v0.80.9 Kimi deferred-tool serialization is covered by `inference/provider/openai/openai_deferred_kimi_test.go`: `deferredToolsMode: "kimi"` filters newly added deferred tools out of top-level tools and emits a contentless system tool-definition message after the relevant tool result.
-- Upstream v0.80.9 model-refresh force propagation is covered by `models_runtime_test.go`: `RefreshWithOptions(... Force:true)` reaches dynamic provider refresh contexts.
+- Upstream v0.80.9 model-refresh force propagation is covered by `tests/models_runtime_test.go`: `RefreshWithOptions(... Force:true)` reaches dynamic provider refresh contexts.
 - Upstream v0.83.0 raw stop reason preservation, pending terminal errors, OAuth minimum-validity refresh, malformed tool-delta handling, Bedrock credential priority, and catalog metadata are covered by provider raw-stop tests, OAuth/auth tests, OpenAI tool-delta regressions, Bedrock credential behavior, updated image/model metadata tests, and the exact 1153/1153 text plus 42-image catalog comparator.
-- Upstream v0.84.0 Baseten, advanced sampling params, thinking-token budget, `supportsFinishReason=false`, Anthropic initial content-block assembly, OpenAI Responses incomplete detail mapping, Bedrock diagnostics, text catalog, image catalog, Responses compat session-affinity/tool-choice/service-tier behavior, and Cloudflare placeholder preservation are covered by `openai_v0840_test.go`, `responses_v0840_test.go`, `responses_compat_upstream_test.go`, `cloudflare_stream_upstream_test.go`, `anthropic_v0840_test.go`, `bedrock_stream_test.go`, `models_test.go`, `qwen_token_plan_upstream_test.go`, `images_test.go`, and the exact 1153/1153 text plus 42-image catalog comparators.
-- Upstream v0.84.2 strict JSON-schema tool conversion, optional non-nullable null omission, Responses namespace/additional_tools, Codex end_turn/user-agent, Bedrock empty-key sanitization, Google stop/toolUse mapping, Mistral strict schema behavior, Copilot policy throttling, retry buffer-limit classification, text catalog, and image catalog are covered by `schema_strict_test.go`, `upstream_validation_v0842_test.go`, `inference/provider/*/v0842_*_test.go`, `retry_assistant_test.go`, `models_test.go`, `images_test.go`, and the exact 1267/1267 text plus 45-image regeneration gates.
+- Upstream v0.84.0 Baseten, advanced sampling params, thinking-token budget, `supportsFinishReason=false`, Anthropic initial content-block assembly, OpenAI Responses incomplete detail mapping, Bedrock diagnostics, text catalog, image catalog, Responses compat session-affinity/tool-choice/service-tier behavior, and Cloudflare placeholder preservation are covered by `openai_v0840_test.go`, `responses_v0840_test.go`, `responses_compat_upstream_test.go`, `tests/cloudflare_stream_upstream_test.go`, `anthropic_v0840_test.go`, `bedrock_stream_test.go`, `tests/models_test.go`, `tests/qwen_token_plan_upstream_test.go`, `tests/images_test.go`, and the exact 1153/1153 text plus 42-image catalog comparators.
+- Upstream v0.84.2 strict JSON-schema tool conversion, optional non-nullable null omission, Responses namespace/additional_tools, Codex end_turn/user-agent, Bedrock empty-key sanitization, Google stop/toolUse mapping, Mistral strict schema behavior, Copilot policy throttling, retry buffer-limit classification, text catalog, and image catalog are covered by `tests/schema_strict_test.go`, `tests/upstream_validation_v0842_test.go`, `inference/provider/*/v0842_*_test.go`, `tests/retry_assistant_test.go`, `tests/models_test.go`, `tests/images_test.go`, and the exact 1267/1267 text plus 45-image regeneration gates.
 
 ## Tests
 
 | Test | File | Covers | Upstream gap / bug guarded |
 |---|---|---|---|
-| `TestEstimateTextTokensUsesCeilFourCharsPerToken` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream `utils/estimate.ts` ceil semantics instead of floor division. |
-| `TestEstimateMessageTokensCountsImagesAsUpstreamChars` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream image estimate of 4800 chars / 1200 tokens. |
-| `TestEstimateContextTokensUsesLastSuccessfulAssistantUsageAsAnchor` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream reuse of the last non-error/non-aborted assistant usage block plus trailing messages. |
-| `TestEstimateContextTokensIncludesSystemAndToolsOnlyWithoutUsageAnchor` | `estimate_upstream_test.go` | context/token estimation parity | Guards upstream system/tool prefix counting only when no usage anchor exists. |
-| `TestClampMaxTokensToContextUsesEstimateAndSafetyWindow` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `clampMaxTokensToContext` literal safety window: `5000 - estimate("hello")2 - 4096 = 902`. |
-| `TestClampMaxTokensToContextHonorsMinimumAndUnboundedModels` | `simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `MIN_MAX_TOKENS = 1` and unbounded-model behavior. |
-| `TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw` | `provider_error_body_test.go` | provider error body passthrough | Guards upstream v0.80.3 provider-error-body-regression OpenRouter `metadata.raw` duplicate-prevention fixture. |
-| `TestUpstreamLaxMessageContentHandlingNormalizesNilContent` | `lax_message_content_upstream_test.go` | message transform lax content handling | Guards upstream v0.80.5 normalization of null/missing untyped message content to empty arrays before provider conversion. |
-| `TestUpstreamOverflowDetectsDS4ConfiguredContextSizeErrors` | `v0805_inplace_deltas_test.go` | context overflow detection | Guards upstream v0.80.5 DS4 configured-context-size overflow wording. |
-| `TestUpstreamRetryMatchesV0805ProviderTransportPatterns` | `v0805_inplace_deltas_test.go` | retry classification | Guards upstream v0.80.5 retryable `524`, Bun socket-drop, and `ResourceExhausted` provider patterns. |
-| `TestCompleteNilModelDoesNotPanic` | `audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
-| `TestNilRegistrationNoops` | `audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCloneContextDeepCopiesNestedFields` | `audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |
-| `TestGetToolCallsReturnsArgumentCopies` | `audit_hardening_test.go` | tool-call/schema conversion behavior: Get Tool Calls Returns Argument Copies | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestMapThinkingAndCostNilSafe` | `audit_hardening_test.go` | reasoning/thinking wire-format behavior: Map Thinking And Cost Nil Safe | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestAdjustMaxTokensForThinkingReservesOutput` | `audit_hardening_test.go` | reasoning/thinking wire-format behavior: Adjust Max Tokens For Thinking Reserves Output | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestIsContextOverflowUsesDiagnosticsAndNilSafe` | `audit_hardening_test.go` | Is Context Overflow Uses Diagnostics And Nil Safe | Guards locally discovered edge cases and Go API compatibility. |
-| `TestAdaptReasoningItem` | `coverage_boost_test.go` | reasoning/thinking wire-format behavior: Adapt Reasoning Item | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestAdaptCommentaryDone` | `coverage_boost_test.go` | Adapt Commentary Done | Guards locally discovered edge cases and Go API compatibility. |
-| `TestNormalizeReasoningTextDone` | `coverage_boost_test.go` | reasoning/thinking wire-format behavior: Normalize Reasoning Text Done | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestShortHash` | `coverage_boost_test.go` | Short Hash | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCopilotHeaders` | `coverage_boost_test.go` | auth/header/env edge case: Copilot Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestCopilotHeadersWithIntent` | `coverage_boost_test.go` | auth/header/env edge case: Copilot Headers With Intent | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestNewStderrLogger` | `coverage_boost_test.go` | New Stderr Logger | Guards locally discovered edge cases and Go API compatibility. |
-| `TestClearModels` | `coverage_boost_test.go` | model registry/generated metadata parity: Clear Models | Guards generated registry drift and provider metadata changes. |
-| `TestDefaultRetryConfig` | `coverage_boost_test.go` | retry/cancellation robustness: Default Retry Config | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestNoRetryConfig` | `coverage_boost_test.go` | retry/cancellation robustness: No Retry Config | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestNewHTTPClient` | `coverage_boost_test.go` | New HTTPClient | Guards locally discovered edge cases and Go API compatibility. |
-| `TestDoWithRetrySuccess` | `coverage_boost_test.go` | retry/cancellation robustness: Do With Retry Success | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestDoWithRetry429` | `coverage_boost_test.go` | retry/cancellation robustness: Do With Retry429 | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestDoWithRetryExhausted` | `coverage_boost_test.go` | retry/cancellation robustness: Do With Retry Exhausted | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestDoWithRetryOnRetryCallback` | `coverage_boost_test.go` | retry/cancellation robustness: Do With Retry On Retry Callback | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestAppendAssistantMessage` | `coverage_boost_test.go` | Append Assistant Message | Guards locally discovered edge cases and Go API compatibility. |
-| `TestGetTextContent` | `coverage_boost_test.go` | Get Text Content | Guards locally discovered edge cases and Go API compatibility. |
-| `TestInvokeOnResponse` | `coverage_boost_test.go` | Invoke On Response | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCompleteViaFaux` | `coverage_boost_test.go` | Complete Via Faux | Guards locally discovered edge cases and Go API compatibility. |
-| `TestStreamMissingFunction` | `coverage_boost_test.go` | streaming/event transport behavior: Stream Missing Function | Guards event stream protocol compatibility and partial-failure behavior. |
-| `TestCompleteErrorEventWithoutMessage` | `coverage_boost_test.go` | Complete Error Event Without Message | Guards locally discovered edge cases and Go API compatibility. |
-| `TestApplyToolCallLimitNoOp` | `coverage_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit No Op | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestApplyToolCallLimitTrims` | `coverage_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit Trims | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestAzureSessionHeaders` | `coverage_test.go` | auth/header/env edge case: Azure Session Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestNormalizeAzureReasoningEventPassthrough` | `coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Event Passthrough | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestNormalizeAzureReasoningEventCommentary` | `coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Event Commentary | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestNormalizeAzureReasoningTextDelta` | `coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Text Delta | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestDetectCompatProviders` | `coverage_test.go` | Detect Compat Providers | Guards locally discovered edge cases and Go API compatibility. |
-| `TestResolveAPIKey` | `coverage_test.go` | auth/header/env edge case: Resolve APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestTransformMessagesPreservesImages` | `coverage_test.go` | image generation behavior: Transform Messages Preserves Images | Guards OpenRouter/image API behavior beyond text providers. |
-| `TestTransformInsertsSyntheticToolResults` | `coverage_test.go` | tool-call/schema conversion behavior: Transform Inserts Synthetic Tool Results | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestClampReasoning` | `coverage_test.go` | reasoning/thinking wire-format behavior: Clamp Reasoning | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestSupportsXhigh` | `coverage_test.go` | Supports Xhigh | Guards locally discovered edge cases and Go API compatibility. |
-| `TestValidateTypeChecks` | `coverage_test.go` | Validate Type Checks | Guards locally discovered edge cases and Go API compatibility. |
-| `TestUnregisterAndClear` | `coverage_test.go` | Unregister And Clear | Guards locally discovered edge cases and Go API compatibility. |
-| `TestStreamNilModel` | `defensive_test.go` | streaming/event transport behavior: Stream Nil Model | Guards event stream protocol compatibility and partial-failure behavior. |
-| `TestAppendAssistantMessageNilSafe` | `defensive_test.go` | Append Assistant Message Nil Safe | Guards locally discovered edge cases and Go API compatibility. |
-| `TestDoWithRetryRequiresReplayableBody` | `defensive_test.go` | provider request/payload parity: Do With Retry Requires Replayable Body | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestDoWithRetryNegativeMaxRetriesClampsToSingleAttempt` | `defensive_test.go` | retry/cancellation robustness: Do With Retry Negative Max Retries Clamps To Single Attempt | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestDoWithRetryReplaysBodyAcrossRetries` | `defensive_test.go` | provider request/payload parity: Do With Retry Replays Body Across Retries | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestExamplesBuild` | `examples_smoke_test.go` | Examples Build | Guards locally discovered edge cases and Go API compatibility. |
-| `TestExamplesMissingCredentialMessages` | `examples_smoke_test.go` | Examples Missing Credential Messages | Guards locally discovered edge cases and Go API compatibility. |
-| `TestUserMessage` | `goai_test.go` | User Message | Guards locally discovered edge cases and Go API compatibility. |
-| `TestContextJSON` | `goai_test.go` | Context JSON | Guards locally discovered edge cases and Go API compatibility. |
-| `TestModelRegistry` | `goai_test.go` | model registry/generated metadata parity: Model Registry | Guards generated registry drift and provider metadata changes. |
-| `TestStreamNoProvider` | `goai_test.go` | streaming/event transport behavior: Stream No Provider | Guards event stream protocol compatibility and partial-failure behavior. |
-| `TestIsContextOverflow` | `goai_test.go` | Is Context Overflow | Guards locally discovered edge cases and Go API compatibility. |
-| `TestValidateToolCall` | `goai_test.go` | tool-call/schema conversion behavior: Validate Tool Call | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestGetEnvAPIKey` | `goai_test.go` | auth/header/env edge case: Get Env APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestGetEnvAPIKeyAnthropic` | `goai_test.go` | auth/header/env edge case: Get Env APIKey Anthropic | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestGetEnvAPIKeyWithEnvBedrockAuthenticated` | `goai_test.go` | auth/header/env edge case: Get Env APIKey With Env Bedrock Authenticated | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestGetEnvAPIKeyWithEnvGoogleVertexADC` | `goai_test.go` | auth/header/env edge case: Get Env APIKey With Env Google Vertex ADC | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestCalculateCost` | `goai_test.go` | Calculate Cost | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCalculateCostAnthropicLongCacheWrite` | `goai_test.go` | prompt/cache usage or retention behavior: Calculate Cost Anthropic Long Cache Write | Guards cache-retention/usage accounting/cost parity. |
-| `TestModelsAreEqual` | `goai_test.go` | model registry/generated metadata parity: Models Are Equal | Guards generated registry drift and provider metadata changes. |
-| `TestAdjustMaxTokensForThinking` | `goai_test.go` | reasoning/thinking wire-format behavior: Adjust Max Tokens For Thinking | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestTransformSkipsErroredMessages` | `goai_test.go` | Transform Skips Errored Messages | Guards locally discovered edge cases and Go API compatibility. |
-| `TestTransformDowngradesImages` | `goai_test.go` | image generation behavior: Transform Downgrades Images | Guards OpenRouter/image API behavior beyond text providers. |
-| `TestSanitizeSurrogates` | `goai_test.go` | Sanitize Surrogates | Guards locally discovered edge cases and Go API compatibility. |
-| `TestDetectCompat` | `goai_test.go` | Detect Compat | Guards locally discovered edge cases and Go API compatibility. |
-| `TestClampThinkingLevelPrefersUpgrade` | `goai_test.go` | reasoning/thinking wire-format behavior: Clamp Thinking Level Prefers Upgrade | Guards provider-specific reasoning/thinking payload and replay semantics. |
-| `TestHasOpenAIAuthHeader` | `goai_test.go` | auth/header/env edge case: Has Open AIAuth Header | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestMergeProviderHeadersAppliesOverridesAndSuppressions` | `goai_test.go` | auth/header/env edge case: Merge Provider Headers Applies Overrides And Suppressions | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestApplyDefaultHeadersPreservesExplicitEmptyOverride` | `goai_test.go` | auth/header/env edge case: Apply Default Headers Preserves Explicit Empty Override | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestHasAnthropicAuthHeader` | `goai_test.go` | auth/header/env edge case: Has Anthropic Auth Header | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestBuildCopilotDynamicHeaders` | `goai_test.go` | auth/header/env edge case: Build Copilot Dynamic Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestAgentLoopHarness` | `harness_integration_test.go` | Agent Loop Harness | Guards locally discovered edge cases and Go API compatibility. |
-| `TestStreamingHarness` | `harness_integration_test.go` | streaming/event transport behavior: Streaming Harness | Guards event stream protocol compatibility and partial-failure behavior. |
-| `TestErrorHandlingHarness` | `harness_integration_test.go` | Error Handling Harness | Guards locally discovered edge cases and Go API compatibility. |
-| `TestContextCompactionHarness` | `harness_integration_test.go` | Context Compaction Harness | Guards locally discovered edge cases and Go API compatibility. |
-| `TestHooksHarness` | `harness_integration_test.go` | Hooks Harness | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCrossProviderHandoff` | `harness_integration_test.go` | Cross Provider Handoff | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCloneContext` | `harness_test.go` | Clone Context | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCloneContextNil` | `harness_test.go` | Clone Context Nil | Guards locally discovered edge cases and Go API compatibility. |
-| `TestSaveLoadContext` | `harness_test.go` | Save Load Context | Guards locally discovered edge cases and Go API compatibility. |
-| `TestEstimateTokens` | `harness_test.go` | Estimate Tokens | Guards locally discovered edge cases and Go API compatibility. |
-| `TestFitsInContextWindow` | `harness_test.go` | Fits In Context Window | Guards locally discovered edge cases and Go API compatibility. |
-| `TestCompactContext` | `harness_test.go` | Compact Context | Guards locally discovered edge cases and Go API compatibility. |
-| `TestGetToolCalls` | `harness_test.go` | tool-call/schema conversion behavior: Get Tool Calls | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestNeedsToolExecution` | `harness_test.go` | tool-call/schema conversion behavior: Needs Tool Execution | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestAppendHelpers` | `harness_test.go` | Append Helpers | Guards locally discovered edge cases and Go API compatibility. |
-| `TestHooksOnStreamOptions` | `harness_test.go` | streaming/event transport behavior: Hooks On Stream Options | Guards event stream protocol compatibility and partial-failure behavior. |
-| `TestInvokeOnPayloadNil` | `harness_test.go` | provider request/payload parity: Invoke On Payload Nil | Guards locally discovered edge cases and Go API compatibility. |
-| `TestImageAPIProviderRegistered` | `images_test.go` | image generation behavior: Image APIProvider Registered | Guards OpenRouter/image API behavior beyond text providers. |
-| `TestBuiltinImageModels` | `images_test.go` | model registry/generated metadata parity: Builtin Image Models | Guards generated registry drift and provider metadata changes. |
-| `TestGenerateImagesErrorPaths` | `images_test.go` | image generation behavior: Generate Images Error Paths | Guards OpenRouter/image API behavior beyond text providers. |
-| `TestGenerateImagesOpenRouterHooksAndResponse` | `images_test.go` | image generation behavior: Generate Images Open Router Hooks And Response | Guards OpenRouter/image API behavior beyond text providers. |
-| `TestGenerateImagesOpenRouterUsesProviderEnvAPIKey` | `images_test.go` | auth/header/env edge case: Generate Images Open Router Uses Provider Env APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
-| `TestGenerateImagesOpenRouterPayloadParityAndAbort` | `images_test.go` | provider request/payload parity: Generate Images Open Router Payload Parity And Abort | Guards transport retry/cancellation edge cases and resource cleanup. |
-| `TestGenerateImagesOpenRouterRetriesAndHookError` | `images_test.go` | image generation behavior: Generate Images Open Router Retries And Hook Error | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestEstimateTextTokensUsesCeilFourCharsPerToken` | `tests/estimate_upstream_test.go` | context/token estimation parity | Guards upstream `utils/estimate.ts` ceil semantics instead of floor division. |
+| `TestEstimateMessageTokensCountsImagesAsUpstreamChars` | `tests/estimate_upstream_test.go` | context/token estimation parity | Guards upstream image estimate of 4800 chars / 1200 tokens. |
+| `TestEstimateContextTokensUsesLastSuccessfulAssistantUsageAsAnchor` | `tests/estimate_upstream_test.go` | context/token estimation parity | Guards upstream reuse of the last non-error/non-aborted assistant usage block plus trailing messages. |
+| `TestEstimateContextTokensIncludesSystemAndToolsOnlyWithoutUsageAnchor` | `tests/estimate_upstream_test.go` | context/token estimation parity | Guards upstream system/tool prefix counting only when no usage anchor exists. |
+| `TestClampMaxTokensToContextUsesEstimateAndSafetyWindow` | `tests/simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `clampMaxTokensToContext` literal safety window: `5000 - estimate("hello")2 - 4096 = 902`. |
+| `TestClampMaxTokensToContextHonorsMinimumAndUnboundedModels` | `tests/simple_options_clamp_test.go` | context-aware max-token clamping | Guards upstream `MIN_MAX_TOKENS = 1` and unbounded-model behavior. |
+| `TestProviderErrorBodyPassthroughOpenAICompletionsDoesNotDoublePrintMetadataRaw` | `tests/provider_error_body_test.go` | provider error body passthrough | Guards upstream v0.80.3 provider-error-body-regression OpenRouter `metadata.raw` duplicate-prevention fixture. |
+| `TestUpstreamLaxMessageContentHandlingNormalizesNilContent` | `tests/lax_message_content_upstream_test.go` | message transform lax content handling | Guards upstream v0.80.5 normalization of null/missing untyped message content to empty arrays before provider conversion. |
+| `TestUpstreamOverflowDetectsDS4ConfiguredContextSizeErrors` | `tests/v0805_inplace_deltas_test.go` | context overflow detection | Guards upstream v0.80.5 DS4 configured-context-size overflow wording. |
+| `TestUpstreamRetryMatchesV0805ProviderTransportPatterns` | `tests/v0805_inplace_deltas_test.go` | retry classification | Guards upstream v0.80.5 retryable `524`, Bun socket-drop, and `ResourceExhausted` provider patterns. |
+| `TestCompleteNilModelDoesNotPanic` | `tests/audit_hardening_test.go` | model registry/generated metadata parity: Complete Nil Model Does Not Panic | Guards generated registry drift and provider metadata changes. |
+| `TestNilRegistrationNoops` | `tests/audit_hardening_test.go` | Nil Registration Noops | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCloneContextDeepCopiesNestedFields` | `tests/audit_hardening_test.go` | Clone Context Deep Copies Nested Fields | Guards locally discovered edge cases and Go API compatibility. |
+| `TestGetToolCallsReturnsArgumentCopies` | `tests/audit_hardening_test.go` | tool-call/schema conversion behavior: Get Tool Calls Returns Argument Copies | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestMapThinkingAndCostNilSafe` | `tests/audit_hardening_test.go` | reasoning/thinking wire-format behavior: Map Thinking And Cost Nil Safe | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestAdjustMaxTokensForThinkingReservesOutput` | `tests/audit_hardening_test.go` | reasoning/thinking wire-format behavior: Adjust Max Tokens For Thinking Reserves Output | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestIsContextOverflowUsesDiagnosticsAndNilSafe` | `tests/audit_hardening_test.go` | Is Context Overflow Uses Diagnostics And Nil Safe | Guards locally discovered edge cases and Go API compatibility. |
+| `TestAdaptReasoningItem` | `tests/coverage_boost_test.go` | reasoning/thinking wire-format behavior: Adapt Reasoning Item | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestAdaptCommentaryDone` | `tests/coverage_boost_test.go` | Adapt Commentary Done | Guards locally discovered edge cases and Go API compatibility. |
+| `TestNormalizeReasoningTextDone` | `tests/coverage_boost_test.go` | reasoning/thinking wire-format behavior: Normalize Reasoning Text Done | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestShortHash` | `tests/coverage_boost_test.go` | Short Hash | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCopilotHeaders` | `tests/coverage_boost_test.go` | auth/header/env edge case: Copilot Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestCopilotHeadersWithIntent` | `tests/coverage_boost_test.go` | auth/header/env edge case: Copilot Headers With Intent | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestNewStderrLogger` | `tests/coverage_boost_test.go` | New Stderr Logger | Guards locally discovered edge cases and Go API compatibility. |
+| `TestClearModels` | `tests/coverage_boost_test.go` | model registry/generated metadata parity: Clear Models | Guards generated registry drift and provider metadata changes. |
+| `TestDefaultRetryConfig` | `tests/coverage_boost_test.go` | retry/cancellation robustness: Default Retry Config | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestNoRetryConfig` | `tests/coverage_boost_test.go` | retry/cancellation robustness: No Retry Config | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestNewHTTPClient` | `tests/coverage_boost_test.go` | New HTTPClient | Guards locally discovered edge cases and Go API compatibility. |
+| `TestDoWithRetrySuccess` | `tests/coverage_boost_test.go` | retry/cancellation robustness: Do With Retry Success | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestDoWithRetry429` | `tests/coverage_boost_test.go` | retry/cancellation robustness: Do With Retry429 | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestDoWithRetryExhausted` | `tests/coverage_boost_test.go` | retry/cancellation robustness: Do With Retry Exhausted | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestDoWithRetryOnRetryCallback` | `tests/coverage_boost_test.go` | retry/cancellation robustness: Do With Retry On Retry Callback | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestAppendAssistantMessage` | `tests/coverage_boost_test.go` | Append Assistant Message | Guards locally discovered edge cases and Go API compatibility. |
+| `TestGetTextContent` | `tests/coverage_boost_test.go` | Get Text Content | Guards locally discovered edge cases and Go API compatibility. |
+| `TestInvokeOnResponse` | `tests/coverage_boost_test.go` | Invoke On Response | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCompleteViaFaux` | `tests/coverage_boost_test.go` | Complete Via Faux | Guards locally discovered edge cases and Go API compatibility. |
+| `TestStreamMissingFunction` | `tests/coverage_boost_test.go` | streaming/event transport behavior: Stream Missing Function | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestCompleteErrorEventWithoutMessage` | `tests/coverage_boost_test.go` | Complete Error Event Without Message | Guards locally discovered edge cases and Go API compatibility. |
+| `TestApplyToolCallLimitNoOp` | `tests/coverage_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit No Op | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestApplyToolCallLimitTrims` | `tests/coverage_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit Trims | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestAzureSessionHeaders` | `tests/coverage_test.go` | auth/header/env edge case: Azure Session Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestNormalizeAzureReasoningEventPassthrough` | `tests/coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Event Passthrough | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestNormalizeAzureReasoningEventCommentary` | `tests/coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Event Commentary | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestNormalizeAzureReasoningTextDelta` | `tests/coverage_test.go` | reasoning/thinking wire-format behavior: Normalize Azure Reasoning Text Delta | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestDetectCompatProviders` | `tests/coverage_test.go` | Detect Compat Providers | Guards locally discovered edge cases and Go API compatibility. |
+| `TestResolveAPIKey` | `tests/coverage_test.go` | auth/header/env edge case: Resolve APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestTransformMessagesPreservesImages` | `tests/coverage_test.go` | image generation behavior: Transform Messages Preserves Images | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestTransformInsertsSyntheticToolResults` | `tests/coverage_test.go` | tool-call/schema conversion behavior: Transform Inserts Synthetic Tool Results | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestClampReasoning` | `tests/coverage_test.go` | reasoning/thinking wire-format behavior: Clamp Reasoning | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestSupportsXhigh` | `tests/coverage_test.go` | Supports Xhigh | Guards locally discovered edge cases and Go API compatibility. |
+| `TestValidateTypeChecks` | `tests/coverage_test.go` | Validate Type Checks | Guards locally discovered edge cases and Go API compatibility. |
+| `TestUnregisterAndClear` | `tests/coverage_test.go` | Unregister And Clear | Guards locally discovered edge cases and Go API compatibility. |
+| `TestStreamNilModel` | `tests/defensive_test.go` | streaming/event transport behavior: Stream Nil Model | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestAppendAssistantMessageNilSafe` | `tests/defensive_test.go` | Append Assistant Message Nil Safe | Guards locally discovered edge cases and Go API compatibility. |
+| `TestDoWithRetryRequiresReplayableBody` | `tests/defensive_test.go` | provider request/payload parity: Do With Retry Requires Replayable Body | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestDoWithRetryNegativeMaxRetriesClampsToSingleAttempt` | `tests/defensive_test.go` | retry/cancellation robustness: Do With Retry Negative Max Retries Clamps To Single Attempt | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestDoWithRetryReplaysBodyAcrossRetries` | `tests/defensive_test.go` | provider request/payload parity: Do With Retry Replays Body Across Retries | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestExamplesBuild` | `tests/examples_smoke_test.go` | Examples Build | Guards locally discovered edge cases and Go API compatibility. |
+| `TestExamplesMissingCredentialMessages` | `tests/examples_smoke_test.go` | Examples Missing Credential Messages | Guards locally discovered edge cases and Go API compatibility. |
+| `TestUserMessage` | `tests/goai_test.go` | User Message | Guards locally discovered edge cases and Go API compatibility. |
+| `TestContextJSON` | `tests/goai_test.go` | Context JSON | Guards locally discovered edge cases and Go API compatibility. |
+| `TestModelRegistry` | `tests/goai_test.go` | model registry/generated metadata parity: Model Registry | Guards generated registry drift and provider metadata changes. |
+| `TestStreamNoProvider` | `tests/goai_test.go` | streaming/event transport behavior: Stream No Provider | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestIsContextOverflow` | `tests/goai_test.go` | Is Context Overflow | Guards locally discovered edge cases and Go API compatibility. |
+| `TestValidateToolCall` | `tests/goai_test.go` | tool-call/schema conversion behavior: Validate Tool Call | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestGetEnvAPIKey` | `tests/goai_test.go` | auth/header/env edge case: Get Env APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestGetEnvAPIKeyAnthropic` | `tests/goai_test.go` | auth/header/env edge case: Get Env APIKey Anthropic | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestGetEnvAPIKeyWithEnvBedrockAuthenticated` | `tests/goai_test.go` | auth/header/env edge case: Get Env APIKey With Env Bedrock Authenticated | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestGetEnvAPIKeyWithEnvGoogleVertexADC` | `tests/goai_test.go` | auth/header/env edge case: Get Env APIKey With Env Google Vertex ADC | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestCalculateCost` | `tests/goai_test.go` | Calculate Cost | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCalculateCostAnthropicLongCacheWrite` | `tests/goai_test.go` | prompt/cache usage or retention behavior: Calculate Cost Anthropic Long Cache Write | Guards cache-retention/usage accounting/cost parity. |
+| `TestModelsAreEqual` | `tests/goai_test.go` | model registry/generated metadata parity: Models Are Equal | Guards generated registry drift and provider metadata changes. |
+| `TestAdjustMaxTokensForThinking` | `tests/goai_test.go` | reasoning/thinking wire-format behavior: Adjust Max Tokens For Thinking | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestTransformSkipsErroredMessages` | `tests/goai_test.go` | Transform Skips Errored Messages | Guards locally discovered edge cases and Go API compatibility. |
+| `TestTransformDowngradesImages` | `tests/goai_test.go` | image generation behavior: Transform Downgrades Images | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestSanitizeSurrogates` | `tests/goai_test.go` | Sanitize Surrogates | Guards locally discovered edge cases and Go API compatibility. |
+| `TestDetectCompat` | `tests/goai_test.go` | Detect Compat | Guards locally discovered edge cases and Go API compatibility. |
+| `TestClampThinkingLevelPrefersUpgrade` | `tests/goai_test.go` | reasoning/thinking wire-format behavior: Clamp Thinking Level Prefers Upgrade | Guards provider-specific reasoning/thinking payload and replay semantics. |
+| `TestHasOpenAIAuthHeader` | `tests/goai_test.go` | auth/header/env edge case: Has Open AIAuth Header | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestMergeProviderHeadersAppliesOverridesAndSuppressions` | `tests/goai_test.go` | auth/header/env edge case: Merge Provider Headers Applies Overrides And Suppressions | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestApplyDefaultHeadersPreservesExplicitEmptyOverride` | `tests/goai_test.go` | auth/header/env edge case: Apply Default Headers Preserves Explicit Empty Override | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestHasAnthropicAuthHeader` | `tests/goai_test.go` | auth/header/env edge case: Has Anthropic Auth Header | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestBuildCopilotDynamicHeaders` | `tests/goai_test.go` | auth/header/env edge case: Build Copilot Dynamic Headers | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestAgentLoopHarness` | `tests/harness_integration_test.go` | Agent Loop Harness | Guards locally discovered edge cases and Go API compatibility. |
+| `TestStreamingHarness` | `tests/harness_integration_test.go` | streaming/event transport behavior: Streaming Harness | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestErrorHandlingHarness` | `tests/harness_integration_test.go` | Error Handling Harness | Guards locally discovered edge cases and Go API compatibility. |
+| `TestContextCompactionHarness` | `tests/harness_integration_test.go` | Context Compaction Harness | Guards locally discovered edge cases and Go API compatibility. |
+| `TestHooksHarness` | `tests/harness_integration_test.go` | Hooks Harness | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCrossProviderHandoff` | `tests/harness_integration_test.go` | Cross Provider Handoff | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCloneContext` | `tests/harness_test.go` | Clone Context | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCloneContextNil` | `tests/harness_test.go` | Clone Context Nil | Guards locally discovered edge cases and Go API compatibility. |
+| `TestSaveLoadContext` | `tests/harness_test.go` | Save Load Context | Guards locally discovered edge cases and Go API compatibility. |
+| `TestEstimateTokens` | `tests/harness_test.go` | Estimate Tokens | Guards locally discovered edge cases and Go API compatibility. |
+| `TestFitsInContextWindow` | `tests/harness_test.go` | Fits In Context Window | Guards locally discovered edge cases and Go API compatibility. |
+| `TestCompactContext` | `tests/harness_test.go` | Compact Context | Guards locally discovered edge cases and Go API compatibility. |
+| `TestGetToolCalls` | `tests/harness_test.go` | tool-call/schema conversion behavior: Get Tool Calls | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestNeedsToolExecution` | `tests/harness_test.go` | tool-call/schema conversion behavior: Needs Tool Execution | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestAppendHelpers` | `tests/harness_test.go` | Append Helpers | Guards locally discovered edge cases and Go API compatibility. |
+| `TestHooksOnStreamOptions` | `tests/harness_test.go` | streaming/event transport behavior: Hooks On Stream Options | Guards event stream protocol compatibility and partial-failure behavior. |
+| `TestInvokeOnPayloadNil` | `tests/harness_test.go` | provider request/payload parity: Invoke On Payload Nil | Guards locally discovered edge cases and Go API compatibility. |
+| `TestImageAPIProviderRegistered` | `tests/images_test.go` | image generation behavior: Image APIProvider Registered | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestBuiltinImageModels` | `tests/images_test.go` | model registry/generated metadata parity: Builtin Image Models | Guards generated registry drift and provider metadata changes. |
+| `TestGenerateImagesErrorPaths` | `tests/images_test.go` | image generation behavior: Generate Images Error Paths | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestGenerateImagesOpenRouterHooksAndResponse` | `tests/images_test.go` | image generation behavior: Generate Images Open Router Hooks And Response | Guards OpenRouter/image API behavior beyond text providers. |
+| `TestGenerateImagesOpenRouterUsesProviderEnvAPIKey` | `tests/images_test.go` | auth/header/env edge case: Generate Images Open Router Uses Provider Env APIKey | Guards provider auth/header/env precedence bugs not fully covered by upstream tests. |
+| `TestGenerateImagesOpenRouterPayloadParityAndAbort` | `tests/images_test.go` | provider request/payload parity: Generate Images Open Router Payload Parity And Abort | Guards transport retry/cancellation edge cases and resource cleanup. |
+| `TestGenerateImagesOpenRouterRetriesAndHookError` | `tests/images_test.go` | image generation behavior: Generate Images Open Router Retries And Hook Error | Guards OpenRouter/image API behavior beyond text providers. |
 | `TestNormalizeAnthropicBaseURLAddsV1` | `inference/provider/anthropic/anthropic_copilot_test.go` | provider OAuth/provider-specific behavior: Normalize Anthropic Base URLAdds V1 | Guards locally discovered edge cases and Go API compatibility. |
 | `TestStreamAnthropicUsesBearerForCopilot` | `inference/provider/anthropic/anthropic_copilot_test.go` | streaming/event transport behavior: Stream Anthropic Uses Bearer For Copilot | Guards event stream protocol compatibility and partial-failure behavior. |
 | `TestBuildRequestJSONRoundTrip` | `inference/provider/anthropic/anthropic_copilot_test.go` | provider request/payload parity: Build Request JSONRound Trip | Guards locally discovered edge cases and Go API compatibility. |
@@ -233,17 +233,17 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestIsRetryableStatus` | `internal/retry/backoff_test.go` | retry/cancellation robustness: Is Retryable Status | Guards transport retry/cancellation edge cases and resource cleanup. |
 | `TestParseRetryAfter` | `internal/retry/backoff_test.go` | retry/cancellation robustness: Parse Retry After | Guards transport retry/cancellation edge cases and resource cleanup. |
 | `TestParseDurationString` | `internal/retry/backoff_test.go` | Parse Duration String | Guards locally discovered edge cases and Go API compatibility. |
-| `TestDiscardLoggerDefault` | `logger_test.go` | Discard Logger Default | Guards locally discovered edge cases and Go API compatibility. |
-| `TestSimpleLogger` | `logger_test.go` | Simple Logger | Guards locally discovered edge cases and Go API compatibility. |
-| `TestLogLevelFiltering` | `logger_test.go` | Log Level Filtering | Guards locally discovered edge cases and Go API compatibility. |
-| `TestSetLogger` | `logger_test.go` | Set Logger | Guards locally discovered edge cases and Go API compatibility. |
-| `TestSetLoggerNil` | `logger_test.go` | Set Logger Nil | Guards locally discovered edge cases and Go API compatibility. |
-| `TestTransformMessagesAddsSyntheticResultForTrailingOrphan` | `logic_audit_test.go` | Transform Messages Adds Synthetic Result For Trailing Orphan | Guards locally discovered edge cases and Go API compatibility. |
-| `TestTransformMessagesNilModelReturnsInput` | `logic_audit_test.go` | model registry/generated metadata parity: Transform Messages Nil Model Returns Input | Guards generated registry drift and provider metadata changes. |
-| `TestApplyToolCallLimitUsesBudgetTrim` | `logic_audit_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit Uses Budget Trim | Guards provider-specific tool-call schema/replay/validation parity. |
-| `TestRegisterBuiltinModels` | `models_test.go` | model registry/generated metadata parity: Register Builtin Models | Guards generated registry drift and provider metadata changes. |
-| `TestGeneratedModelMetadataParity` | `models_test.go` | model registry/generated metadata parity: Generated Model Metadata Parity | Guards generated registry drift and provider metadata changes. |
-| `TestListModelsFilter` | `models_test.go` | model registry/generated metadata parity: List Models Filter | Guards generated registry drift and provider metadata changes. |
+| `TestDiscardLoggerDefault` | `tests/logger_test.go` | Discard Logger Default | Guards locally discovered edge cases and Go API compatibility. |
+| `TestSimpleLogger` | `tests/logger_test.go` | Simple Logger | Guards locally discovered edge cases and Go API compatibility. |
+| `TestLogLevelFiltering` | `tests/logger_test.go` | Log Level Filtering | Guards locally discovered edge cases and Go API compatibility. |
+| `TestSetLogger` | `tests/logger_test.go` | Set Logger | Guards locally discovered edge cases and Go API compatibility. |
+| `TestSetLoggerNil` | `tests/logger_test.go` | Set Logger Nil | Guards locally discovered edge cases and Go API compatibility. |
+| `TestTransformMessagesAddsSyntheticResultForTrailingOrphan` | `tests/logic_audit_test.go` | Transform Messages Adds Synthetic Result For Trailing Orphan | Guards locally discovered edge cases and Go API compatibility. |
+| `TestTransformMessagesNilModelReturnsInput` | `tests/logic_audit_test.go` | model registry/generated metadata parity: Transform Messages Nil Model Returns Input | Guards generated registry drift and provider metadata changes. |
+| `TestApplyToolCallLimitUsesBudgetTrim` | `tests/logic_audit_test.go` | tool-call/schema conversion behavior: Apply Tool Call Limit Uses Budget Trim | Guards provider-specific tool-call schema/replay/validation parity. |
+| `TestRegisterBuiltinModels` | `tests/models_test.go` | model registry/generated metadata parity: Register Builtin Models | Guards generated registry drift and provider metadata changes. |
+| `TestGeneratedModelMetadataParity` | `tests/models_test.go` | model registry/generated metadata parity: Generated Model Metadata Parity | Guards generated registry drift and provider metadata changes. |
+| `TestListModelsFilter` | `tests/models_test.go` | model registry/generated metadata parity: List Models Filter | Guards generated registry drift and provider metadata changes. |
 | `TestPKCE` | `oauth/oauth_test.go` | PKCE | Guards locally discovered edge cases and Go API compatibility. |
 | `TestNormalizeDomain` | `oauth/oauth_test.go` | Normalize Domain | Guards locally discovered edge cases and Go API compatibility. |
 | `TestGetGitHubCopilotBaseURL` | `oauth/oauth_test.go` | provider OAuth/provider-specific behavior: Get Git Hub Copilot Base URL | Guards OAuth refresh/login/model filtering drift. |
@@ -257,6 +257,6 @@ Scope: tests authored in `go-ai` rather than ported 1:1 from upstream `@earendil
 | `TestParseMultilineData` | `transports/sse/sse_test.go` | Parse Multiline Data | Guards locally discovered edge cases and Go API compatibility. |
 | `TestParseStickyIDAndRetry` | `transports/sse/sse_test.go` | retry/cancellation robustness: Parse Sticky IDAnd Retry | Guards transport retry/cancellation edge cases and resource cleanup. |
 
-- Upstream v0.84.2 strict JSON-schema tool conversion, optional non-nullable null omission, Responses namespace/additional_tools, Codex end_turn/user-agent, Bedrock empty-key sanitization, Google stop/toolUse mapping, exact Mistral HTTP/SSE wire contract, Copilot policy throttling, retry buffer-limit classification, text catalog, and image catalog are covered by `schema_strict_test.go`, `upstream_validation_v0842_test.go`, `inference/provider/mistral/v0842_wire_contract_test.go`, `oauth/github_copilot_policy_test.go`, `inference/provider/*/v0842_*_test.go`, `retry_assistant_test.go`, `models_test.go`, `images_test.go`, and the exact 1267/1267 text plus 45-image clean and fault regeneration gates.
+- Upstream v0.84.2 strict JSON-schema tool conversion, optional non-nullable null omission, Responses namespace/additional_tools, Codex end_turn/user-agent, Bedrock empty-key sanitization, Google stop/toolUse mapping, exact Mistral HTTP/SSE wire contract, Copilot policy throttling, retry buffer-limit classification, text catalog, and image catalog are covered by `tests/schema_strict_test.go`, `tests/upstream_validation_v0842_test.go`, `inference/provider/mistral/v0842_wire_contract_test.go`, `oauth/github_copilot_policy_test.go`, `inference/provider/*/v0842_*_test.go`, `tests/retry_assistant_test.go`, `tests/models_test.go`, `tests/images_test.go`, and the exact 1267/1267 text plus 45-image clean and fault regeneration gates.
 
 - Upstream v0.84.3 catalog refresh, provider-neutral toolChoice, Pi User-Agent defaults, Anthropic fallbacks/pricing, Bedrock redacted reasoning, Google mapped thinking levels, OpenAI thinking budget field variants, xAI Grok 4.6 Responses metadata, ZAI coding plans, and exact 136-test manifest are covered by the v0.84.3 provider/catalog tests and exact 1312/1312 text plus 45-image regeneration gates.

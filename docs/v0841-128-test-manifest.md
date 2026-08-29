@@ -60,16 +60,16 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 28 | `test/cloudflare-stream.test.ts` | DETERMINISTIC-PORTED | `TestResolveCloudflareBaseURLPreservesUnresolvedPlaceholders`, `TestCloudflareBaseURLResolvedAndUnresolvedThroughDispatch`. |
 | 29 | `test/compat-env.test.ts` | N/A/JS-runtime | JS legacy registry/env compatibility surface (`registerApiProvider`/module runtime); Go uses typed provider registration. |
 | 30 | `test/constrained-sampling.test.ts` | DETERMINISTIC-PORTED | `TestConstrainedSamplingConvertsStrictAndGrammarTools`, rejection matrix. |
-| 31 | `test/context-estimate.test.ts` | DETERMINISTIC-PORTED | `estimate_upstream_test.go`, `TestUpstreamV0806ContextEstimateIgnoresUsageBeforeNewerPrefixMessage`. |
-| 32 | `test/context-overflow.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Existing deterministic overflow fixtures remain ported in `context_overflow_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live-provider addition requires credentials and is N/A/live-only. |
+| 31 | `test/context-estimate.test.ts` | DETERMINISTIC-PORTED | `tests/estimate_upstream_test.go`, `TestUpstreamV0806ContextEstimateIgnoresUsageBeforeNewerPrefixMessage`. |
+| 32 | `test/context-overflow.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Existing deterministic overflow fixtures remain ported in `tests/context_overflow_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live-provider addition requires credentials and is N/A/live-only. |
 | 33 | `test/cross-provider-handoff.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual cases to a live cross-provider handoff matrix requiring credentials/network. Deterministic replay/handoff transforms are covered locally. |
-| 34 | `test/deferred-tools.test.ts` | DETERMINISTIC-PORTED | `deferred_tools_upstream_test.go` and provider deferred-tool tests. |
+| 34 | `test/deferred-tools.test.ts` | DETERMINISTIC-PORTED | `tests/deferred_tools_upstream_test.go` and provider deferred-tool tests. |
 | 35 | `test/empty.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to the live empty-message matrix. Deterministic empty tool-result/request behavior is covered locally. |
-| 36 | `test/env-api-keys.test.ts` | DETERMINISTIC-PORTED | `env_api_keys_test.go`. |
-| 37 | `test/error-body.test.ts` | DETERMINISTIC-PORTED | `error_body_test.go`. |
+| 36 | `test/env-api-keys.test.ts` | DETERMINISTIC-PORTED | `tests/env_api_keys_test.go`. |
+| 37 | `test/error-body.test.ts` | DETERMINISTIC-PORTED | `tests/error_body_test.go`. |
 | 38 | `test/faux-provider.test.ts` | DETERMINISTIC-PORTED | `inference/provider/faux/faux_test.go`. |
 | 39 | `test/fetch-option.test.ts` | N/A/JS-runtime | Custom `fetch` injection into JS SDK adapters has no Go public API analogue; Go uses `http.Client`/retry transport hooks. |
-| 40 | `test/fireworks-models.test.ts` | DETERMINISTIC-PORTED | Fireworks catalog/env/compat assertions via `models_catalog_upstream_test.go`. |
+| 40 | `test/fireworks-models.test.ts` | DETERMINISTIC-PORTED | Fireworks catalog/env/compat assertions via `tests/models_catalog_upstream_test.go`. |
 | 41 | `test/generate-models-strict.test.ts` | N/A/adapted-generator-policy | Upstream exercises the private TS generator `--strict` rollback/failure path for Qwen Token Plan Individual allowlist mismatch. Go generator is a separate artifact consumer; final release artifacts are verified by exact source/package comparator (1220/1220) and no image diff, while helper rollback policy is documented as N/A/adapted rather than claimed as passing. |
 | 42 | `test/github-copilot-anthropic.test.ts` | DETERMINISTIC-PORTED | `github_copilot_anthropic_test.go`. |
 | 43 | `test/github-copilot-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Go Copilot OAuth/token/header/model filtering tests; live GitHub policy UI remains N/A. |
@@ -82,22 +82,22 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 50 | `test/google-thinking-disable.test.ts` | DETERMINISTIC-PORTED | `google_thinking_disable_upstream_test.go`. |
 | 51 | `test/google-thinking-signature.test.ts` | DETERMINISTIC-PORTED | `google_thinking_signature_test.go`. |
 | 52 | `test/google-vertex-api-key-resolution.test.ts` | DETERMINISTIC-PORTED | `google_vertex_api_key_resolution_test.go`. |
-| 53 | `test/image-model-data.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS generator helper malformed-input paths (`parseOpenRouterImageModels`) that are not a Go public/runtime API. Go consumes exact generated image artifacts and verifies them separately via `scripts/generate-image-models.py` plus exact 42/42 comparator and `images_test.go`; do not label as a test-for-test port. |
+| 53 | `test/image-model-data.test.ts` | N/A/adapted-generator-policy | Upstream tests private TS generator helper malformed-input paths (`parseOpenRouterImageModels`) that are not a Go public/runtime API. Go consumes exact generated image artifacts and verifies them separately via `scripts/generate-image-models.py` plus exact 42/42 comparator and `tests/images_test.go`; do not label as a test-for-test port. |
 | 54 | `test/image-tool-result.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to the live image tool-result matrix; deterministic serialization/routing remains covered by OpenAI/Responses/Google image tool-result tests. |
-| 55 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | `images_test.go`, `images_openrouter_upstream_test.go`. |
+| 55 | `test/images-models.test.ts` | DETERMINISTIC-PORTED | `tests/images_test.go`, `tests/images_openrouter_upstream_test.go`. |
 | 56 | `test/images.test.ts` | N/A/live-provider | Requires live image provider credentials/network. Deterministic OpenRouter image wrapper tests exist. |
 | 57 | `test/interleaved-thinking.test.ts` | N/A/live-provider | Requires live provider credentials/network; deterministic thinking replay/serialization tests cover local behavior. |
 | 58 | `test/kimi-coding-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Kimi OAuth/device/refresh tests; JS prompt/auth operation details are N/A. |
-| 59 | `test/lax-message-content.test.ts` | DETERMINISTIC-PORTED | `lax_message_content_upstream_test.go`. |
+| 59 | `test/lax-message-content.test.ts` | DETERMINISTIC-PORTED | `tests/lax_message_content_upstream_test.go`. |
 | 60 | `test/lazy-module-load.test.ts` | N/A/JS-runtime | JS lazy module loading/bundling; Go links/imports packages statically. |
-| 61 | `test/max-thinking.test.ts` | DETERMINISTIC-PORTED | `supports_xhigh_upstream_test.go`, thinking-level clamp tests, and Codex request tests. |
+| 61 | `test/max-thinking.test.ts` | DETERMINISTIC-PORTED | `tests/supports_xhigh_upstream_test.go`, thinking-level clamp tests, and Codex request tests. |
 | 62 | `test/mistral-raw-stop-reason.test.ts` | DETERMINISTIC-PORTED | `TestMistralRawStopReason`. |
 | 63 | `test/mistral-reasoning-mode.test.ts` | DETERMINISTIC-PORTED | `mistral_reasoning_mode_test.go`. |
 | 64 | `test/mistral-tool-schema.test.ts` | DETERMINISTIC-PORTED | `mistral_tool_schema_test.go`. |
 | 65 | `test/model-catalog-types.test.ts` | DETERMINISTIC-PORTED | Generated catalog compile/type checks and exact model comparator. |
 | 66 | `test/model-data-validation.test.ts` | N/A/adapted-generator-policy | v0.84.1 adds exact allowlist helper assertions for `qwen-token-plan-individual` plus private TS model-data shard validation helper failures. Go does not expose these TS helper APIs; final generated artifacts are verified by exact 1220/1220 comparator, 128-file manifest accounting, and Qwen Individual catalog tests. |
-| 67 | `test/models-runtime.test.ts` | DETERMINISTIC-PORTED | `models_runtime_test.go`. |
-| 68 | `test/node-http-proxy.test.ts` | DETERMINISTIC-PORTED | `retry_proxy_test.go`. |
+| 67 | `test/models-runtime.test.ts` | DETERMINISTIC-PORTED | `tests/models_runtime_test.go`. |
+| 68 | `test/node-http-proxy.test.ts` | DETERMINISTIC-PORTED | `tests/retry_proxy_test.go`. |
 | 69 | `test/oauth-auth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `GetAPIKeyWithContext` / `RuntimeForProviderContext` cancellation/cause tests; JS credential-store UI N/A. |
 | 70 | `test/oauth-device-code.test.ts` | DETERMINISTIC-PORTED | `oauth_device_code_upstream_test.go`. |
 | 71 | `test/openai-codex-cache-affinity-e2e.test.ts` | N/A/live-only | Requires live Codex credentials/network. Do not count as passing; deterministic Codex cache-affinity headers are covered locally. |
@@ -123,38 +123,38 @@ The five credential-gated E2E files newly called out by the whole-corpus audit a
 | 91 | `test/openai-responses-reasoning-replay-e2e.test.ts` | N/A/live-only | Requires live OpenAI Responses credentials/network. Do not count as passing; deterministic replay is covered by `azure_reasoning_replay_upstream_test.go` and Responses replay tests. |
 | 92 | `test/openai-responses-terminal-event.test.ts` | DETERMINISTIC-PORTED | `responses_v0840_test.go`, `raw_status_upstream_test.go`. |
 | 93 | `test/openai-responses-tool-result-images.test.ts` | DETERMINISTIC-PORTED | Responses image tool-result tests. |
-| 94 | `test/openrouter-cache-control-models.test.ts` | DETERMINISTIC-PORTED | `models_catalog_upstream_test.go` and OpenRouter cache-control model metadata tests. |
+| 94 | `test/openrouter-cache-control-models.test.ts` | DETERMINISTIC-PORTED | `tests/models_catalog_upstream_test.go` and OpenRouter cache-control model metadata tests. |
 | 95 | `test/openrouter-cache-write-repro.test.ts` | DETERMINISTIC-PORTED | `openrouter_cache_write_repro_upstream_test.go`. |
-| 96 | `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | `images_openrouter_upstream_test.go`. |
+| 96 | `test/openrouter-images.test.ts` | DETERMINISTIC-PORTED | `tests/images_openrouter_upstream_test.go`. |
 | 97 | `test/openrouter-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | OpenRouter OAuth/key exchange/context tests. |
-| 98 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | `overflow_upstream_test.go`. |
+| 98 | `test/overflow.test.ts` | DETERMINISTIC-PORTED | `tests/overflow_upstream_test.go`. |
 | 99 | `test/pi-messages.test.ts` | DETERMINISTIC-PORTED | `inference/provider/pimessages/pimessages_test.go`. |
-| 100 | `test/provider-error-body-passthrough.test.ts` | DETERMINISTIC-PORTED | `provider_error_body_test.go`. |
-| 101 | `test/provider-error-body-regression.test.ts` | DETERMINISTIC-PORTED | `provider_error_body_test.go`. |
-| 102 | `test/provider-retry.test.ts` | DETERMINISTIC-PORTED | `provider_retry_test.go`. |
+| 100 | `test/provider-error-body-passthrough.test.ts` | DETERMINISTIC-PORTED | `tests/provider_error_body_test.go`. |
+| 101 | `test/provider-error-body-regression.test.ts` | DETERMINISTIC-PORTED | `tests/provider_error_body_test.go`. |
+| 102 | `test/provider-retry.test.ts` | DETERMINISTIC-PORTED | `tests/provider_retry_test.go`. |
 | 103 | `test/providers.test.ts` | DETERMINISTIC-PORTED/ADAPTED | Registry/env/provider/runtime/faux deferred tests; JS instance helper surfaces mapped to Go registries. |
-| 104 | `test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED | `qwen_token_plan_upstream_test.go` verifies `qwen-token-plan-individual` exact seven-model allowlist, international endpoint/API metadata, env-key reuse, image-model omission, retired preview omission, and shared Token Plan model exposure; `qwen_token_plan_individual_upstream_test.go` verifies Qwen `enable_thinking` / `reasoning_effort` request fields. |
+| 104 | `test/qwen-token-plan-models.test.ts` | DETERMINISTIC-PORTED | `tests/qwen_token_plan_upstream_test.go` verifies `qwen-token-plan-individual` exact seven-model allowlist, international endpoint/API metadata, env-key reuse, image-model omission, retired preview omission, and shared Token Plan model exposure; `qwen_token_plan_individual_upstream_test.go` verifies Qwen `enable_thinking` / `reasoning_effort` request fields. |
 | 105 | `test/radius-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/radius_test.go` plus context refresh tests. |
 | 106 | `test/reasoning-options.test.ts` | N/A/adapted-generator-policy | Upstream tests a TS generator helper (`getEffortThinkingLevelMap`) for model-data reasoning-control policy. Go verifies the resulting generated thinking maps and provider request behavior through catalog tests and reasoning/payload tests; do not label script-helper policy assertions as a test-for-test port. |
-| 107 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | `responseid_simulated_test.go`. |
-| 108 | `test/retry.test.ts` | DETERMINISTIC-PORTED | `retry_assistant_test.go`, `v0805_inplace_deltas_test.go`. |
+| 107 | `test/responseid.test.ts` | DETERMINISTIC-PORTED | `tests/responseid_simulated_test.go`. |
+| 108 | `test/retry.test.ts` | DETERMINISTIC-PORTED | `tests/retry_assistant_test.go`, `tests/v0805_inplace_deltas_test.go`. |
 | 109 | `test/sampling-options.test.ts` | DETERMINISTIC-PORTED | `openai_v0840_test.go`, `responses_v0840_test.go` sampling matrices. |
 | 110 | `test/stream.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to the live stream matrix requiring credentials. Deterministic OpenAI-compatible request/stream behavior is covered by local provider tests. |
-| 111 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | `supports_xhigh_upstream_test.go`. |
+| 111 | `test/supports-xhigh.test.ts` | DETERMINISTIC-PORTED | `tests/supports_xhigh_upstream_test.go`. |
 | 112 | `test/telemetry-options.test.ts` | DETERMINISTIC-PORTED | `TestTelemetryContextHooks`, faux deferred telemetry tests, OpenRouter image telemetry tests. |
 | 113 | `test/text.test.ts` | DETERMINISTIC-PORTED | `TestContentTextExtractsTextBlocks`. |
-| 114 | `test/together-models.test.ts` | DETERMINISTIC-PORTED | `models_catalog_upstream_test.go`. |
-| 115 | `test/tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated token accounting remains ported in `tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live token-stat case requires credentials and is N/A/live-only. |
+| 114 | `test/together-models.test.ts` | DETERMINISTIC-PORTED | `tests/models_catalog_upstream_test.go`. |
+| 115 | `test/tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated token accounting remains ported in `tests/tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live token-stat case requires credentials and is N/A/live-only. |
 | 116 | `test/tool-call-id-normalization.test.ts` | DETERMINISTIC-PORTED | `openai_tool_call_id_normalization_test.go`. |
 | 117 | `test/tool-call-without-result.test.ts` | N/A/live-provider | v0.84.1 adds Qwen Token Plan Individual to a live provider matrix requiring credentials; deterministic missing-tool-result filtering/replay behavior remains covered locally. |
-| 118 | `test/total-tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated total-token accounting remains ported in `total_tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live total-token case requires credentials and is N/A/live-only. |
+| 118 | `test/total-tokens.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated total-token accounting remains ported in `tests/total_tokens_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live total-token case requires credentials and is N/A/live-only. |
 | 119 | `test/transform-messages-copilot-openai-to-anthropic.test.ts` | DETERMINISTIC-PORTED | Anthropic/OpenAI replay transform tests. |
-| 120 | `test/unicode-surrogate.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated Unicode/surrogate behavior remains ported in `unicode_surrogate_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live Unicode case requires credentials and is N/A/live-only. |
+| 120 | `test/unicode-surrogate.test.ts` | DETERMINISTIC-PORTED / N/A-live additions | Simulated Unicode/surrogate behavior remains ported in `tests/unicode_surrogate_simulated_test.go`; v0.84.1 Qwen Token Plan Individual live Unicode case requires credentials and is N/A/live-only. |
 | 121 | `test/uuid.test.ts` | DETERMINISTIC-PORTED | `TestUUIDv7UsesRFC9562LayoutAndPreservesMonotonicOrder`. |
-| 122 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `upstream_validation_test.go`. |
+| 122 | `test/validation.test.ts` | DETERMINISTIC-PORTED | `tests/upstream_validation_test.go`. |
 | 123 | `test/xai-oauth.test.ts` | DETERMINISTIC-PORTED/ADAPTED | `oauth/xai_test.go` plus context refresh tests. |
 | 124 | `test/xai-responses.test.ts` | DETERMINISTIC-PORTED | `xai_responses_upstream_test.go` verifies exact low/medium/high-only levels, Responses API catalog routing, bearer auth, developer prompt, `/responses`, `session_id` + `prompt_cache_key`, `store=false`, medium reasoning, encrypted reasoning include, and no long retention. |
 | 125 | `test/xhigh.test.ts` | N/A/live-provider | Live OpenAI xhigh test requiring credentials; deterministic xhigh support metadata is covered. |
-| 126 | `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | `models_catalog_upstream_test.go`. |
+| 126 | `test/xiaomi-models.test.ts` | DETERMINISTIC-PORTED | `tests/models_catalog_upstream_test.go`. |
 | 127 | `test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts` | DETERMINISTIC-PORTED | Xiaomi empty-signature request-shape/catalog tests. |
 | 128 | `test/zen.test.ts` | N/A/live-provider | Live Zen/OpenCode request requiring credentials/network. Deterministic OpenCode/Responses compat is covered locally. |
