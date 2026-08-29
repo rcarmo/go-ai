@@ -50,12 +50,8 @@ func TestV0811XAIRemovedModelsAndOpenCodeGoAdditions(t *testing.T) {
 			t.Fatalf("expected xai/%s removed in v0.80.10 regenerated catalog, got %#v", id, model)
 		}
 	}
-	grok45 := goai.GetModel(goai.ProviderOpenCodeGo, "grok-4.5")
-	if grok45 == nil || grok45.Api != goai.ApiOpenAIResponses || !grok45.Reasoning || grok45.ContextWindow != 500000 || grok45.MaxTokens != 500000 || grok45.Cost.Input != 2 || grok45.Cost.Output != 6 || grok45.Cost.CacheRead != 0.5 {
-		t.Fatalf("expected opencode-go/grok-4.5 v0.81.1 responses metadata, got %#v", grok45)
-	}
-	kimiK3 := goai.GetModel(goai.ProviderOpenCodeGo, "kimi-k3")
-	if kimiK3 == nil || !kimiK3.Reasoning || kimiK3.ContextWindow != 1048576 || kimiK3.MaxTokens != 131072 || kimiK3.Cost.Input != 3 || kimiK3.Cost.Output != 15 || kimiK3.Cost.CacheRead != 0.3 {
-		t.Fatalf("expected opencode-go/kimi-k3 v0.80.10 metadata, got %#v", kimiK3)
+	grok45 := goai.GetModel(goai.ProviderXAI, "grok-4.5")
+	if grok45 == nil || grok45.Api != goai.ApiOpenAIResponses || !grok45.Reasoning || grok45.ContextWindow != 500000 || grok45.MaxTokens != 500000 || grok45.Cost.Input != 2 || grok45.Cost.Output != 6 || grok45.Cost.CacheRead != 0.3 {
+		t.Fatalf("expected xai/grok-4.5 responses metadata, got %#v", grok45)
 	}
 }

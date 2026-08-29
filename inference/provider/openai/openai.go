@@ -173,6 +173,7 @@ type chatRequest struct {
 	Tools                    []toolDef              `json:"-"`
 	EmitEmptyTools           bool                   `json:"-"`
 	ReasoningEffort          string                 `json:"reasoning_effort,omitempty"`
+	ToolChoice               string                 `json:"tool_choice,omitempty"`
 	Reasoning                map[string]interface{} `json:"reasoning,omitempty"`
 	Thinking                 map[string]interface{} `json:"thinking,omitempty"`
 	EnableThinking           *bool                  `json:"enable_thinking,omitempty"`
@@ -380,6 +381,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	if compat.SupportsStore != nil && *compat.SupportsStore {
 		t := true
 		req.Store = &t
+	}
+	if opts != nil && opts.ToolChoice != "" {
+		req.ToolChoice = string(opts.ToolChoice)
 	}
 
 	// Reasoning effort / thinking control. Mirror pi-ai's provider-specific formats.
@@ -757,14 +761,14 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					if c.Thinking != "" {
 						thinkingParts = append(thinkingParts, c.Thinking)
 					}
+					if details := validReplayReasoningDetails(c.ThinkingSignature); len(details) > 0 {
+						msg.ReasoningDetails = append(msg.ReasoningDetails, details...)
+					}
 				case "toolCall":
 					argsJSON, _ := json.Marshal(c.Arguments)
 					toolCallID := normalizeOpenAIToolCallID(c.ID)
-					if c.ThoughtSignature != "" {
-						var detail reasoningDetail
-						if err := json.Unmarshal([]byte(c.ThoughtSignature), &detail); err == nil && isEncryptedReasoningDetail(detail) {
-							msg.ReasoningDetails = append(msg.ReasoningDetails, detail)
-						}
+					if details := validReplayReasoningDetails(c.ThoughtSignature); len(details) > 0 {
+						msg.ReasoningDetails = append(msg.ReasoningDetails, details...)
 					}
 					msg.ToolCalls = append(msg.ToolCalls, toolCallPart{
 						ID:   toolCallID,
@@ -931,13 +935,83 @@ type sseDelta struct {
 }
 
 type reasoningDetail struct {
-	Type string `json:"type"`
-	ID   string `json:"id,omitempty"`
-	Data string `json:"data,omitempty"`
+	Type      string  `json:"type"`
+	ID        *string `json:"id,omitempty"`
+	Format    string  `json:"format,omitempty"`
+	Index     *int    `json:"index,omitempty"`
+	Data      string  `json:"data,omitempty"`
+	Text      string  `json:"text,omitempty"`
+	Signature *string `json:"signature,omitempty"`
+	Summary   string  `json:"summary,omitempty"`
 }
 
 func isEncryptedReasoningDetail(detail reasoningDetail) bool {
-	return detail.Type == "reasoning.encrypted" && detail.ID != "" && detail.Data != ""
+	return detail.Type == "reasoning.encrypted" && detail.ID != nil && *detail.ID != "" && detail.Data != ""
+}
+
+func appendReasoningDetail(details []reasoningDetail, detail reasoningDetail) []reasoningDetail {
+	if len(details) > 0 {
+		last := &details[len(details)-1]
+		switch {
+		case detail.Type == "reasoning.text" && last.Type == "reasoning.text":
+			last.Text += detail.Text
+			if last.Signature == nil {
+				last.Signature = detail.Signature
+			}
+			fillReasoningDetailCommon(last, detail)
+			return details
+		case detail.Type == "reasoning.summary" && last.Type == "reasoning.summary":
+			last.Summary += detail.Summary
+			fillReasoningDetailCommon(last, detail)
+			return details
+		}
+	}
+	return append(details, detail)
+}
+
+func fillReasoningDetailCommon(target *reasoningDetail, source reasoningDetail) {
+	if target.ID == nil {
+		target.ID = source.ID
+	}
+	if target.Format == "" {
+		target.Format = source.Format
+	}
+	if target.Index == nil {
+		target.Index = source.Index
+	}
+}
+
+func validReplayReasoningDetails(signature string) []reasoningDetail {
+	if signature == "" {
+		return nil
+	}
+	var details []reasoningDetail
+	if err := json.Unmarshal([]byte(signature), &details); err == nil && len(details) > 0 {
+		for _, detail := range details {
+			if !isValidReasoningDetail(detail) {
+				return nil
+			}
+		}
+		return details
+	}
+	var detail reasoningDetail
+	if err := json.Unmarshal([]byte(signature), &detail); err == nil && isEncryptedReasoningDetail(detail) {
+		return []reasoningDetail{detail}
+	}
+	return nil
+}
+
+func isValidReasoningDetail(detail reasoningDetail) bool {
+	switch detail.Type {
+	case "reasoning.encrypted":
+		return isEncryptedReasoningDetail(detail)
+	case "reasoning.text":
+		return detail.Text != ""
+	case "reasoning.summary":
+		return detail.Summary != ""
+	default:
+		return false
+	}
 }
 
 type sseToolCall struct {
@@ -992,7 +1066,8 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		contentIdx  int
 	}
 	var activeTools []activeToolCall
-	pendingReasoningDetailsByToolCallID := map[string]string{}
+	var streamedReasoningDetails []reasoningDetail
+	var thinkingBlockIdx = -1
 	var finishReason *string
 
 	events := sse.Parse(body)
@@ -1068,12 +1143,16 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		if reasoningDelta != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+				thinkingBlockIdx = len(partial.Content) - 1
 				ch <- &goai.ThinkingStartEvent{
-					ContentIndex: len(partial.Content) - 1,
+					ContentIndex: thinkingBlockIdx,
 					Partial:      partial,
 				}
 			}
 			idx := len(partial.Content) - 1
+			if partial.Content[idx].Type == "thinking" {
+				thinkingBlockIdx = idx
+			}
 			partial.Content[idx].Thinking += reasoningDelta
 			ch <- &goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
@@ -1141,9 +1220,6 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			if tc.ID != "" {
 				at.id = tc.ID
 				partial.Content[at.contentIdx].ID = tc.ID
-				if sig := pendingReasoningDetailsByToolCallID[tc.ID]; sig != "" {
-					partial.Content[at.contentIdx].ThoughtSignature = sig
-				}
 			}
 			if name != "" {
 				at.name = name
@@ -1151,27 +1227,24 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			}
 		}
 
-		// Encrypted reasoning details → attach as thoughtSignature on matching tool calls.
-		// Some OpenAI-compatible streams emit reasoning_details before the matching
-		// tool call ID is fully available, so retain validated encrypted details and
-		// attach them when the tool call arrives later.
+		// reasoning_details are replay metadata. Keep them on a single thinking
+		// block signature, merging adjacent text/summary deltas in stream order.
 		for _, detail := range delta.ReasoningDetails {
-			if !isEncryptedReasoningDetail(detail) {
+			if !isValidReasoningDetail(detail) {
 				continue
 			}
-			sigBytes, _ := json.Marshal(detail)
-			sig := string(sigBytes)
-			matched := false
-			for i := range partial.Content {
-				if partial.Content[i].Type == "toolCall" && partial.Content[i].ID == detail.ID {
-					partial.Content[i].ThoughtSignature = sig
-					matched = true
-					break
-				}
+			streamedReasoningDetails = appendReasoningDetail(streamedReasoningDetails, detail)
+			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
+				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+				thinkingBlockIdx = len(partial.Content) - 1
+				ch <- &goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial}
 			}
-			if !matched {
-				pendingReasoningDetailsByToolCallID[detail.ID] = sig
-			}
+		}
+	}
+
+	if len(streamedReasoningDetails) > 0 && thinkingBlockIdx >= 0 && thinkingBlockIdx < len(partial.Content) && partial.Content[thinkingBlockIdx].Type == "thinking" {
+		if sig, err := json.Marshal(streamedReasoningDetails); err == nil {
+			partial.Content[thinkingBlockIdx].ThinkingSignature = string(sig)
 		}
 	}
 

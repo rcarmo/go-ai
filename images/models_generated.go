@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (45 image models, 1 provider)
+// Source: image-models.generated.ts (50 image models, 1 provider)
 
 package images
 
@@ -174,6 +174,16 @@ var builtinImageModels = []ImagesModel{
 		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
+		ID:       "meta/muse-image",
+		Name:     "Meta: Muse Image",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
 		ID:       "microsoft/mai-image-2.5",
 		Name:     "Microsoft: MAI-Image-2.5",
 		Api:      ImagesApi("openrouter-images"),
@@ -326,6 +336,46 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "recraft/recraft-v4-pro-vector",
 		Name:     "Recraft: Recraft V4 Pro Vector",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "recraft/recraft-v4-styles",
+		Name:     "Recraft: Recraft V4 Styles",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "recraft/recraft-v4-styles-pro",
+		Name:     "Recraft: Recraft V4 Styles Pro",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "recraft/recraft-v4-styles-pro-vector",
+		Name:     "Recraft: Recraft V4 Styles Pro Vector",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "recraft/recraft-v4-styles-vector",
+		Name:     "Recraft: Recraft V4 Styles Vector",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

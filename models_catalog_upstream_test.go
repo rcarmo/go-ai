@@ -25,72 +25,10 @@ func requireModel(t *testing.T, provider goai.Provider, id string) *goai.Model {
 	return model
 }
 
-func TestFireworksModelsRegistersDefaultKimiK26ViaAnthropicCompatibleMessagesAPI(t *testing.T) {
-	model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/models/kimi-k2p6")
-	if model.Api != goai.ApiAnthropicMessages {
-		t.Fatalf("api=%q, want anthropic-messages", model.Api)
-	}
-	if model.Provider != goai.ProviderFireworks {
-		t.Fatalf("provider=%q, want fireworks", model.Provider)
-	}
-	if model.BaseURL != "https://api.fireworks.ai/inference" {
-		t.Fatalf("baseUrl=%q, want https://api.fireworks.ai/inference", model.BaseURL)
-	}
-	if !model.Reasoning {
-		t.Fatalf("reasoning=false, want true")
-	}
-	if !reflect.DeepEqual(model.Input, []string{"text", "image"}) {
-		t.Fatalf("input=%#v, want [text image]", model.Input)
-	}
-	if model.ContextWindow != 262000 || model.MaxTokens != 262000 {
-		t.Fatalf("contextWindow/maxTokens=%d/%d, want 262000/262000", model.ContextWindow, model.MaxTokens)
-	}
-	wantCost := goai.ModelCost{Input: 0.95, Output: 4, CacheRead: 0.16, CacheWrite: 0}
-	if !reflect.DeepEqual(model.Cost, wantCost) {
-		t.Fatalf("cost=%#v, want %#v", model.Cost, wantCost)
-	}
-}
-
-func TestFireworksModelsRegistersFirePassTurboRouterModel(t *testing.T) {
-	goai.RegisterBuiltinModels()
-	var model *goai.Model
-	for _, candidate := range goai.ListModels(goai.ProviderFireworks) {
-		if candidate.ID == "accounts/fireworks/routers/kimi-k2p6-turbo" {
-			model = candidate
-			break
-		}
-	}
-	if model == nil {
-		t.Fatalf("Fire Pass turbo router model not found")
-	}
-	if model.Api != goai.ApiAnthropicMessages {
-		t.Fatalf("api=%q, want anthropic-messages", model.Api)
-	}
-	if model.BaseURL != "https://api.fireworks.ai/inference" {
-		t.Fatalf("baseUrl=%q, want https://api.fireworks.ai/inference", model.BaseURL)
-	}
-	if !reflect.DeepEqual(model.Input, []string{"text", "image"}) {
-		t.Fatalf("input=%#v, want [text image]", model.Input)
-	}
-}
-
-func TestFireworksModelsResolvesFireworksAPIKeyFromEnvironment(t *testing.T) {
+func TestFireworksProviderEnvKeyCompatibilityRetained(t *testing.T) {
 	env := goai.ProviderEnv{"FIREWORKS_API_KEY": "test-fireworks-key"}
 	if got := goai.GetEnvAPIKeyWithEnv(goai.ProviderFireworks, env); got != "test-fireworks-key" {
 		t.Fatalf("fireworks env key=%q, want test-fireworks-key", got)
-	}
-}
-
-func TestFireworksModelsSetsFireworksSpecificCompat(t *testing.T) {
-	model := requireModel(t, goai.ProviderFireworks, "accounts/fireworks/models/kimi-k2p6")
-	if model.AnthropicCompat == nil {
-		t.Fatalf("AnthropicCompat is nil")
-	}
-	if got := ptrValue(model.AnthropicCompat.SupportsEagerToolInputStreaming); got != false {
-		t.Fatalf("supportsEagerToolInputStreaming=%v, want false", got)
-	}
-	if got := ptrValue(model.AnthropicCompat.SupportsLongCacheRetention); got != false {
-		t.Fatalf("supportsLongCacheRetention=%v, want false", got)
 	}
 }
 

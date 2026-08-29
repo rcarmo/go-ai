@@ -463,7 +463,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		for _, tc := range delta.ToolCalls {
 			var at *activeTC
 			for i := range activeTools {
-				if activeTools[i].index == tc.Index {
+				if activeTools[i].index == tc.Index || (tc.ID != "" && activeTools[i].id == tc.ID) {
 					at = &activeTools[i]
 					break
 				}

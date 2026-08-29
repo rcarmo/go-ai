@@ -5,88 +5,70 @@ This file is the release-audit source of truth for `github.com/rcarmo/go-ai` par
 ## Current upstream baseline
 
 - Upstream package: `@earendil-works/pi-ai`
-- Current audited release: `v0.84.3`
-- Upstream tag/SHA: `4e58f324fae8ebfa98a3d45181fb248072a2afac`
-- Published: 2026-08-24T11:09:57Z
-- Previous accepted baseline: `v0.84.2` / `914cf1472e715297caa30db4b9535d534a9eb718`
-- Accepted local baseline before this audit: `cdd8df962e2ba8070f1df7db6fe502b1305891a5`
-- Exact upstream checkout used: `/workspace/tmp/pi-v0843`
-- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/v0843/npm0843/package`
-- Official npm tarball SHA-256: `9c40af2f43950f8e94e7bbcd0c1b3548f000972da00c4fb9c0d0529d4d7d5431`
-- Detailed path matrix: `docs/v0843-release-ledger.md`
-- Whole-corpus test crosswalk: `docs/v0843-136-test-manifest.md`
+- Current audited release: `v0.84.4`
+- Upstream tag/SHA: `b79e4cc834970cca69daebffab7df1da7d1e52c4`
+- Published: 2026-08-28T22:05:13.974Z
+- Previous accepted baseline: `v0.84.3` / `4e58f324fae8ebfa98a3d45181fb248072a2afac`
+- Accepted local baseline before this audit: `e25cd2e0b454767c35ac53831d2c1a5bb4641299`
+- Exact upstream checkout used: `/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4`
+- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0844-npm/package`
+- Official npm tarball SHA-256: `dfd3c929cee5a7387199a0a24dfc1be2096f1ea8f59ffb8285198a0ed01ebf93`
+- Detailed path matrix: `docs/v0844-release-ledger.md`
+- Whole-corpus test crosswalk: `docs/v0844-137-test-manifest.md`
 
 ## Exact upstream changes audited
 
-Release-only diff: `packages/ai` from official `v0.84.2` to official `v0.84.3`, no unpublished `main` changes.
+Release-only diff: `packages/ai` from official `v0.84.3` to official `v0.84.4`, no unpublished `main` changes.
 
 Audited scope:
 
-- 48 changed `packages/ai` paths: 19 source, 25 tests, 4 package/docs.
-- Changed tests: 25 total, 20 modified plus 5 new (`azure-openai-tool-choice.test.ts`, `bedrock-redacted-reasoning.test.ts`, `bedrock-response-headers.test.ts`, `google-thinking-level-map.test.ts`, `zai-coding-plan-models.test.ts`).
-- Whole test corpus: 136 `packages/ai/test/*.test.ts` files, fully classified with 0 unclassified rows.
-- Text model catalog: 1312 models across 39 providers, exact provider/id pair parity with upstream.
-- Image model catalog: 45 OpenRouter image models, unchanged from v0.84.2.
+- 15 changed `packages/ai` paths: 5 source files, 2 scripts (1 modified + 1 added), 6 tests (5 modified + 1 added), 2 package/docs.
+- Added test: `openrouter-reasoning-options.test.ts`.
+- Whole test corpus: 137 `packages/ai/test/*.test.ts` files, fully classified with 0 unclassified rows.
+- Text model catalog: 1290 models across 39 providers and 9 APIs, exact provider/id pair parity with upstream.
+- Image model catalog: 50 OpenRouter image models, +5 vs v0.84.3 (`meta/muse-image` and Recraft v4 variants).
 
-## v0.84.3 Go implementation and decisions
+## v0.84.4 Go implementation and decisions
 
 | Upstream delta | Go disposition |
 | --- | --- |
-| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.3 source and official npm provider shards: 1312 models / 39 providers. |
-| Image catalog | Verified unchanged at 45 image models; image regeneration comparator remains in `scripts/check-model-regeneration.sh`. |
-| Generator/type compat | Implemented `ThinkingTokenBudgetField`, `$var:"thinking.budget"` support, and Anthropic fallback metadata generation. |
-| Provider-neutral toolChoice | Implemented/adapted where Go exposes the field: Responses/Azure already serializes it; Codex simple/request path now honors it; Azure test added. |
-| Default Pi User-Agent | Added shared `PiUserAgent` default and applied to HTTP adapters while preserving model/caller override precedence. |
-| Anthropic server-side fallback | Implemented fallback request field, beta flag, and fallback pricing based on returned `message.model`; focused raw `streamAnthropic` HTTP/SSE test now proves `fallbacks`, `server-side-fallback-2026-07-01`, default/explicit User-Agent precedence, returned fallback model, and fallback pricing end-to-end. |
-| Bedrock redacted reasoning / response hooks | Implemented preservation/finalization/replay of `redactedContent` as redacted thinking with base64 `thinkingSignature`; response callback adapted to modeled AWS SDK request-id metadata and covered for status 200/request-id and absent-request-id behavior. Raw Smithy gateway response headers remain unavailable through Go SDK modeled `ConverseStreamOutput`. |
-| Google thinking level mapping | Implemented mapping resolution/error path and mapped budget lookup; tests added. |
-| OpenAI-compatible thinking budgets | Implemented configurable `thinkingTokenBudgetField` variants and `thinking.budget` chat-template variable support. |
-| xAI migration | Generated xAI models now use Responses API; Grok 4.6 metadata/reasoning coverage added, plus raw production `/responses` request tests for low/medium/high/xhigh mapping, encrypted reasoning include, endpoint, auth, and explicit User-Agent override while retaining the Grok 4.5 regression. |
-| GitHub Copilot OAuth policy workflow | Implemented/adapted v0.84.3 catalog/policy workflow: known + tool-capable + unconfigured filtering, policy fallback for Individual accounts, no refresh-time catalog retry, 429 `Retry-After` policy retry, continuation after transport failure, 5s login policy retry budget, and returning credentials when policy enabling stops so caller persistence can proceed. |
-| ZAI Coding Plan | Generated global/CN ZAI coding plan catalogs and env-key tests added. |
-| JS-only/runtime-specific surfaces | Narrowly N/A/adapted where no Go equivalent exists (JS sleep helper internals, Cloudflare Workers binding, private TS generator policy, JS credential-store implementation details beyond Go's returned-credential boundary). |
-| Upstream test corpus | Updated. `docs/v0843-136-test-manifest.md` has 136 well-formed rows, exact set equality with `/workspace/tmp/v0843/test_files.txt`, 25 changed-row markers, and 0 unclassified rows. |
+| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.4 source and official npm provider shards: 1290 models / 39 providers / 9 APIs. |
+| Image catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84.4 source: 50 OpenRouter image models, including `meta/muse-image` and Recraft v4 variants. |
+| Generator OpenRouter reasoning metadata | Implemented/adapted into generated Go `ThinkingLevelMap` and `OpenAICompletionsCompat` fields. OpenRouter `supported_efforts` maps to mandatory/optional/off behavior, including `off:null` for mandatory reasoning and `off:"none"` for optional disable semantics where applicable. |
+| Cloudflare AI Gateway Workers AI mirror | Implemented mechanically in generated catalog: tool-capable Workers AI models are mirrored under Cloudflare AI Gateway with `workers-ai/` prefix, `/compat` endpoint, session-affinity compat, and deduped IDs. |
+| OpenAI-compatible explicit `toolChoice:"none"` | Implemented in Chat Completions payload generation. Explicit `ToolChoiceNone` serializes as `tool_choice:"none"` even when no tools are present, while omitting `tools`. |
+| OpenAI-compatible streamed reasoning details | Implemented v0.84.4 semantics: streamed `reasoning.text`, `reasoning.summary`, and encrypted details are replay metadata, adjacent text/summary details merge while preserving common metadata/order, and the final array is serialized once on a thinking block `thinkingSignature` with no duplicate tool-call `thoughtSignature`. Legacy stored encrypted tool-call signatures still replay. |
+| Mistral fragmented tool-call chunks | Implemented indexed tool-call accumulation so later chunks that omit ID and provide an empty function name merge into the original call. |
+| ZAI GLM-5.3 metadata | Implemented mechanically via regenerated catalog and tested for v0.84.4 metadata/compat. |
+| Fireworks catalog changes | Implemented mechanically via regenerated catalog and tested for Kimi K2.7/K3 additions plus retired K2.6 router removal while preserving Fireworks env-key compatibility. |
+| DeepSeek V4 vision metadata | Implemented mechanically via regenerated catalog and tested for `deepseek-v4-flash-vision-exp` multimodal metadata. |
+| Tests and docs | Added/updated deterministic tests, exact 15-path ledger, exact 137-file corpus crosswalk, and this release record. |
+| JS-only/runtime-specific surfaces | Narrowly N/A/adapted where no Go equivalent exists (private TS generator helper structure, JS type-only surfaces); observable generated catalog and provider wire behavior are covered in Go. |
 
 ## Comparator evidence
 
 ```text
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0843/npm0843/package/dist/providers/data \
-  python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0843/packages/ai/src/providers
-upstream pairs: 1312
-generated pairs: 1312
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0844-npm/package/dist/providers/data \
+  python3 scripts/compare-upstream-models.py /workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/providers
+upstream pairs: 1290
+generated pairs: 1290
 model provider/id pairs match exactly
 
-PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/models.generated.ts \
-PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/image-models.generated.ts \
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0843/npm0843/package/dist/providers/data \
+PI_AI_MODELS_GENERATED_TS=/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/models.generated.ts \
+PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/image-models.generated.ts \
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0844-npm/package/dist/providers/data \
 TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
 model regeneration metadata comparator passed
 image model regeneration comparator passed
-
-# Deliberate fault proof in isolated worktree copy:
-# text fault: models_generated.go MaxTokens 384000 -> 384001
-# image fault: images/models_generated.go Output []string{"image"} -> []string{"image", "text"}
-# both failed with normalized regeneration diffs; retained logs under /workspace/tmp/go-ai-v0843-fault-logs/
 ```
 
 ## Validation evidence
 
-Final gate passed before commit/push:
+Candidate gate commands:
 
 ```text
-scripts/validate-test-manifest.py docs/v0843-136-test-manifest.md /workspace/tmp/v0843/test_files.txt
-# manifest rows: 136; unique paths: 136; expected paths: 136; changed-row markers: 25; manifest validation passed
-
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0843/npm0843/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-v0843/packages/ai/src/providers
-# upstream pairs: 1312; generated pairs: 1312; exact match
-
-PI_AI_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/models.generated.ts PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/pi-v0843/packages/ai/src/image-models.generated.ts PI_AI_MODEL_DATA_DIR=/workspace/tmp/v0843/npm0843/package/dist/providers/data TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
-# model regeneration metadata comparator passed; image model regeneration comparator passed
-
-# deliberate text/image faults failed as expected; logs under /workspace/tmp/go-ai-v0843-fault-logs/
-
-TMPDIR=/workspace/tmp go test ./oauth ./inference/provider/anthropic ./inference/provider/openairesponses ./inference/provider/bedrock
-# focused v0.84.3 correction packages PASS: Copilot OAuth, Anthropic fallback stream, xAI Grok 4.6 raw Responses, Bedrock modeled response hook
+python3 scripts/validate-test-manifest.py docs/v0844-137-test-manifest.md /workspace/tmp/v0844-test-files.txt
+# manifest rows: 137; unique paths: 137; expected paths: 137; changed-row markers: 6; manifest validation passed
 
 TMPDIR=/workspace/tmp go test ./...
 make check GO_TMPDIR=/workspace/tmp
@@ -96,6 +78,4 @@ TMPDIR=/workspace/tmp go vet ./...
 make staticcheck GO_TMPDIR=/workspace/tmp
 make check-logging
 make test-repro GO_TMPDIR=/workspace/tmp
-# all PASS
-
 ```

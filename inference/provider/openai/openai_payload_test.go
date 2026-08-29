@@ -277,11 +277,14 @@ func TestProcessSSEStreamAttachesPendingEncryptedReasoningDetails(t *testing.T) 
 	if done == nil {
 		t.Fatal("missing done event")
 	}
-	if len(done.Message.Content) != 1 || done.Message.Content[0].Type != "toolCall" {
+	if len(done.Message.Content) != 2 || done.Message.Content[0].Type != "thinking" || done.Message.Content[1].Type != "toolCall" {
 		t.Fatalf("unexpected content: %#v", done.Message.Content)
 	}
-	if got := done.Message.Content[0].ThoughtSignature; got != `{"type":"reasoning.encrypted","id":"call_1","data":"secret"}` {
-		t.Fatalf("thought signature = %q", got)
+	if got := done.Message.Content[0].ThinkingSignature; got != `[{"type":"reasoning.encrypted","id":"call_1","data":"secret"}]` {
+		t.Fatalf("thinking signature = %q", got)
+	}
+	if got := done.Message.Content[1].ThoughtSignature; got != "" {
+		t.Fatalf("tool call thought signature should not duplicate reasoning_details: %q", got)
 	}
 }
 

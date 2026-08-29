@@ -27,12 +27,15 @@ func TestOpenAICompletionsReasoningDetailsPreservesBeforeMatchingToolCall(t *tes
 	if assistant == nil {
 		t.Fatal("missing assistant message")
 	}
-	if len(assistant.Content) != 1 || assistant.Content[0].Type != "toolCall" {
+	if len(assistant.Content) != 2 || assistant.Content[0].Type != "thinking" || assistant.Content[1].Type != "toolCall" {
 		t.Fatalf("assistant content = %#v", assistant.Content)
 	}
-	wantSig := `{"type":"reasoning.encrypted","id":"call_1","data":"encrypted-signature"}`
-	if assistant.Content[0].ThoughtSignature != wantSig {
-		t.Fatalf("thought signature = %q, want %q", assistant.Content[0].ThoughtSignature, wantSig)
+	wantSig := `[{"type":"reasoning.encrypted","id":"call_1","data":"encrypted-signature"}]`
+	if assistant.Content[0].ThinkingSignature != wantSig {
+		t.Fatalf("thinking signature = %q, want %q", assistant.Content[0].ThinkingSignature, wantSig)
+	}
+	if assistant.Content[1].ThoughtSignature != "" {
+		t.Fatalf("tool call should not duplicate signature: %#v", assistant.Content[1])
 	}
 
 	req := buildRequestBody(&goai.Model{ID: "google/gemini-test", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions}, &goai.Context{
@@ -42,7 +45,7 @@ func TestOpenAICompletionsReasoningDetailsPreservesBeforeMatchingToolCall(t *tes
 	if len(req.Messages) < 1 || len(req.Messages[0].ReasoningDetails) != 1 {
 		t.Fatalf("reasoning_details not replayed in assistant payload: %#v", req.Messages)
 	}
-	if got := req.Messages[0].ReasoningDetails[0]; got.Type != "reasoning.encrypted" || got.ID != "call_1" || got.Data != "encrypted-signature" {
+	if got := req.Messages[0].ReasoningDetails[0]; got.Type != "reasoning.encrypted" || got.ID == nil || *got.ID != "call_1" || got.Data != "encrypted-signature" {
 		t.Fatalf("reasoning detail = %#v", got)
 	}
 }
