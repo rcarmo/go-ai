@@ -494,3 +494,57 @@ func TestV0850AssistantMessageFrameWireRejectsNullAndMissingRequiredNestedFields
 		})
 	}
 }
+
+func TestV0850AssistantMessageFrameStartWhitelistOmitsSettlementAndToolResultNoise(t *testing.T) {
+	partial := seedFrameMessage()
+	partial.Content = []goai.ContentBlock{{Type: "text", Text: "must not persist"}}
+	partial.ResponseID = "resp_1"
+	partial.ResponseModel = "model-response"
+	partial.ProviderThinkingLevel = "high"
+	partial.Diagnostics = []goai.AssistantMessageDiagnostic{{Type: "diag", Timestamp: 2, Details: map[string]interface{}{"value": "kept"}}}
+	partial.StopReason = goai.StopReasonStop
+	partial.Deferred = &goai.DeferredHandle{Provider: "provider", ModelID: "model", Api: string(goai.ApiOpenAIResponses), ID: "deferred"}
+	partial.RawStopReason = "raw"
+	partial.ErrorMessage = "error"
+	endTurn := false
+	partial.EndTurn = &endTurn
+	partial.ToolCallID = "tool-call"
+	partial.ToolName = "tool"
+	partial.AddedToolNames = []string{"late"}
+	partial.IsError = true
+	partial.Details = map[string]interface{}{"noise": true}
+
+	data, err := json.Marshal(goai.AssistantMessageFrame{Type: "start", Partial: partial})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonText := string(data)
+	for _, forbidden := range []string{"must not persist", "deferred", "rawStopReason", "errorMessage", "endTurn", "toolCallId", "toolName", "addedToolNames", "isError", `"details":{"noise"`} {
+		if strings.Contains(jsonText, forbidden) {
+			t.Fatalf("start frame wire persisted forbidden %q: %s", forbidden, jsonText)
+		}
+	}
+	if !strings.Contains(jsonText, `"content":[]`) || !strings.Contains(jsonText, `"stopReason":"pending"`) || !strings.Contains(jsonText, `"responseId":"resp_1"`) || !strings.Contains(jsonText, `"providerThinkingLevel":"high"`) {
+		t.Fatalf("start frame wire missing whitelisted fields: %s", jsonText)
+	}
+}
+
+func TestV0850AssistantMessageFrameStartDecodeRejectsForbiddenOrSettledPartial(t *testing.T) {
+	bad := []string{
+		`{"type":"start","partial":{"role":"user","content":[],"timestamp":1,"stopReason":"pending"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":null,"timestamp":1,"stopReason":"pending"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":[{"type":"text","text":"x"}],"timestamp":1,"stopReason":"pending"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":[],"timestamp":1,"stopReason":"stop"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":[],"timestamp":1,"stopReason":"pending","rawStopReason":"stop"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":[],"timestamp":1,"stopReason":"pending","errorMessage":"boom"}}`,
+		`{"type":"start","partial":{"role":"assistant","content":[],"timestamp":1,"stopReason":"pending","toolCallId":"call"}}`,
+	}
+	for _, raw := range bad {
+		t.Run(raw, func(t *testing.T) {
+			var frame goai.AssistantMessageFrame
+			if err := json.Unmarshal([]byte(raw), &frame); err == nil {
+				t.Fatalf("invalid start partial decoded: %#v", frame)
+			}
+		})
+	}
+}

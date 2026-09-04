@@ -40,10 +40,11 @@ func (f AssistantMessageFrame) MarshalJSON() ([]byte, error) {
 	putIndex := func() { m["contentIndex"] = f.ContentIndex }
 	switch f.Type {
 	case "start":
-		if f.Partial == nil {
-			return nil, fmt.Errorf("start frame missing partial")
+		partial, err := assistantStartFrameWire(f.Partial)
+		if err != nil {
+			return nil, err
 		}
-		m["partial"] = cloneFrameMessage(f.Partial, false)
+		m["partial"] = partial
 	case "text_start", "thinking_start":
 		putIndex()
 		if f.Content == nil {
@@ -121,9 +122,11 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 	readIndex := func() error { return unmarshalRequiredFrameField(raw, "contentIndex", &out.ContentIndex) }
 	switch typ {
 	case "start":
-		if err := unmarshalRequiredFrameField(raw, "partial", &out.Partial); err != nil {
+		partial, err := decodeAssistantStartFrameWire(raw)
+		if err != nil {
 			return err
 		}
+		out.Partial = partial
 	case "text_start", "thinking_start":
 		if err := readIndex(); err != nil {
 			return err
@@ -291,6 +294,97 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 	}
 	*f = out
 	return nil
+}
+
+type assistantStartPartialWire struct {
+	Role                  Role                         `json:"role"`
+	Content               []ContentBlock               `json:"content"`
+	Timestamp             int64                        `json:"timestamp"`
+	Api                   Api                          `json:"api,omitempty"`
+	Provider              Provider                     `json:"provider,omitempty"`
+	Model                 string                       `json:"model,omitempty"`
+	ResponseID            string                       `json:"responseId,omitempty"`
+	ResponseModel         string                       `json:"responseModel,omitempty"`
+	ProviderThinkingLevel string                       `json:"providerThinkingLevel,omitempty"`
+	Diagnostics           []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
+	Usage                 *Usage                       `json:"usage,omitempty"`
+	StopReason            StopReason                   `json:"stopReason,omitempty"`
+}
+
+func assistantStartFrameWire(partial *Message) (*assistantStartPartialWire, error) {
+	if partial == nil {
+		return nil, fmt.Errorf("start frame missing partial")
+	}
+	if partial.Role != RoleAssistant {
+		return nil, fmt.Errorf("start frame partial role must be assistant")
+	}
+	stopReason := StopReasonPending
+	if partial.StopReason == StopReasonPending || partial.StopReason == "" {
+		stopReason = StopReasonPending
+	}
+	var usage *Usage
+	if partial.Usage != nil {
+		u := *partial.Usage
+		usage = &u
+	}
+	return &assistantStartPartialWire{
+		Role:                  RoleAssistant,
+		Content:               []ContentBlock{},
+		Timestamp:             partial.Timestamp,
+		Api:                   partial.Api,
+		Provider:              partial.Provider,
+		Model:                 partial.Model,
+		ResponseID:            partial.ResponseID,
+		ResponseModel:         partial.ResponseModel,
+		ProviderThinkingLevel: partial.ProviderThinkingLevel,
+		Diagnostics:           cloneFrameAny(partial.Diagnostics).([]AssistantMessageDiagnostic),
+		Usage:                 usage,
+		StopReason:            stopReason,
+	}, nil
+}
+
+func decodeAssistantStartFrameWire(raw map[string]json.RawMessage) (*Message, error) {
+	partialRaw, ok := raw["partial"]
+	if !ok || len(partialRaw) == 0 || string(partialRaw) == "null" {
+		return nil, fmt.Errorf("assistant message frame missing partial")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(partialRaw, &fields); err != nil {
+		return nil, fmt.Errorf("invalid partial: %w", err)
+	}
+	forbidden := []string{"deferred", "rawStopReason", "errorMessage", "endTurn", "toolCallId", "toolName", "addedToolNames", "isError", "details"}
+	for _, name := range forbidden {
+		if _, ok := fields[name]; ok {
+			return nil, fmt.Errorf("start frame partial contains forbidden field %s", name)
+		}
+	}
+	var partial assistantStartPartialWire
+	if err := json.Unmarshal(partialRaw, &partial); err != nil {
+		return nil, fmt.Errorf("invalid partial: %w", err)
+	}
+	if partial.Role != RoleAssistant {
+		return nil, fmt.Errorf("start frame partial role must be assistant")
+	}
+	if partial.Content == nil || len(partial.Content) != 0 {
+		return nil, fmt.Errorf("start frame partial content must be []")
+	}
+	if partial.StopReason != "" && partial.StopReason != StopReasonPending {
+		return nil, fmt.Errorf("start frame partial stopReason must be pending")
+	}
+	return &Message{
+		Role:                  RoleAssistant,
+		Content:               []ContentBlock{},
+		Timestamp:             partial.Timestamp,
+		Api:                   partial.Api,
+		Provider:              partial.Provider,
+		Model:                 partial.Model,
+		ResponseID:            partial.ResponseID,
+		ResponseModel:         partial.ResponseModel,
+		ProviderThinkingLevel: partial.ProviderThinkingLevel,
+		Diagnostics:           cloneFrameAny(partial.Diagnostics).([]AssistantMessageDiagnostic),
+		Usage:                 partial.Usage,
+		StopReason:            StopReasonPending,
+	}, nil
 }
 
 func unmarshalRequiredFrameField(raw map[string]json.RawMessage, name string, target interface{}) error {
