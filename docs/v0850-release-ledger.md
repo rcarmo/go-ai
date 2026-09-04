@@ -93,15 +93,15 @@ Previous accepted upstream baseline: `v0.84.4`, SHA `b79e4cc834970cca69daebffab7
 - `TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneration.sh` — text metadata comparator passed; image model regeneration comparator passed.
 - Deliberate text catalog fault gate: corrupted `models_generated.go`; comparator failed as expected; restored exact file; clean comparator passed.
 - Deliberate image catalog fault gate: corrupted `images/models_generated.go`; comparator failed as expected; restored exact file; clean comparator passed.
-- Corrective `make check` — passed, including new committed inventory and full-record catalog-delta validators/self-tests.
-- Corrective `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
-- Corrective `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1` — passed.
-- Corrective `go vet ./...` — passed.
-- Corrective `make staticcheck` — passed (`staticcheck@v0.7.0`).
-- Corrective `make check-logging` — passed.
-- Corrective `make test-repro` — passed.
-- Corrective `make sbom-check` — passed at superseded pre-corrective HEAD; rerun after corrective commit is required for SHA-linked SBOM.
-- Corrective `make vuln-check` — passed: `govulncheck: no reachable vulnerabilities for go1.26.6`.
-- Corrective `make license-check` — passed; warnings limited to non-Go assembly dependency-inspection notices from `go-licenses`.
-- Corrective clean-checkout validation from `/workspace/tmp/go-ai-v0850-corrective-clean` with patch applied passed: `go test ./...`, committed inventory validation/self-test, catalog delta validation/self-test, 142-row manifest validation, model/image regeneration comparators, and `git diff --check`.
-- Runtime candidates `fcd8270faee46a2eead7ef13e054f96704791ff4` / CI `33890620670` and `c2d5d318c4e3052502c784255b856e1a7a12914b` / CI `33893048444` are superseded/rejected. Wire corrective commit, hosted CI, final SHA, and rollback SHA are pending.
+- Final frame wire-fidelity `make check` — passed, including committed inventory and full-record catalog-delta validators/self-tests.
+- Final frame wire-fidelity `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
+- Final frame wire-fidelity `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1` — passed.
+- Final frame wire-fidelity `go vet ./...` — passed.
+- Final frame wire-fidelity `make staticcheck` — passed (`staticcheck@v0.7.0`).
+- Final frame wire-fidelity `make check-logging` — passed.
+- Final frame wire-fidelity `make test-repro` — passed.
+- Final frame wire-fidelity `make sbom-check` — passed at superseded pre-final-wire HEAD; rerun after final frame wire commit is required for SHA-linked SBOM.
+- Final frame wire-fidelity `make vuln-check` — passed: `govulncheck: no reachable vulnerabilities for go1.26.6`.
+- Final frame wire-fidelity `make license-check` — passed; warnings limited to non-Go assembly dependency-inspection notices from `go-licenses`.
+- Final frame wire-fidelity clean-checkout validation from `/workspace/tmp/go-ai-v0850-final-wire-clean` with patch applied passed: `go test ./...`, committed inventory validation/self-test, catalog delta validation/self-test, 142-row manifest validation, model/image regeneration comparators, and `git diff --check`.
+- Runtime candidates `fcd8270faee46a2eead7ef13e054f96704791ff4` / CI `33890620670`, `c2d5d318c4e3052502c784255b856e1a7a12914b` / CI `33893048444`, and `dc523a42ca530bbcb3cf0300e8f80808914a39d2` / CI `33894031330` are superseded/rejected. Final frame wire-fidelity commit, hosted CI, final SHA, and rollback SHA are pending.

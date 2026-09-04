@@ -10,22 +10,26 @@ import (
 // AssistantMessageFrame is a compact, immutable stream frame that can be used
 // to reconstruct an assistant message without retaining provider scratch fields.
 type AssistantMessageFrame struct {
-	Type              string                 `json:"type"`
-	Partial           *Message               `json:"partial,omitempty"`
-	ContentIndex      int                    `json:"contentIndex,omitempty"`
-	Content           *ContentBlock          `json:"content,omitempty"`
-	Delta             string                 `json:"delta,omitempty"`
-	ToolCall          *ToolCall              `json:"toolCall,omitempty"`
-	JSON              string                 `json:"json,omitempty"`
-	ID                string                 `json:"id,omitempty"`
-	Name              string                 `json:"name,omitempty"`
-	Arguments         map[string]interface{} `json:"arguments,omitempty"`
-	Text              string                 `json:"-"`
-	TextSignature     string                 `json:"textSignature,omitempty"`
-	ThinkingSignature string                 `json:"thinkingSignature,omitempty"`
-	Redacted          *bool                  `json:"redacted,omitempty"`
-	ThoughtSignature  string                 `json:"thoughtSignature,omitempty"`
-	Namespace         string                 `json:"namespace,omitempty"`
+	Type                     string                 `json:"type"`
+	Partial                  *Message               `json:"partial,omitempty"`
+	ContentIndex             int                    `json:"contentIndex,omitempty"`
+	Content                  *ContentBlock          `json:"content,omitempty"`
+	Delta                    string                 `json:"delta,omitempty"`
+	ToolCall                 *ToolCall              `json:"toolCall,omitempty"`
+	JSON                     string                 `json:"json,omitempty"`
+	ID                       string                 `json:"id,omitempty"`
+	Name                     string                 `json:"name,omitempty"`
+	Arguments                map[string]interface{} `json:"arguments,omitempty"`
+	Text                     string                 `json:"-"`
+	TextSignature            string                 `json:"textSignature,omitempty"`
+	TextSignaturePresent     bool                   `json:"-"`
+	ThinkingSignature        string                 `json:"thinkingSignature,omitempty"`
+	ThinkingSignaturePresent bool                   `json:"-"`
+	Redacted                 *bool                  `json:"redacted,omitempty"`
+	ThoughtSignature         string                 `json:"thoughtSignature,omitempty"`
+	ThoughtSignaturePresent  bool                   `json:"-"`
+	Namespace                string                 `json:"namespace,omitempty"`
+	NamespacePresent         bool                   `json:"-"`
 }
 
 // MarshalJSON emits the upstream discriminated wire shape for each frame type.
@@ -39,26 +43,32 @@ func (f AssistantMessageFrame) MarshalJSON() ([]byte, error) {
 		if f.Partial == nil {
 			return nil, fmt.Errorf("start frame missing partial")
 		}
-		m["partial"] = f.Partial
+		m["partial"] = cloneFrameMessage(f.Partial, false)
 	case "text_start", "thinking_start":
 		putIndex()
 		if f.Content == nil {
 			return nil, fmt.Errorf("%s frame missing content", f.Type)
 		}
-		m["content"] = f.Content
+		content, err := frameContentWire(f.Content, f.Type)
+		if err != nil {
+			return nil, err
+		}
+		m["content"] = content
 	case "text_delta", "thinking_delta":
 		putIndex()
 		m["delta"] = f.Delta
 	case "text_end":
 		putIndex()
 		m["content"] = f.Text
-		if f.TextSignature != "" {
+		if f.TextSignaturePresent || f.TextSignature != "" {
 			m["textSignature"] = f.TextSignature
 		}
 	case "thinking_end":
 		putIndex()
 		m["content"] = f.Text
-		m["thinkingSignature"] = f.ThinkingSignature
+		if f.ThinkingSignaturePresent || f.ThinkingSignature != "" {
+			m["thinkingSignature"] = f.ThinkingSignature
+		}
 		if f.Redacted != nil {
 			m["redacted"] = *f.Redacted
 		}
@@ -67,7 +77,7 @@ func (f AssistantMessageFrame) MarshalJSON() ([]byte, error) {
 		if f.ToolCall == nil {
 			return nil, fmt.Errorf("toolcall_start frame missing toolCall")
 		}
-		m["toolCall"] = f.ToolCall
+		m["toolCall"] = frameToolCallWire(f.ToolCall)
 	case "toolcall_checkpoint":
 		putIndex()
 		m["json"] = f.JSON
@@ -83,10 +93,10 @@ func (f AssistantMessageFrame) MarshalJSON() ([]byte, error) {
 			args = map[string]interface{}{}
 		}
 		m["arguments"] = args
-		if f.ThoughtSignature != "" {
+		if f.ThoughtSignaturePresent || f.ThoughtSignature != "" {
 			m["thoughtSignature"] = f.ThoughtSignature
 		}
-		if f.Namespace != "" {
+		if f.NamespacePresent || f.Namespace != "" {
 			m["namespace"] = f.Namespace
 		}
 	default:
@@ -122,11 +132,29 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		want := "text"
+		required := "text"
 		if typ == "thinking_start" {
 			want = "thinking"
+			required = "thinking"
 		}
 		if out.Content == nil || out.Content.Type != want {
 			return fmt.Errorf("%s frame contains invalid content", typ)
+		}
+		var contentRaw map[string]json.RawMessage
+		if err := json.Unmarshal(raw["content"], &contentRaw); err != nil {
+			return fmt.Errorf("invalid content: %w", err)
+		}
+		if _, ok := contentRaw[required]; !ok {
+			return fmt.Errorf("%s frame content missing %s", typ, required)
+		}
+		if _, ok := contentRaw["textSignature"]; ok {
+			out.Content.TextSignaturePresent = true
+		}
+		if _, ok := contentRaw["thinkingSignature"]; ok {
+			out.Content.ThinkingSignaturePresent = true
+		}
+		if _, ok := contentRaw["redacted"]; ok {
+			out.Content.RedactedPresent = true
 		}
 	case "text_delta", "thinking_delta", "toolcall_delta":
 		if err := readIndex(); err != nil {
@@ -142,7 +170,10 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
 			return err
 		}
-		_ = json.Unmarshal(raw["textSignature"], &out.TextSignature)
+		if _, ok := raw["textSignature"]; ok {
+			out.TextSignaturePresent = true
+			_ = json.Unmarshal(raw["textSignature"], &out.TextSignature)
+		}
 	case "thinking_end":
 		if err := readIndex(); err != nil {
 			return err
@@ -150,7 +181,10 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
 			return err
 		}
-		_ = json.Unmarshal(raw["thinkingSignature"], &out.ThinkingSignature)
+		if _, ok := raw["thinkingSignature"]; ok {
+			out.ThinkingSignaturePresent = true
+			_ = json.Unmarshal(raw["thinkingSignature"], &out.ThinkingSignature)
+		}
 		if rawRedacted, ok := raw["redacted"]; ok {
 			var redacted bool
 			if err := json.Unmarshal(rawRedacted, &redacted); err != nil {
@@ -167,6 +201,16 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		}
 		if out.ToolCall == nil || out.ToolCall.Type != "toolCall" {
 			return fmt.Errorf("toolcall_start frame contains invalid toolCall")
+		}
+		var toolRaw map[string]json.RawMessage
+		if err := json.Unmarshal(raw["toolCall"], &toolRaw); err != nil {
+			return fmt.Errorf("invalid toolCall: %w", err)
+		}
+		if _, ok := toolRaw["thoughtSignature"]; ok {
+			out.ToolCall.ThoughtSignaturePresent = true
+		}
+		if _, ok := toolRaw["namespace"]; ok {
+			out.ToolCall.NamespacePresent = true
 		}
 	case "toolcall_checkpoint":
 		if err := readIndex(); err != nil {
@@ -188,8 +232,14 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "arguments", &out.Arguments); err != nil {
 			return err
 		}
-		_ = json.Unmarshal(raw["thoughtSignature"], &out.ThoughtSignature)
-		_ = json.Unmarshal(raw["namespace"], &out.Namespace)
+		if _, ok := raw["thoughtSignature"]; ok {
+			out.ThoughtSignaturePresent = true
+			_ = json.Unmarshal(raw["thoughtSignature"], &out.ThoughtSignature)
+		}
+		if _, ok := raw["namespace"]; ok {
+			out.NamespacePresent = true
+			_ = json.Unmarshal(raw["namespace"], &out.Namespace)
+		}
 	default:
 		return fmt.Errorf("unknown assistant message frame type %q", typ)
 	}
@@ -206,6 +256,49 @@ func unmarshalRequiredFrameField(raw map[string]json.RawMessage, name string, ta
 		return fmt.Errorf("invalid %s: %w", name, err)
 	}
 	return nil
+}
+
+func frameContentWire(block *ContentBlock, frameType string) (map[string]interface{}, error) {
+	switch frameType {
+	case "text_start":
+		if block.Type != "text" {
+			return nil, fmt.Errorf("text_start frame contains invalid content")
+		}
+		m := map[string]interface{}{"type": "text", "text": block.Text}
+		if block.TextSignaturePresent || block.TextSignature != "" {
+			m["textSignature"] = block.TextSignature
+		}
+		return m, nil
+	case "thinking_start":
+		if block.Type != "thinking" {
+			return nil, fmt.Errorf("thinking_start frame contains invalid content")
+		}
+		m := map[string]interface{}{"type": "thinking", "thinking": block.Thinking}
+		if block.ThinkingSignaturePresent || block.ThinkingSignature != "" {
+			m["thinkingSignature"] = block.ThinkingSignature
+		}
+		if block.RedactedPresent || block.Redacted {
+			m["redacted"] = block.Redacted
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("unknown content frame type %q", frameType)
+	}
+}
+
+func frameToolCallWire(call *ToolCall) map[string]interface{} {
+	args := cloneFrameMap(call.Arguments)
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	m := map[string]interface{}{"type": "toolCall", "id": call.ID, "name": call.Name, "arguments": args}
+	if call.ThoughtSignaturePresent || call.ThoughtSignature != "" {
+		m["thoughtSignature"] = call.ThoughtSignature
+	}
+	if call.NamespacePresent || call.Namespace != "" {
+		m["namespace"] = call.Namespace
+	}
+	return m
 }
 
 // AssistantMessageFrameEncoder converts mutable stream events into compact
@@ -286,7 +379,7 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		if err := e.endBlock(ev.ContentIndex, "text"); err != nil {
 			return nil, err
 		}
-		return &AssistantMessageFrame{Type: "text_end", ContentIndex: ev.ContentIndex, Delta: "", Text: ev.Content, TextSignature: block.TextSignature}, nil
+		return &AssistantMessageFrame{Type: "text_end", ContentIndex: ev.ContentIndex, Delta: "", Text: ev.Content, TextSignature: block.TextSignature, TextSignaturePresent: block.TextSignaturePresent}, nil
 	case *ThinkingStartEvent:
 		if err := e.requireStarted("thinking_start"); err != nil {
 			return nil, err
@@ -321,7 +414,7 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 			return nil, err
 		}
 		redacted := block.Redacted
-		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: block.ThinkingSignature, Redacted: &redacted}, nil
+		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: block.ThinkingSignature, ThinkingSignaturePresent: block.ThinkingSignaturePresent, Redacted: &redacted}, nil
 	case *ToolCallStartEvent:
 		if err := e.requireStarted("toolcall_start"); err != nil {
 			return nil, err
@@ -385,7 +478,7 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		if call.Type != "toolCall" && call.Type != "" {
 			return nil, fmt.Errorf("toolcall_end event has invalid tool call at index %d", ev.ContentIndex)
 		}
-		return &AssistantMessageFrame{Type: "toolcall_end", ContentIndex: ev.ContentIndex, ID: call.ID, Name: call.Name, Arguments: cloneFrameMap(call.Arguments), ThoughtSignature: call.ThoughtSignature, Namespace: call.Namespace}, nil
+		return &AssistantMessageFrame{Type: "toolcall_end", ContentIndex: ev.ContentIndex, ID: call.ID, Name: call.Name, Arguments: cloneFrameMap(call.Arguments), ThoughtSignature: call.ThoughtSignature, ThoughtSignaturePresent: call.ThoughtSignaturePresent, Namespace: call.Namespace, NamespacePresent: call.NamespacePresent}, nil
 	default:
 		return nil, nil
 	}
@@ -477,6 +570,7 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 			}
 			out.Content[frame.ContentIndex].Text = frame.Text
 			out.Content[frame.ContentIndex].TextSignature = frame.TextSignature
+			out.Content[frame.ContentIndex].TextSignaturePresent = frame.TextSignaturePresent
 		case "thinking_start":
 			if err := startFrameBlock(out, frame.ContentIndex, frame.Content, "thinking"); err != nil {
 				return nil, err
@@ -491,8 +585,10 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 			}
 			out.Content[frame.ContentIndex].Thinking = frame.Text
 			out.Content[frame.ContentIndex].ThinkingSignature = frame.ThinkingSignature
+			out.Content[frame.ContentIndex].ThinkingSignaturePresent = frame.ThinkingSignaturePresent
 			if frame.Redacted != nil {
 				out.Content[frame.ContentIndex].Redacted = *frame.Redacted
+				out.Content[frame.ContentIndex].RedactedPresent = true
 			}
 		case "toolcall_start":
 			block := toolCallToBlock(frame.ToolCall)
@@ -515,7 +611,9 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 			out.Content[frame.ContentIndex].Name = frame.Name
 			out.Content[frame.ContentIndex].Arguments = cloneFrameMap(frame.Arguments)
 			out.Content[frame.ContentIndex].ThoughtSignature = frame.ThoughtSignature
+			out.Content[frame.ContentIndex].ThoughtSignaturePresent = frame.ThoughtSignaturePresent
 			out.Content[frame.ContentIndex].Namespace = frame.Namespace
+			out.Content[frame.ContentIndex].NamespacePresent = frame.NamespacePresent
 		default:
 			return nil, fmt.Errorf("unknown assistant message frame type %q", frame.Type)
 		}
@@ -536,7 +634,7 @@ func cloneFrameMessage(m *Message, includeContent bool) *Message {
 	if includeContent {
 		out.Content = cloneBlocks(m.Content)
 	} else {
-		out.Content = nil
+		out.Content = []ContentBlock{}
 	}
 	return &out
 }
@@ -590,14 +688,14 @@ func blockToToolCall(block *ContentBlock) ToolCall {
 	if block == nil {
 		return ToolCall{Type: "toolCall", Arguments: map[string]interface{}{}}
 	}
-	return ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: cloneFrameMap(block.Arguments), ThoughtSignature: block.ThoughtSignature, Namespace: block.Namespace}
+	return ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: cloneFrameMap(block.Arguments), ThoughtSignature: block.ThoughtSignature, ThoughtSignaturePresent: block.ThoughtSignaturePresent, Namespace: block.Namespace, NamespacePresent: block.NamespacePresent}
 }
 
 func toolCallToBlock(call *ToolCall) ContentBlock {
 	if call == nil {
 		return ContentBlock{Type: "toolCall", Arguments: map[string]interface{}{}}
 	}
-	return ContentBlock{Type: "toolCall", ID: call.ID, Name: call.Name, Arguments: cloneFrameMap(call.Arguments), ThoughtSignature: call.ThoughtSignature, Namespace: call.Namespace}
+	return ContentBlock{Type: "toolCall", ID: call.ID, Name: call.Name, Arguments: cloneFrameMap(call.Arguments), ThoughtSignature: call.ThoughtSignature, ThoughtSignaturePresent: call.ThoughtSignaturePresent, Namespace: call.Namespace, NamespacePresent: call.NamespacePresent}
 }
 
 func startFrameBlock(out *Message, idx int, block *ContentBlock, kind string) error {

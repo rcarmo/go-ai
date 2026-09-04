@@ -169,12 +169,14 @@ type ImageContent struct {
 
 // ToolCall represents a function call request from the model.
 type ToolCall struct {
-	Type             string                 `json:"type"` // always "toolCall"
-	ID               string                 `json:"id"`
-	Name             string                 `json:"name"`
-	Arguments        map[string]interface{} `json:"arguments"`
-	ThoughtSignature string                 `json:"thoughtSignature,omitempty"`
-	Namespace        string                 `json:"namespace,omitempty"`
+	Type                    string                 `json:"type"` // always "toolCall"
+	ID                      string                 `json:"id"`
+	Name                    string                 `json:"name"`
+	Arguments               map[string]interface{} `json:"arguments"`
+	ThoughtSignature        string                 `json:"thoughtSignature,omitempty"`
+	ThoughtSignaturePresent bool                   `json:"-"`
+	Namespace               string                 `json:"namespace,omitempty"`
+	NamespacePresent        bool                   `json:"-"`
 }
 
 // ContentBlock is any content element in a message.
@@ -184,24 +186,29 @@ type ContentBlock struct {
 	Type string `json:"type"`
 
 	// Text fields (type == "text")
-	Text          string `json:"text,omitempty"`
-	TextSignature string `json:"textSignature,omitempty"`
+	Text                 string `json:"text,omitempty"`
+	TextSignature        string `json:"textSignature,omitempty"`
+	TextSignaturePresent bool   `json:"-"`
 
 	// Thinking fields (type == "thinking")
-	Thinking          string `json:"thinking,omitempty"`
-	ThinkingSignature string `json:"thinkingSignature,omitempty"`
-	Redacted          bool   `json:"redacted,omitempty"`
+	Thinking                 string `json:"thinking,omitempty"`
+	ThinkingSignature        string `json:"thinkingSignature,omitempty"`
+	ThinkingSignaturePresent bool   `json:"-"`
+	Redacted                 bool   `json:"redacted,omitempty"`
+	RedactedPresent          bool   `json:"-"`
 
 	// Image fields (type == "image")
 	Data     string `json:"data,omitempty"`
 	MimeType string `json:"mimeType,omitempty"`
 
 	// ToolCall fields (type == "toolCall")
-	ID               string                 `json:"id,omitempty"`
-	Name             string                 `json:"name,omitempty"`
-	Arguments        map[string]interface{} `json:"arguments,omitempty"`
-	ThoughtSignature string                 `json:"thoughtSignature,omitempty"`
-	Namespace        string                 `json:"namespace,omitempty"`
+	ID                      string                 `json:"id,omitempty"`
+	Name                    string                 `json:"name,omitempty"`
+	Arguments               map[string]interface{} `json:"arguments,omitempty"`
+	ThoughtSignature        string                 `json:"thoughtSignature,omitempty"`
+	ThoughtSignaturePresent bool                   `json:"-"`
+	Namespace               string                 `json:"namespace,omitempty"`
+	NamespacePresent        bool                   `json:"-"`
 }
 
 // --- Usage ---
