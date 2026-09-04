@@ -104,4 +104,4 @@ Previous accepted upstream baseline: `v0.84.4`, SHA `b79e4cc834970cca69daebffab7
 - Corrective `make vuln-check` — passed: `govulncheck: no reachable vulnerabilities for go1.26.6`.
 - Corrective `make license-check` — passed; warnings limited to non-Go assembly dependency-inspection notices from `go-licenses`.
 - Corrective clean-checkout validation from `/workspace/tmp/go-ai-v0850-corrective-clean` with patch applied passed: `go test ./...`, committed inventory validation/self-test, catalog delta validation/self-test, 142-row manifest validation, model/image regeneration comparators, and `git diff --check`.
-- Runtime candidate `fcd8270faee46a2eead7ef13e054f96704791ff4` and CI run `33890620670` are superseded/rejected. Replacement corrective commit, hosted CI, final SHA, and rollback SHA are pending.
+- Runtime candidates `fcd8270faee46a2eead7ef13e054f96704791ff4` / CI `33890620670` and `c2d5d318c4e3052502c784255b856e1a7a12914b` / CI `33893048444` are superseded/rejected. Wire corrective commit, hosted CI, final SHA, and rollback SHA are pending.

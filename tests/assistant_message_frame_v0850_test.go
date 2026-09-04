@@ -290,3 +290,93 @@ func frameTypes(frames []goai.AssistantMessageFrame) []string {
 }
 
 func boolPtrTest(v bool) *bool { return &v }
+
+func TestV0850AssistantMessageFrameWireGoldenJSONRoundTrips(t *testing.T) {
+	redactedFalse := false
+	frames := []struct {
+		name  string
+		frame goai.AssistantMessageFrame
+		json  string
+	}{
+		{"start", goai.AssistantMessageFrame{Type: "start", Partial: seedFrameMessage()}, `{"partial":{"role":"assistant","content":null,"timestamp":1,"api":"test-api","provider":"test-provider","model":"test-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"pending"},"type":"start"}`},
+		{"text_start_index_0", goai.AssistantMessageFrame{Type: "text_start", ContentIndex: 0, Content: &goai.ContentBlock{Type: "text", Text: "hi"}}, `{"content":{"type":"text","text":"hi"},"contentIndex":0,"type":"text_start"}`},
+		{"text_delta_index_0", goai.AssistantMessageFrame{Type: "text_delta", ContentIndex: 0, Delta: "!"}, `{"contentIndex":0,"delta":"!","type":"text_delta"}`},
+		{"text_end_content", goai.AssistantMessageFrame{Type: "text_end", ContentIndex: 0, Text: "hi!", TextSignature: "sig"}, `{"content":"hi!","contentIndex":0,"textSignature":"sig","type":"text_end"}`},
+		{"text_end_absent_signature", goai.AssistantMessageFrame{Type: "text_end", ContentIndex: 0, Text: "hi!"}, `{"content":"hi!","contentIndex":0,"type":"text_end"}`},
+		{"thinking_start", goai.AssistantMessageFrame{Type: "thinking_start", ContentIndex: 0, Content: &goai.ContentBlock{Type: "thinking", Thinking: "think", ThinkingSignature: "start", Redacted: true}}, `{"content":{"type":"thinking","thinking":"think","thinkingSignature":"start","redacted":true},"contentIndex":0,"type":"thinking_start"}`},
+		{"thinking_delta", goai.AssistantMessageFrame{Type: "thinking_delta", ContentIndex: 0, Delta: "ing"}, `{"contentIndex":0,"delta":"ing","type":"thinking_delta"}`},
+		{"thinking_end_empty_signature_false_redacted", goai.AssistantMessageFrame{Type: "thinking_end", ContentIndex: 0, Text: "think", ThinkingSignature: "", Redacted: &redactedFalse}, `{"content":"think","contentIndex":0,"redacted":false,"thinkingSignature":"","type":"thinking_end"}`},
+		{"toolcall_start", goai.AssistantMessageFrame{Type: "toolcall_start", ContentIndex: 0, ToolCall: &goai.ToolCall{Type: "toolCall", ID: "call", Name: "run", Arguments: map[string]interface{}{"x": float64(1)}, ThoughtSignature: "thought", Namespace: "tools"}}, `{"contentIndex":0,"toolCall":{"type":"toolCall","id":"call","name":"run","arguments":{"x":1},"thoughtSignature":"thought","namespace":"tools"},"type":"toolcall_start"}`},
+		{"toolcall_checkpoint", goai.AssistantMessageFrame{Type: "toolcall_checkpoint", ContentIndex: 0, JSON: `{"x":1}`}, `{"contentIndex":0,"json":"{\"x\":1}","type":"toolcall_checkpoint"}`},
+		{"toolcall_delta", goai.AssistantMessageFrame{Type: "toolcall_delta", ContentIndex: 0, Delta: `,"y":2`}, `{"contentIndex":0,"delta":",\"y\":2","type":"toolcall_delta"}`},
+		{"toolcall_end", goai.AssistantMessageFrame{Type: "toolcall_end", ContentIndex: 0, ID: "final", Name: "run", Arguments: map[string]interface{}{"x": float64(2)}, ThoughtSignature: "final-thought", Namespace: "files"}, `{"arguments":{"x":2},"contentIndex":0,"id":"final","name":"run","namespace":"files","thoughtSignature":"final-thought","type":"toolcall_end"}`},
+		{"toolcall_end_absent_optional", goai.AssistantMessageFrame{Type: "toolcall_end", ContentIndex: 0, ID: "final", Name: "run", Arguments: map[string]interface{}{}}, `{"arguments":{},"contentIndex":0,"id":"final","name":"run","type":"toolcall_end"}`},
+	}
+	for _, tc := range frames {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.frame)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != tc.json {
+				t.Fatalf("json=%s\nwant=%s", data, tc.json)
+			}
+			var decoded goai.AssistantMessageFrame
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			again, err := json.Marshal(decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(again) != tc.json {
+				t.Fatalf("roundtrip json=%s want=%s", again, tc.json)
+			}
+		})
+	}
+}
+
+func TestV0850AssistantMessageFrameWireJSONReducesAfterUnmarshal(t *testing.T) {
+	wire := []byte(`[
+		{"type":"start","partial":{"role":"assistant","content":[],"timestamp":1,"api":"test-api","provider":"test-provider","model":"test-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"pending"}},
+		{"type":"text_start","contentIndex":0,"content":{"type":"text","text":""}},
+		{"type":"text_delta","contentIndex":0,"delta":"hello"},
+		{"type":"text_end","contentIndex":0,"content":"hello","textSignature":"sig"},
+		{"type":"toolcall_start","contentIndex":1,"toolCall":{"type":"toolCall","id":"call","name":"lookup","arguments":{}}},
+		{"type":"toolcall_delta","contentIndex":1,"delta":"{\"query\":\"pi\"}"},
+		{"type":"toolcall_end","contentIndex":1,"id":"call","name":"lookup","arguments":{"query":"pi"},"namespace":"tools"}
+	]`)
+	var frames []goai.AssistantMessageFrame
+	if err := json.Unmarshal(wire, &frames); err != nil {
+		t.Fatal(err)
+	}
+	got, err := goai.ReduceAssistantMessageFrames(frames)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Content) != 2 || got.Content[0].Text != "hello" || got.Content[0].TextSignature != "sig" || got.Content[1].Namespace != "tools" || got.Content[1].Arguments["query"] != "pi" {
+		t.Fatalf("reduced=%#v", got.Content)
+	}
+}
+
+func TestV0850AssistantMessageFrameWireMalformedJSONFails(t *testing.T) {
+	bad := []string{
+		`{"type":"unknown","contentIndex":0}`,
+		`{"type":"text_start","contentIndex":0,"content":{"type":"thinking","thinking":"x"}}`,
+		`{"type":"text_delta","delta":"x"}`,
+		`{"type":"text_end","contentIndex":0}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"text"}}`,
+		`{"type":"toolcall_end","contentIndex":0,"id":"call","name":"run"}`,
+	}
+	for _, raw := range bad {
+		t.Run(raw, func(t *testing.T) {
+			var frame goai.AssistantMessageFrame
+			if err := json.Unmarshal([]byte(raw), &frame); err == nil {
+				t.Fatalf("malformed frame unexpectedly decoded: %#v", frame)
+			}
+		})
+	}
+	if _, err := json.Marshal(goai.AssistantMessageFrame{Type: "mystery"}); err == nil {
+		t.Fatal("unknown frame type unexpectedly marshaled")
+	}
+}

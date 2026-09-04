@@ -12,7 +12,7 @@ go test ./...
 # passed
 
 make check
-# passed after explicit UUID timestamp preservation was fixed for repeated deterministic runs
+# passed after explicit UUID timestamp preservation and frame wire persistence were fixed
 
 TMPDIR=/workspace/tmp go test -shuffle=on ./...
 TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1

@@ -28,6 +28,186 @@ type AssistantMessageFrame struct {
 	Namespace         string                 `json:"namespace,omitempty"`
 }
 
+// MarshalJSON emits the upstream discriminated wire shape for each frame type.
+// Required fields such as contentIndex are always present, including index 0;
+// authoritative text/thinking end content is encoded as JSON field "content".
+func (f AssistantMessageFrame) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{"type": f.Type}
+	putIndex := func() { m["contentIndex"] = f.ContentIndex }
+	switch f.Type {
+	case "start":
+		if f.Partial == nil {
+			return nil, fmt.Errorf("start frame missing partial")
+		}
+		m["partial"] = f.Partial
+	case "text_start", "thinking_start":
+		putIndex()
+		if f.Content == nil {
+			return nil, fmt.Errorf("%s frame missing content", f.Type)
+		}
+		m["content"] = f.Content
+	case "text_delta", "thinking_delta":
+		putIndex()
+		m["delta"] = f.Delta
+	case "text_end":
+		putIndex()
+		m["content"] = f.Text
+		if f.TextSignature != "" {
+			m["textSignature"] = f.TextSignature
+		}
+	case "thinking_end":
+		putIndex()
+		m["content"] = f.Text
+		m["thinkingSignature"] = f.ThinkingSignature
+		if f.Redacted != nil {
+			m["redacted"] = *f.Redacted
+		}
+	case "toolcall_start":
+		putIndex()
+		if f.ToolCall == nil {
+			return nil, fmt.Errorf("toolcall_start frame missing toolCall")
+		}
+		m["toolCall"] = f.ToolCall
+	case "toolcall_checkpoint":
+		putIndex()
+		m["json"] = f.JSON
+	case "toolcall_delta":
+		putIndex()
+		m["delta"] = f.Delta
+	case "toolcall_end":
+		putIndex()
+		m["id"] = f.ID
+		m["name"] = f.Name
+		args := cloneFrameMap(f.Arguments)
+		if args == nil {
+			args = map[string]interface{}{}
+		}
+		m["arguments"] = args
+		if f.ThoughtSignature != "" {
+			m["thoughtSignature"] = f.ThoughtSignature
+		}
+		if f.Namespace != "" {
+			m["namespace"] = f.Namespace
+		}
+	default:
+		return nil, fmt.Errorf("unknown assistant message frame type %q", f.Type)
+	}
+	return json.Marshal(m)
+}
+
+// UnmarshalJSON accepts the same upstream discriminated wire shape emitted by
+// MarshalJSON and rejects unknown/malformed variants instead of silently
+// accepting lossy persistence records.
+func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var typ string
+	if err := unmarshalRequiredFrameField(raw, "type", &typ); err != nil {
+		return err
+	}
+	out := AssistantMessageFrame{Type: typ}
+	readIndex := func() error { return unmarshalRequiredFrameField(raw, "contentIndex", &out.ContentIndex) }
+	switch typ {
+	case "start":
+		if err := unmarshalRequiredFrameField(raw, "partial", &out.Partial); err != nil {
+			return err
+		}
+	case "text_start", "thinking_start":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "content", &out.Content); err != nil {
+			return err
+		}
+		want := "text"
+		if typ == "thinking_start" {
+			want = "thinking"
+		}
+		if out.Content == nil || out.Content.Type != want {
+			return fmt.Errorf("%s frame contains invalid content", typ)
+		}
+	case "text_delta", "thinking_delta", "toolcall_delta":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "delta", &out.Delta); err != nil {
+			return err
+		}
+	case "text_end":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
+			return err
+		}
+		_ = json.Unmarshal(raw["textSignature"], &out.TextSignature)
+	case "thinking_end":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
+			return err
+		}
+		_ = json.Unmarshal(raw["thinkingSignature"], &out.ThinkingSignature)
+		if rawRedacted, ok := raw["redacted"]; ok {
+			var redacted bool
+			if err := json.Unmarshal(rawRedacted, &redacted); err != nil {
+				return fmt.Errorf("invalid redacted: %w", err)
+			}
+			out.Redacted = &redacted
+		}
+	case "toolcall_start":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "toolCall", &out.ToolCall); err != nil {
+			return err
+		}
+		if out.ToolCall == nil || out.ToolCall.Type != "toolCall" {
+			return fmt.Errorf("toolcall_start frame contains invalid toolCall")
+		}
+	case "toolcall_checkpoint":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "json", &out.JSON); err != nil {
+			return err
+		}
+	case "toolcall_end":
+		if err := readIndex(); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "id", &out.ID); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "name", &out.Name); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(raw, "arguments", &out.Arguments); err != nil {
+			return err
+		}
+		_ = json.Unmarshal(raw["thoughtSignature"], &out.ThoughtSignature)
+		_ = json.Unmarshal(raw["namespace"], &out.Namespace)
+	default:
+		return fmt.Errorf("unknown assistant message frame type %q", typ)
+	}
+	*f = out
+	return nil
+}
+
+func unmarshalRequiredFrameField(raw map[string]json.RawMessage, name string, target interface{}) error {
+	value, ok := raw[name]
+	if !ok || len(value) == 0 || string(value) == "null" {
+		return fmt.Errorf("assistant message frame missing %s", name)
+	}
+	if err := json.Unmarshal(value, target); err != nil {
+		return fmt.Errorf("invalid %s: %w", name, err)
+	}
+	return nil
+}
+
 // AssistantMessageFrameEncoder converts mutable stream events into compact
 // frames. Terminal done/error events are intentionally not framed; settlement is
 // handled by the stream consumer.
