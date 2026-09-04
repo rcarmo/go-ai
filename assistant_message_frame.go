@@ -144,16 +144,31 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(raw["content"], &contentRaw); err != nil {
 			return fmt.Errorf("invalid content: %w", err)
 		}
-		if _, ok := contentRaw[required]; !ok {
-			return fmt.Errorf("%s frame content missing %s", typ, required)
+		var requiredText string
+		if err := unmarshalRequiredFrameField(contentRaw, required, &requiredText); err != nil {
+			return fmt.Errorf("%s frame content missing %s: %w", typ, required, err)
 		}
-		if _, ok := contentRaw["textSignature"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(contentRaw, "textSignature"); err != nil {
+			return err
+		} else if present {
+			out.Content.TextSignature = value
 			out.Content.TextSignaturePresent = true
 		}
-		if _, ok := contentRaw["thinkingSignature"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(contentRaw, "thinkingSignature"); err != nil {
+			return err
+		} else if present {
+			out.Content.ThinkingSignature = value
 			out.Content.ThinkingSignaturePresent = true
 		}
-		if _, ok := contentRaw["redacted"]; ok {
+		if rawRedacted, ok := contentRaw["redacted"]; ok {
+			var redacted bool
+			if len(rawRedacted) == 0 || string(rawRedacted) == "null" {
+				return fmt.Errorf("invalid redacted: null")
+			}
+			if err := json.Unmarshal(rawRedacted, &redacted); err != nil {
+				return fmt.Errorf("invalid redacted: %w", err)
+			}
+			out.Content.Redacted = redacted
 			out.Content.RedactedPresent = true
 		}
 	case "text_delta", "thinking_delta", "toolcall_delta":
@@ -170,9 +185,11 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
 			return err
 		}
-		if _, ok := raw["textSignature"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(raw, "textSignature"); err != nil {
+			return err
+		} else if present {
+			out.TextSignature = value
 			out.TextSignaturePresent = true
-			_ = json.Unmarshal(raw["textSignature"], &out.TextSignature)
 		}
 	case "thinking_end":
 		if err := readIndex(); err != nil {
@@ -181,12 +198,17 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "content", &out.Text); err != nil {
 			return err
 		}
-		if _, ok := raw["thinkingSignature"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(raw, "thinkingSignature"); err != nil {
+			return err
+		} else if present {
+			out.ThinkingSignature = value
 			out.ThinkingSignaturePresent = true
-			_ = json.Unmarshal(raw["thinkingSignature"], &out.ThinkingSignature)
 		}
 		if rawRedacted, ok := raw["redacted"]; ok {
 			var redacted bool
+			if len(rawRedacted) == 0 || string(rawRedacted) == "null" {
+				return fmt.Errorf("invalid redacted: null")
+			}
 			if err := json.Unmarshal(rawRedacted, &redacted); err != nil {
 				return fmt.Errorf("invalid redacted: %w", err)
 			}
@@ -206,10 +228,30 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(raw["toolCall"], &toolRaw); err != nil {
 			return fmt.Errorf("invalid toolCall: %w", err)
 		}
-		if _, ok := toolRaw["thoughtSignature"]; ok {
+		var toolType, toolID, toolName string
+		if err := unmarshalRequiredFrameField(toolRaw, "type", &toolType); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(toolRaw, "id", &toolID); err != nil {
+			return err
+		}
+		if err := unmarshalRequiredFrameField(toolRaw, "name", &toolName); err != nil {
+			return err
+		}
+		var args map[string]interface{}
+		if err := unmarshalRequiredFrameField(toolRaw, "arguments", &args); err != nil {
+			return err
+		}
+		if value, present, err := unmarshalOptionalFrameString(toolRaw, "thoughtSignature"); err != nil {
+			return err
+		} else if present {
+			out.ToolCall.ThoughtSignature = value
 			out.ToolCall.ThoughtSignaturePresent = true
 		}
-		if _, ok := toolRaw["namespace"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(toolRaw, "namespace"); err != nil {
+			return err
+		} else if present {
+			out.ToolCall.Namespace = value
 			out.ToolCall.NamespacePresent = true
 		}
 	case "toolcall_checkpoint":
@@ -232,13 +274,17 @@ func (f *AssistantMessageFrame) UnmarshalJSON(data []byte) error {
 		if err := unmarshalRequiredFrameField(raw, "arguments", &out.Arguments); err != nil {
 			return err
 		}
-		if _, ok := raw["thoughtSignature"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(raw, "thoughtSignature"); err != nil {
+			return err
+		} else if present {
+			out.ThoughtSignature = value
 			out.ThoughtSignaturePresent = true
-			_ = json.Unmarshal(raw["thoughtSignature"], &out.ThoughtSignature)
 		}
-		if _, ok := raw["namespace"]; ok {
+		if value, present, err := unmarshalOptionalFrameString(raw, "namespace"); err != nil {
+			return err
+		} else if present {
+			out.Namespace = value
 			out.NamespacePresent = true
-			_ = json.Unmarshal(raw["namespace"], &out.Namespace)
 		}
 	default:
 		return fmt.Errorf("unknown assistant message frame type %q", typ)
@@ -256,6 +302,21 @@ func unmarshalRequiredFrameField(raw map[string]json.RawMessage, name string, ta
 		return fmt.Errorf("invalid %s: %w", name, err)
 	}
 	return nil
+}
+
+func unmarshalOptionalFrameString(raw map[string]json.RawMessage, name string) (string, bool, error) {
+	value, ok := raw[name]
+	if !ok {
+		return "", false, nil
+	}
+	if len(value) == 0 || string(value) == "null" {
+		return "", false, fmt.Errorf("invalid %s: null", name)
+	}
+	var out string
+	if err := json.Unmarshal(value, &out); err != nil {
+		return "", false, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	return out, true, nil
 }
 
 func frameContentWire(block *ContentBlock, frameType string) (map[string]interface{}, error) {
@@ -413,8 +474,12 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		if err := e.endBlock(ev.ContentIndex, "thinking"); err != nil {
 			return nil, err
 		}
-		redacted := block.Redacted
-		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: block.ThinkingSignature, ThinkingSignaturePresent: block.ThinkingSignaturePresent, Redacted: &redacted}, nil
+		var redacted *bool
+		if block.RedactedPresent || block.Redacted {
+			value := block.Redacted
+			redacted = &value
+		}
+		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: block.ThinkingSignature, ThinkingSignaturePresent: block.ThinkingSignaturePresent, Redacted: redacted}, nil
 	case *ToolCallStartEvent:
 		if err := e.requireStarted("toolcall_start"); err != nil {
 			return nil, err
@@ -586,6 +651,8 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 			out.Content[frame.ContentIndex].Thinking = frame.Text
 			out.Content[frame.ContentIndex].ThinkingSignature = frame.ThinkingSignature
 			out.Content[frame.ContentIndex].ThinkingSignaturePresent = frame.ThinkingSignaturePresent
+			out.Content[frame.ContentIndex].Redacted = false
+			out.Content[frame.ContentIndex].RedactedPresent = false
 			if frame.Redacted != nil {
 				out.Content[frame.ContentIndex].Redacted = *frame.Redacted
 				out.Content[frame.ContentIndex].RedactedPresent = true

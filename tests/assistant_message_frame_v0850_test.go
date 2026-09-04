@@ -434,3 +434,63 @@ func TestV0850AssistantMessageFrameEncoderProducesUpstreamWireShapes(t *testing.
 		t.Fatalf("thinking_end wire=%s", data)
 	}
 }
+
+func TestV0850AssistantMessageFrameAbsentThinkingRedactionAndAuthoritativeClear(t *testing.T) {
+	partial := seedFrameMessage()
+	enc := goai.NewAssistantMessageFrameEncoder()
+	_ = mustFrame(t, enc, &goai.StartEvent{Partial: partial})
+	partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking", Thinking: "", Redacted: true, RedactedPresent: true})
+	start := mustFrame(t, enc, &goai.ThinkingStartEvent{ContentIndex: 0, Partial: partial})
+	data, err := json.Marshal(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"redacted":true`) {
+		t.Fatalf("thinking_start should preserve explicit redaction: %s", data)
+	}
+	partial.Content[0].Redacted = false
+	partial.Content[0].RedactedPresent = false
+	end := mustFrame(t, enc, &goai.ThinkingEndEvent{ContentIndex: 0, Content: "done", Partial: partial})
+	data, err = json.Marshal(end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "redacted") {
+		t.Fatalf("thinking_end absent redaction should omit field: %s", data)
+	}
+	got, err := goai.ReduceAssistantMessageFrames([]goai.AssistantMessageFrame{
+		{Type: "start", Partial: seedFrameMessage()},
+		{Type: "thinking_start", ContentIndex: 0, Content: &goai.ContentBlock{Type: "thinking", Thinking: "", Redacted: true, RedactedPresent: true}},
+		{Type: "thinking_end", ContentIndex: 0, Text: "done"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Content[0].Redacted || got.Content[0].RedactedPresent {
+		t.Fatalf("absent authoritative end redaction should clear stale start redaction: %#v", got.Content[0])
+	}
+}
+
+func TestV0850AssistantMessageFrameWireRejectsNullAndMissingRequiredNestedFields(t *testing.T) {
+	bad := []string{
+		`{"type":"text_start","contentIndex":0,"content":{"type":"text","text":null}}`,
+		`{"type":"thinking_start","contentIndex":0,"content":{"type":"thinking","thinking":null}}`,
+		`{"type":"thinking_end","contentIndex":0,"content":"x","thinkingSignature":null}`,
+		`{"type":"text_end","contentIndex":0,"content":"x","textSignature":123}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","name":"run","arguments":{}}}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","id":null,"name":"run","arguments":{}}}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","id":"call","arguments":{}}}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","id":"call","name":"run"}}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","id":"call","name":"run","arguments":null}}`,
+		`{"type":"toolcall_start","contentIndex":0,"toolCall":{"type":"toolCall","id":"call","name":"run","arguments":{},"namespace":null}}`,
+		`{"type":"toolcall_end","contentIndex":0,"id":"call","name":"run","arguments":{},"thoughtSignature":false}`,
+	}
+	for _, raw := range bad {
+		t.Run(raw, func(t *testing.T) {
+			var frame goai.AssistantMessageFrame
+			if err := json.Unmarshal([]byte(raw), &frame); err == nil {
+				t.Fatalf("malformed frame unexpectedly decoded: %#v", frame)
+			}
+		})
+	}
+}
