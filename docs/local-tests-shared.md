@@ -34,7 +34,17 @@ TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneratio
 model regeneration metadata comparator passed
 image model regeneration comparator passed
 
-python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md /workspace/tmp/pi-ai-0850/test-corpus-142.txt
+python3 scripts/validate-v0850-inventory.py
+python3 scripts/validate-v0850-inventory.py --self-test
+# committed 51/29/142 inventory counts/hashes validate; deliberate corruption fails
+
+python3 scripts/validate-v0850-catalog-delta.py
+python3 scripts/validate-v0850-catalog-delta.py --self-test
+text full-record delta: +72/-26/79
+images full-record delta: +0/-0/0
+# baseline/current non-ID metadata corruption fails
+
+python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md
 manifest rows: 142
 unique paths: 142
 expected paths: 142

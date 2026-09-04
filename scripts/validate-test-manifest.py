@@ -38,11 +38,14 @@ def fail(message: str) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print("usage: scripts/validate-test-manifest.py MANIFEST.md expected-test-files.txt", file=sys.stderr)
+    if len(argv) not in (2, 3):
+        print("usage: scripts/validate-test-manifest.py MANIFEST.md [expected-test-files.txt]", file=sys.stderr)
         return 2
     manifest = pathlib.Path(argv[1])
-    expected_file = pathlib.Path(argv[2])
+    if len(argv) == 3:
+        expected_file = pathlib.Path(argv[2])
+    else:
+        expected_file = pathlib.Path(__file__).resolve().parents[1] / "docs" / "v0850" / "test-corpus-142.txt"
     expected = expected_paths(expected_file)
     expected_set = set(expected)
 

@@ -3,6 +3,8 @@ package goai
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"strings"
 )
 
 // AssistantMessageFrame is a compact, immutable stream frame that can be used
@@ -30,32 +32,46 @@ type AssistantMessageFrame struct {
 // frames. Terminal done/error events are intentionally not framed; settlement is
 // handled by the stream consumer.
 type AssistantMessageFrameEncoder struct {
-	started bool
-	text    map[int]string
-	think   map[int]string
-	tool    map[int]string
+	started  bool
+	terminal bool
+	blocks   map[int]*assistantFrameEncoderBlock
+}
+
+type assistantFrameEncoderBlock struct {
+	kind              string
+	coveredChars      int
+	deltaChars        int
+	caughtUp          bool
+	catchupJSON       string
+	snapshotArguments string
 }
 
 func NewAssistantMessageFrameEncoder() *AssistantMessageFrameEncoder {
-	return &AssistantMessageFrameEncoder{text: map[int]string{}, think: map[int]string{}, tool: map[int]string{}}
+	return &AssistantMessageFrameEncoder{blocks: map[int]*assistantFrameEncoderBlock{}}
 }
 
 func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFrame, error) {
-	if e.text == nil {
-		e.text = map[int]string{}
-		e.think = map[int]string{}
-		e.tool = map[int]string{}
+	if e.blocks == nil {
+		e.blocks = map[int]*assistantFrameEncoderBlock{}
+	}
+	if e.terminal {
+		return nil, fmt.Errorf("assistant message event %s follows a terminal event", event.eventType())
 	}
 	switch ev := event.(type) {
 	case *StartEvent:
+		if e.started {
+			return nil, fmt.Errorf("assistant message stream contains more than one start event")
+		}
 		e.started = true
 		return &AssistantMessageFrame{Type: "start", Partial: cloneFrameMessage(ev.Partial, false)}, nil
 	case *DoneEvent:
 		if !e.started {
 			return nil, fmt.Errorf("done event appears before start")
 		}
+		e.terminal = true
 		return nil, nil
 	case *ErrorEvent:
+		e.terminal = true
 		return nil, nil
 	case *TextStartEvent:
 		if err := e.requireStarted("text_start"); err != nil {
@@ -65,28 +81,32 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		if err != nil {
 			return nil, err
 		}
-		e.text[ev.ContentIndex] = block.Text
+		if err := e.startBlock(ev.ContentIndex, "text"); err != nil {
+			return nil, err
+		}
+		e.blocks[ev.ContentIndex].coveredChars = len(block.Text)
 		return &AssistantMessageFrame{Type: "text_start", ContentIndex: ev.ContentIndex, Content: block}, nil
 	case *TextDeltaEvent:
 		if err := e.requireStarted("text_delta"); err != nil {
 			return nil, err
 		}
-		delta := trimCoveredDelta(e.text[ev.ContentIndex], ev.Delta, frameText(ev.Partial, ev.ContentIndex))
-		if delta == "" {
-			return nil, nil
+		delta, err := e.encodeTextDelta(ev.ContentIndex, ev.Delta, "text")
+		if err != nil || delta == "" {
+			return nil, err
 		}
-		e.text[ev.ContentIndex] += delta
 		return &AssistantMessageFrame{Type: "text_delta", ContentIndex: ev.ContentIndex, Delta: delta}, nil
 	case *TextEndEvent:
 		if err := e.requireStarted("text_end"); err != nil {
 			return nil, err
 		}
 		block, err := frameBlock(ev.Partial, ev.ContentIndex, "text")
-		if err == nil {
-			e.text[ev.ContentIndex] = ev.Content
-			return &AssistantMessageFrame{Type: "text_end", ContentIndex: ev.ContentIndex, Delta: "", Text: ev.Content, TextSignature: block.TextSignature}, nil
+		if err != nil {
+			return nil, err
 		}
-		return &AssistantMessageFrame{Type: "text_end", ContentIndex: ev.ContentIndex, Text: ev.Content}, nil
+		if err := e.endBlock(ev.ContentIndex, "text"); err != nil {
+			return nil, err
+		}
+		return &AssistantMessageFrame{Type: "text_end", ContentIndex: ev.ContentIndex, Delta: "", Text: ev.Content, TextSignature: block.TextSignature}, nil
 	case *ThinkingStartEvent:
 		if err := e.requireStarted("thinking_start"); err != nil {
 			return nil, err
@@ -95,31 +115,33 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		if err != nil {
 			return nil, err
 		}
-		e.think[ev.ContentIndex] = block.Thinking
+		if err := e.startBlock(ev.ContentIndex, "thinking"); err != nil {
+			return nil, err
+		}
+		e.blocks[ev.ContentIndex].coveredChars = len(block.Thinking)
 		return &AssistantMessageFrame{Type: "thinking_start", ContentIndex: ev.ContentIndex, Content: block}, nil
 	case *ThinkingDeltaEvent:
 		if err := e.requireStarted("thinking_delta"); err != nil {
 			return nil, err
 		}
-		delta := trimCoveredDelta(e.think[ev.ContentIndex], ev.Delta, frameThinking(ev.Partial, ev.ContentIndex))
-		if delta == "" {
-			return nil, nil
+		delta, err := e.encodeTextDelta(ev.ContentIndex, ev.Delta, "thinking")
+		if err != nil || delta == "" {
+			return nil, err
 		}
-		e.think[ev.ContentIndex] += delta
 		return &AssistantMessageFrame{Type: "thinking_delta", ContentIndex: ev.ContentIndex, Delta: delta}, nil
 	case *ThinkingEndEvent:
 		if err := e.requireStarted("thinking_end"); err != nil {
 			return nil, err
 		}
 		block, err := frameBlock(ev.Partial, ev.ContentIndex, "thinking")
-		redacted := false
-		sig := ""
-		if err == nil {
-			redacted = block.Redacted
-			sig = block.ThinkingSignature
+		if err != nil {
+			return nil, err
 		}
-		e.think[ev.ContentIndex] = ev.Content
-		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: sig, Redacted: &redacted}, nil
+		if err := e.endBlock(ev.ContentIndex, "thinking"); err != nil {
+			return nil, err
+		}
+		redacted := block.Redacted
+		return &AssistantMessageFrame{Type: "thinking_end", ContentIndex: ev.ContentIndex, Text: ev.Content, ThinkingSignature: block.ThinkingSignature, Redacted: &redacted}, nil
 	case *ToolCallStartEvent:
 		if err := e.requireStarted("toolcall_start"); err != nil {
 			return nil, err
@@ -130,29 +152,59 @@ func (e *AssistantMessageFrameEncoder) Encode(event Event) (*AssistantMessageFra
 		}
 		call := blockToToolCall(block)
 		jsonArgs := compactJSON(call.Arguments)
-		e.tool[ev.ContentIndex] = jsonArgs
+		if err := e.startBlock(ev.ContentIndex, "toolCall"); err != nil {
+			return nil, err
+		}
+		e.blocks[ev.ContentIndex].snapshotArguments = jsonArgs
+		e.blocks[ev.ContentIndex].caughtUp = jsonArgs == "{}"
+		if e.blocks[ev.ContentIndex].caughtUp {
+			e.blocks[ev.ContentIndex].snapshotArguments = ""
+		}
 		return &AssistantMessageFrame{Type: "toolcall_start", ContentIndex: ev.ContentIndex, ToolCall: &call}, nil
 	case *ToolCallDeltaEvent:
 		if err := e.requireStarted("toolcall_delta"); err != nil {
 			return nil, err
 		}
-		live := frameToolJSON(ev.Partial, ev.ContentIndex)
-		prev := e.tool[ev.ContentIndex]
-		if live != "" && hasPrefixJSON(live, prev) && len(live) > len(prev)+len(ev.Delta) {
-			e.tool[ev.ContentIndex] = live
-			return &AssistantMessageFrame{Type: "toolcall_checkpoint", ContentIndex: ev.ContentIndex, JSON: live}, nil
+		state, err := e.requireBlock(ev.ContentIndex, "toolCall")
+		if err != nil {
+			return nil, err
 		}
-		delta := ev.Delta
-		if len(prev) > 0 && len(delta) > 0 && len(prev) >= len(delta) && prev[len(prev)-len(delta):] == delta {
+		if state.caughtUp {
+			if ev.Delta == "" {
+				return nil, nil
+			}
+			return &AssistantMessageFrame{Type: "toolcall_delta", ContentIndex: ev.ContentIndex, Delta: ev.Delta}, nil
+		}
+		state.catchupJSON += ev.Delta
+		parsed := parseFrameToolJSON(state.catchupJSON)
+		if compactJSON(parsed) != state.snapshotArguments {
+			snapshot := parseFrameToolJSON(state.snapshotArguments)
+			if !isFrameJSONPrefix(snapshot, parsed) {
+				return nil, nil
+			}
+		}
+		state.caughtUp = true
+		state.snapshotArguments = ""
+		json := state.catchupJSON
+		state.catchupJSON = ""
+		if json == "" {
 			return nil, nil
 		}
-		e.tool[ev.ContentIndex] += delta
-		return &AssistantMessageFrame{Type: "toolcall_delta", ContentIndex: ev.ContentIndex, Delta: delta}, nil
+		return &AssistantMessageFrame{Type: "toolcall_checkpoint", ContentIndex: ev.ContentIndex, JSON: json}, nil
 	case *ToolCallEndEvent:
 		if err := e.requireStarted("toolcall_end"); err != nil {
 			return nil, err
 		}
+		if _, err := frameBlock(ev.Partial, ev.ContentIndex, "toolCall"); err != nil {
+			return nil, err
+		}
+		if err := e.endBlock(ev.ContentIndex, "toolCall"); err != nil {
+			return nil, err
+		}
 		call := ev.ToolCall
+		if call.Type != "toolCall" && call.Type != "" {
+			return nil, fmt.Errorf("toolcall_end event has invalid tool call at index %d", ev.ContentIndex)
+		}
 		return &AssistantMessageFrame{Type: "toolcall_end", ContentIndex: ev.ContentIndex, ID: call.ID, Name: call.Name, Arguments: cloneFrameMap(call.Arguments), ThoughtSignature: call.ThoughtSignature, Namespace: call.Namespace}, nil
 	default:
 		return nil, nil
@@ -166,6 +218,56 @@ func (e *AssistantMessageFrameEncoder) requireStarted(kind string) error {
 	return nil
 }
 
+func (e *AssistantMessageFrameEncoder) startBlock(contentIndex int, kind string) error {
+	if contentIndex < 0 {
+		return fmt.Errorf("invalid assistant message frame contentIndex: %d", contentIndex)
+	}
+	if _, ok := e.blocks[contentIndex]; ok {
+		return fmt.Errorf("assistant message block %d starts more than once", contentIndex)
+	}
+	e.blocks[contentIndex] = &assistantFrameEncoderBlock{kind: kind}
+	return nil
+}
+
+func (e *AssistantMessageFrameEncoder) requireBlock(contentIndex int, kind string) (*assistantFrameEncoderBlock, error) {
+	if contentIndex < 0 {
+		return nil, fmt.Errorf("invalid assistant message frame contentIndex: %d", contentIndex)
+	}
+	state, ok := e.blocks[contentIndex]
+	if !ok {
+		return nil, fmt.Errorf("assistant message %s block %d has not started", kind, contentIndex)
+	}
+	if state.kind != kind {
+		return nil, fmt.Errorf("assistant message block %d is %s, not %s", contentIndex, state.kind, kind)
+	}
+	return state, nil
+}
+
+func (e *AssistantMessageFrameEncoder) endBlock(contentIndex int, kind string) error {
+	if _, err := e.requireBlock(contentIndex, kind); err != nil {
+		return err
+	}
+	delete(e.blocks, contentIndex)
+	return nil
+}
+
+func (e *AssistantMessageFrameEncoder) encodeTextDelta(contentIndex int, delta, kind string) (string, error) {
+	state, err := e.requireBlock(contentIndex, kind)
+	if err != nil {
+		return "", err
+	}
+	deltaStart := state.deltaChars
+	state.deltaChars += len(delta)
+	covered := state.coveredChars - deltaStart
+	if covered <= 0 {
+		return delta, nil
+	}
+	if covered >= len(delta) {
+		return "", nil
+	}
+	return delta[covered:], nil
+}
+
 // ReduceAssistantMessageFrames reconstructs the current assistant message from frames.
 func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, error) {
 	var out *Message
@@ -177,6 +279,9 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 		}
 		switch frame.Type {
 		case "start":
+			if out != nil {
+				return nil, fmt.Errorf("assistant message frame sequence contains more than one start frame")
+			}
 			out = cloneFrameMessage(frame.Partial, true)
 		case "text_start":
 			if err := startFrameBlock(out, frame.ContentIndex, frame.Content, "text"); err != nil {
@@ -231,6 +336,8 @@ func ReduceAssistantMessageFrames(frames []AssistantMessageFrame) (*Message, err
 			out.Content[frame.ContentIndex].Arguments = cloneFrameMap(frame.Arguments)
 			out.Content[frame.ContentIndex].ThoughtSignature = frame.ThoughtSignature
 			out.Content[frame.ContentIndex].Namespace = frame.Namespace
+		default:
+			return nil, fmt.Errorf("unknown assistant message frame type %q", frame.Type)
 		}
 	}
 	return out, nil
@@ -245,7 +352,7 @@ func cloneFrameMessage(m *Message, includeContent bool) *Message {
 		u := *m.Usage
 		out.Usage = &u
 	}
-	out.Diagnostics = append([]AssistantMessageDiagnostic(nil), m.Diagnostics...)
+	out.Diagnostics = cloneFrameAny(m.Diagnostics).([]AssistantMessageDiagnostic)
 	if includeContent {
 		out.Content = cloneBlocks(m.Content)
 	} else {
@@ -272,9 +379,19 @@ func cloneFrameMap(in map[string]interface{}) map[string]interface{} {
 	if in == nil {
 		return nil
 	}
-	data, _ := json.Marshal(in)
-	var out map[string]interface{}
-	_ = json.Unmarshal(data, &out)
+	out, _ := cloneFrameAny(in).(map[string]interface{})
+	return out
+}
+
+func cloneFrameAny[T any](in T) any {
+	data, err := json.Marshal(in)
+	if err != nil {
+		return in
+	}
+	var out T
+	if err := json.Unmarshal(data, &out); err != nil {
+		return in
+	}
 	return out
 }
 
@@ -392,27 +509,6 @@ func parseFrameToolJSON(text string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func frameText(m *Message, idx int) string {
-	if m != nil && idx >= 0 && idx < len(m.Content) && m.Content[idx].Type == "text" {
-		return m.Content[idx].Text
-	}
-	return ""
-}
-
-func frameThinking(m *Message, idx int) string {
-	if m != nil && idx >= 0 && idx < len(m.Content) && m.Content[idx].Type == "thinking" {
-		return m.Content[idx].Thinking
-	}
-	return ""
-}
-
-func frameToolJSON(m *Message, idx int) string {
-	if m != nil && idx >= 0 && idx < len(m.Content) && m.Content[idx].Type == "toolCall" {
-		return compactJSON(m.Content[idx].Arguments)
-	}
-	return ""
-}
-
 func compactJSON(v interface{}) string {
 	if v == nil {
 		return "{}"
@@ -424,20 +520,39 @@ func compactJSON(v interface{}) string {
 	return string(data)
 }
 
-func hasPrefixJSON(live, previous string) bool {
-	return previous == "" || len(live) >= len(previous) && live[:len(previous)] == previous
-}
-
-func trimCoveredDelta(previous, delta, live string) string {
-	if live == "" || previous == "" {
-		return delta
+func isFrameJSONPrefix(snapshot, current interface{}) bool {
+	if reflect.DeepEqual(snapshot, current) {
+		return true
 	}
-	covered := len(live) - len(previous)
-	if covered <= 0 {
-		return delta
+	if s, ok := snapshot.(string); ok {
+		c, ok := current.(string)
+		return ok && strings.HasPrefix(c, s)
 	}
-	if covered >= len(delta) {
-		return ""
+	if s, ok := snapshot.([]interface{}); ok {
+		c, ok := current.([]interface{})
+		if !ok || len(s) > len(c) {
+			return false
+		}
+		for i := range s {
+			if !isFrameJSONPrefix(s[i], c[i]) {
+				return false
+			}
+		}
+		return true
 	}
-	return delta[covered:]
+	s, ok := snapshot.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	c, ok := current.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for key, value := range s {
+		currentValue, ok := c[key]
+		if !ok || !isFrameJSONPrefix(value, currentValue) {
+			return false
+		}
+	}
+	return true
 }
