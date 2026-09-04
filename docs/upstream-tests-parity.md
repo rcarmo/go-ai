@@ -1,3 +1,40 @@
+# Upstream tests parity
+
+Canonical upstream target: `github.com/earendil-works/pi` / `@earendil-works/pi-ai` tag `v0.85.0`, SHA `107d79f11072bbc8a3a757ed7fd69596bee7d68c`, `packages/ai`.
+
+## Current whole-corpus status
+
+- Exact upstream test corpus: **142** `packages/ai/test/*.test.ts` files.
+- Corpus file: `/workspace/tmp/pi-ai-0850/test-corpus-142.txt`.
+- Corpus SHA-256: `56f8742065a4ad01d73e5aee53035324f2e7333a735222ab15db870819e29065`.
+- Manifest: `docs/v0850-142-test-manifest.md`.
+- Manifest validation: `python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md /workspace/tmp/pi-ai-0850/test-corpus-142.txt` — passed.
+- DETERMINISTIC-PORTED / adapted deterministic coverage: **123** files.
+- N/A live/credential/JS-runtime/generator-policy/Workers-binding adapted-only: **19** files.
+- Unclassified upstream test files: **0**.
+- Achieved (`DETERMINISTIC + N/A`): **142 / 142**.
+
+## v0.85.0 changed-test status
+
+Changed tests from `v0.84.4` to `v0.85.0`: **29** rows in `/workspace/tmp/pi-ai-0850/changed-tests.txt`, SHA-256 `0b58c13688745fd74837bcefb868d2f5064649dcb4c57a5e134e08be0fd9d711`.
+
+New/modified/high-risk surfaces mapped in Go:
+
+- Anthropic managed mid-conversation effort and thinking binding: `inference/provider/anthropic/v0850_mid_conversation_effort_test.go`, `v0850_beta_override_test.go`.
+- Assistant stream frame encoding/reduction: `assistant_message_frame.go`, `tests/assistant_message_frame_v0850_test.go`.
+- Cloudflare AI binding replacement: `cloudflare_ai_binding.go`, `tests/cloudflare_ai_binding_v0850_test.go`; Workers `env.AI.fetch` runtime is adapted/N/A for Go.
+- OpenAI completions vLLM priority: `inference/provider/openai/v0850_vllm_priority_test.go`.
+- OpenAI Responses `supportsMaxOutputTokens`: `inference/provider/openairesponses/v0850_max_output_tokens_test.go`.
+- Codex terminal SSE without trailing blank line: `inference/provider/openaicodex/v0850_terminal_sse_test.go`.
+- UUID optional timestamp and NO_PROXY matching: `tests/v0850_uuid_proxy_test.go`, `utils_text_uuid.go`, `retry.go`.
+- Catalog deltas: `tests/models_v0850_catalog_test.go`, `tests/models_test.go`, `tests/qwen_token_plan_upstream_test.go`, generated `models_generated.go`.
+- `pi-messages` terminal `providerThinkingLevel` propagation remains covered by `inference/provider/pimessages/pimessages_test.go`.
+- `pre-generation-error.test.ts` is channel-adapted: Go returns pre-dispatch `ErrorEvent`s on provider streams rather than JavaScript synchronous construction throws.
+
+---
+
+## Previous baseline notes
+
 # Upstream test-for-test parity checklist — pi-ai v0.84.3
 
 Canonical source: `github.com/earendil-works/pi` tag `v0.84.3`, SHA `4e58f324fae8ebfa98a3d45181fb248072a2afac` (`packages/ai`).

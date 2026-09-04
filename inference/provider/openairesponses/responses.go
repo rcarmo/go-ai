@@ -417,12 +417,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		SamplingParams: mergeSamplingParams(model, opts),
 	}
 
+	compat := getResponsesCompat(model)
 	if opts != nil {
 		req.Temperature = opts.Temperature
-		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		if compat.supportsMaxOutputTokens {
+			req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
+		}
 	}
 
-	compat := getResponsesCompat(model)
 	deferredMode := ""
 	if compat.supportsAdditionalTools {
 		deferredMode = "additional-tools"
@@ -528,6 +530,7 @@ type responsesCompat struct {
 	supportsToolSearch         bool
 	supportsStrictMode         bool
 	supportsGrammarTools       bool
+	supportsMaxOutputTokens    bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
@@ -536,6 +539,7 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		supportsLongCacheRetention: true,
 		supportsToolSearch:         model != nil && (model.ID == "gpt-5.4" || strings.HasPrefix(model.ID, "gpt-5.4-")),
 		supportsStrictMode:         model != nil && model.Provider == goai.ProviderCloudflareAIGateway,
+		supportsMaxOutputTokens:    true,
 	}
 	if model == nil {
 		return c
@@ -566,6 +570,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		}
 		if model.ResponsesCompat.SupportsToolSearch != nil {
 			c.supportsToolSearch = *model.ResponsesCompat.SupportsToolSearch
+		}
+		if model.ResponsesCompat.SupportsMaxOutputTokens != nil {
+			c.supportsMaxOutputTokens = *model.ResponsesCompat.SupportsMaxOutputTokens
 		}
 	}
 	return c

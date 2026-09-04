@@ -22,6 +22,8 @@ const apiVersion = "2023-06-01"
 const fineGrainedToolStreamingBeta = "fine-grained-tool-streaming-2025-05-14"
 const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
+const midConversationOutputConfigBeta = "mid-conversation-output-config-2026-07-01"
+const thinkingBindingControlsBeta = "thinking-binding-controls-2026-08-01"
 
 var claudeCodeToolCanonicalNames = map[string]string{
 	"read":            "Read",
@@ -49,6 +51,7 @@ type anthropicCompat struct {
 	supportsToolReferences          bool
 	supportsStrictTools             bool
 	forceAdaptiveThinking           bool
+	supportsMidConvoEffort          bool
 	allowEmptySignature             bool
 	allowedFallbackModels           []goai.AnthropicAllowedFallbackModel
 }
@@ -74,6 +77,9 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		}
 		if model.AnthropicCompat.ForceAdaptiveThinking != nil {
 			c.forceAdaptiveThinking = *model.AnthropicCompat.ForceAdaptiveThinking
+		}
+		if model.AnthropicCompat.SupportsMidConvoEffort != nil {
+			c.supportsMidConvoEffort = *model.AnthropicCompat.SupportsMidConvoEffort
 		}
 		if model.AnthropicCompat.AllowEmptySignature != nil {
 			c.allowEmptySignature = *model.AnthropicCompat.AllowEmptySignature
@@ -118,6 +124,17 @@ func joinBetas(betas []string) string {
 		result += b
 	}
 	return result
+}
+
+func hasAnthropicBetaHeader(headers ...map[string]string) bool {
+	for _, h := range headers {
+		for name := range h {
+			if strings.EqualFold(name, "Anthropic-Beta") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func init() {
@@ -241,17 +258,22 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		// Beta features
 		var betas []string
 		compat := getAnthropicCompat(model)
-		if !compat.forceAdaptiveThinking {
-			betas = append(betas, interleavedThinkingBeta)
-		}
-		if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
-			betas = append(betas, fineGrainedToolStreamingBeta)
-		}
-		if len(compat.allowedFallbackModels) > 0 {
-			betas = append(betas, serverSideFallbackBeta)
-		}
-		if len(betas) > 0 {
-			req.Header.Set("Anthropic-Beta", joinBetas(betas))
+		if !hasAnthropicBetaHeader(model.Headers, optHeaders) {
+			if !compat.forceAdaptiveThinking {
+				betas = append(betas, interleavedThinkingBeta)
+			}
+			if !compat.supportsEagerToolInputStreaming && len(convCtx.Tools) > 0 {
+				betas = append(betas, fineGrainedToolStreamingBeta)
+			}
+			if len(compat.allowedFallbackModels) > 0 {
+				betas = append(betas, serverSideFallbackBeta)
+			}
+			if compat.supportsMidConvoEffort {
+				betas = append(betas, midConversationOutputConfigBeta, thinkingBindingControlsBeta)
+			}
+			if len(betas) > 0 {
+				req.Header.Set("Anthropic-Beta", joinBetas(betas))
+			}
 		}
 
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
@@ -289,7 +311,11 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		processAnthropicStream(resp.Body, model, convCtx.Tools, ch)
+		providerThinkingLevel := ""
+		if compat.supportsMidConvoEffort {
+			providerThinkingLevel = anthropicEffortForOptions(model, opts)
+		}
+		processAnthropicStream(resp.Body, model, convCtx.Tools, providerThinkingLevel, ch)
 	}()
 
 	return ch
@@ -315,9 +341,14 @@ type anthropicFallback struct {
 }
 
 type anthropicThinking struct {
-	Type         string `json:"type"`
-	BudgetTokens int    `json:"budget_tokens,omitempty"`
-	Display      string `json:"display,omitempty"`
+	Type         string                 `json:"type"`
+	BudgetTokens int                    `json:"budget_tokens,omitempty"`
+	Display      string                 `json:"display,omitempty"`
+	BlockBinding *anthropicBlockBinding `json:"block_binding,omitempty"`
+}
+
+type anthropicBlockBinding struct {
+	PrefixMismatchBehavior string `json:"prefix_mismatch_behavior"`
 }
 
 type anthropicOutput struct {
@@ -327,8 +358,9 @@ type anthropicOutput struct {
 func boolPtr(b bool) *bool { return &b }
 
 type anthropicMessage struct {
-	Role    string      `json:"role"`
-	Content interface{} `json:"content"` // string or []anthropicContentBlock
+	Role         string           `json:"role"`
+	Content      interface{}      `json:"content"` // string or []anthropicContentBlock
+	OutputConfig *anthropicOutput `json:"output_config,omitempty"`
 }
 
 type anthropicContentBlock struct {
@@ -407,13 +439,20 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if model.AnthropicCompat != nil && model.AnthropicCompat.SupportsTemperature != nil {
 		supportsTemp = *model.AnthropicCompat.SupportsTemperature
 	}
-	if opts != nil && opts.Temperature != nil && !thinkingEnabled && supportsTemp {
-		req.Temperature = opts.Temperature
-	}
 
 	// Configure thinking mode
 	compat := getAnthropicCompat(model)
-	if model.Reasoning {
+	if opts != nil && opts.Temperature != nil && !thinkingEnabled && !compat.supportsMidConvoEffort && supportsTemp {
+		req.Temperature = opts.Temperature
+	}
+	if compat.supportsMidConvoEffort {
+		req.Thinking = &anthropicThinking{
+			Type:         "adaptive",
+			Display:      "summarized",
+			BlockBinding: &anthropicBlockBinding{PrefixMismatchBehavior: "drop_block"},
+		}
+		req.OutputConfig = &anthropicOutput{Effort: "high"}
+	} else if model.Reasoning {
 		if thinkingEnabled {
 			if compat.forceAdaptiveThinking {
 				req.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
@@ -518,6 +557,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					})
 				}
 			}
+			if compat.supportsMidConvoEffort && m.Api == goai.ApiAnthropicMessages && m.Provider == model.Provider && isAnthropicEffort(m.ProviderThinkingLevel) && len(blocks) > 0 {
+				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: m.ProviderThinkingLevel}})
+			}
 			req.Messages = append(req.Messages, anthropicMessage{Role: "assistant", Content: blocks})
 		case goai.RoleToolResult:
 			toolUseID := m.ToolCallID
@@ -548,6 +590,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			}
 			req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: blocks})
 		}
+	}
+
+	if compat.supportsMidConvoEffort {
+		req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: anthropicEffortForOptions(model, opts)}})
 	}
 
 	// Convert tools
@@ -603,6 +649,24 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	return req
 }
 
+func anthropicEffortForOptions(model *goai.Model, opts *goai.StreamOptions) string {
+	if opts != nil && opts.Reasoning != nil {
+		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok && isAnthropicEffort(effort) {
+			return effort
+		}
+	}
+	return "high"
+}
+
+func isAnthropicEffort(value string) bool {
+	switch value {
+	case "low", "medium", "high", "xhigh", "max":
+		return true
+	default:
+		return false
+	}
+}
+
 func extractText(blocks []goai.ContentBlock) string {
 	for _, b := range blocks {
 		if b.Type == "text" {
@@ -614,7 +678,7 @@ func extractText(blocks []goai.ContentBlock) string {
 
 // --- SSE processing ---
 
-func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, ch chan<- goai.Event) {
+func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, ch chan<- goai.Event) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -622,6 +686,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 		Model:      model.ID,
 		Usage:      &goai.Usage{},
 		StopReason: goai.StopReasonPending,
+	}
+	if providerThinkingLevel != "" {
+		partial.ProviderThinkingLevel = providerThinkingLevel
 	}
 
 	ch <- &goai.StartEvent{Partial: partial}

@@ -9,7 +9,7 @@ import (
 func TestQwenTokenPlanModelsExposeTextAndOmitImageModels(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	textModels := []string{"MiniMax-M2.5", "deepseek-v3.2", "deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4-pro", "glm-5", "glm-5.1", "glm-5.2", "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-max"}
-	individualModels := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "glm-5.2", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-max"}
+	individualModels := []string{"deepseek-v4-flash-0731", "deepseek-v4-pro", "deepseek-v4-pro-0813", "glm-5.2", "qwen3.6-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"}
 	imageModels := []string{"qwen-image-2.0", "qwen-image-2.0-pro", "wan2.7-image", "wan2.7-image-pro"}
 	for _, provider := range []goai.Provider{goai.ProviderQwenTokenPlan, goai.ProviderQwenTokenPlanCN} {
 		ids := map[string]bool{}

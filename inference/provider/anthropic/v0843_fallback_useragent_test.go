@@ -47,7 +47,7 @@ data: {}
 
 `
 	ch := make(chan goai.Event, 16)
-	processAnthropicStream(strings.NewReader(body), model, nil, ch)
+	processAnthropicStream(strings.NewReader(body), model, nil, "", ch)
 	close(ch)
 	for ev := range ch {
 		if done, ok := ev.(*goai.DoneEvent); ok {

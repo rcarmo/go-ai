@@ -107,6 +107,9 @@ type OpenAICompletionsCompat struct {
 	// Whether the provider supports the temperature parameter. Default: true.
 	// Claude Opus 4.7+ rejects non-default temperatures.
 	SupportsTemperature *bool `json:"supportsTemperature,omitempty"`
+
+	// vLLM-compatible priority request value. When set, it is emitted as top-level `priority`.
+	VLLMPriority *int `json:"vllmPriority,omitempty"`
 }
 
 // OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
@@ -134,6 +137,9 @@ type OpenAIResponsesCompat struct {
 
 	// Whether the provider supports explicit prompt cache mode options.
 	SupportsExplicitPromptCacheMode *bool `json:"supportsExplicitPromptCacheMode,omitempty"`
+
+	// Whether to emit max_output_tokens. Default: true.
+	SupportsMaxOutputTokens *bool `json:"supportsMaxOutputTokens,omitempty"`
 }
 
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
@@ -171,6 +177,9 @@ type AnthropicMessagesCompat struct {
 
 	// Server-side fallback targets accepted by Anthropic for this model.
 	AllowedFallbackModels []AnthropicAllowedFallbackModel `json:"allowedFallbackModels,omitempty"`
+
+	// Whether the model supports Anthropic mid-conversation output_config effort markers.
+	SupportsMidConvoEffort *bool `json:"supportsMidConvoEffort,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
@@ -265,6 +274,9 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.SupportsTemperature != nil {
 		c.SupportsTemperature = o.SupportsTemperature
+	}
+	if o.VLLMPriority != nil {
+		c.VLLMPriority = o.VLLMPriority
 	}
 	return c
 }

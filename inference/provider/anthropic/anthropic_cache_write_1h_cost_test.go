@@ -41,7 +41,7 @@ func runAnthropicCacheWrite1hCostEvents(t *testing.T, cacheCreation map[string]i
 	body := io.NopCloser(strings.NewReader(anthropicCacheWrite1hSSE(cacheCreation)))
 	ch := make(chan goai.Event, 16)
 	model := &goai.Model{ID: "claude-opus-4-8", Provider: goai.ProviderAnthropic, Api: goai.ApiAnthropicMessages, Cost: goai.ModelCost{Input: 5, Output: 15, CacheRead: 0.3, CacheWrite: 6.25}}
-	processAnthropicStream(body, model, nil, ch)
+	processAnthropicStream(body, model, nil, "", ch)
 	close(ch)
 	for ev := range ch {
 		switch e := ev.(type) {

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
@@ -82,6 +85,7 @@ func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
 		transport = defaultTransport.Clone()
 	}
+	transport.Proxy = proxyFromEnvironmentV0850
 	transport.DialContext = (&net.Dialer{Timeout: cfg.ConnectTimeout}).DialContext
 	transport.TLSHandshakeTimeout = cfg.ConnectTimeout
 	transport.ResponseHeaderTimeout = cfg.ConnectTimeout
@@ -95,6 +99,49 @@ func (cfg *RetryConfig) NewHTTPClient() *http.Client {
 //
 // By default, requests do not retry unless RetryConfig is provided or legacy
 // MaxRetryDelayMs is set.
+func proxyFromEnvironmentV0850(req *http.Request) (*url.URL, error) {
+	if req != nil && req.URL != nil && noProxyMatchV0850(req.URL.Hostname()) {
+		return nil, nil
+	}
+	return http.ProxyFromEnvironment(req)
+}
+
+func noProxyMatchV0850(host string) bool {
+	host = normalizeNoProxyHost(host)
+	if host == "" {
+		return false
+	}
+	raw := os.Getenv("NO_PROXY")
+	if raw == "" {
+		raw = os.Getenv("no_proxy")
+	}
+	for _, entry := range strings.Split(raw, ",") {
+		entry = normalizeNoProxyHost(entry)
+		if entry == "" {
+			continue
+		}
+		if entry == "*" || host == entry || strings.HasSuffix(host, "."+entry) {
+			return true
+		}
+		if strings.HasPrefix(entry, ".") && (host == strings.TrimPrefix(entry, ".") || strings.HasSuffix(host, entry)) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeNoProxyHost(host string) string {
+	host = strings.TrimSpace(strings.ToLower(host))
+	if host == "" {
+		return ""
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
+	return host
+}
+
 func RetryConfigFromOptions(opts *StreamOptions) RetryConfig {
 	if opts == nil {
 		return NoRetryConfig()

@@ -121,6 +121,7 @@ type compatEntry struct {
 	DeferredToolsMode                           string                       `json:"deferredToolsMode"`
 	SupportsLongCacheRetention                  *bool                        `json:"supportsLongCacheRetention"`
 	SupportsTemperature                         *bool                        `json:"supportsTemperature"`
+	VLLMPriority                                *int                         `json:"vllmPriority"`
 	ForceAdaptiveThinking                       *bool                        `json:"forceAdaptiveThinking"`
 	AllowedFallbackModels                       []allowedFallbackModel       `json:"allowedFallbackModels"`
 	AllowEmptySignature                         *bool                        `json:"allowEmptySignature"`
@@ -133,6 +134,8 @@ type compatEntry struct {
 	SupportsStrictTools                         *bool                        `json:"supportsStrictTools"`
 	SessionAffinityFormat                       string                       `json:"sessionAffinityFormat"`
 	SupportsExplicitPromptCacheMode             *bool                        `json:"supportsExplicitPromptCacheMode"`
+	SupportsMaxOutputTokens                     *bool                        `json:"supportsMaxOutputTokens"`
+	SupportsMidConvoEffort                      *bool                        `json:"supportsMidConvoEffort"`
 }
 
 type allowedFallbackModel struct {
@@ -445,6 +448,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeStringField(b, "DeferredToolsMode", c.DeferredToolsMode)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
 		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
+		writeIntField(b, "VLLMPriority", c.VLLMPriority)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
 	case "openai-responses", "azure-openai-responses":
@@ -457,6 +461,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
 		writeStringField(b, "SessionAffinityFormat", c.SessionAffinityFormat)
 		writeBoolField(b, "SupportsExplicitPromptCacheMode", c.SupportsExplicitPromptCacheMode)
+		writeBoolField(b, "SupportsMaxOutputTokens", c.SupportsMaxOutputTokens)
 		b.WriteString("},\n")
 	case "anthropic-messages":
 		b.WriteString("\t\tAnthropicCompat: &AnthropicMessagesCompat{")
@@ -465,6 +470,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "SupportsTemperature", c.SupportsTemperature)
 		writeBoolField(b, "ForceAdaptiveThinking", c.ForceAdaptiveThinking)
 		writeAllowedFallbackModelsField(b, c.AllowedFallbackModels)
+		writeBoolField(b, "SupportsMidConvoEffort", c.SupportsMidConvoEffort)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		writeBoolField(b, "SupportsStrictTools", c.SupportsStrictTools)
 		writeBoolField(b, "SupportsCacheControlOnTools", c.SupportsCacheControlOnTools)
@@ -475,12 +481,18 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {
 	if value != nil {
 		b.WriteString(fmt.Sprintf("%s: boolPtr(%v), ", name, *value))
+	}
+}
+
+func writeIntField(b *strings.Builder, name string, value *int) {
+	if value != nil {
+		b.WriteString(fmt.Sprintf("%s: intPtr(%d), ", name, *value))
 	}
 }
 

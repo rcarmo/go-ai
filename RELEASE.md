@@ -1,114 +1,73 @@
-# Release parity record
+# go-ai upstream release parity
 
-This file is the release-audit source of truth for `github.com/rcarmo/go-ai` parity with upstream `@earendil-works/pi-ai`.
+This file is the root release-audit source of truth for `github.com/rcarmo/go-ai` parity with upstream `@earendil-works/pi-ai` / `github.com/earendil-works/pi`.
 
-## Current upstream baseline
+## Current audited upstream release
 
-- Upstream package: `@earendil-works/pi-ai`
-- Current audited release: `v0.84.4`
-- Upstream tag/SHA: `b79e4cc834970cca69daebffab7df1da7d1e52c4`
-- Published: 2026-08-28T22:05:13.974Z
-- Previous accepted baseline: `v0.84.3` / `4e58f324fae8ebfa98a3d45181fb248072a2afac`
-- Accepted local baseline before this audit: `e25cd2e0b454767c35ac53831d2c1a5bb4641299`
-- Accepted local candidate SHA for this audit: `3e996243d34e5e4568a58cf4f85ca098c5d098f8`
-- Exact upstream checkout used: `/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4`
-- Official npm data artifact used for generated provider JSON shards: `/workspace/tmp/pi-ai-0844-npm/package`
-- Official npm tarball SHA-256: `dfd3c929cee5a7387199a0a24dfc1be2096f1ea8f59ffb8285198a0ed01ebf93`
-- Detailed path matrix: `docs/v0844-release-ledger.md`
-- Whole-corpus test crosswalk: `docs/v0844-137-test-manifest.md`
+- Package: `@earendil-works/pi-ai`
+- Release/tag: `v0.85.0`
+- Upstream tag/SHA: `107d79f11072bbc8a3a757ed7fd69596bee7d68c`
+- Previous accepted upstream baseline: `v0.84.4` / `b79e4cc834970cca69daebffab7df1da7d1e52c4`
+- Previous accepted Go baseline before this audit: `abd95ba55b58b3986961b03fcc5c014d6d775c0c`
+- Exact upstream checkout: `/workspace/tmp/pi-mono-audit`
+- Official npm artifact: `/workspace/tmp/pi-ai-0850/pi-ai-0.85.0.tgz`
+- Official npm artifact SHA-256: `46188bdacb555a07466a0111f3963f20932a16199e4d6cfb8d44a7fe5fc6e342`
+- Detailed path matrix: `docs/v0850-release-ledger.md`
+- Whole-corpus upstream test crosswalk: `docs/v0850-142-test-manifest.md`
 
-## Exact upstream changes audited
+## Scope evidence
 
-Release-only diff: `packages/ai` from official `v0.84.3` to official `v0.84.4`, no unpublished `main` changes.
+- Canonical changed-path command: `git diff --name-status b79e4cc834970cca69daebffab7df1da7d1e52c4 107d79f11072bbc8a3a757ed7fd69596bee7d68c -- packages/ai`
+- Changed paths: `51` rows, stored in `/workspace/tmp/pi-ai-0850/changed-paths.txt`, SHA-256 `db461a56838926cf60d4ae0196ed98fcc215616dacff013ad8c235bb8ad9b83f`.
+- Changed tests: `29` rows, stored in `/workspace/tmp/pi-ai-0850/changed-tests.txt`, SHA-256 `0b58c13688745fd74837bcefb868d2f5064649dcb4c57a5e134e08be0fd9d711`.
+- Whole upstream test corpus: `142` rows, stored in `/workspace/tmp/pi-ai-0850/test-corpus-142.txt`, SHA-256 `56f8742065a4ad01d73e5aee53035324f2e7333a735222ab15db870819e29065`.
 
-Audited scope:
+## Current Go implementation/adaptation summary
 
-- 15 changed `packages/ai` paths: 5 source files, 2 scripts (1 modified + 1 added), 6 tests (5 modified + 1 added), 2 package/docs.
-- Added test: `openrouter-reasoning-options.test.ts`.
-- Whole test corpus: 137 `packages/ai/test/*.test.ts` files, fully classified with 0 unclassified rows.
-- Text model catalog: 1290 models across 39 providers and 9 APIs, exact provider/id pair parity with upstream.
-- Full-record text catalog delta versus v0.84.3: `1312→1290`, with `+57` added records, `-79` removed records, and `227` changed records.
-- Image model catalog: 50 OpenRouter image models, +5 vs v0.84.3 (`meta/muse-image` and Recraft v4 variants).
+Implemented or adapted for v0.85.0:
 
-## v0.84.4 Go implementation and decisions
+- Exact generated text catalog refresh to `1336` models across `39` providers.
+- Exact image catalog regeneration/comparator retained through `scripts/check-model-regeneration.sh`.
+- `OpenAICompletionsCompat.VLLMPriority` plus OpenAI chat `priority` serialization.
+- `OpenAIResponsesCompat.SupportsMaxOutputTokens` plus `max_output_tokens` omission when explicitly unsupported.
+- `Message.ProviderThinkingLevel` and `AnthropicMessagesCompat.SupportsMidConvoEffort`.
+- Anthropic managed mid-conversation effort markers, active/default effort, result thinking-level persistence, managed beta headers, `block_binding.drop_block`, temperature omission, and beta override behavior.
+- `AssistantMessageFrame` encoder/reducer for compact stream frame serialization/reconstruction.
+- Optional timestamp input for `UUIDv7(timestampMs ...int64)`.
+- v0.85.0 `NO_PROXY`/`no_proxy` matching, including root/subdomain and bracketed IPv6 normalization, in the retry transport proxy path.
+- Codex terminal SSE event without trailing blank line covered through the Go SSE parser and Codex regression test.
+- Cloudflare AI binding auth sentinel and early fetch-adapter validation. JavaScript Workers `env.AI.fetch` is documented as adapted because Go has no native Workers FetchFunction runtime.
+- `pre-generation-error.test.ts` is documented as channel-adapted: Go provider APIs emit pre-dispatch `ErrorEvent`s instead of JavaScript construction-time throws.
 
-| Upstream delta | Go disposition |
-| --- | --- |
-| Text catalog refresh | Implemented mechanically. `models_generated.go` regenerated from exact v0.84.4 source and official npm provider shards: 1290 models / 39 providers / 9 APIs. Full-record delta recorded as `1312→1290`, `+57/-79/227 changed`. |
-| Image catalog refresh | Implemented mechanically. `images/models_generated.go` regenerated from exact v0.84.4 source: 50 OpenRouter image models, including `meta/muse-image` and Recraft v4 variants. |
-| Generator OpenRouter reasoning metadata | Implemented/adapted into generated Go `ThinkingLevelMap` and `OpenAICompletionsCompat` fields. OpenRouter `supported_efforts` maps to mandatory/optional/off behavior, including `off:null` for mandatory reasoning and `off:"none"` for optional disable semantics where applicable. |
-| Cloudflare AI Gateway Workers AI mirror | Implemented mechanically in generated catalog: tool-capable Workers AI models are mirrored under Cloudflare AI Gateway with `workers-ai/` prefix, `/compat` endpoint, session-affinity compat, and deduped IDs. |
-| OpenAI-compatible explicit `toolChoice:"none"` | Implemented in Chat Completions payload generation. Explicit `ToolChoiceNone` serializes as `tool_choice:"none"` even when no tools are present, while omitting `tools`. |
-| OpenAI-compatible streamed reasoning details | Implemented v0.84.4 semantics: streamed `reasoning.text`, `reasoning.summary`, and encrypted details are replay metadata, adjacent text/summary details merge while preserving common metadata/order, and the final array is serialized once on a thinking block `thinkingSignature` with no duplicate tool-call `thoughtSignature`. Legacy stored encrypted tool-call signatures still replay. |
-| Mistral fragmented tool-call chunks | Implemented indexed tool-call accumulation so later chunks that omit ID and provide an empty function name merge into the original call. |
-| ZAI GLM-5.3 metadata | Implemented mechanically via regenerated catalog and tested for v0.84.4 metadata/compat. |
-| Fireworks catalog changes | Implemented mechanically via regenerated catalog and tested for Kimi K2.7/K3 additions plus retired K2.6 router removal while preserving Fireworks env-key compatibility. |
-| DeepSeek V4 vision metadata | Implemented mechanically via regenerated catalog and tested for `deepseek-v4-flash-vision-exp` multimodal metadata. |
-| Tests and docs | Added/updated deterministic tests, exact 15-path ledger, exact 137-file corpus crosswalk, and this release record. |
-| JS-only/runtime-specific surfaces | Narrowly N/A/adapted where no Go equivalent exists (private TS generator helper structure, JS type-only surfaces); observable generated catalog and provider wire behavior are covered in Go. |
-
-## Comparator evidence
-
-```text
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0844-npm/package/dist/providers/data \
-  python3 scripts/compare-upstream-models.py /workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/providers
-upstream pairs: 1290
-generated pairs: 1290
-model provider/id pairs match exactly
-
-PI_AI_MODELS_GENERATED_TS=/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/models.generated.ts \
-PI_AI_IMAGE_MODELS_GENERATED_TS=/workspace/tmp/go-v0844-regen-cache/pi-b79e4cc834970cca69daebffab7df1da7d1e52c4/packages/ai/src/image-models.generated.ts \
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0844-npm/package/dist/providers/data \
-TMPDIR=/workspace/tmp bash scripts/check-model-regeneration.sh
-model regeneration metadata comparator passed
-image model regeneration comparator passed
-```
-
-## Supply-chain and security evidence
-
-Current workflow policy adds pinned Go supply-chain targets:
-
-- SBOM generator: `github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0`
-- SBOM format/artifacts: CycloneDX JSON `artifacts/sbom.cdx.json` plus `artifacts/sbom.cdx.json.sha256` (gitignored, CI-uploaded artifact)
-- SBOM digest evidence model: SBOM embeds the Git revision, so a commit cannot reliably record its own SBOM digest without a follow-up evidence commit. The authoritative SBOM digest for a tested candidate is the checksum uploaded by that candidate's hosted CI artifact (`artifacts/sbom.cdx.json.sha256`). If this file records a digest, it must identify the separately tested candidate SHA and CI run; a later docs-only `[skip ci]` commit may record that external evidence without claiming a self-referential digest.
-- SBOM validation: `scripts/validate-sbom.py` checks JSON/schema identity, normalized checksum, root module, expected Git revision, root dependency ref, non-empty dependencies, required Go deps, and absence of local absolute paths.
-- SBOM validator self-tests: `scripts/test-validate-sbom.py` proves the validator rejects revision tampering even with a recomputed checksum, checksum mismatch, malformed JSON, local absolute path leakage, empty dependency graphs, and missing root dependency refs.
-- Vulnerability policy self-tests: `scripts/test-check-vuln-policy.py` proves the policy rejects different-Go-version findings, undocumented findings, and unused active exceptions.
-- CI execution path: `make check` performs SBOM generation/validation, SBOM self-tests, vulnerability scan/policy self-tests, and license review exactly once; the workflow then uploads the already-generated SBOM artifacts without rerunning security work.
-- CI cadence/retention: `.github/workflows/ci.yml` runs on push, pull request, manual dispatch, and a weekly scheduled maintenance scan (`17 4 * * 1`). Final-only hosted CI remains the rule for developer candidate pushes; scheduled maintenance is independent. SBOM artifacts are named `go-ai-sbom-${sha}` and uploaded with 30-day retention. Cleanup uses a 30-day cutoff and does not delete `go-ai-sbom-*` merely because the associated run falls outside the 10-run window.
-- Vulnerability scanner: `golang.org/x/vuln/cmd/govulncheck@v1.7.0`, executed with pinned `GOVULNCHECK_GOTOOLCHAIN=go1.26.6` in both local and hosted CI security gates. Build/test CI remains on supported Go `1.24.x`; vulnerability scanning intentionally uses the patched scanner toolchain because `govulncheck@v1.7.0` requires Go >=1.25.
-- Vulnerability disposition: `make vuln-check` passes only with exact Go-version-scoped, expiring `security-vuln-policy.json` entries. Each exception must include owner, rationale, mitigation, expiry, Go version, and scope. Current policy has no active exceptions; `govulncheck@v1.7.0` under Go `go1.26.6` reports no reachable vulnerabilities. Dependency findings remain blocking unless separately documented.
-- License scanner: `github.com/google/go-licenses@v1.6.0`; `make license-check` passes with the pinned allowlist in `Makefile`. Future incompatible or unknown license exceptions require owner, rationale, mitigation, and expiry; the allowlist alone is not an exception record.
+N/A/adapted decisions and exact per-test evidence are in `docs/v0850-142-test-manifest.md` and `docs/v0850-release-ledger.md`.
 
 ## Validation evidence
 
-Candidate gate commands:
+Current local evidence captured during the v0.85.0 audit:
 
-```text
-python3 scripts/validate-test-manifest.py docs/v0844-137-test-manifest.md /workspace/tmp/v0844-test-files.txt
-# manifest rows: 137; unique paths: 137; expected paths: 137; changed-row markers: 6; manifest validation passed
+- `go test ./inference/provider/anthropic ./inference/provider/openai ./inference/provider/openairesponses ./inference/provider/openaicodex ./tests` — passed.
+- `go test ./...` — passed.
+- `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0850/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-mono-audit/packages/ai/src/providers` — `upstream pairs: 1336`, `generated pairs: 1336`, exact match.
+- `TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneration.sh` — text metadata comparator passed; image model regeneration comparator passed.
+- `python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md /workspace/tmp/pi-ai-0850/test-corpus-142.txt` — manifest validation passed.
+- `make check` — passed after fixing explicit UUID timestamp preservation under `-count=3`.
+- `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
+- `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1` — passed.
+- `go vet ./...` — passed.
+- `make staticcheck` — passed (`staticcheck@v0.7.0`).
+- `make check-logging` — passed.
+- `make test-repro` — passed.
+- `make sbom-check` — passed: 18 components, SHA-256 `ce1ca6899c2139d8df011926664b21ea8d3d8520f96033b11ea179be240066d3` at pre-commit revision `abd95ba55b58`; rerun after final commit remains required for final artifact evidence.
+- `make vuln-check` — passed: `govulncheck: no reachable vulnerabilities for go1.26.6`.
+- `make license-check` — passed; warnings limited to non-Go assembly dependency-inspection notices from `go-licenses`.
+- Clean-checkout validation from `/workspace/tmp/go-ai-v0850-clean` with current patch applied passed: `go test ./...`, 142-row manifest validation, model/image regeneration comparators, and `git diff --check`.
+- Deliberate text catalog fault gate: corrupted `models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
+- Deliberate image catalog fault gate: corrupted `images/models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
 
-TMPDIR=/workspace/tmp go test ./...
-make check GO_TMPDIR=/workspace/tmp
-TMPDIR=/workspace/tmp go test -shuffle=on ./...
-TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
-TMPDIR=/workspace/tmp go vet ./...
-make staticcheck GO_TMPDIR=/workspace/tmp
-make check-logging
-make test-repro GO_TMPDIR=/workspace/tmp
-make ci-artifacts GO_TMPDIR=/workspace/tmp
-# all PASS locally. Build/test gates use the configured Go toolchain; vulnerability scan uses pinned Go go1.26.6 and reports `govulncheck: no reachable vulnerabilities`; CI uploads SBOM artifacts generated by `make check` without a duplicate security scan.
+Pending before completion:
 
-Security/SBOM workflow candidate `895daa956ca25e8ffa6789111880cbcc374a0f40` passed hosted CI run https://github.com/rcarmo/go-ai/actions/runs/33256067983. Its uploaded SBOM artifact is authoritative for that candidate and records:
-- SBOM artifact: `go-ai-sbom-895daa956ca25e8ffa6789111880cbcc374a0f40`
-- SBOM digest: `380ee17efd58839d76c3798b7075736b72b9aa50a7a04baec4adab671a4ff40d`
-- SBOM embedded revision: `895daa956ca2`
-- CI build/test Go: `go1.24.13`; CI vulnerability scan Go: `go1.26.6`; CI vulnerability result: `govulncheck: no reachable vulnerabilities for go1.26.6`
+- Final Rui-authored commit/push, hosted CI/SBOM artifact evidence, final SHA, rollback SHA, and auditor notification.
 
-This docs-only evidence update is intentionally non-self-referential: the final documentation SHA records the prior tested candidate's CI artifact digest/run rather than its own SBOM digest.
+## Release documentation policy
 
-Hosted CI for candidate `3e996243d34e5e4568a58cf4f85ca098c5d098f8` passed:
-- Run: https://github.com/rcarmo/go-ai/actions/runs/33251362203 (`CI`, conclusion `success`)
-- Job `Vet, Staticcheck & Deterministic Tests (1.24.x)`: success; build, check (vet/staticcheck/deterministic tests), race tests, coverage, and logging quality gate all succeeded.
-- Job `Fuzz Tests`: success; partial JSON parser, SSE parser, context round-trip, message transformation, and overflow detection fuzz jobs all succeeded.
-```
+For every future upstream `@earendil-works/pi-ai` release audit, update this `RELEASE.md` in the same release parity commit before declaring completion. The update must include the upstream tag/SHA, npm artifact/checksum, changed-path and test-corpus counts/hashes, every Go implementation/fix/adaptation/N/A decision, local validation/fault-gate evidence, SBOM/security/license evidence, hosted CI evidence, and final/rollback SHAs.

@@ -1,3 +1,63 @@
+# Local tests shared evidence
+
+Current release audit target: `@earendil-works/pi-ai` `v0.85.0` / upstream SHA `107d79f11072bbc8a3a757ed7fd69596bee7d68c`.
+
+## v0.85.0 current gate evidence
+
+```text
+go test ./inference/provider/anthropic ./inference/provider/openai ./inference/provider/openairesponses ./inference/provider/openaicodex ./tests
+# passed
+
+go test ./...
+# passed
+
+make check
+# passed after explicit UUID timestamp preservation was fixed for repeated deterministic runs
+
+TMPDIR=/workspace/tmp go test -shuffle=on ./...
+TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
+go vet ./...
+make staticcheck
+make check-logging
+make test-repro
+make sbom-check
+make vuln-check
+make license-check
+# all passed
+
+PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0850/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-mono-audit/packages/ai/src/providers
+upstream pairs: 1336
+generated pairs: 1336
+model provider/id pairs match exactly
+
+TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneration.sh
+model regeneration metadata comparator passed
+image model regeneration comparator passed
+
+python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md /workspace/tmp/pi-ai-0850/test-corpus-142.txt
+manifest rows: 142
+unique paths: 142
+expected paths: 142
+manifest validation passed
+```
+
+Deliberate fault gates: text catalog corruption and image catalog corruption both made `./scripts/check-model-regeneration.sh` fail as expected; exact files were restored and the clean comparator passed.
+
+## v0.85.0 focused coverage additions
+
+- Anthropic managed effort and binding controls: `inference/provider/anthropic/v0850_mid_conversation_effort_test.go`, `inference/provider/anthropic/v0850_beta_override_test.go`.
+- Assistant stream frame codec: `assistant_message_frame.go`, `tests/assistant_message_frame_v0850_test.go`.
+- Cloudflare AI binding sentinel/adaptation: `cloudflare_ai_binding.go`, `tests/cloudflare_ai_binding_v0850_test.go`.
+- Codex terminal SSE final-frame flush: `inference/provider/openaicodex/v0850_terminal_sse_test.go`.
+- OpenAI vLLM priority: `inference/provider/openai/v0850_vllm_priority_test.go`.
+- OpenAI Responses max-output-token compat: `inference/provider/openairesponses/v0850_max_output_tokens_test.go`.
+- UUID optional timestamp and NO_PROXY matching: `tests/v0850_uuid_proxy_test.go`.
+- Catalog deltas: `tests/models_v0850_catalog_test.go` and exact generator/comparator checks.
+
+---
+
+## Previous baseline notes
+
 # Shared local test corpus for sibling ports
 
 Generated: 2026-06-23

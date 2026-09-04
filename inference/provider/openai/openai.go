@@ -183,6 +183,7 @@ type chatRequest struct {
 	ThinkingTokenBudgetField string                 `json:"-"`
 	ToolStream               *bool                  `json:"tool_stream,omitempty"`
 	Store                    *bool                  `json:"store,omitempty"`
+	Priority                 *int                   `json:"priority,omitempty"`
 	SamplingParams           map[string]interface{} `json:"-"`
 }
 
@@ -384,6 +385,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 	if opts != nil && opts.ToolChoice != "" {
 		req.ToolChoice = string(opts.ToolChoice)
+	}
+	if compat.VLLMPriority != nil {
+		req.Priority = compat.VLLMPriority
 	}
 
 	// Reasoning effort / thinking control. Mirror pi-ai's provider-specific formats.

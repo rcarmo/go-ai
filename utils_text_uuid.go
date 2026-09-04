@@ -47,10 +47,11 @@ func contentBlocksText(blocks []ContentBlock, separator string) string {
 
 var uuidV7State = struct {
 	sync.Mutex
-	lastTimestamp int64
-	sequence      uint32
-	now           func() int64
-	random        func([]byte) error
+	lastTimestamp       int64
+	sequence            uint32
+	sequenceInitialized bool
+	now                 func() int64
+	random              func([]byte) error
 }{
 	lastTimestamp: -1,
 	now:           func() int64 { return time.Now().UnixMilli() },
@@ -61,7 +62,10 @@ var uuidV7State = struct {
 }
 
 // UUIDv7 generates a time-ordered RFC 9562 UUIDv7 string.
-func UUIDv7() string {
+// If timestampMs is provided, it is used as the UUID timestamp; otherwise the
+// current time is used. Monotonic sequencing is retained for equal/regressing
+// timestamps.
+func UUIDv7(timestampMs ...int64) string {
 	var random [16]byte
 	if err := uuidV7State.random(random[:]); err != nil {
 		now := time.Now().UnixNano()
@@ -69,11 +73,29 @@ func UUIDv7() string {
 			random[i] = byte(now >> (uint(i%8) * 8))
 		}
 	}
+	explicitTimestamp := len(timestampMs) > 0
 	timestamp := uuidV7State.now()
+	if explicitTimestamp {
+		timestamp = timestampMs[0]
+	}
+	if timestamp < 0 || timestamp > 0xffffffffffff {
+		panic("UUIDv7 timestamp must be an integer between 0 and 281474976710655")
+	}
 
 	uuidV7State.Lock()
-	if timestamp > uuidV7State.lastTimestamp {
+	if explicitTimestamp {
+		if !uuidV7State.sequenceInitialized {
+			uuidV7State.sequence = uint32(random[6])<<24 | uint32(random[7])<<16 | uint32(random[8])<<8 | uint32(random[9])
+			uuidV7State.sequenceInitialized = true
+		} else {
+			uuidV7State.sequence++
+			if uuidV7State.sequence == 0 {
+				uuidV7State.sequence = uint32(random[6])<<24 | uint32(random[7])<<16 | uint32(random[8])<<8 | uint32(random[9])
+			}
+		}
+	} else if timestamp > uuidV7State.lastTimestamp {
 		uuidV7State.sequence = uint32(random[6])<<24 | uint32(random[7])<<16 | uint32(random[8])<<8 | uint32(random[9])
+		uuidV7State.sequenceInitialized = true
 		uuidV7State.lastTimestamp = timestamp
 	} else {
 		uuidV7State.sequence++
@@ -81,7 +103,10 @@ func UUIDv7() string {
 			uuidV7State.lastTimestamp++
 		}
 	}
-	lastTimestamp := uuidV7State.lastTimestamp
+	lastTimestamp := timestamp
+	if !explicitTimestamp {
+		lastTimestamp = uuidV7State.lastTimestamp
+	}
 	sequence := uuidV7State.sequence
 	uuidV7State.Unlock()
 

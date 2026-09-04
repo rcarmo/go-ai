@@ -20,7 +20,7 @@ func TestAnthropicContentBlockStartInitialContentAndSignature(t *testing.T) {
 		"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":2}}\n\n" +
 		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 	ch := make(chan goai.Event, 16)
-	processAnthropicStream(body, model, nil, ch)
+	processAnthropicStream(body, model, nil, "", ch)
 	close(ch)
 	var done *goai.DoneEvent
 	for ev := range ch {

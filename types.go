@@ -278,18 +278,19 @@ type Message struct {
 	Timestamp int64          `json:"timestamp"`
 
 	// Assistant-only fields
-	Api           Api                          `json:"api,omitempty"`
-	Provider      Provider                     `json:"provider,omitempty"`
-	Model         string                       `json:"model,omitempty"`
-	ResponseID    string                       `json:"responseId,omitempty"`
-	ResponseModel string                       `json:"responseModel,omitempty"`
-	Diagnostics   []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
-	Usage         *Usage                       `json:"usage,omitempty"`
-	StopReason    StopReason                   `json:"stopReason,omitempty"`
-	Deferred      *DeferredHandle              `json:"deferred,omitempty"`
-	RawStopReason string                       `json:"rawStopReason,omitempty"`
-	ErrorMessage  string                       `json:"errorMessage,omitempty"`
-	EndTurn       *bool                        `json:"endTurn,omitempty"`
+	Api                   Api                          `json:"api,omitempty"`
+	Provider              Provider                     `json:"provider,omitempty"`
+	Model                 string                       `json:"model,omitempty"`
+	ResponseID            string                       `json:"responseId,omitempty"`
+	ResponseModel         string                       `json:"responseModel,omitempty"`
+	ProviderThinkingLevel string                       `json:"providerThinkingLevel,omitempty"`
+	Diagnostics           []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
+	Usage                 *Usage                       `json:"usage,omitempty"`
+	StopReason            StopReason                   `json:"stopReason,omitempty"`
+	Deferred              *DeferredHandle              `json:"deferred,omitempty"`
+	RawStopReason         string                       `json:"rawStopReason,omitempty"`
+	ErrorMessage          string                       `json:"errorMessage,omitempty"`
+	EndTurn               *bool                        `json:"endTurn,omitempty"`
 
 	// ToolResult-only fields
 	ToolCallID     string   `json:"toolCallId,omitempty"`
