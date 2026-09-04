@@ -1,66 +1,40 @@
 # go-ai
 
-![go-ai](docs/icon-256.png)
-
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Go port of [@earendil-works/pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai) — unified LLM API with automatic model discovery, streaming, tool calling, and multi-provider support.
+![go-ai](docs/icon-256.png)
 
-> **⚠️ Experimental.** This module is still at `v0` and tracks the TypeScript original closely.
-> The API surface may change before `v1`. Use in production at your own risk.
+A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
+
+> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.85.0 audit embeds 1336 text/chat models across 39 providers, 9 text/chat API protocols, and 50 image models.
 
 ## Documentation
 
-- [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) — published API documentation for the module.
-- [Source repository](https://github.com/rcarmo/go-ai) — issues, releases, CI status, and source history.
-- [Basic usage](docs/basic-usage.md) — getting started with streaming and completion calls.
-- [Model selection](docs/model-selection.md) — built-in registry and provider/model lookup.
-- [Prompt and context handling](docs/prompts-and-context.md) — message shapes, context, and serialization.
-- [Tool calling](docs/tool-calling.md) — tool definitions, tool-call events, and tool results.
-- [Image handling](docs/image-handling.md) — multimodal inputs and provider support.
-- [Harness helpers](docs/HARNESS.md) — higher-level agent/session helpers.
-
-## Why
-
-I needed a Go library for talking to LLMs that was at least as good as
-[pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai) — unified
-streaming, tool calling, multi-provider, proper cost tracking — and couldn't
-find anything I liked. Everything was either OpenAI-only, didn't stream
-properly, or required pulling in half the internet as dependencies.
-
-So I ported pi-ai to Go. Same types (JSON-serialization-compatible), same
-event protocol, same provider coverage. If you know pi-ai, you know this.
-
-## Credits
-
-This project is a derivative work of
-[**@earendil-works/pi-ai**](https://www.npmjs.com/package/@earendil-works/pi-ai), originally by
-[Mario Zechner](https://mariozechner.at). The type system, event
-protocol, provider implementations, model registry, and OAuth flows are all
-ported from his TypeScript library. All credit for the design goes to him.
+* [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) has the published API surface.
+* [Basic usage](docs/basic-usage.md), [model selection](docs/model-selection.md), [prompt/context handling](docs/prompts-and-context.md), [tool calling](docs/tool-calling.md), and [image handling](docs/image-handling.md) cover the common paths.
+* [Harness helpers](docs/HARNESS.md) describe the higher-level agent/session utilities.
+* [RELEASE.md](RELEASE.md) and [docs/v0850-release-ledger.md](docs/v0850-release-ledger.md) record the current upstream baseline, audit scope, and validation results.
 
 ## Features
 
-- **Unified API** — same `Stream()`/`Complete()` interface across all providers
-- **Streaming** — channel-based event stream with text, thinking, and tool call deltas
-- **Tool calling** — typed tool definitions with JSON Schema parameters
-- **Image generation** — upstream-compatible image API surface with OpenRouter image models
-- **Multi-provider** — OpenAI, Anthropic, Google, Mistral, Bedrock, OpenRouter images, and OpenAI-compatible APIs
-- **Context serialization** — JSON-compatible with pi-ai for cross-language hand-off
-- **Cost tracking** — per-request token counts and USD cost breakdown
-- **Thinking/reasoning** — unified thinking level across providers
+* One `Stream`/`Complete` entry point over the registered provider implementation, with channel-based text, thinking, and tool-call events.
+* A generated model registry for text/chat and image models, checked against the upstream v0.85.0 records rather than copied by hand.
+* JSON-compatible message, context, tool, usage, diagnostic, and stream-option types for cross-language transcript hand-off.
+* Tool calling with JSON Schema parameters, strict/constrained sampling helpers where providers expose them, and partial JSON parsing for streamed arguments.
+* Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
+* OAuth helpers for GitHub Copilot, OpenAI Codex, Anthropic, Google Gemini CLI, Google Antigravity, Radius, Kimi Coding, and xAI.
+* Image generation support through the `images` package and OpenRouter image provider registration.
+* Local release gates for regenerated catalog drift, SBOM/security/license checks, logging quality, race tests, and reproducible test runs.
 
-## Package layout
+## Installation
 
-The v0 API is being split into explicit trees:
+```bash
+go get github.com/rcarmo/go-ai
+```
 
-- `github.com/rcarmo/go-ai/inference` — text/chat inference facade over the root inference implementation.
-- `github.com/rcarmo/go-ai/images` — image generation API, image model registry, and image provider interfaces.
-- `github.com/rcarmo/go-ai/images/openrouter` — OpenRouter image provider registration.
-
-The root package still contains the current text/chat implementation while this split progresses.
+Import the provider package that matches the selected model's API. The provider packages register themselves through side effects, which keeps binaries explicit about which transports they include.
 
 ## Quick start
 
@@ -68,243 +42,120 @@ The root package still contains the current text/chat implementation while this 
 package main
 
 import (
-    "context"
-    "fmt"
-    "log"
+	"context"
+	"fmt"
+	"log"
 
-    goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/inference/provider/openairesponses" // register OpenAI Responses
-    _ "github.com/rcarmo/go-ai/inference/provider/anthropic"       // register Anthropic
+	goai "github.com/rcarmo/go-ai"
+	_ "github.com/rcarmo/go-ai/inference/provider/openairesponses"
 )
 
 func main() {
-    goai.RegisterBuiltinModels()
+	goai.RegisterBuiltinModels()
 
-    // Built-in gpt-4o-mini uses the OpenAI Responses provider.
-    model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
+	model := goai.GetModel(goai.ProviderOpenAI, "gpt-4o-mini")
+	if model == nil {
+		log.Fatal("model not found")
+	}
 
-    ctx := &goai.Context{
-        SystemPrompt: "You are a helpful assistant.",
-        Messages: []goai.Message{
-            goai.UserMessage("What is 2+2?"),
-        },
-    }
+	ctx := &goai.Context{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages: []goai.Message{
+			goai.UserMessage("What is 2+2?"),
+		},
+	}
 
-    // Streaming
-    events := goai.Stream(context.Background(), model, ctx, nil)
-    for event := range events {
-        switch e := event.(type) {
-        case *goai.TextDeltaEvent:
-            fmt.Print(e.Delta)
-        case *goai.DoneEvent:
-            fmt.Printf("\n\nTokens: %d in, %d out ($%.6f)\n",
-                e.Message.Usage.Input, e.Message.Usage.Output, e.Message.Usage.Cost.Total)
-        case *goai.ErrorEvent:
-            log.Fatal(e.Err)
-        }
-    }
+	for event := range goai.Stream(context.Background(), model, ctx, nil) {
+		switch e := event.(type) {
+		case *goai.TextDeltaEvent:
+			fmt.Print(e.Delta)
+		case *goai.DoneEvent:
+			fmt.Printf("\n\nTokens: %d in, %d out ($%.6f)\n",
+				e.Message.Usage.Input,
+				e.Message.Usage.Output,
+				e.Message.Usage.Cost.Total,
+			)
+		case *goai.ErrorEvent:
+			log.Fatal(e.Err)
+		}
+	}
 }
 ```
 
-## Architecture
+Set API keys in the environment, or pass them through `StreamOptions`/provider-specific OAuth runtime helpers. For OpenAI-compatible models, `OPENAI_API_KEY` is enough for the example above.
 
-```
+More complete examples live under `examples/basic`, `examples/streaming`, `examples/tools`, and `examples/copilot`.
+
+## Package/source layout
+
+```text
 go-ai/
-│
-├── types.go             # Message, Context, Tool, Model, Usage, StreamOptions
-├── events.go            # Stream event types (12 event kinds)
-├── registry.go          # Stream(), Complete(), provider + model registry
-├── context.go           # Overflow detection, tool call validation
-├── transform.go         # Cross-provider message normalization
-├── harness.go           # Agent helpers: clone, save/load, compact, hooks
-├── env.go               # API key resolution for known providers
-├── compat.go            # OpenAI-compatible provider compatibility flags
-├── retry.go             # Exponential backoff with configurable limits
-├── logger.go            # Pluggable leveled logging (zero-cost default)
-├── azure.go             # Azure tool-call trimming + reasoning normalization
-├── simple_options.go    # Thinking level mapping, cost calculation
-├── utils.go             # Hash, sanitize, Copilot headers
-├── models_generated.go        # 938 text/chat models / 32 providers (auto-generated)
-├── doc.go                    # Package documentation
-├── inference/                # Text/chat inference facade and providers
-│   └── provider/             # LLM provider implementations (blank-import to register)
-│       ├── openai/           # OpenAI Chat Completions + compatible APIs
-│       ├── anthropic/        # Anthropic Messages API
-│       ├── openairesponses/  # OpenAI Responses API + Azure OpenAI
-│       ├── githubcopilot/    # Aggregate Copilot registration (OAuth + transports)
-│       ├── openaicodex/      # OpenAI Codex (WebSocket + SSE)
-│       ├── google/           # Google Generative AI + Vertex AI
-│       ├── geminicli/        # Google Gemini CLI (Cloud Code Assist)
-│       ├── mistral/          # Mistral Conversations API
-│       ├── bedrock/          # Amazon Bedrock ConverseStream
-│       └── faux/             # Test double for unit testing
-├── images/                   # Image generation API, registry, and providers
-│   ├── api.go                # Image generation API, registry, and model types
-│   ├── models_generated.go   # 28 image models / 1 provider (auto-generated)
-│   └── openrouter/           # OpenRouter image provider registration
-│
-├── oauth/               # OAuth flows (import when needed)
-│   ├── oauth.go         # Framework + PKCE
-│   ├── github_copilot.go
-│   ├── anthropic.go
-│   ├── google_gemini_cli.go
-│   ├── google_antigravity.go
-│   └── openai_codex.go
-│
-├── transports/          # Shared transport primitives
-│   ├── sse/             # SSE line parser
-│   └── websocket/       # WebSocket dependency facade
-│
-├── internal/            # Private implementation details
-│   └── jsonparse/       # Partial JSON for streaming tool args
-│
-├── examples/            # Runnable usage examples
-│   ├── basic/           # Non-streaming completion
-│   ├── streaming/       # Real-time text output
-│   ├── copilot/         # GitHub Copilot OAuth, model picker, switching, streaming
-│   └── tools/           # Agent loop with tool calling
-│
-├── scripts/             # Build and maintenance tooling
-│   ├── generate-models.go   # Model registry code generator (pure Go)
-│   └── check-logging.sh     # Logging quality gate
-│
-└── docs/                # Documentation
-    ├── basic-usage.md
-    ├── model-selection.md
-    ├── prompts-and-context.md
-    ├── tool-calling.md
-    ├── image-handling.md
-    ├── context-hooks.md
-    ├── HARNESS.md
-    └── SKILL.md
+├── types.go                     # Message, Context, Tool, Model, Usage, StreamOptions
+├── events.go                    # Stream event types
+├── registry.go                  # Stream, Complete, provider and model registries
+├── compat.go                    # Provider compatibility flags
+├── retry.go                     # HTTP retry/proxy helper
+├── models_generated.go          # generated text/chat model registry
+├── inference/                   # text/chat facade plus provider implementations
+│   └── provider/
+│       ├── openai/
+│       ├── openairesponses/
+│       ├── openaicodex/
+│       ├── anthropic/
+│       ├── google/
+│       ├── geminicli/
+│       ├── mistral/
+│       ├── bedrock/
+│       ├── githubcopilot/
+│       └── faux/
+├── images/                      # image generation API and generated image model registry
+│   └── openrouter/
+├── oauth/                       # OAuth flows and runtime helpers
+├── transports/                  # SSE and WebSocket primitives
+├── internal/                    # private parsers/helpers
+├── examples/                    # runnable examples
+├── scripts/                     # generators and validation gates
+└── docs/                        # usage docs and release ledgers
 ```
+
+The root package remains the public `goai` package. `inference` and `images` provide narrower import trees for callers that want that split.
 
 ## Provider status
 
-| Provider | API | Status |
-|---|---|---|
-| OpenAI | `openai-completions` | ✅ Implemented |
-| Anthropic | `anthropic-messages` | ✅ Implemented |
-| OpenAI Responses | `openai-responses` | ✅ Implemented |
-| Azure OpenAI | `azure-openai-responses` | ✅ Implemented |
-| Google Generative AI | `google-generative-ai` | ✅ Implemented |
-| Google Vertex AI | `google-vertex` | ✅ Implemented |
-| Mistral | `mistral-conversations` | ✅ Implemented |
-| Amazon Bedrock | `bedrock-converse-stream` | ✅ Implemented |
-| Google Gemini CLI | `google-gemini-cli` | ✅ Implemented |
-| OpenAI Codex | `openai-codex-responses` | ✅ Implemented |
-| GitHub Copilot | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
-| Cloudflare Workers AI / AI Gateway | `openai-completions`, `openai-responses`, `anthropic-messages` | ✅ Implemented |
-| Moonshot AI | `openai-completions` | ✅ Implemented |
-| Xiaomi MiMo / Token Plan regions | `anthropic-messages` | ✅ Implemented |
-| Any OpenAI-compatible | `openai-completions` | ✅ Via OpenAI provider |
-| OpenRouter Images | `openrouter-images` | ✅ Implemented |
-
-## OAuth
-
-| Provider | Status |
+| Surface | Status |
 |---|---|
-| GitHub Copilot (device flow) | ✅ Implemented |
-| Google Gemini CLI (auth code + PKCE) | ✅ Implemented |
-| Anthropic (auth code + PKCE) | ✅ Implemented |
-| OpenAI Codex (device flow) | ✅ Implemented |
-| Antigravity | 🔲 Planned |
+| OpenAI Chat Completions and compatible APIs | Implemented |
+| OpenAI Responses and Azure OpenAI Responses | Implemented |
+| OpenAI Codex Responses, SSE and WebSocket paths | Implemented |
+| Anthropic Messages, including managed effort/signed thinking replay | Implemented |
+| Google Generative AI and Gemini CLI | Implemented |
+| Mistral Conversations | Implemented |
+| Amazon Bedrock ConverseStream | Implemented via AWS SDK |
+| GitHub Copilot aggregate provider/OAuth runtime | Implemented |
+| Cloudflare Workers AI / AI Gateway compatible routes | Implemented for HTTP dispatch; Workers `env.AI.fetch` is represented by a Go adapter surface |
+| OpenRouter image generation | Implemented in `images/openrouter` |
+| Faux provider | Implemented for deterministic tests |
 
-### GitHub Copilot end-to-end
+The generated catalog also includes provider metadata for OpenRouter, xAI, Groq, Cerebras, Vercel AI Gateway, Fireworks, Together, Moonshot AI, Xiaomi/MiMo, Qwen Token Plan, ZAI, NVIDIA, Baseten, and related regional/provider-specific OpenAI- or Anthropic-compatible endpoints where upstream models define them.
 
-Import `inference/provider/githubcopilot` for side effects to register the Copilot OAuth provider and all Copilot transports. After login, persist the returned `oauth.Credentials`; on each run, pass the stored credentials through `oauth.RuntimeForGitHubCopilot` to refresh tokens if needed, apply account-specific model availability, and get the API token for `StreamOptions`.
+## Known limitations/divergences
 
-For UI/model switching flows, use the runtime helper methods:
+* This is a Go library, so JavaScript-only surfaces such as a Workers `env.AI.fetch` binding are adapted as Go interfaces and helpers rather than copied as runtime globals.
+* Provider SDK behaviour is not always byte-for-byte identical. Where Go uses its own HTTP transport or an official Go SDK, the request/stream semantics are tested against deterministic fixtures and recorded in the release ledger.
+* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with live-only gaps called out in `docs/v0850-142-test-manifest.md`.
+* `CompactContext` is deliberately simple tail truncation. If you need semantic summaries or specialised transcript retention, add that in your agent layer.
+* The module is still pre-`v1`; compatibility is best read against the release ledger for the upstream version being tracked.
 
-- `runtime.ModelPickerItems(goai.ProviderGitHubCopilot)` to render stable `provider/id` choices.
-- `runtime.SelectModel(...)` to resolve the selected item against the OAuth-filtered runtime model list.
-- `runtime.SwitchContextForModel(ctx, model)` before the next request to transform provider-specific transcript state for the newly selected model.
-- `runtime.StreamOptions()` to pass the refreshed Copilot API key to `goai.Stream` / `goai.Complete`.
+## Compatibility/versioning
 
-The lower-level `goai.ModelPickerItems`, `goai.ParseModelRef`, `goai.FindModelByRef`, and `goai.SwitchModel` helpers are available for non-OAuth providers and custom UI state. See `examples/copilot` for a complete CLI-shaped flow with OAuth callbacks, model selection, model switching, and streaming.
+The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.85.0. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
 
-```go
-package main
+Release audits update `RELEASE.md`, the generated catalogs, and the per-release manifests in `docs/`. Tags should be treated as upstream-aligned checkpoints rather than a promise that every upstream runtime surface exists unchanged in Go.
 
-import (
-    "context"
-    "log"
+## Upstream and attribution
 
-    goai "github.com/rcarmo/go-ai"
-    _ "github.com/rcarmo/go-ai/inference/provider/githubcopilot"
-    "github.com/rcarmo/go-ai/oauth"
-)
-
-func runWithStoredCopilotCredentials(stored *oauth.Credentials) error {
-    runtime, err := oauth.RuntimeForGitHubCopilot(stored)
-    if err != nil {
-        return err
-    }
-    // Persist runtime.Credentials if it was refreshed.
-
-    model, err := runtime.SelectModel("github-copilot/gpt-5.4")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    ctx := &goai.Context{Messages: []goai.Message{goai.UserMessage("Say hello")}}
-    ctx = runtime.SwitchContextForModel(ctx, model)
-    events := goai.Stream(context.Background(), model, ctx, runtime.StreamOptions())
-    for event := range events {
-        if errEvent, ok := event.(*goai.ErrorEvent); ok {
-            return errEvent.Err
-        }
-    }
-    return nil
-}
-```
-
-## Compatibility with pi-ai
-
-Types are designed to be JSON-serialization-compatible with pi-ai's TypeScript types. A `Context` serialized in Go can be deserialized in TypeScript and vice versa, enabling:
-
-- Cross-language agent hand-off
-- Shared conversation logs
-- Mixed Go/TypeScript tool pipelines
-
-## Environment variables
-
-API keys are resolved in order: explicit option → model config → environment variable.
-
-## Retries
-
-Retries are opt-in per request. By default, providers do not retry.
-
-```go
-opts := &goai.StreamOptions{
-    RetryConfig: &goai.RetryConfig{
-        MaxRetries:        2,
-        InitialDelay:      500 * time.Millisecond,
-        MaxDelay:          5 * time.Second,
-        BackoffMultiplier: 2.0,
-    },
-}
-```
-
-Providers using HTTP now honor `RetryConfig` directly. `MaxRetryDelayMs` remains as a legacy shorthand.
-
-## Notes
-
-- Import the provider that matches `model.Api`, not just `model.Provider`.
-  For example, built-in `gpt-4o-mini` currently uses `openai-responses`, so import `inference/provider/openairesponses`.
-- `CompactContext()` is simple tail truncation. If you need summaries or tool-pair preservation, build a custom compactor in your harness.
-
-| Provider | Environment Variable |
-|---|---|
-| OpenAI | `OPENAI_API_KEY` |
-| Anthropic | `ANTHROPIC_API_KEY` |
-| Google | `GEMINI_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
-| xAI | `XAI_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Xiaomi MiMo | `XIAOMI_API_KEY` |
-| Xiaomi Token Plan CN/AMS/SGP | `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY` |
+This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai), part of the [earendil-works/pi](https://github.com/earendil-works/pi/tree/main/packages/ai) project, originally created by [Mario Zechner](https://mariozechner.at). The TypeScript API design, event protocol, provider implementations, model registry, and OAuth flows originate upstream. This port adapts them idiomatically for Go. All credit for the original design goes to Mario and the upstream contributors.
 
 ## License
 
-MIT
+MIT.
