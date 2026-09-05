@@ -159,7 +159,7 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 ## Supply-chain metadata
 
-The accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has a validated CycloneDX SBOM published as immutable release assets:
+The accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
 
 * [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json)
 * [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256)

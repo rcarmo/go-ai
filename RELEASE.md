@@ -58,7 +58,7 @@ Current local evidence captured during the v0.85.0 audit:
 
 ## Durable SBOM release assets
 
-Accepted runtime `90d17907b2ce26ffe5f46cd061edc8209e357bed` has README-visible immutable SBOM links for tag `upstream-v0.85.0`:
+Accepted runtime `90d17907b2ce26ffe5f46cd061edc8209e357bed` has README-visible durable, version-pinned SBOM links for tag `upstream-v0.85.0`:
 
 - `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json`
 - `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256`
