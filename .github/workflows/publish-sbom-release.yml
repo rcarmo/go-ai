@@ -1,0 +1,127 @@
+name: Publish SBOM release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag used to publish durable SBOM assets
+        required: true
+        default: upstream-v0.85.0
+      runtime_ref:
+        description: Full accepted runtime commit SHA to check out and publish SBOM for
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-sbom:
+    name: Publish accepted runtime SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate dispatch inputs
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RUNTIME_REF: ${{ inputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RUNTIME_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "runtime_ref must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          if [[ -z "$RELEASE_TAG" || "$RELEASE_TAG" == -* || "$RELEASE_TAG" == */* || "$RELEASE_TAG" == *..* ]]; then
+            echo "release_tag must be a non-empty simple tag name" >&2
+            exit 1
+          fi
+
+      - name: Checkout accepted runtime
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.runtime_ref }}
+          fetch-depth: 0
+
+      - name: Verify checked-out runtime ref
+        shell: bash
+        env:
+          RUNTIME_REF: ${{ inputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          actual_ref="$(git rev-parse HEAD)"
+          expected_ref="$(printf '%s' "$RUNTIME_REF" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$actual_ref" != "$expected_ref" ]]; then
+            echo "checked out $actual_ref, expected $expected_ref" >&2
+            exit 1
+          fi
+          printf '%s\n' "runtime_full_ref=$actual_ref" >> "$GITHUB_ENV"
+          printf '%s\n' "runtime_short_ref=${actual_ref:0:12}" >> "$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Run SBOM, security, and license gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          make sbom-check vuln-check license-check GO_TMPDIR=/tmp
+
+      - name: Verify generated SBOM provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-sbom.py artifacts/sbom.cdx.json artifacts/sbom.cdx.json.sha256 --expected-revision "$runtime_short_ref"
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          sbom = pathlib.Path("artifacts/sbom.cdx.json")
+          data = json.loads(sbom.read_text(encoding="utf-8"))
+          component = data.get("metadata", {}).get("component", {})
+          version = component.get("version")
+          expected = os.environ["runtime_short_ref"]
+          if version != expected:
+              print(f"SBOM root version {version!r}, expected {expected!r}", file=sys.stderr)
+              raise SystemExit(1)
+          purl = component.get("purl", "")
+          if "github.com/rcarmo/go-ai" not in purl:
+              print(f"SBOM root purl {purl!r} does not identify go-ai", file=sys.stderr)
+              raise SystemExit(1)
+          print(f"SBOM provenance matches runtime {os.environ['runtime_full_ref']}")
+          PY
+
+      - name: Normalize release asset names
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp artifacts/sbom.cdx.json dist/sbom.cdx.json
+          sha256sum dist/sbom.cdx.json | sed 's#  dist/sbom.cdx.json#  sbom.cdx.json#' > dist/sbom.cdx.json.sha256
+          (cd dist && sha256sum -c sbom.cdx.json.sha256)
+
+      - name: Create or update SBOM release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          title='SBOM for @earendil-works/pi-ai v0.85.0'
+          notes="CycloneDX JSON SBOM for github.com/rcarmo/go-ai accepted runtime ${runtime_full_ref} (tracking @earendil-works/pi-ai v0.85.0). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+            if [[ "$tag_commit" != "$runtime_full_ref" ]]; then
+              echo "release tag $RELEASE_TAG points to $tag_commit, expected $runtime_full_ref" >&2
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" --title "$title" --notes "$notes"
+          else
+            gh release create "$RELEASE_TAG" --title "$title" --notes "$notes" --target "$runtime_full_ref"
+          fi
+          gh release upload "$RELEASE_TAG" dist/sbom.cdx.json dist/sbom.cdx.json.sha256 --clobber

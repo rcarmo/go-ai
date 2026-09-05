@@ -56,9 +56,14 @@ Current local evidence captured during the v0.85.0 audit:
 - Deliberate text catalog fault gate: corrupted `models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
 - Deliberate image catalog fault gate: corrupted `images/models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
 
-Pending before completion:
+## Durable SBOM release assets
 
-- Auditor final acceptance and optional queued README-only normalization. Runtime SHA/CI/SBOM and rollback baseline are recorded; final docs SHA is this `[skip ci]` evidence commit once pushed.
+Accepted runtime `90d17907b2ce26ffe5f46cd061edc8209e357bed` has README-visible immutable SBOM links for tag `upstream-v0.85.0`:
+
+- `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json`
+- `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256`
+
+Manual workflow `.github/workflows/publish-sbom-release.yml` publishes those assets from an operator-supplied full `runtime_ref`. It checks out that exact runtime commit, runs the existing SBOM/security/license gates, validates SBOM provenance, normalizes release asset names under `dist/`, and creates or updates the `upstream-v0.85.0` release with `--clobber` uploads.
 
 ## Release documentation policy
 

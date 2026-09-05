@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
+[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![go-ai](docs/icon-256.png)
@@ -155,6 +156,15 @@ Release audits update `RELEASE.md`, the generated catalogs, and the per-release 
 ## Upstream and attribution
 
 This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.com/package/@earendil-works/pi-ai), part of the [earendil-works/pi](https://github.com/earendil-works/pi/tree/main/packages/ai) project, originally created by [Mario Zechner](https://mariozechner.at). The TypeScript API design, event protocol, provider implementations, model registry, and OAuth flows originate upstream. This port adapts them idiomatically for Go. All credit for the original design goes to Mario and the upstream contributors.
+
+## Supply-chain metadata
+
+The accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has a validated CycloneDX SBOM published as immutable release assets:
+
+* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json)
+* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256)
+
+The SBOM is generated and checked by `make sbom-check`, then can be republished through the manual `publish-sbom-release.yml` workflow against that accepted runtime ref.
 
 ## License
 
