@@ -49,24 +49,38 @@ jobs:
           fi
           printf '%s\n' "upstream_version=$UPSTREAM_VERSION" >> "$GITHUB_ENV"
 
+      - name: Checkout workflow tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+          fetch-depth: 1
+
       - name: Checkout accepted runtime
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.runtime_ref }}
+          path: runtime
           fetch-depth: 0
 
-      - name: Verify checked-out runtime ref
+      - name: Verify checked-out refs and tooling split
         shell: bash
         env:
           RUNTIME_REF: ${{ inputs.runtime_ref }}
         run: |
           set -euo pipefail
-          actual_ref="$(git rev-parse HEAD)"
-          expected_ref="$(printf '%s' "$RUNTIME_REF" | tr '[:upper:]' '[:lower:]')"
-          if [[ "$actual_ref" != "$expected_ref" ]]; then
-            echo "checked out $actual_ref, expected $expected_ref" >&2
+          tooling_ref="$(git -C tooling rev-parse HEAD)"
+          if [[ "$tooling_ref" != "$GITHUB_SHA" ]]; then
+            echo "tooling checkout $tooling_ref, expected workflow SHA $GITHUB_SHA" >&2
             exit 1
           fi
+          actual_ref="$(git -C runtime rev-parse HEAD)"
+          expected_ref="$(printf '%s' "$RUNTIME_REF" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$actual_ref" != "$expected_ref" ]]; then
+            echo "runtime checkout $actual_ref, expected $expected_ref" >&2
+            exit 1
+          fi
+          printf '%s\n' "tooling_full_ref=$tooling_ref" >> "$GITHUB_ENV"
           printf '%s\n' "runtime_full_ref=$actual_ref" >> "$GITHUB_ENV"
           printf '%s\n' "runtime_short_ref=${actual_ref:0:12}" >> "$GITHUB_ENV"
 
@@ -75,51 +89,70 @@ jobs:
         with:
           go-version: '1.24.x'
           cache: true
+          cache-dependency-path: runtime/go.sum
 
-      - name: Run SBOM, security, and license gates
+      - name: Generate SBOM from runtime and run security/license gates
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          make sbom vuln-check license-check GO_TMPDIR=/tmp
+
+      - name: Normalize and validate SBOM with workflow tooling
         shell: bash
         run: |
           set -euo pipefail
-          make sbom-check vuln-check license-check GO_TMPDIR=/tmp
-
-      - name: Verify generated SBOM provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/validate-sbom.py artifacts/sbom.cdx.json artifacts/sbom.cdx.json.sha256 --expected-revision "$runtime_short_ref"
+          echo "runtime checkout: $runtime_full_ref"
+          echo "tooling checkout: $tooling_full_ref"
+          python3 tooling/scripts/normalize-sbom.py runtime/artifacts/sbom.cdx.json "$runtime_short_ref"
+          sha256sum runtime/artifacts/sbom.cdx.json > runtime/artifacts/sbom.cdx.json.sha256
+          sed -i 's#  runtime/artifacts/sbom.cdx.json#  artifacts/sbom.cdx.json#' runtime/artifacts/sbom.cdx.json.sha256
+          python3 tooling/scripts/validate-sbom.py runtime/artifacts/sbom.cdx.json runtime/artifacts/sbom.cdx.json.sha256 --expected-revision "$runtime_short_ref"
+          python3 tooling/scripts/test-validate-sbom.py
           python3 - <<'PY'
           import json
           import os
           import pathlib
           import sys
 
-          sbom = pathlib.Path("artifacts/sbom.cdx.json")
+          sbom = pathlib.Path("runtime/artifacts/sbom.cdx.json")
           data = json.loads(sbom.read_text(encoding="utf-8"))
           component = data.get("metadata", {}).get("component", {})
-          version = component.get("version")
           expected = os.environ["runtime_short_ref"]
-          if version != expected:
-              print(f"SBOM root version {version!r}, expected {expected!r}", file=sys.stderr)
+          fields = {
+              "version": component.get("version"),
+              "purl": component.get("purl"),
+              "bom-ref": component.get("bom-ref"),
+          }
+          if fields["version"] != expected:
+              print(f"SBOM root version {fields['version']!r}, expected {expected!r}", file=sys.stderr)
               raise SystemExit(1)
-          purl = component.get("purl", "")
-          if "github.com/rcarmo/go-ai" not in purl:
-              print(f"SBOM root purl {purl!r} does not identify go-ai", file=sys.stderr)
+          for name in ("purl", "bom-ref"):
+              value = fields[name]
+              if not isinstance(value, str) or f"github.com/rcarmo/go-ai@{expected}" not in value:
+                  print(f"SBOM root {name} {value!r} does not identify go-ai@{expected}", file=sys.stderr)
+                  raise SystemExit(1)
+          root_ref = fields["bom-ref"]
+          root_deps = [dep for dep in data.get("dependencies", []) if isinstance(dep, dict) and "github.com/rcarmo/go-ai" in str(dep.get("ref", ""))]
+          if len(root_deps) != 1 or root_deps[0].get("ref") != root_ref:
+              print(f"root dependency refs {root_deps!r} do not match {root_ref!r}", file=sys.stderr)
               raise SystemExit(1)
-          print(f"SBOM provenance matches runtime {os.environ['runtime_full_ref']}")
+          print(f"SBOM provenance matches runtime {os.environ['runtime_full_ref']} using tooling {os.environ['tooling_full_ref']}")
           PY
 
       - name: Normalize release asset names
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf dist
-          mkdir -p dist
-          cp artifacts/sbom.cdx.json dist/sbom.cdx.json
-          sha256sum dist/sbom.cdx.json | sed 's#  dist/sbom.cdx.json#  sbom.cdx.json#' > dist/sbom.cdx.json.sha256
-          (cd dist && sha256sum -c sbom.cdx.json.sha256)
+          rm -rf runtime/dist
+          mkdir -p runtime/dist
+          cp runtime/artifacts/sbom.cdx.json runtime/dist/sbom.cdx.json
+          sha256sum runtime/dist/sbom.cdx.json | sed 's#  runtime/dist/sbom.cdx.json#  sbom.cdx.json#' > runtime/dist/sbom.cdx.json.sha256
+          (cd runtime/dist && sha256sum -c sbom.cdx.json.sha256)
 
       - name: Create or update SBOM release
         shell: bash
+        working-directory: runtime
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
