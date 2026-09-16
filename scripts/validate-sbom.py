@@ -26,6 +26,19 @@ def component_name(component: dict[str, Any]) -> str | None:
     return name if isinstance(name, str) else None
 
 
+def purl_version(value: str, root_module: str = ROOT_MODULE) -> str | None:
+    if root_module not in value:
+        return None
+    base = value.split("?", 1)[0]
+    if "@" not in base:
+        return None
+    return base.rsplit("@", 1)[1]
+
+
+def root_ref_matches_revision(ref: str, expected_revision: str) -> bool:
+    return ROOT_MODULE in ref and purl_version(ref) == expected_revision
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sbom", type=pathlib.Path)
@@ -65,8 +78,11 @@ def main(argv: list[str]) -> int:
     if component.get("type") not in {"application", "library"}:
         return fail(f"unexpected root component type {component.get('type')!r}")
     root_ref = component.get("bom-ref")
-    if not isinstance(root_ref, str) or ROOT_MODULE not in root_ref:
-        return fail(f"unexpected root component bom-ref {root_ref!r}")
+    if not isinstance(root_ref, str) or not root_ref_matches_revision(root_ref, args.expected_revision):
+        return fail(f"unexpected root component bom-ref {root_ref!r}; want {ROOT_MODULE}@{args.expected_revision}")
+    root_purl = component.get("purl")
+    if not isinstance(root_purl, str) or not root_ref_matches_revision(root_purl, args.expected_revision):
+        return fail(f"unexpected root component purl {root_purl!r}; want {ROOT_MODULE}@{args.expected_revision}")
     components = data.get("components")
     if not isinstance(components, list) or not components:
         return fail("empty components list")
@@ -77,12 +93,19 @@ def main(argv: list[str]) -> int:
     deps = data.get("dependencies")
     if not isinstance(deps, list) or not deps:
         return fail("empty dependency graph")
-    root_dep = next((dep for dep in deps if isinstance(dep, dict) and dep.get("ref") == root_ref), None)
+    root_deps = [dep for dep in deps if isinstance(dep, dict) and isinstance(dep.get("ref"), str) and ROOT_MODULE in dep["ref"]]
+    stale_root_deps = [dep.get("ref") for dep in root_deps if dep.get("ref") != root_ref]
+    if stale_root_deps:
+        return fail("stale root dependency refs: " + ", ".join(stale_root_deps))
+    root_dep = next((dep for dep in root_deps if dep.get("ref") == root_ref), None)
     if root_dep is None:
         return fail(f"missing root dependency graph ref {root_ref!r}")
     depends_on = root_dep.get("dependsOn")
     if not isinstance(depends_on, list) or not depends_on:
         return fail("root dependency graph has empty dependsOn")
+    for ref in depends_on:
+        if isinstance(ref, str) and ROOT_MODULE in ref and ref != root_ref:
+            return fail(f"root dependency graph contains stale root ref {ref!r}")
     for required in sorted(REQUIRED_DEPENDENCIES):
         if not any(isinstance(ref, str) and required in ref for ref in depends_on):
             return fail(f"root dependency graph missing dependency ref for {required}")

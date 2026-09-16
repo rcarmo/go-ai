@@ -12,7 +12,8 @@ from copy import deepcopy
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "scripts" / "validate-sbom.py"
 REVISION = "abc123def456"
-ROOT_REF = "pkg:golang/github.com/rcarmo/go-ai@v0.0.0?type=module"
+ROOT_REF = f"pkg:golang/github.com/rcarmo/go-ai@{REVISION}?type=module"
+ROOT_PURL = f"pkg:golang/github.com/rcarmo/go-ai@{REVISION}?goarch=amd64&goos=linux&type=module"
 
 
 def write_case(base: pathlib.Path, data: dict, *, checksum: bool = True) -> tuple[pathlib.Path, pathlib.Path]:
@@ -37,6 +38,7 @@ def valid_doc() -> dict:
                 "name": "github.com/rcarmo/go-ai",
                 "version": REVISION,
                 "bom-ref": ROOT_REF,
+                "purl": ROOT_PURL,
             }
         },
         "components": [
@@ -112,6 +114,22 @@ def main() -> int:
     missing_root_ref = deepcopy(valid_doc())
     missing_root_ref["dependencies"] = [{"ref": "pkg:golang/example.com/other@v0.0.0", "dependsOn": []}]
     expect_fail("missing root dependency ref", missing_root_ref)
+
+    stale_bom_ref = deepcopy(valid_doc())
+    stale_bom_ref["metadata"]["component"]["bom-ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
+    expect_fail("stale root bom-ref revision", stale_bom_ref)
+
+    stale_purl = deepcopy(valid_doc())
+    stale_purl["metadata"]["component"]["purl"] = "pkg:golang/github.com/rcarmo/go-ai@stale?goarch=amd64&goos=linux&type=module"
+    expect_fail("stale root purl revision", stale_purl)
+
+    stale_dep_ref = deepcopy(valid_doc())
+    stale_dep_ref["dependencies"][0]["ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
+    expect_fail("stale root dependency ref revision", stale_dep_ref)
+
+    stale_dep_depends_on = deepcopy(valid_doc())
+    stale_dep_depends_on["dependencies"][0]["dependsOn"].append("pkg:golang/github.com/rcarmo/go-ai@stale?type=module")
+    expect_fail("stale root dependsOn ref revision", stale_dep_depends_on)
 
     print("SBOM validator self-tests passed")
     return 0
