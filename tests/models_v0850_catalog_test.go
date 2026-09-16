@@ -19,8 +19,8 @@ func TestV0850CatalogCountsAndGrokRemoval(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1336 || len(providers) != 39 || len(apis) != 9 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want 1336/39/9", len(models), len(providers), len(apis))
+	if len(models) != 1354 || len(providers) != 39 || len(apis) != 9 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want 1354/39/9", len(models), len(providers), len(apis))
 	}
 	if got := goai.GetModel(goai.ProviderXAI, "grok-4"); got != nil {
 		t.Fatalf("xai/grok-4 should be removed in v0.85.0, got %#v", got)
@@ -50,10 +50,15 @@ func TestV0850CatalogHeadlineDeltas(t *testing.T) {
 	}
 }
 
-func TestV0850ImageCatalogUnchanged(t *testing.T) {
+func TestV0851ImageCatalogAddsMAIImageModels(t *testing.T) {
 	goaiimages.ClearImageModels()
 	goaiimages.RegisterBuiltinImageModels()
-	if got := len(goaiimages.ListImageModels(goaiimages.ImagesProviderOpenRouter)); got != 50 {
-		t.Fatalf("image model count=%d, want unchanged 50", got)
+	if got := len(goaiimages.ListImageModels(goaiimages.ImagesProviderOpenRouter)); got != 52 {
+		t.Fatalf("image model count=%d, want 52", got)
+	}
+	for _, id := range []string{"microsoft/mai-image-2.6", "microsoft/mai-image-2.6-flash"} {
+		if model := goaiimages.GetImageModel(goaiimages.ImagesProviderOpenRouter, id); model == nil {
+			t.Fatalf("expected v0.85.1 image model %s", id)
+		}
 	}
 }

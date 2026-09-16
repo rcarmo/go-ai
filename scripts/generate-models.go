@@ -172,10 +172,19 @@ func (c *chatTemplateKwarg) UnmarshalJSON(data []byte) error {
 }
 
 type costEntry struct {
-	Input      float64 `json:"input"`
-	Output     float64 `json:"output"`
-	CacheRead  float64 `json:"cacheRead"`
-	CacheWrite float64 `json:"cacheWrite"`
+	Input      float64         `json:"input"`
+	Output     float64         `json:"output"`
+	CacheRead  float64         `json:"cacheRead"`
+	CacheWrite float64         `json:"cacheWrite"`
+	Tiers      []costTierEntry `json:"tiers"`
+}
+
+type costTierEntry struct {
+	InputTokensAbove int     `json:"inputTokensAbove"`
+	Input            float64 `json:"input"`
+	Output           float64 `json:"output"`
+	CacheRead        float64 `json:"cacheRead"`
+	CacheWrite       float64 `json:"cacheWrite"`
 }
 
 func inlineModularModels(inputPath, js string) string {
@@ -399,8 +408,16 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 				b.WriteString("},\n")
 			}
 			b.WriteString(fmt.Sprintf("\t\tInput:         %s,\n", inputArr))
-			b.WriteString(fmt.Sprintf("\t\tCost:          ModelCost{Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v},\n",
+			b.WriteString(fmt.Sprintf("\t\tCost:          ModelCost{Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v",
 				m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite))
+			if len(m.Cost.Tiers) > 0 {
+				b.WriteString(", Tiers: []ModelCostTier{")
+				for _, tier := range m.Cost.Tiers {
+					b.WriteString(fmt.Sprintf("{InputTokensAbove: %d, Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v}, ", tier.InputTokensAbove, tier.Input, tier.Output, tier.CacheRead, tier.CacheWrite))
+				}
+				b.WriteString("}")
+			}
+			b.WriteString("},\n")
 			b.WriteString(fmt.Sprintf("\t\tContextWindow: %d,\n", m.ContextWindow))
 			b.WriteString(fmt.Sprintf("\t\tMaxTokens:     %d,\n", m.MaxTokens))
 			writeMapField(&b, "SamplingParams", m.SamplingParams)

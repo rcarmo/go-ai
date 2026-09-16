@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (50 image models, 1 provider)
+// Source: image-models.generated.ts (52 image models, 1 provider)
 
 package images
 
@@ -202,6 +202,26 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"text", "image"},
 		Output:   []string{"image"},
 		Cost:     goai.ModelCost{Input: 5, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "microsoft/mai-image-2.6",
+		Name:     "Microsoft: MAI-Image-2.6",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 5, Output: 0, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "microsoft/mai-image-2.6-flash",
+		Name:     "Microsoft: MAI-Image-2.6 Flash",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 1.75, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "openai/gpt-5-image",

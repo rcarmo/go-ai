@@ -1,0 +1,3 @@
+packages/ai/test/cache-retention.test.ts
+packages/ai/test/max-thinking.test.ts
+packages/ai/test/supports-xhigh.test.ts

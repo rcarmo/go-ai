@@ -20,8 +20,8 @@ func TestV0844CatalogCountsAndProviderAPIs(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1336 || len(providers) != 39 || len(apis) != 9 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1336/39/9", len(models), len(providers), len(apis))
+	if len(models) != 1354 || len(providers) != 39 || len(apis) != 9 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1354/39/9", len(models), len(providers), len(apis))
 	}
 }
 
@@ -75,10 +75,10 @@ func TestV0844ZAIAndDeepSeekCatalogDeltas(t *testing.T) {
 func TestV0844ImageCatalogAddsMuseAndRecraftV4Models(t *testing.T) {
 	goaiimages.RegisterBuiltinImageModels()
 	models := goaiimages.ListImageModels(goaiimages.ImagesProviderOpenRouter)
-	if len(models) != 50 {
-		t.Fatalf("image model count=%d, want 50", len(models))
+	if len(models) != 52 {
+		t.Fatalf("image model count=%d, want 52", len(models))
 	}
-	for _, id := range []string{"meta/muse-image", "recraft/recraft-v4", "recraft/recraft-v4-vector"} {
+	for _, id := range []string{"meta/muse-image", "recraft/recraft-v4", "recraft/recraft-v4-vector", "microsoft/mai-image-2.6", "microsoft/mai-image-2.6-flash"} {
 		if model := goaiimages.GetImageModel(goaiimages.ImagesProviderOpenRouter, id); model == nil {
 			t.Fatalf("missing image model %s", id)
 		}

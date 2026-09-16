@@ -5,65 +5,51 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 ## Current audited upstream release
 
 - Package: `@earendil-works/pi-ai`
-- Release/tag: `v0.85.0`
-- Upstream tag/SHA: `107d79f11072bbc8a3a757ed7fd69596bee7d68c`
-- Previous accepted upstream baseline: `v0.84.4` / `b79e4cc834970cca69daebffab7df1da7d1e52c4`
-- Previous accepted Go baseline before this audit: `abd95ba55b58b3986961b03fcc5c014d6d775c0c`
-- Exact upstream checkout: `/workspace/tmp/pi-mono-audit`
-- Official npm artifact: `/workspace/tmp/pi-ai-0850/pi-ai-0.85.0.tgz`
-- Official npm artifact SHA-256: `46188bdacb555a07466a0111f3963f20932a16199e4d6cfb8d44a7fe5fc6e342`
-- Detailed path matrix: `docs/v0850-release-ledger.md`
-- Whole-corpus upstream test crosswalk: `docs/v0850-142-test-manifest.md`
+- Release/tag: `v0.85.1`
+- Upstream tag/SHA: `d981de1229ef899957bbe968bc8dcda02a21f477`
+- Previous accepted upstream baseline: `v0.85.0` / `107d79f11072bbc8a3a757ed7fd69596bee7d68c`
+- Previous accepted Go runtime baseline before this audit: `90d17907b2ce26ffe5f46cd061edc8209e357bed`
+- Current repository baseline before this audit: `dfdb68e4e734d730f89e34a4b77f098d68cd8b74`
+- Official npm artifact: `/workspace/tmp/pi-ai-0851/earendil-works-pi-ai-0.85.1.tgz`
+- Official npm artifact SHA-256: `af7d11986179445ce6fe88b37d57de22f823c0ffd3a65cae31c555b7f5e99253`
+- Official npm raw SHA-512: `f958152090e40ced9e7d824a104aaf3d31f8ce69c8697740a6919b3bebca140f6acb93dd8458807a7b8502453ea220927ce0b874c1c3cab8dd41e2f86680b909`
+- Detailed path matrix: `docs/v0851-release-ledger.md`
+- Whole-corpus upstream test crosswalk: `docs/v0851-142-test-manifest.md`
 
 ## Scope evidence
 
-- Canonical changed-path command: `git diff --name-status b79e4cc834970cca69daebffab7df1da7d1e52c4 107d79f11072bbc8a3a757ed7fd69596bee7d68c -- packages/ai`
-- Changed paths: `51` canonical rows, committed at `docs/v0850/changed-paths.txt`, SHA-256 `db461a56838926cf60d4ae0196ed98fcc215616dacff013ad8c235bb8ad9b83f`.
-- Changed tests: `29` rows, committed at `docs/v0850/changed-tests.txt`, SHA-256 `0b58c13688745fd74837bcefb868d2f5064649dcb4c57a5e134e08be0fd9d711`.
-- Whole upstream test corpus: `142` rows, committed at `docs/v0850/test-corpus-142.txt`, SHA-256 `56f8742065a4ad01d73e5aee53035324f2e7333a735222ab15db870819e29065`.
+- Changed paths: `9` canonical rows, committed at `docs/v0851/changed-paths.txt`, SHA-256 `ee26f669d92dc77b265731165a2ff69ccb67defba92517cbbd5f97a186e187d2`.
+- Changed tests: `3` rows, committed at `docs/v0851/changed-tests.txt`, SHA-256 `f7e274bf229c90fc22ba22384c5b89f71a5c6801f77067d099525a9cdc537610`.
+- Whole upstream test corpus: `142` rows, committed at `docs/v0851/test-corpus-142.txt`, SHA-256 `56f8742065a4ad01d73e5aee53035324f2e7333a735222ab15db870819e29065`.
+- Source delta: 9 files, `+128/-23`.
 
 ## Current Go implementation/adaptation summary
 
-Implemented or adapted for v0.85.0:
+Implemented or adapted for v0.85.1:
 
-- Exact generated text catalog refresh to `1336` models across `39` providers.
-- Exact image catalog regeneration/comparator retained through `scripts/check-model-regeneration.sh`.
-- `OpenAICompletionsCompat.VLLMPriority` plus OpenAI chat `priority` serialization.
-- `OpenAIResponsesCompat.SupportsMaxOutputTokens` plus `max_output_tokens` omission when explicitly unsupported.
-- `Message.ProviderThinkingLevel` and `AnthropicMessagesCompat.SupportsMidConvoEffort`.
-- Anthropic managed mid-conversation effort markers, active/default effort, result thinking-level persistence, managed beta headers, `block_binding.drop_block`, temperature omission, and beta override behavior.
-- Strict `AssistantMessageFrame` encoder/reducer for compact stream frame serialization/reconstruction: duplicate start/terminal/order/kind/index errors, queued-delta prefix trimming, tool JSON checkpoint/resume, interleaving, authoritative end metadata/arguments, deep clone/purity, unknown-frame rejection, and pre-generation error omission.
-- Optional timestamp input for `UUIDv7(timestampMs ...int64)`, preserving explicit supplied timestamps regardless of prior ordinary monotonic state.
-- v0.85.0 `NO_PROXY`/`no_proxy` matching, including root/subdomain and bracketed IPv6 normalization, in the retry transport proxy path.
-- Codex terminal SSE event without trailing blank line covered through the Go SSE parser and Codex regression test.
-- Cloudflare AI binding auth sentinel and early fetch-adapter validation. JavaScript Workers `env.AI.fetch` is documented as adapted because Go has no native Workers FetchFunction runtime.
-- `pre-generation-error.test.ts` is channel-adapted and executable: `tests/v0850_pre_generation_error_test.go` proves applicable Go providers emit pre-dispatch `ErrorEvent`s before any HTTP request instead of JavaScript construction-time throws.
+- Responses explicit prompt-cache retention: explicit-cache models now emit `prompt_cache_options:{mode:"explicit"}` for `none` and `prompt_cache_options:{ttl:"30m"}` for supported `long`, while avoiding legacy `prompt_cache_retention`; older compatible models retain `prompt_cache_retention:"24h"`.
+- Exact generated text catalog refresh to `1354` models across `39` providers and `9` APIs.
+- Exact generated image catalog refresh to `52` image models, adding MAI Image 2.6 and MAI Image 2.6 Flash.
+- GPT-6 Astra generated metadata/compat across direct OpenAI, Azure OpenAI, OpenAI Codex, and generated provider wrappers, including context/max tokens, text+image input, costs, long-context tier where present, tool search/additional tools, explicit prompt-cache compat, and xhigh/max thinking support.
+- Generator support for `ModelCost.Tiers` emission.
+- v0.85.1 committed inventory, whole-corpus manifest, full-record catalog delta validator, and model-regeneration negative self-test.
 
-N/A/adapted decisions and exact per-test evidence are in `docs/v0850-142-test-manifest.md` and `docs/v0850-release-ledger.md`.
+Historical v0.85.0 runtime/SBOM/README evidence remains in `docs/v0850-release-ledger.md` and the git history; README/SBOM release publication remains blocked until this runtime is accepted.
 
 ## Validation evidence
 
-Current local evidence captured during the v0.85.0 audit:
+Current local evidence captured so far during the v0.85.1 audit:
 
-- `go test ./inference/provider/anthropic ./inference/provider/openai ./inference/provider/openairesponses ./inference/provider/openaicodex ./tests` — passed.
-- `go test ./...` — passed.
-- `PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0850/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-mono-audit/packages/ai/src/providers` — `upstream pairs: 1336`, `generated pairs: 1336`, exact match.
-- `TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneration.sh` — text metadata comparator passed; image model regeneration comparator passed.
-- `python3 scripts/validate-v0850-inventory.py` and `--self-test` — committed 51/29/142 inventory counts/hashes validated; deliberate inventory corruption fails as expected.
-- `python3 scripts/validate-v0850-catalog-delta.py` and `--self-test` — committed full-record text delta `+72/-26/79` and image delta `+0/-0/0` validated; baseline/current non-ID metadata corruption fails as expected.
-- `python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md` — manifest validation passed against committed `docs/v0850/test-corpus-142.txt`.
-- Candidate `fcd8270faee46a2eead7ef13e054f96704791ff4` and CI run `33890620670` are superseded/rejected. Candidates `c2d5d318c4e3052502c784255b856e1a7a12914b` / CI `33893048444` and `dc523a42ca530bbcb3cf0300e8f80808914a39d2` / CI `33894031330` are superseded by the final frame wire-fidelity correction. Start-whitelist local gates passed: `make check`, shuffle, race, vet, staticcheck, logging, repro, SBOM, vuln, and license. Start-whitelist clean-checkout validation passed with `go test ./...`, committed inventory validation/self-test, catalog delta validation/self-test, 142-row manifest validation, model/image regeneration comparators, and `git diff --check`. Runtime candidate `90d17907b2ce26ffe5f46cd061edc8209e357bed` passed hosted CI run `33896825268` (https://github.com/rcarmo/go-ai/actions/runs/33896825268). CI SBOM artifact `go-ai-sbom-90d17907b2ce26ffe5f46cd061edc8209e357bed` validates with 18 components, SHA-256 `d3e136db95d303c4b281a3097d1b956726802283a59cf822259860304d181b5c`, revision `90d17907b2ce`.
-- Deliberate text catalog fault gate: corrupted `models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
-- Deliberate image catalog fault gate: corrupted `images/models_generated.go`; `./scripts/check-model-regeneration.sh` failed as expected; restored exact file; clean comparator passed.
+- Focused Responses cache-retention tests — passed.
+- Focused GPT-6 Astra/catalog/thinking tests — passed.
+- v0.85.1 inventory validator and negative self-test — passed.
+- v0.85.1 full-record catalog delta validator and negative self-test — passed (`text +20/-2/18`, `images +2/-0/0`).
+- Model regeneration comparator and generated-source negative self-test — passed.
+- Full local gates passed: `make check`, shuffle, race, vet, staticcheck, logging, repro, SBOM, vuln, and license. Clean-checkout validation passed with `go test ./...`, v0.85.1 inventory/catalog/manifest validators and self-tests, model-regeneration negative self-test, exact regeneration comparators, and `git diff --check`. Final runtime SHA, hosted CI, and SHA-linked SBOM are pending.
 
 ## Durable SBOM release assets
 
-Accepted runtime `90d17907b2ce26ffe5f46cd061edc8209e357bed` has README-visible durable, version-pinned SBOM links for tag `upstream-v0.85.0`:
-
-- `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json`
-- `https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256`
-
-Manual workflow `.github/workflows/publish-sbom-release.yml` publishes those assets from an operator-supplied full `runtime_ref`. It checks out that exact runtime commit, runs the existing SBOM/security/license gates, validates SBOM provenance, normalizes release asset names under `dist/`, and creates or updates the `upstream-v0.85.0` release with `--clobber` uploads.
+The previous accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has README-visible durable, version-pinned SBOM links for tag `upstream-v0.85.0`. Do not update README counts, badges, or release tags for v0.85.1 until auditor acceptance.
 
 ## Release documentation policy
 

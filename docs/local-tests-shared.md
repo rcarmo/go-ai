@@ -1,68 +1,35 @@
 # Local tests shared evidence
 
-Current release audit target: `@earendil-works/pi-ai` `v0.85.0` / upstream SHA `107d79f11072bbc8a3a757ed7fd69596bee7d68c`.
+Current release audit target: `@earendil-works/pi-ai` `v0.85.1` / upstream SHA `d981de1229ef899957bbe968bc8dcda02a21f477`.
 
-## v0.85.0 current gate evidence
+## v0.85.1 current focused evidence
 
 ```text
-go test ./inference/provider/anthropic ./inference/provider/openai ./inference/provider/openairesponses ./inference/provider/openaicodex ./tests
+go test ./inference/provider/openairesponses -run TestV0851Responses -count=1
 # passed
 
-go test ./...
+go test ./tests -run 'Test(RegisterBuiltinModels|V0850CatalogCounts|V0851|SupportsXHighIncludesGPT6)' -count=1
 # passed
 
-make check
-# passed after explicit UUID timestamp preservation, frame wire persistence, final frame wire-fidelity, presence/decode, and start whitelist fixes
+python3 scripts/validate-v0851-inventory.py
+python3 scripts/validate-v0851-inventory.py --self-test
+# 9 changed paths, 3 changed tests, 142 corpus counts/hashes validate; deliberate corruption fails
 
-TMPDIR=/workspace/tmp go test -shuffle=on ./...
-TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1
-go vet ./...
-make staticcheck
-make check-logging
-make test-repro
-make sbom-check
-make vuln-check
-make license-check
-# all passed
+python3 scripts/validate-v0851-catalog-delta.py
+python3 scripts/validate-v0851-catalog-delta.py --self-test
+text full-record delta: +20/-2/18
+images full-record delta: +2/-0/0
+# baseline/current non-ID metadata corruption fails
 
-PI_AI_MODEL_DATA_DIR=/workspace/tmp/pi-ai-0850/package/dist/providers/data python3 scripts/compare-upstream-models.py /workspace/tmp/pi-mono-audit/packages/ai/src/providers
-upstream pairs: 1336
-generated pairs: 1336
-model provider/id pairs match exactly
+python3 scripts/test-check-model-regeneration.py
+# generated text and image comparator non-ID metadata corruption fails
 
 TMPDIR=/workspace/tmp GO_TMPDIR=/workspace/tmp ./scripts/check-model-regeneration.sh
 model regeneration metadata comparator passed
 image model regeneration comparator passed
-
-python3 scripts/validate-v0850-inventory.py
-python3 scripts/validate-v0850-inventory.py --self-test
-# committed 51/29/142 inventory counts/hashes validate; deliberate corruption fails
-
-python3 scripts/validate-v0850-catalog-delta.py
-python3 scripts/validate-v0850-catalog-delta.py --self-test
-text full-record delta: +72/-26/79
-images full-record delta: +0/-0/0
-# baseline/current non-ID metadata corruption fails
-
-python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md
-manifest rows: 142
-unique paths: 142
-expected paths: 142
-manifest validation passed
 ```
 
-Deliberate fault gates: text catalog corruption and image catalog corruption both made `./scripts/check-model-regeneration.sh` fail as expected; exact files were restored and the clean comparator passed.
-
-## v0.85.0 focused coverage additions
-
-- Anthropic managed effort and binding controls: `inference/provider/anthropic/v0850_mid_conversation_effort_test.go`, `inference/provider/anthropic/v0850_beta_override_test.go`.
-- Assistant stream frame codec: `assistant_message_frame.go`, `tests/assistant_message_frame_v0850_test.go`.
-- Cloudflare AI binding sentinel/adaptation: `cloudflare_ai_binding.go`, `tests/cloudflare_ai_binding_v0850_test.go`.
-- Codex terminal SSE final-frame flush: `inference/provider/openaicodex/v0850_terminal_sse_test.go`.
-- OpenAI vLLM priority: `inference/provider/openai/v0850_vllm_priority_test.go`.
-- OpenAI Responses max-output-token compat: `inference/provider/openairesponses/v0850_max_output_tokens_test.go`.
-- UUID optional timestamp and NO_PROXY matching: `tests/v0850_uuid_proxy_test.go`.
-- Catalog deltas: `tests/models_v0850_catalog_test.go` and exact generator/comparator checks.
+Full local gates passed: `make check`, shuffle, race, vet, staticcheck, logging, repro, SBOM, vuln, and license. Clean-checkout validation passed with v0.85.1 inventory/catalog/manifest validators and model-regeneration self-test.
 
 ---
 

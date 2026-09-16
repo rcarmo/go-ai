@@ -129,3 +129,19 @@ func TestSupportsXHighIncludesXHighAndMaxButNotOffForBedrockClaudeFable5(t *test
 	assertThinkingContains(t, model, "max")
 	assertThinkingNotContains(t, model, "off")
 }
+
+func TestSupportsXHighIncludesGPT6AstraFullThinkingRange(t *testing.T) {
+	for _, tc := range []struct {
+		provider goai.Provider
+		id       string
+	}{
+		{goai.ProviderOpenAI, "gpt-6-astra"},
+		{goai.ProviderAzureOpenAI, "gpt-6-astra"},
+		{goai.ProviderOpenRouter, "openai/gpt-6-astra"},
+	} {
+		t.Run(string(tc.provider)+"/"+tc.id, func(t *testing.T) {
+			assertThinkingLevels(t, requireModelForThinking(t, tc.provider, tc.id), []string{"low", "medium", "high", "xhigh", "max"})
+		})
+	}
+	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenAICodex, "gpt-6-astra"), []string{"minimal", "low", "medium", "high", "xhigh", "max"})
+}

@@ -1,4 +1,4 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-v0850-inventory check-v0850-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -94,7 +94,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-model-regeneration sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
+check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
 
 check-v0850-inventory: ## Validate committed v0.85.0 release inventories and negative self-test
 	python3 scripts/validate-v0850-inventory.py
@@ -104,6 +104,18 @@ check-v0850-inventory: ## Validate committed v0.85.0 release inventories and neg
 check-v0850-catalog-delta: ## Validate exact full-record v0.84.4->v0.85.0 catalog deltas and negative self-test
 	python3 scripts/validate-v0850-catalog-delta.py
 	python3 scripts/validate-v0850-catalog-delta.py --self-test
+
+check-model-regeneration-self-test: ## Prove text/image generation comparators fail on non-ID metadata drift
+	python3 scripts/test-check-model-regeneration.py
+
+check-v0851-inventory: ## Validate committed v0.85.1 release inventories and negative self-test
+	python3 scripts/validate-v0851-inventory.py
+	python3 scripts/validate-v0851-inventory.py --self-test
+	python3 scripts/validate-test-manifest.py docs/v0851-142-test-manifest.md docs/v0851/test-corpus-142.txt
+
+check-v0851-catalog-delta: ## Validate exact full-record v0.85.0->v0.85.1 catalog deltas and negative self-test
+	python3 scripts/validate-v0851-catalog-delta.py
+	python3 scripts/validate-v0851-catalog-delta.py --self-test
 
 # =============================================================================
 # Reproducible verification targets

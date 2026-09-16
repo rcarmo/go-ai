@@ -190,6 +190,7 @@ type responsesRequest struct {
 	Include              []string               `json:"include,omitempty"`
 	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
+	PromptCacheOptions   map[string]interface{} `json:"prompt_cache_options,omitempty"`
 	ServiceTier          string                 `json:"service_tier,omitempty"`
 	ToolChoice           string                 `json:"tool_choice,omitempty"`
 	SamplingParams       map[string]interface{} `json:"-"`
@@ -508,8 +509,16 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
 		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
-	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention {
+	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode {
 		req.PromptCacheRetention = "24h"
+	}
+	if compat.supportsExplicitPromptCacheMode {
+		switch {
+		case cacheRetention == goai.CacheRetentionNone:
+			req.PromptCacheOptions = map[string]interface{}{"mode": "explicit"}
+		case cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention:
+			req.PromptCacheOptions = map[string]interface{}{"ttl": "30m"}
+		}
 	}
 	if opts != nil {
 		if opts.ServiceTier != "" {
@@ -524,13 +533,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 }
 
 type responsesCompat struct {
-	sessionAffinityFormat      string
-	supportsLongCacheRetention bool
-	supportsAdditionalTools    bool
-	supportsToolSearch         bool
-	supportsStrictMode         bool
-	supportsGrammarTools       bool
-	supportsMaxOutputTokens    bool
+	sessionAffinityFormat           string
+	supportsLongCacheRetention      bool
+	supportsAdditionalTools         bool
+	supportsToolSearch              bool
+	supportsStrictMode              bool
+	supportsGrammarTools            bool
+	supportsExplicitPromptCacheMode bool
+	supportsMaxOutputTokens         bool
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
@@ -570,6 +580,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		}
 		if model.ResponsesCompat.SupportsToolSearch != nil {
 			c.supportsToolSearch = *model.ResponsesCompat.SupportsToolSearch
+		}
+		if model.ResponsesCompat.SupportsExplicitPromptCacheMode != nil {
+			c.supportsExplicitPromptCacheMode = *model.ResponsesCompat.SupportsExplicitPromptCacheMode
 		}
 		if model.ResponsesCompat.SupportsMaxOutputTokens != nil {
 			c.supportsMaxOutputTokens = *model.ResponsesCompat.SupportsMaxOutputTokens

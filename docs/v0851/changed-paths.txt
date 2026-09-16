@@ -1,0 +1,9 @@
+packages/ai/CHANGELOG.md
+packages/ai/package.json
+packages/ai/scripts/generate-models.ts
+packages/ai/src/api/openai-responses.ts
+packages/ai/src/image-models.generated.ts
+packages/ai/src/types.ts
+packages/ai/test/cache-retention.test.ts
+packages/ai/test/max-thinking.test.ts
+packages/ai/test/supports-xhigh.test.ts

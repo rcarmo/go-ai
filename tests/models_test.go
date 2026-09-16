@@ -14,14 +14,14 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	// Check we have the current official upstream release catalog scope.
 	providers := goai.ListProviders()
 	if len(providers) != 39 {
-		t.Fatalf("expected exactly 39 providers from pi-ai v0.85.0 tag 107d79f, got %d", len(providers))
+		t.Fatalf("expected exactly 39 providers from pi-ai v0.85.1 tag d981de, got %d", len(providers))
 	}
 	total := 0
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1336 {
-		t.Fatalf("expected exactly 1336 generated models from pi-ai v0.85.0 tag 107d79f, got %d", total)
+	if total != 1354 {
+		t.Fatalf("expected exactly 1354 generated models from pi-ai v0.85.1 tag d981de, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
