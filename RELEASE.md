@@ -34,7 +34,7 @@ Implemented or adapted for v0.85.1:
 - Generator support for `ModelCost.Tiers` emission.
 - v0.85.1 committed inventory, whole-corpus manifest, full-record catalog delta validator, and model-regeneration negative self-test.
 
-Historical v0.85.0 runtime/SBOM/README evidence remains in `docs/v0850-release-ledger.md` and the git history; README/SBOM release publication remains blocked until this runtime is accepted.
+Historical v0.85.0 runtime/SBOM/README evidence remains in `docs/v0850-release-ledger.md` and the git history; v0.85.1 README/SBOM release publication is authorized post-runtime.
 
 ## Validation evidence
 
@@ -49,7 +49,7 @@ Current local evidence captured so far during the v0.85.1 audit:
 
 ## Durable SBOM release assets
 
-The previous accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has README-visible durable, version-pinned SBOM links for tag `upstream-v0.85.0`. Do not update README counts, badges, or release tags for v0.85.1 until auditor acceptance.
+Accepted runtime `9c32e1d77bb01bac4574c6ecf260ce07bac9a351` has README-visible durable, version-pinned SBOM links for tag `upstream-v0.85.1`. The guarded manual publisher workflow publishes `sbom.cdx.json` and `sbom.cdx.json.sha256` for that exact runtime ref; v0.85.0 release assets remain unchanged.
 
 ## Release documentation policy
 

@@ -2,26 +2,26 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
-[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json)
+[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.1/sbom.cdx.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![go-ai](docs/icon-256.png)
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.85.0 audit embeds 1336 text/chat models across 39 providers, 9 text/chat API protocols, and 50 image models.
+> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.85.1 audit embeds 1354 text/chat models across 39 providers, 9 text/chat API protocols, and 52 image models.
 
 ## Documentation
 
 * [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) has the published API surface.
 * [Basic usage](docs/basic-usage.md), [model selection](docs/model-selection.md), [prompt/context handling](docs/prompts-and-context.md), [tool calling](docs/tool-calling.md), and [image handling](docs/image-handling.md) cover the common paths.
 * [Harness helpers](docs/HARNESS.md) describe the higher-level agent/session utilities.
-* [RELEASE.md](RELEASE.md) and [docs/v0850-release-ledger.md](docs/v0850-release-ledger.md) record the current upstream baseline, audit scope, and validation results.
+* [RELEASE.md](RELEASE.md) and [docs/v0851-release-ledger.md](docs/v0851-release-ledger.md) record the current upstream baseline, audit scope, and validation results.
 
 ## Features
 
 * One `Stream`/`Complete` entry point over the registered provider implementation, with channel-based text, thinking, and tool-call events.
-* A generated model registry for text/chat and image models, checked against the upstream v0.85.0 records rather than copied by hand.
+* A generated model registry for text/chat and image models, checked against the upstream v0.85.1 records rather than copied by hand.
 * JSON-compatible message, context, tool, usage, diagnostic, and stream-option types for cross-language transcript hand-off.
 * Tool calling with JSON Schema parameters, strict/constrained sampling helpers where providers expose them, and partial JSON parsing for streamed arguments.
 * Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
@@ -143,13 +143,13 @@ The generated catalog also includes provider metadata for OpenRouter, xAI, Groq,
 
 * This is a Go library, so JavaScript-only surfaces such as a Workers `env.AI.fetch` binding are adapted as Go interfaces and helpers rather than copied as runtime globals.
 * Provider SDK behaviour is not always byte-for-byte identical. Where Go uses its own HTTP transport or an official Go SDK, the request/stream semantics are tested against deterministic fixtures and recorded in the release ledger.
-* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with live-only gaps called out in `docs/v0850-142-test-manifest.md`.
+* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with live-only gaps called out in `docs/v0851-142-test-manifest.md`.
 * `CompactContext` is deliberately simple tail truncation. If you need semantic summaries or specialised transcript retention, add that in your agent layer.
 * The module is still pre-`v1`; compatibility is best read against the release ledger for the upstream version being tracked.
 
 ## Compatibility/versioning
 
-The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.85.0. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
+The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.85.1. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
 
 Release audits update `RELEASE.md`, the generated catalogs, and the per-release manifests in `docs/`. Tags should be treated as upstream-aligned checkpoints rather than a promise that every upstream runtime surface exists unchanged in Go.
 
@@ -159,10 +159,10 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 ## Supply-chain metadata
 
-The accepted v0.85.0 runtime (`90d17907b2ce26ffe5f46cd061edc8209e357bed`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
+The accepted v0.85.1 runtime (`9c32e1d77bb01bac4574c6ecf260ce07bac9a351`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
 
-* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json)
-* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.0/sbom.cdx.json.sha256)
+* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.1/sbom.cdx.json)
+* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.85.1/sbom.cdx.json.sha256)
 
 The SBOM is generated and checked by `make sbom-check`, then can be republished through the manual `publish-sbom-release.yml` workflow against that accepted runtime ref.
 
