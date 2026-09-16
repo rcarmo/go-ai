@@ -6,7 +6,11 @@ on:
       release_tag:
         description: Release tag used to publish durable SBOM assets
         required: true
-        default: upstream-v0.85.0
+        default: upstream-v0.85.1
+      upstream_version:
+        description: Upstream @earendil-works/pi-ai version for release title/notes (for example v0.85.1)
+        required: true
+        default: v0.85.1
       runtime_ref:
         description: Full accepted runtime commit SHA to check out and publish SBOM for
         required: true
@@ -23,6 +27,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
+          UPSTREAM_VERSION: ${{ inputs.upstream_version }}
           RUNTIME_REF: ${{ inputs.runtime_ref }}
         run: |
           set -euo pipefail
@@ -34,6 +39,15 @@ jobs:
             echo "release_tag must be a non-empty simple tag name" >&2
             exit 1
           fi
+          if [[ ! "$UPSTREAM_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "upstream_version must match vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" != "upstream-$UPSTREAM_VERSION" ]]; then
+            echo "release_tag $RELEASE_TAG must equal upstream-$UPSTREAM_VERSION" >&2
+            exit 1
+          fi
+          printf '%s\n' "upstream_version=$UPSTREAM_VERSION" >> "$GITHUB_ENV"
 
       - name: Checkout accepted runtime
         uses: actions/checkout@v4
@@ -111,8 +125,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          title='SBOM for @earendil-works/pi-ai v0.85.0'
-          notes="CycloneDX JSON SBOM for github.com/rcarmo/go-ai accepted runtime ${runtime_full_ref} (tracking @earendil-works/pi-ai v0.85.0). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
+          title="SBOM for @earendil-works/pi-ai ${upstream_version}"
+          notes="CycloneDX JSON SBOM for github.com/rcarmo/go-ai accepted runtime ${runtime_full_ref} (tracking @earendil-works/pi-ai ${upstream_version}). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
             tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"

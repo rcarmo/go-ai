@@ -45,7 +45,7 @@ Current local evidence captured so far during the v0.85.1 audit:
 - v0.85.1 inventory validator and negative self-test — passed.
 - v0.85.1 full-record catalog delta validator and negative self-test — passed (`text +20/-2/18`, `images +2/-0/0`).
 - Model regeneration comparator and generated-source negative self-test — passed.
-- Full local gates passed: `make check`, shuffle, race, vet, staticcheck, logging, repro, SBOM, vuln, and license. Clean-checkout validation passed with `go test ./...`, v0.85.1 inventory/catalog/manifest validators and self-tests, model-regeneration negative self-test, exact regeneration comparators, and `git diff --check`. Final runtime SHA, hosted CI, and SHA-linked SBOM are pending.
+- Full local gates passed: `make check`, shuffle, race, vet, staticcheck, logging, repro, SBOM, vuln, and license. Clean-checkout validation passed with `go test ./...`, v0.85.1 inventory/catalog/manifest validators and self-tests, model-regeneration negative self-test, exact regeneration comparators, and `git diff --check`. Accepted runtime `9c32e1d77bb01bac4574c6ecf260ce07bac9a351` passed hosted CI `35154293042`; SBOM artifact `10470163191` validates with inner SBOM SHA-256 `7f551d8c93a67cf40e32bdd793d5b56c9e43c2b0fd6c55cad47e1bc2e0d063f3`, checksum-file SHA `723487ea76b0b8e244e2e2b510cd1ce43e36bbd9c90bfc6aeb661ca5d5004c93`, archive SHA `47ee0b0a9d947f525cd6f58b9aa05ac8d1fecbc54406a7d1b82a40ad4622f7e4`, and root version `9c32e1d77bb0`.
 
 ## Durable SBOM release assets
 
