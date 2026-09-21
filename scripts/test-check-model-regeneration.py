@@ -45,7 +45,7 @@ def main() -> int:
         copy_repo(image_repo)
         replace_once(text_repo / "models_generated.go", "Name:             \"GPT-6 Astra\"", "Name:             \"GPT-6 Astra Corrupt\"")
         run_check(text_repo, "text non-ID metadata")
-        replace_once(image_repo / "images" / "models_generated.go", "Name:     \"Microsoft: MAI-Image-2.6\"", "Name:     \"Microsoft: MAI-Image-2.6 Corrupt\"")
+        replace_once(image_repo / "images" / "models_generated.go", "Name:     \"Microsoft AI: MAI-Image-2.6\"", "Name:     \"Microsoft AI: MAI-Image-2.6 Corrupt\"")
         run_check(image_repo, "image non-ID metadata")
     print("model regeneration negative self-test passed")
     return 0
