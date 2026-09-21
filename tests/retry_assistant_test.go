@@ -35,6 +35,12 @@ func TestRetryAssistantErrorClassifiesAssistantErrorMessages(t *testing.T) {
 	if !goai.IsRetryableAssistantError(retryMessage("Error: exceeded request buffer limit while retrying upstream")) {
 		t.Fatal("upstream request-buffer exhaustion should be retryable")
 	}
+	if !goai.IsRetryableAssistantError(retryMessage("currently experiencing high demand")) {
+		t.Fatal("v0.87 high-demand provider error should be retryable")
+	}
+	if !goai.IsRetryableAssistantError(retryMessage("HTTP 520 from provider edge")) {
+		t.Fatal("v0.87 HTTP 520 provider error should be retryable")
+	}
 	if goai.IsRetryableAssistantError(&goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop}) {
 		t.Fatal("non-error assistant message should not be retryable")
 	}

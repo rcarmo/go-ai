@@ -25,6 +25,7 @@ var providerEnvMap = map[Provider][]string{
 	ProviderOpenCode:                {"OPENCODE_API_KEY"},
 	ProviderOpenCodeGo:              {"OPENCODE_API_KEY"},
 	ProviderKimiCoding:              {"KIMI_API_KEY"},
+	ProviderMeta:                    {"META_API_KEY"},
 	ProviderDeepSeek:                {"DEEPSEEK_API_KEY"},
 	ProviderMoonshotAI:              {"MOONSHOT_API_KEY"},
 	ProviderMoonshotAICN:            {"MOONSHOT_API_KEY"},

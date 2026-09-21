@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (52 image models, 1 provider)
+// Source: image-models.generated.ts (54 image models, 1 provider)
 
 package images
 
@@ -185,7 +185,7 @@ var builtinImageModels = []ImagesModel{
 	},
 	{
 		ID:       "microsoft/mai-image-2.5",
-		Name:     "Microsoft: MAI-Image-2.5",
+		Name:     "Microsoft AI: MAI-Image-2.5",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
@@ -195,7 +195,7 @@ var builtinImageModels = []ImagesModel{
 	},
 	{
 		ID:       "microsoft/mai-image-2.5-pro",
-		Name:     "Microsoft: MAI-Image-2.5 Pro",
+		Name:     "Microsoft AI: MAI-Image-2.5 Pro",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
@@ -205,7 +205,7 @@ var builtinImageModels = []ImagesModel{
 	},
 	{
 		ID:       "microsoft/mai-image-2.6",
-		Name:     "Microsoft: MAI-Image-2.6",
+		Name:     "Microsoft AI: MAI-Image-2.6",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
@@ -215,7 +215,7 @@ var builtinImageModels = []ImagesModel{
 	},
 	{
 		ID:       "microsoft/mai-image-2.6-flash",
-		Name:     "Microsoft: MAI-Image-2.6 Flash",
+		Name:     "Microsoft AI: MAI-Image-2.6 Flash",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",
@@ -276,6 +276,26 @@ var builtinImageModels = []ImagesModel{
 	{
 		ID:       "openai/gpt-image-2",
 		Name:     "OpenAI: GPT Image 2",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 8, Output: 8, CacheRead: 2, CacheWrite: 0},
+	},
+	{
+		ID:       "openai/gpt-image-2.5-flare",
+		Name:     "OpenAI: GPT Image 2.5 Flare",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text", "image"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 8, Output: 8, CacheRead: 2, CacheWrite: 0},
+	},
+	{
+		ID:       "openai/gpt-image-2.5-sunburst",
+		Name:     "OpenAI: GPT Image 2.5 Sunburst",
 		Api:      ImagesApi("openrouter-images"),
 		Provider: ImagesProvider("openrouter"),
 		BaseURL:  "https://openrouter.ai/api/v1",

@@ -27,7 +27,7 @@ func TestV0843ZAICodingPlanModels(t *testing.T) {
 			t.Fatalf("unexpected CN ZAI coding model: %#v", model)
 		}
 	}
-	for _, id := range []string{"glm-4.6v", "glm-4.7", "glm-5-turbo", "glm-5.1", "glm-5.2", "glm-5.2-highspeed", "glm-5.3", "glm-5v-turbo"} {
+	for _, id := range []string{"glm-4.6v", "glm-5.3", "glm-5.3-flash", "glm-5.3-highspeed"} {
 		if !cn[id] {
 			t.Fatalf("zai-coding-cn should include %s", id)
 		}

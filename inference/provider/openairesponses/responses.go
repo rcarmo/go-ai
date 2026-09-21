@@ -128,9 +128,9 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		if opts != nil {
-			goai.ApplyHeaders(req.Header, opts.Headers)
+			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 		}
-		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, goai.SessionIDFromOptions(opts), model.Headers))
 		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
@@ -411,6 +411,8 @@ func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {
+	compat := getResponsesCompat(model)
+	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
 	req := responsesRequest{
 		Model:          model.ID,
 		Stream:         true,
@@ -418,7 +420,6 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		SamplingParams: mergeSamplingParams(model, opts),
 	}
 
-	compat := getResponsesCompat(model)
 	if opts != nil {
 		req.Temperature = opts.Temperature
 		if compat.supportsMaxOutputTokens {
@@ -535,6 +536,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 type responsesCompat struct {
 	sessionAffinityFormat           string
 	supportsLongCacheRetention      bool
+	supportsMidConvoSystemMessages  bool
 	supportsAdditionalTools         bool
 	supportsToolSearch              bool
 	supportsStrictMode              bool
@@ -561,6 +563,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
+		if model.ResponsesCompat.SupportsMidConvoSystemMessages != nil {
+			c.supportsMidConvoSystemMessages = *model.ResponsesCompat.SupportsMidConvoSystemMessages
+		}
 		if model.ResponsesCompat.SupportsAdditionalTools != nil {
 			c.supportsAdditionalTools = *model.ResponsesCompat.SupportsAdditionalTools
 		}
@@ -615,6 +620,18 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 
 	for msgIndex, msg := range transformed {
 		switch msg.Role {
+		case goai.RoleSystem:
+			role := "developer"
+			if !model.Reasoning {
+				role = "system"
+			}
+			if text := goai.RenderSystemMessageText(msg); strings.TrimSpace(text) != "" {
+				input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
+			}
+			if len(msg.ToolsAdded) > 0 {
+				input = append(input, buildDeferredToolsInputItems(msgIndex, msg, msg.ToolsAdded, deferredMode, compat)...)
+			}
+
 		case goai.RoleUser:
 			content := buildUserContent(msg)
 			if len(content) > 0 {

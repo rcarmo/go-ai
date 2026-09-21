@@ -48,7 +48,10 @@ def upstream_pairs(providers_dir: pathlib.Path) -> set[tuple[str, str]]:
 
 def generated_pairs(generated_go: pathlib.Path) -> set[tuple[str, str]]:
     text = generated_go.read_text(encoding="utf-8")
-    pattern = re.compile(r'ID:\s*"([^"]+)".*?Provider:\s*"([^"]+)"', re.S)
+    # Match only top-level generated Model literal fields. v0.87 records can
+    # contain nested Providers: []ModelProviderInfo{{ID: ...}}, so an unanchored
+    # ID/Provider regex would accidentally treat routing-provider IDs as model IDs.
+    pattern = re.compile(r'(?ms)^\t\{\n\t\tID:\s*"([^"]+)".*?^\t\tProvider:\s*"([^"]+)"')
     return {(provider, model_id) for model_id, provider in pattern.findall(text)}
 
 

@@ -55,6 +55,7 @@ const (
 	ProviderTogether                Provider = "together"
 	ProviderOpenCodeGo              Provider = "opencode-go"
 	ProviderKimiCoding              Provider = "kimi-coding"
+	ProviderMeta                    Provider = "meta"
 	ProviderDeepSeek                Provider = "deepseek"
 	ProviderCloudflareWorkersAI     Provider = "cloudflare-workers-ai"
 	ProviderCloudflareAIGateway     Provider = "cloudflare-ai-gateway"
@@ -96,6 +97,7 @@ const (
 type Role string
 
 const (
+	RoleSystem     Role = "system"
 	RoleUser       Role = "user"
 	RoleAssistant  Role = "assistant"
 	RoleToolResult Role = "toolResult"
@@ -299,6 +301,11 @@ type Message struct {
 	ErrorMessage          string                       `json:"errorMessage,omitempty"`
 	EndTurn               *bool                        `json:"endTurn,omitempty"`
 
+	// System-only fields for transcript updates.
+	Sections     map[string]*string `json:"sections,omitempty"`
+	ToolsAdded   []Tool             `json:"toolsAdded,omitempty"`
+	ToolsRemoved []ToolReference    `json:"toolsRemoved,omitempty"`
+
 	// ToolResult-only fields
 	ToolCallID     string   `json:"toolCallId,omitempty"`
 	ToolName       string   `json:"toolName,omitempty"`
@@ -335,6 +342,11 @@ type ToolConstrainedSampling struct {
 	Variants map[string]string `json:"variants,omitempty"`
 }
 
+// ToolReference identifies a transcript-level tool removal.
+type ToolReference struct {
+	Name string `json:"name"`
+}
+
 // --- Context ---
 
 // Context holds the conversation state passed to stream/complete.
@@ -364,6 +376,36 @@ type ModelCostTier struct {
 	CacheWrite       float64 `json:"cacheWrite"`
 }
 
+type ModelImageResizeOptions struct {
+	MaxWidth    int `json:"maxWidth,omitempty"`
+	MaxHeight   int `json:"maxHeight,omitempty"`
+	MaxBytes    int `json:"maxBytes,omitempty"`
+	JPEGQuality int `json:"jpegQuality,omitempty"`
+}
+
+type ModelImageInputLimits struct {
+	Resize        *ModelImageResizeOptions `json:"resize,omitempty"`
+	MaxPerMessage int                      `json:"maxPerMessage,omitempty"`
+	MaxPerRequest int                      `json:"maxPerRequest,omitempty"`
+}
+
+type ModelInputLimits struct {
+	MaxRequestBytes int                    `json:"maxRequestBytes,omitempty"`
+	Images          *ModelImageInputLimits `json:"images,omitempty"`
+}
+
+type ModelPromptCache struct {
+	Short int `json:"short,omitempty"`
+	Long  int `json:"long,omitempty"`
+}
+
+type ModelProviderInfo struct {
+	ID         string `json:"id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Credential string `json:"credential,omitempty"`
+	Source     string `json:"source,omitempty"`
+}
+
 // Model identifies a specific LLM endpoint.
 type Model struct {
 	ID               string                         `json:"id"`
@@ -374,6 +416,11 @@ type Model struct {
 	Reasoning        bool                           `json:"reasoning"`
 	ThinkingLevelMap map[ModelThinkingLevel]*string `json:"thinkingLevelMap,omitempty"`
 	Input            []string                       `json:"input"` // "text", "image"
+	InputLimits      *ModelInputLimits              `json:"inputLimits,omitempty"`
+	PromptCache      *ModelPromptCache              `json:"promptCache,omitempty"`
+	Enabled          *bool                          `json:"enabled,omitempty"`
+	Lab              string                         `json:"lab,omitempty"`
+	Providers        []ModelProviderInfo            `json:"providers,omitempty"`
 	Cost             ModelCost                      `json:"cost"`
 	ContextWindow    int                            `json:"contextWindow"`
 	MaxTokens        int                            `json:"maxTokens"`
@@ -387,6 +434,7 @@ type Model struct {
 	CompletionsCompat *OpenAICompletionsCompat `json:"completionsCompat,omitempty"`
 	ResponsesCompat   *OpenAIResponsesCompat   `json:"responsesCompat,omitempty"`
 	AnthropicCompat   *AnthropicMessagesCompat `json:"anthropicCompat,omitempty"`
+	BedrockCompat     *BedrockCompat           `json:"bedrockCompat,omitempty"`
 }
 
 // --- Stream options ---

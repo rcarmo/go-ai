@@ -73,10 +73,10 @@ func TestBuiltinImageModels(t *testing.T) {
 		"qwen/qwen-image-3-pro",
 		"sourceful/riverflow-v2.5-pro",
 	}
-	if len(models) != 52 {
-		t.Fatalf("openrouter image model count = %d, want 52 from pi-ai v0.85.1", len(models))
+	if len(models) != 54 {
+		t.Fatalf("openrouter image model count = %d, want 54 from pi-ai v0.87.0", len(models))
 	}
-	wantIDs = append(wantIDs, "meta/muse-image", "recraft/recraft-v4", "recraft/recraft-v4-vector", "microsoft/mai-image-2.6", "microsoft/mai-image-2.6-flash")
+	wantIDs = append(wantIDs, "meta/muse-image", "recraft/recraft-v4", "recraft/recraft-v4-vector", "microsoft/mai-image-2.6", "microsoft/mai-image-2.6-flash", "openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst")
 	for _, id := range wantIDs {
 		if got := images.GetImageModel(images.ImagesProviderOpenRouter, id); got == nil {
 			t.Fatalf("missing pi-ai v0.84.4 image model %q", id)

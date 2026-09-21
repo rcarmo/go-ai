@@ -20,8 +20,8 @@ func TestV0844CatalogCountsAndProviderAPIs(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1354 || len(providers) != 39 || len(apis) != 9 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1354/39/9", len(models), len(providers), len(apis))
+	if len(models) != 1445 || len(providers) != 41 || len(apis) != 10 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1445/41/10", len(models), len(providers), len(apis))
 	}
 }
 
@@ -66,17 +66,16 @@ func TestV0844ZAIAndDeepSeekCatalogDeltas(t *testing.T) {
 	if zai.CompletionsCompat == nil || zai.CompletionsCompat.ThinkingFormat != "zai" || zai.CompletionsCompat.ZaiToolStream == nil || !*zai.CompletionsCompat.ZaiToolStream {
 		t.Fatalf("glm-5.3 compat=%#v", zai.CompletionsCompat)
 	}
-	vision := requireModel(t, goai.ProviderDeepSeek, "deepseek-v4-flash-vision-exp")
-	if vision.Api != goai.ApiOpenAICompletions || !reflect.DeepEqual(vision.Input, []string{"text", "image"}) || !vision.Reasoning {
-		t.Fatalf("deepseek vision metadata=%#v", vision)
+	if got := goai.GetModel(goai.ProviderDeepSeek, "deepseek-v4-flash-vision-exp"); got != nil {
+		t.Fatalf("retired DeepSeek vision exp model still registered: %#v", got)
 	}
 }
 
 func TestV0844ImageCatalogAddsMuseAndRecraftV4Models(t *testing.T) {
 	goaiimages.RegisterBuiltinImageModels()
 	models := goaiimages.ListImageModels(goaiimages.ImagesProviderOpenRouter)
-	if len(models) != 52 {
-		t.Fatalf("image model count=%d, want 52", len(models))
+	if len(models) != 54 {
+		t.Fatalf("image model count=%d, want 54", len(models))
 	}
 	for _, id := range []string{"meta/muse-image", "recraft/recraft-v4", "recraft/recraft-v4-vector", "microsoft/mai-image-2.6", "microsoft/mai-image-2.6-flash"} {
 		if model := goaiimages.GetImageModel(goaiimages.ImagesProviderOpenRouter, id); model == nil {

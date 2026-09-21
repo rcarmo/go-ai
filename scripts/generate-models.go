@@ -89,6 +89,11 @@ type modelEntry struct {
 	Reasoning        bool                   `json:"reasoning"`
 	ThinkingLevelMap map[string]*string     `json:"thinkingLevelMap"`
 	Input            []string               `json:"input"`
+	InputLimits      *inputLimitsEntry      `json:"inputLimits"`
+	PromptCache      *promptCacheEntry      `json:"promptCache"`
+	Enabled          *bool                  `json:"enabled"`
+	Lab              string                 `json:"lab"`
+	Providers        []providerInfoEntry    `json:"providers"`
 	Cost             costEntry              `json:"cost"`
 	ContextWindow    int                    `json:"contextWindow"`
 	MaxTokens        int                    `json:"maxTokens"`
@@ -136,6 +141,9 @@ type compatEntry struct {
 	SupportsExplicitPromptCacheMode             *bool                        `json:"supportsExplicitPromptCacheMode"`
 	SupportsMaxOutputTokens                     *bool                        `json:"supportsMaxOutputTokens"`
 	SupportsMidConvoEffort                      *bool                        `json:"supportsMidConvoEffort"`
+	SupportsMidConvoSystemMessages              *bool                        `json:"supportsMidConvoSystemMessages"`
+	SupportsMidConvoToolAdditions               *bool                        `json:"supportsMidConvoToolAdditions"`
+	SupportsMidConvoToolChanges                 *bool                        `json:"supportsMidConvoToolChanges"`
 }
 
 type allowedFallbackModel struct {
@@ -169,6 +177,36 @@ func (c *chatTemplateKwarg) UnmarshalJSON(data []byte) error {
 	}
 	c.Value = literal
 	return nil
+}
+
+type inputLimitsEntry struct {
+	MaxRequestBytes int                    `json:"maxRequestBytes"`
+	Images          *imageInputLimitsEntry `json:"images"`
+}
+
+type imageInputLimitsEntry struct {
+	Resize        *imageResizeEntry `json:"resize"`
+	MaxPerMessage int               `json:"maxPerMessage"`
+	MaxPerRequest int               `json:"maxPerRequest"`
+}
+
+type imageResizeEntry struct {
+	MaxWidth    int `json:"maxWidth"`
+	MaxHeight   int `json:"maxHeight"`
+	MaxBytes    int `json:"maxBytes"`
+	JPEGQuality int `json:"jpegQuality"`
+}
+
+type promptCacheEntry struct {
+	Short int `json:"short"`
+	Long  int `json:"long"`
+}
+
+type providerInfoEntry struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Credential string `json:"credential"`
+	Source     string `json:"source"`
 }
 
 type costEntry struct {
@@ -408,6 +446,13 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 				b.WriteString("},\n")
 			}
 			b.WriteString(fmt.Sprintf("\t\tInput:         %s,\n", inputArr))
+			writeInputLimitsField(&b, m.InputLimits)
+			writePromptCacheField(&b, m.PromptCache)
+			writeEnabledField(&b, m.Enabled)
+			if m.Lab != "" {
+				b.WriteString(fmt.Sprintf("\t\tLab:           %q,\n", m.Lab))
+			}
+			writeProvidersField(&b, m.Providers)
 			b.WriteString(fmt.Sprintf("\t\tCost:          ModelCost{Input: %v, Output: %v, CacheRead: %v, CacheWrite: %v",
 				m.Cost.Input, m.Cost.Output, m.Cost.CacheRead, m.Cost.CacheWrite))
 			if len(m.Cost.Tiers) > 0 {
@@ -459,6 +504,8 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeMapField(b, "VercelGatewayRouting", c.VercelGatewayRouting)
 		writeBoolField(b, "ZaiToolStream", c.ZaiToolStream)
 		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		writeBoolField(b, "SupportsMidConvoSystemMessages", c.SupportsMidConvoSystemMessages)
+		writeBoolField(b, "SupportsMidConvoToolAdditions", c.SupportsMidConvoToolAdditions)
 		writeBoolField(b, "SupportsOpenAIGrammarTools", c.SupportsOpenAIGrammarTools)
 		writeStringField(b, "CacheControlFormat", c.CacheControlFormat)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
@@ -468,9 +515,10 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeIntField(b, "VLLMPriority", c.VLLMPriority)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		b.WriteString("},\n")
-	case "openai-responses", "azure-openai-responses":
+	case "openai-responses", "azure-openai-responses", "openai-codex-responses":
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
+		writeBoolField(b, "SupportsMidConvoSystemMessages", c.SupportsMidConvoSystemMessages)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)
 		writeBoolField(b, "SupportsAdditionalTools", c.SupportsAdditionalTools)
 		writeBoolField(b, "SupportsToolSearch", c.SupportsToolSearch)
@@ -488,17 +536,84 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		writeBoolField(b, "ForceAdaptiveThinking", c.ForceAdaptiveThinking)
 		writeAllowedFallbackModelsField(b, c.AllowedFallbackModels)
 		writeBoolField(b, "SupportsMidConvoEffort", c.SupportsMidConvoEffort)
+		writeBoolField(b, "SupportsMidConvoSystemMessages", c.SupportsMidConvoSystemMessages)
+		writeBoolField(b, "SupportsMidConvoToolChanges", c.SupportsMidConvoToolChanges)
 		writeBoolField(b, "AllowEmptySignature", c.AllowEmptySignature)
 		writeBoolField(b, "SupportsStrictTools", c.SupportsStrictTools)
 		writeBoolField(b, "SupportsCacheControlOnTools", c.SupportsCacheControlOnTools)
 		writeBoolField(b, "SendSessionAffinityHeaders", c.SendSessionAffinityHeaders)
 		writeBoolField(b, "SupportsToolReferences", c.SupportsToolReferences)
 		b.WriteString("},\n")
+	case "bedrock-converse-stream":
+		b.WriteString("\t\tBedrockCompat: &BedrockCompat{")
+		writeBoolField(b, "SupportsStrictMode", c.SupportsStrictMode)
+		b.WriteString("},\n")
 	}
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+}
+
+func writeInputLimitsField(b *strings.Builder, value *inputLimitsEntry) {
+	if value == nil {
+		return
+	}
+	b.WriteString("\t\tInputLimits:  &ModelInputLimits{")
+	if value.MaxRequestBytes != 0 {
+		b.WriteString(fmt.Sprintf("MaxRequestBytes: %d, ", value.MaxRequestBytes))
+	}
+	if value.Images != nil {
+		b.WriteString("Images: &ModelImageInputLimits{")
+		if value.Images.Resize != nil {
+			b.WriteString(fmt.Sprintf("Resize: &ModelImageResizeOptions{MaxWidth: %d, MaxHeight: %d, MaxBytes: %d, JPEGQuality: %d}, ", value.Images.Resize.MaxWidth, value.Images.Resize.MaxHeight, value.Images.Resize.MaxBytes, value.Images.Resize.JPEGQuality))
+		}
+		if value.Images.MaxPerMessage != 0 {
+			b.WriteString(fmt.Sprintf("MaxPerMessage: %d, ", value.Images.MaxPerMessage))
+		}
+		if value.Images.MaxPerRequest != 0 {
+			b.WriteString(fmt.Sprintf("MaxPerRequest: %d, ", value.Images.MaxPerRequest))
+		}
+		b.WriteString("}, ")
+	}
+	b.WriteString("},\n")
+}
+
+func writePromptCacheField(b *strings.Builder, value *promptCacheEntry) {
+	if value == nil {
+		return
+	}
+	b.WriteString(fmt.Sprintf("\t\tPromptCache:  &ModelPromptCache{Short: %d, Long: %d},\n", value.Short, value.Long))
+}
+
+func writeEnabledField(b *strings.Builder, value *bool) {
+	if value != nil {
+		b.WriteString(fmt.Sprintf("\t\tEnabled:      boolPtr(%v),\n", *value))
+	}
+}
+
+func writeProvidersField(b *strings.Builder, values []providerInfoEntry) {
+	if len(values) == 0 {
+		return
+	}
+	b.WriteString("\t\tProviders:    []ModelProviderInfo{")
+	for _, value := range values {
+		b.WriteString("{")
+		if value.ID != "" {
+			b.WriteString(fmt.Sprintf("ID: %q, ", value.ID))
+		}
+		if value.Name != "" {
+			b.WriteString(fmt.Sprintf("Name: %q, ", value.Name))
+		}
+		if value.Credential != "" {
+			b.WriteString(fmt.Sprintf("Credential: %q, ", value.Credential))
+		}
+		if value.Source != "" {
+			b.WriteString(fmt.Sprintf("Source: %q, ", value.Source))
+		}
+		b.WriteString("}, ")
+	}
+	b.WriteString("},\n")
 }
 
 func writeBoolField(b *strings.Builder, name string, value *bool) {

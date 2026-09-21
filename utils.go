@@ -165,6 +165,28 @@ func PiUserAgent() string { return "pi (go)" }
 // PiUserAgentHeader returns a ProviderHeaders-style default User-Agent map.
 func PiUserAgentHeader() map[string]string { return map[string]string{"User-Agent": PiUserAgent()} }
 
+// WithOpenCodeSessionHeader returns headers with the v0.87 OpenCode session
+// header added when a session id is available and no caller/model header already
+// sets it (case-insensitively).
+func SessionIDFromOptions(opts *StreamOptions) string {
+	if opts == nil {
+		return ""
+	}
+	return opts.SessionID
+}
+
+func WithOpenCodeSessionHeader(provider Provider, sessionID string, headers map[string]string) map[string]string {
+	if provider != ProviderOpenCode && provider != ProviderOpenCodeGo || strings.TrimSpace(sessionID) == "" || HasNonEmptyHeader(headers, "x-opencode-session") {
+		return headers
+	}
+	out := map[string]string{}
+	for k, v := range headers {
+		out[k] = v
+	}
+	out["x-opencode-session"] = sessionID
+	return out
+}
+
 // ApplyHeaders applies header values to h.
 func ApplyHeaders(h http.Header, headers map[string]string) {
 	for k, v := range headers {

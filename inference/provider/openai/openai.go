@@ -116,9 +116,9 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 
 		// Apply custom headers
 		if opts != nil {
-			goai.ApplyHeaders(req.Header, opts.Headers)
+			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 		}
-		goai.ApplyDefaultHeaders(req.Header, model.Headers)
+		goai.ApplyDefaultHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, goai.SessionIDFromOptions(opts), model.Headers))
 		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
@@ -340,6 +340,7 @@ type toolCallFunction struct {
 func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) chatRequest {
 	// Detect compat flags from provider/base URL plus explicit model overrides.
 	compat := goai.DetectCompatForModel(model)
+	convCtx = goai.ResolveContext(convCtx, compat.SupportsMidConvoSystemMessages != nil && *compat.SupportsMidConvoSystemMessages)
 
 	req := chatRequest{
 		Model:          model.ID,
@@ -711,6 +712,18 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 		}
 
 		switch m.Role {
+		case goai.RoleSystem:
+			role := "system"
+			if model.Reasoning && compat.SupportsDeveloperRole != nil && *compat.SupportsDeveloperRole {
+				role = "developer"
+			}
+			if text := goai.RenderSystemMessageText(m); strings.TrimSpace(text) != "" {
+				msgs = append(msgs, chatMessage{Role: role, Content: goai.SanitizeSurrogates(text)})
+			}
+			if len(m.ToolsAdded) > 0 && compat.SupportsMidConvoToolAdditions != nil && *compat.SupportsMidConvoToolAdditions {
+				msgs = append(msgs, chatMessage{Role: "system", Tools: convertToolDefs(m.ToolsAdded, *compat, nil), OmitContent: true})
+			}
+
 		case goai.RoleUser:
 			// Check for image content
 			hasImages := false

@@ -337,6 +337,27 @@ func cloneModel(model *Model) *Model {
 	}
 	copy := *model
 	copy.Input = append([]string{}, model.Input...)
+	if model.InputLimits != nil {
+		limits := *model.InputLimits
+		if model.InputLimits.Images != nil {
+			images := *model.InputLimits.Images
+			if model.InputLimits.Images.Resize != nil {
+				resize := *model.InputLimits.Images.Resize
+				images.Resize = &resize
+			}
+			limits.Images = &images
+		}
+		copy.InputLimits = &limits
+	}
+	if model.PromptCache != nil {
+		promptCache := *model.PromptCache
+		copy.PromptCache = &promptCache
+	}
+	if model.Enabled != nil {
+		enabled := *model.Enabled
+		copy.Enabled = &enabled
+	}
+	copy.Providers = append([]ModelProviderInfo{}, model.Providers...)
 	if model.Headers != nil {
 		copy.Headers = map[string]string{}
 		for k, v := range model.Headers {

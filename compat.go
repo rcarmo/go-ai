@@ -84,8 +84,14 @@ type OpenAICompletionsCompat struct {
 	// Whether z.ai supports top-level `tool_stream: true` for streaming tool deltas.
 	ZaiToolStream *bool `json:"zaiToolStream,omitempty"`
 
-	// Whether the provider supports `strict` in tool definitions.
+	// Whether the provider supports `strict` in tool definitions. Default: false unless set by generated model metadata or provider detection.
 	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
+
+	// Whether a provider can preserve system/developer transcript updates after the initial prompt.
+	SupportsMidConvoSystemMessages *bool `json:"supportsMidConvoSystemMessages,omitempty"`
+
+	// Whether a provider can introduce transcript-anchored tool additions in chat-completions messages.
+	SupportsMidConvoToolAdditions *bool `json:"supportsMidConvoToolAdditions,omitempty"`
 
 	// Whether the provider supports OpenAI grammar custom tools.
 	SupportsOpenAIGrammarTools *bool `json:"supportsOpenAIGrammarTools,omitempty"`
@@ -120,10 +126,13 @@ type OpenAIResponsesCompat struct {
 	// Whether the provider supports long prompt cache retention ("24h"). Default: true.
 	SupportsLongCacheRetention *bool `json:"supportsLongCacheRetention,omitempty"`
 
+	// Whether a provider can preserve system/developer transcript updates after the initial prompt.
+	SupportsMidConvoSystemMessages *bool `json:"supportsMidConvoSystemMessages,omitempty"`
+
 	// Whether the provider supports message-anchored additional_tools input items.
 	SupportsAdditionalTools *bool `json:"supportsAdditionalTools,omitempty"`
 
-	// Whether the provider supports client-side deferred tool loading through tool_search_call/output.
+	// Whether the provider supports client-side tool search for transcript-anchored additions.
 	SupportsToolSearch *bool `json:"supportsToolSearch,omitempty"`
 
 	// Whether the provider supports OpenAI grammar custom tools.
@@ -142,9 +151,16 @@ type OpenAIResponsesCompat struct {
 	SupportsMaxOutputTokens *bool `json:"supportsMaxOutputTokens,omitempty"`
 }
 
+// BedrockCompat holds compatibility overrides for Bedrock Converse models.
+type BedrockCompat struct {
+	// Whether the provider supports strict JSON-schema function tools.
+	SupportsStrictMode *bool `json:"supportsStrictMode,omitempty"`
+}
+
 // AnthropicMessagesCompat holds compatibility overrides for Anthropic-compatible APIs.
 type AnthropicMessagesCompat struct {
 	// Whether the provider supports deferred tool definitions via tool_reference blocks.
+	// Deprecated upstream in v0.87.0; retained for older local callers/tests.
 	SupportsToolReferences *bool `json:"supportsToolReferences,omitempty"`
 
 	// Whether the provider accepts per-tool eager_input_streaming.
@@ -180,6 +196,12 @@ type AnthropicMessagesCompat struct {
 
 	// Whether the model supports Anthropic mid-conversation output_config effort markers.
 	SupportsMidConvoEffort *bool `json:"supportsMidConvoEffort,omitempty"`
+
+	// Whether a provider can preserve system-message transcript updates after the initial prompt.
+	SupportsMidConvoSystemMessages *bool `json:"supportsMidConvoSystemMessages,omitempty"`
+
+	// Whether the provider supports Anthropic native mid-conversation tool additions/removals.
+	SupportsMidConvoToolChanges *bool `json:"supportsMidConvoToolChanges,omitempty"`
 }
 
 // DetectCompat auto-detects compatibility flags from a base URL.
@@ -256,6 +278,12 @@ func DetectCompatForModel(model *Model) OpenAICompletionsCompat {
 	}
 	if o.SupportsStrictMode != nil {
 		c.SupportsStrictMode = o.SupportsStrictMode
+	}
+	if o.SupportsMidConvoSystemMessages != nil {
+		c.SupportsMidConvoSystemMessages = o.SupportsMidConvoSystemMessages
+	}
+	if o.SupportsMidConvoToolAdditions != nil {
+		c.SupportsMidConvoToolAdditions = o.SupportsMidConvoToolAdditions
 	}
 	if o.SupportsOpenAIGrammarTools != nil {
 		c.SupportsOpenAIGrammarTools = o.SupportsOpenAIGrammarTools
@@ -364,11 +392,11 @@ func detectCompat(provider Provider, modelID string, baseURL string) OpenAICompl
 		c.ThinkingFormat = "openai"
 	}
 
-	// supportsStrictMode
-	if isMoonshot || isTogether || isCloudflareAIGW || isNvidia {
-		c.SupportsStrictMode = &f
-	} else {
+	// supportsStrictMode defaults false in upstream v0.87 generated metadata.
+	if !(isMoonshot || isTogether || isCloudflareAIGW || isNvidia) && (provider == ProviderOpenAI || isOpenRouter || provider == ProviderGitHubCopilot) {
 		c.SupportsStrictMode = &t
+	} else {
+		c.SupportsStrictMode = &f
 	}
 
 	// supportsLongCacheRetention

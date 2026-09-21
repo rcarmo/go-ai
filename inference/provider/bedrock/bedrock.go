@@ -349,7 +349,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 	// Tools
 	if len(convCtx.Tools) > 0 {
 		toolConfig := &types.ToolConfiguration{}
-		supportsStrictMode := model != nil && model.ResponsesCompat != nil && model.ResponsesCompat.SupportsStrictMode != nil && *model.ResponsesCompat.SupportsStrictMode
+		supportsStrictMode := model != nil && model.BedrockCompat != nil && model.BedrockCompat.SupportsStrictMode != nil && *model.BedrockCompat.SupportsStrictMode
 		for _, t := range convCtx.Tools {
 			parameters := t.Parameters
 			if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil && *strict {

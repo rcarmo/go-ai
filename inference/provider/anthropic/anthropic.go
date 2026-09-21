@@ -52,6 +52,8 @@ type anthropicCompat struct {
 	supportsStrictTools             bool
 	forceAdaptiveThinking           bool
 	supportsMidConvoEffort          bool
+	supportsMidConvoSystemMessages  bool
+	supportsMidConvoToolChanges     bool
 	allowEmptySignature             bool
 	allowedFallbackModels           []goai.AnthropicAllowedFallbackModel
 }
@@ -80,6 +82,12 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 		}
 		if model.AnthropicCompat.SupportsMidConvoEffort != nil {
 			c.supportsMidConvoEffort = *model.AnthropicCompat.SupportsMidConvoEffort
+		}
+		if model.AnthropicCompat.SupportsMidConvoSystemMessages != nil {
+			c.supportsMidConvoSystemMessages = *model.AnthropicCompat.SupportsMidConvoSystemMessages
+		}
+		if model.AnthropicCompat.SupportsMidConvoToolChanges != nil {
+			c.supportsMidConvoToolChanges = *model.AnthropicCompat.SupportsMidConvoToolChanges
 		}
 		if model.AnthropicCompat.AllowEmptySignature != nil {
 			c.allowEmptySignature = *model.AnthropicCompat.AllowEmptySignature
@@ -279,7 +287,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
 		if opts != nil {
-			goai.ApplyHeaders(req.Header, opts.Headers)
+			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}
 
@@ -369,6 +377,7 @@ type anthropicContentBlock struct {
 	ID           string          `json:"id,omitempty"`
 	Name         string          `json:"name,omitempty"`
 	Input        json.RawMessage `json:"input,omitempty"`
+	Tool         *anthropicTool  `json:"tool,omitempty"`
 	ToolUseID    string          `json:"tool_use_id,omitempty"`
 	Content      interface{}     `json:"content,omitempty"`
 	IsError      bool            `json:"is_error,omitempty"`
@@ -402,6 +411,8 @@ type anthropicTool struct {
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) anthropicRequest {
+	compat := getAnthropicCompat(model)
+	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
 	maxTokens := goai.ClampStreamMaxTokens(model, convCtx, opts)
 	if maxTokens <= 0 {
 		maxTokens = 4096
@@ -441,7 +452,6 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Configure thinking mode
-	compat := getAnthropicCompat(model)
 	if opts != nil && opts.Temperature != nil && !thinkingEnabled && !compat.supportsMidConvoEffort && supportsTemp {
 		req.Temperature = opts.Temperature
 	}
@@ -485,6 +495,29 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	toolCallIDMap := make(map[string]string) // original → normalized
 	for _, m := range transformed {
 		switch m.Role {
+		case goai.RoleSystem:
+			var blocks []anthropicContentBlock
+			if text := goai.RenderSystemMessageText(m); strings.TrimSpace(text) != "" {
+				blocks = append(blocks, anthropicContentBlock{Type: "text", Text: goai.SanitizeSurrogates(text)})
+			}
+			for _, removed := range m.ToolsRemoved {
+				blocks = append(blocks, anthropicContentBlock{Type: "tool_removal", Name: toClaudeCodeToolName(removed.Name, model)})
+			}
+			for _, added := range m.ToolsAdded {
+				parameters := added.Parameters
+				strictTool := false
+				if strict, err := goai.ResolveJSONSchemaStrictSampling(added, compat.supportsStrictTools); err == nil && strict != nil && *strict {
+					strictTool = true
+					if strictParameters, err := goai.JSONSchemaToolParameters(added, true); err == nil {
+						parameters = strictParameters
+					}
+				}
+				blocks = append(blocks, anthropicContentBlock{Type: "tool_addition", Tool: &anthropicTool{Name: toClaudeCodeToolName(added.Name, model), Description: added.Description, InputSchema: parameters, Strict: strictTool}})
+			}
+			if len(blocks) > 0 {
+				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: blocks})
+			}
+
 		case goai.RoleUser:
 			// Check for image content
 			hasImages := false
