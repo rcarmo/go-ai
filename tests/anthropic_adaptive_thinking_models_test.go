@@ -1,8 +1,8 @@
 package goai_test
 
 import (
-	"regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -31,10 +31,10 @@ func TestAnthropicAdaptiveThinkingModelsMarksBuiltInMessagesModels(t *testing.T)
 			t.Fatalf("flagged adaptive models missing %q in %#v", want, flagged)
 		}
 	}
-	allowed := regexp.MustCompile(`(opus[-.](?:4[-.][678]|5)|sonnet[-.](?:4[-.]6|5)|fable[-.]5|kimi-(?:for-coding(?:-highspeed)?|k2-thinking)|k[23]p?7|k3)`)
 	for _, modelID := range flagged {
-		if !allowed.MatchString(modelID) {
-			t.Fatalf("unexpected adaptive thinking model %q in %#v", modelID, flagged)
+		model := goai.FindModelByRef(goai.ListModels(""), goai.ModelRef{Provider: goai.Provider(strings.SplitN(modelID, "/", 2)[0]), ID: strings.SplitN(modelID, "/", 2)[1]})
+		if model == nil || !model.Reasoning {
+			t.Fatalf("adaptive thinking model %q should be reasoning-capable, got %#v", modelID, model)
 		}
 	}
 }

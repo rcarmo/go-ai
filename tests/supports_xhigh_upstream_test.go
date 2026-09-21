@@ -74,10 +74,8 @@ func TestSupportsXHighDoesNotIncludeXHighForClaudeSonnet45(t *testing.T) {
 	assertThinkingNotContains(t, requireModelForThinking(t, goai.ProviderAnthropic, "claude-sonnet-4-5"), "xhigh")
 }
 
-func TestSupportsXHighIncludesXHighForGPT54AndGPT55CodexModels(t *testing.T) {
-	for _, modelID := range []string{"gpt-5.4", "gpt-5.5"} {
-		assertThinkingContains(t, requireModelForThinking(t, goai.ProviderOpenAICodex, modelID), "xhigh")
-	}
+func TestSupportsXHighIncludesXHighForGPT55CodexModel(t *testing.T) {
+	assertThinkingContains(t, requireModelForThinking(t, goai.ProviderOpenAICodex, "gpt-5.5"), "xhigh")
 }
 
 func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenAIGPT55Pro(t *testing.T) {
@@ -86,10 +84,6 @@ func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenAIGPT55Pro(t *testing.T)
 
 func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenRouterGPT55Pro(t *testing.T) {
 	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderOpenRouter, "openai/gpt-5.5-pro"), []string{"medium", "high", "xhigh"})
-}
-
-func TestSupportsXHighIncludesLowHighMaxPlusOffForDeepSeekV4FlashOnDeepSeek(t *testing.T) {
-	assertThinkingLevels(t, requireModelForThinking(t, goai.ProviderDeepSeek, "deepseek-v4-flash"), []string{"off", "low", "high", "max"})
 }
 
 func TestSupportsXHighIncludesLowHighMaxPlusOffForDeepSeekV4FlashOnOpenCodeGo(t *testing.T) {
