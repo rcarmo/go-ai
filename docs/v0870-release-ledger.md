@@ -61,3 +61,14 @@
 - Clean-checkout overlay validation in `/workspace/tmp/go-ai-v0870-clean-validate` — passed `git diff --check`, `TMPDIR=/workspace/tmp go test ./...`, `make check-v0870-inventory check-v0870-catalog-delta check-model-regeneration`, and `scripts/compare-upstream-models.py` at `1445/1445`.
 
 Hosted CI, final SHA, and SHA-specific hosted SBOM evidence are still pending.
+
+
+## Acceptance and publication handoff
+
+- Runtime accepted: `c51fb076ad9f0207ba128af750d94fc40de9a121`.
+- Hosted CI: `35655297308` — success; jobs `106517221587` and `106517221934`.
+- SHA-specific hosted SBOM artifact: `10665105040`.
+- Artifact ZIP SHA-256: `1c60ad7b0a882d9a3c1f1df868ba9ba5c3d9a3e9c3cef0f5cd4b5aad0f625de6`.
+- Inner SBOM SHA-256: `b2ad97fc11b6fa843da191f611359e989c526a8110e51e3f0f1f5d3d0d5bee83`.
+- SBOM root version/purl/bom-ref/dependency refs: `c51fb076ad9f`; stale refs empty per auditor verification.
+- Release publication target: `upstream-v0.87.0`, preserving historical `upstream-v0.85.1` assets.
