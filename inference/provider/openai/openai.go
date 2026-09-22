@@ -740,6 +740,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 				for _, b := range m.Content {
 					switch b.Type {
 					case "text":
+						if b.Text == "" {
+							continue
+						}
 						parts = append(parts, contentPart{
 							Type: "text",
 							Text: goai.SanitizeSurrogates(b.Text),

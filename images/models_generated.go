@@ -1,6 +1,6 @@
 // Code generated from @earendil-works/pi-ai image-models.generated.ts. DO NOT EDIT.
 //
-// Source: image-models.generated.ts (54 image models, 1 provider)
+// Source: image-models.generated.ts (55 image models, 1 provider)
 
 package images
 
@@ -142,6 +142,16 @@ var builtinImageModels = []ImagesModel{
 		Input:    []string{"image", "text"},
 		Output:   []string{"image", "text"},
 		Cost:     goai.ModelCost{Input: 0.25, Output: 1.5, CacheRead: 0, CacheWrite: 0},
+	},
+	{
+		ID:       "inclusionai/ming-image-0.1-design",
+		Name:     "inclusionAI: Ming Image 0.1 Design",
+		Api:      ImagesApi("openrouter-images"),
+		Provider: ImagesProvider("openrouter"),
+		BaseURL:  "https://openrouter.ai/api/v1",
+		Input:    []string{"text"},
+		Output:   []string{"image"},
+		Cost:     goai.ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
 	},
 	{
 		ID:       "krea/krea-2-large",

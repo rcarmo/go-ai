@@ -61,7 +61,7 @@ func TestV0851GPT6AstraGeneratedWrapperRecords(t *testing.T) {
 		input    float64
 		levels   []string
 	}{
-		{goai.ProviderGitHubCopilot, "gpt-6-astra", goai.ApiOpenAIResponses, 1050000, 10, []string{"low", "medium", "high", "xhigh", "max"}},
+		{goai.ProviderGitHubCopilot, "gpt-6-astra", goai.ApiOpenAIResponses, 1000000, 10, []string{"low", "medium", "high", "xhigh", "max"}},
 		{goai.ProviderOpenRouter, "openai/gpt-6-astra", goai.ApiOpenAICompletions, 1050000, 10, []string{"low", "medium", "high", "xhigh", "max"}},
 		{goai.ProviderOpenRouter, "openai/gpt-6-astra:batch", goai.ApiOpenAICompletions, 1050000, 5, []string{"low", "medium", "high", "xhigh", "max"}},
 		{goai.ProviderVercelAIGateway, "openai/gpt-6-astra", goai.ApiAnthropicMessages, 1050000, 10, []string{"off", "minimal", "low", "medium", "high", "xhigh"}},

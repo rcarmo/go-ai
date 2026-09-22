@@ -24,6 +24,7 @@ const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
 const midConversationOutputConfigBeta = "mid-conversation-output-config-2026-07-01"
 const thinkingBindingControlsBeta = "thinking-binding-controls-2026-08-01"
+const claudeCodeVersion = "2.1.280"
 
 var claudeCodeToolCanonicalNames = map[string]string{
 	"read":            "Read",
@@ -245,21 +246,32 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
-		if authToken != "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
-			req.Header.Set("Authorization", "Bearer "+authToken)
-		} else if apiKey != "" {
-			if model.Provider == goai.ProviderGitHubCopilot {
-				req.Header.Set("Authorization", "Bearer "+apiKey)
-				for k, v := range goai.CopilotHeaders() {
-					req.Header.Set(k, v)
+		mergedHeaders := goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)
+		hasExplicitAuth := goai.HasAnthropicAuthHeader(mergedHeaders)
+		isAnthropicOAuthToken := model.Provider == goai.ProviderAnthropic && strings.Contains(apiKey, "sk-ant-oat")
+		if !hasExplicitAuth {
+			if authToken != "" || isAnthropicOAuthToken {
+				bearer := authToken
+				if bearer == "" {
+					bearer = apiKey
 				}
-				for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
-					req.Header.Set(k, v)
+				req.Header.Set("Authorization", "Bearer "+bearer)
+				req.Header.Set("User-Agent", "claude-cli/"+claudeCodeVersion)
+				req.Header.Set("x-app", "cli")
+			} else if apiKey != "" {
+				if model.Provider == goai.ProviderGitHubCopilot {
+					req.Header.Set("Authorization", "Bearer "+apiKey)
+					for k, v := range goai.CopilotHeaders() {
+						req.Header.Set(k, v)
+					}
+					for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
+						req.Header.Set(k, v)
+					}
+				} else if model.Provider == goai.ProviderCloudflareAIGateway {
+					req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
+				} else {
+					req.Header.Set("X-Api-Key", apiKey)
 				}
-			} else if model.Provider == goai.ProviderCloudflareAIGateway {
-				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
-			} else {
-				req.Header.Set("X-Api-Key", apiKey)
 			}
 		}
 
