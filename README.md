@@ -2,14 +2,14 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
-[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.0/sbom.cdx.json)
+[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![go-ai](docs/icon-256.png)
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.87.0 audit embeds 1445 text/chat models across 41 providers, 10 text/chat API protocols, and 54 image models.
+> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.87.1 audit embeds 1495 text/chat models across 41 providers, 10 text/chat API protocols, and 55 image models.
 
 ## Documentation
 
@@ -21,7 +21,7 @@ A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-w
 ## Features
 
 * One `Stream`/`Complete` entry point over the registered provider implementation, with channel-based text, thinking, and tool-call events.
-* A generated model registry for text/chat and image models, checked against the upstream v0.87.0 records rather than copied by hand.
+* A generated model registry for text/chat and image models, checked against the upstream v0.87.1 records rather than copied by hand.
 * JSON-compatible message, context, tool, usage, diagnostic, and stream-option types for cross-language transcript hand-off.
 * Tool calling with JSON Schema parameters, strict/constrained sampling helpers where providers expose them, and partial JSON parsing for streamed arguments.
 * Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
@@ -149,7 +149,7 @@ The generated catalog also includes provider metadata for OpenRouter, xAI, Groq,
 
 ## Compatibility/versioning
 
-The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.87.0. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
+The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.87.1. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
 
 Release audits update `RELEASE.md`, the generated catalogs, and the per-release manifests in `docs/`. Tags should be treated as upstream-aligned checkpoints rather than a promise that every upstream runtime surface exists unchanged in Go.
 
@@ -159,12 +159,12 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 ## Supply-chain metadata
 
-The accepted v0.87.0 runtime (`c51fb076ad9f0207ba128af750d94fc40de9a121`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
+The accepted v0.87.1 runtime (`c2d0231d8bef63a920e1663143e6c1c39ef0679d`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
 
-* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.0/sbom.cdx.json)
-* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.0/sbom.cdx.json.sha256)
+* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json)
+* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json.sha256)
 
-The SBOM is generated and checked by `make sbom-check`, then can be republished through the manual `publish-sbom-release.yml` workflow against that accepted runtime ref. Historical v0.85.1 SBOM assets remain available under the `upstream-v0.85.1` release tag.
+The SBOM is generated and checked by `make sbom-check`, then can be republished through the manual `publish-sbom-release.yml` workflow against that accepted runtime ref. Historical v0.85.1 and v0.87.0 SBOM assets remain available under their `upstream-v0.85.1` and `upstream-v0.87.0` release tags.
 
 ## License
 

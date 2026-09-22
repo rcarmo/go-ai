@@ -5,64 +5,51 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 ## Current audited upstream release
 
 - Package: `@earendil-works/pi-ai`
-- Release/tag: `v0.87.0`
-- Upstream tag/SHA: `16787ad5b2dc748047f314ca1bfe7708f30f54f3`
-- Previous accepted upstream baseline: `v0.85.1` / `d981de1229ef899957bbe968bc8dcda02a21f477`
-- Previous accepted Go runtime baseline before this audit: `9c32e1d77bb01bac4574c6ecf260ce07bac9a351`
-- Current repository baseline before this audit: `5baec87b66c7ceb667e1cdbc2b1edbdc09e98c37`
-- Official npm artifact: `/workspace/tmp/pi-ai-audit-087/earendil-works-pi-ai-0.87.0.tgz`
-- Official npm artifact SHA-256: `f2adf9de809d035f76f8dadf3d148720ebeef4606a848ab36ee834d895ae812f`
-- Detailed path matrix: `docs/v0870-release-ledger.md`
-- Whole-corpus upstream test crosswalk: `docs/v0870-150-test-manifest.md`
+- Release/tag: `v0.87.1`
+- Upstream tag/SHA: `f07218c4d4bbc12bef056a7058c3dd49dfe41abe`
+- Previous accepted upstream baseline: `v0.87.0` / `16787ad5b2dc748047f314ca1bfe7708f30f54f3`
+- Previous accepted Go runtime baseline before this audit: `c51fb076ad9f0207ba128af750d94fc40de9a121`
+- Current repository baseline before this audit: `bd630670abbbcbbf12c9389cd616e37f7ba1560e`
+- Official npm artifact: `/workspace/tmp/pi-ai-audit-0871/earendil-works-pi-ai-0.87.1.tgz`
+- Official npm artifact SHA-256: `35b4432f27cc2665f86beebb9af6a39b1251970883c3044bd8be4f4e8c731ca0`
+- Detailed path matrix: `docs/v0871-release-ledger.md`
+- Whole-corpus upstream test crosswalk: `docs/v0871-150-test-manifest.md`
 
 ## Scope evidence
 
-- Changed paths: `127` canonical rows, committed at `docs/v0870/changed-paths.txt`, SHA-256 `e6bd9733d8fff626838d386df8e6bb543d40d77af74340ee4f2f271b411b9828`.
-- Changed tests: `82` rows, committed at `docs/v0870/changed-tests.txt`, SHA-256 `a12a1453c8fbabfd6902ced06304cbd2fa9f7d82ce89b91a1403366bc11fe5b2`.
-- Whole upstream test corpus: `150` rows, committed at `docs/v0870/test-corpus-150.txt`; basename SHA-256 `042cdfbc8cc089da71409e615fb54cfe7273a960f8e0d10e63e07584ae9f2e75`.
-- Source/test delta spans cumulative `0.86.0`, `0.86.1`, and `0.87.0` behavior.
+- Changed paths: `16` canonical rows, committed at `docs/v0871/changed-paths.txt`, SHA-256 `2756fce613d0163b6eb5c47b599584589a229e5c7ed30a86b65380031e272eb6`.
+- Changed tests: `9` rows, committed at `docs/v0871/changed-tests.txt`, SHA-256 `5b66a8cf9050b36a8dbae7a1b802c12037a2ec2332cf2e3f370953ea9ef9ac43`.
+- Whole upstream test corpus: `150` basename-only rows, committed at `docs/v0871/test-corpus-150.txt`; SHA-256 `042cdfbc8cc089da71409e615fb54cfe7273a960f8e0d10e63e07584ae9f2e75`.
+- Source/test delta spans focused `0.87.1` behavior: OpenAI-compatible image-only message handling, Claude Code OAuth user-agent version, and generated catalog updates.
 
 ## Current Go implementation/adaptation summary
 
-Implemented or adapted for v0.87.0 so far:
+Implemented or adapted for v0.87.1:
 
-- Exact generated text catalog refresh to `1445` models across `41` providers and `10` APIs.
-- Exact generated image catalog refresh to `54` image models, adding OpenAI GPT Image 2.5 Flare/Sunburst.
-- Generator/model type support for `inputLimits`, `promptCache`, `enabled`, `lab`, Radius provider-routing metadata, `BedrockCompat`, and mid-conversation compat flags.
-- Meta provider/API-key environment support and deterministic Meta OAuth device/mint/remint tests.
-- Radius baseline catalog models with dynamic refresh preservation.
-- OpenCode `x-opencode-session` header helper and transport wiring for relevant providers.
-- Transcript normalization helpers for system messages, sections, and tool additions/removals.
-- Catalog comparator fixed for v0.87 nested Radius provider-routing entries.
+- Exact generated text catalog refresh to `1495` models across `41` providers and `10` APIs.
+- Exact generated image catalog refresh to `55` image models, adding InclusionAI Ming Image 0.1 Design.
+- OpenAI-compatible image-only user messages now omit exactly empty text parts while preserving whitespace text.
+- Anthropic OAuth latent branch exposed with upstream auth precedence and `claude-cli/2.1.280` user-agent/x-app behavior.
+- Generated metadata covers Grok 4.7 Responses/xhigh/pricing, Claude Opus 5.5 effort/context/pricing, GPT-6 Sol/Luna, and Copilot aliases.
+- v0.87.1 manifests, whole-corpus crosswalk, catalog delta validator, generation/fault evidence, focused runtime tests, full gates, and hosted CI evidence recorded.
 
-Historical v0.85.1 runtime/SBOM/README release evidence remains in this file and git history; v0.87.0 README/SBOM release publication remains blocked until final runtime acceptance.
+Historical v0.85.1 and v0.87.0 runtime/SBOM/README release evidence remains in this file and git history.
 
 ## Validation evidence
 
-Current local evidence captured so far during the v0.87.0 audit:
+Current v0.87.1 acceptance evidence:
 
-- Oracle hash verification for tarball, changed paths, changed tests, and test corpus — passed.
-- `scripts/validate-v0870-catalog-delta.py` and `--self-test` — passed (`text +149/-58/986`, `images +2/-0/4`).
-- Model/image regeneration comparator — passed.
-- Upstream/generated model pair comparator — `1445/1445`, exact match.
-- Focused Meta OAuth tests — passed.
-- `TMPDIR=/workspace/tmp go test ./...` — passed.
-- `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
-- `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1` — passed.
-- `TMPDIR=/workspace/tmp go vet ./...` — passed.
-- `make staticcheck` — passed.
-- `make check-logging` — passed.
-- `make check` — passed, including deterministic tests, v0.85/v0.87 inventories, catalog deltas, regeneration, SBOM, vuln, and license gates.
-- `make test-repro` — passed.
-- `make fuzz` — passed.
-- Hidden-skip scan over Go tests found no `t.Skip`/`SkipNow`/`.skip` matches; v0.87 docs/scripts/tests contain no TODO/classification placeholders.
-- Clean-checkout overlay validation in `/workspace/tmp/go-ai-v0870-clean-validate` — passed `git diff --check`, `TMPDIR=/workspace/tmp go test ./...`, `make check-v0870-inventory check-v0870-catalog-delta check-model-regeneration`, and `scripts/compare-upstream-models.py` at `1445/1445`.
-
-Accepted runtime `c51fb076ad9f0207ba128af750d94fc40de9a121` passed hosted CI `35655297308` (main job `106517221587`, fuzz job `106517221934`). CI artifact `10665105040` produced SHA-specific SBOM `b2ad97fc11b6fa843da191f611359e989c526a8110e51e3f0f1f5d3d0d5bee83` for root revision `c51fb076ad9f`; artifact ZIP SHA-256 `1c60ad7b0a882d9a3c1f1df868ba9ba5c3d9a3e9c3cef0f5cd4b5aad0f625de6` and checksum-file SHA-256 `dcb602f454d182ff48ba43964c4a6786b892443d43a7b659c94882d5fafdb9c8`. Public release publication for `upstream-v0.87.0` is authorized and will be verified separately.
+- `docs/v0871/changed-paths.txt`, `changed-tests.txt`, and basename-only `test-corpus-150.txt` match pinned hashes.
+- `scripts/validate-v0871-inventory.py` and `--self-test` — passed; corruption self-tests cover all three manifests.
+- `scripts/validate-v0871-catalog-delta.py` and `--self-test` — passed (`text +62/-12/35`, `images +1/-0/0`, current counts `1495/41/10` and `55/1/1`).
+- Generation twice comparison — passed; normalized generated text source SHA-256 `13badf32117c7faf05657c280300d1ad83df77c9b256b000da8f68f808033ce8`, generated image source SHA-256 `4b3c94c02dbc82a7a0fe343fed241b91dde151963a87ddb8a517c5d0c33a7c4c`.
+- Focused OpenAI image-only and Anthropic OAuth user-agent/precedence tests — passed.
+- Full local gates passed under `nice -n 10`: `go test ./...`, `make check`, race, fuzz, SBOM, vuln, and license.
+- Accepted runtime `c2d0231d8bef63a920e1663143e6c1c39ef0679d` passed hosted CI `35794325936` with SHA-specific CycloneDX 1.6 SBOM artifact `10723572304`; SBOM SHA-256 `3a58a615ca42dd521688030407faae013ab23cb4984f290bf0925a2ddfbf2b5f`, root revision/version `c2d0231d8bef`.
 
 ## Durable SBOM release assets
 
-Accepted runtime `c51fb076ad9f0207ba128af750d94fc40de9a121` is the current v0.87.0 release baseline. The guarded manual publisher workflow publishes `sbom.cdx.json` and `sbom.cdx.json.sha256` for tag `upstream-v0.87.0` against that exact runtime ref. Historical v0.85.1 durable SBOM links for `9c32e1d77bb01bac4574c6ecf260ce07bac9a351` remain under `upstream-v0.85.1`; v0.85.0 release assets remain unchanged.
+Accepted runtime `c2d0231d8bef63a920e1663143e6c1c39ef0679d` is the current v0.87.1 release baseline. The guarded manual publisher workflow publishes `sbom.cdx.json` and `sbom.cdx.json.sha256` for tag `upstream-v0.87.1` against that exact runtime ref. Historical v0.87.0 durable SBOM links for `c51fb076ad9f0207ba128af750d94fc40de9a121` remain under `upstream-v0.87.0`; historical v0.85.1/v0.85.0 release assets remain unchanged.
 
 ## Release documentation policy
 

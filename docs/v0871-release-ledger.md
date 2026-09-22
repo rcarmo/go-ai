@@ -64,3 +64,14 @@ All CPU-heavy validation commands were run under `nice -n 10`.
 - `make fuzz` — passed.
 
 Hosted CI, final SHA, and SHA-specific SBOM evidence are pending.
+
+
+## Acceptance and publication handoff
+
+- Runtime accepted: `c2d0231d8bef63a920e1663143e6c1c39ef0679d`.
+- Hosted CI: `35794325936` — success; both jobs green.
+- SHA-specific hosted SBOM artifact: `10723572304`.
+- CycloneDX version/components: 1.6 / 18 components.
+- Inner SBOM SHA-256: `3a58a615ca42dd521688030407faae013ab23cb4984f290bf0925a2ddfbf2b5f`.
+- SBOM root revision/version: `c2d0231d8bef`.
+- Release publication target: `upstream-v0.87.1`, preserving historical `upstream-v0.87.0`, `upstream-v0.85.1`, and older assets.
