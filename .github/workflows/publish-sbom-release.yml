@@ -213,10 +213,15 @@ jobs:
                 exit 1
               fi
             else
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git tag -a "$RELEASE_TAG" -m "go-ai ${upstream_version}" "$runtime_full_ref"
-              git push origin "refs/tags/${RELEASE_TAG}"
+              tag_payload="$(jq -n --arg tag "$RELEASE_TAG" --arg message "go-ai ${upstream_version}" --arg object "$runtime_full_ref" '{tag:$tag,message:$message,object:$object,type:"commit"}')"
+              tag_response="$(gh api repos/${GITHUB_REPOSITORY}/git/tags --method POST --input - <<<"$tag_payload")"
+              tag_sha="$(jq -r '.sha' <<<"$tag_response")"
+              if [[ ! "$tag_sha" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "GitHub tag object creation returned unexpected sha: $tag_response" >&2
+                exit 1
+              fi
+              ref_payload="$(jq -n --arg ref "refs/tags/${RELEASE_TAG}" --arg sha "$tag_sha" '{ref:$ref,sha:$sha}')"
+              gh api repos/${GITHUB_REPOSITORY}/git/refs --method POST --input - <<<"$ref_payload" >/dev/null
               git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
               tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
               tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
