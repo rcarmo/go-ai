@@ -293,6 +293,7 @@ type Message struct {
 	ResponseID            string                       `json:"responseId,omitempty"`
 	ResponseModel         string                       `json:"responseModel,omitempty"`
 	ProviderThinkingLevel string                       `json:"providerThinkingLevel,omitempty"`
+	ThinkingLevel         ModelThinkingLevel           `json:"thinkingLevel,omitempty"`
 	Diagnostics           []AssistantMessageDiagnostic `json:"diagnostics,omitempty"`
 	Usage                 *Usage                       `json:"usage,omitempty"`
 	StopReason            StopReason                   `json:"stopReason,omitempty"`
@@ -311,7 +312,24 @@ type Message struct {
 	ToolName       string   `json:"toolName,omitempty"`
 	AddedToolNames []string `json:"addedToolNames,omitempty"`
 	IsError        bool     `json:"isError,omitempty"`
-	Details        any      `json:"details,omitempty"`
+	Details        any              `json:"details,omitempty"`
+	NestedCalls    *NestedToolCalls `json:"nestedCalls,omitempty"`
+}
+
+// NestedToolCallRecord records bounded metadata for a tool call made inside a tool.
+type NestedToolCallRecord struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Arguments      map[string]any `json:"arguments,omitempty"`
+	ArgumentsBytes int            `json:"argumentsBytes,omitempty"`
+	Status         string         `json:"status"`
+	DurationMs     int            `json:"durationMs,omitempty"`
+	Error          string         `json:"error,omitempty"`
+}
+
+type NestedToolCalls struct {
+	Calls    []NestedToolCallRecord `json:"calls"`
+	Complete bool                   `json:"complete"`
 }
 
 // UserMessage creates a simple text user message.
@@ -409,6 +427,7 @@ type ModelProviderInfo struct {
 // Model identifies a specific LLM endpoint.
 type Model struct {
 	ID               string                         `json:"id"`
+	Type             string                         `json:"type,omitempty"`
 	Name             string                         `json:"name"`
 	Api              Api                            `json:"api"`
 	Provider         Provider                       `json:"provider"`
@@ -435,6 +454,25 @@ type Model struct {
 	ResponsesCompat   *OpenAIResponsesCompat   `json:"responsesCompat,omitempty"`
 	AnthropicCompat   *AnthropicMessagesCompat `json:"anthropicCompat,omitempty"`
 	BedrockCompat     *BedrockCompat           `json:"bedrockCompat,omitempty"`
+}
+
+type ImageApi string
+
+type ImageProvider string
+
+type ImageModel struct {
+	ID            string            `json:"id"`
+	Type          string            `json:"type,omitempty"`
+	Name          string            `json:"name"`
+	Api           ImageApi          `json:"api"`
+	Provider      ImageProvider     `json:"provider"`
+	BaseURL       string            `json:"baseUrl,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	Input         []string          `json:"input,omitempty"`
+	InputLimits   *ModelInputLimits `json:"inputLimits,omitempty"`
+	Cost          ModelCost         `json:"cost"`
+	ContextWindow int               `json:"contextWindow,omitempty"`
+	MaxTokens     int               `json:"maxTokens,omitempty"`
 }
 
 // --- Stream options ---
@@ -508,6 +546,10 @@ type StreamOptions struct {
 	ReasoningSummary string           `json:"reasoningSummary,omitempty"`
 	ServiceTier      string           `json:"serviceTier,omitempty"`
 	ToolChoice       ToolChoice       `json:"toolChoice,omitempty"`
+
+	// OnProviderStreamEvent observes raw provider events before normalization.
+	// Returning an error terminates the stream with that error.
+	OnProviderStreamEvent func(event interface{}, model *Model) error `json:"-"`
 
 	// Hooks for request/response interception
 

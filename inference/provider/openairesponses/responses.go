@@ -22,6 +22,8 @@ import (
 	"github.com/rcarmo/go-ai/transports/sse"
 )
 
+const chatGPTUsageURL = "https://chatgpt.com/settings/usage"
+
 func init() {
 	goai.RegisterApi(&goai.ApiProvider{
 		Api:          goai.ApiOpenAIResponses,
@@ -165,7 +167,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
+				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, addChatGPTUsageGuidance(string(bodyBytes))),
 			}
 			return
 		}
@@ -412,6 +414,7 @@ func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {
 	compat := getResponsesCompat(model)
+	chatGPTSignIn := isChatGPTSignIn(model, opts)
 	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
 	req := responsesRequest{
 		Model:          model.ID,
@@ -421,8 +424,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	if opts != nil {
-		req.Temperature = opts.Temperature
-		if compat.supportsMaxOutputTokens {
+		if !chatGPTSignIn {
+			req.Temperature = opts.Temperature
+		}
+		if compat.supportsMaxOutputTokens && !chatGPTSignIn {
 			req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 		}
 	}
@@ -510,10 +515,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
 		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
-	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode {
+	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
 		req.PromptCacheRetention = "24h"
 	}
-	if compat.supportsExplicitPromptCacheMode {
+	if compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
 		switch {
 		case cacheRetention == goai.CacheRetentionNone:
 			req.PromptCacheOptions = map[string]interface{}{"mode": "explicit"}
@@ -543,6 +548,20 @@ type responsesCompat struct {
 	supportsGrammarTools            bool
 	supportsExplicitPromptCacheMode bool
 	supportsMaxOutputTokens         bool
+}
+
+func addChatGPTUsageGuidance(message string) string {
+	if strings.Contains(message, "subscription_sharing_usage_limit_exceeded") && !strings.Contains(message, chatGPTUsageURL) {
+		return message + " Check your ChatGPT usage: " + chatGPTUsageURL
+	}
+	return message
+}
+
+func isChatGPTSignIn(model *goai.Model, opts *goai.StreamOptions) bool {
+	if model == nil || opts == nil || model.Provider != goai.ProviderOpenAI || strings.TrimRight(model.BaseURL, "/") != "https://api.openai.com/v1" || opts.APIKey == "" {
+		return false
+	}
+	return !strings.HasPrefix(opts.APIKey, "sk-")
 }
 
 func getResponsesCompat(model *goai.Model) responsesCompat {
@@ -917,13 +936,20 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		}
 
 		data := []byte(evt.Data)
+		var providerEvent map[string]interface{}
+		if json.Unmarshal(data, &providerEvent) != nil {
+			continue
+		}
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			if err := opts.OnProviderStreamEvent(providerEvent, model); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				return
+			}
+		}
 		if model.Api == goai.ApiAzureOpenAIResponses {
-			var evt map[string]interface{}
-			if json.Unmarshal(data, &evt) == nil {
-				evt = goai.NormalizeAzureReasoningEvent(evt)
-				if normalized, err := json.Marshal(evt); err == nil {
-					data = normalized
-				}
+			providerEvent = goai.NormalizeAzureReasoningEvent(providerEvent)
+			if normalized, err := json.Marshal(providerEvent); err == nil {
+				data = normalized
 			}
 		}
 
@@ -1211,7 +1237,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		case "error":
 			ch <- &goai.ErrorEvent{
 				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("API error %s: %s", raw.Code, raw.Message),
+				Err:    fmt.Errorf("API error %s: %s", raw.Code, addChatGPTUsageGuidance(raw.Message)),
 			}
 			return
 
@@ -1237,6 +1263,8 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				msg = "Unknown error (no error details in response)"
 			}
 			partial.RawStopReason = resp.Status
+			msg = addChatGPTUsageGuidance(msg)
+			partial.ErrorMessage = msg
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", msg)}
 			return
 		}

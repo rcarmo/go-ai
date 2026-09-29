@@ -41,12 +41,16 @@ def main() -> int:
         base = pathlib.Path(td)
         text_repo = base / "text"
         image_repo = base / "image"
+        classifier_repo = base / "classifier"
         copy_repo(text_repo)
         copy_repo(image_repo)
-        replace_once(text_repo / "models_generated.go", "Name:             \"GPT-6 Astra\"", "Name:             \"GPT-6 Astra Corrupt\"")
-        run_check(text_repo, "text non-ID metadata")
-        replace_once(image_repo / "images" / "models_generated.go", "Name:     \"Microsoft AI: MAI-Image-2.6\"", "Name:     \"Microsoft AI: MAI-Image-2.6 Corrupt\"")
+        copy_repo(classifier_repo)
+        replace_once(text_repo / "models_generated.go", "Name:             \"GPT-6 Astra (Global)\"", "Name:             \"GPT-6 Astra (Global) Corrupt\"")
+        run_check(text_repo, "chat non-ID metadata")
+        replace_once(image_repo / "image_models_generated.go", "Name:     \"Google: Nano Banana Pro (Gemini 3 Pro Image)\"", "Name:     \"Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt\"")
         run_check(image_repo, "image non-ID metadata")
+        replace_once(classifier_repo / "classifier_models_generated.go", "Name:          \"Jev 1.13\"", "Name:          \"Jev 1.13 Corrupt\"")
+        run_check(classifier_repo, "classifier non-ID metadata")
     print("model regeneration negative self-test passed")
     return 0
 

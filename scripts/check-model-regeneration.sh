@@ -8,10 +8,10 @@ tmp_root="${TMPDIR:-${GO_TMPDIR:-/tmp}}"
 cache_base="${GO_AI_MODEL_REGEN_CACHE:-${XDG_CACHE_HOME:-${HOME:-$tmp_root}/.cache}/go-ai/model-regeneration}"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v0.87.1"
-upstream_sha="f07218c4d4bbc12bef056a7058c3dd49dfe41abe"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1.tgz}"
-npm_sha256="35b4432f27cc2665f86beebb9af6a39b1251970883c3044bd8be4f4e8c731ca0"
+upstream_tag="v0.99.1"
+upstream_sha="${PI_AI_UPSTREAM_SHA:-}"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.99.1.tgz}"
+npm_sha256="f9f44692157d0bf5679c4a17304a310028231d7daaeaaea3b73252f4b7a264d3"
 
 workdir="$(mktemp -d "${tmp_root%/}/go-ai-model-regen.XXXXXX")"
 cleanup() {
@@ -83,12 +83,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-0.87.1-package"
+  local dir="$cache_base/pi-ai-0.99.1-package"
   local marker="$dir/.sha256"
-  if [[ ! -d "$dir/package/dist/providers/data" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
+  if [[ ! -f "$dir/package/dist/models.generated.js" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-0.87.1.tgz"
+    local tgz="$workdir/pi-ai-0.99.1.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"
@@ -102,85 +102,47 @@ ensure_npm_package() {
   printf '%s\n' "$dir/package"
 }
 
-if [[ -n "${PI_AI_MODELS_GENERATED_TS:-}" ]]; then
-  source_models_ts="$PI_AI_MODELS_GENERATED_TS"
-else
-  source_checkout="$(ensure_source_checkout)"
-  source_models_ts="$source_checkout/packages/ai/src/models.generated.ts"
-fi
-
-if [[ -n "${PI_AI_IMAGE_MODELS_GENERATED_TS:-}" ]]; then
-  source_image_models_ts="$PI_AI_IMAGE_MODELS_GENERATED_TS"
-elif [[ -n "${source_checkout:-}" ]]; then
-  source_image_models_ts="$source_checkout/packages/ai/src/image-models.generated.ts"
-else
-  source_image_models_ts="$(dirname "$source_models_ts")/image-models.generated.ts"
-fi
-
-if [[ -n "${PI_AI_MODEL_DATA_DIR:-}" ]]; then
-  provider_data_dir="$PI_AI_MODEL_DATA_DIR"
+if [[ -n "${PI_AI_MODELS_GENERATED_JS:-}" ]]; then
+  source_models_js="$PI_AI_MODELS_GENERATED_JS"
 else
   npm_package="$(ensure_npm_package)"
-  provider_data_dir="$npm_package/dist/providers/data"
+  source_models_js="$npm_package/dist/models.generated.js"
 fi
 
-generated="$workdir/models_generated.go"
-generated_images="$workdir/images_models_generated.go"
-want_norm="$workdir/want.go"
-got_norm="$workdir/got.go"
-want_images_norm="$workdir/want-images.go"
-got_images_norm="$workdir/got-images.go"
+generated_chat="$workdir/models_generated.go"
+generated_images="$workdir/image_models_generated.go"
+generated_classifiers="$workdir/classifier_models_generated.go"
 
-if [[ ! -f "$source_models_ts" ]]; then
-  echo "model regeneration source not found: $source_models_ts" >&2
-  echo "Set PI_AI_MODELS_GENERATED_TS to the exact upstream src/models.generated.ts" >&2
-  exit 1
-fi
-if [[ ! -d "$provider_data_dir" ]]; then
-  echo "model provider data dir not found: $provider_data_dir" >&2
-  echo "Set PI_AI_MODEL_DATA_DIR to the exact published provider data directory" >&2
-  exit 1
-fi
-if [[ ! -f "$source_image_models_ts" ]]; then
-  echo "image model regeneration source not found: $source_image_models_ts" >&2
-  echo "Set PI_AI_IMAGE_MODELS_GENERATED_TS to the exact upstream src/image-models.generated.ts" >&2
+if [[ ! -f "$source_models_js" ]]; then
+  echo "model regeneration source not found: $source_models_js" >&2
+  echo "Set PI_AI_MODELS_GENERATED_JS to the exact published dist/models.generated.js" >&2
   exit 1
 fi
 
 (
   cd "$repo_root"
-  PI_AI_MODEL_DATA_DIR="$provider_data_dir" "$go_cmd" run ./scripts/generate-models.go -input "$source_models_ts" -output "$generated" >/dev/null
+  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -kind chat -output "$generated_chat" >/dev/null
+  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -kind image -output "$generated_images" >/dev/null
+  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -kind classifier -output "$generated_classifiers" >/dev/null
 )
-"$go_cmd" fmt "$generated" >/dev/null
+"$go_cmd" fmt "$generated_chat" "$generated_images" "$generated_classifiers" >/dev/null
 
-normalize() {
-  sed -E 's#^// Generated: .*#// Generated: <normalized>#' "$1"
+compare_generated() {
+  local want="$1"
+  local got="$2"
+  local label="$3"
+  diff -u "$want" "$got" >/dev/null || {
+    echo "$label does not match regeneration from exact v0.99.1 schema-v6 catalog" >&2
+    echo "source: $source_models_js" >&2
+    diff -u "$want" "$got" >&2 || true
+    exit 1
+  }
 }
 
-normalize "$repo_root/models_generated.go" > "$want_norm"
-normalize "$generated" > "$got_norm"
+compare_generated "$repo_root/models_generated.go" "$generated_chat" "models_generated.go"
+compare_generated "$repo_root/image_models_generated.go" "$generated_images" "image_models_generated.go"
+compare_generated "$repo_root/classifier_models_generated.go" "$generated_classifiers" "classifier_models_generated.go"
 
-diff -u "$want_norm" "$got_norm" >/dev/null || {
-  echo "models_generated.go does not match normalized regeneration from exact upstream artifacts" >&2
-  echo "source: $source_models_ts" >&2
-  echo "provider data: $provider_data_dir" >&2
-  diff -u "$want_norm" "$got_norm" >&2 || true
-  exit 1
-}
-
-(
-  cd "$repo_root"
-  python3 scripts/generate-image-models.py "$source_image_models_ts" "$generated_images" >/dev/null
-)
-"$go_cmd" fmt "$generated_images" >/dev/null
-normalize "$repo_root/images/models_generated.go" > "$want_images_norm"
-normalize "$generated_images" > "$got_images_norm"
-diff -u "$want_images_norm" "$got_images_norm" >/dev/null || {
-  echo "images/models_generated.go does not match normalized regeneration from exact upstream source" >&2
-  echo "source: $source_image_models_ts" >&2
-  diff -u "$want_images_norm" "$got_images_norm" >&2 || true
-  exit 1
-}
-
-echo "model regeneration metadata comparator passed"
+echo "chat model regeneration comparator passed"
 echo "image model regeneration comparator passed"
+echo "classifier model regeneration comparator passed"

@@ -21,13 +21,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 )
 
 func main() {
 	defaultInput := findModelsJS()
 	input := flag.String("input", defaultInput, "path to models.generated.js")
 	output := flag.String("output", "models_generated.go", "output Go file path")
+	kind := flag.String("kind", "chat", "model kind to generate from schema-v6 exports: chat, image, or classifier")
 	flag.Parse()
 
 	if *input == "" {
@@ -48,28 +48,29 @@ func main() {
 
 	// Extract the object literal. pi-ai v0.80+ splits MODELS across provider
 	// modules, so inline those imports before using the existing JS-object parser.
-	jsText := inlineModularModels(*input, string(data))
+	jsText := inlineModularModels(*input, string(data), *kind)
 	jsonText := jsObjectToJSON(jsText)
 
 	// Parse as JSON
-	var models map[string]map[string]modelEntry
-	if err := json.Unmarshal([]byte(jsonText), &models); err != nil {
+	var parsed map[string]map[string]modelEntry
+	if err := json.Unmarshal([]byte(jsonText), &parsed); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: JSON parse failed: %v\n", err)
 		// Write debug file
 		os.WriteFile("models_debug.json", []byte(jsonText), 0644)
 		fmt.Fprintln(os.Stderr, "Debug JSON written to models_debug.json")
 		os.Exit(1)
 	}
+	models := filterModelsByKind(parsed, *kind)
 
 	// Count
 	total := 0
 	for _, providerModels := range models {
 		total += len(providerModels)
 	}
-	fmt.Fprintf(os.Stderr, "Found %d models across %d providers\n", total, len(models))
+	fmt.Fprintf(os.Stderr, "Found %d %s models across %d providers\n", total, *kind, len(models))
 
 	// Generate Go source
-	goSource := generateGoSource(models, total)
+	goSource := generateGoSource(models, total, *kind)
 	if err := os.WriteFile(*output, []byte(goSource), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -80,6 +81,7 @@ func main() {
 
 type modelEntry struct {
 	ID               string                 `json:"id"`
+	Type             string                 `json:"type"`
 	Name             string                 `json:"name"`
 	Api              string                 `json:"api"`
 	Provider         string                 `json:"provider"`
@@ -225,8 +227,8 @@ type costTierEntry struct {
 	CacheWrite       float64 `json:"cacheWrite"`
 }
 
-func inlineModularModels(inputPath, js string) string {
-	importRe := regexp.MustCompile(`(?m)^import \{ ([A-Z0-9_]+) \} from "([^"]+\.models\.(?:js|ts))";`)
+func inlineModularModels(inputPath, js string, kind string) string {
+	importRe := regexp.MustCompile(`(?m)^import \{ ([A-Z0-9_, ]+) \} from "([^"]+\.models\.(?:js|ts))";`)
 	imports := map[string]string{}
 	baseDir := filepath.Dir(inputPath)
 	for _, match := range importRe.FindAllStringSubmatch(js, -1) {
@@ -235,21 +237,33 @@ func inlineModularModels(inputPath, js string) string {
 		if err != nil {
 			continue
 		}
-		imports[match[1]] = extractProviderModelsObject(modulePath, string(data))
+		for _, symbol := range strings.Split(match[1], ",") {
+			symbol = strings.TrimSpace(symbol)
+			if symbol == "" {
+				continue
+			}
+			imports[symbol] = extractProviderModelsObject(modulePath, string(data), symbol)
+		}
 	}
 	if len(imports) == 0 {
 		return js
 	}
 
-	modelsRe := regexp.MustCompile(`(?s)export const MODELS.*?=\s*\{(.*)\};?\s*$`)
-	modelsMatch := modelsRe.FindStringSubmatch(js)
-	if len(modelsMatch) < 2 {
+	exportName := "MODELS"
+	if kind == "image" {
+		exportName = "IMAGE_MODELS"
+	} else if kind == "classifier" {
+		exportName = "CLASSIFIER_MODELS"
+	}
+	sectionRe := regexp.MustCompile(`(?s)export const ` + exportName + `\s*=\s*\{(.*?)\};`)
+	section := sectionRe.FindStringSubmatch(js)
+	if len(section) < 2 {
 		return js
 	}
-	entryRe := regexp.MustCompile(`(?m)^\s*"([^"]+)":\s*([A-Z0-9_]+),?\s*$`)
 	var b strings.Builder
 	b.WriteString("export const MODELS = {\n")
-	for _, match := range entryRe.FindAllStringSubmatch(modelsMatch[1], -1) {
+	entryRe := regexp.MustCompile(`(?m)^\s*"([^"]+)":\s*([A-Z0-9_]+),?\s*$`)
+	for _, match := range entryRe.FindAllStringSubmatch(section[1], -1) {
 		obj, ok := imports[match[2]]
 		if !ok || obj == "" {
 			continue
@@ -260,16 +274,16 @@ func inlineModularModels(inputPath, js string) string {
 	return b.String()
 }
 
-func extractProviderModelsObject(modulePath string, js string) string {
+func extractProviderModelsObject(modulePath string, js string, symbol string) string {
 	jsonImportRe := regexp.MustCompile(`(?s)import\s+values\s+from\s+"([^"]+\.json)"`)
 	if match := jsonImportRe.FindStringSubmatch(js); len(match) >= 2 {
 		jsonPath := filepath.Join(filepath.Dir(modulePath), filepath.FromSlash(strings.TrimPrefix(match[1], "./")))
 		if data, err := os.ReadFile(jsonPath); err == nil {
-			return flattenProviderDataJSON(data)
+			return flattenProviderDataJSON(data, symbol)
 		}
 		if dataDir := os.Getenv("PI_AI_MODEL_DATA_DIR"); dataDir != "" {
 			if data, err := os.ReadFile(filepath.Join(dataDir, filepath.Base(match[1]))); err == nil {
-				return flattenProviderDataJSON(data)
+				return flattenProviderDataJSON(data, symbol)
 			}
 		}
 	}
@@ -285,21 +299,16 @@ func extractProviderModelsObject(modulePath string, js string) string {
 	return js[start : end+1]
 }
 
-func flattenProviderDataJSON(data []byte) string {
+func flattenProviderDataJSON(data []byte, symbol string) string {
 	var outer map[string]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil || len(outer) == 0 {
 		return string(data)
 	}
-	for _, raw := range outer {
-		var probe struct {
-			ID       string `json:"id"`
-			Provider string `json:"provider"`
-		}
-		_ = json.Unmarshal(raw, &probe)
-		if probe.ID != "" && probe.Provider != "" {
-			return string(data)
-		}
-		break
+	wantType := "chat"
+	if strings.Contains(symbol, "IMAGE") {
+		wantType = "image"
+	} else if strings.Contains(symbol, "CLASSIFIER") {
+		wantType = "classifier"
 	}
 	flat := map[string]json.RawMessage{}
 	for _, groupRaw := range outer {
@@ -307,8 +316,19 @@ func flattenProviderDataJSON(data []byte) string {
 		if err := json.Unmarshal(groupRaw, &group); err != nil {
 			return string(data)
 		}
-		for id, raw := range group {
-			flat[id] = raw
+		for key, raw := range group {
+			var probe struct {
+				Type     string `json:"type"`
+				ID       string `json:"id"`
+				Provider string `json:"provider"`
+			}
+			_ = json.Unmarshal(raw, &probe)
+			if probe.Type == "" {
+				probe.Type = "chat"
+			}
+			if probe.ID != "" && probe.Provider != "" && probe.Type == wantType {
+				flat[strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(key, "chat:"), "image:"), "classifier:")] = raw
+			}
 		}
 	}
 	out, err := json.Marshal(flat)
@@ -316,6 +336,29 @@ func flattenProviderDataJSON(data []byte) string {
 		return string(data)
 	}
 	return string(out)
+}
+
+func filterModelsByKind(models map[string]map[string]modelEntry, kind string) map[string]map[string]modelEntry {
+	if kind == "" {
+		kind = "chat"
+	}
+	out := map[string]map[string]modelEntry{}
+	for provider, providerModels := range models {
+		for key, model := range providerModels {
+			modelKind := model.Type
+			if modelKind == "" {
+				modelKind = "chat"
+			}
+			if modelKind != kind {
+				continue
+			}
+			if out[provider] == nil {
+				out[provider] = map[string]modelEntry{}
+			}
+			out[provider][key] = model
+		}
+	}
+	return out
 }
 
 // jsObjectToJSON converts the JS module to a JSON object.
@@ -356,29 +399,49 @@ func jsObjectToJSON(js string) string {
 	return obj
 }
 
-func generateGoSource(models map[string]map[string]modelEntry, total int) string {
+func generateGoSource(models map[string]map[string]modelEntry, total int, kind string) string {
 	var b strings.Builder
 
 	b.WriteString("// Code generated by scripts/generate-models.go from @earendil-works/pi-ai. DO NOT EDIT.\n")
 	b.WriteString("//\n")
-	b.WriteString(fmt.Sprintf("// Source: models.generated.js (%d models, %d providers)\n", total, len(models)))
-	b.WriteString(fmt.Sprintf("// Generated: %s\n", time.Now().UTC().Format(time.RFC3339)))
+	b.WriteString(fmt.Sprintf("// Source: models.generated.js (%d %s models, %d providers)\n", total, kind, len(models)))
+	b.WriteString("// Generated: deterministic\n")
 	b.WriteString("\n")
 	b.WriteString("package goai\n\n")
-	b.WriteString("import \"encoding/json\"\n\n")
-	b.WriteString("// RegisterBuiltinModels registers all known models from pi-ai's model registry.\n")
-	b.WriteString("// Call this during init() or at program startup to populate the model registry.\n")
-	b.WriteString("func RegisterBuiltinModels() {\n")
-	b.WriteString("\tbyProvider := map[Provider][]*Model{}\n")
-	b.WriteString("\tfor i := range builtinModels {\n")
-	b.WriteString("\t\tmodel := cloneModel(&builtinModels[i])\n")
-	b.WriteString("\t\tbyProvider[model.Provider] = append(byProvider[model.Provider], model)\n")
-	b.WriteString("\t}\n")
-	b.WriteString("\tfor provider, models := range byProvider {\n")
-	b.WriteString("\t\tRegisterDynamicModelProvider(StaticModelProvider{Provider: provider, Models: models})\n")
-	b.WriteString("\t}\n")
-	b.WriteString("}\n\n")
-	b.WriteString("var builtinModels = []Model{\n")
+	if kind == "chat" {
+		b.WriteString("import \"encoding/json\"\n\n")
+	}
+	if kind == "classifier" {
+		b.WriteString("// RegisterBuiltinClassifierModels registers all known classifier models from pi-ai's model registry.\n")
+		b.WriteString("func RegisterBuiltinClassifierModels() {\n")
+		b.WriteString("\tfor i := range builtinClassifierModels {\n")
+		b.WriteString("\t\tRegisterClassifierModel(&builtinClassifierModels[i])\n")
+		b.WriteString("\t}\n")
+		b.WriteString("}\n\n")
+		b.WriteString("var builtinClassifierModels = []ClassifierModel{\n")
+	} else if kind == "image" {
+		b.WriteString("// RegisterBuiltinImageModels registers all known image models from pi-ai's model registry.\n")
+		b.WriteString("func RegisterBuiltinImageModels() {\n")
+		b.WriteString("\tfor i := range builtinImageModels {\n")
+		b.WriteString("\t\tRegisterImageModel(&builtinImageModels[i])\n")
+		b.WriteString("\t}\n")
+		b.WriteString("}\n\n")
+		b.WriteString("var builtinImageModels = []ImageModel{\n")
+	} else {
+		b.WriteString("// RegisterBuiltinModels registers all known models from pi-ai's model registry.\n")
+		b.WriteString("// Call this during init() or at program startup to populate the model registry.\n")
+		b.WriteString("func RegisterBuiltinModels() {\n")
+		b.WriteString("\tbyProvider := map[Provider][]*Model{}\n")
+		b.WriteString("\tfor i := range builtinModels {\n")
+		b.WriteString("\t\tmodel := cloneModel(&builtinModels[i])\n")
+		b.WriteString("\t\tbyProvider[model.Provider] = append(byProvider[model.Provider], model)\n")
+		b.WriteString("\t}\n")
+		b.WriteString("\tfor provider, models := range byProvider {\n")
+		b.WriteString("\t\tRegisterDynamicModelProvider(StaticModelProvider{Provider: provider, Models: models})\n")
+		b.WriteString("\t}\n")
+		b.WriteString("}\n\n")
+		b.WriteString("var builtinModels = []Model{\n")
+	}
 
 	// Sort providers for deterministic output
 	providerNames := sortedKeys(models)
@@ -405,9 +468,20 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 
 			b.WriteString("\t{\n")
 			b.WriteString(fmt.Sprintf("\t\tID:            %q,\n", m.ID))
+			if m.Type != "" {
+				b.WriteString(fmt.Sprintf("\t\tType:          %q,\n", m.Type))
+			}
 			b.WriteString(fmt.Sprintf("\t\tName:          %q,\n", m.Name))
-			b.WriteString(fmt.Sprintf("\t\tApi:           %q,\n", m.Api))
-			b.WriteString(fmt.Sprintf("\t\tProvider:      %q,\n", m.Provider))
+			if kind == "image" {
+				b.WriteString(fmt.Sprintf("\t\tApi:           ImageApi(%q),\n", m.Api))
+				b.WriteString(fmt.Sprintf("\t\tProvider:      ImageProvider(%q),\n", m.Provider))
+			} else if kind == "classifier" {
+				b.WriteString(fmt.Sprintf("\t\tApi:           ClassifierApi(%q),\n", m.Api))
+				b.WriteString(fmt.Sprintf("\t\tProvider:      ClassifierProvider(%q),\n", m.Provider))
+			} else {
+				b.WriteString(fmt.Sprintf("\t\tApi:           %q,\n", m.Api))
+				b.WriteString(fmt.Sprintf("\t\tProvider:      %q,\n", m.Provider))
+			}
 			b.WriteString(fmt.Sprintf("\t\tBaseURL:       %q,\n", m.BaseURL))
 			if len(m.Headers) > 0 {
 				b.WriteString("\t\tHeaders:       map[string]string{")
@@ -424,9 +498,11 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 				}
 				b.WriteString("},\n")
 			}
-			writeCompat(&b, m.Api, m.Compat)
-			b.WriteString(fmt.Sprintf("\t\tReasoning:     %v,\n", m.Reasoning))
-			if len(m.ThinkingLevelMap) > 0 {
+			if kind == "chat" {
+				writeCompat(&b, m.Api, m.Compat)
+				b.WriteString(fmt.Sprintf("\t\tReasoning:     %v,\n", m.Reasoning))
+			}
+			if kind == "chat" && len(m.ThinkingLevelMap) > 0 {
 				b.WriteString("\t\tThinkingLevelMap: map[ModelThinkingLevel]*string{")
 				keys := make([]string, 0, len(m.ThinkingLevelMap))
 				for k := range m.ThinkingLevelMap {
@@ -471,10 +547,12 @@ func generateGoSource(models map[string]map[string]modelEntry, total int) string
 	}
 
 	b.WriteString("}\n\n")
-	b.WriteString("func strPtr(v string) *string { return &v }\n")
-	b.WriteString("func boolPtr(v bool) *bool { return &v }\n")
-	b.WriteString("func mustMap(data string) map[string]interface{} { var out map[string]interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
-	b.WriteString("func mustValue(data string) interface{} { var out interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
+	if kind == "chat" {
+		b.WriteString("func strPtr(v string) *string { return &v }\n")
+		b.WriteString("func boolPtr(v bool) *bool { return &v }\n")
+		b.WriteString("func mustMap(data string) map[string]interface{} { var out map[string]interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
+		b.WriteString("func mustValue(data string) interface{} { var out interface{}; _ = json.Unmarshal([]byte(data), &out); return out }\n")
+	}
 	return b.String()
 }
 

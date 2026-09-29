@@ -152,7 +152,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		processSSEStream(resp.Body, model, ch)
+		processSSEStreamWithOptions(resp.Body, model, opts, ch)
 	}()
 
 	return ch
@@ -1064,6 +1064,10 @@ type sseUsage struct {
 }
 
 func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+	processSSEStreamWithOptions(body, model, nil, ch)
+}
+
+func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, ch chan<- goai.Event) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -1103,6 +1107,12 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		var chunk sseChunk
 		if err := json.Unmarshal([]byte(evt.Data), &chunk); err != nil {
 			continue
+		}
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			if err := opts.OnProviderStreamEvent(chunk, model); err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				return
+			}
 		}
 
 		if chunk.ID != "" {
