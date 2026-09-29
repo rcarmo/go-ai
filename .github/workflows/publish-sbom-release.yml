@@ -15,7 +15,7 @@ on:
         description: Full accepted runtime commit SHA to check out and publish SBOM for
         required: true
       release_mode:
-        description: Release mode: upstream (historical upstream-vX.Y.Z alias) or native (Go module vX.Y.Z)
+        description: "Release mode: upstream (historical upstream-vX.Y.Z alias) or native (Go module vX.Y.Z)"
         required: false
         default: upstream
         type: choice
