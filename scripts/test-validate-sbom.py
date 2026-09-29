@@ -12,6 +12,7 @@ from copy import deepcopy
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "scripts" / "validate-sbom.py"
 REVISION = "abc123def456"
+FULL_VCS_REVISION = "abc123def4567890abc123def4567890abc123de"
 ROOT_REF = f"pkg:golang/github.com/rcarmo/go-ai@{REVISION}?type=module"
 ROOT_PURL = f"pkg:golang/github.com/rcarmo/go-ai@{REVISION}?goarch=amd64&goos=linux&type=module"
 
@@ -28,19 +29,20 @@ def write_case(base: pathlib.Path, data: dict, *, checksum: bool = True) -> tupl
     return sbom, sha
 
 
-def valid_doc() -> dict:
+def valid_doc(*, vcs_revision: str | None = None) -> dict:
+    component = {
+        "type": "library",
+        "name": "github.com/rcarmo/go-ai",
+        "version": REVISION,
+        "bom-ref": ROOT_REF,
+        "purl": ROOT_PURL,
+    }
+    if vcs_revision is not None:
+        component["properties"] = [{"name": "vcs.revision", "value": vcs_revision}]
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
-        "metadata": {
-            "component": {
-                "type": "library",
-                "name": "github.com/rcarmo/go-ai",
-                "version": REVISION,
-                "bom-ref": ROOT_REF,
-                "purl": ROOT_PURL,
-            }
-        },
+        "metadata": {"component": component},
         "components": [
             {"type": "library", "name": "github.com/aws/aws-sdk-go-v2/config", "version": "v1.32.16", "bom-ref": "pkg:golang/github.com/aws/aws-sdk-go-v2/config@v1.32.16?type=module"},
             {"type": "library", "name": "github.com/aws/aws-sdk-go-v2/service/bedrockruntime", "version": "v1.50.5", "bom-ref": "pkg:golang/github.com/aws/aws-sdk-go-v2/service/bedrockruntime@v1.50.5?type=module"},
@@ -59,17 +61,14 @@ def valid_doc() -> dict:
     }
 
 
-def run_validator(sbom: pathlib.Path, sha: pathlib.Path, expected: str = REVISION) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(VALIDATOR), str(sbom), str(sha), "--expected-revision", expected],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+def run_validator(sbom: pathlib.Path, sha: pathlib.Path, expected: str = REVISION, expected_vcs: str | None = None) -> subprocess.CompletedProcess[str]:
+    cmd = [sys.executable, str(VALIDATOR), str(sbom), str(sha), "--expected-revision", expected]
+    if expected_vcs is not None:
+        cmd.extend(["--expected-vcs-revision", expected_vcs])
+    return subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
 
-def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, expected: str = REVISION) -> None:
+def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, expected: str = REVISION, expected_vcs: str | None = None) -> None:
     with tempfile.TemporaryDirectory() as td:
         base = pathlib.Path(td)
         if isinstance(data, bytes):
@@ -79,7 +78,7 @@ def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, exp
             sha.write_text(hashlib.sha256(data).hexdigest() + "  sbom.cdx.json\n", encoding="utf-8")
         else:
             sbom, sha = write_case(base, data, checksum=mutate_checksum)
-        result = run_validator(sbom, sha, expected)
+        result = run_validator(sbom, sha, expected, expected_vcs)
         if result.returncode == 0:
             raise AssertionError(f"{name} unexpectedly passed: {result.stdout}")
         print(f"negative self-test passed: {name}")
@@ -95,9 +94,18 @@ def main() -> int:
             raise AssertionError("valid fixture failed")
         print("positive self-test passed")
 
+    with tempfile.TemporaryDirectory() as td:
+        base = pathlib.Path(td)
+        sbom, sha = write_case(base, valid_doc(vcs_revision=FULL_VCS_REVISION))
+        ok = run_validator(sbom, sha, REVISION, FULL_VCS_REVISION)
+        if ok.returncode != 0:
+            print(ok.stdout, ok.stderr, file=sys.stderr)
+            raise AssertionError("valid fixture with VCS revision failed")
+        print("positive VCS self-test passed")
+
     bad_revision = deepcopy(valid_doc())
     bad_revision["metadata"]["component"]["version"] = "deadbeefdead"
-    expect_fail("revision tamper with recomputed checksum", bad_revision)
+    expect_fail("version tamper with recomputed checksum", bad_revision)
 
     expect_fail("checksum mismatch", valid_doc(), mutate_checksum=False)
 
@@ -117,19 +125,26 @@ def main() -> int:
 
     stale_bom_ref = deepcopy(valid_doc())
     stale_bom_ref["metadata"]["component"]["bom-ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
-    expect_fail("stale root bom-ref revision", stale_bom_ref)
+    expect_fail("stale root bom-ref version", stale_bom_ref)
 
     stale_purl = deepcopy(valid_doc())
     stale_purl["metadata"]["component"]["purl"] = "pkg:golang/github.com/rcarmo/go-ai@stale?goarch=amd64&goos=linux&type=module"
-    expect_fail("stale root purl revision", stale_purl)
+    expect_fail("stale root purl version", stale_purl)
 
     stale_dep_ref = deepcopy(valid_doc())
     stale_dep_ref["dependencies"][0]["ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
-    expect_fail("stale root dependency ref revision", stale_dep_ref)
+    expect_fail("stale root dependency ref version", stale_dep_ref)
 
     stale_dep_depends_on = deepcopy(valid_doc())
     stale_dep_depends_on["dependencies"][0]["dependsOn"].append("pkg:golang/github.com/rcarmo/go-ai@stale?type=module")
-    expect_fail("stale root dependsOn ref revision", stale_dep_depends_on)
+    expect_fail("stale root dependsOn ref version", stale_dep_depends_on)
+
+    missing_vcs = deepcopy(valid_doc())
+    expect_fail("missing root VCS revision", missing_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    bad_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
+    bad_vcs["metadata"]["component"]["properties"][0]["value"] = "bad"
+    expect_fail("stale root VCS revision", bad_vcs, expected_vcs=FULL_VCS_REVISION)
 
     print("SBOM validator self-tests passed")
     return 0

@@ -9,6 +9,7 @@ import sys
 from typing import Any
 
 ROOT_MODULE = "github.com/rcarmo/go-ai"
+VCS_REVISION_PROPERTY = "vcs.revision"
 REQUIRED_DEPENDENCIES = {
     "github.com/aws/aws-sdk-go-v2/config",
     "github.com/aws/aws-sdk-go-v2/service/bedrockruntime",
@@ -35,15 +36,26 @@ def purl_version(value: str, root_module: str = ROOT_MODULE) -> str | None:
     return base.rsplit("@", 1)[1]
 
 
-def root_ref_matches_revision(ref: str, expected_revision: str) -> bool:
-    return ROOT_MODULE in ref and purl_version(ref) == expected_revision
+def root_ref_matches_version(ref: str, expected_version: str) -> bool:
+    return ROOT_MODULE in ref and purl_version(ref) == expected_version
+
+
+def component_property(component: dict[str, Any], name: str) -> str | None:
+    props = component.get("properties")
+    if not isinstance(props, list):
+        return None
+    values = [prop.get("value") for prop in props if isinstance(prop, dict) and prop.get("name") == name]
+    if len(values) != 1 or not isinstance(values[0], str):
+        return None
+    return values[0]
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sbom", type=pathlib.Path)
     parser.add_argument("checksum", type=pathlib.Path)
-    parser.add_argument("--expected-revision", required=True, help="expected root component revision/version, usually git rev-parse --short=12 HEAD")
+    parser.add_argument("--expected-revision", dest="expected_version", required=True, help="expected root component version (legacy name retained for callers)")
+    parser.add_argument("--expected-vcs-revision", help="expected full VCS revision stored as root component property")
     args = parser.parse_args(argv[1:])
 
     sbom_path = args.sbom
@@ -73,16 +85,20 @@ def main(argv: list[str]) -> int:
         return fail("missing metadata component")
     if component_name(component) != ROOT_MODULE:
         return fail(f"unexpected root component name {component.get('name')!r}")
-    if component.get("version") != args.expected_revision:
-        return fail(f"unexpected root component revision {component.get('version')!r}, want {args.expected_revision!r}")
+    if component.get("version") != args.expected_version:
+        return fail(f"unexpected root component version {component.get('version')!r}, want {args.expected_version!r}")
+    if args.expected_vcs_revision:
+        got_revision = component_property(component, VCS_REVISION_PROPERTY)
+        if got_revision != args.expected_vcs_revision:
+            return fail(f"unexpected root VCS revision {got_revision!r}, want {args.expected_vcs_revision!r}")
     if component.get("type") not in {"application", "library"}:
         return fail(f"unexpected root component type {component.get('type')!r}")
     root_ref = component.get("bom-ref")
-    if not isinstance(root_ref, str) or not root_ref_matches_revision(root_ref, args.expected_revision):
-        return fail(f"unexpected root component bom-ref {root_ref!r}; want {ROOT_MODULE}@{args.expected_revision}")
+    if not isinstance(root_ref, str) or not root_ref_matches_version(root_ref, args.expected_version):
+        return fail(f"unexpected root component bom-ref {root_ref!r}; want {ROOT_MODULE}@{args.expected_version}")
     root_purl = component.get("purl")
-    if not isinstance(root_purl, str) or not root_ref_matches_revision(root_purl, args.expected_revision):
-        return fail(f"unexpected root component purl {root_purl!r}; want {ROOT_MODULE}@{args.expected_revision}")
+    if not isinstance(root_purl, str) or not root_ref_matches_version(root_purl, args.expected_version):
+        return fail(f"unexpected root component purl {root_purl!r}; want {ROOT_MODULE}@{args.expected_version}")
     components = data.get("components")
     if not isinstance(components, list) or not components:
         return fail("empty components list")
@@ -109,7 +125,8 @@ def main(argv: list[str]) -> int:
     for required in sorted(REQUIRED_DEPENDENCIES):
         if not any(isinstance(ref, str) and required in ref for ref in depends_on):
             return fail(f"root dependency graph missing dependency ref for {required}")
-    print(f"SBOM valid: {len(components)} components, sha256 {got_sha}, revision {args.expected_revision}")
+    suffix = f", vcs {args.expected_vcs_revision}" if args.expected_vcs_revision else ""
+    print(f"SBOM valid: {len(components)} components, sha256 {got_sha}, version {args.expected_version}{suffix}")
     return 0
 
 

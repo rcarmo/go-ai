@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Normalize CycloneDX SBOM JSON for stable artifact hashing."""
 from __future__ import annotations
+import argparse
 import json
 import pathlib
 import sys
 
 ROOT_MODULE = "github.com/rcarmo/go-ai"
+VCS_REVISION_PROPERTY = "vcs.revision"
 
 
-def replace_purl_version(value: str, revision: str) -> str:
+def replace_purl_version(value: str, version: str) -> str:
     if ROOT_MODULE not in value:
         return value
     base, sep, qualifiers = value.partition("?")
@@ -16,7 +18,7 @@ def replace_purl_version(value: str, revision: str) -> str:
         prefix = base.rsplit("@", 1)[0]
     else:
         prefix = base
-    out = f"{prefix}@{revision}"
+    out = f"{prefix}@{version}"
     if sep:
         out += sep + qualifiers
     return out
@@ -37,12 +39,27 @@ def rewrite_dependency_refs(dependencies: object, old_root_ref: str | None, new_
                     depends_on[index] = new_root_ref
 
 
+def set_component_property(component: dict, name: str, value: str) -> None:
+    props = component.get("properties")
+    if not isinstance(props, list):
+        props = []
+    props = [prop for prop in props if not (isinstance(prop, dict) and prop.get("name") == name)]
+    props.append({"name": name, "value": value})
+    component["properties"] = props
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("sbom", type=pathlib.Path)
+    parser.add_argument("version", help="root component version for SBOM identity")
+    parser.add_argument("--vcs-revision", help="full VCS revision to embed as root component property")
+    return parser.parse_args(argv[1:])
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print("usage: scripts/normalize-sbom.py artifacts/sbom.cdx.json REVISION", file=sys.stderr)
-        return 2
-    path = pathlib.Path(argv[1])
-    revision = argv[2]
+    args = parse_args(argv)
+    path = args.sbom
+    version = args.version
     data = json.loads(path.read_text(encoding="utf-8"))
     data.pop("serialNumber", None)
     metadata = data.get("metadata") or {}
@@ -50,11 +67,13 @@ def main(argv: list[str]) -> int:
     component = metadata.get("component")
     if isinstance(component, dict):
         old_root_ref = component.get("bom-ref") if isinstance(component.get("bom-ref"), str) else None
-        component["version"] = revision
+        component["version"] = version
         if isinstance(component.get("bom-ref"), str):
-            component["bom-ref"] = replace_purl_version(component["bom-ref"], revision)
+            component["bom-ref"] = replace_purl_version(component["bom-ref"], version)
         if isinstance(component.get("purl"), str):
-            component["purl"] = replace_purl_version(component["purl"], revision)
+            component["purl"] = replace_purl_version(component["purl"], version)
+        if args.vcs_revision:
+            set_component_property(component, VCS_REVISION_PROPERTY, args.vcs_revision)
         new_root_ref = component.get("bom-ref")
         if isinstance(new_root_ref, str):
             rewrite_dependency_refs(data.get("dependencies"), old_root_ref, new_root_ref)

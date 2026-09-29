@@ -14,6 +14,14 @@ on:
       runtime_ref:
         description: Full accepted runtime commit SHA to check out and publish SBOM for
         required: true
+      release_mode:
+        description: Release mode: upstream (historical upstream-vX.Y.Z alias) or native (Go module vX.Y.Z)
+        required: false
+        default: upstream
+        type: choice
+        options:
+          - upstream
+          - native
 
 permissions:
   contents: write
@@ -29,6 +37,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           UPSTREAM_VERSION: ${{ inputs.upstream_version }}
           RUNTIME_REF: ${{ inputs.runtime_ref }}
+          RELEASE_MODE: ${{ inputs.release_mode || 'upstream' }}
         run: |
           set -euo pipefail
           if [[ ! "$RUNTIME_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -43,11 +52,35 @@ jobs:
             echo "upstream_version must match vMAJOR.MINOR.PATCH" >&2
             exit 1
           fi
-          if [[ "$RELEASE_TAG" != "upstream-$UPSTREAM_VERSION" ]]; then
-            echo "release_tag $RELEASE_TAG must equal upstream-$UPSTREAM_VERSION" >&2
-            exit 1
-          fi
+          case "$RELEASE_MODE" in
+            upstream)
+              if [[ "$RELEASE_TAG" != "upstream-$UPSTREAM_VERSION" ]]; then
+                echo "release_tag $RELEASE_TAG must equal upstream-$UPSTREAM_VERSION in upstream mode" >&2
+                exit 1
+              fi
+              root_version="${RUNTIME_REF:0:12}"
+              title="SBOM for @earendil-works/pi-ai ${UPSTREAM_VERSION}"
+              notes="CycloneDX JSON SBOM for github.com/rcarmo/go-ai accepted runtime ${RUNTIME_REF} (tracking @earendil-works/pi-ai ${UPSTREAM_VERSION}). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
+              ;;
+            native)
+              if [[ "$RELEASE_TAG" != "$UPSTREAM_VERSION" ]]; then
+                echo "release_tag $RELEASE_TAG must equal $UPSTREAM_VERSION in native mode" >&2
+                exit 1
+              fi
+              root_version="${UPSTREAM_VERSION#v}"
+              title="go-ai ${UPSTREAM_VERSION}"
+              notes="Native Go module release ${UPSTREAM_VERSION} for github.com/rcarmo/go-ai accepted runtime ${RUNTIME_REF} (tracking @earendil-works/pi-ai ${UPSTREAM_VERSION}). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
+              ;;
+            *)
+              echo "release_mode must be upstream or native" >&2
+              exit 1
+              ;;
+          esac
           printf '%s\n' "upstream_version=$UPSTREAM_VERSION" >> "$GITHUB_ENV"
+          printf '%s\n' "release_mode=$RELEASE_MODE" >> "$GITHUB_ENV"
+          printf '%s\n' "sbom_root_version=$root_version" >> "$GITHUB_ENV"
+          printf '%s\n' "release_title=$title" >> "$GITHUB_ENV"
+          printf '%s\n' "release_notes=$notes" >> "$GITHUB_ENV"
 
       - name: Checkout workflow tooling
         uses: actions/checkout@v4
@@ -71,7 +104,7 @@ jobs:
           set -euo pipefail
           tooling_ref="$(git -C tooling rev-parse HEAD)"
           if [[ "$tooling_ref" != "$GITHUB_SHA" ]]; then
-            echo "tooling checkout $tooling_ref, expected workflow SHA $GITHUB_SHA" >&2
+            echo "tooling checkout $tooling_ref, expected $GITHUB_SHA" >&2
             exit 1
           fi
           actual_ref="$(git -C runtime rev-parse HEAD)"
@@ -104,10 +137,12 @@ jobs:
           set -euo pipefail
           echo "runtime checkout: $runtime_full_ref"
           echo "tooling checkout: $tooling_full_ref"
-          python3 tooling/scripts/normalize-sbom.py runtime/artifacts/sbom.cdx.json "$runtime_short_ref"
+          echo "release mode: $release_mode"
+          echo "SBOM root version: $sbom_root_version"
+          python3 tooling/scripts/normalize-sbom.py runtime/artifacts/sbom.cdx.json "$sbom_root_version" --vcs-revision "$runtime_full_ref"
           sha256sum runtime/artifacts/sbom.cdx.json > runtime/artifacts/sbom.cdx.json.sha256
           sed -i 's#  runtime/artifacts/sbom.cdx.json#  artifacts/sbom.cdx.json#' runtime/artifacts/sbom.cdx.json.sha256
-          python3 tooling/scripts/validate-sbom.py runtime/artifacts/sbom.cdx.json runtime/artifacts/sbom.cdx.json.sha256 --expected-revision "$runtime_short_ref"
+          python3 tooling/scripts/validate-sbom.py runtime/artifacts/sbom.cdx.json runtime/artifacts/sbom.cdx.json.sha256 --expected-revision "$sbom_root_version" --expected-vcs-revision "$runtime_full_ref"
           python3 tooling/scripts/test-validate-sbom.py
           python3 - <<'PY'
           import json
@@ -118,20 +153,26 @@ jobs:
           sbom = pathlib.Path("runtime/artifacts/sbom.cdx.json")
           data = json.loads(sbom.read_text(encoding="utf-8"))
           component = data.get("metadata", {}).get("component", {})
-          expected = os.environ["runtime_short_ref"]
+          expected_version = os.environ["sbom_root_version"]
+          expected_runtime = os.environ["runtime_full_ref"]
           fields = {
               "version": component.get("version"),
               "purl": component.get("purl"),
               "bom-ref": component.get("bom-ref"),
           }
-          if fields["version"] != expected:
-              print(f"SBOM root version {fields['version']!r}, expected {expected!r}", file=sys.stderr)
+          props = component.get("properties") if isinstance(component.get("properties"), list) else []
+          revisions = [prop.get("value") for prop in props if isinstance(prop, dict) and prop.get("name") == "vcs.revision"]
+          if fields["version"] != expected_version:
+              print(f"SBOM root version {fields['version']!r}, expected {expected_version!r}", file=sys.stderr)
               raise SystemExit(1)
           for name in ("purl", "bom-ref"):
               value = fields[name]
-              if not isinstance(value, str) or f"github.com/rcarmo/go-ai@{expected}" not in value:
-                  print(f"SBOM root {name} {value!r} does not identify go-ai@{expected}", file=sys.stderr)
+              if not isinstance(value, str) or f"github.com/rcarmo/go-ai@{expected_version}" not in value:
+                  print(f"SBOM root {name} {value!r} does not identify go-ai@{expected_version}", file=sys.stderr)
                   raise SystemExit(1)
+          if revisions != [expected_runtime]:
+              print(f"SBOM root vcs.revision values {revisions!r}, expected {[expected_runtime]!r}", file=sys.stderr)
+              raise SystemExit(1)
           root_ref = fields["bom-ref"]
           root_deps = [dep for dep in data.get("dependencies", []) if isinstance(dep, dict) and "github.com/rcarmo/go-ai" in str(dep.get("ref", ""))]
           if len(root_deps) != 1 or root_deps[0].get("ref") != root_ref:
@@ -158,8 +199,33 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          title="SBOM for @earendil-works/pi-ai ${upstream_version}"
-          notes="CycloneDX JSON SBOM for github.com/rcarmo/go-ai accepted runtime ${runtime_full_ref} (tracking @earendil-works/pi-ai ${upstream_version}). Assets: sbom.cdx.json and sbom.cdx.json.sha256."
+          if [[ "$release_mode" == "native" ]]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+              git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
+              if [[ "$tag_type" != "tag" ]]; then
+                echo "native release tag $RELEASE_TAG exists but is not annotated (type $tag_type)" >&2
+                exit 1
+              fi
+              tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+              if [[ "$tag_commit" != "$runtime_full_ref" ]]; then
+                echo "native release tag $RELEASE_TAG points to $tag_commit, expected $runtime_full_ref" >&2
+                exit 1
+              fi
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -a "$RELEASE_TAG" -m "go-ai ${upstream_version}" "$runtime_full_ref"
+              git push origin "refs/tags/${RELEASE_TAG}"
+              git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
+              tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+              if [[ "$tag_type" != "tag" || "$tag_commit" != "$runtime_full_ref" ]]; then
+                echo "created native release tag failed verification: type=$tag_type commit=$tag_commit expected=$runtime_full_ref" >&2
+                exit 1
+              fi
+            fi
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
             tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
@@ -167,8 +233,15 @@ jobs:
               echo "release tag $RELEASE_TAG points to $tag_commit, expected $runtime_full_ref" >&2
               exit 1
             fi
-            gh release edit "$RELEASE_TAG" --title "$title" --notes "$notes"
+            if [[ "$release_mode" == "native" ]]; then
+              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
+              if [[ "$tag_type" != "tag" ]]; then
+                echo "native release tag $RELEASE_TAG exists but is not annotated (type $tag_type)" >&2
+                exit 1
+              fi
+            fi
+            gh release edit "$RELEASE_TAG" --title "$release_title" --notes "$release_notes"
           else
-            gh release create "$RELEASE_TAG" --title "$title" --notes "$notes" --target "$runtime_full_ref"
+            gh release create "$RELEASE_TAG" --title "$release_title" --notes "$release_notes" --target "$runtime_full_ref"
           fi
           gh release upload "$RELEASE_TAG" dist/sbom.cdx.json dist/sbom.cdx.json.sha256 --clobber
