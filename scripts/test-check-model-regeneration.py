@@ -27,13 +27,25 @@ def replace_once(path: pathlib.Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def run_check(repo: pathlib.Path, name: str) -> None:
+MISMATCH_PHRASE = "does not match regeneration from exact v0.99.1 schema-v6 catalog"
+
+
+def run_check(repo: pathlib.Path, name: str, filename: str, corrupt_marker: str) -> None:
     proc = subprocess.run(["bash", "./scripts/check-model-regeneration.sh"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode == 0:
         raise RuntimeError(f"{name} corruption unexpectedly passed regeneration comparator")
     combined = proc.stdout + proc.stderr
-    if "does not match normalized regeneration" not in combined:
-        raise RuntimeError(f"{name} failed for the wrong reason:\n{combined[-4000:]}")
+    expected_diagnostic = f"{filename} {MISMATCH_PHRASE}"
+    required = [
+        expected_diagnostic,
+        corrupt_marker,
+        "--- ",
+        "+++ ",
+        "@@",
+    ]
+    missing = [needle for needle in required if needle not in combined]
+    if missing:
+        raise RuntimeError(f"{name} failed for the wrong reason; missing {missing!r}:\n{combined[-4000:]}")
 
 
 def main() -> int:
@@ -46,11 +58,11 @@ def main() -> int:
         copy_repo(image_repo)
         copy_repo(classifier_repo)
         replace_once(text_repo / "models_generated.go", "Name:             \"GPT-6 Astra (Global)\"", "Name:             \"GPT-6 Astra (Global) Corrupt\"")
-        run_check(text_repo, "chat non-ID metadata")
-        replace_once(image_repo / "image_models_generated.go", "Name:     \"Google: Nano Banana Pro (Gemini 3 Pro Image)\"", "Name:     \"Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt\"")
-        run_check(image_repo, "image non-ID metadata")
+        run_check(text_repo, "chat non-ID metadata", "models_generated.go", "GPT-6 Astra (Global) Corrupt")
+        replace_once(image_repo / "image_models_generated.go", "Name:          \"Google: Nano Banana Pro (Gemini 3 Pro Image)\"", "Name:          \"Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt\"")
+        run_check(image_repo, "image non-ID metadata", "image_models_generated.go", "Google: Nano Banana Pro (Gemini 3 Pro Image) Corrupt")
         replace_once(classifier_repo / "classifier_models_generated.go", "Name:          \"Jev 1.13\"", "Name:          \"Jev 1.13 Corrupt\"")
-        run_check(classifier_repo, "classifier non-ID metadata")
+        run_check(classifier_repo, "classifier non-ID metadata", "classifier_models_generated.go", "Jev 1.13 Corrupt")
     print("model regeneration negative self-test passed")
     return 0
 
