@@ -23,7 +23,7 @@ func TestV0851ResponsesExplicitPromptCacheOptionsSerialization(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := v0851ResponsesCacheModel(true, tc.longSupported)
-			opts := &goai.StreamOptions{APIKey: "key", SessionID: "session-2", CacheRetention: tc.retention}
+			opts := &goai.StreamOptions{APIKey: "sk-test", SessionID: "session-2", CacheRetention: tc.retention}
 			payload := marshalV0851ResponsesRequest(t, buildRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, opts))
 			if _, ok := payload["prompt_cache_retention"]; ok {
 				t.Fatalf("prompt_cache_retention emitted for explicit-cache model: %#v", payload)
@@ -56,7 +56,7 @@ func TestV0851ResponsesExplicitPromptCacheOptionsSerialization(t *testing.T) {
 
 func TestV0851ResponsesLegacyPromptCacheRetentionStillUses24h(t *testing.T) {
 	model := v0851ResponsesCacheModel(false, true)
-	payload := marshalV0851ResponsesRequest(t, buildRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "key", SessionID: "session-1", CacheRetention: goai.CacheRetentionLong}))
+	payload := marshalV0851ResponsesRequest(t, buildRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "sk-test", SessionID: "session-1", CacheRetention: goai.CacheRetentionLong}))
 	if got := payload["prompt_cache_retention"]; got != "24h" {
 		t.Fatalf("prompt_cache_retention=%#v want 24h payload=%#v", got, payload)
 	}
@@ -95,6 +95,17 @@ func marshalV0851ResponsesRequest(t *testing.T, req responsesRequest) map[string
 		t.Fatal(err)
 	}
 	return payload
+}
+
+func TestV0991ResponsesEmptyCredentialRetainsLegacyPromptCacheSerialization(t *testing.T) {
+	model := v0851ResponsesCacheModel(true, true)
+	payload := marshalV0851ResponsesRequest(t, buildRequest(model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "", SessionID: "session-empty", CacheRetention: goai.CacheRetentionLong}))
+	if got := payload["prompt_cache_options"]; got == nil {
+		t.Fatalf("prompt_cache_options omitted for empty credential; payload=%#v", payload)
+	}
+	if got := payload["prompt_cache_key"]; got != "session-empty" {
+		t.Fatalf("prompt_cache_key=%#v want session-empty payload=%#v", got, payload)
+	}
 }
 
 func boolPtrV0851(v bool) *bool { return &v }

@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1495 {
-		t.Fatalf("expected exactly 1495 generated models from pi-ai v0.87.1 tag f07218c, got %d", total)
+	if total != 1523 {
+		t.Fatalf("expected exactly 1523 generated models from pi-ai v0.99.1, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -84,12 +84,12 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 	}
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
-	if kimi == nil || kimi.Cost.Input != 0.7062 || kimi.Cost.Output != 3.3 || kimi.Cost.CacheRead != 0.18 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 235929 || kimi.InputLimits == nil || kimi.InputLimits.Images == nil || kimi.InputLimits.Images.Resize == nil || kimi.InputLimits.Images.Resize.MaxBytes != 4718592 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.87.1 metadata and image limits, got %#v", kimi)
+	if kimi == nil || kimi.Cost.Input != 0.6562 || kimi.Cost.Output != 3.3 || kimi.Cost.CacheRead != 0.18 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 235929 || kimi.InputLimits == nil || kimi.InputLimits.Images == nil || kimi.InputLimits.Images.Resize == nil || kimi.InputLimits.Images.Resize.MaxBytes != 4718592 {
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.99.1 metadata and image limits, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.6496 || openRouterGLM52.Cost.Output != 2.0416 || openRouterGLM52.Cost.CacheRead != 0.12064 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v0.87.1 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.2339 || openRouterGLM52.Cost.Output != 4.4 || openRouterGLM52.Cost.CacheRead != 0.1871 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v0.99.1 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -110,8 +110,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		}
 	}
 	kimiK3 := goai.GetModel(goai.ProviderMoonshotAI, "kimi-k3")
-	if kimiK3.Api != goai.ApiOpenAICompletions || kimiK3.ContextWindow != 1048576 || kimiK3.MaxTokens != 131072 || kimiK3.Cost.Input != 3 || kimiK3.Cost.Output != 15 || kimiK3.Cost.CacheRead != 0.3 || kimiK3.CompletionsCompat == nil || kimiK3.CompletionsCompat.SupportsMidConvoToolAdditions == nil || !*kimiK3.CompletionsCompat.SupportsMidConvoToolAdditions {
-		t.Fatalf("expected Moonshot Kimi K3 v0.87.1 metadata, got %#v", kimiK3)
+	if kimiK3.Api != goai.ApiOpenAICompletions || kimiK3.ContextWindow != 1048576 || kimiK3.MaxTokens != 1048576 || kimiK3.Cost.Input != 3 || kimiK3.Cost.Output != 15 || kimiK3.Cost.CacheRead != 0.3 || kimiK3.CompletionsCompat == nil || kimiK3.CompletionsCompat.SupportsMidConvoToolAdditions == nil || !*kimiK3.CompletionsCompat.SupportsMidConvoToolAdditions {
+		t.Fatalf("expected Moonshot Kimi K3 v0.99.1 metadata, got %#v", kimiK3)
 	}
 	vercelInkling := goai.GetModel(goai.ProviderVercelAIGateway, "thinkingmachines/inkling")
 	if vercelInkling.Api != goai.ApiAnthropicMessages || vercelInkling.ContextWindow != 256000 || vercelInkling.MaxTokens != 256000 || vercelInkling.BaseURL == "" {

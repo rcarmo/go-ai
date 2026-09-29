@@ -32,8 +32,8 @@ func TestFireworksProviderEnvKeyCompatibilityRetained(t *testing.T) {
 	}
 }
 
-func TestTogetherModelsRegistersDefaultKimiK26ViaOpenAICompatibleChatCompletionsAPI(t *testing.T) {
-	model := requireModel(t, goai.ProviderTogether, "moonshotai/Kimi-K2.6")
+func TestTogetherModelsRegistersDefaultKimiK3ViaOpenAICompatibleChatCompletionsAPI(t *testing.T) {
+	model := requireModel(t, goai.ProviderTogether, "moonshotai/Kimi-K3")
 	if model.Api != goai.ApiOpenAICompletions || model.Provider != goai.ProviderTogether {
 		t.Fatalf("api/provider=%q/%q, want openai-completions/together", model.Api, model.Provider)
 	}
@@ -50,10 +50,10 @@ func TestTogetherModelsRegistersDefaultKimiK26ViaOpenAICompatibleChatCompletions
 	if !reflect.DeepEqual(model.Input, []string{"text", "image"}) {
 		t.Fatalf("input=%#v, want [text image]", model.Input)
 	}
-	if model.ContextWindow != 262144 || model.MaxTokens != 131000 {
-		t.Fatalf("contextWindow/maxTokens=%d/%d, want 262144/131000", model.ContextWindow, model.MaxTokens)
+	if model.ContextWindow != 1048576 || model.MaxTokens != 131072 {
+		t.Fatalf("contextWindow/maxTokens=%d/%d, want 1048576/131072", model.ContextWindow, model.MaxTokens)
 	}
-	wantCost := goai.ModelCost{Input: 1.2, Output: 4.5, CacheRead: 0.2, CacheWrite: 0}
+	wantCost := goai.ModelCost{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 0}
 	if !reflect.DeepEqual(model.Cost, wantCost) {
 		t.Fatalf("cost=%#v, want %#v", model.Cost, wantCost)
 	}
@@ -61,7 +61,7 @@ func TestTogetherModelsRegistersDefaultKimiK26ViaOpenAICompatibleChatCompletions
 	if compat == nil {
 		t.Fatalf("CompletionsCompat is nil")
 	}
-	if ptrValue(compat.SupportsStore) != false || ptrValue(compat.SupportsDeveloperRole) != false || ptrValue(compat.SupportsReasoningEffort) != false || compat.MaxTokensField != "max_tokens" || compat.ThinkingFormat != "together" || ptrValue(compat.SupportsStrictMode) != false || ptrValue(compat.SupportsLongCacheRetention) != false {
+	if ptrValue(compat.SupportsStore) != false || ptrValue(compat.SupportsDeveloperRole) != false || compat.MaxTokensField != "max_tokens" || compat.ThinkingFormat != "together" || ptrValue(compat.SupportsStrictMode) != false || ptrValue(compat.SupportsLongCacheRetention) != false {
 		t.Fatalf("compat=%#v, want upstream Together Kimi compat", compat)
 	}
 }

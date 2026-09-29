@@ -20,16 +20,16 @@ func TestV0844CatalogCountsAndProviderAPIs(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1495 || len(providers) != 41 || len(apis) != 10 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1495/41/10", len(models), len(providers), len(apis))
+	if len(models) != 1523 || len(providers) != 41 || len(apis) != 10 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1523/41/10", len(models), len(providers), len(apis))
 	}
 }
 
 func TestV0844CatalogFireworksSetChanges(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	for _, id := range []string{"accounts/fireworks/models/kimi-k2p7-code", "accounts/fireworks/models/kimi-k3", "accounts/fireworks/routers/kimi-k3-fast"} {
+	for _, id := range []string{"accounts/fireworks/models/kimi-k3", "accounts/fireworks/routers/kimi-fast-latest", "accounts/fireworks/routers/kimi-k3-fast"} {
 		if got := goai.GetModel(goai.ProviderFireworks, id); got == nil {
-			t.Fatalf("missing v0.84.4 Fireworks model %s", id)
+			t.Fatalf("missing current Fireworks model %s", id)
 		}
 	}
 	if got := goai.GetModel(goai.ProviderFireworks, "accounts/fireworks/routers/kimi-k2p6-turbo"); got != nil {
