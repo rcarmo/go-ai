@@ -15,6 +15,7 @@ SBOM_DIR ?= artifacts
 SBOM_FILE ?= $(SBOM_DIR)/sbom.cdx.json
 SBOM_SHA_FILE ?= $(SBOM_FILE).sha256
 SBOM_REVISION ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+SBOM_VCS_REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 ALLOWED_LICENSES ?= Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MIT,MPL-2.0
 
 help: ## Show this help
@@ -56,13 +57,14 @@ license-check: ## Review dependency licenses; unknown/forbidden fail unless docu
 sbom: ## Generate normalized CycloneDX JSON SBOM and SHA-256 checksum under artifacts/
 	@mkdir -p $(SBOM_DIR)
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@$(CYCLONEDX_GOMOD_VERSION) mod -json -licenses -assert-licenses -output-version 1.6 -type library -output $(SBOM_FILE) .
-	python3 scripts/normalize-sbom.py $(SBOM_FILE) $(SBOM_REVISION)
+	python3 scripts/normalize-sbom.py $(SBOM_FILE) $(SBOM_REVISION) --vcs-revision $(SBOM_VCS_REVISION)
 	@sha256sum $(SBOM_FILE) > $(SBOM_SHA_FILE)
 
 sbom-check: sbom ## Validate SBOM schema/required fields/checksum/dependency output
-	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION)
+	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION) --expected-vcs-revision $(SBOM_VCS_REVISION)
 
-sbom-self-test: ## Run negative SBOM validator self-tests
+sbom-self-test: ## Run negative SBOM normalizer and validator self-tests
+	python3 scripts/test-normalize-sbom.py
 	python3 scripts/test-validate-sbom.py
 
 ci-artifacts: sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Generate and validate release CI security artifacts

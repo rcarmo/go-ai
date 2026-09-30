@@ -5,11 +5,13 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import sys
 from typing import Any
 
 ROOT_MODULE = "github.com/rcarmo/go-ai"
 VCS_REVISION_PROPERTY = "vcs.revision"
+FULL_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 REQUIRED_DEPENDENCIES = {
     "github.com/aws/aws-sdk-go-v2/config",
     "github.com/aws/aws-sdk-go-v2/service/bedrockruntime",
@@ -55,7 +57,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("sbom", type=pathlib.Path)
     parser.add_argument("checksum", type=pathlib.Path)
     parser.add_argument("--expected-revision", dest="expected_version", required=True, help="expected root component version (legacy name retained for callers)")
-    parser.add_argument("--expected-vcs-revision", help="expected full VCS revision stored as root component property")
+    parser.add_argument("--expected-vcs-revision", required=True, help="expected full lowercase 40-character VCS revision stored as root component property")
     args = parser.parse_args(argv[1:])
 
     sbom_path = args.sbom
@@ -87,10 +89,15 @@ def main(argv: list[str]) -> int:
         return fail(f"unexpected root component name {component.get('name')!r}")
     if component.get("version") != args.expected_version:
         return fail(f"unexpected root component version {component.get('version')!r}, want {args.expected_version!r}")
-    if args.expected_vcs_revision:
-        got_revision = component_property(component, VCS_REVISION_PROPERTY)
-        if got_revision != args.expected_vcs_revision:
-            return fail(f"unexpected root VCS revision {got_revision!r}, want {args.expected_vcs_revision!r}")
+    if not FULL_REVISION_RE.fullmatch(args.expected_vcs_revision):
+        return fail(f"expected VCS revision must be a full lowercase 40-character Git SHA, got {args.expected_vcs_revision!r}")
+    got_revision = component_property(component, VCS_REVISION_PROPERTY)
+    if got_revision is None:
+        return fail(f"missing unique root {VCS_REVISION_PROPERTY} property")
+    if not FULL_REVISION_RE.fullmatch(got_revision):
+        return fail(f"root {VCS_REVISION_PROPERTY} is not a full lowercase 40-character Git SHA: {got_revision!r}")
+    if got_revision != args.expected_vcs_revision:
+        return fail(f"unexpected root VCS revision {got_revision!r}, want {args.expected_vcs_revision!r}")
     if component.get("type") not in {"application", "library"}:
         return fail(f"unexpected root component type {component.get('type')!r}")
     root_ref = component.get("bom-ref")

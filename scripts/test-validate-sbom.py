@@ -61,14 +61,21 @@ def valid_doc(*, vcs_revision: str | None = None) -> dict:
     }
 
 
-def run_validator(sbom: pathlib.Path, sha: pathlib.Path, expected: str = REVISION, expected_vcs: str | None = None) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, str(VALIDATOR), str(sbom), str(sha), "--expected-revision", expected]
-    if expected_vcs is not None:
-        cmd.extend(["--expected-vcs-revision", expected_vcs])
+def run_validator(sbom: pathlib.Path, sha: pathlib.Path, expected: str = REVISION, expected_vcs: str = FULL_VCS_REVISION) -> subprocess.CompletedProcess[str]:
+    cmd = [
+        sys.executable,
+        str(VALIDATOR),
+        str(sbom),
+        str(sha),
+        "--expected-revision",
+        expected,
+        "--expected-vcs-revision",
+        expected_vcs,
+    ]
     return subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
 
-def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, expected: str = REVISION, expected_vcs: str | None = None) -> None:
+def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, expected: str = REVISION, expected_vcs: str = FULL_VCS_REVISION) -> None:
     with tempfile.TemporaryDirectory() as td:
         base = pathlib.Path(td)
         if isinstance(data, bytes):
@@ -87,55 +94,46 @@ def expect_fail(name: str, data: dict | bytes, mutate_checksum: bool = True, exp
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         base = pathlib.Path(td)
-        sbom, sha = write_case(base, valid_doc())
+        sbom, sha = write_case(base, valid_doc(vcs_revision=FULL_VCS_REVISION))
         ok = run_validator(sbom, sha)
         if ok.returncode != 0:
             print(ok.stdout, ok.stderr, file=sys.stderr)
             raise AssertionError("valid fixture failed")
         print("positive self-test passed")
 
-    with tempfile.TemporaryDirectory() as td:
-        base = pathlib.Path(td)
-        sbom, sha = write_case(base, valid_doc(vcs_revision=FULL_VCS_REVISION))
-        ok = run_validator(sbom, sha, REVISION, FULL_VCS_REVISION)
-        if ok.returncode != 0:
-            print(ok.stdout, ok.stderr, file=sys.stderr)
-            raise AssertionError("valid fixture with VCS revision failed")
-        print("positive VCS self-test passed")
-
-    bad_revision = deepcopy(valid_doc())
+    bad_revision = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     bad_revision["metadata"]["component"]["version"] = "deadbeefdead"
     expect_fail("version tamper with recomputed checksum", bad_revision)
 
-    expect_fail("checksum mismatch", valid_doc(), mutate_checksum=False)
+    expect_fail("checksum mismatch", valid_doc(vcs_revision=FULL_VCS_REVISION), mutate_checksum=False)
 
     expect_fail("malformed JSON", b"{not-json}\n")
 
-    path_leak = deepcopy(valid_doc())
+    path_leak = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     path_leak["metadata"]["tools"] = [{"name": "/workspace/secret-tool"}]
     expect_fail("local path leak", path_leak)
 
-    empty_graph = deepcopy(valid_doc())
+    empty_graph = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     empty_graph["dependencies"] = []
     expect_fail("empty dependency graph", empty_graph)
 
-    missing_root_ref = deepcopy(valid_doc())
+    missing_root_ref = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     missing_root_ref["dependencies"] = [{"ref": "pkg:golang/example.com/other@v0.0.0", "dependsOn": []}]
     expect_fail("missing root dependency ref", missing_root_ref)
 
-    stale_bom_ref = deepcopy(valid_doc())
+    stale_bom_ref = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     stale_bom_ref["metadata"]["component"]["bom-ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
     expect_fail("stale root bom-ref version", stale_bom_ref)
 
-    stale_purl = deepcopy(valid_doc())
+    stale_purl = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     stale_purl["metadata"]["component"]["purl"] = "pkg:golang/github.com/rcarmo/go-ai@stale?goarch=amd64&goos=linux&type=module"
     expect_fail("stale root purl version", stale_purl)
 
-    stale_dep_ref = deepcopy(valid_doc())
+    stale_dep_ref = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     stale_dep_ref["dependencies"][0]["ref"] = "pkg:golang/github.com/rcarmo/go-ai@stale?type=module"
     expect_fail("stale root dependency ref version", stale_dep_ref)
 
-    stale_dep_depends_on = deepcopy(valid_doc())
+    stale_dep_depends_on = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     stale_dep_depends_on["dependencies"][0]["dependsOn"].append("pkg:golang/github.com/rcarmo/go-ai@stale?type=module")
     expect_fail("stale root dependsOn ref version", stale_dep_depends_on)
 
@@ -145,6 +143,26 @@ def main() -> int:
     bad_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
     bad_vcs["metadata"]["component"]["properties"][0]["value"] = "bad"
     expect_fail("stale root VCS revision", bad_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    truncated_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
+    truncated_vcs["metadata"]["component"]["properties"][0]["value"] = FULL_VCS_REVISION[:12]
+    expect_fail("truncated root VCS revision", truncated_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    malformed_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
+    malformed_vcs["metadata"]["component"]["properties"][0]["value"] = "z" * 40
+    expect_fail("malformed root VCS revision", malformed_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    mismatched_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
+    mismatched_vcs["metadata"]["component"]["properties"][0]["value"] = "0" * 40
+    expect_fail("mismatched root VCS revision", mismatched_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    duplicate_vcs = deepcopy(valid_doc(vcs_revision=FULL_VCS_REVISION))
+    duplicate_vcs["metadata"]["component"]["properties"].append({"name": "vcs.revision", "value": FULL_VCS_REVISION})
+    expect_fail("duplicate root VCS revision", duplicate_vcs, expected_vcs=FULL_VCS_REVISION)
+
+    expect_fail("truncated expected VCS revision", valid_doc(vcs_revision=FULL_VCS_REVISION), expected_vcs=FULL_VCS_REVISION[:12])
+
+    expect_fail("malformed expected VCS revision", valid_doc(vcs_revision=FULL_VCS_REVISION), expected_vcs="z" * 40)
 
     print("SBOM validator self-tests passed")
     return 0

@@ -4,10 +4,12 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import sys
 
 ROOT_MODULE = "github.com/rcarmo/go-ai"
 VCS_REVISION_PROPERTY = "vcs.revision"
+FULL_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def replace_purl_version(value: str, version: str) -> str:
@@ -52,7 +54,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sbom", type=pathlib.Path)
     parser.add_argument("version", help="root component version for SBOM identity")
-    parser.add_argument("--vcs-revision", help="full VCS revision to embed as root component property")
+    parser.add_argument("--vcs-revision", required=True, help="full 40-character lowercase Git revision to embed as root component property")
     return parser.parse_args(argv[1:])
 
 
@@ -60,6 +62,9 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     path = args.sbom
     version = args.version
+    if args.vcs_revision and not FULL_REVISION_RE.fullmatch(args.vcs_revision):
+        print(f"vcs revision must be a full lowercase 40-character Git SHA: {args.vcs_revision!r}", file=sys.stderr)
+        return 1
     data = json.loads(path.read_text(encoding="utf-8"))
     data.pop("serialNumber", None)
     metadata = data.get("metadata") or {}
