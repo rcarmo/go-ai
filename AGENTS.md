@@ -80,6 +80,17 @@
 - Final CI must generate, validate, scan, and upload the SBOM and checksum with retention. Release evidence must record the SBOM tool/version, artifact names, digest, vulnerability scan disposition, and license review disposition.
 - Do not commit volatile SBOM output or checksums.
 
+## Native release tags and SBOM publication
+
+- Publish accepted native versions under `vX.Y.Z`. The tag must be an annotated Git tag authored by `Rui Carmo <rui.carmo@gmail.com>` and must peel to the accepted runtime commit. Lightweight tags, bot-authored tags, docs/tooling heads, and overwritten or force-updated tags are invalid.
+- Treat the peeled tag commit as the release target. GitHub's `target_commitish` field may report `main` for a release created from an existing annotated tag; it is not the provenance authority.
+- Check that the native tag and release are absent immediately before creation. Create the annotated tag with create-only semantics, then verify its object type, tagger identity, and peeled commit before creating the release.
+- Keep `upstream-vX.Y.Z` tags and releases as immutable historical aliases. Do not retarget them, replace their assets, or use their SBOM as the native release SBOM.
+- Generate native SBOM assets from the exact accepted runtime. The CycloneDX root version, purl, and bom-ref must match `X.Y.Z`; the root must record the exact peeled commit as its VCS revision and have a root dependency edge.
+- Publish only the canonical `sbom.cdx.json` and `sbom.cdx.json.sha256` assets unless a release contract explicitly adds another asset. Download the public assets after publication, validate the checksum, and compare them with the accepted local or exact-SHA hosted artifacts.
+- Record and verify the release title `go-ai vX.Y.Z`, annotated tag object, peeled commit, asset digests, SBOM root/version/revision, dependency graph, and preserved upstream alias before reporting completion.
+- Process historical versions oldest to newest. Stop on any tag, release, CI, security, licence, checksum, provenance, or publisher conflict.
+
 ## Lifecycle maintenance
 
 - Keep lockfiles/manifests consistent with `go.mod` and `go.sum`; dependency changes must run `go mod tidy`, tests, SBOM, vulnerability, and license checks.
