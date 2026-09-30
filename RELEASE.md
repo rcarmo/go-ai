@@ -12,9 +12,13 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 - Previous accepted upstream baseline: `v0.99.1` / accepted Go runtime `d3ac443f6f553a9f079501c3954eb2c65d051c24`
 - Rollback SHA before the v0.99.2 port cycle: `7a667f39f3642cbb54b4e648d91b7d3f8d697d9d`
 - Rejected v0.99.2 candidate: `3edf860c4e8b28f16b2e0499bdc6b3e0d221a869` (hosted artifact omitted the full 40-character root `vcs.revision`; only the 12-character root version appeared in root version/purl).
-- Replacement runtime status: this normal replacement commit supersedes `3edf860` and is locally pending hosted CI/artifact acceptance. Hosted run, job, artifact, and digest fields must be added later by an explicitly docs-only post-acceptance receipt if required.
-- Publication state: blocked. No `v0.99.2` tags, releases, or aliases are authorized from `3edf860` or from this replacement until auditor acceptance.
-- Native/upstream release tags, when later authorized, must target the accepted replacement runtime SHA, not a later docs-only receipt commit.
+- Accepted replacement runtime SHA: `86a439d949de78ce7e8ba4cd3f975312785c2a73`.
+- Runtime hosted CI: run `36782507431`; jobs `110115947250` and `110115947373` green.
+- Runtime artifact: `11128253844`; archive digest `85434226…`; inner SBOM digest `a3cbed94655d7eba9b4521322f14e80f1cb8e8a8be9621596f5467572bb3a295`.
+- Runtime SBOM: CycloneDX 1.6, `18` components, `19` dependencies, root dependency edge valid, exactly one root `vcs.revision=86a439d949de78ce7e8ba4cd3f975312785c2a73`.
+- Tooling hardening SHA: `91e35d44e1eec310edaeaccaad8ab166bb59009f`; hosted CI run `36783657683` green.
+- Publication state: still blocked pending explicit bounded native/upstream publication authorization. No `v0.99.2` tags, releases, or aliases are authorized from `3edf860`, the tooling head, or this docs head.
+- Native/upstream release tags, when later authorized, must target accepted runtime SHA `86a439d949de78ce7e8ba4cd3f975312785c2a73`, never docs/tooling head.
 
 ## Scope evidence
 
@@ -58,11 +62,11 @@ SBOM replacement local evidence for this normal replacement commit must include,
 - `make sbom sbom-check sbom-self-test vuln-check license-check` — must pass from the replacement tree.
 - After committing, `make sbom sbom-check` must be rerun so `artifacts/sbom.cdx.json` embeds this replacement commit's exact 40-character SHA as root `vcs.revision`; the SBOM root version remains the 12-character commit prefix.
 
-Hosted CI/artifact evidence for this replacement runtime is pending auditor acceptance. Do not publish tags/releases/aliases until accepted.
+Hosted CI/artifact evidence for replacement runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73` is accepted. Publication remains blocked until a separate explicit authorization. Security and license gates passed locally and in hosted CI.
 
 ## Durable SBOM release assets
 
-No v0.99.2 durable SBOM release asset is accepted yet. The hosted SBOM artifact for `3edf860c4e8b28f16b2e0499bdc6b3e0d221a869` was rejected because the full candidate SHA occurred zero times and the root `vcs.revision` property was absent. Future durable SBOM assets must include the accepted replacement runtime as root `vcs.revision=<40-character SHA>` while retaining the expected 12-character root version/purl. Historical durable release assets for earlier accepted releases remain unchanged.
+No v0.99.2 durable SBOM release asset has been published yet. The hosted SBOM artifact for `3edf860c4e8b28f16b2e0499bdc6b3e0d221a869` was rejected because the full candidate SHA occurred zero times and the root `vcs.revision` property was absent. The replacement runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73` has accepted hosted artifact evidence: artifact `11128253844`, archive digest `85434226…`, inner SBOM digest `a3cbed94655d7eba9b4521322f14e80f1cb8e8a8be9621596f5467572bb3a295`, CycloneDX 1.6, `18` components, `19` dependencies, valid root edge, and exact root `vcs.revision`. Future durable SBOM assets must target the accepted runtime, not this docs head or tooling head. Historical durable release assets for earlier accepted releases remain unchanged.
 
 ## Release documentation policy
 
