@@ -6,7 +6,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestV0991UnifiedTypedLookupAndImageCompatibility(t *testing.T) {
+func TestV0992UnifiedTypedLookupAndImageCompatibility(t *testing.T) {
 	goai.ClearModels()
 	goai.ClearImageModels()
 	goai.ClearClassifierModels()
@@ -42,13 +42,13 @@ func TestV0991UnifiedTypedLookupAndImageCompatibility(t *testing.T) {
 		t.Fatalf("classifier lookup=%#v", classifier)
 	}
 
-	if got := len(goai.ListTypedModels(goai.ModelTypeChat, "")); got != 1523 {
+	if got := len(goai.ListTypedModels(goai.ModelTypeChat, "")); got != 1529 {
 		t.Fatalf("typed chat list=%d", got)
 	}
 	if got := len(goai.ListTypedModels(goai.ModelTypeImage, "")); got != 57 {
 		t.Fatalf("typed image list=%d", got)
 	}
-	if got := len(goai.ListTypedModels(goai.ModelTypeClassifier, "")); got != 12 {
+	if got := len(goai.ListTypedModels(goai.ModelTypeClassifier, "")); got != 15 {
 		t.Fatalf("typed classifier list=%d", got)
 	}
 }

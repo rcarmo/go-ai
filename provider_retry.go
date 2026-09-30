@@ -3,6 +3,7 @@ package goai
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -139,13 +140,13 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 	if err.Headers != nil {
 		if v := err.Headers.Get("retry-after-ms"); v != "" {
 			ms, parseErr := strconv.ParseFloat(v, 64)
-			if parseErr == nil {
+			if parseErr == nil && !math.IsNaN(ms) && !math.IsInf(ms, 0) {
 				return validateProviderRetryDelay(time.Duration(ms*float64(time.Millisecond)), options, err.Error())
 			}
 		}
 		if v := err.Headers.Get("retry-after"); v != "" {
 			seconds, parseErr := strconv.ParseFloat(v, 64)
-			if parseErr == nil {
+			if parseErr == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) {
 				return validateProviderRetryDelay(time.Duration(seconds*float64(time.Second)), options, err.Error())
 			}
 			if when, dateErr := http.ParseTime(v); dateErr == nil {

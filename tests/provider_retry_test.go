@@ -2,7 +2,9 @@ package goai_test
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -54,6 +56,34 @@ func TestRetryProviderRequestHonorsNonRetryableHeaderAndDelayCap(t *testing.T) {
 	}, goai.ProviderRetryOptions{MaxRetries: 1, MaxRetryDelay: time.Second})
 	if err == nil || !strings.Contains(err.Error(), "server requested 277403s retry delay") {
 		t.Fatalf("expected delay cap error, got %v", err)
+	}
+}
+
+func TestDoProviderRequestWithRetryFallsBackForNonFiniteRetryAfterHeader(t *testing.T) {
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempts.Add(1) == 1 {
+			w.Header().Set("Retry-After", "Infinity")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("retry later"))
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := goai.DoProviderRequestWithRetry(context.Background(), server.Client(), req, goai.RetryConfig{MaxRetries: 1, InitialDelay: time.Millisecond, MaxDelay: time.Millisecond, JitterFraction: 0, MaxRetryDelayMs: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "ok" || attempts.Load() != 2 {
+		t.Fatalf("body=%q attempts=%d", string(body), attempts.Load())
 	}
 }
 

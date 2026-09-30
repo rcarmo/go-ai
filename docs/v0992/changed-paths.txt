@@ -1,0 +1,15 @@
+M	packages/ai/CHANGELOG.md
+M	packages/ai/README.md
+M	packages/ai/package.json
+M	packages/ai/src/api/anthropic-messages.ts
+M	packages/ai/src/api/constrained-sampling.ts
+M	packages/ai/src/env-api-keys.ts
+M	packages/ai/src/providers/anthropic.ts
+M	packages/ai/src/utils/overflow.ts
+M	packages/ai/src/utils/provider-retry.ts
+M	packages/ai/test/anthropic-eager-tool-input-compat.test.ts
+A	packages/ai/test/anthropic-federation-sdk.test.ts
+A	packages/ai/test/anthropic-federation.test.ts
+A	packages/ai/test/anthropic-strict-tool-schema.test.ts
+A	packages/ai/test/models-entry.test.ts
+M	packages/ai/test/overflow.test.ts

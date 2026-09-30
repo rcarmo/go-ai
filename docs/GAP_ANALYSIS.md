@@ -2,9 +2,24 @@
 
 All gaps from the original analysis have been addressed.
 
-## Source: `@earendil-works/pi-ai` v0.84.0
+## Source: `@earendil-works/pi-ai` v0.99.2
 
 ## Sync history
+
+### v0.99.2 (2026-09-30)
+
+Release audit (`v0.99.1` → `v0.99.2` / `005af57d88ee23b33778f343a9595b32e67ff788`) found 15 changed `packages/ai` paths and 6 changed tests. Exact dispositions are recorded in `docs/v0992/changed-paths-crosswalk.md` and `docs/v0992/changed-tests-crosswalk.md`.
+
+| Upstream delta | Disposition |
+|---|---|
+| Anthropic workload identity federation. | **IMPLEMENTED/ADAPTED** in Go's direct Anthropic HTTP provider path with exact token URL/body, trimmed identity token, bearer header, API-key/auth-token/header precedence, cache reuse/expiry, concurrency coalescing, malformed/token-type/transport/cancellation/reset tests, and endpoint-derived redaction preventing assertion leaks. |
+| Anthropic strict JSON-schema keyword rejection. | **IMPLEMENTED** via provider-specific strict-schema unsupported-keyword hook and tests for normalized strict schemas, prefer fallback, require rejection, and eager-tool independence. |
+| z.ai CN overflow wording. | **IMPLEMENTED** in `context.go` and `tests/overflow_upstream_test.go`. |
+| Provider retry non-finite delay parsing. | **IMPLEMENTED** in `provider_retry.go`; production HTTP path fallback covered by `tests/provider_retry_test.go`. |
+| Generated schema-v6 catalogs. | **IMPLEMENTED**: chat catalog `1529/41`, image catalog unchanged `57/1`, classifier catalog `15/5`; exact full-record regeneration comparator and deliberate text/image/classifier corruption gates pass. |
+| JS package-entry and Anthropic SDK internals. | **N/A/ADAPTED**: Go has explicit registration APIs and direct HTTP provider implementation, not Node export/barrel or TS SDK credential-chain hooks. Equivalent runtime behavior is tested where Go has a matching production path. |
+
+Result: no known Go-facing v0.99.2 gap remains once full validation gates pass. Publication remains explicitly held.
 
 ### v0.84.0 (2026-08-06)
 

@@ -1,6 +1,17 @@
 # Upstream tests parity
 
-Canonical upstream target: `github.com/earendil-works/pi` / `@earendil-works/pi-ai` tag `v0.85.1`, SHA `d981de1229ef899957bbe968bc8dcda02a21f477`, `packages/ai`.
+Canonical upstream target: `github.com/earendil-works/pi` / `@earendil-works/pi-ai` `v0.99.2`, SHA `005af57d88ee23b33778f343a9595b32e67ff788`, `packages/ai`.
+
+## v0.99.2 current status
+
+- Exact changed-path manifest: **15** rows in `docs/v0992/changed-paths.txt`, SHA-256 `53b2c290d902bb8d79c87e035b87c52a13b97617849ea85b51c8e2b11133cc15`.
+- Exact changed-test manifest: **6** rows in `docs/v0992/changed-tests.txt`, SHA-256 `1ad16f63dc47b019cdcf4fdf7029c86785f4cbac38158e7fb63db963ce9ce66d`.
+- Whole upstream test corpus: **171** rows in `docs/v0992/test-corpus-171.txt`, SHA-256 `9d24da3ede393a95a7131b1c9ac494f57d8165161d6eb581109c86809131abfc`.
+- Changed-path disposition crosswalk: `docs/v0992/changed-paths-crosswalk.md`.
+- Changed-test crosswalk: `docs/v0992/changed-tests-crosswalk.md`.
+- Current Go-facing v0.99.2 deltas are implemented/adapted: Anthropic workload identity federation, Anthropic strict tool-schema fallback, z.ai CN overflow wording, provider retry non-finite delay fallback, and chat/classifier catalog refresh.
+- JS-only/package-entry mechanics are classified precisely: `models-entry.test.ts` covers Node export/module-load behavior for `@earendil-works/pi-ai/models`; Go uses explicit registration APIs rather than a Node barrel boundary.
+- Publication remains out of scope for this cycle.
 
 ## Current whole-corpus status
 

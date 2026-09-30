@@ -13,6 +13,7 @@ import (
 
 var overflowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)prompt is too long`),
+	regexp.MustCompile(`(?i)prompt exceeds max length`),
 	regexp.MustCompile(`(?i)request_too_large`),
 	regexp.MustCompile(`(?i)input is too long for requested model`),
 	regexp.MustCompile(`(?i)exceeds the context window`),

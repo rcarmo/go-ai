@@ -26,6 +26,57 @@ const midConversationOutputConfigBeta = "mid-conversation-output-config-2026-07-
 const thinkingBindingControlsBeta = "thinking-binding-controls-2026-08-01"
 const claudeCodeVersion = "2.1.280"
 
+var anthropicStrictUnsupportedKeywords = map[string]struct{}{
+	"minimum":          {},
+	"maximum":          {},
+	"exclusiveMinimum": {},
+	"exclusiveMaximum": {},
+	"multipleOf":       {},
+	"maxItems":         {},
+	"uniqueItems":      {},
+	"minContains":      {},
+	"maxContains":      {},
+	"minProperties":    {},
+	"maxProperties":    {},
+}
+
+var anthropicStrictStringFormats = map[string]struct{}{
+	"date-time": {},
+	"time":      {},
+	"date":      {},
+	"duration":  {},
+	"email":     {},
+	"hostname":  {},
+	"uri":       {},
+	"ipv4":      {},
+	"ipv6":      {},
+	"uuid":      {},
+}
+
+func isAnthropicStrictUnsupportedKeyword(key string, value interface{}) bool {
+	if _, ok := anthropicStrictUnsupportedKeywords[key]; ok {
+		return true
+	}
+	if key == "minItems" {
+		switch v := value.(type) {
+		case float64:
+			return v != 0 && v != 1
+		case int:
+			return v != 0 && v != 1
+		}
+		return true
+	}
+	if key == "format" {
+		format, ok := value.(string)
+		if !ok {
+			return true
+		}
+		_, supported := anthropicStrictStringFormats[format]
+		return !supported
+	}
+	return false
+}
+
 var claudeCodeToolCanonicalNames = map[string]string{
 	"read":            "Read",
 	"write":           "Write",
@@ -183,6 +234,38 @@ func fromClaudeCodeToolName(name string, tools []goai.Tool, model *goai.Model) s
 	return name
 }
 
+func anthropicToolInputSchema(tool goai.Tool, supportsStrictTools bool) (json.RawMessage, bool) {
+	if strict, err := goai.ResolveJSONSchemaStrictSamplingWithUnsupportedKeyword(tool, supportsStrictTools, isAnthropicStrictUnsupportedKeyword); err == nil && strict != nil && *strict {
+		if strictParameters, err := goai.JSONSchemaToolParametersWithUnsupportedKeyword(tool, true, isAnthropicStrictUnsupportedKeyword); err == nil {
+			return strictParameters, true
+		}
+	}
+	return legacyAnthropicToolInputSchema(tool.Parameters), false
+}
+
+func legacyAnthropicToolInputSchema(parameters json.RawMessage) json.RawMessage {
+	var schema map[string]json.RawMessage
+	if err := json.Unmarshal(parameters, &schema); err != nil {
+		return parameters
+	}
+	legacy := map[string]json.RawMessage{"type": json.RawMessage(`"object"`)}
+	if properties, ok := schema["properties"]; ok {
+		legacy["properties"] = properties
+	} else {
+		legacy["properties"] = json.RawMessage(`{}`)
+	}
+	if required, ok := schema["required"]; ok {
+		legacy["required"] = required
+	} else {
+		legacy["required"] = json.RawMessage(`[]`)
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		return parameters
+	}
+	return data
+}
+
 func normalizeAnthropicBaseURL(baseURL string) string {
 	if baseURL == "" {
 		return defaultBaseURL
@@ -204,8 +287,9 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		authToken := ""
+		env := goai.ProviderEnvFromOptions(opts)
 		if model.Provider == goai.ProviderAnthropic {
-			authToken = goai.GetProviderEnvValue("ANTHROPIC_AUTH_TOKEN", goai.ProviderEnvFromOptions(opts))
+			authToken = goai.GetProviderEnvValue("ANTHROPIC_AUTH_TOKEN", env)
 		}
 		var optHeaders map[string]string
 		var suppressHeaders []string
@@ -213,7 +297,15 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			optHeaders = opts.Headers
 			suppressHeaders = opts.SuppressHeaders
 		}
-		if apiKey == "" && authToken == "" && !goai.HasAnthropicAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+		mergedHeaders := goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)
+		hasExplicitAuth := goai.HasAnthropicAuthHeader(mergedHeaders)
+		baseURL := model.BaseURL
+		if goai.IsCloudflareProvider(model.Provider) {
+			baseURL = goai.ResolveCloudflareBaseURL(model, env)
+		}
+		baseURL = normalizeAnthropicBaseURL(baseURL)
+		federation, hasFederation := getAnthropicFederationConfig(model, env, baseURL)
+		if apiKey == "" && authToken == "" && !hasExplicitAuth && !hasFederation {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
 			return
@@ -231,12 +323,6 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		baseURL := model.BaseURL
-		if goai.IsCloudflareProvider(model.Provider) {
-			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
-		}
-		baseURL = normalizeAnthropicBaseURL(baseURL)
-
 		req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/messages", bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -246,8 +332,6 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Anthropic-Version", apiVersion)
 		req.Header.Set("Accept", "text/event-stream")
-		mergedHeaders := goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)
-		hasExplicitAuth := goai.HasAnthropicAuthHeader(mergedHeaders)
 		isAnthropicOAuthToken := model.Provider == goai.ProviderAnthropic && strings.Contains(apiKey, "sk-ant-oat")
 		if !hasExplicitAuth {
 			if authToken != "" || isAnthropicOAuthToken {
@@ -272,6 +356,15 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				} else {
 					req.Header.Set("X-Api-Key", apiKey)
 				}
+			} else if hasFederation {
+				retryCfg := goai.RetryConfigFromOptions(opts)
+				client := retryCfg.NewHTTPClient()
+				bearer, err := getAnthropicFederationBearer(ctx, client, federation)
+				if err != nil {
+					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+					return
+				}
+				req.Header.Set("Authorization", "Bearer "+bearer)
 			}
 		}
 
@@ -516,14 +609,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				blocks = append(blocks, anthropicContentBlock{Type: "tool_removal", Name: toClaudeCodeToolName(removed.Name, model)})
 			}
 			for _, added := range m.ToolsAdded {
-				parameters := added.Parameters
-				strictTool := false
-				if strict, err := goai.ResolveJSONSchemaStrictSampling(added, compat.supportsStrictTools); err == nil && strict != nil && *strict {
-					strictTool = true
-					if strictParameters, err := goai.JSONSchemaToolParameters(added, true); err == nil {
-						parameters = strictParameters
-					}
-				}
+				parameters, strictTool := anthropicToolInputSchema(added, compat.supportsStrictTools)
 				blocks = append(blocks, anthropicContentBlock{Type: "tool_addition", Tool: &anthropicTool{Name: toClaudeCodeToolName(added.Name, model), Description: added.Description, InputSchema: parameters, Strict: strictTool}})
 			}
 			if len(blocks) > 0 {
@@ -654,14 +740,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		deferredNames[t.Name] = true
 	}
 	for i, t := range activeTools {
-		parameters := t.Parameters
-		strictTool := false
-		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, compatForTools.supportsStrictTools); err == nil && strict != nil && *strict {
-			strictTool = true
-			if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
-				parameters = strictParameters
-			}
-		}
+		parameters, strictTool := anthropicToolInputSchema(t, compatForTools.supportsStrictTools)
 		tool := anthropicTool{
 			Name:        toClaudeCodeToolName(t.Name, model),
 			Description: t.Description,

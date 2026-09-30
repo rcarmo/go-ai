@@ -1,0 +1,6 @@
+packages/ai/test/anthropic-eager-tool-input-compat.test.ts
+packages/ai/test/anthropic-federation-sdk.test.ts
+packages/ai/test/anthropic-federation.test.ts
+packages/ai/test/anthropic-strict-tool-schema.test.ts
+packages/ai/test/models-entry.test.ts
+packages/ai/test/overflow.test.ts

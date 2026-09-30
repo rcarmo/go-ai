@@ -1,6 +1,27 @@
 # Local tests shared evidence
 
-Current release audit target: `@earendil-works/pi-ai` `v0.85.1` / upstream SHA `d981de1229ef899957bbe968bc8dcda02a21f477`.
+Current release audit target: `@earendil-works/pi-ai` `v0.99.2` / upstream SHA `005af57d88ee23b33778f343a9595b32e67ff788`.
+
+## v0.99.2 current focused evidence
+
+```text
+go test ./inference/provider/anthropic -run 'TestAnthropic(Federation|StrictToolSchema)' -count=1
+# passed
+
+go test ./tests -run 'Test(DoProviderRequestWithRetryFallsBackForNonFiniteRetryAfterHeader|OverflowDetectsZAICNPromptExceedsMaxLengthErrors)' -count=1
+# passed
+
+PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-0992/tar/package/dist/models.generated.js ./scripts/check-model-regeneration.sh
+# chat, image, and classifier full-record regeneration comparators passed
+
+PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-0992/tar/package/dist/models.generated.js python3 scripts/test-check-model-regeneration.py
+# deliberate text/image/classifier fault gates passed
+
+go test ./tests -run 'Test(V0844CatalogCounts|V0850CatalogCounts|V0992UnifiedTypedLookup|RegisterBuiltinModels|V0992TypedRegistry)' -count=1
+# passed
+```
+
+v0.99.2 adds deterministic local coverage for Anthropic workload identity federation (including coalesced token exchange and endpoint-derived redaction), Anthropic strict tool-schema fallback, z.ai CN overflow wording, provider retry non-finite delay fallback through the production HTTP path, and exact chat/image/classifier catalog regeneration.
 
 ## v0.85.1 current focused evidence
 

@@ -17,6 +17,13 @@ func TestOverflowDetectsExplicitOllamaPromptTooLongErrors(t *testing.T) {
 	}
 }
 
+func TestOverflowDetectsZAICNPromptExceedsMaxLengthErrors(t *testing.T) {
+	msg := createOverflowErrorMessage(`400 {"code":"1261","message":"Prompt exceeds max length"}`)
+	if !goai.IsContextOverflow(msg, 1048576) {
+		t.Fatal("expected overflow")
+	}
+}
+
 func TestOverflowDetectsTogetherAIContextLengthErrors(t *testing.T) {
 	msg := createOverflowErrorMessage("400 The input (516368 tokens) is longer than the model's context length (262144 tokens).")
 	if !goai.IsContextOverflow(msg, 262144) {

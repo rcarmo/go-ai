@@ -2,6 +2,14 @@
 
 Final audit snapshot after the current hardening pass.
 
+## 2026-09-30 v0.99.2 release audit (`@earendil-works/pi-ai`)
+
+Audited official release `v0.99.2` / `005af57d88ee23b33778f343a9595b32e67ff788` from prior accepted `v0.99.1`. Official tarball SHA-256 is `0b3df8791b488216f309d908789294a744bb61bbaad123d94098e56df9538d25`. Exact manifests are recorded in `docs/v0992/`: 15 changed paths, 6 changed tests, and 171 upstream tests.
+
+Adoption: regenerated chat catalog to `1529` models / `41` providers and classifier catalog to `15` models / `5` providers; image catalog remains unchanged at `57` models / `1` provider and is still full-record checked. Added Anthropic workload identity federation in the Go direct HTTP path with concurrency-safe in-process cache and coalesced simultaneous exchanges, exact token URL/body behavior, expiry refresh, cancellation, reset isolation, and endpoint-derived diagnostic redaction. Added Anthropic strict tool-schema keyword fallback/rejection, z.ai CN overflow wording, and non-finite provider retry-delay fallback through the production HTTP path. JS package-entry/Anthropic SDK-only mechanics are classified as N/A with Go-equivalent direct runtime tests where applicable.
+
+Focused evidence before broad gates: Anthropic federation/strict tests passed; retry/overflow focused tests passed; exact chat/image/classifier regeneration comparator passed; deliberate text/image/classifier corruption gates passed; updated catalog count/typed registry tests passed. Full gate evidence is recorded separately after execution.
+
 ## 2026-08-06 v0.84.0 release-only audit (`@earendil-works/pi-ai`)
 
 Audited official release `v0.84.0` / `a5f43bf8aff3c55752432655f7334e3dafd1e256` from accepted `v0.83.0` / `845d6ff1f6643aba440341cce877ce1c43ebbc39`, without chasing beyond tag. Exact changed-path matrix is in `docs/v0840-release-ledger.md`.
