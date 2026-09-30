@@ -200,36 +200,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$release_mode" == "native" ]]; then
-            if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-              git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
-              if [[ "$tag_type" != "tag" ]]; then
-                echo "native release tag $RELEASE_TAG exists but is not annotated (type $tag_type)" >&2
-                exit 1
-              fi
-              tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
-              if [[ "$tag_commit" != "$runtime_full_ref" ]]; then
-                echo "native release tag $RELEASE_TAG points to $tag_commit, expected $runtime_full_ref" >&2
-                exit 1
-              fi
-            else
-              tag_payload="$(jq -n --arg tag "$RELEASE_TAG" --arg message "go-ai ${upstream_version}" --arg object "$runtime_full_ref" '{tag:$tag,message:$message,object:$object,type:"commit"}')"
-              tag_response="$(gh api repos/${GITHUB_REPOSITORY}/git/tags --method POST --input - <<<"$tag_payload")"
-              tag_sha="$(jq -r '.sha' <<<"$tag_response")"
-              if [[ ! "$tag_sha" =~ ^[0-9a-f]{40}$ ]]; then
-                echo "GitHub tag object creation returned unexpected sha: $tag_response" >&2
-                exit 1
-              fi
-              ref_payload="$(jq -n --arg ref "refs/tags/${RELEASE_TAG}" --arg sha "$tag_sha" '{ref:$ref,sha:$sha}')"
-              gh api repos/${GITHUB_REPOSITORY}/git/refs --method POST --input - <<<"$ref_payload" >/dev/null
-              git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
-              tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
-              if [[ "$tag_type" != "tag" || "$tag_commit" != "$runtime_full_ref" ]]; then
-                echo "created native release tag failed verification: type=$tag_type commit=$tag_commit expected=$runtime_full_ref" >&2
-                exit 1
-              fi
-            fi
+            python3 ../tooling/scripts/verify-native-release-tag.py \
+              --mode github \
+              --repo "${GITHUB_REPOSITORY}" \
+              --tag "$RELEASE_TAG" \
+              --runtime-ref "$runtime_full_ref"
+            git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
           fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
@@ -239,11 +215,11 @@ jobs:
               exit 1
             fi
             if [[ "$release_mode" == "native" ]]; then
-              tag_type="$(git cat-file -t "refs/tags/${RELEASE_TAG}")"
-              if [[ "$tag_type" != "tag" ]]; then
-                echo "native release tag $RELEASE_TAG exists but is not annotated (type $tag_type)" >&2
-                exit 1
-              fi
+              python3 ../tooling/scripts/verify-native-release-tag.py \
+                --mode local \
+                --git-repo . \
+                --tag "$RELEASE_TAG" \
+                --runtime-ref "$runtime_full_ref"
             fi
             gh release edit "$RELEASE_TAG" --title "$release_title" --notes "$release_notes"
           else

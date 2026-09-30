@@ -1,4 +1,4 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test publisher-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
@@ -67,7 +67,10 @@ sbom-self-test: ## Run negative SBOM normalizer and validator self-tests
 	python3 scripts/test-normalize-sbom.py
 	python3 scripts/test-validate-sbom.py
 
-ci-artifacts: sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Generate and validate release CI security artifacts
+publisher-self-test: ## Run native publisher tag policy simulations
+	python3 scripts/test-verify-native-release-tag.py
+
+ci-artifacts: sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Generate and validate release CI security artifacts
 
 format: ## Format code with gofumpt
 	@which $(GOFMT) > /dev/null || (echo "Installing gofumpt..." && $(GO) install mvdan.cc/gofumpt@latest)
@@ -96,7 +99,7 @@ fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
 	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
 
-check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/security gates
+check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/publisher/security gates
 
 check-v0850-inventory: ## Validate committed v0.85.0 release inventories and negative self-test
 	python3 scripts/validate-v0850-inventory.py
@@ -164,6 +167,7 @@ test-repro-fast: ## Reproducible local gate (no race)
 	$(MAKE) check-model-regeneration
 	$(MAKE) sbom-check
 	$(MAKE) sbom-self-test
+	$(MAKE) publisher-self-test
 	$(MAKE) vuln-check
 	$(MAKE) vuln-self-test
 	$(MAKE) license-check
