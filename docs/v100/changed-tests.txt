@@ -1,0 +1,3 @@
+packages/ai/test/anthropic-oauth.test.ts
+packages/ai/test/constrained-sampling.test.ts
+packages/ai/test/oauth-callback-server.test.ts

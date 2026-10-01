@@ -40,10 +40,22 @@ type Prompt struct {
 	AllowEmpty  bool
 }
 
+type SelectOption struct {
+	Value string
+	Label string
+}
+
+type SelectPrompt struct {
+	Message string
+	Options []SelectOption
+	Default string
+}
+
 // LoginCallbacks are implemented by the host to handle OAuth UI.
 type LoginCallbacks struct {
 	OnAuth     func(info AuthInfo)
 	OnPrompt   func(prompt Prompt) (string, error)
+	OnSelect   func(prompt SelectPrompt) (string, error)
 	OnProgress func(message string)
 }
 

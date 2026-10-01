@@ -6,7 +6,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestV0992TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
+func TestV100TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 	goai.ClearModels()
 	goai.ClearImageModels()
 	goai.ClearClassifierModels()
@@ -24,8 +24,8 @@ func TestV0992TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 		chatProviders[model.Provider] = true
 		chatAPIs[model.Api] = true
 	}
-	if len(chatModels) != 1529 || len(chatProviders) != 41 || len(chatAPIs) != 10 {
-		t.Fatalf("chat count/providers/apis = %d/%d/%d, want 1529/41/10", len(chatModels), len(chatProviders), len(chatAPIs))
+	if len(chatModels) != 1532 || len(chatProviders) != 41 || len(chatAPIs) != 10 {
+		t.Fatalf("chat count/providers/apis = %d/%d/%d, want 1532/41/10", len(chatModels), len(chatProviders), len(chatAPIs))
 	}
 
 	imageModels := goai.ListImageModels("")
@@ -49,8 +49,8 @@ func TestV0992TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 	if len(classifierModels) != 15 || len(classifierProviders) != 5 || len(classifierAPIs) != 2 {
 		t.Fatalf("classifier count/providers/apis = %d/%d/%d, want 15/5/2", len(classifierModels), len(classifierProviders), len(classifierAPIs))
 	}
-	if total := len(chatModels) + len(imageModels) + len(classifierModels); total != 1601 {
-		t.Fatalf("typed model total=%d, want 1601", total)
+	if total := len(chatModels) + len(imageModels) + len(classifierModels); total != 1604 {
+		t.Fatalf("typed model total=%d, want 1604", total)
 	}
 
 	openAIGPT := goai.GetModel(goai.ProviderOpenAI, "gpt-6.1-sol")

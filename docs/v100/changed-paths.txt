@@ -1,0 +1,8 @@
+M	packages/ai/CHANGELOG.md
+M	packages/ai/package.json
+M	packages/ai/src/api/openai-responses-shared.ts
+M	packages/ai/src/auth/oauth/anthropic.ts
+M	packages/ai/src/utils/oauth-page.ts
+M	packages/ai/test/anthropic-oauth.test.ts
+M	packages/ai/test/constrained-sampling.test.ts
+M	packages/ai/test/oauth-callback-server.test.ts

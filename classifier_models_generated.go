@@ -177,8 +177,8 @@ var builtinClassifierModels = []ClassifierModel{
 		Provider:      ClassifierProvider("vercel-ai-gateway"),
 		BaseURL:       "https://ai-gateway.vercel.sh/typesafe/v1",
 		Input:         []string{"text"},
-		Cost:          ModelCost{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0},
-		ContextWindow: 32000,
+		Cost:          ModelCost{Input: 0.04, Output: 0, CacheRead: 0, CacheWrite: 0},
+		ContextWindow: 65536,
 		MaxTokens:     0,
 	},
 	{

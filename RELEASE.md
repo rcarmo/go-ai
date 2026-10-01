@@ -5,68 +5,62 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 ## Current audited upstream release
 
 - Package: `@earendil-works/pi-ai`
-- Release/tag: `v0.99.2`
-- Upstream tag/gitHead: `005af57d88ee23b33778f343a9595b32e67ff788`
-- Official npm artifact: `/workspace/tmp/pi-ai-0992.tgz`
-- Official npm artifact SHA-256: `0b3df8791b488216f309d908789294a744bb61bbaad123d94098e56df9538d25`
-- Previous accepted upstream baseline: `v0.99.1` / accepted Go runtime `d3ac443f6f553a9f079501c3954eb2c65d051c24`
-- Rollback SHA before the v0.99.2 port cycle: `7a667f39f3642cbb54b4e648d91b7d3f8d697d9d`
-- Rejected v0.99.2 candidate: `3edf860c4e8b28f16b2e0499bdc6b3e0d221a869` (hosted artifact omitted the full 40-character root `vcs.revision`; only the 12-character root version appeared in root version/purl).
-- Accepted replacement runtime SHA: `86a439d949de78ce7e8ba4cd3f975312785c2a73`.
-- Runtime hosted CI: run `36782507431`; jobs `110115947250` and `110115947373` green.
-- Runtime artifact: `11128253844`; archive digest `85434226…`; inner SBOM digest `a3cbed94655d7eba9b4521322f14e80f1cb8e8a8be9621596f5467572bb3a295`.
-- Runtime SBOM: CycloneDX 1.6, `18` components, `19` dependencies, root dependency edge valid, exactly one root `vcs.revision=86a439d949de78ce7e8ba4cd3f975312785c2a73`.
-- Tooling hardening SHA: `91e35d44e1eec310edaeaccaad8ab166bb59009f`; hosted CI run `36783657683` green.
-- Publication state: still blocked pending explicit bounded native/upstream publication authorization. No `v0.99.2` tags, releases, or aliases are authorized from `3edf860`, the tooling head, or this docs head.
-- Native/upstream release tags, when later authorized, must target accepted runtime SHA `86a439d949de78ce7e8ba4cd3f975312785c2a73`, never docs/tooling head.
+- Release/tag: `v1.0.0`
+- Upstream tag/gitHead: `a13d35a742c6ef8462812a28fbe1d8c8b7431c32`
+- Official npm artifact: `/workspace/tmp/pi-ai-100.tgz`
+- Official npm artifact SHA-256: `f39b99c29b8598f175b10840e5d2a81983e7c0ce5cae4d7df83a1007447d2c2b`
+- Previous accepted upstream baseline: `v0.99.2` / accepted Go runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73`
+- Current repository baseline before this audit: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
+- Rollback SHA before the v1.0.0 local candidate: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
+- Publication state: blocked. This v1.0.0 candidate is local-only until auditor accepts scope and gates; no commit, push, tag, release, or publication is authorized yet.
 
 ## Scope evidence
 
-- Changed paths: `15` canonical rows, committed at `docs/v0992/changed-paths.txt`, SHA-256 `53b2c290d902bb8d79c87e035b87c52a13b97617849ea85b51c8e2b11133cc15`.
-- Changed tests: `6` rows, committed at `docs/v0992/changed-tests.txt`, SHA-256 `1ad16f63dc47b019cdcf4fdf7029c86785f4cbac38158e7fb63db963ce9ce66d`.
-- Whole upstream test corpus: `171` rows, committed at `docs/v0992/test-corpus-171.txt`, SHA-256 `9d24da3ede393a95a7131b1c9ac494f57d8165161d6eb581109c86809131abfc`.
-- Detailed path matrix: `docs/v0992/changed-paths-crosswalk.md`.
-- Changed-test crosswalk: `docs/v0992/changed-tests-crosswalk.md`.
-- Source/test delta spans Anthropic workload identity federation, Anthropic strict tool schema keyword fallback, provider retry delay parsing, z.ai CN overflow wording, JS package-entry documentation, and generated chat/classifier catalog metadata.
+- Changed paths: `8` canonical rows, stored at `docs/v100/changed-paths.txt`, SHA-256 `b8db49581470036b68078ac093dc6b41eaa92222647b14cf44a92b870d54eab4`.
+- Changed tests: `3` rows, stored at `docs/v100/changed-tests.txt`, SHA-256 `fbe3c63453261a58352b5e238f5f9488f33a13016485c7e3a49cce17bfdaaca2`.
+- Whole upstream test corpus: `171` rows, stored at `docs/v100/test-corpus-171.txt`, SHA-256 `9d24da3ede393a95a7131b1c9ac494f57d8165161d6eb581109c86809131abfc`.
+- Detailed path matrix: `docs/v100/changed-paths-crosswalk.md`.
+- Changed-test crosswalk: `docs/v100/changed-tests-crosswalk.md`.
 
 ## Current Go implementation/adaptation summary
 
-Implemented or adapted for v0.99.2:
+Implemented or adapted for v1.0.0 locally:
 
-- Exact generated chat catalog refresh to `1529` models across `41` providers and `10` chat APIs. The existing `openai/gpt-6.1-sol` record remains present with `InputLimits.MaxRequestBytes == 512MiB` and request image-count limits; the new `github-copilot/gpt-6.1-sol` record is asserted separately with Copilot headers, `1050000` context window, and shared tier pricing.
-- Exact generated classifier catalog refresh to `15` classifier models across `5` providers; image catalog remains unchanged at `57` image models across `1` provider.
-- Anthropic workload identity federation in the Go direct HTTP path: exact `/v1/oauth/token` body, whitespace-trimmed identity token, bearer auth on message requests, API-key/auth-token/header precedence, cache reuse, expiry refresh, coalesced concurrent exchanges, cancellation, reset/isolation, malformed/token-type/transport errors, and endpoint-derived diagnostic redaction for echoed assertions.
-- Provider-specific Anthropic strict JSON-schema unsupported-keyword hook: supported normalized strict schemas remain strict; `minimum`/`maximum`, `minItems > 1`, and unsupported `format` fall back for `prefer` and fail for `require`; eager tool-input streaming remains independent.
-- z.ai CN context-overflow wording detection for `Prompt exceeds max length`.
-- Provider retry delay parsing now ignores non-finite `Retry-After`/`Retry-After-Ms` values and falls back through the production HTTP retry path.
-- JS-only `@earendil-works/pi-ai/models` package-entry/module-loader mechanics are classified N/A for Go; Go uses explicit registration APIs and side-effect provider packages.
-- SBOM provenance hardening after rejecting `3edf860`: `make sbom` now embeds root component property `vcs.revision=<40-character HEAD>` while keeping the 12-character root version/purl; `make sbom-check` requires and validates the same exact full revision. Normalizer and validator fail closed on missing, truncated, malformed, duplicate, or mismatched exact root revisions.
+- Exact generated catalog refresh from official v1.0.0 package artifact via checked-in generator: `1532` chat models, `57` image models, and `15` classifier models. The official package has `42` provider modules, with `typesafe` classifier-only and no chat rows, so Go's model-bearing chat provider count remains `41`.
+- OpenAI Responses resolves grammar support from transcript-declared tools and provider capability. The same map selects function/custom declarations, call replay and result replay. Foreign provider/API IDs normalize to `fc_<hash>` before the type-prefix gate; custom replay omits foreign raw/fc_/ctc_ IDs while same-source valid ctc_ IDs remain. Different-model IDs are omitted. Missing/null custom input becomes empty text. Production OnPayload tests cover true/false/default capabilities, call+result round-trips, transcript additions and radius#115.
+- Anthropic OAuth supports backward-compatible login method selection and default browser login via the shared callback server. Both flows use the PKCE verifier as state. Copy-code accepts raw code, `code#state`, URL and query input; supplied mismatched state fails before token exchange. Zero-value `&AnthropicProvider{}` Login/Refresh uses non-mutating default configuration. Authorization includes `code=true` and official browser/headless labels. The shared completion hook exchanges tokens before success, returns 502 on token failure and prevents repeat exchange. Both 200 and 502 callback responses are length-delimited and flushed before Login completion; graceful shutdown finishes active HTTP responses. Repeated asynchronous browser launch tests cover the prior EOF race. Authorization and refresh requests POST JSON to `https://platform.claude.com/v1/oauth/token`, with `Content-Type` and `Accept` both `application/json`. Authorization sends exactly `grant_type`, `client_id`, `code`, `state`, `redirect_uri`, and `code_verifier`; refresh sends exactly `grant_type`, `client_id`, and `refresh_token`, with no scope. A missing refresh token in the response preserves the existing token. Production-path tests retain the default platform URL and route only the transport to a local server. Live credential/browser completion is N/A.
+- Shared OAuth callback HTML uses the official Pi SVG path geometry and fills `#F09082`, `#4D9ABF`, and `#F1BE58`, with HTML-escaped `Signed in to <provider>.` text. Real HTTP tests check geometry, fills, Anthropic text, content type and malicious-provider escaping. Anthropic uses this shared path instead of a private duplicate callback page.
+- Version/provenance artifacts for v1.0.0 are added under `docs/v100/`.
 
 ## Validation evidence
 
-Focused v0.99.2 evidence before the SBOM provenance replacement:
+Focused gates completed so far:
 
-- `go test ./inference/provider/anthropic -run 'TestAnthropic(Federation|StrictToolSchema)' -count=1` — passed.
-- `go test ./tests -run 'Test(DoProviderRequestWithRetryFallsBackForNonFiniteRetryAfterHeader|OverflowDetectsZAICNPromptExceedsMaxLengthErrors)' -count=1` — passed.
-- `go test ./tests -run 'Test(V0992TypedRegistry|V0992UnifiedTypedLookup)' -count=1` — passed with separate OpenAI/Copilot `gpt-6.1-sol` assertions.
-- `PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-0992/tar/package/dist/models.generated.js ./scripts/check-model-regeneration.sh` — passed for chat (`1529/41`), image (`57/1`), and classifier (`15/5`) full-record regeneration.
-- `PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-0992/tar/package/dist/models.generated.js python3 scripts/test-check-model-regeneration.py` — passed; deliberate text/image/classifier corruption gates fail as expected.
-- `make staticcheck` — passed.
+- `go test ./inference/provider/openairesponses -run 'Test.*(Grammar|ForeignToolCall|Namespace|Request)' -count=1` — passed.
+- `go test ./oauth -count=1` — passed.
+- `go test ./tests -run 'Test(RegisterBuiltinModels|GeneratedModelMetadataParity|V0844CatalogCounts|V0850CatalogCounts|V100)' -count=1` — passed.
+- `PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-100/tar/package/dist/models.generated.js ./scripts/check-model-regeneration.sh` — passed for chat/image/classifier exact regeneration.
+- `PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-100/tar/package/dist/models.generated.js python3 scripts/test-check-model-regeneration.py` — passed; deliberate text/image/classifier corruption gates fail as expected.
+
+Local gates passed after all consolidated Responses/OAuth and async callback fixes:
+
+- `go test ./oauth -run 'TestAnthropicOAuth|TestV100OAuthCallbackPage' -count=1` — passed.
+- `go test ./oauth -count=1` — passed, including endpoint-echo redaction and invalid-selection tests.
 - `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1` — passed.
-- `make check` and `make test-repro` — passed on `3edf860` before hosted SBOM rejection.
+- `make staticcheck` — passed.
+- `make check` — passed, including deterministic tests, vet/staticcheck, logging, regeneration/fault gates, SBOM validation/self-tests, vulnerability and licence checks.
+- `make test-repro` — passed, including build, race, regeneration and security gates.
+- `git diff --check` — passed.
 
-SBOM replacement local evidence for this normal replacement commit must include, before push:
+- `go test -race -overlay /workspace/tmp/pi-ai-audit-100/auditor-test-overlay.json ./oauth -run TestAuditorV100AsyncBrowserCallbackFlushesBeforeLoginCloses -count=3` — passed.
+- `go test -race ./oauth -run 'TestV100AnthropicAsyncBrowserCallback|TestAnthropicOAuthBrowserCompletes' -count=3` — passed for async 200/502 delivery and duplicate exchange controls.
+- `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
 
-- `python3 scripts/test-normalize-sbom.py` — proves normalizer inserts and replaces a single root `vcs.revision` property and rejects truncated/malformed values.
-- `python3 scripts/test-validate-sbom.py` — proves validator rejects missing root property, truncated 12-character property, malformed/non-hex property, duplicate property, mismatched full SHA, and malformed expected revision.
-- `make sbom sbom-check sbom-self-test vuln-check license-check` — must pass from the replacement tree.
-- After committing, `make sbom sbom-check` must be rerun so `artifacts/sbom.cdx.json` embeds this replacement commit's exact 40-character SHA as root `vcs.revision`; the SBOM root version remains the 12-character commit prefix.
-
-Hosted CI/artifact evidence for replacement runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73` is accepted. Publication remains blocked until a separate explicit authorization. Security and license gates passed locally and in hosted CI.
+Logs: `/workspace/tmp/go-ai-v100-consolidated-logs/{auditor-overlay,async-production,oauth,responses,race,staticcheck,check,repro,shuffle,diff-check}.log`. Full candidate inventory including untracked files: `docs/v100/local-candidate-inventory.txt`. Licence scanning reported known assembly-inspection warnings but exited successfully; govulncheck reported no reachable vulnerabilities. This is evidence for the uncommitted working tree on `869b7a6`; its local SBOM records that base HEAD and must be regenerated for an authorised candidate commit. No candidate commit or hosted CI run exists yet. Commit/push/tag/release authorization is withheld.
 
 ## Durable SBOM release assets
 
-No v0.99.2 durable SBOM release asset has been published yet. The hosted SBOM artifact for `3edf860c4e8b28f16b2e0499bdc6b3e0d221a869` was rejected because the full candidate SHA occurred zero times and the root `vcs.revision` property was absent. The replacement runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73` has accepted hosted artifact evidence: artifact `11128253844`, archive digest `85434226…`, inner SBOM digest `a3cbed94655d7eba9b4521322f14e80f1cb8e8a8be9621596f5467572bb3a295`, CycloneDX 1.6, `18` components, `19` dependencies, valid root edge, and exact root `vcs.revision`. Future durable SBOM assets must target the accepted runtime, not this docs head or tooling head. Historical durable release assets for earlier accepted releases remain unchanged.
+No v1.0.0 durable SBOM release asset has been created or authorized. The current v1.0.0 work is local-only. Historical durable release assets for v0.99.2 and earlier remain unchanged.
 
 ## Release documentation policy
 

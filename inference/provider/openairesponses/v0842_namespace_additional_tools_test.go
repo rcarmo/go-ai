@@ -35,7 +35,7 @@ func TestV0842ResponsesNamespaceRoundTripAndEndTurn(t *testing.T) {
 	if len(done.Content) != 1 || done.Content[0].Namespace != "dynamic_tools" {
 		t.Fatalf("namespace not captured: %#v", done.Content)
 	}
-	items := buildAssistantItems(0, *done, model)
+	items := buildAssistantItems(0, *done, model, nil)
 	call := items[0].(map[string]interface{})
 	if call["namespace"] != "dynamic_tools" {
 		t.Fatalf("namespace not replayed: %#v", call)

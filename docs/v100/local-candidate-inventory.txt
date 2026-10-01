@@ -1,0 +1,26 @@
+M	RELEASE.md
+M	classifier_models_generated.go
+A	docs/v100/changed-paths-crosswalk.md
+A	docs/v100/changed-paths.txt
+A	docs/v100/changed-tests-crosswalk.md
+A	docs/v100/changed-tests.txt
+A	docs/v100/local-candidate-inventory.txt
+A	docs/v100/test-corpus-171.txt
+M	inference/provider/openairesponses/responses.go
+A	inference/provider/openairesponses/responses_grammar_replay_v100_test.go
+M	inference/provider/openairesponses/responses_request_test.go
+M	inference/provider/openairesponses/v0842_namespace_additional_tools_test.go
+M	models_generated.go
+M	oauth/anthropic.go
+A	oauth/anthropic_async_callback_v100_test.go
+A	oauth/anthropic_test.go
+A	oauth/callback_page_v100_test.go
+M	oauth/callback_server.go
+M	oauth/oauth.go
+M	scripts/check-model-regeneration.sh
+M	scripts/test-check-model-regeneration.py
+M	tests/models_test.go
+M	tests/models_v0844_catalog_test.go
+M	tests/models_v0850_catalog_test.go
+R096	tests/models_v0992_typed_lookup_test.go	tests/models_v100_typed_lookup_test.go
+R094	tests/models_v0992_typed_registry_test.go	tests/models_v100_typed_registry_test.go

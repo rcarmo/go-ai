@@ -230,28 +230,101 @@ type toolDef struct {
 	DeferLoading bool                   `json:"defer_loading,omitempty"`
 }
 
+type responsesToolView struct {
+	grammarToolInputProperties map[string]string
+}
+
+type responsesGrammarTool struct {
+	syntax        string
+	definition    string
+	inputProperty string
+}
+
+func resolveResponsesGrammarTool(t goai.Tool, supportsGrammar bool) (*responsesGrammarTool, error) {
+	cfg := t.ConstrainedSampling
+	if cfg == nil || cfg.Type != "grammar" || !supportsGrammar {
+		return nil, nil
+	}
+	definition := strings.TrimSpace(cfg.Variants["openai_lark"])
+	syntax := "lark"
+	if definition == "" {
+		definition = strings.TrimSpace(cfg.Variants["openai_regex"])
+		syntax = "regex"
+	}
+	if definition == "" {
+		return nil, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", t.Name)
+	}
+	inputProperty, err := inferGrammarInputProperty(t)
+	if err != nil {
+		return nil, fmt.Errorf("tool %q cannot use grammar constrained sampling: %w", t.Name, err)
+	}
+	return &responsesGrammarTool{syntax: syntax, definition: definition, inputProperty: inputProperty}, nil
+}
+
+func buildResponsesToolView(convCtx *goai.Context, supportsGrammar bool) responsesToolView {
+	toolsByName := map[string]goai.Tool{}
+	order := make([]string, 0)
+	add := func(tool goai.Tool) {
+		if tool.Name == "" {
+			return
+		}
+		if _, ok := toolsByName[tool.Name]; !ok {
+			order = append(order, tool.Name)
+		}
+		toolsByName[tool.Name] = tool
+	}
+	if convCtx != nil {
+		for _, msg := range convCtx.Messages {
+			if msg.Role != goai.RoleSystem {
+				continue
+			}
+			for _, tool := range msg.ToolsAdded {
+				add(tool)
+			}
+		}
+		for _, tool := range convCtx.Tools {
+			if _, ok := toolsByName[tool.Name]; !ok {
+				add(tool)
+			}
+		}
+	}
+	declaredTools := make([]goai.Tool, 0, len(order))
+	for _, name := range order {
+		declaredTools = append(declaredTools, toolsByName[name])
+	}
+	return buildResponsesToolViewFromTools(declaredTools, supportsGrammar)
+}
+
+func buildResponsesToolViewFromTools(tools []goai.Tool, supportsGrammar bool) responsesToolView {
+	grammarToolInputProperties := make(map[string]string)
+	for _, tool := range tools {
+		grammar, err := resolveResponsesGrammarTool(tool, supportsGrammar)
+		if err != nil || grammar == nil {
+			continue
+		}
+		grammarToolInputProperties[tool.Name] = grammar.inputProperty
+	}
+	return responsesToolView{grammarToolInputProperties: grammarToolInputProperties}
+}
+
+func (v responsesToolView) grammarToolInputProperty(name string) (string, bool) {
+	if v.grammarToolInputProperties == nil {
+		return "", false
+	}
+	inputProperty, ok := v.grammarToolInputProperties[name]
+	return inputProperty, ok
+}
+
 func convertResponsesTool(t goai.Tool, supportsStrictMode, supportsGrammar bool) (toolDef, error) {
 	out := toolDef{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters}
-	cfg := t.ConstrainedSampling
-	if cfg != nil && cfg.Type == "grammar" {
-		if !supportsGrammar {
-			return out, nil
-		}
-		definition := strings.TrimSpace(cfg.Variants["openai_lark"])
-		syntax := "lark"
-		if definition == "" {
-			definition = strings.TrimSpace(cfg.Variants["openai_regex"])
-			syntax = "regex"
-		}
-		if definition == "" {
-			return out, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", t.Name)
-		}
-		if _, err := inferGrammarInputProperty(t); err != nil {
-			return out, fmt.Errorf("tool %q cannot use grammar constrained sampling: %w", t.Name, err)
-		}
+	grammar, err := resolveResponsesGrammarTool(t, supportsGrammar)
+	if err != nil {
+		return out, err
+	}
+	if grammar != nil {
 		out.Type = "custom"
 		out.Parameters = nil
-		out.Format = map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}
+		out.Format = map[string]interface{}{"type": "grammar", "syntax": grammar.syntax, "definition": grammar.definition}
 		return out, nil
 	}
 
@@ -622,6 +695,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 
 func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, deferredPlan goai.DeferredToolPlan, deferredMode string, compat responsesCompat) []interface{} {
 	var input []interface{}
+	toolView := buildResponsesToolView(convCtx, compat.supportsGrammarTools)
 
 	// System prompt
 	if convCtx.SystemPrompt != "" {
@@ -661,7 +735,7 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			}
 
 		case goai.RoleAssistant:
-			items := buildAssistantItems(msgIndex, msg, model)
+			items := buildAssistantItemsWithToolView(msgIndex, msg, model, toolView)
 			input = append(input, items...)
 
 		case goai.RoleToolResult:
@@ -671,8 +745,12 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 				callID = callID[:idx]
 			}
 			callID = normalizeResponsesIDPart(callID)
+			outputType := "function_call_output"
+			if _, custom := toolView.grammarToolInputProperty(msg.ToolName); custom {
+				outputType = "custom_tool_call_output"
+			}
 			input = append(input, map[string]interface{}{
-				"type":    "function_call_output",
+				"type":    outputType,
 				"call_id": callID,
 				"output":  goai.SanitizeSurrogates(textResult),
 			})
@@ -743,10 +821,14 @@ func buildUserContent(msg goai.Message) []map[string]interface{} {
 	return content
 }
 
-func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []interface{} {
+func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model, tools []goai.Tool) []interface{} {
+	return buildAssistantItemsWithToolView(msgIndex, msg, model, buildResponsesToolViewFromTools(tools, getResponsesCompat(model).supportsGrammarTools))
+}
+
+func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai.Model, toolView responsesToolView) []interface{} {
 	// Check if this assistant message came from a different model variant.
-	// When replaying cross-model messages, omit fc_ item IDs to avoid
-	// OpenAI's reasoning/function-call pairing validation.
+	// When replaying cross-model messages, omit item IDs to avoid OpenAI's
+	// reasoning/tool-call pairing validation.
 	isDifferentModel := msg.Model != "" && msg.Model != model.ID &&
 		msg.Provider == model.Provider &&
 		msg.Api == model.Api
@@ -811,18 +893,36 @@ func buildAssistantItems(msgIndex int, msg goai.Message, model *goai.Model) []in
 			}
 			// Normalize callID for API compatibility
 			callID = normalizeResponsesIDPart(callID)
-			// For different-model messages, omit fc_ item IDs to avoid
-			// pairing validation between reasoning and function-call items.
-			if isDifferentModel && strings.HasPrefix(itemID, "fc_") {
+			customInputProperty, _ := toolView.grammarToolInputProperty(block.Name)
+			itemType := "function_call"
+			expectedItemPrefix := "fc_"
+			if customInputProperty != "" {
+				itemType = "custom_tool_call"
+				expectedItemPrefix = "ctc_"
+			}
+			// Foreign histories normalize item IDs to function-call IDs before
+			// the selected replay type's prefix gate, matching upstream.
+			if itemID != "" && (msg.Provider != model.Provider || msg.Api != model.Api) {
+				itemID = "fc_" + shortHash(itemID)
+			}
+			if isDifferentModel || !strings.HasPrefix(itemID, expectedItemPrefix) {
 				itemID = ""
-			} else if itemID != "" {
-				itemID = normalizeForeignResponsesItemID(itemID)
+			} else {
+				itemID = normalizeResponsesIDPart(itemID)
 			}
 			item := map[string]interface{}{
-				"type":      "function_call",
-				"call_id":   callID,
-				"name":      block.Name,
-				"arguments": mustJSON(block.Arguments),
+				"type":    itemType,
+				"call_id": callID,
+				"name":    block.Name,
+			}
+			if customInputProperty == "" {
+				item["arguments"] = mustJSON(block.Arguments)
+			} else {
+				customInput := ""
+				if value := block.Arguments[customInputProperty]; value != nil {
+					customInput = fmt.Sprint(value)
+				}
+				item["input"] = goai.SanitizeSurrogates(customInput)
 			}
 			if canReplayNamespace && block.Namespace != "" {
 				item["namespace"] = block.Namespace
@@ -853,13 +953,6 @@ func mustJSON(v interface{}) string {
 
 func crc32Hash(s string) uint32 {
 	return crc32.ChecksumIEEE([]byte(s))
-}
-
-func normalizeForeignResponsesItemID(itemID string) string {
-	if strings.HasPrefix(itemID, "fc_") && len(itemID) <= 64 {
-		return normalizeResponsesIDPart(itemID)
-	}
-	return "fc_" + shortHash(itemID)
 }
 
 func shortHash(str string) string {
