@@ -12,10 +12,10 @@ import (
 )
 
 func classifierContextV0991() goai.ClassifierContext {
-	return goai.ClassifierContext{State: "hello", Questions: map[string]goai.ClassifierQuestion{
-		"safe":  {Type: "bool"},
-		"kind":  {Type: "choice", Choices: []string{"a", "b"}},
-		"score": {Type: "score"},
+	return goai.ClassifierContext{State: map[string]any{"text": "hello"}, Questions: map[string]goai.ClassifierQuestion{
+		"safe":  {Type: "bool", Instructions: "Is the state safe?", Criteria: goai.ClassifierBoolCriteria{True: "safe", False: "unsafe"}},
+		"kind":  {Type: "choice", Instructions: "Choose a kind", Criteria: map[string]string{"a": "first", "b": "second"}},
+		"score": {Type: "score", Instructions: "Rate the state", Criteria: []string{"low", "high"}},
 	}}
 }
 
@@ -30,7 +30,7 @@ func TestV0991SystemOneClassifierRequestParsingHooksAndUsage(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		var payload struct {
 			Model     string                    `json:"model"`
-			State     string                    `json:"state"`
+			State     map[string]any            `json:"state"`
 			Questions map[string]map[string]any `json:"questions"`
 			Hooked    bool                      `json:"hooked"`
 		}
@@ -83,13 +83,13 @@ func TestV0991CloudflareClassifierRoutesAccountPlaceholder(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotAuth = r.Header.Get("Authorization")
-		_ = json.NewEncoder(w).Encode(map[string]any{"answers": map[string]any{"safe": map[string]any{"type": "noul", "noul": 0.2}}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "result": map[string]any{"state": "Completed", "result": map[string]any{"answers": map[string]any{"safe": map[string]any{"type": "noul", "noul": 0.2}}}}})
 	}))
 	defer server.Close()
 	model := &goai.ClassifierModel{ID: "typesafe/jev", Type: "classifier", Provider: goai.ClassifierProviderCloudflareWorkersAI, Api: goai.ClassifierApiCloudflareWorkersAI, BaseURL: server.URL + "/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai"}
-	ctx := goai.ClassifierContext{State: "s", Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool"}}}
+	ctx := goai.ClassifierContext{State: map[string]any{"text": "s"}, Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool", Instructions: "Is the state safe?", Criteria: goai.ClassifierBoolCriteria{True: "safe", False: "unsafe"}}}}
 	result, _ := goai.Classify(model, ctx, &goai.ClassifierOptions{APIKey: "cf", Env: goai.ProviderEnv{"CLOUDFLARE_ACCOUNT_ID": "acct"}})
-	if result.StopReason != goai.StopReasonStop || gotPath != "/client/v4/accounts/acct/ai/run/typesafe/jev" || gotAuth != "Bearer cf" {
+	if result.StopReason != goai.StopReasonStop || gotPath != "/client/v4/accounts/acct/ai/run" || gotAuth != "Bearer cf" {
 		t.Fatalf("result=%#v path=%q auth=%q", result, gotPath, gotAuth)
 	}
 }
@@ -100,7 +100,7 @@ func TestV0991ClassifierMalformedAnswersPreserveUsageCost(t *testing.T) {
 	}))
 	defer server.Close()
 	model := &goai.ClassifierModel{ID: "jev-latest", Type: "classifier", Provider: goai.ClassifierProviderTypeSafe, Api: goai.ClassifierApiTypeSafeSystemOne, BaseURL: server.URL, Cost: goai.ModelCost{Input: 1, Output: 2}}
-	result, _ := goai.Classify(model, goai.ClassifierContext{State: "s", Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool"}}}, &goai.ClassifierOptions{APIKey: "key"})
+	result, _ := goai.Classify(model, goai.ClassifierContext{State: map[string]any{"text": "s"}, Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool", Instructions: "Is the state safe?", Criteria: goai.ClassifierBoolCriteria{True: "safe", False: "unsafe"}}}}, &goai.ClassifierOptions{APIKey: "key"})
 	if result.StopReason != goai.StopReasonError || result.Usage == nil || result.Usage.Cost.Total != 0.003 {
 		t.Fatalf("malformed result=%#v", result)
 	}

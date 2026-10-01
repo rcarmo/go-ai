@@ -11,25 +11,6 @@ import (
 	"time"
 )
 
-type ClassifierQuestion struct {
-	Type    string   `json:"type"`
-	Choices []string `json:"choices,omitempty"`
-}
-
-type ClassifierContext struct {
-	State     string                        `json:"state"`
-	Questions map[string]ClassifierQuestion `json:"questions"`
-}
-
-type ClassifierAnswer struct {
-	Type          string             `json:"type"`
-	Choice        string             `json:"choice,omitempty"`
-	Probabilities map[string]float64 `json:"probabilities,omitempty"`
-	Confidence    float64            `json:"confidence,omitempty"`
-	Score         float64            `json:"score,omitempty"`
-	Probability   float64            `json:"probability,omitempty"`
-}
-
 type ClassifierResult struct {
 	Api          ClassifierApi               `json:"api"`
 	Provider     ClassifierProvider          `json:"provider"`
@@ -95,7 +76,16 @@ func Classify(model *ClassifierModel, ctx ClassifierContext, opts *ClassifierOpt
 	if p == nil {
 		return classifierError(model, fmt.Errorf("no classifier provider registered"), false), nil
 	}
-	return p.Classify(model, ctx, opts)
+	// Validate and normalize the public JSON union before any provider request.
+	encoded, err := json.Marshal(ctx)
+	if err != nil {
+		return classifierError(model, err, false), nil
+	}
+	var normalized ClassifierContext
+	if err := json.Unmarshal(encoded, &normalized); err != nil {
+		return classifierError(model, err, false), nil
+	}
+	return p.Classify(model, normalized, opts)
 }
 
 func classifierBaseResult(model *ClassifierModel) *ClassifierResult {
@@ -132,7 +122,7 @@ func init() {
 	}})
 	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiCloudflareWorkersAI, Classify: func(model *ClassifierModel, ctx ClassifierContext, opts *ClassifierOptions) (*ClassifierResult, error) {
 		return classifySystemOne(systemOneTransport{api: ClassifierApiCloudflareWorkersAI, label: "Cloudflare Workers AI System One", url: func(model *ClassifierModel) string {
-			return strings.TrimRight(ResolveCloudflareBaseURL(&Model{Provider: Provider(model.Provider), BaseURL: model.BaseURL}, ProviderEnvFromClassifierOptions(opts)), "/") + "/run/" + model.ID
+			return strings.TrimRight(ResolveCloudflareBaseURL(&Model{Provider: Provider(model.Provider), BaseURL: model.BaseURL}, ProviderEnvFromClassifierOptions(opts)), "/") + "/run"
 		}}, model, ctx, opts)
 	}})
 	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiLlamaCPP, Classify: classifyLlamaCPP})
@@ -163,8 +153,12 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 	}
 	payload := map[string]any{"model": model.ID}
 	wire := wireClassifierContext(classCtx)
-	payload["state"] = wire.State
-	payload["questions"] = wire.Questions
+	if transport.api == ClassifierApiCloudflareWorkersAI {
+		payload["input"] = wire
+	} else {
+		payload["state"] = wire["state"]
+		payload["questions"] = wire["questions"]
+	}
 	if opts != nil && opts.OnPayload != nil {
 		transformed, err := opts.OnPayload(payload, model)
 		if err != nil {
@@ -174,7 +168,10 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 			payload = transformed
 		}
 	}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return classifierError(model, err, false), nil
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, transport.url(model), bytes.NewReader(body))
 	if err != nil {
 		return classifierError(model, err, false), nil
@@ -198,16 +195,44 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 		return classifierError(model, err, ctx.Err() != nil), nil
 	}
 	defer resp.Body.Close()
-	if opts != nil && opts.OnResponse != nil {
-		_ = opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil || len(data) > 1<<20 {
+		return classifierError(model, fmt.Errorf("%s could not read response", transport.label), ctx.Err() != nil), nil
 	}
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return classifierError(model, fmt.Errorf("%s returned %d", transport.label, resp.StatusCode), false), nil
 	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return classifierError(model, err, false), nil
+	var value any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	// Validate the entire document, but defer numeric conversion until field
+	// parsing so an overflowing answer still retains reported billed usage.
+	if !json.Valid(data) {
+		return classifierError(model, fmt.Errorf("%s returned invalid JSON", transport.label), false), nil
+	}
+	if err := decoder.Decode(&value); err != nil {
+		return classifierError(model, fmt.Errorf("%s returned invalid JSON", transport.label), false), nil
+	}
+	// Match upstream: only successfully read/decoded 2xx replies are observed,
+	// including valid JSON whose answers or transport envelope are malformed.
+	if opts != nil && opts.OnResponse != nil {
+		if err := opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model); err != nil {
+			return classifierError(model, err, ctx.Err() != nil), nil
+		}
+	}
+	decoded, ok := value.(map[string]any)
+	if !ok {
+		return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+	}
+	if transport.api == ClassifierApiCloudflareWorkersAI {
+		result, ok := decoded["result"].(map[string]any)
+		if !ok || decoded["success"] == false || result["state"] != "Completed" {
+			return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+		}
+		decoded, ok = result["result"].(map[string]any)
+		if !ok {
+			return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+		}
 	}
 	if usage := parseClassifierUsage(decoded["usage"], model); usage != nil {
 		out.Usage = usage
@@ -222,29 +247,28 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 	return out, nil
 }
 
-func wireClassifierContext(ctx ClassifierContext) ClassifierContext {
-	out := ClassifierContext{State: ctx.State, Questions: map[string]ClassifierQuestion{}}
+func wireClassifierContext(ctx ClassifierContext) map[string]any {
+	questions := map[string]any{}
 	for id, q := range ctx.Questions {
-		if q.Type == "bool" {
-			q.Type = "noul"
+		typeName := q.Type
+		if typeName == "bool" {
+			typeName = "noul"
 		}
-		out.Questions[id] = q
+		questions[id] = map[string]any{"type": typeName, "instructions": q.Instructions, "criteria": q.Criteria}
 	}
-	return out
+	return map[string]any{"state": ctx.State, "questions": questions}
 }
 
 func applyClassifierHeaders(h http.Header, model *ClassifierModel, apiKey string, opts *ClassifierOptions) {
-	headers := map[string]string{"authorization": "Bearer " + apiKey, "content-type": "application/json"}
-	for k, v := range model.Headers {
-		headers[k] = v
+	h.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		h.Set("Authorization", "Bearer "+apiKey)
 	}
+	// Apply each precedence layer to http.Header directly: map iteration must
+	// not choose between differently cased spellings of the same header.
+	ApplyHeaders(h, model.Headers)
 	if opts != nil {
-		for k, v := range opts.Headers {
-			headers[k] = v
-		}
-	}
-	for k, v := range headers {
-		h.Set(k, v)
+		ApplyHeaders(h, opts.Headers)
 	}
 	if opts != nil {
 		SuppressHeaders(h, opts.SuppressHeaders)
@@ -292,8 +316,10 @@ func parseClassifierUsage(value any, model *ClassifierModel) *Usage {
 	}
 	input := positiveInt(m["input_tokens"])
 	output := positiveInt(m["output_tokens"])
-	if input == 0 && output == 0 {
-		return nil
+	if _, hasInput := m["input_tokens"]; !hasInput {
+		if _, hasOutput := m["output_tokens"]; !hasOutput {
+			return nil
+		}
 	}
 	usage := &Usage{Input: input, Output: output, TotalTokens: input + output}
 	usage.Cost.Input = float64(input) / 1_000_000 * model.Cost.Input
@@ -303,7 +329,8 @@ func parseClassifierUsage(value any, model *ClassifierModel) *Usage {
 }
 
 func positiveInt(value any) int {
-	if f, ok := value.(float64); ok && f > 0 {
+	f, err := requiredFloat("classifier", value, "token count")
+	if err == nil && f > 0 && f < float64(int(^uint(0)>>1)) {
 		return int(f)
 	}
 	return 0
@@ -349,7 +376,7 @@ func parseClassifierAnswers(label string, value any, ctx ClassifierContext) (map
 				return nil, err
 			}
 			out[id] = ClassifierAnswer{Type: "score", Score: score, Confidence: conf}
-		default:
+		case "bool":
 			if typeValue != "noul" {
 				return nil, fmt.Errorf("%s did not return a bool answer for %s", label, id)
 			}
@@ -358,6 +385,8 @@ func parseClassifierAnswers(label string, value any, ctx ClassifierContext) (map
 				return nil, err
 			}
 			out[id] = ClassifierAnswer{Type: "bool", Probability: prob}
+		default:
+			return nil, fmt.Errorf("unknown classifier question type %q", question.Type)
 		}
 	}
 	return out, nil
@@ -381,7 +410,12 @@ func parseProbabilities(label string, value any, id string) (map[string]float64,
 
 func requiredFloat(label string, value any, field string) (float64, error) {
 	f, ok := value.(float64)
-	if !ok {
+	if number, isNumber := value.(json.Number); isNumber {
+		var err error
+		f, err = number.Float64()
+		ok = err == nil
+	}
+	if !ok || !finiteClassifierNumber(f) {
 		return 0, fmt.Errorf("%s returned an invalid %s", label, field)
 	}
 	return f, nil

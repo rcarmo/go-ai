@@ -18,6 +18,10 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 - Documentation receipt: the later docs-only commit containing this entry changes `RELEASE.md` only. It is not the accepted runtime; any future release tag must target runtime `6795b5235ecd04110c838e48d5958b514f283996`, never a docs/tooling head.
 - Publication state: still blocked. Hosted acceptance authorizes this docs-only receipt, not tags, releases, aliases, SBOM uploads or publication.
 
+## Separate classifier issue #1 local candidate
+
+[Issue-specific contract, transport, migration and gate receipt](docs/issues/classifier-1.md) records local follow-up from base `05edf10e5bcd284261629b77e56922a04aa6282b`. It corrects classifier object state, instructions/criteria, required answer fields, System One/Cloudflare wire envelopes and llama.cpp rendering/readout guards. The replacement receipt includes the auditor's hook-ordering/body-read correction, with hooks after decoded 2xx success and before semantic parsing. Focused/race and full local gates passed again; no issue-specific runtime commit, push, hosted CI or publication is authorised yet. The accepted runtime and hosted receipts above remain unchanged historical evidence, not proof for these newer edits. Publication stays on HOLD pending separate classifier acceptance and explicit authorisation.
+
 ## Scope evidence
 
 - Changed paths: `8` canonical rows, stored at `docs/v100/changed-paths.txt`, SHA-256 `b8db49581470036b68078ac093dc6b41eaa92222647b14cf44a92b870d54eab4`.

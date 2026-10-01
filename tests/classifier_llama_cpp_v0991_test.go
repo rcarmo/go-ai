@@ -71,7 +71,7 @@ func TestV0991LlamaCPPClassifierProductionPathEscalationHooksAndCache(t *testing
 	}))
 	defer server.Close()
 
-	ctx := goai.ClassifierContext{State: "state", Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool"}}}
+	ctx := goai.ClassifierContext{State: map[string]any{"text": "state"}, Questions: map[string]goai.ClassifierQuestion{"safe": {Type: "bool", Instructions: "Is the state safe?", Criteria: goai.ClassifierBoolCriteria{True: "safe", False: "unsafe"}}}}
 	result, err := goai.Classify(llamaModelV0991(server.URL), ctx, &goai.ClassifierOptions{Temperature: 0.5, OnPayload: func(payload map[string]any, model *goai.ClassifierModel) (map[string]any, error) {
 		completionPayloadHooked = true
 		payload["hooked"] = true
@@ -118,12 +118,12 @@ func TestV0991LlamaCPPClassifierChoiceScoreAndErrors(t *testing.T) {
 		case "/completion":
 			prompt := payload["prompt"].(string)
 			if prompt == "PROMPT" {
-				_ = json.NewEncoder(w).Encode(map[string]any{"completion_probabilities": []any{map[string]any{"top_logprobs": []any{map[string]any{"id": 11, "logprob": -0.1}, map[string]any{"id": 12, "logprob": -2.1}, map[string]any{"id": 20, "logprob": -2}, map[string]any{"id": 21, "logprob": -0.2}}}}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"completion_probabilities": []any{map[string]any{"top_logprobs": []any{map[string]any{"id": 11, "logprob": -2.1}, map[string]any{"id": 12, "logprob": -0.1}, map[string]any{"id": 20, "logprob": -2}, map[string]any{"id": 21, "logprob": -0.2}}}}})
 			}
 		}
 	}))
 	defer server.Close()
-	ctx := goai.ClassifierContext{State: "state", Questions: map[string]goai.ClassifierQuestion{"kind": {Type: "choice", Choices: []string{"red", "blue"}}, "score": {Type: "score", Choices: []string{"low", "high"}}}}
+	ctx := goai.ClassifierContext{State: map[string]any{"text": "state"}, Questions: map[string]goai.ClassifierQuestion{"kind": {Type: "choice", Instructions: "Choose a colour", Criteria: map[string]string{"red": "red meaning", "blue": "blue meaning"}}, "score": {Type: "score", Instructions: "Rate the state", Criteria: []string{"low", "high"}}}}
 	result, _ := goai.Classify(llamaModelV0991(server.URL), ctx, nil)
 	if result.StopReason != goai.StopReasonStop || result.Answers["kind"].Choice != "red" || result.Answers["score"].Score <= 0.8 {
 		t.Fatalf("result=%#v", result)
