@@ -15,12 +15,22 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 - Accepted runtime SHA: `6795b5235ecd04110c838e48d5958b514f283996`.
 - Accepted runtime tree: `ebcbe7f87dd19907a2648f0b256f0a79b26f6105`.
 - Runtime commit: `Port pi-ai v1.0.0 runtime and catalog parity`, authored and committed by `Rui Carmo <rui.carmo@gmail.com>`, parent `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`.
-- Documentation receipt: the later docs-only commit containing this entry changes `RELEASE.md` only. It is not the accepted runtime; any future release tag must target runtime `6795b5235ecd04110c838e48d5958b514f283996`, never a docs/tooling head.
-- Publication state: still blocked. Hosted acceptance authorizes this docs-only receipt, not tags, releases, aliases, SBOM uploads or publication.
+- Original documentation receipt: `05edf10e5bcd284261629b77e56922a04aa6282b`, a `RELEASE.md`-only child of runtime `6795b5235ecd04110c838e48d5958b514f283996`. Both remain historical v1.0.0 parity evidence.
+- Publication state: HOLD. A future release-target decision must explicitly choose original runtime `6795b5235ecd04110c838e48d5958b514f283996` or accepted classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb`; never a docs/tooling HEAD. No tags, releases, aliases or durable SBOM uploads are authorised.
 
-## Separate classifier issue #1 local candidate
+## Separately accepted classifier issue #1 successor
 
-[Issue-specific contract, transport, migration and gate receipt](docs/issues/classifier-1.md) records local follow-up from base `05edf10e5bcd284261629b77e56922a04aa6282b`. It corrects classifier object state, instructions/criteria, required answer fields, System One/Cloudflare wire envelopes and llama.cpp rendering/readout guards. The replacement receipt includes the auditor's hook-ordering/body-read correction, with hooks after decoded 2xx success and before semantic parsing. Focused/race and full local gates passed again; no issue-specific runtime commit, push, hosted CI or publication is authorised yet. The accepted runtime and hosted receipts above remain unchanged historical evidence, not proof for these newer edits. Publication stays on HOLD pending separate classifier acceptance and explicit authorisation.
+The auditor accepted runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` and its hosted evidence. [Issue-specific contract, migration and evidence](docs/issues/classifier-1.md) records the separate nine-path follow-up, 1271 insertions / 94 deletions, to upstream classifier paths unchanged in the original eight-path v1.0.0 delta. It corrects object state, instructions/criteria, required answer fields, System One/Cloudflare envelopes and llama.cpp rendering/readout. Response hooks follow decoded 2xx success and precede semantic parsing. No catalog, dependency, OAuth, chat/image, workflow or release-tool changes were included.
+
+- Runtime commit: `Fix classifier context and question contract`, normal Rui-authored commit; parent and issue rollback `05edf10e5bcd284261629b77e56922a04aa6282b`. Original runtime `6795b5235ecd04110c838e48d5958b514f283996` was not amended or retargeted.
+- Separate documentation SHA: the direct child of runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` containing this entry, subject `Document classifier issue hosted acceptance [skip ci]`, touching only `RELEASE.md` and `docs/issues/classifier-1.md`. Resolve its exact SHA with `git log -1 --format=%H --fixed-strings --grep='Document classifier issue hosted acceptance [skip ci]'`; the external post-push receipt records the literal SHA. It is excluded from runtime/SBOM acceptance and release targeting.
+- Sole normal push CI: [36934719250](https://github.com/rcarmo/go-ai/actions/runs/36934719250), exact classifier runtime head SHA, event `push`, attempt 1, success; check job `110612170075` and fuzz job `110612169810`, all steps passed.
+- Sole artifact `11198105688`, `go-ai-sbom-561ae451d16a6b3a31a274472aed7f831f6fb5eb`: downloaded ZIP SHA-256 `7575ef74adfec3d2f70260e606b286a2e8129134f567564852e30e3a35cdb67b` matches the API digest. Hosted inner SBOM checksum `c36564ec7bdd18ca29aaeb6eab8138f84fb00e5fba22ba3fce32c129e39123e1`; corrected local checksum `9abd48d360224279a7cbac5f3067486f28527e5c99a50544d9e70813fa42b232`.
+- CycloneDX 1.6 root library `github.com/rcarmo/go-ai`, MIT, version `561ae451d16a`, matching module/version purl and bom-ref, exactly one root full `vcs.revision=561ae451d16a6b3a31a274472aed7f831f6fb5eb`; 18 components / 19 dependency entries / four direct root edges, no dangling refs or local paths.
+- Local postcommit and hosted security/licence checks passed: no reachable vulnerabilities for Go 1.26.6; existing assembly-inspection warnings only. Independent structural/delegated comparison found exactly five generator executable hash differences under `/metadata/tools/0/hashes/N/content`; application, dependency, root, graph and licence fields match. Local Go 1.26.3 versus hosted Go 1.26.8 is consistent with those pinned `cyclonedx-gomod v1.12.0` builder differences; the sole cause was not independently proven.
+- Evidence: `/workspace/tmp/go-ai-issue1-candidate/{corrected-root12,hosted}/`; rejected full-root-version artifact is labelled under `rejected-root40/`. Auditor independently verified the run, downloaded artifact, checksum, graph and generator-only differences. Docs-only validation does not rerun accepted runtime matrices or regenerate artifacts at docs HEAD.
+
+No issue closure or cross-port completion is recorded. Publication HOLD continues; any future runtime target requires explicit authorisation.
 
 ## Scope evidence
 
@@ -88,7 +98,7 @@ Remaining adaptations/N/A: deterministic callbacks and intercepted HTTP transpor
 
 ## Durable SBOM release assets
 
-No v1.0.0 durable SBOM release asset, native tag or upstream alias has been created or authorized. Hosted runtime acceptance is complete; publication still requires separate explicit authorization. Any later native/upstream tag must target accepted runtime `6795b5235ecd04110c838e48d5958b514f283996`, never this docs-only receipt or a tooling head. Historical v0.99.2 and earlier refs/releases remain unchanged.
+No v1.0.0 durable SBOM release asset, native tag or upstream alias has been created or authorised. Original runtime `6795b5235ecd04110c838e48d5958b514f283996` and separate classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb` have independent hosted acceptance receipts. Publication stays on HOLD until an explicit decision selects a runtime target and authorises publication. Neither documentation SHA nor a tooling HEAD is a release target. Historical v0.99.2 and earlier refs/releases remain unchanged.
 
 ## Release documentation policy
 

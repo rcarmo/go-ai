@@ -1,16 +1,17 @@
 # Classifier contract correction — issue #1
 
-Replacement local receipt after the auditor's response-hook ordering finding for [go-ai #1](https://github.com/rcarmo/go-ai/issues/1), required by [gi #27](https://github.com/rcarmo/gi/issues/27). This is separate from the accepted v1.0.0 runtime audit. No commit, push, hosted CI, tag or publication is authorised by this receipt.
+The auditor accepted classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb` and its hosted evidence for [go-ai #1](https://github.com/rcarmo/go-ai/issues/1), required by [gi #27](https://github.com/rcarmo/gi/issues/27). This separate follow-up corrects classifier paths unchanged in the original eight-path v1.0.0 upstream delta. No issue closure, tags or publication are authorised.
 
 ## Pins and scope
 
-- Local base: `05edf10e5bcd284261629b77e56922a04aa6282b` (`HEAD == origin/main` at start).
-- Accepted v1.0.0 runtime: `6795b5235ecd04110c838e48d5958b514f283996`; the issue candidate does not amend or replace it.
+- Issue runtime: `561ae451d16a6b3a31a274472aed7f831f6fb5eb`, `Fix classifier context and question contract`, authored and committed by Rui Carmo <rui.carmo@gmail.com>.
+- Parent, issue base and rollback: `05edf10e5bcd284261629b77e56922a04aa6282b`, the original `RELEASE.md`-only receipt child of accepted v1.0.0 runtime `6795b5235ecd04110c838e48d5958b514f283996`. The issue runtime does not amend or retarget either historical commit.
+- Separate documentation SHA: the direct child of runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` containing this entry, subject `Document classifier issue hosted acceptance [skip ci]`, touching only this file and `RELEASE.md`. Resolve its exact SHA with `git log -1 --format=%H --fixed-strings --grep='Document classifier issue hosted acceptance [skip ci]'`; the external post-push receipt records the literal SHA. This docs commit receives no runtime/SBOM acceptance and cannot be a release target.
 - Official package: `@earendil-works/pi-ai@1.0.0`, gitHead `a13d35a742c6ef8462812a28fbe1d8c8b7431c32`.
 - Official artifact: `/workspace/tmp/pi-ai-100.tgz`, SHA-256 `f39b99c29b8598f175b10840e5d2a81983e7c0ce5cae4d7df83a1007447d2c2b`.
 - Reference files below are under `/workspace/tmp/pi-ai-audit-100/tar/package/dist/`.
 - Catalogs, dependency manifests, OAuth, chat/image transports and release tools are unchanged.
-- Exact nine-path scope: `classifier_types.go` (new), `classifier_runtime.go`, `classifier_llama_cpp.go`, `tests/classifier_contract_issue1_test.go` (new), `tests/classifier_llama_cpp_issue1_test.go` (new), `tests/classifier_runtime_v0991_test.go`, `tests/classifier_llama_cpp_v0991_test.go`, `docs/issues/classifier-1.md` (new), and `RELEASE.md` (separate issue receipt).
+- Accepted issue runtime scope: nine paths, 1271 insertions / 94 deletions: `classifier_types.go` (new), `classifier_runtime.go`, `classifier_llama_cpp.go`, `tests/classifier_contract_issue1_test.go` (new), `tests/classifier_llama_cpp_issue1_test.go` (new), `tests/classifier_runtime_v0991_test.go`, `tests/classifier_llama_cpp_v0991_test.go`, `docs/issues/classifier-1.md` (new), and `RELEASE.md` (separate issue receipt).
 
 ## Contract and production-path crosswalk
 
@@ -66,7 +67,7 @@ PI_AI_MODELS_GENERATED_JS=/workspace/tmp/pi-ai-audit-100/tar/package/dist/models
 git diff --check
 ```
 
-`make check` covers full deterministic tests (`-count=3`), vet/staticcheck, logging, release inventory/fault tests, regeneration/fault tests, SBOM validation/self-tests, publisher checks, pinned vulnerability checks and licence checks. `make test-repro` repeats full fast gates, build and race tests. Pinned catalogs regenerate at 1532 chat / 57 image / 15 classifier; deliberate corruption tests fail as expected. No dependencies changed. `govulncheck` reports no reachable vulnerabilities; licence scans pass with the existing assembly-inspection warnings. Local SBOM is a working-tree gate artifact at the base revision, not release provenance for an uncommitted candidate.
+`make check` covers full deterministic tests (`-count=3`), vet/staticcheck, logging, release inventory/fault tests, regeneration/fault tests, SBOM validation/self-tests, publisher checks, pinned vulnerability checks and licence checks. `make test-repro` repeats full fast gates, build and race tests. Pinned catalogs regenerate at 1532 chat / 57 image / 15 classifier; deliberate corruption tests fail as expected. No dependencies changed. `govulncheck` reports no reachable vulnerabilities; licence scans pass with the existing assembly-inspection warnings. These precommit gate SBOMs identify the base; exact-runtime postcommit evidence follows below.
 
 A final raw-HTTP overflow fixture (`1e400`) proved that numeric conversion must occur after usage parsing, not while decoding the whole JSON document; System One now uses `UseNumber` and validates numbers in the answer parser. All gates above were rerun after this correction.
 
@@ -76,4 +77,27 @@ Two new table-driven tests cover 53 cases: TypeSafe and Cloudflare each exercise
 
 The candidate now contains 13 issue-specific tests plus the migrated v0991 regressions. An independent delegated review of the replacement hook ordering, body reads, semantic errors and usage preservation found no concrete issues. Earlier initial-candidate failures were corrected: test-only bool JSON key-order assertion; case-insensitive authorization precedence relying on map iteration; two staticcheck ST1005 literal error messages. An earlier narrow JSON/state/usage review found no concrete issues but did not detect the later auditor hook-ordering finding. Timed-out or path-rejected delegates provide no acceptance evidence.
 
-Cross-port coordination is owned by `@auditor`: Swift transport/contract gaps were identified for separate bounded follow-up; Rust contract appeared compliant and verification was requested. Their completion is not claimed here. The issue candidate still requires auditor scope/test acceptance and separate commit/push authorisation. Publication HOLD remains in force.
+## Accepted hosted runtime and SBOM
+
+The auditor accepted the frozen nine-path issue scope, independently passed focused tests and race tests three times plus `make check` / `make test-repro`, then authorised one normal commit and guarded push. Runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` was pushed once without a CI retry. Historical upstream delta manifests under `docs/v100/` remain unchanged.
+
+[CI run 36934719250](https://github.com/rcarmo/go-ai/actions/runs/36934719250) is the sole exact-runtime normal push run: event `push`, attempt 1, exact `headSha=561ae451d16a6b3a31a274472aed7f831f6fb5eb`, success. Check job `110612170075` and fuzz job `110612169810` passed every step. The auditor independently verified the run and downloaded its sole artifact.
+
+- Artifact `11198105688`: `go-ai-sbom-561ae451d16a6b3a31a274472aed7f831f6fb5eb`.
+- Archive digest verified against the API: `7575ef74adfec3d2f70260e606b286a2e8129134f567564852e30e3a35cdb67b`.
+- Canonical files: `sbom.cdx.json` and `sbom.cdx.json.sha256`.
+- Hosted inner SBOM digest/checksum: `c36564ec7bdd18ca29aaeb6eab8138f84fb00e5fba22ba3fce32c129e39123e1`.
+- Corrected local postcommit SBOM digest/checksum: `9abd48d360224279a7cbac5f3067486f28527e5c99a50544d9e70813fa42b232`.
+- CycloneDX 1.6 root library `github.com/rcarmo/go-ai`, MIT, version `561ae451d16a`; purl and bom-ref identify that module/version with legitimate platform/type qualifiers. Exactly one root full `vcs.revision=561ae451d16a6b3a31a274472aed7f831f6fb5eb`.
+- Graph: 18 components, 19 dependency entries, four direct root edges; no dangling refs, local absolute paths or known secret fields.
+- Local postcommit and hosted security/licence gates passed: no reachable vulnerabilities for Go 1.26.6; known assembly-inspection warnings only. Pinned tools: `cyclonedx-gomod v1.12.0`, `govulncheck v1.7.0`, `go-licenses v1.6.0`.
+
+Independent structural/delegated review found exactly five differences under `/metadata/tools/0/hashes/N/content`, the pinned generator executable hashes. Application, dependency, root, graph, licence and full-revision data match. Local Go 1.26.3 and hosted auto-selected Go 1.26.8 are consistent with those builder differences; a sole-cause explanation was not independently proven. Checksums verify each artifact's integrity; matching semantic data and full revision establish runtime provenance.
+
+A mistakenly generated 40-character root version was rejected before push and labelled under `/workspace/tmp/go-ai-issue1-candidate/rejected-root40/`. Authorised regeneration used root `SBOM_REVISION=561ae451d16a` and full `SBOM_VCS_REVISION=561ae451d16a6b3a31a274472aed7f831f6fb5eb`; SBOM validation/self-tests, vulnerability and licence checks passed before the guarded push. Initial ad-hoc verifier assumptions about purl qualifiers and leaf `dependsOn` were corrected without source/artifact changes. Corrected evidence is under `corrected-root12/`; downloaded hosted API/job/log/archive/checksum/semantic receipts are under `hosted/` in the same directory.
+
+## Documentation and publication boundary
+
+This separate docs receipt touches only `RELEASE.md` and `docs/issues/classifier-1.md`, uses `[skip ci]`, and does not rerun accepted runtime matrices or regenerate artifacts at docs HEAD. Its exact SHA and post-push zero-CI checks are recorded externally after commit; the runtime remains `561ae451d16a6b3a31a274472aed7f831f6fb5eb`.
+
+Cross-port coordination is owned by `@auditor`: Swift transport/contract gaps were identified for separate bounded follow-up; Rust contract appeared compliant and verification was requested. Their completion is not claimed here. The issue has not been closed. Publication HOLD continues. A future release-target decision must explicitly choose original runtime `6795b5235ecd04110c838e48d5958b514f283996` or classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb`; never either documentation SHA or a tooling HEAD.
