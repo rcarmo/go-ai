@@ -12,7 +12,11 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 - Previous accepted upstream baseline: `v0.99.2` / accepted Go runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73`
 - Current repository baseline before this audit: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
 - Rollback SHA before the v1.0.0 local candidate: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
-- Publication state: blocked. This v1.0.0 candidate is local-only until auditor accepts scope and gates; no commit, push, tag, release, or publication is authorized yet.
+- Accepted runtime SHA: `6795b5235ecd04110c838e48d5958b514f283996`.
+- Accepted runtime tree: `ebcbe7f87dd19907a2648f0b256f0a79b26f6105`.
+- Runtime commit: `Port pi-ai v1.0.0 runtime and catalog parity`, authored and committed by `Rui Carmo <rui.carmo@gmail.com>`, parent `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`.
+- Documentation receipt: the later docs-only commit containing this entry changes `RELEASE.md` only. It is not the accepted runtime; any future release tag must target runtime `6795b5235ecd04110c838e48d5958b514f283996`, never a docs/tooling head.
+- Publication state: still blocked. Hosted acceptance authorizes this docs-only receipt, not tags, releases, aliases, SBOM uploads or publication.
 
 ## Scope evidence
 
@@ -24,7 +28,7 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 
 ## Current Go implementation/adaptation summary
 
-Implemented or adapted for v1.0.0 locally:
+Implemented or adapted in accepted runtime `6795b5235ecd04110c838e48d5958b514f283996`:
 
 - Exact generated catalog refresh from official v1.0.0 package artifact via checked-in generator: `1532` chat models, `57` image models, and `15` classifier models. The official package has `42` provider modules, with `typesafe` classifier-only and no chat rows, so Go's model-bearing chat provider count remains `41`.
 - OpenAI Responses resolves grammar support from transcript-declared tools and provider capability. The same map selects function/custom declarations, call replay and result replay. Foreign provider/API IDs normalize to `fc_<hash>` before the type-prefix gate; custom replay omits foreign raw/fc_/ctc_ IDs while same-source valid ctc_ IDs remain. Different-model IDs are omitted. Missing/null custom input becomes empty text. Production OnPayload tests cover true/false/default capabilities, call+result round-trips, transcript additions and radius#115.
@@ -34,7 +38,7 @@ Implemented or adapted for v1.0.0 locally:
 
 ## Validation evidence
 
-Focused gates completed so far:
+Focused gates passed:
 
 - `go test ./inference/provider/openairesponses -run 'Test.*(Grammar|ForeignToolCall|Namespace|Request)' -count=1` — passed.
 - `go test ./oauth -count=1` — passed.
@@ -56,11 +60,31 @@ Local gates passed after all consolidated Responses/OAuth and async callback fix
 - `go test -race ./oauth -run 'TestV100AnthropicAsyncBrowserCallback|TestAnthropicOAuthBrowserCompletes' -count=3` — passed for async 200/502 delivery and duplicate exchange controls.
 - `TMPDIR=/workspace/tmp go test -shuffle=on ./...` — passed.
 
-Logs: `/workspace/tmp/go-ai-v100-consolidated-logs/{auditor-overlay,async-production,oauth,responses,race,staticcheck,check,repro,shuffle,diff-check}.log`. Full candidate inventory including untracked files: `docs/v100/local-candidate-inventory.txt`. Licence scanning reported known assembly-inspection warnings but exited successfully; govulncheck reported no reachable vulnerabilities. This is evidence for the uncommitted working tree on `869b7a6`; its local SBOM records that base HEAD and must be regenerated for an authorised candidate commit. No candidate commit or hosted CI run exists yet. Commit/push/tag/release authorization is withheld.
+Logs: `/workspace/tmp/go-ai-v100-consolidated-logs/{auditor-overlay,async-production,oauth,responses,race,staticcheck,check,repro,shuffle,diff-check}.log`. Full candidate inventory including untracked files: `docs/v100/local-candidate-inventory.txt`. Licence scanning reported known assembly-inspection warnings but exited successfully; govulncheck reported no reachable vulnerabilities. After the single candidate commit, `make sbom-check sbom-self-test vuln-check vuln-self-test license-check` passed before the one guarded push. The regenerated local artifact records the exact candidate SHA. Local/postcommit receipts are preserved in `/workspace/tmp/go-ai-v100-candidate-6795b52/`.
+
+## Hosted acceptance and SBOM provenance
+
+The auditor independently accepted runtime `6795b5235ecd04110c838e48d5958b514f283996` and tree `ebcbe7f87dd19907a2648f0b256f0a79b26f6105`:
+
+- Sole normal push CI run: `36927064765` ([run](https://github.com/rcarmo/go-ai/actions/runs/36927064765)), event `push`, exact `headSha=6795b5235ecd04110c838e48d5958b514f283996`, success.
+- Check job: `110586893844`, `Vet, Staticcheck & Deterministic Tests (1.24.x)`, all steps green.
+- Fuzz job: `110586894322`, `Fuzz Tests`, all steps green.
+- Sole run-scoped artifact: `11194655969`, `go-ai-sbom-6795b5235ecd04110c838e48d5958b514f283996`; archive digest `5031d55e7f55de6f1bc66b4adeeeeaca957a9a39dd9077c07b14dd6d6f83441f` matched the downloaded ZIP.
+- Canonical archive files: `sbom.cdx.json` and `sbom.cdx.json.sha256`.
+- Hosted inner SBOM SHA-256/checksum: `3d5a5ba1b2e8f08ebb0e1250b0df68ccddc6714e3bac26e27f6fbe8fec3db544`.
+- Local postcommit inner SBOM SHA-256: `4226283deb1555c91de654075f0879d5ebd185eb7f907a768c5bc579e84f5b9b`.
+- Downloaded SBOM validation: CycloneDX 1.6, root library `github.com/rcarmo/go-ai`, MIT, version `6795b5235ecd`; root purl and bom-ref identify that short candidate revision. Exactly one root `vcs.revision=6795b5235ecd04110c838e48d5958b514f283996`; full revision occurs once. There are 18 components and 19 dependency entries, with four resolved root edges and no unresolved graph references, local absolute paths or known secret fields.
+- Hosted security/licence gates passed: no reachable vulnerabilities for `go1.26.6`; licence checker exited successfully with known assembly-inspection warnings. SBOM normalizer/validator, vulnerability-policy and typed-regeneration fault tests passed.
+
+Local and hosted SBOM bytes differ. Decoded JSON has exactly five differences, all at `/metadata/tools/0/hashes/N/content` for the pinned `cyclonedx-gomod v1.12.0` generator executable. CI's `go run` selected `go1.26.8`; local generation used `go1.26.3`. All application, dependency, root, provenance, graph and licence data are identical. Checksums verify artifact integrity; the exact revision and semantic graph comparison establish provenance across the tool builds.
+
+Independent auditor semantic receipt: `/workspace/tmp/go-ai-v100-auditor-hosted-36927064765/semantic-diff-receipt.json`. Agent run/artifact/log/download receipts: `/workspace/tmp/go-ai-v100-candidate-6795b52/`.
+
+Remaining adaptations/N/A: deterministic callbacks and intercepted HTTP transport cover production request, token and callback behaviour; live Anthropic credential/browser completion was not run. Node/SDK-specific browser launch/UI mechanics are adapted to Go's optional selection/auth/prompt callback surface. No live or SDK-only case is represented as a hidden skipped test.
 
 ## Durable SBOM release assets
 
-No v1.0.0 durable SBOM release asset has been created or authorized. The current v1.0.0 work is local-only. Historical durable release assets for v0.99.2 and earlier remain unchanged.
+No v1.0.0 durable SBOM release asset, native tag or upstream alias has been created or authorized. Hosted runtime acceptance is complete; publication still requires separate explicit authorization. Any later native/upstream tag must target accepted runtime `6795b5235ecd04110c838e48d5958b514f283996`, never this docs-only receipt or a tooling head. Historical v0.99.2 and earlier refs/releases remain unchanged.
 
 ## Release documentation policy
 
