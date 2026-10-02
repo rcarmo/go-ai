@@ -12,25 +12,26 @@ This file is the root release-audit source of truth for `github.com/rcarmo/go-ai
 - Previous accepted upstream baseline: `v0.99.2` / accepted Go runtime `86a439d949de78ce7e8ba4cd3f975312785c2a73`
 - Current repository baseline before this audit: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
 - Rollback SHA before the v1.0.0 local candidate: `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`
-- Accepted runtime SHA: `6795b5235ecd04110c838e48d5958b514f283996`.
-- Accepted runtime tree: `ebcbe7f87dd19907a2648f0b256f0a79b26f6105`.
+- Original accepted parity runtime SHA: `6795b5235ecd04110c838e48d5958b514f283996` (historical receipt).
+- Published v1.0.0 runtime SHA: `561ae451d16a6b3a31a274472aed7f831f6fb5eb`, the separately accepted classifier successor selected explicitly for both native and alias publication.
+- Original accepted runtime tree: `ebcbe7f87dd19907a2648f0b256f0a79b26f6105`.
 - Runtime commit: `Port pi-ai v1.0.0 runtime and catalog parity`, authored and committed by `Rui Carmo <rui.carmo@gmail.com>`, parent `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e`.
 - Original documentation receipt: `05edf10e5bcd284261629b77e56922a04aa6282b`, a `RELEASE.md`-only child of runtime `6795b5235ecd04110c838e48d5958b514f283996`. Both remain historical v1.0.0 parity evidence.
-- Publication state: HOLD. A future release-target decision must explicitly choose original runtime `6795b5235ecd04110c838e48d5958b514f283996` or accepted classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb`; never a docs/tooling HEAD. No tags, releases, aliases or durable SBOM uploads are authorised.
+- Publication state: native `v1.0.0` and historical alias `upstream-v1.0.0` are published and independently accepted on runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb`. Original `6795b5235ecd04110c838e48d5958b514f283996` remains unchanged. No docs/tooling HEAD is a tag target; any additional release mutation needs separate authorisation.
 
 ## Separately accepted classifier issue #1 successor
 
 The auditor accepted runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` and its hosted evidence. [Issue-specific contract, migration and evidence](docs/issues/classifier-1.md) records the separate nine-path follow-up, 1271 insertions / 94 deletions, to upstream classifier paths unchanged in the original eight-path v1.0.0 delta. It corrects object state, instructions/criteria, required answer fields, System One/Cloudflare envelopes and llama.cpp rendering/readout. Response hooks follow decoded 2xx success and precede semantic parsing. No catalog, dependency, OAuth, chat/image, workflow or release-tool changes were included.
 
 - Runtime commit: `Fix classifier context and question contract`, normal Rui-authored commit; parent and issue rollback `05edf10e5bcd284261629b77e56922a04aa6282b`. Original runtime `6795b5235ecd04110c838e48d5958b514f283996` was not amended or retargeted.
-- Separate documentation SHA: the direct child of runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb` containing this entry, subject `Document classifier issue hosted acceptance [skip ci]`, touching only `RELEASE.md` and `docs/issues/classifier-1.md`. Resolve its exact SHA with `git log -1 --format=%H --fixed-strings --grep='Document classifier issue hosted acceptance [skip ci]'`; the external post-push receipt records the literal SHA. It is excluded from runtime/SBOM acceptance and release targeting.
+- Classifier documentation receipt SHA: `5fe43c855937d0b280983fe619a47d8457934281`, direct child of runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb`, subject `Document classifier issue hosted acceptance [skip ci]`, touching only `RELEASE.md` and `docs/issues/classifier-1.md`. Its exact-SHA Actions queries returned zero runs. It served as publication tooling, never runtime/SBOM acceptance or tag target.
 - Sole normal push CI: [36934719250](https://github.com/rcarmo/go-ai/actions/runs/36934719250), exact classifier runtime head SHA, event `push`, attempt 1, success; check job `110612170075` and fuzz job `110612169810`, all steps passed.
 - Sole artifact `11198105688`, `go-ai-sbom-561ae451d16a6b3a31a274472aed7f831f6fb5eb`: downloaded ZIP SHA-256 `7575ef74adfec3d2f70260e606b286a2e8129134f567564852e30e3a35cdb67b` matches the API digest. Hosted inner SBOM checksum `c36564ec7bdd18ca29aaeb6eab8138f84fb00e5fba22ba3fce32c129e39123e1`; corrected local checksum `9abd48d360224279a7cbac5f3067486f28527e5c99a50544d9e70813fa42b232`.
 - CycloneDX 1.6 root library `github.com/rcarmo/go-ai`, MIT, version `561ae451d16a`, matching module/version purl and bom-ref, exactly one root full `vcs.revision=561ae451d16a6b3a31a274472aed7f831f6fb5eb`; 18 components / 19 dependency entries / four direct root edges, no dangling refs or local paths.
 - Local postcommit and hosted security/licence checks passed: no reachable vulnerabilities for Go 1.26.6; existing assembly-inspection warnings only. Independent structural/delegated comparison found exactly five generator executable hash differences under `/metadata/tools/0/hashes/N/content`; application, dependency, root, graph and licence fields match. Local Go 1.26.3 versus hosted Go 1.26.8 is consistent with those pinned `cyclonedx-gomod v1.12.0` builder differences; the sole cause was not independently proven.
 - Evidence: `/workspace/tmp/go-ai-issue1-candidate/{corrected-root12,hosted}/`; rejected full-root-version artifact is labelled under `rejected-root40/`. Auditor independently verified the run, downloaded artifact, checksum, graph and generator-only differences. Docs-only validation does not rerun accepted runtime matrices or regenerate artifacts at docs HEAD.
 
-No issue closure or cross-port completion is recorded. Publication HOLD continues; any future runtime target requires explicit authorisation.
+No issue closure or cross-port completion is recorded. Native and alias v1.0.0 publication is separately complete below. Native pi-durable remains a separate accepted read-only design with no implementation authorisation; it is not part of these releases.
 
 ## Scope evidence
 
@@ -98,7 +99,39 @@ Remaining adaptations/N/A: deterministic callbacks and intercepted HTTP transpor
 
 ## Durable SBOM release assets
 
-No v1.0.0 durable SBOM release asset, native tag or upstream alias has been created or authorised. Original runtime `6795b5235ecd04110c838e48d5958b514f283996` and separate classifier successor `561ae451d16a6b3a31a274472aed7f831f6fb5eb` have independent hosted acceptance receipts. Publication stays on HOLD until an explicit decision selects a runtime target and authorises publication. Neither documentation SHA nor a tooling HEAD is a release target. Historical v0.99.2 and earlier refs/releases remain unchanged.
+Both v1.0.0 publications are independently accepted. They target classifier runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb`, never classifier docs/tooling `5fe43c855937d0b280983fe619a47d8457934281` or this final publication receipt. Original parity runtime `6795b5235ecd04110c838e48d5958b514f283996` remains historical. Classifier rollback is parent `05edf10e5bcd284261629b77e56922a04aa6282b`; original parity rollback `869b7a62bfceed02c7cc3abb05e5c4aa3cfc2c6e` is preserved. Published tags/assets are immutable; rollback never retargets a released version.
+
+### Native v1.0.0
+
+- [Release `401591099`](https://github.com/rcarmo/go-ai/releases/tag/v1.0.0), title `go-ai v1.0.0`, public/non-draft/non-prerelease.
+- Create-only Git Data annotated tag object `15473ce688bb61f601f3ead71782e4554d1d9eeb`; `refs/tags/v1.0.0` has type `tag`, exact tagger `Rui Carmo <rui.carmo@gmail.com>`, message `go-ai v1.0.0`, direct target type `commit` / runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb`. Tag/ref/release were absent immediately before creation; object/ref matched before and after publication. Peeled tag object is the provenance authority.
+- Sole publisher [run `36974565269`](https://github.com/rcarmo/go-ai/actions/runs/36974565269), attempt 1, success, job `110735490140`, all steps passed. Tooling checkout `5fe43c855937d0b280983fe619a47d8457934281`; separate exact runtime checkout `561ae451d16a6b3a31a274472aed7f831f6fb5eb`; inputs `release_mode=native`, `release_tag=v1.0.0`, `upstream_version=v1.0.0`. No API failure, fallback or retry.
+- Canonical public `sbom.cdx.json`, asset `604996010`, SHA-256 `358b691f3d9d5852ccd24e77150caa3d8391be330f8b4fcaf075db5301cba755`.
+- Canonical public `sbom.cdx.json.sha256`, asset `604996011`, SHA-256 `cef96c108aab4f1c4323ba64fc7ad3c75b08645a62fe80e808f7d79d7d154f75`.
+- Native root version `1.0.0`, module purl/bom-ref `go-ai@1.0.0`, full root `vcs.revision` equal to runtime above. Compared with accepted runtime hosted SBOM, exactly four fields differ: root version, root purl, root bom-ref and root dependency ref. After pinned native-version normalization of a comparison copy, decoded data has zero differences. Public assets were freshly generated from the runtime, not copied from an alias.
+
+### Historical upstream-v1.0.0 alias
+
+- [Release `401593562`](https://github.com/rcarmo/go-ai/releases/tag/upstream-v1.0.0), title `SBOM for @earendil-works/pi-ai v1.0.0`, public/non-draft/non-prerelease.
+- Established lightweight alias ref `refs/tags/upstream-v1.0.0`, type `commit`, exact runtime `561ae451d16a6b3a31a274472aed7f831f6fb5eb`. Existing native tag/release/assets were preserved during alias creation; no old alias was retagged.
+- Sole publisher [run `36975033815`](https://github.com/rcarmo/go-ai/actions/runs/36975033815), attempt 1, success, job `110736901833`, all steps passed. Same separate tooling/runtime checkouts; inputs `release_mode=upstream`, `release_tag=upstream-v1.0.0`, `upstream_version=v1.0.0`. No API failure, fallback or retry.
+- Canonical public `sbom.cdx.json`, asset `605003187`, SHA-256 `c36564ec7bdd18ca29aaeb6eab8138f84fb00e5fba22ba3fce32c129e39123e1`.
+- Canonical public `sbom.cdx.json.sha256`, asset `605003186`, SHA-256 `7a31fd6557d22aa43f17da9bc598ac36bfc98199061ff387aa2f815fa0a9f8e5`.
+- Historical alias root version `561ae451d16a`, module/version purl and bom-ref, full root `vcs.revision` equal to runtime above. Freshly generated alias SBOM is byte-identical to accepted runtime hosted artifact `11198105688`; independent structural comparison also has zero differences. It was not copied from the native SBOM.
+
+### Public validation and history preservation
+
+Both releases have exactly the two canonical assets. Unauthenticated public downloads matched their GitHub asset digests and internal checksums. Checked-in SBOM validators passed: CycloneDX 1.6, root library `github.com/rcarmo/go-ai`, MIT, exactly one full root VCS revision, 18 components / 19 dependency entries / four direct root edges, no dangling refs, local absolute paths or checked secret-bearing fields. Pinned `cyclonedx-gomod v1.12.0` / normalizer / validator/self-tests passed in both workflows. Vulnerability gates report no reachable vulnerabilities for Go 1.26.6; licence checks passed with known assembly-inspection warnings. No accepted broad runtime matrices were restarted.
+
+Native publication preserved all 55 prior tag refs and 12 prior releases. Native/upstream v0.99.2 tag objects and re-downloaded public assets matched their before snapshots. Alias publication then preserved all 56 prior refs and 13 prior releases, including complete native v1.0.0 tag object and re-downloaded asset digests. Only the authorised native and alias additions occurred. Original upstream eight-path manifests and historical runtime/classifier receipts remain unchanged.
+
+Evidence: `/workspace/tmp/go-ai-native-v100-publication/` and `/workspace/tmp/go-ai-upstream-v100-publication/`, including API snapshots, dispatch/run/job/full logs, public downloads, validators, structural comparison and before/after history receipts. The auditor independently accepted both publications.
+
+### Final documentation and separate durable work
+
+This final `RELEASE.md`-only Rui evidence commit has subject `Record v1.0.0 native and alias publication [skip ci]` and parent `5fe43c855937d0b280983fe619a47d8457934281`. Resolve its exact SHA with `git log -1 --format=%H --fixed-strings --grep='Record v1.0.0 native and alias publication [skip ci]'`; its external post-push receipt records the literal docs SHA and zero Actions checks. It is not runtime or a tag target. Documentation scope/diff/link/lineage checks only; no SBOM regeneration at docs HEAD.
+
+Native pi-durable M1a design is separately accepted at `/workspace/tmp/go-ai-durable-readonly/plan.md`. It has no implementation/build/dependency/commit/push authorisation. Completing these v1.0.0 releases neither implements pi-durable nor closes the classifier issue or completes other ports. No additional release, runtime, workflow or issue-ledger mutation is authorised.
 
 ## Release documentation policy
 
