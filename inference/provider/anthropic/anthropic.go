@@ -24,6 +24,7 @@ const interleavedThinkingBeta = "interleaved-thinking-2025-05-14"
 const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
 const midConversationOutputConfigBeta = "mid-conversation-output-config-2026-07-01"
 const thinkingBindingControlsBeta = "thinking-binding-controls-2026-08-01"
+const inlineToolsBeta = "inline-tools-2026-09-15"
 const claudeCodeVersion = "2.1.280"
 
 var anthropicStrictUnsupportedKeywords = map[string]struct{}{
@@ -100,6 +101,7 @@ var claudeCodeToolCanonicalNames = map[string]string{
 type anthropicCompat struct {
 	supportsEagerToolInputStreaming bool
 	supportsLongCacheRetention      bool
+	supportsCacheControlOnTools     bool
 	supportsToolReferences          bool
 	supportsStrictTools             bool
 	forceAdaptiveThinking           bool
@@ -114,11 +116,15 @@ func getAnthropicCompat(model *goai.Model) anthropicCompat {
 	c := anthropicCompat{
 		supportsEagerToolInputStreaming: true,
 		supportsLongCacheRetention:      true,
+		supportsCacheControlOnTools:     true,
 		supportsToolReferences:          strings.Contains(model.ID, "opus-4-6") || strings.Contains(model.ID, "opus-4-7") || strings.Contains(model.ID, "opus-4-8"),
 	}
 	if model.AnthropicCompat != nil {
 		if model.AnthropicCompat.SupportsEagerToolInputStreaming != nil {
 			c.supportsEagerToolInputStreaming = *model.AnthropicCompat.SupportsEagerToolInputStreaming
+		}
+		if model.AnthropicCompat.SupportsCacheControlOnTools != nil {
+			c.supportsCacheControlOnTools = *model.AnthropicCompat.SupportsCacheControlOnTools
 		}
 		if model.AnthropicCompat.SupportsLongCacheRetention != nil {
 			c.supportsLongCacheRetention = *model.AnthropicCompat.SupportsLongCacheRetention
@@ -384,6 +390,10 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			if compat.supportsMidConvoEffort {
 				betas = append(betas, midConversationOutputConfigBeta, thinkingBindingControlsBeta)
 			}
+			_, nativeToolChanges := nativeInlineToolChanges(convCtx, compat)
+			if nativeToolChanges {
+				betas = append(betas, inlineToolsBeta)
+			}
 			if len(betas) > 0 {
 				req.Header.Set("Anthropic-Beta", joinBetas(betas))
 			}
@@ -428,7 +438,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if compat.supportsMidConvoEffort {
 			providerThinkingLevel = anthropicEffortForOptions(model, opts)
 		}
-		processAnthropicStream(resp.Body, model, convCtx.Tools, providerThinkingLevel, ch)
+		processAnthropicStream(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, ch, anthropicOAuthNames(model, opts))
 	}()
 
 	return ch
@@ -482,7 +492,7 @@ type anthropicContentBlock struct {
 	ID           string          `json:"id,omitempty"`
 	Name         string          `json:"name,omitempty"`
 	Input        json.RawMessage `json:"input,omitempty"`
-	Tool         *anthropicTool  `json:"tool,omitempty"`
+	Tool         interface{}     `json:"tool,omitempty"`
 	ToolUseID    string          `json:"tool_use_id,omitempty"`
 	Content      interface{}     `json:"content,omitempty"`
 	IsError      bool            `json:"is_error,omitempty"`
@@ -517,6 +527,7 @@ type anthropicTool struct {
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) anthropicRequest {
 	compat := getAnthropicCompat(model)
+	initialTools, nativeToolChanges := nativeInlineToolChanges(convCtx, compat)
 	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
 	maxTokens := goai.ClampStreamMaxTokens(model, convCtx, opts)
 	if maxTokens <= 0 {
@@ -592,10 +603,29 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		}
 	}
 
+	// The leading system message supplies request-level prompt/tools only.
+	// Later positional system updates remain in the conversation.
+	conversationMessages := convCtx.Messages
+	if len(conversationMessages) > 0 && conversationMessages[0].Role == goai.RoleSystem {
+		initial := conversationMessages[0]
+		text := goai.RenderSystemMessageText(initial)
+		if len(initial.ToolsAdded) > 0 || text != "" {
+			if text != "" {
+				req.System, _ = json.Marshal([]anthropicContentBlock{{Type: "text", Text: goai.SanitizeSurrogates(text), CacheControl: resolveCacheControl(model, opts)}})
+			}
+			conversationMessages = conversationMessages[1:]
+		}
+	}
 	// Convert messages with cross-provider normalization
-	transformed := goai.TransformMessages(convCtx.Messages, model)
+	transformed := goai.TransformMessages(conversationMessages, model)
 	compatForDeferred := getAnthropicCompat(model)
-	canonicalizeOAuthTools := opts != nil && strings.HasPrefix(opts.APIKey, "sk-ant-oat-")
+	canonicalizeOAuthTools := anthropicOAuthNames(model, opts)
+	namingModel := model
+	if canonicalizeOAuthTools {
+		copyModel := *model
+		copyModel.Provider = goai.ProviderGitHubCopilot
+		namingModel = &copyModel
+	}
 	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolReferences, canonicalizeOAuthTools)
 	toolCallIDMap := make(map[string]string) // original → normalized
 	for _, m := range transformed {
@@ -605,12 +635,24 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			if text := goai.RenderSystemMessageText(m); strings.TrimSpace(text) != "" {
 				blocks = append(blocks, anthropicContentBlock{Type: "text", Text: goai.SanitizeSurrogates(text)})
 			}
-			for _, removed := range m.ToolsRemoved {
-				blocks = append(blocks, anthropicContentBlock{Type: "tool_removal", Name: toClaudeCodeToolName(removed.Name, model)})
-			}
-			for _, added := range m.ToolsAdded {
-				parameters, strictTool := anthropicToolInputSchema(added, compat.supportsStrictTools)
-				blocks = append(blocks, anthropicContentBlock{Type: "tool_addition", Tool: &anthropicTool{Name: toClaudeCodeToolName(added.Name, model), Description: added.Description, InputSchema: parameters, Strict: strictTool}})
+			if nativeToolChanges {
+				addedNames := map[string]bool{}
+				for _, tool := range m.ToolsAdded {
+					addedNames[tool.Name] = true
+				}
+				for _, removed := range m.ToolsRemoved {
+					if addedNames[removed.Name] {
+						continue
+					}
+					name := toClaudeCodeToolName(removed.Name, model)
+					if canonicalizeOAuthTools {
+						name = toClaudeCodeToolName(removed.Name, &goai.Model{Provider: goai.ProviderGitHubCopilot})
+					}
+					blocks = append(blocks, anthropicContentBlock{Type: "tool_removal", Tool: map[string]interface{}{"type": "tool_reference", "name": name}})
+				}
+				for _, added := range m.ToolsAdded {
+					blocks = append(blocks, anthropicContentBlock{Type: "tool_addition", Tool: map[string]interface{}{"type": "tool_definition", "definition": convertInlineTool(added, compat, canonicalizeOAuthTools, model)}})
+				}
 			}
 			if len(blocks) > 0 {
 				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: blocks})
@@ -683,7 +725,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					blocks = append(blocks, anthropicContentBlock{
 						Type:  "tool_use",
 						ID:    normID,
-						Name:  toClaudeCodeToolName(c.Name, model),
+						Name:  toClaudeCodeToolName(c.Name, namingModel),
 						Input: inputJSON,
 					})
 				}
@@ -702,7 +744,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			if len(refs) > 0 {
 				var refBlocks []map[string]string
 				for _, t := range refs {
-					refBlocks = append(refBlocks, map[string]string{"type": "tool_reference", "tool_name": toClaudeCodeToolName(t.Name, model)})
+					refBlocks = append(refBlocks, map[string]string{"type": "tool_reference", "tool_name": toClaudeCodeToolName(t.Name, namingModel)})
 				}
 				resultContent = refBlocks
 			}
@@ -731,7 +773,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	cc := resolveCacheControl(model, opts)
 	compatForTools := getAnthropicCompat(model)
 	activeTools := append([]goai.Tool{}, deferredPlan.Immediate...)
-	activeTools = append(activeTools, deferredPlan.Deferred...)
+	if nativeToolChanges {
+		activeTools = append([]goai.Tool{}, initialTools...)
+	} else {
+		activeTools = append(activeTools, deferredPlan.Deferred...)
+	}
 	if len(activeTools) == 0 {
 		activeTools = convCtx.Tools
 	}
@@ -742,7 +788,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	for i, t := range activeTools {
 		parameters, strictTool := anthropicToolInputSchema(t, compatForTools.supportsStrictTools)
 		tool := anthropicTool{
-			Name:        toClaudeCodeToolName(t.Name, model),
+			Name:        toClaudeCodeToolName(t.Name, namingModel),
 			Description: t.Description,
 			InputSchema: parameters,
 			Strict:      strictTool,
@@ -750,22 +796,29 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		if compatForTools.supportsEagerToolInputStreaming {
 			tool.EagerInputStreaming = boolPtr(true)
 		}
-		if deferredNames[t.Name] {
+		if !nativeToolChanges && deferredNames[t.Name] {
 			tool.DeferLoading = true
 		}
-		if cc != nil && i == len(activeTools)-1 {
+		if cc != nil && compatForTools.supportsCacheControlOnTools && i == len(activeTools)-1 {
 			tool.CacheControl = cc
 		}
 		req.Tools = append(req.Tools, tool)
 	}
 
-	// Add cache_control to the last user message's last block
+	if nativeToolChanges {
+		req.Tools = append(req.Tools, anthropicTool{Name: "__pi_deferred_placeholder__", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`), DeferLoading: true})
+	}
+
+	// Cache the final eligible user/system content block, never an inline tool definition.
 	if cc != nil && len(req.Messages) > 0 {
 		last := &req.Messages[len(req.Messages)-1]
-		if last.Role == "user" {
+		if last.Role == "user" || last.Role == "system" {
 			if blocks, ok := last.Content.([]anthropicContentBlock); ok && len(blocks) > 0 {
-				blocks[len(blocks)-1].CacheControl = cc
-				last.Content = blocks
+				switch blocks[len(blocks)-1].Type {
+				case "text", "image", "tool_result", "tool_addition", "tool_removal":
+					blocks[len(blocks)-1].CacheControl = cc
+					last.Content = blocks
+				}
 			}
 		}
 	}
@@ -802,7 +855,13 @@ func extractText(blocks []goai.ContentBlock) string {
 
 // --- SSE processing ---
 
-func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, ch chan<- goai.Event) {
+func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, ch chan<- goai.Event, oauthNames ...bool) {
+	namingModel := model
+	if len(oauthNames) > 0 && oauthNames[0] {
+		copyModel := *model
+		copyModel.Provider = goai.ProviderGitHubCopilot
+		namingModel = &copyModel
+	}
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -855,7 +914,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   data.ContentBlock.ID,
-					Name: fromClaudeCodeToolName(data.ContentBlock.Name, tools, model),
+					Name: fromClaudeCodeToolName(data.ContentBlock.Name, tools, namingModel),
 				})
 				ch <- &goai.ToolCallStartEvent{ContentIndex: data.Index, Partial: partial}
 			}
@@ -1057,4 +1116,41 @@ func normalizeAnthropicToolCallID(id string) string {
 		normalized = normalized[:64]
 	}
 	return normalized
+}
+
+func nativeInlineToolChanges(ctx *goai.Context, compat anthropicCompat) ([]goai.Tool, bool) {
+	if ctx == nil || !compat.supportsMidConvoSystemMessages || !compat.supportsMidConvoToolChanges {
+		return nil, false
+	}
+	transcript := goai.NormalizeContext(ctx)
+	if len(transcript.Messages) == 0 || transcript.Messages[0].Role != goai.RoleSystem {
+		return nil, false
+	}
+	initial := transcript.Messages[0].ToolsAdded
+	return initial, len(initial) > 0
+}
+
+func convertInlineTool(tool goai.Tool, compat anthropicCompat, oauth bool, model *goai.Model) anthropicTool {
+	parameters, strict := anthropicToolInputSchema(tool, compat.supportsStrictTools)
+	name := toClaudeCodeToolName(tool.Name, model)
+	if oauth {
+		name = toClaudeCodeToolName(tool.Name, &goai.Model{Provider: goai.ProviderGitHubCopilot})
+	}
+	definition := anthropicTool{Name: name, Description: tool.Description, InputSchema: parameters, Strict: strict}
+	if compat.supportsEagerToolInputStreaming {
+		definition.EagerInputStreaming = boolPtr(true)
+	}
+	return definition
+}
+
+func anthropicOAuthNames(model *goai.Model, opts *goai.StreamOptions) bool {
+	if model.Provider != goai.ProviderAnthropic {
+		return usesClaudeCodeToolNames(model)
+	}
+	env := goai.ProviderEnvFromOptions(opts)
+	token := goai.GetProviderEnvValue("ANTHROPIC_AUTH_TOKEN", env)
+	if token != "" {
+		return strings.Contains(token, "sk-ant-oat")
+	}
+	return strings.Contains(goai.ResolveAPIKey(model, opts), "sk-ant-oat")
 }

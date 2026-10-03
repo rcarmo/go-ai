@@ -1,0 +1,13 @@
+{
+  "name": "@earendil-works/pi-ai",
+  "version": "1.0.1",
+  "gitHead": "a7229ddc21810d6245105978033b7df645ecc2f7",
+  "sha256": "8a9e69b1309cf93405d87729fa123c8b11c6be7c646b16f34f8bef7b792f9138",
+  "integrity": "sha512-eSA53pdfDLuQTTJn3yz1VC8BBmcX33OKkk8WihOXdVBvbgqqC4zuR6Sf+TeeWuAmh8LuqARoK14R1s2HZqVcsw==",
+  "attestations": {
+    "url": "https://registry.npmjs.org/-/npm/v1/attestations/@earendil-works%2fpi-ai@1.0.1",
+    "provenance": {
+      "predicateType": "https://slsa.dev/provenance/v1"
+    }
+  }
+}

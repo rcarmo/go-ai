@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -106,16 +108,18 @@ func (p *OpenAIChatGPTProvider) loginContext(ctx context.Context, callbacks Logi
 	}
 
 	callback, err := startOAuthCallbackServer(ctx, oauthCallbackOptions{ProviderName: "ChatGPT", Host: p.callbackHost, Port: p.callbackPort, Path: p.callbackPath, State: state})
-	if err != nil && callbacks.OnProgress != nil {
-		callbacks.OnProgress(fmt.Sprintf("Could not listen for the OAuth callback; paste the final redirect URL to continue. %v", err))
+	if err != nil {
+		if errors.Is(err, syscall.EADDRINUSE) {
+			port := p.callbackPort
+			if port == 0 {
+				port = openAIChatGPTCallbackPort
+			}
+			return nil, fmt.Errorf("port %d is in use, probably by an unfinished login in another pi session or by the Codex CLI; cancel that login and try again", port)
+		}
+		return nil, err
 	}
-	if callback != nil {
-		defer callback.Close()
-	}
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d%s", openAIChatGPTCallbackPort, openAIChatGPTCallbackPath)
-	if callback != nil {
-		redirectURI = callback.RedirectURI
-	}
+	defer callback.Close()
+	redirectURI := callback.RedirectURI
 	authURL, err := p.authorizationURL(deviceID, redirectURI, state, challenge, nonce)
 	if err != nil {
 		return nil, err
@@ -124,33 +128,78 @@ func (p *OpenAIChatGPTProvider) loginContext(ctx context.Context, callbacks Logi
 		callbacks.OnAuth(AuthInfo{URL: authURL, Instructions: "Complete sign-in in your browser. If the callback does not complete, paste the final redirect URL here."})
 	}
 
-	var result openAIChatGPTAuthorizationResult
-	if callbacks.OnPrompt != nil {
-		input, err := callbacks.OnPrompt(Prompt{Message: "Complete login in your browser, or paste the final redirect URL here:", Placeholder: redirectURI})
-		if err != nil {
-			return nil, err
-		}
-		result, err = openAIChatGPTAuthorizationResultFromManualInput(input, redirectURI, state)
-		if err != nil {
-			return nil, err
-		}
-	} else if callback != nil {
-		callbackURL, err := callback.Wait()
-		if err != nil {
-			return nil, err
-		}
-		result, err = openAIChatGPTAuthorizationResultFromCallback(callbackURL, state)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, fmt.Errorf("OpenAI ChatGPT OAuth requires a callback server or manual callback URL prompt")
+	result, err := openAIChatGPTWaitForAuthorization(ctx, callback, callbacks, redirectURI, state)
+	if err != nil {
+		return nil, err
 	}
 
 	if callbacks.OnProgress != nil {
 		callbacks.OnProgress("Exchanging authorization code for tokens...")
 	}
 	return p.requestToken(ctx, url.Values{"grant_type": {"authorization_code"}, "client_id": {result.ClientID}, "code": {result.Code}, "code_verifier": {verifier}, "redirect_uri": {redirectURI}, "resource": {openAIChatGPTResource}}, result.ClientID, true)
+}
+
+type openAIChatGPTAuthorizationAttempt struct {
+	result openAIChatGPTAuthorizationResult
+	err    error
+}
+
+func openAIChatGPTWaitForAuthorization(ctx context.Context, callback *oauthCallbackServer, callbacks LoginCallbacks, redirectURI, state string) (openAIChatGPTAuthorizationResult, error) {
+	promptValue := Prompt{Message: "Complete login in your browser, or paste the final redirect URL here:", Placeholder: redirectURI}
+	if callbacks.OnPromptContext == nil {
+		// Keep the legacy host callback on the login stack: it has no cancellation
+		// contract, so racing it would leave an unowned prompt after login returns.
+		if callbacks.OnPrompt != nil {
+			input, err := callbacks.OnPrompt(promptValue)
+			if err != nil {
+				return openAIChatGPTAuthorizationResult{}, err
+			}
+			if err := ctx.Err(); err != nil {
+				return openAIChatGPTAuthorizationResult{}, err
+			}
+			return openAIChatGPTAuthorizationResultFromManualInput(input, redirectURI, state)
+		}
+		callbackURL, err := callback.Wait()
+		if err != nil {
+			return openAIChatGPTAuthorizationResult{}, err
+		}
+		return openAIChatGPTAuthorizationResultFromCallback(callbackURL, state)
+	}
+	promptCtx, cancel := context.WithCancel(ctx)
+	manualResult := make(chan openAIChatGPTAuthorizationAttempt, 1)
+	manualDone := make(chan struct{})
+	go func() {
+		defer close(manualDone)
+		input, err := callbacks.OnPromptContext(promptCtx, promptValue)
+		if err != nil {
+			manualResult <- openAIChatGPTAuthorizationAttempt{err: err}
+			return
+		}
+		result, err := openAIChatGPTAuthorizationResultFromManualInput(input, redirectURI, state)
+		manualResult <- openAIChatGPTAuthorizationAttempt{result: result, err: err}
+	}()
+	defer func() { cancel(); <-manualDone }()
+	callbackResult := make(chan openAIChatGPTAuthorizationAttempt, 1)
+	callbackDone := make(chan struct{})
+	go func() {
+		defer close(callbackDone)
+		u, err := callback.Wait()
+		if err != nil {
+			callbackResult <- openAIChatGPTAuthorizationAttempt{err: err}
+			return
+		}
+		result, err := openAIChatGPTAuthorizationResultFromCallback(u, state)
+		callbackResult <- openAIChatGPTAuthorizationAttempt{result: result, err: err}
+	}()
+	defer func() { _ = callback.Close(); <-callbackDone }()
+	select {
+	case attempt := <-callbackResult:
+		return attempt.result, attempt.err
+	case attempt := <-manualResult:
+		return attempt.result, attempt.err
+	case <-ctx.Done():
+		return openAIChatGPTAuthorizationResult{}, fmt.Errorf("login cancelled: %w", ctx.Err())
+	}
 }
 
 func (p *OpenAIChatGPTProvider) authorizationURL(deviceID, redirectURI, state, challenge, nonce string) (string, error) {

@@ -77,7 +77,7 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 		t.Fatalf("gpt-oss compat=%#v, want supportsReasoningEffort true and thinkingFormat openai", gptOss.CompletionsCompat)
 	}
 
-	deepSeekV4 := requireModel(t, goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro")
+	deepSeekV4 := requireModel(t, goai.ProviderTogether, "deepseek-ai/DeepSeek-V4-Pro-0813")
 	wantDeepSeek := map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil, goai.ModelThinkingLevel(goai.ThinkingHigh): &high, goai.ModelThinkingLevel(goai.ThinkingXHigh): nil}
 	if !reflect.DeepEqual(deepSeekV4.ThinkingLevelMap, wantDeepSeek) {
 		t.Fatalf("DeepSeek-V4 thinkingLevelMap=%#v, want %#v", deepSeekV4.ThinkingLevelMap, wantDeepSeek)

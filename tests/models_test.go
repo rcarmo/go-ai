@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1532 {
-		t.Fatalf("expected exactly 1532 generated models from pi-ai v1.0.0, got %d", total)
+	if total != 1536 {
+		t.Fatalf("expected exactly 1536 generated models from pi-ai v1.0.1, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating

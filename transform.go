@@ -21,6 +21,9 @@ func TransformMessages(messages []Message, model *Model) []Message {
 	for _, msg := range messages {
 		msg.Content = normalizeLaxContent(msg.Content)
 		switch msg.Role {
+		case RoleSystem:
+			// Preserve positional system/tool updates for native transcript replay.
+			transformed = append(transformed, msg)
 		case RoleUser:
 			transformed = append(transformed, msg)
 
@@ -140,6 +143,9 @@ func insertSyntheticToolResults(messages []Message) ([]Message, int) {
 			}
 			result = append(result, msg)
 
+		case RoleSystem:
+			// System deltas do not end a tool round or flush outstanding calls.
+			result = append(result, msg)
 		case RoleToolResult:
 			existingResultIDs[msg.ToolCallID] = true
 			result = append(result, msg)

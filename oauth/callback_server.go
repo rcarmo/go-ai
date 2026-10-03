@@ -30,6 +30,58 @@ type oauthCallbackServer struct {
 	Close       func() error
 }
 
+type trackedOAuthCallbackListener struct {
+	net.Listener
+	mu    sync.Mutex
+	conns map[net.Conn]struct{}
+}
+
+func newTrackedOAuthCallbackListener(listener net.Listener) *trackedOAuthCallbackListener {
+	return &trackedOAuthCallbackListener{Listener: listener, conns: make(map[net.Conn]struct{})}
+}
+
+func (listener *trackedOAuthCallbackListener) Accept() (net.Conn, error) {
+	conn, err := listener.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	tracked := &trackedOAuthCallbackConn{Conn: conn, listener: listener}
+	listener.mu.Lock()
+	listener.conns[tracked] = struct{}{}
+	listener.mu.Unlock()
+	return tracked, nil
+}
+
+func (listener *trackedOAuthCallbackListener) remove(conn net.Conn) {
+	listener.mu.Lock()
+	delete(listener.conns, conn)
+	listener.mu.Unlock()
+}
+
+func (listener *trackedOAuthCallbackListener) closeAllConnections() {
+	listener.mu.Lock()
+	conns := make([]net.Conn, 0, len(listener.conns))
+	for conn := range listener.conns {
+		conns = append(conns, conn)
+	}
+	listener.mu.Unlock()
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
+}
+
+type trackedOAuthCallbackConn struct {
+	net.Conn
+	listener *trackedOAuthCallbackListener
+	once     sync.Once
+}
+
+func (conn *trackedOAuthCallbackConn) Close() error {
+	err := conn.Conn.Close()
+	conn.once.Do(func() { conn.listener.remove(conn) })
+	return err
+}
+
 func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*oauthCallbackServer, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -58,9 +110,10 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 	if err != nil {
 		return nil, err
 	}
-	addr, ok := listener.Addr().(*net.TCPAddr)
+	trackedListener := newTrackedOAuthCallbackListener(listener)
+	addr, ok := trackedListener.Addr().(*net.TCPAddr)
 	if !ok {
-		_ = listener.Close()
+		_ = trackedListener.Close()
 		return nil, fmt.Errorf("OAuth callback server did not bind to TCP")
 	}
 	redirectHost := host
@@ -85,6 +138,7 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 	closeServer := func() error {
 		var closeErr error
 		closeOnce.Do(func() {
+			finishErr(net.ErrClosed)
 			close(closed)
 			shutdownContext, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -92,6 +146,7 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 			if closeErr != nil {
 				_ = server.Close()
 			}
+			trackedListener.closeAllConnections()
 		})
 		return closeErr
 	}
@@ -141,9 +196,12 @@ func startOAuthCallbackServer(ctx context.Context, opts oauthCallbackOptions) (*
 		finishURL(&copyURL)
 	})
 	go func() {
-		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(trackedListener); err != nil && err != http.ErrServerClosed {
 			finishErr(err)
-			closeOnce.Do(func() { close(closed) })
+			closeOnce.Do(func() {
+				close(closed)
+				trackedListener.closeAllConnections()
+			})
 		}
 	}()
 	if done := ctx.Done(); done != nil {

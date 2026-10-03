@@ -14,13 +14,18 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/format"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -28,9 +33,14 @@ func main() {
 	input := flag.String("input", defaultInput, "path to models.generated.js")
 	output := flag.String("output", "models_generated.go", "output Go file path")
 	kind := flag.String("kind", "chat", "model kind to generate from schema-v6 exports: chat, image, or classifier")
+	dataDir := flag.String("data-dir", "", "offline schema-v6 provider JSON directory")
 	flag.Parse()
+	if *kind != "chat" && *kind != "image" && *kind != "classifier" {
+		fmt.Fprintln(os.Stderr, "invalid catalog kind")
+		os.Exit(1)
+	}
 
-	if *input == "" {
+	if *input == "" && *dataDir == "" {
 		fmt.Fprintln(os.Stderr, "ERROR: could not find models.generated.js")
 		fmt.Fprintln(os.Stderr, "Specify with -input /path/to/models.generated.js")
 		os.Exit(1)
@@ -39,26 +49,25 @@ func main() {
 	fmt.Fprintf(os.Stderr, "Input:  %s\n", *input)
 	fmt.Fprintf(os.Stderr, "Output: %s\n", *output)
 
-	// Read the JS file
-	data, err := os.ReadFile(*input)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Extract the object literal. pi-ai v0.80+ splits MODELS across provider
-	// modules, so inline those imports before using the existing JS-object parser.
-	jsText := inlineModularModels(*input, string(data), *kind)
-	jsonText := jsObjectToJSON(jsText)
-
-	// Parse as JSON
 	var parsed map[string]map[string]modelEntry
-	if err := json.Unmarshal([]byte(jsonText), &parsed); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: JSON parse failed: %v\n", err)
-		// Write debug file
-		os.WriteFile("models_debug.json", []byte(jsonText), 0644)
-		fmt.Fprintln(os.Stderr, "Debug JSON written to models_debug.json")
-		os.Exit(1)
+	if *dataDir != "" {
+		var err error
+		parsed, err = readOfflineCatalog(*dataDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	} else {
+		data, err := os.ReadFile(*input)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		jsText := inlineModularModels(*input, string(data), *kind)
+		if err := json.Unmarshal([]byte(jsObjectToJSON(jsText)), &parsed); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 	models := filterModelsByKind(parsed, *kind)
 
@@ -71,7 +80,7 @@ func main() {
 
 	// Generate Go source
 	goSource := generateGoSource(models, total, *kind)
-	if err := os.WriteFile(*output, []byte(goSource), 0644); err != nil {
+	if err := writeAtomicCatalog(*output, []byte(goSource)); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
 	}
@@ -630,7 +639,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 }
 
 func hasCompat(c compatEntry) bool {
-	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil
+	return c.SupportsStore != nil || c.SupportsDeveloperRole != nil || c.SupportsReasoningEffort != nil || c.SupportsUsageInStreaming != nil || c.SupportsFinishReason != nil || c.MaxTokensField != "" || c.RequiresToolResultName != nil || c.RequiresAssistantAfterToolResult != nil || c.RequiresThinkingAsText != nil || c.RequiresReasoningContentOnAssistantMessages != nil || c.ThinkingFormat != "" || len(c.ChatTemplateKwargs) > 0 || len(c.ChatTemplateArgs) > 0 || c.ThinkingTokenBudgetField != "" || c.SupportsThinkingTokenBudget != nil || c.OpenRouterRouting != nil || c.VercelGatewayRouting != nil || c.ZaiToolStream != nil || c.SupportsStrictMode != nil || c.SupportsOpenAIGrammarTools != nil || c.CacheControlFormat != "" || c.SendSessionAffinityHeaders != nil || c.DeferredToolsMode != "" || c.SupportsLongCacheRetention != nil || c.SupportsTemperature != nil || c.VLLMPriority != nil || c.ForceAdaptiveThinking != nil || len(c.AllowedFallbackModels) > 0 || c.SupportsMidConvoEffort != nil || c.SupportsMidConvoSystemMessages != nil || c.SupportsMidConvoToolAdditions != nil || c.SupportsMidConvoToolChanges != nil || c.AllowEmptySignature != nil || c.SendSessionIdHeader != nil || c.SupportsAdditionalTools != nil || c.SupportsToolSearch != nil || c.SupportsMaxOutputTokens != nil || c.SupportsEagerToolInputStreaming != nil || c.SupportsToolReferences != nil || c.SupportsStrictTools != nil || c.SupportsCacheControlOnTools != nil || c.SessionAffinityFormat != "" || c.SupportsExplicitPromptCacheMode != nil
 }
 
 func writeInputLimitsField(b *strings.Builder, value *inputLimitsEntry) {
@@ -813,4 +822,175 @@ func findModelsJS() string {
 		}
 	}
 	return ""
+}
+
+func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
+	var manifest struct {
+		SchemaVersion int               `json:"schemaVersion"`
+		GeneratedAt   string            `json:"generatedAt"`
+		StructureHash string            `json:"structureHash"`
+		Files         map[string]string `json:"files"`
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "03d2e1aeeee6eb16959d4f727b47b9b187efaf863c688a47889fb90d200e6812" {
+		return nil, fmt.Errorf("invalid v1.0.1 catalog manifest")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, manifest.GeneratedAt); err != nil {
+		return nil, fmt.Errorf("invalid catalog generation timestamp")
+	}
+	structure := map[string]map[string]string{}
+	out := map[string]map[string]modelEntry{}
+	names := []string{}
+	for name := range manifest.Files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	actual := 0
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".json") && e.Name() != ".manifest.json" {
+			actual++
+			if _, ok := manifest.Files[e.Name()]; !ok {
+				return nil, fmt.Errorf("unexpected provider file %s", e.Name())
+			}
+		}
+	}
+	if actual != len(names) {
+		return nil, fmt.Errorf("missing provider files")
+	}
+	for _, name := range names {
+		if filepath.Base(name) != name || !strings.HasSuffix(name, ".json") || strings.ContainsAny(name, "/\\") {
+			return nil, fmt.Errorf("unsafe catalog filename %s", name)
+		}
+		provider := strings.TrimSuffix(name, ".json")
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		if fmt.Sprintf("%x", sha256.Sum256(raw)) != manifest.Files[name] {
+			return nil, fmt.Errorf("provider hash mismatch: %s", name)
+		}
+		var groups map[string]map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &groups); err != nil {
+			return nil, err
+		}
+		if groups == nil {
+			return nil, fmt.Errorf("invalid provider object")
+		}
+		out[provider] = map[string]modelEntry{}
+		structure[provider] = map[string]string{}
+		for api, models := range groups {
+			if models == nil {
+				return nil, fmt.Errorf("invalid API group %s", api)
+			}
+			for key, value := range models {
+				var m modelEntry
+				if err = json.Unmarshal(value, &m); err != nil {
+					return nil, err
+				}
+				if key != m.Type+":"+m.ID || m.Provider != provider || m.Api != api || m.ID == "" || m.Name == "" {
+					return nil, fmt.Errorf("invalid model identity: %s/%s", provider, key)
+				}
+				if _, exists := structure[provider][key]; exists {
+					return nil, fmt.Errorf("duplicate model: %s/%s", provider, key)
+				}
+				if m.Type != "chat" && m.Type != "image" && m.Type != "classifier" {
+					return nil, fmt.Errorf("invalid model kind")
+				}
+				if len(m.Input) == 0 {
+					return nil, fmt.Errorf("invalid input modalities")
+				}
+				for _, modality := range m.Input {
+					if modality != "text" && modality != "image" {
+						return nil, fmt.Errorf("invalid input modality %s", modality)
+					}
+				}
+				if (m.Type == "chat" && (m.ContextWindow <= 0 || m.MaxTokens <= 0)) || (m.Type == "classifier" && m.ContextWindow <= 0) {
+					return nil, fmt.Errorf("invalid model capacity")
+				}
+				var metadata map[string]any
+				_ = json.Unmarshal(value, &metadata)
+				if m.Type == "image" {
+					outputs, ok := metadata["output"].([]any)
+					image := false
+					for _, v := range outputs {
+						if v == "image" {
+							image = true
+						}
+						if v != "text" && v != "image" {
+							return nil, fmt.Errorf("invalid output modality")
+						}
+					}
+					if !ok || !image {
+						return nil, fmt.Errorf("invalid image outputs")
+					}
+				} else if _, ok := metadata["output"]; ok {
+					return nil, fmt.Errorf("unexpected output modalities")
+				}
+				if _, ok := metadata["baseUrl"].(string); !ok {
+					return nil, fmt.Errorf("invalid baseUrl")
+				}
+				if m.Type == "chat" {
+					if _, ok := metadata["reasoning"].(bool); !ok {
+						return nil, fmt.Errorf("missing reasoning metadata")
+					}
+				}
+				costs, ok := metadata["cost"].(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("invalid costs")
+				}
+				for _, field := range []string{"input", "output", "cacheRead", "cacheWrite"} {
+					f, ok := costs[field].(float64)
+					if !ok || math.IsNaN(f) || math.IsInf(f, 0) {
+						return nil, fmt.Errorf("invalid cost %s", field)
+					}
+				}
+				structure[provider][key] = api
+				out[provider][key] = m
+			}
+		}
+	}
+	encoded, err := json.Marshal(structure)
+	if err != nil {
+		return nil, err
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(encoded)) != manifest.StructureHash {
+		return nil, fmt.Errorf("catalog structure hash mismatch")
+	}
+	return out, nil
+}
+
+func writeAtomicCatalog(path string, data []byte) error {
+	formatted, err := format.Source(data)
+	if err != nil {
+		return fmt.Errorf("format generated catalog: %w", err)
+	}
+	data = formatted
+	temp, err := os.CreateTemp(filepath.Dir(path), ".model-catalog-*")
+	if err != nil {
+		return err
+	}
+	name := temp.Name()
+	defer os.Remove(name)
+	if _, err = temp.Write(data); err != nil {
+		temp.Close()
+		return err
+	}
+	if err = temp.Chmod(0644); err != nil {
+		temp.Close()
+		return err
+	}
+	if err = temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }

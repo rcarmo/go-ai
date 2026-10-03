@@ -1,5 +1,9 @@
 # Local tests shared evidence
 
+## v1.0.1 local audit
+
+Official1.0.0→1.0.1 scope is19source paths,6changed tests,171whole-corpus rows (164executable+7support). Local candidate starts at0ad0d8d7e2827d72db1a88a569e8231af676ab1f; no candidate commit/push/CI/publication accepted yet. Native catalogs1536chat/59image/20classifier; all offline generated. Runtime proof and explicit adaptations: [v1.0.1 path crosswalk](v101/changed-paths-crosswalk.md), [changed tests](v101/changed-tests-crosswalk.md), [whole corpus](v101/test-corpus-crosswalk.md), [local gates](v101/local-validation.md). Existing sections below are historical receipts and do not substitute for new gates. Native durable port is required separately, no durable implementation included here.
+
 Current release audit target: `@earendil-works/pi-ai` `v0.99.2` / upstream SHA `005af57d88ee23b33778f343a9595b32e67ff788`.
 
 ## v0.99.2 current focused evidence

@@ -19,8 +19,8 @@ func TestV0850CatalogCountsAndGrokRemoval(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1532 || len(providers) != 41 || len(apis) != 10 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want 1532/41/10", len(models), len(providers), len(apis))
+	if len(models) != 1536 || len(providers) != 41 || len(apis) != 10 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want 1536/41/10", len(models), len(providers), len(apis))
 	}
 	if got := goai.GetModel(goai.ProviderXAI, "grok-4"); got != nil {
 		t.Fatalf("xai/grok-4 should be removed in v0.85.0, got %#v", got)

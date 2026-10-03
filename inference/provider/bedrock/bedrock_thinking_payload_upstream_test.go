@@ -56,14 +56,20 @@ func TestUpstreamBedrockThinkingPayload(t *testing.T) {
 	assertMapString(t, thinking, "type", "adaptive")
 	assertMapString(t, thinking, "display", "summarized")
 	assertMapString(t, fields["output_config"].(map[string]interface{}), "effort", "high")
-	assertNoKey(t, fields, "anthropic_beta")
+	if betas, ok := fields["anthropic_beta"].([]interface{}); !ok || len(betas) != 1 || betas[0] != thinkingBindingControlsBeta {
+		t.Fatalf("binding beta=%#v", fields)
+	}
+	assertMapString(t, thinking["block_binding"].(map[string]interface{}), "prefix_mismatch_behavior", "drop_block")
 
 	fields = bedrockAdditionalFields(t, &opus48, xhigh)
 	thinking = fields["thinking"].(map[string]interface{})
 	assertMapString(t, thinking, "type", "adaptive")
 	assertMapString(t, thinking, "display", "summarized")
 	assertMapString(t, fields["output_config"].(map[string]interface{}), "effort", "xhigh")
-	assertNoKey(t, fields, "anthropic_beta")
+	if betas, ok := fields["anthropic_beta"].([]interface{}); !ok || len(betas) != 1 || betas[0] != thinkingBindingControlsBeta {
+		t.Fatalf("binding beta=%#v", fields)
+	}
+	assertMapString(t, thinking["block_binding"].(map[string]interface{}), "prefix_mismatch_behavior", "drop_block")
 
 	fable := goai.GetModel(goai.ProviderAmazonBedrock, "global.anthropic.claude-fable-5")
 	fields = bedrockAdditionalFields(t, fable, high)
@@ -71,7 +77,10 @@ func TestUpstreamBedrockThinkingPayload(t *testing.T) {
 	assertMapString(t, thinking, "type", "adaptive")
 	assertMapString(t, thinking, "display", "summarized")
 	assertMapString(t, fields["output_config"].(map[string]interface{}), "effort", "high")
-	assertNoKey(t, fields, "anthropic_beta")
+	if betas, ok := fields["anthropic_beta"].([]interface{}); !ok || len(betas) != 1 || betas[0] != thinkingBindingControlsBeta {
+		t.Fatalf("binding beta=%#v", fields)
+	}
+	assertMapString(t, thinking["block_binding"].(map[string]interface{}), "prefix_mismatch_behavior", "drop_block")
 
 	fields = bedrockAdditionalFields(t, fable, xhigh)
 	thinking = fields["thinking"].(map[string]interface{})
@@ -100,6 +109,7 @@ func TestUpstreamBedrockThinkingPayload(t *testing.T) {
 	assertNoKey(t, thinking, "display")
 	assertMapString(t, fields["output_config"].(map[string]interface{}), "effort", "high")
 	assertNoKey(t, fields, "anthropic_beta")
+	assertNoKey(t, thinking, "block_binding")
 }
 
 func TestUpstreamBedrockApplicationInferenceProfileSupport(t *testing.T) {

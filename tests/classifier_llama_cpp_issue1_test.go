@@ -198,6 +198,8 @@ func TestIssue1LlamaCPPReadoutErrorsAndHooks(t *testing.T) {
 	}
 }
 
+var issue1HookFixtureID atomic.Uint64
+
 func TestIssue1LlamaCPPResponseHookDispatchAfterDecodedSuccess(t *testing.T) {
 	for _, endpoint := range []string{"/tokenize", "/apply-template", "/completion"} {
 		for _, mode := range []string{"success", "malformed object", "hook error", "http error", "invalid JSON", "trailing JSON", "read error", "oversized body", "scalar", "array", "null"} {
@@ -265,7 +267,11 @@ func TestIssue1LlamaCPPResponseHookDispatchAfterDecodedSuccess(t *testing.T) {
 				ctx := issue1Context()
 				ctx.Questions = map[string]goai.ClassifierQuestion{"bool": ctx.Questions["bool"]}
 				var hooks int
-				result, err := goai.Classify(llamaModelV0991(server.URL), ctx, &goai.ClassifierOptions{OnResponse: func(metadata goai.ClassifierResponseMetadata, _ *goai.ClassifierModel) error {
+				// httptest ports may be reused across -count runs; keep cached label
+				// identities distinct so every malformed tokenize fixture is exercised.
+				model := llamaModelV0991(server.URL)
+				model.ID = fmt.Sprintf("hook-fixture-%d", issue1HookFixtureID.Add(1))
+				result, err := goai.Classify(model, ctx, &goai.ClassifierOptions{OnResponse: func(metadata goai.ClassifierResponseMetadata, _ *goai.ClassifierModel) error {
 					hooks++
 					if metadata.Status != 200 {
 						t.Errorf("metadata=%#v", metadata)

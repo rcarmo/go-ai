@@ -200,7 +200,8 @@ type AnthropicMessagesCompat struct {
 	// Whether a provider can preserve system-message transcript updates after the initial prompt.
 	SupportsMidConvoSystemMessages *bool `json:"supportsMidConvoSystemMessages,omitempty"`
 
-	// Whether the provider supports Anthropic native mid-conversation tool additions/removals.
+	// Whether the provider supports Anthropic inline tool definitions/removals,
+	// including late same-name replacement while initial request tools stay fixed.
 	SupportsMidConvoToolChanges *bool `json:"supportsMidConvoToolChanges,omitempty"`
 }
 

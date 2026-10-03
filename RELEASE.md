@@ -2,7 +2,19 @@
 
 This file is the root release-audit source of truth for `github.com/rcarmo/go-ai` parity with upstream `@earendil-works/pi-ai` / `github.com/earendil-works/pi`.
 
-## Current audited upstream release
+## v1.0.1 local candidate — not yet committed
+
+- Official package `@earendil-works/pi-ai@1.0.1`, gitHead/tag `a7229ddc21810d6245105978033b7df645ecc2f7`; previous official v1.0.0 `a13d35a742c6ef8462812a28fbe1d8c8b7431c32`.
+- Artifact `/workspace/tmp/pi-ai-audit-101/pi-ai-1.0.1.tgz`, SHA-256 `8a9e69b1309cf93405d87729fa123c8b11c6be7c646b16f34f8bef7b792f9138`; npm SHA-512 checked independently. SLSA advertised, signature verification not claimed.
+- Local base/rollback `0ad0d8d7e2827d72db1a88a569e8231af676ab1f`; no v1.0.1 candidate SHA/CI/publication yet. Accepted v1.0.0 releases below are unchanged.
+- Exact source diff19 paths (1added/18modified), +546/-153; six changed tests;171 whole-corpus rows (164 executable+7support). [Source dispositions](docs/v101/changed-paths-crosswalk.md), [six changed tests](docs/v101/changed-tests-crosswalk.md), [171-row crosswalk](docs/v101/test-corpus-crosswalk.md), [provenance](docs/v101/provenance.json).
+- Manifest digests: source paths `ac9e4b76f7bb921a251ac5f5e14af48b1fa73f6e40d4d49e41ee11d5fb902278`; changed tests `fd49b5003edf22d18b5c4a4fa5b4998e5bad49136cc6d356527dd7c3d655a659`; corpus `9d24da3ede393a95a7131b1c9ac494f57d8165161d6eb581109c86809131abfc`.
+- Implemented local changes: Anthropic fixed prefix+inline definitions/redefinitions/cache/OAuth names; Bedrock eligible adaptive binding+beta; direct Cloudflare classifier results; capacity retries; ChatGPT occupied callback bind/connection cleanup and optional context-aware prompt cancellation. Narrow root RoleSystem preservation and generator metadata completeness fixes support production paths.
+- Native catalogs generated offline from packaged schema6 provider JSON: total1615 = chat1536/41providers/10APIs, image59/1/1, classifier20/5/2. Deltas chat+17/-13/54changed, image+2/0/0, classifier+5/0/0;42upstream modules. Full-record metadata including cost tiers validated; native implicit image output and unused Responses supportsReasoningEffort:false are explicit adaptations. No dependency/workflow/durable changes.
+- Fresh final local gates passed: focused3x/race3x, full tests/race/shuffle, exact failing shuffle seed, issue1 fixture shuffled10x, `make check`, `make test-repro`, all-kind regeneration/three corruption gates, twelve hydration faults, SBOM validation/self-tests, vulnerability and licence checks. [Validation receipt](docs/v101/local-validation.md); frozen logs `/workspace/tmp/go-ai-v101-local/frozen/`. Base-revision SBOM digest `f16ee4dacff469c60b78cac04a95ce1c48437fb0aeacd5b988c10ac4413febfa`,18components/19dependencyentries/fourrootedges. No reachable vulnerabilities for Go1.26.6; known licence assembly warnings only. No new commit/push/tag/release is authorised by this entry.
+- Native pi-durable implementation is required in a separate staged feature lane after the provider release boundary; accepted M1a design is not a completed port. User's future same-v1.0.1 retag decision for an independently accepted durable runtime requires preserved old tag/runtime/assets and separate coordinated ref/release authorisation; no v1.0.0 history mutation.
+
+## Historical accepted v1.0.0 audit
 
 - Package: `@earendil-works/pi-ai`
 - Release/tag: `v1.0.0`

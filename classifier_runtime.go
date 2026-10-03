@@ -226,12 +226,19 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 	}
 	if transport.api == ClassifierApiCloudflareWorkersAI {
 		result, ok := decoded["result"].(map[string]any)
-		if !ok || decoded["success"] == false || result["state"] != "Completed" {
+		if !ok || decoded["success"] == false {
 			return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
 		}
-		decoded, ok = result["result"].(map[string]any)
-		if !ok {
-			return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+		if _, direct := result["answers"]; direct {
+			decoded = result
+		} else {
+			if result["state"] != "Completed" {
+				return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+			}
+			decoded, ok = result["result"].(map[string]any)
+			if !ok {
+				return classifierError(model, fmt.Errorf("%s returned an unexpected response", transport.label), false), nil
+			}
 		}
 	}
 	if usage := parseClassifierUsage(decoded["usage"], model); usage != nil {

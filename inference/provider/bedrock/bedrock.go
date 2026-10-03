@@ -175,6 +175,11 @@ func invokeBedrockResponseHook(opts *goai.StreamOptions, resp *bedrockruntime.Co
 
 var standardBedrockEndpointRe = regexp.MustCompile(`^bedrock-runtime(?:-fips)?\.([a-z0-9-]+)\.amazonaws\.com(?:\.cn)?$`)
 
+const (
+	interleavedThinkingBeta     = "interleaved-thinking-2025-05-14"
+	thinkingBindingControlsBeta = "thinking-binding-controls-2026-08-01"
+)
+
 func getConfiguredBedrockRegion(model *goai.Model, opts *goai.StreamOptions, env goai.ProviderEnv) string {
 	if r := bedrockARNRegion(model.ID); r != "" {
 		return r
@@ -380,9 +385,16 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 			if !govCloud {
 				thinkingField["display"] = "summarized"
 			}
+			useBlockBinding := !govCloud && supportsThinkingBlockBinding(model)
+			if useBlockBinding {
+				thinkingField["block_binding"] = map[string]interface{}{"prefix_mismatch_behavior": "drop_block"}
+			}
 			addFields = map[string]interface{}{
 				"thinking":      thinkingField,
 				"output_config": map[string]interface{}{"effort": mapThinkingLevelToEffort(model, *opts.Reasoning)},
+			}
+			if useBlockBinding {
+				addFields["anthropic_beta"] = []string{thinkingBindingControlsBeta}
 			}
 		} else {
 			budget := goai.GetThinkingBudget(*opts.Reasoning, opts.ThinkingBudgets)
@@ -395,7 +407,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 			}
 			addFields = map[string]interface{}{
 				"thinking":       thinkingField,
-				"anthropic_beta": []string{"interleaved-thinking-2025-05-14"},
+				"anthropic_beta": []string{interleavedThinkingBeta},
 			}
 		}
 		input.AdditionalModelRequestFields = mustDocument(mustJSON(addFields))
@@ -600,7 +612,8 @@ func supportsAdaptiveThinking(model *goai.Model) bool {
 	}
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
 		if strings.Contains(s, "opus-4-6") || strings.Contains(s, "opus-4-7") ||
-			strings.Contains(s, "opus-4-8") || strings.Contains(s, "sonnet-4-6") ||
+			strings.Contains(s, "opus-4-8") || strings.Contains(s, "opus-5") ||
+			strings.Contains(s, "sonnet-4-6") || strings.Contains(s, "sonnet-5") ||
 			strings.Contains(s, "fable-5") {
 			return true
 		}
@@ -614,6 +627,21 @@ func supportsNativeXhighEffort(model *goai.Model) bool {
 	}
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
 		if strings.Contains(s, "opus-4-7") || strings.Contains(s, "opus-4-8") ||
+			strings.Contains(s, "opus-5") || strings.Contains(s, "sonnet-5") ||
+			strings.Contains(s, "fable-5") {
+			return true
+		}
+	}
+	return false
+}
+
+func supportsThinkingBlockBinding(model *goai.Model) bool {
+	if model == nil {
+		return false
+	}
+	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
+		if strings.Contains(s, "opus-4-7") || strings.Contains(s, "opus-4-8") ||
+			strings.Contains(s, "opus-5") || strings.Contains(s, "sonnet-5") ||
 			strings.Contains(s, "fable-5") {
 			return true
 		}
