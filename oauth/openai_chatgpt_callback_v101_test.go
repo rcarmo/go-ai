@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -153,7 +155,9 @@ func TestV101ChatGPTCancellationClosesAcceptedConnection(t *testing.T) {
 	}
 	_ = idle.SetReadDeadline(time.Now().Add(time.Second))
 	var one [1]byte
-	if _, err := idle.Read(one[:]); err != io.EOF {
+	// Accepted idle TCP closure reports EOF or peer reset; timeout and other
+	// network errors do not establish shutdown.
+	if _, err := idle.Read(one[:]); !errors.Is(err, io.EOF) && !errors.Is(err, syscall.ECONNRESET) {
 		t.Fatalf("cancel idle connection=%v", err)
 	}
 	rebound, err := net.Listen("tcp", redirect.Host)

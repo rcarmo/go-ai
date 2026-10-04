@@ -1,8 +1,23 @@
-// Package durable implements M1a's atomic native storage/session foundation.
-// It does NOT yet run a model, accept a scheduling submission, execute a tool,
-// recover an invocation or provide pi-durable full parity. M1b real generation
-// and M1c owned tools/recovery are separate milestones. The storage union includes
-// full passive task/submission records, not runnable task claims.
+// Package durable implements atomic native storage/session foundations and
+// M1b's real persistent no-tool model generation through goai.Stream. M1c owned
+// tools/recovery is still required for the useful native harness. Tool-calling
+// assistants and deferred requests explicitly fail; no pi-durable full-parity
+// claim or tool executor is supplied. Open reconciles running tasks to pending
+// but dispatches no model effect; Submit, Resume and Wait can schedule work.
+// Request intent pins a sanitized model behavior DTO, system/messages cutoff
+// and curated Temperature/MaxTokens settings. Terminal identity/usage attribution
+// comes from that pinned model, never from omitted/conflicting provider claims.
+// Endpoint, headers and credentials are stripped before persisted DTO validation
+// and resolve process-locally; private header sizes do not relax persisted caps.
+// Other behavior options and payload-rewrite hooks reject. Read-only host observers have no purity guarantee. Close joins provider
+// channels (including noncooperative ones); received terminal outcomes settle
+// atomically even during Close, unfinished requests remain pending for retry.
+// Generic requests can be dispatched/billed again after uncertain remote outcome;
+// no exactly-once billing or complete accounting of lost usage is promised.
+// Wait cancellation only ends that wait. Committed terminal receipts, task,
+// submission and pi.usage accounting are atomic; raw frames are never visible.
+// pi.agent/pi.live/pi.inbox/pi.usage are version1 native bases; inbox placement
+// covers follow-up/write, not full steering/reset/post-tools boundary parity.
 //
 // Transactions are synchronous, single-owner and callback-scoped. Set and Update
 // strictly validate and detach JSON before returning. Retained inputs, Update
