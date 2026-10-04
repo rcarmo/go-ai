@@ -9,21 +9,23 @@ import (
 	"time"
 )
 
-// Harness is M1b's persistent no-tool generation runtime. Opening never starts
+// Harness runs persistent model generations and their owned host tools. Opening never starts
 // provider effects. Explicit Submit/Resume/Wait may schedule committed work.
 type Harness struct {
-	session   *Session
-	options   Options
-	life      context.Context
-	cancel    context.CancelFunc
-	mu        sync.Mutex
-	closing   atomic.Bool
-	workers   map[ID]bool
-	wg        sync.WaitGroup
-	closeOnce sync.Once
-	closeDone chan struct{}
-	closeErr  error
-	changed   chan struct{}
+	session     *Session
+	options     Options
+	life        context.Context
+	cancel      context.CancelFunc
+	mu          sync.Mutex
+	closing     atomic.Bool
+	workers     map[ID]bool
+	pins        map[ID]map[string]registeredTool
+	invocations map[ID]context.CancelFunc
+	wg          sync.WaitGroup
+	closeOnce   sync.Once
+	closeDone   chan struct{}
+	closeErr    error
+	changed     chan struct{}
 }
 type ConversationHandle struct {
 	h  *Harness
@@ -51,7 +53,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if options.Models == nil {
 		options.Models = goai.GetModel
 	}
-	h := &Harness{session: s, options: options, life: life, cancel: cancel, workers: map[ID]bool{}, closeDone: make(chan struct{}), changed: make(chan struct{})}
+	h := &Harness{session: s, options: options, life: life, cancel: cancel, workers: map[ID]bool{}, pins: map[ID]map[string]registeredTool{}, invocations: map[ID]context.CancelFunc{}, closeDone: make(chan struct{}), changed: make(chan struct{})}
 	state, e := s.Snapshot(ctx)
 	if e != nil {
 		cancel()
@@ -60,7 +62,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	}
 	var recovered []Task
 	for _, task := range state.Tasks {
-		if task.Kind == "pi.generation" && task.Status == "running" {
+		if (task.Kind == "pi.generation" || task.Kind == "pi.tool") && task.Status == "running" {
 			task.Status = "pending"
 			recovered = append(recovered, task)
 		}

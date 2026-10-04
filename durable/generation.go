@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"math"
 	"sort"
 	"strconv"
 )
@@ -42,6 +43,21 @@ func (h *Harness) runConversation(id ID) bool {
 		if !ok {
 			return true
 		}
+		if cp.Abort {
+			if e = h.drainAborted(task, cp); e != nil {
+				return false
+			}
+			continue
+		}
+		if cp.Phase == "tools" {
+			if e = h.runOwnedTools(&task, &cp); e != nil {
+				if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
+					continue
+				}
+				return false
+			}
+			continue
+		}
 		if cp.Phase == "queued" {
 			if e = h.prepareRequest(&task, &cp); e != nil {
 				var rejected *StorageRejected
@@ -53,6 +69,12 @@ func (h *Harness) runConversation(id ID) bool {
 				}
 				return false
 			}
+		}
+		if cp.Partial != nil {
+			if e = h.sessionCommitInterruptedPartial(task, cp); e != nil {
+				return false
+			}
+			cp.Partial = nil
 		}
 		// On recovery reuse persisted model/settings/cutoff. A new logical attempt is
 		// committed before remote dispatch. Generic providers have no exactly-once
@@ -68,10 +90,25 @@ func (h *Harness) runConversation(id ID) bool {
 			return false
 		}
 		task.Checkpoint = value
-		if _, e = h.session.Commit(context.Background(), func(tx *Tx) error { return tx.PutTask(task) }); e != nil {
+		if _, e = h.session.Commit(context.Background(), func(tx *Tx) error {
+			var current generationCheckpoint
+			if e := fromObject(tx.state.Tasks[task.ID].Checkpoint, &current, h.session.limits); e != nil {
+				return e
+			}
+			if current.Abort {
+				return reject("generation aborted")
+			}
+			return tx.PutTask(task)
+		}); e != nil {
+			if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
+				continue
+			}
 			return false
 		}
 		if h.life.Err() != nil {
+			return false
+		}
+		if cp.Model == nil {
 			return false
 		}
 		local := h.options.Models(cp.Agent.Model.Provider, cp.Agent.Model.ID)
@@ -123,16 +160,67 @@ func (h *Harness) runConversation(id ID) bool {
 		options.Temperature = cp.Agent.Settings.Temperature
 		options.MaxTokens = cp.Agent.Settings.MaxTokens
 		conv := &goai.Context{SystemPrompt: cp.Agent.SystemPrompt}
+		conv.Tools, e = protocolTools(cp.Offered, h.session.limits)
+		if e != nil {
+			return false
+		}
 		for _, m := range cp.Messages {
 			conv.Messages = append(conv.Messages, receiptMessage(m))
 		}
-		receipt, success, received := h.drain(goai.Stream(h.life, model, conv, options), cp.Model)
+		h.mu.Lock()
+		admission, admissionErr := h.session.Snapshot(context.Background())
+		if admissionErr != nil {
+			h.mu.Unlock()
+			return false
+		}
+		var admitted generationCheckpoint
+		if admissionErr = fromObject(admission.Tasks[task.ID].Checkpoint, &admitted, h.session.limits); admissionErr != nil {
+			h.mu.Unlock()
+			return false
+		}
+		if admitted.Abort {
+			h.mu.Unlock()
+			continue
+		}
+		if h.closing.Load() {
+			h.mu.Unlock()
+			return false
+		}
+		requestCtx, requestCancel := context.WithCancel(h.life)
+		h.invocations[task.ID] = requestCancel
+		h.mu.Unlock()
+		receipt, success, received := h.drain(goai.Stream(requestCtx, model, conv, options), cp.Model, task.ID)
+		h.mu.Lock()
+		delete(h.invocations, task.ID)
+		h.mu.Unlock()
+		requestCancel()
 		// Close joins the full provider channel, including a noncooperative provider.
 		// Its cancellation never invents an aborted durable terminal outcome.
 		if h.life.Err() != nil && !received {
 			return false
 		}
+		if current, checkpoint, ok, err := h.nextTask(id); err != nil {
+			return false
+		} else if ok && current.ID == task.ID && checkpoint.Abort {
+			if e = h.drainAborted(current, checkpoint, receipt); e != nil {
+				return false
+			}
+			continue
+		}
+		if success && receipt.StopReason == goai.StopReasonToolUse {
+			if e = h.acceptTools(task, cp, receipt); e != nil {
+				if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
+					continue
+				}
+				return false
+			}
+			h.notify()
+			continue
+		}
 		if e = h.finish(task, cp, receipt, success); e != nil {
+			if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
+				continue
+			}
 			return false
 		}
 		h.notify()
@@ -184,6 +272,11 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	model.Headers = nil
 	model.BaseURL = ""
 	cp.Model = model
+	offers, pins, e := h.options.Registry.snapshot(h.session.limits)
+	if e != nil {
+		return e
+	}
+	cp.Offered = offers
 	cp.Phase = "intent"
 	cp.Messages = append(messages, userReceipt(cp.Input))
 	value, e := dtoObject(cp, h.session.limits)
@@ -193,6 +286,13 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	task.Status = "running"
 	task.Checkpoint = value
 	_, e = h.session.Commit(context.Background(), func(tx *Tx) error {
+		var latest generationCheckpoint
+		if e := fromObject(tx.state.Tasks[task.ID].Checkpoint, &latest, h.session.limits); e != nil {
+			return e
+		}
+		if latest.Abort {
+			return reject("generation aborted")
+		}
 		id, e := tx.MintID()
 		if e != nil {
 			return e
@@ -237,12 +337,17 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 		}
 		return live.Set(JSON{"run": JSON{"task": task.ID, "inputs": []any{cp.Submission}}})
 	})
+	if e == nil {
+		h.mu.Lock()
+		h.pins[task.ID] = pins
+		h.mu.Unlock()
+	}
 	return e
 }
 func errorReceipt(code string) messageReceipt {
 	return messageReceipt{Role: goai.RoleAssistant, StopReason: goai.StopReasonError, Content: []goai.ContentBlock{}, ErrorCode: code}
 }
-func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageReceipt, bool, bool) {
+func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...ID) (messageReceipt, bool, bool) {
 	if pinned == nil {
 		return errorReceipt("missing_pinned_model"), false, false
 	}
@@ -252,7 +357,9 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageRe
 	if events == nil {
 		return errorReceipt("nil_stream"), false, false
 	}
-	// No raw frame visibility. Only terminal sanitized, bounded DTOs are retained.
+	// Partial visibility is limited to explicit durable checkpoints, never raw
+	// event forwarding. Consecutive duplicate prefixes are ignored.
+	lastPartial := ""
 	for event := range events {
 		var message *goai.Message
 		ok := false
@@ -273,6 +380,39 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageRe
 			message = e.Error
 			code = "provider_error"
 		default:
+			if len(taskID) > 0 {
+				var partial *goai.Message
+				switch e := event.(type) {
+				case *goai.TextDeltaEvent:
+					partial = e.Partial
+				case *goai.ThinkingDeltaEvent:
+					partial = e.Partial
+				}
+				if partial != nil {
+					text := ""
+					for _, c := range partial.Content {
+						part := ""
+						if c.Type == "text" {
+							part = c.Text
+						} else if c.Type == "thinking" {
+							part = c.Thinking
+						}
+						if len(part) > MaxToolOutputBytes-len(text) {
+							text = ""
+							break
+						}
+						text += part
+					}
+					if text != "" && text != lastPartial {
+						lastPartial = text
+						r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: text}}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, StopReason: goai.StopReasonAborted}
+						if err := h.commitPartial(taskID[0], r); err != nil {
+							result = errorReceipt("partial_commit_failed")
+							success = false
+						}
+					}
+				}
+			}
 			continue
 		}
 		if message == nil {
@@ -288,8 +428,23 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageRe
 			case "text", "thinking":
 				r.Content = append(r.Content, goai.ContentBlock{Type: c.Type, Text: c.Text, Thinking: c.Thinking})
 			case "toolCall":
-				ok = false
-				r.ErrorCode = "tools_unsupported"
+				if h.options.Registry == nil {
+					ok = false
+					r.ErrorCode = "tools_unsupported"
+					continue
+				}
+				if c.ID == "" || c.Name == "" || c.Arguments == nil {
+					ok = false
+					r.ErrorCode = "invalid_tool_call"
+					continue
+				}
+				arguments, e := copyObject(JSON(c.Arguments), h.session.limits)
+				if e != nil {
+					ok = false
+					r.ErrorCode = "invalid_tool_arguments"
+					continue
+				}
+				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments})
 			default:
 				ok = false
 				r.ErrorCode = "content_unsupported"
@@ -297,9 +452,17 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageRe
 		}
 		switch message.StopReason {
 		case goai.StopReasonStop, goai.StopReasonLength:
+			for _, content := range r.Content {
+				if content.Type == "toolCall" {
+					ok = false
+					r.ErrorCode = "unexpected_tool_call"
+				}
+			}
 		case goai.StopReasonToolUse:
-			ok = false
-			r.ErrorCode = "tools_unsupported"
+			if len(r.Content) == 0 {
+				ok = false
+				r.ErrorCode = "invalid_tool_round"
+			}
 		case goai.StopReasonDeferred, goai.StopReasonPending:
 			ok = false
 			r.ErrorCode = "deferred_unsupported"
@@ -333,7 +496,9 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model) (messageRe
 		success = ok
 	}
 	if terminal != 1 {
-		return errorReceipt("invalid_terminal_count"), false, terminal > 0
+		invalid := errorReceipt("invalid_terminal_count")
+		invalid.Usage = result.Usage
+		return invalid, false, terminal > 0
 	}
 	return result, success, terminal == 1
 }
@@ -344,7 +509,12 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		r.Model = cp.Model.ID
 	}
 	status := "failed"
-	if success {
+	if cp.Abort {
+		status = "aborted"
+		r.StopReason = goai.StopReasonAborted
+		r.ErrorCode = "aborted"
+	}
+	if success && !cp.Abort {
 		status = "done"
 	}
 	cp.Phase = "terminal"
@@ -366,6 +536,13 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		if terminalStatus(sub.Status) {
 			return nil
 		}
+		var latest generationCheckpoint
+		if e := fromObject(tx.state.Tasks[task.ID].Checkpoint, &latest, h.session.limits); e != nil {
+			return e
+		}
+		if latest.Abort && !cp.Abort {
+			return reject("abort precedes generation outcome")
+		}
 		id, e := tx.MintID()
 		if e != nil {
 			return e
@@ -377,6 +554,11 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		sub.Value = JSON{"message": value}
 		if e = tx.PutSubmission(sub); e != nil {
 			return e
+		}
+		for _, child := range tx.state.Tasks {
+			if child.Owner == task.ID && !terminalStatus(child.Status) {
+				return reject("owned tools not drained")
+			}
 		}
 		if e = tx.PutTask(task); e != nil {
 			return e
@@ -443,6 +625,22 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 	return e
 }
 
+func validUsage(usage *goai.Usage) bool {
+	if usage == nil {
+		return true
+	}
+	for _, n := range []int{usage.Input, usage.Output, usage.CacheRead, usage.CacheWrite, usage.CacheWrite1h, usage.Reasoning, usage.TotalTokens} {
+		if n < 0 || uint64(n) > MaxID {
+			return false
+		}
+	}
+	for _, n := range []float64{usage.Cost.Input, usage.Cost.Output, usage.Cost.CacheRead, usage.Cost.CacheWrite, usage.Cost.Total} {
+		if n < 0 || math.IsNaN(n) || math.IsInf(n, 0) {
+			return false
+		}
+	}
+	return true
+}
 func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 	if r.Usage == nil {
 		return nil
@@ -491,4 +689,69 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 	}
 	models[key] = value
 	return nil
+}
+
+func (h *Harness) commitPartial(id ID, partial messageReceipt) error {
+	if _, e := dtoObject(partial, h.session.limits); e != nil {
+		return e
+	}
+	_, e := h.session.Commit(context.Background(), func(tx *Tx) error {
+		task, ok := tx.state.Tasks[id]
+		if !ok || terminalStatus(task.Status) {
+			return ErrSealed
+		}
+		var cp generationCheckpoint
+		if e := fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
+			return e
+		}
+		if cp.Abort {
+			return reject("generation aborted")
+		}
+		cp.Partial = &partial
+		value, e := dtoObject(cp, h.session.limits)
+		if e != nil {
+			return e
+		}
+		task.Checkpoint = value
+		return tx.PutTask(task)
+	})
+	return e
+}
+
+func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckpoint) error {
+	_, e := h.session.Commit(context.Background(), func(tx *Tx) error {
+		current := tx.state.Tasks[task.ID]
+		var latest generationCheckpoint
+		if e := fromObject(current.Checkpoint, &latest, h.session.limits); e != nil {
+			return e
+		}
+		if latest.Abort {
+			return reject("generation aborted")
+		}
+		if latest.Partial == nil {
+			return nil
+		}
+		receipt := *latest.Partial
+		receipt.StopReason = goai.StopReasonAborted
+		receipt.ErrorCode = "interrupted"
+		id, e := tx.MintID()
+		if e != nil {
+			return e
+		}
+		value, e := dtoObject(receipt, h.session.limits)
+		if e != nil {
+			return e
+		}
+		if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value}); e != nil {
+			return e
+		}
+		latest.Partial = nil
+		value, e = dtoObject(latest, h.session.limits)
+		if e != nil {
+			return e
+		}
+		current.Checkpoint = value
+		return tx.PutTask(current)
+	})
+	return e
 }

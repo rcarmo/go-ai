@@ -23,7 +23,8 @@ type AgentChange struct {
 	Settings     RequestSettings
 }
 type Options struct {
-	Models func(goai.Provider, string) *goai.Model
+	Registry *Registry
+	Models   func(goai.Provider, string) *goai.Model
 	// RequestOptions resolves process-local credentials and hooks once per
 	// dispatched attempt. M1b behavior options are limited to persisted Settings;
 	// other behavior fields reject rather than silently changing after recovery.
@@ -58,6 +59,11 @@ func cloneModel(m *goai.Model, l Limits) (*goai.Model, error) {
 func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) {
 	if o == nil {
 		return &goai.StreamOptions{}, nil
+	}
+	// RetryConfig is json:"-" but changes remote effect/retry behavior. It is
+	// not an authentication/transport DTO and must not evade intent pinning.
+	if o.RetryConfig != nil {
+		return nil, reject("unpinned retry policy unsupported")
 	}
 	// Only process-local authentication/observational hooks are accepted here.
 	// Request behavior comes from the committed RequestSettings, not a fresh
@@ -117,7 +123,7 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 	for k, v := range o.Env {
 		n.Env[k] = v
 	}
-	n.RetryConfig = o.RetryConfig
+	n.RetryConfig = nil
 	n.TelemetryContext = o.TelemetryContext
 	// Payload-changing hooks are intentionally unsupported in M1b because they
 	// can override the committed model/context/settings after intent. Read-only
@@ -175,12 +181,16 @@ type MessageReceipt struct {
 	StopReason goai.StopReason     `json:"stopReason,omitempty"`
 	Timestamp  int64               `json:"timestamp,omitempty"`
 	ErrorCode  string              `json:"errorCode,omitempty"`
+	ToolCallID string              `json:"toolCallId,omitempty"`
+	ToolName   string              `json:"toolName,omitempty"`
+	IsError    bool                `json:"isError,omitempty"`
+	Details    JSON                `json:"details,omitempty"`
 }
 
 type messageReceipt = MessageReceipt
 
 func receiptMessage(r messageReceipt) goai.Message {
-	return goai.Message{Role: r.Role, Content: r.Content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorCode}
+	return goai.Message{Role: r.Role, Content: r.Content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorCode, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Details: r.Details}
 }
 func userReceipt(text string) messageReceipt {
 	return messageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: text}}}

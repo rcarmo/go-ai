@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"strconv"
 	"time"
 )
 
@@ -28,6 +30,11 @@ type generationCheckpoint struct {
 	Model      *goai.Model      `json:"model,omitempty"`
 	Messages   []messageReceipt `json:"messages"`
 	Attempt    uint64           `json:"attempt"`
+	Partial    *MessageReceipt  `json:"partial,omitempty"`
+	Offered    []toolOffer      `json:"offered,omitempty"`
+	Children   []ID             `json:"children,omitempty"`
+	Abort      bool             `json:"abort,omitempty"`
+	Round      uint64           `json:"round,omitempty"`
 }
 
 func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*SubmissionHandle, error) {
@@ -181,4 +188,84 @@ func (s *SubmissionHandle) Wait(ctx context.Context) (Settlement, error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+// Withdraw only settles a queued follow-up; already prepared/running input needs
+// Abort. Withdrawal is durable and never silently cancels a shared invocation.
+func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
+	h := s.h
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closing.Load() {
+		return ErrClosed
+	}
+	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		sub, ok := tx.state.Submissions[s.id]
+		if !ok {
+			return reject("unknown submission")
+		}
+		if terminalStatus(sub.Status) {
+			return nil
+		}
+		var task Task
+		found := false
+		for _, t := range tx.state.Tasks {
+			if t.Kind != "pi.generation" {
+				continue
+			}
+			var cp generationCheckpoint
+			if e := fromObject(t.Checkpoint, &cp, h.session.limits); e != nil {
+				return e
+			}
+			if cp.Submission == s.id {
+				if cp.Phase != "queued" {
+					return reject("submission already placed")
+				}
+				task = t
+				cp.Phase = "terminal"
+				value, e := dtoObject(cp, h.session.limits)
+				if e != nil {
+					return e
+				}
+				task.Checkpoint = value
+				task.Status = "aborted"
+				found = true
+				break
+			}
+		}
+		if !found {
+			return reject("queued task unavailable")
+		}
+		if e := tx.PutTask(task); e != nil {
+			return e
+		}
+		sub.Status = "aborted"
+		sub.Value = JSON{"errorCode": "withdrawn"}
+		if e := tx.PutSubmission(sub); e != nil {
+			return e
+		}
+		inbox, e := builtin(tx, sub.Conversation, "pi.inbox")
+		if e != nil {
+			return e
+		}
+		return inbox.Update(func(v JSON) error {
+			items, ok := v["items"].([]any)
+			if !ok {
+				return reject("inbox shape")
+			}
+			keep := []any{}
+			for _, item := range items {
+				obj, ok := item.(map[string]any)
+				if !ok {
+					return reject("inbox item")
+				}
+				if fmt.Sprint(obj["id"]) != strconv.FormatUint(uint64(s.id), 10) {
+					keep = append(keep, item)
+				}
+			}
+			v["items"] = keep
+			return nil
+		})
+	})
+	return e
 }
