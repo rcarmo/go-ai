@@ -139,9 +139,21 @@ func (r *ModelRuntime) GetModels(provider Provider) []*Model {
 }
 
 func (r *ModelRuntime) GetModel(provider Provider, id string) *Model {
-	for _, model := range r.GetModels(provider) {
-		if model.ID == id {
-			return model
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if provider != "" {
+		for _, model := range r.models[provider] {
+			if model != nil && model.ID == id {
+				return cloneModel(model)
+			}
+		}
+		return nil
+	}
+	for _, models := range r.models {
+		for _, model := range models {
+			if model != nil && model.ID == id {
+				return cloneModel(model)
+			}
 		}
 	}
 	return nil
