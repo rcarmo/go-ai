@@ -216,9 +216,14 @@ func validateBatchJSON(b Batch, l Limits) error {
 	}
 	for _, w := range b.Writes {
 		switch w.Op {
-		case "create-conversation", "append-entry", "put-task", "put-submission", "put-document", "retire-document":
+		case "create-conversation", "append-entry", "put-task", "put-submission", "put-document", "retire-document", "copy-document", "delta-document":
 		default:
 			return ErrUnsupported
+		}
+		if w.Delta != nil {
+			if _, err := ownOperations(w.Delta.Ops, l); err != nil {
+				return err
+			}
 		}
 		var value JSON
 		switch {
@@ -228,7 +233,7 @@ func validateBatchJSON(b Batch, l Limits) error {
 			value = w.Task.Checkpoint
 		case w.Submission != nil:
 			value = w.Submission.Value
-		case w.Document != nil && w.Op != "retire-document":
+		case w.Document != nil && w.Op != "retire-document" && w.Op != "copy-document":
 			value = w.Document.Value
 		default:
 			continue
@@ -261,6 +266,10 @@ func candidateTables(s Snapshot) Snapshot {
 	}
 	for id, v := range s.Documents {
 		n.Documents[id] = v
+	}
+	n.DocumentRevisions = make(map[ID][]DocumentRevision, len(s.DocumentRevisions))
+	for id, revisions := range s.DocumentRevisions {
+		n.DocumentRevisions[id] = revisions // immutable until replaced, never appended in place
 	}
 	return n
 }
@@ -300,6 +309,26 @@ func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 		v.Value = x
 		n.Documents[id] = v
 	}
+	for id, revisions := range s.DocumentRevisions {
+		owned := make([]DocumentRevision, len(revisions))
+		for i, revision := range revisions {
+			if revision.Kind == "delta" {
+				x, e := ownOperations(revision.Ops, l)
+				if e != nil {
+					return Snapshot{}, e
+				}
+				revision.Ops = x
+			} else {
+				x, e := copyObject(revision.Value, l)
+				if e != nil {
+					return Snapshot{}, e
+				}
+				revision.Value = x
+			}
+			owned[i] = revision
+		}
+		n.DocumentRevisions[id] = owned
+	}
 	return n, nil
 }
 func (c *storeCore) Snapshot(ctx context.Context) (Snapshot, error) {
@@ -320,8 +349,12 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 	if len(r.Writes) == 0 || len(r.Writes) > l.MaxWrites {
 		return Snapshot{}, reject("invalid write count")
 	}
+	resolved, err := resolveDocumentCopies(s, r.Writes, l)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	r.Writes = resolved
 	n := candidateTables(s)
-	var err error
 	n.Seq = r.Seq
 	used := map[ID]string{}
 	for id := range n.Conversations {
@@ -339,17 +372,20 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 	for id := range n.Documents {
 		used[id] = "document"
 	}
+	retirements := map[ID]Document{}
+	deltaContent := map[ID]bool{}
+	baseContent := map[ID]bool{}
 	for i, w := range r.Writes {
 		if _, err = encodeBounded(w, l, l.MaxRecordBytes); err != nil {
 			return Snapshot{}, err
 		}
 		count := 0
-		for _, present := range []bool{w.Conversation != nil, w.Entry != nil, w.Task != nil, w.Submission != nil, w.Document != nil} {
+		for _, present := range []bool{w.Conversation != nil, w.Entry != nil, w.Task != nil, w.Submission != nil, w.Document != nil, w.Delta != nil} {
 			if present {
 				count++
 			}
 		}
-		if count != 1 {
+		if count != 1 || w.Source != nil {
 			return Snapshot{}, reject("write union requires one record")
 		}
 		var id ID
@@ -382,6 +418,11 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			id = w.Submission.ID
 			kind = "submission"
 			replace = true
+		case "delta-document":
+			if w.Delta == nil {
+				return Snapshot{}, reject("write union mismatch")
+			}
+			id, kind, replace = w.Delta.ID, "document", true
 		case "put-document", "retire-document":
 			if w.Document == nil {
 				return Snapshot{}, reject("write union mismatch")
@@ -403,8 +444,8 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 		switch w.Op {
 		case "create-conversation":
 			v := *w.Conversation
-			if v.Parent != 0 {
-				return Snapshot{}, fmt.Errorf("%w: forks", ErrUnsupported)
+			if v.Parent != 0 && v.ParentAt == 0 {
+				return Snapshot{}, fmt.Errorf("%w: fork requires an entry cutoff", ErrUnsupported)
 			}
 			n.Conversations[id] = v
 		case "append-entry":
@@ -427,22 +468,97 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 				return Snapshot{}, reject("submission identity changed")
 			}
 			n.Submissions[id] = v
+		case "delta-document":
+			if deltaContent[id] || baseContent[id] {
+				return Snapshot{}, reject("delta has multiple content commands")
+			}
+			deltaContent[id] = true
+			delta := w.Delta
+			v, ok := n.Documents[id]
+			if !ok || v.Retired || delta.Version != v.Version || len(delta.Ops) == 0 {
+				return Snapshot{}, reject("delta requires a live same-version base and nonempty ops")
+			}
+			value, e := ApplyOperations(v.Value, delta.Ops, l)
+			if e != nil {
+				return Snapshot{}, e
+			}
+			object, ok := value.(map[string]any)
+			if !ok {
+				return Snapshot{}, reject("delta document root must be object")
+			}
+			v.Value = JSON(object)
+			if v.DeltasSinceBase >= MaxID {
+				return Snapshot{}, reject("delta count exhausted")
+			}
+			v.DeltasSinceBase++
+			n.Documents[id] = v
+			revisions := append([]DocumentRevision(nil), n.DocumentRevisions[id]...)
+			if len(revisions) == 0 {
+				// Legacy latest-only bases were materialised without a tail table.
+				old := s.Documents[id]
+				revisions = append(revisions, DocumentRevision{Seq: old.CreatedAt, Version: old.Version, Value: old.Value})
+			}
+			n.DocumentRevisions[id] = append(revisions, DocumentRevision{Seq: r.Seq, Version: v.Version, Kind: "delta", Ops: delta.Ops})
 		case "put-document":
+			if deltaContent[id] {
+				return Snapshot{}, reject("delta has multiple content commands")
+			}
+			baseContent[id] = true
 			v := *w.Document
+			if v.DeltasSinceBase != 0 {
+				return Snapshot{}, reject("delta count is storage-owned")
+			}
+			v.DeltasSinceBase = 0
 			if v.Retired {
 				return Snapshot{}, reject("use explicit retirement")
 			}
-			if old, ok := n.Documents[id]; ok && (old.Retired || !sameAddress(old, v)) {
-				return Snapshot{}, reject("document identity changed or retired")
+			if err := validDocumentPolicy(v); err != nil {
+				return Snapshot{}, err
+			}
+			if old, ok := n.Documents[id]; ok {
+				if old.Retired || !sameAddress(old, v) || documentHistory(old) != documentHistory(v) || documentFork(old) != documentFork(v) || (v.CreatedAt != 0 && v.CreatedAt != old.CreatedAt) || v.RetiredAt != 0 {
+					return Snapshot{}, reject("document identity changed or retired")
+				}
+				v.CreatedAt = old.CreatedAt
+			} else {
+				if v.CreatedAt != 0 || v.RetiredAt != 0 {
+					return Snapshot{}, reject("document lifecycle is storage-owned")
+				}
+				v.CreatedAt = r.Seq
 			}
 			n.Documents[id] = v
+			revision := DocumentRevision{Seq: r.Seq, Version: v.Version, Value: v.Value}
+			if documentHistory(v) == "rewindable" {
+				revisions := append([]DocumentRevision(nil), n.DocumentRevisions[id]...)
+				if len(revisions) > 0 && revisions[len(revisions)-1].Seq == r.Seq {
+					revisions = revisions[:len(revisions)-1]
+				}
+				n.DocumentRevisions[id] = append(revisions, revision)
+			} else {
+				// A checkpoint discards only a latest-only tail. Keep its newest
+				// full base so later delta count/replay is storage-derived.
+				if _, retained := n.DocumentRevisions[id]; retained {
+					n.DocumentRevisions[id] = []DocumentRevision{revision}
+				}
+			}
 		case "retire-document":
-			v, ok := n.Documents[id]
-			if !ok || v.Retired || !sameAddress(v, *w.Document) {
-				return Snapshot{}, reject("unknown document incarnation")
+			if _, duplicate := retirements[id]; duplicate {
+				return Snapshot{}, reject("duplicate retirement")
 			}
-			v.Retired = true
-			n.Documents[id] = v
+			retirements[id] = *w.Document
+		}
+	}
+	// Retirement and content form one lifecycle action, independent of write
+	// order. Preserve original entry positions while stamping empty lifetimes.
+	for id, retirement := range retirements {
+		v, ok := n.Documents[id]
+		if !ok || v.Retired || !sameAddress(v, retirement) {
+			return Snapshot{}, reject("unknown document incarnation")
+		}
+		v.Retired, v.RetiredAt = true, r.Seq
+		n.Documents[id] = v
+		if documentHistory(v) != "rewindable" {
+			delete(n.DocumentRevisions, id)
 		}
 	}
 	if err = validateState(n, l, final); err != nil {
@@ -451,7 +567,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 	return n, nil
 }
 func sameAddress(a, b Document) bool {
-	return a.Scope == b.Scope && a.Owner == b.Owner && a.Kind == b.Kind && a.Key == b.Key
+	return documentAddress(a) == documentAddress(b)
 }
 func validKind(s string) bool { return kindPattern.MatchString(s) }
 func validStatus(s string) bool {
@@ -462,22 +578,29 @@ func validStatus(s string) bool {
 	return false
 }
 func validateState(s Snapshot, l Limits, final bool) error {
-	if len(s.Conversations)+len(s.Entries)+len(s.Tasks)+len(s.Submissions)+len(s.Documents) > l.MaxRecords {
+	revisionCount := 0
+	for _, revisions := range s.DocumentRevisions {
+		revisionCount += len(revisions)
+	}
+	if len(s.Conversations)+len(s.Entries)+len(s.Tasks)+len(s.Submissions)+len(s.Documents)+revisionCount > l.MaxRecords {
 		return reject("live record limit")
 	}
 	existsConv := func(id ID) bool { _, ok := s.Conversations[id]; return ok }
 	existsTask := func(id ID) bool { _, ok := s.Tasks[id]; return ok }
 	for _, v := range s.Conversations {
-		if v.Parent != 0 {
-			return ErrUnsupported
-		}
 		if uint64(v.Owner) > MaxID || (final && v.Owner != 0 && !existsTask(v.Owner)) {
 			return reject("conversation owner missing")
 		}
 	}
+	if err := validateAncestry(s, final); err != nil {
+		return err
+	}
 	for _, v := range s.Entries {
-		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) || v.Value == nil {
+		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) || v.Value == nil {
 			return reject("invalid entry")
+		}
+		if v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
+			return reject("entry head is not visible at marker")
 		}
 	}
 	for _, v := range s.Tasks {
@@ -513,15 +636,13 @@ func validateState(s Snapshot, l Limits, final bool) error {
 			requests[key] = v.ID
 		}
 	}
-	type address struct {
-		scope     string
-		owner     ID
-		kind, key string
-	}
-	addresses := map[address]ID{}
+	addresses := map[DocumentAddress]ID{}
 	for _, v := range s.Documents {
-		if !validKind(v.Kind) || v.Version < 1 || v.Version > MaxID || v.Value == nil {
+		if !validKind(v.Kind) || v.Version < 1 || v.Version > MaxID || v.Value == nil || v.CreatedAt == 0 || v.CreatedAt > s.Seq || v.RetiredAt > s.Seq || (v.Retired != (v.RetiredAt != 0)) || (v.RetiredAt != 0 && v.RetiredAt < v.CreatedAt) {
 			return reject("invalid document")
+		}
+		if err := validDocumentPolicy(v); err != nil {
+			return err
 		}
 		switch v.Scope {
 		case "session":
@@ -543,7 +664,7 @@ func validateState(s Snapshot, l Limits, final bool) error {
 			return err
 		}
 		if !v.Retired {
-			key := address{v.Scope, v.Owner, v.Kind, v.Key}
+			key := documentAddress(v)
 			if _, ok := addresses[key]; ok {
 				return reject("duplicate current document address")
 			}
@@ -585,6 +706,64 @@ func validateState(s Snapshot, l Limits, final bool) error {
 	for _, v := range s.Documents {
 		if e := add(v); e != nil {
 			return e
+		}
+	}
+	for id, revisions := range s.DocumentRevisions {
+		if _, ok := s.Documents[id]; !ok {
+			return reject("revision document missing")
+		}
+		var previous uint64
+		var version uint64
+		var count uint64
+		var value JSON
+		for _, revision := range revisions {
+			if revision.Seq == 0 || revision.Seq <= previous || revision.Seq > s.Seq || revision.Version == 0 || revision.Version > MaxID || (revision.Kind != "delta" && revision.Value == nil) {
+				return reject("invalid document revision")
+			}
+			previous = revision.Seq
+			if revision.Kind == "delta" {
+				if revision.Value != nil || len(revision.Ops) == 0 {
+					return reject("invalid delta revision")
+				}
+				if value == nil || revision.Version != version {
+					return reject("delta revision requires a same-version base")
+				}
+				applied, e := ApplyOperations(value, revision.Ops, l)
+				if e != nil {
+					return e
+				}
+				object, ok := applied.(map[string]any)
+				if !ok {
+					return reject("delta revision root must be object")
+				}
+				value = JSON(object)
+				count++
+			} else {
+				if revision.Kind != "" && revision.Kind != "base" || len(revision.Ops) != 0 {
+					return reject("invalid base revision")
+				}
+				if _, e := encodeBounded(revision.Value, l, l.MaxDocumentBytes); e != nil {
+					return e
+				}
+				value, version, count = revision.Value, revision.Version, 0
+			}
+			if e := add(revision); e != nil {
+				return e
+			}
+		}
+		if len(revisions) > 0 {
+			d := s.Documents[id]
+			left, e := ownJSONValue(d.Value, l)
+			if e != nil {
+				return e
+			}
+			right, e := ownJSONValue(value, l)
+			if e != nil {
+				return e
+			}
+			if version != d.Version || count != d.DeltasSinceBase || !equalDeltaJSON(left, right) {
+				return reject("document materialisation/count disagrees with revisions")
+			}
 		}
 	}
 	return nil

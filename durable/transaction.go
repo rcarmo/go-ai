@@ -9,13 +9,18 @@ import (
 // accessor exists. Reentrant/overlapping methods reject; escaped methods reject
 // after settlement. Concurrent mutation DURING copy is unsupported Go misuse.
 type Tx struct {
-	store  *storeCore
-	ctx    context.Context
-	limits Limits
-	state  Snapshot
-	writes []Write
-	busy   atomic.Bool
-	sealed atomic.Bool
+	store   *storeCore
+	session *Session
+	ctx     context.Context
+	limits  Limits
+	state   Snapshot
+	writes  []Write
+	// Immediate parents of successfully staged high-level forks. This fence is
+	// broader than copy source IDs: new current-policy parent docs also reject.
+	forkParents   map[ID]bool
+	documentPlans map[ID]*transactionDocumentPlan
+	busy          atomic.Bool
+	sealed        atomic.Bool
 }
 
 func (t *Tx) enter() error {
@@ -50,6 +55,11 @@ func (t *Tx) stage(w Write) error {
 		return e
 	}
 	candidate := append(append([]Write(nil), t.writes...), owned)
+	for parent := range t.forkParents {
+		if e = t.rejectCurrentForkWrites(candidate, parent); e != nil {
+			return e
+		}
+	}
 	if _, e = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, t.limits.MaxFramePayloadBytes); e != nil {
 		return e
 	}
@@ -57,8 +67,58 @@ func (t *Tx) stage(w Write) error {
 		return e
 	}
 	t.writes = candidate
+	if owned.Op == "put-document" {
+		d := *owned.Document
+		plan := t.documentPlan(d.ID)
+		base, exists := t.state.Documents[d.ID]
+		if !exists || base.Version != d.Version {
+			plan.requiredBase = true
+		}
+		for _, prior := range candidate {
+			if prior.Op == "copy-document" && prior.Document.ID == d.ID {
+				plan.requiredBase = true
+			}
+		}
+		// stage's direct base API carries whole-root intent. Set/Update/explicit
+		// operations can replace this private intent after staging succeeds.
+		plan.ops = []Operation{{"r", map[string]any(d.Value)}}
+	}
 	return nil
 }
+
+// rejectCurrentForkWrites uses the persisted/staged document identity for
+// retirement commands, whose token need not repeat the policy. All current
+// parent content and retirements reject, even new or same-commit empty lifetimes.
+func (t *Tx) rejectCurrentForkWrites(writes []Write, parent ID) error {
+	for _, w := range writes {
+		if w.Document == nil && w.Delta == nil {
+			continue
+		}
+		var d Document
+		if w.Delta != nil {
+			d = t.state.Documents[w.Delta.ID]
+		} else {
+			d = *w.Document
+		}
+		if w.Op == "retire-document" {
+			if stored, ok := t.state.Documents[d.ID]; ok {
+				d = stored
+			} else {
+				for _, content := range writes {
+					if content.Document != nil && content.Document.ID == d.ID && (content.Op == "put-document" || content.Op == "copy-document") {
+						d = *content.Document
+						break
+					}
+				}
+			}
+		}
+		if d.Scope == "conversation" && d.Owner == parent && documentFork(d) == "current" {
+			return reject("cannot fork while changing current-policy parent documents")
+		}
+	}
+	return nil
+}
+
 func (t *Tx) MintID() (ID, error) {
 	if e := t.enter(); e != nil {
 		return 0, e
@@ -196,8 +256,23 @@ func (h *DocumentHandle) Set(value JSON) error {
 	if e != nil {
 		return e
 	}
+	before, e := ownJSONValue(v.Value, h.tx.limits)
+	if e != nil {
+		return e
+	}
+	after, e := ownJSONValue(owned, h.tx.limits)
+	if e != nil {
+		return e
+	}
+	if equalDeltaJSON(before, after) {
+		return nil
+	}
 	v.Value = owned
-	return h.tx.stage(Write{Op: "put-document", Document: &v})
+	v.DeltasSinceBase = 0
+	if e = h.tx.stage(Write{Op: "put-document", Document: &v}); e != nil {
+		return e
+	}
+	return nil
 }
 func (h *DocumentHandle) Update(callback func(JSON) error) error {
 	if e := h.tx.enter(); e != nil {
@@ -222,8 +297,60 @@ func (h *DocumentHandle) Update(callback func(JSON) error) error {
 	if e != nil {
 		return e
 	}
+	ops, e := diffOperations(v.Value, owned, h.tx.limits)
+	if e != nil || len(ops) == 0 {
+		return e
+	}
+	prior := append([]Operation{}, h.tx.documentPlan(v.ID).ops...)
+	combined, e := ownOperations(append(prior, ops...), h.tx.limits)
+	if e != nil {
+		return e
+	}
 	v.Value = owned
-	return h.tx.stage(Write{Op: "put-document", Document: &v})
+	v.DeltasSinceBase = 0
+	if e = h.tx.stage(Write{Op: "put-document", Document: &v}); e != nil {
+		return e
+	}
+	h.tx.documentPlan(v.ID).ops = combined
+	return nil
+}
+
+// ApplyOperations retains explicit structural intent, even for a nonempty
+// batch whose final value equals the base. Failed batches stage nothing.
+func (h *DocumentHandle) ApplyOperations(operations []Operation) error {
+	if e := h.tx.enter(); e != nil {
+		return e
+	}
+	defer h.tx.leave()
+	v, e := h.record()
+	if e != nil {
+		return e
+	}
+	ops, e := ownOperations(operations, h.tx.limits)
+	if e != nil || len(ops) == 0 {
+		return e
+	}
+	value, e := ApplyOperations(v.Value, ops, h.tx.limits)
+	if e != nil {
+		return e
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return reject("delta document root must be object")
+	}
+	prior := append([]Operation{}, h.tx.documentPlan(v.ID).ops...)
+	combined := append(prior, ops...)
+	if _, e = ownOperations(combined, h.tx.limits); e != nil {
+		return e
+	}
+	v.Value = JSON(object)
+	v.DeltasSinceBase = 0
+	if e = h.tx.stage(Write{Op: "put-document", Document: &v}); e != nil {
+		return e
+	}
+	h.tx.documentPlan(v.ID).ops = combined
+	h.tx.documentPlan(v.ID).explicit = true
+	return nil
 }
 func (h *DocumentHandle) Retire() error {
 	if e := h.tx.enter(); e != nil {
@@ -244,4 +371,142 @@ func (t *Tx) Unsupported(command string) error {
 	}
 	defer t.leave()
 	return ErrUnsupported
+}
+
+// Final content selection is private: public methods are already sealed when
+// the Session invokes it. No callback can reopen a transaction's authority.
+type transactionDocumentPlan struct {
+	definition   *DocumentDefinition
+	requiredBase bool
+	ops          []Operation
+	explicit     bool
+}
+
+func (t *Tx) documentPlan(id ID) *transactionDocumentPlan {
+	if t.documentPlans == nil {
+		t.documentPlans = map[ID]*transactionDocumentPlan{}
+	}
+	if p := t.documentPlans[id]; p != nil {
+		return p
+	}
+	p := &transactionDocumentPlan{}
+	t.documentPlans[id] = p
+	return p
+}
+func (t *Tx) finalizeDocuments() error {
+	if len(t.writes) == 0 {
+		return nil
+	}
+	// Validate all provisional table/document references before host predicates.
+	candidate, err := prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: t.writes}, t.limits)
+	if err != nil {
+		return err
+	}
+	last := map[ID]int{}
+	for i, w := range t.writes {
+		if w.Op == "put-document" {
+			last[w.Document.ID] = i
+		}
+	}
+	selected := make([]Write, 0, len(t.writes))
+	type selection struct {
+		index int
+		final Document
+		plan  *transactionDocumentPlan
+	}
+	predicates := []selection{}
+	for i, w := range t.writes {
+		if w.Op != "put-document" {
+			selected = append(selected, w)
+			continue
+		}
+		id := w.Document.ID
+		if last[id] != i {
+			continue
+		}
+		plan := t.documentPlan(id)
+		final := *w.Document
+		final.Value = candidate.Documents[id].Value
+		if _, exists := t.state.Documents[id]; !exists {
+			final.CreatedAt = 0
+		}
+		final.Retired, final.RetiredAt = false, 0 // retirement remains a separate command
+		if plan.requiredBase {
+			final.DeltasSinceBase = 0
+			selected = append(selected, Write{Op: "put-document", Document: &final})
+			continue
+		}
+		if len(plan.ops) == 0 {
+			continue
+		}
+		if !plan.explicit {
+			before, e := ownJSONValue(t.state.Documents[id].Value, t.limits)
+			if e != nil {
+				return e
+			}
+			after, e := ownJSONValue(final.Value, t.limits)
+			if e != nil {
+				return e
+			}
+			if equalDeltaJSON(before, after) {
+				continue
+			}
+		}
+		ops, err := ownOperations(plan.ops, t.limits)
+		if err != nil {
+			return err
+		}
+		replayed, e := ApplyOperations(t.state.Documents[id].Value, ops, t.limits)
+		if e != nil {
+			return e
+		}
+		preparedValue, e := ownJSONValue(final.Value, t.limits)
+		if e != nil {
+			return e
+		}
+		if !equalDeltaJSON(replayed, preparedValue) {
+			return reject("prepared operations disagree with final document")
+		}
+		selected = append(selected, Write{Op: "delta-document", Delta: &DocumentDelta{ID: id, Version: final.Version, Ops: ops}})
+		if plan.definition != nil && plan.definition.options.CheckpointWhen != nil {
+			predicates = append(predicates, selection{len(selected) - 1, final, plan})
+		}
+	}
+	// Reference/value/operation validation is complete. Retained-tail budgets
+	// apply to the actual predicate selection, so a checkpoint can reset a tail
+	// that could not admit one further retained delta.
+	for _, pending := range predicates {
+		value, e := copyObject(pending.final.Value, t.limits)
+		if e != nil {
+			return e
+		}
+		callbackOps, e := ownOperations(selected[pending.index].Delta.Ops, t.limits)
+		if e != nil {
+			return e
+		}
+		checkpoint, e := pending.plan.definition.options.CheckpointWhen(value, callbackOps, CheckpointInfo{t.state.Documents[pending.final.ID].DeltasSinceBase})
+		if e != nil {
+			return e
+		}
+		if checkpoint {
+			final := pending.final
+			final.DeltasSinceBase = 0
+			selected[pending.index] = Write{Op: "put-document", Document: &final}
+		}
+	}
+	if len(selected) > 0 {
+		for parent := range t.forkParents {
+			if err = t.rejectCurrentForkWrites(selected, parent); err != nil {
+				return err
+			}
+		}
+		if _, err = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits, t.limits.MaxFramePayloadBytes); err != nil {
+			return err
+		}
+		if _, err = prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits); err != nil {
+			return err
+		}
+	}
+	t.writes = selected
+	return nil
 }

@@ -1,8 +1,13 @@
 // Package durable implements native atomic storage and persistent model → owned
 // host tool → answer runs through goai.Stream. Copied definitions, bounded schema
 // validation, persisted final arguments and conservative replay guard effects.
-// Full pi-durable parity and deferred model requests are unsupported. Local M1c
-// implementation requires independent candidate acceptance/publication. Open reconciles running tasks to pending
+// The M1 runtime is published; full pi-durable parity and deferred model requests
+// remain incomplete. Entry ancestry and full-base document/fork semantics are
+// independently focused-accepted, including definition/migration APIs. Final
+// definition normal/race runs each passed 11 tests plus eight subtests, no skips;
+// an independent public-API clone run passed 12 tests, 22 total passes, no skips.
+// Integrated durable normal/race passed 103 tests plus 394 subtests each, no
+// skips; full-project candidate gates have not run. Open reconciles running tasks to pending
 // but dispatches no model effect; Submit, Resume and Wait can schedule work.
 // Request intent pins a sanitized model behavior DTO, system/messages cutoff
 // and curated Temperature/MaxTokens settings. Terminal identity/usage attribution
@@ -53,7 +58,7 @@
 // ordinals never exceed 2^53-1. Root1 is reserved; first minted ID2. Complete bad
 // headers/checksums/JSON/relations fail closed. Only a legal final incomplete
 // header/frame/terminator prefix is truncated; no magic scanning/repair occurs.
-// No sidecar, rename, reclamation, delta or automatic corruption repair exists.
+// No sidecar, rename, reclamation or automatic corruption repair exists.
 //
 // Sync defaults true. File sync follows append; directory creation syncs parent
 // edges and new file directory metadata before acknowledgement. Unsupported or
@@ -72,11 +77,42 @@
 // retained encoded records32MiB/128MiB, file256MiB/4GiB. Config bootstrap16KiB.
 // Limits are persisted, coherent and applied to writes/replay; strict bounded
 // traversal precedes incremental encoding, which never calls caller marshalers.
-// Full bases replace current values; retired-ID metadata remains indexed. Heap
+// Latest full bases replace current values; rewindable bases retain each commit
+// revision. Both revision counts and bytes consume persisted budgets; no history
+// is silently pruned. Retired-ID metadata remains indexed. Heap
 // overhead can exceed retained bytes; no hard RSS bound is promised. Journal
 // growth/replay cost is append-only. Queries are detached committed snapshots,
-// numeric ascending-ID pages except entry cursor ordered by commit/position.
-// Forks, historical/asOf, deltas/copies and family APIs are unsupported.
+// numeric ascending-ID pages except the legacy entry cursor ordered by
+// commit/position. HistoryStorage supplies fork-aware newest-ID-first scans,
+// stable query-bound cursors, visible entry lookup and inherited head markers.
+// ParentAt is an inclusive entry cutoff; model context honours ancestry and the
+// latest head. DocumentHistoryStorage adds half-open incarnations, rewindable
+// base revisions, exact singleton/family addresses and pre-batch copies. Tx forks
+// select asOf documents from the entry-owning ancestor and current documents from
+// the immediate parent. The document/fork slice is independently focused-accepted.
+// Native immutable document definitions add singleton/family initialization,
+// guarded typed-policy acquisition, bounded migration caches and detached
+// snapshots. Snapshot migration writes nothing; first successful typed Tx writes
+// the required version base even without value changes. The definition slice
+// is independently focused-accepted. Historical migrations enforce the document
+// limit, including exact 512-byte acceptance and 513-byte rejection in the
+// independent probe. The failed non-private journal test fixture is preserved;
+// its private-child correction passed without relaxing runtime permissions.
+// S2c2 decoded delta/checkpoint APIs are independently focused-accepted.
+// Owner normal/race passed 17 tests plus 159 subtests each, no skips; independent
+// clone/public probes passed 19 tests, 180 total passes, plus a distinct low-level
+// history/copy/reopen test with two backend subtests. Operations
+// r/s/d/a/t/p/m detach inputs and placements, reject unsafe paths and enforce
+// persisted budgets at every intermediate revision. Front truncation counts
+// UTF-16 units; a surrogate-splitting cut rejects under native strict Unicode.
+// Ordinary nonempty changes use deltas unless the definition selects a base.
+// Predicates receive detached final value/ops and stored deltas-since-base,
+// excluding the current change; create/copy/required migration bases bypass
+// predicates. Explicit operations preserve structural intent even when values
+// compare equal. Native Set replaces the root; detached Update emits a bounded
+// structural diff. No wire dictionary, JS proxy or canonical tuple is promised.
+// Full M2-M4 parity and full-project candidate gates are unfinished. Legacy
+// latest-only pi.agent metadata rejects an unprovable historical harness fork.
 //
 // Records may contain sensitive user/model/tool data. Credentials, headers,
 // clients and executable callbacks have no persistence fields; errors never
@@ -84,7 +120,8 @@
 // choose retention/encryption; owner-only permissions are not encryption.
 //
 // Interim upstream 23-case applicability ledger (13 complete / 7 partial /
-// 3 unsupported) follows the accepted design, NOT a passing full-parity claim:
+// 3 unsupported at M1; additions below are explicitly marked focused-tested.
+// This is not a passing full-parity count:
 //
 //	01 complete: reserved root1/immutable conversation creation.
 //	02 complete: mixed atomic records and rollback (no task execution claim).
@@ -94,19 +131,21 @@
 //	06 complete: direct entry cursor stable with newer commits; no ancestors.
 //	07 complete: ascending opaque conversation cursor.
 //	08 partial: owner-edge/conjunctive raw scans; scheduler cascade later.
-//	09 unsupported: deep fork ancestry (fork commands reject).
+//	09 focused-accepted: ancestry scans/heads/visible lookups/public fork copies;
+//	   legacy-agent historical backfill still required for full parity.
 //	10 complete: full task replacement/filter scans; no scheduler.
 //	11 complete: owner/waiting/completing raw statuses; joins later.
 //	12 complete: local requestID index/replacement/cross-type conflict.
 //	13 complete: passive-write submission storage union; inbox later.
-//	14 partial: current-only retire/reincarnate; rewind/asOf later.
-//	15 unsupported: delta tails (delta commands reject).
-//	16 unsupported: document copy/ambiguous sources (copy commands reject).
-//	17 partial: version base changes; historical/delta boundaries later.
-//	18 partial: exact singleton scope/address; family/history later.
-//	19 partial: atomic current lifecycle; historical membership later.
-//	20 partial: supported-batch index rollback; delta/copy replay later.
-//	21 partial: string identities/kind grammar; family keys later.
+//	14 focused-accepted: half-open rewindable incarnations and delta history.
+//	15 focused-accepted: decoded deltas/tails/counts; native strict Unicode
+//	   and intermediate budgets apply. Complete storage corpus audit is later.
+//	16 focused-tested: independent pre-batch copy/ambiguous source rejection.
+//	17 focused-accepted: historical version bases and same-version delta tails.
+//	18 focused-tested: exact singleton/family scope/address and history.
+//	19 focused-tested: empty lifetime and historical membership.
+//	20 focused-accepted: copy/base/delta lifecycle rollback and replay.
+//	21 focused-tested: lossless empty/NUL/prototype-like family keys.
 //	22 complete: global namespace and exact reservation/exhaustion policy.
 //	23 complete: Store/Session/escaped-Tx close rejection; later runtime absent.
 //

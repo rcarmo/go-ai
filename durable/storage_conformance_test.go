@@ -186,6 +186,7 @@ func TestStorageConformance(t *testing.T) {
 			apply(t, s, Write{Op: "retire-document", Document: &old})
 			id := mint(t, s)
 			old.ID = id
+			old.CreatedAt, old.RetiredAt = 0, 0 // new incarnation stamps belong to storage
 			old.Version = 1
 			apply(t, s, Write{Op: "put-document", Document: &old})
 			r, e = s.Documents(bg, Query{Scope: "conversation", Owner: conv, Key: &key, Limit: 2})
@@ -1003,7 +1004,7 @@ func TestPrivateCandidateTablesNeverModifyBaseTables(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	base.Documents[2] = Document{ID: 2, Scope: "session", Kind: "state", Version: 1, Value: obj}
+	base.Documents[2] = Document{ID: 2, Scope: "session", Kind: "state", Version: 1, Value: obj, CreatedAt: 1}
 	base.Entries[3] = Entry{ID: 3, Conversation: 1, Kind: "message", Value: obj, Seq: 1, Position: 1}
 	base.Seq = 1
 	candidate, e := prepare(base, commitRecord{Seq: 2, Writes: []Write{{Op: "retire-document", Document: &Document{ID: 2, Scope: "session", Kind: "state"}}}}, l)

@@ -72,12 +72,15 @@ func (l Limits) validate() error {
 	return nil
 }
 
-// Conversation has no fork/head support in M1a. Parent is rejected when nonzero.
+// Conversation has immutable ancestry. ParentAt is the inclusive entry-ID cutoff
+// visible through Parent, not a commit sequence (later entries in the same commit
+// are excluded). Owner names the creating task, independently of ancestry.
 type Conversation struct {
-	ID     ID     `json:"id"`
-	Owner  ID     `json:"owner,omitempty"`
-	Parent ID     `json:"parent,omitempty"`
-	Name   string `json:"name,omitempty"`
+	ID       ID     `json:"id"`
+	Owner    ID     `json:"owner,omitempty"`
+	Parent   ID     `json:"parent,omitempty"`
+	Name     string `json:"name,omitempty"`
+	ParentAt ID     `json:"parentAt,omitempty"`
 }
 type Entry struct {
 	ID           ID     `json:"id"`
@@ -86,6 +89,9 @@ type Entry struct {
 	Value        JSON   `json:"value"`
 	Seq          uint64 `json:"seq,omitempty"`
 	Position     uint64 `json:"position,omitempty"`
+	// Head is the first visible entry contributing to active model context.
+	// A marker may select itself; zero leaves the preceding marker unchanged.
+	Head ID `json:"head,omitempty"`
 }
 
 // Task stores a full checkpoint record; M1a does not execute tasks.
@@ -109,7 +115,7 @@ type Submission struct {
 	Value        JSON   `json:"value"`
 }
 
-// Document is a current-only full base at an exact scope/kind/key address.
+// Document is a detached materialised incarnation at an exact scope/kind/key address.
 // Retirement preserves its ID/history metadata but removes the current address.
 type Document struct {
 	ID      ID     `json:"id"`
@@ -120,18 +126,61 @@ type Document struct {
 	Version uint64 `json:"version"`
 	Value   JSON   `json:"value"`
 	Retired bool   `json:"retired,omitempty"`
+	// Family distinguishes a keyed member (including an empty key) from a
+	// singleton. Non-empty legacy keys are also treated as family members.
+	Family    bool   `json:"family,omitempty"`
+	History   string `json:"history,omitempty"` // conversation: latest or rewindable
+	Fork      string `json:"fork,omitempty"`    // conversation: initial, current or asOf
+	CreatedAt uint64 `json:"createdAt,omitempty"`
+	RetiredAt uint64 `json:"retiredAt,omitempty"`
+	// DeltasSinceBase is storage-owned and excludes any uncommitted change.
+	DeltasSinceBase uint64 `json:"deltasSinceBase,omitempty"`
+}
+
+// DocumentRevision is an immutable full base or same-version decoded delta.
+// Legacy records with no Kind are bases; retained revisions allow exact point reads.
+type DocumentRevision struct {
+	Seq     uint64 `json:"seq"`
+	Version uint64 `json:"version"`
+	Value   JSON   `json:"value,omitempty"`
+	// Kind empty is a legacy full base. Delta revisions have Ops, no Value.
+	Kind string      `json:"kind,omitempty"`
+	Ops  []Operation `json:"ops,omitempty"`
+}
+
+// DocumentDelta identifies an existing incarnation, never its mutable policies.
+type DocumentDelta struct {
+	ID      ID          `json:"id"`
+	Version uint64      `json:"version"`
+	Ops     []Operation `json:"ops"`
+}
+
+// DocumentPoint selects current content or an exact historical commit. The zero
+// value selects Seq0 (before the first commit), not current state.
+type DocumentPoint struct {
+	Current bool   `json:"current,omitempty"`
+	Seq     uint64 `json:"seq,omitempty"`
+}
+
+func CurrentDocumentPoint() DocumentPoint { return DocumentPoint{Current: true} }
+
+type DocumentCopySource struct {
+	ID ID            `json:"id"`
+	At DocumentPoint `json:"at"`
 }
 
 // Write is an explicit tagged command. Exactly its matching record is allowed.
 // Entry/Conversation creations are immutable. Task and Submission are full
-// replacements. Document uses full base replacement, never delta/copy commands.
+// replacements. Documents use explicit full bases, decoded deltas, copies or retirement.
 type Write struct {
-	Op           string        `json:"op"`
-	Conversation *Conversation `json:"conversation,omitempty"`
-	Entry        *Entry        `json:"entry,omitempty"`
-	Task         *Task         `json:"task,omitempty"`
-	Submission   *Submission   `json:"submission,omitempty"`
-	Document     *Document     `json:"document,omitempty"`
+	Op           string              `json:"op"`
+	Conversation *Conversation       `json:"conversation,omitempty"`
+	Entry        *Entry              `json:"entry,omitempty"`
+	Task         *Task               `json:"task,omitempty"`
+	Submission   *Submission         `json:"submission,omitempty"`
+	Document     *Document           `json:"document,omitempty"`
+	Source       *DocumentCopySource `json:"source,omitempty"` // copy-document only
+	Delta        *DocumentDelta      `json:"delta,omitempty"`  // delta-document only
 }
 type Batch struct {
 	Writes []Write `json:"writes"`
@@ -140,13 +189,14 @@ type Batch struct {
 // Snapshot is a detached, atomic adopted revision, including allocator metadata.
 // Mutating its maps never changes storage. It is not a raw authority accessor.
 type Snapshot struct {
-	Seq           uint64              `json:"seq"`
-	HighWater     uint64              `json:"highWater"`
-	Conversations map[ID]Conversation `json:"conversations"`
-	Entries       map[ID]Entry        `json:"entries"`
-	Tasks         map[ID]Task         `json:"tasks"`
-	Submissions   map[ID]Submission   `json:"submissions"`
-	Documents     map[ID]Document     `json:"documents"`
+	Seq               uint64                    `json:"seq"`
+	HighWater         uint64                    `json:"highWater"`
+	Conversations     map[ID]Conversation       `json:"conversations"`
+	Entries           map[ID]Entry              `json:"entries"`
+	Tasks             map[ID]Task               `json:"tasks"`
+	Submissions       map[ID]Submission         `json:"submissions"`
+	Documents         map[ID]Document           `json:"documents"`
+	DocumentRevisions map[ID][]DocumentRevision `json:"documentRevisions,omitempty"`
 }
 
 type Query struct {

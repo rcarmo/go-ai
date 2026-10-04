@@ -9,14 +9,16 @@ import (
 // Session serializes transaction preparation, storage settlement and committed
 // reads. M1a has no execution/scheduling API and dispatches no external effects.
 type Session struct {
-	store    Storage
-	core     *storeCore
-	line     chan struct{}
-	closing  atomic.Bool
-	once     sync.Once
-	done     chan struct{}
-	closeErr error
-	limits   Limits
+	store                Storage
+	core                 *storeCore
+	line                 chan struct{}
+	closing              atomic.Bool
+	once                 sync.Once
+	done                 chan struct{}
+	closeErr             error
+	limits               Limits
+	definitionCache      map[definitionCacheKey]definitionCacheValue
+	definitionCacheBytes int64
 }
 
 // OpenSession claims one native memory/journal store. Storage remains owned
@@ -98,7 +100,7 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	if e != nil {
 		return 0, e
 	}
-	tx := &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state}
+	tx := &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s}
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err
@@ -109,10 +111,39 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	if err = ctx.Err(); err != nil {
 		return 0, err
 	}
+	if err = tx.finalizeDocuments(); err != nil {
+		return 0, err
+	}
+	if err = ctx.Err(); err != nil {
+		return 0, err
+	}
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
-	return s.core.apply(ctx, Batch{Writes: tx.writes}, true)
+	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
+	if err == nil {
+		// Only changed incarnations invalidate migration cache entries. An
+		// unrelated commit never turns a warm migration into a cold load.
+		for _, write := range tx.writes {
+			var changed ID
+			if write.Document != nil {
+				changed = write.Document.ID
+			}
+			if write.Delta != nil {
+				changed = write.Delta.ID
+			}
+			if changed == 0 {
+				continue
+			}
+			for key, value := range s.definitionCache {
+				if key.id == changed {
+					delete(s.definitionCache, key)
+					s.definitionCacheBytes -= value.bytes
+				}
+			}
+		}
+	}
+	return seq, err
 }
 func (s *Session) Close(ctx context.Context) error {
 	if ctx == nil {

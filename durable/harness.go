@@ -3,7 +3,6 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -138,7 +137,7 @@ func (h *Harness) CreateConversation(ctx context.Context, change AgentChange) (*
 		if e != nil {
 			return e
 		}
-		_, e = tx.CreateDocument(Document{ID: doc, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: v})
+		_, e = tx.CreateDocument(Document{ID: doc, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: v, History: "rewindable", Fork: "asOf"})
 		if e != nil {
 			return e
 		}
@@ -199,7 +198,7 @@ func (h *Harness) configureLocked(ctx context.Context, id ID, c AgentChange, ini
 		if e != nil {
 			return e
 		}
-		_, e = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: value})
+		_, e = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: value, History: "rewindable", Fork: "asOf"})
 		if e != nil {
 			return e
 		}
@@ -361,20 +360,25 @@ func (h *Harness) WaitForIdle(ctx context.Context) error {
 	}
 }
 func contextReceipts(s Snapshot, id ID, l Limits) ([]messageReceipt, error) {
-	var es []Entry
-	for _, e := range s.Entries {
-		if e.Conversation == id && e.Kind == "message" {
-			es = append(es, e)
+	es, err := visibleHistory(s, EntryQuery{Conversation: id})
+	if err != nil {
+		return nil, err
+	}
+	// History is newest-first. The latest head marker bounds model context only;
+	// display/history queries continue to retain the complete visible ancestry.
+	var head ID
+	for _, entry := range es {
+		if entry.Head != 0 {
+			head = entry.Head
+			break
 		}
 	}
-	sort.Slice(es, func(i, j int) bool {
-		if es[i].Seq != es[j].Seq {
-			return es[i].Seq < es[j].Seq
-		}
-		return es[i].Position < es[j].Position
-	})
 	out := []messageReceipt{}
-	for _, entry := range es {
+	for i := len(es) - 1; i >= 0; i-- {
+		entry := es[i]
+		if entry.Kind != "message" || entry.ID < head {
+			continue
+		}
 		var r messageReceipt
 		if e := fromObject(entry.Value, &r, l); e != nil {
 			return nil, e
