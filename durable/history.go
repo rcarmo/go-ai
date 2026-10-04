@@ -184,7 +184,7 @@ func (c *storeCore) ScanEntries(ctx context.Context, q EntryQuery, limit int, cu
 		entries = entries[:limit]
 	}
 	for _, entry := range entries {
-		entry.Value, err = copyObject(entry.Value, c.limits)
+		entry, err = copyEntry(entry, c.limits)
 		if err != nil {
 			return Page[Entry]{}, err
 		}
@@ -210,8 +210,7 @@ func (c *storeCore) VisibleEntry(ctx context.Context, conversation, id ID) (Entr
 		return Entry{}, false, nil
 	}
 	entry := c.state.Entries[id]
-	value, err := copyObject(entry.Value, c.limits)
-	entry.Value = value
+	entry, err := copyEntry(entry, c.limits)
 	return entry, err == nil, err
 }
 
@@ -228,7 +227,7 @@ func (c *storeCore) FindLatestHeadMarker(ctx context.Context, conversation, at I
 	}
 	for _, entry := range entries {
 		if entry.Head != 0 {
-			entry.Value, err = copyObject(entry.Value, c.limits)
+			entry, err = copyEntry(entry, c.limits)
 			return entry, err == nil, err
 		}
 	}

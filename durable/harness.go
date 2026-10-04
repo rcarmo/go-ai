@@ -238,6 +238,10 @@ func (c *ConversationHandle) Context(ctx context.Context) (*goai.Context, error)
 	}
 	return conv, nil
 }
+func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextView, error) {
+	return c.h.session.ContextView(ctx, c.id, at)
+}
+
 func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, limit int) ([]Entry, error) {
 	return c.h.session.store.Entries(ctx, c.id, cursor, limit)
 }
@@ -360,35 +364,8 @@ func (h *Harness) WaitForIdle(ctx context.Context) error {
 	}
 }
 func contextReceipts(s Snapshot, id ID, l Limits) ([]messageReceipt, error) {
-	es, err := visibleHistory(s, EntryQuery{Conversation: id})
-	if err != nil {
-		return nil, err
-	}
-	// History is newest-first. The latest head marker bounds model context only;
-	// display/history queries continue to retain the complete visible ancestry.
-	var head ID
-	for _, entry := range es {
-		if entry.Head != 0 {
-			head = entry.Head
-			break
-		}
-	}
-	out := []messageReceipt{}
-	for i := len(es) - 1; i >= 0; i-- {
-		entry := es[i]
-		if entry.Kind != "message" || entry.ID < head {
-			continue
-		}
-		var r messageReceipt
-		if e := fromObject(entry.Value, &r, l); e != nil {
-			return nil, e
-		}
-		if r.Role == goai.RoleAssistant && (r.StopReason == goai.StopReasonError || r.StopReason == goai.StopReasonAborted || r.StopReason == goai.StopReasonDeferred || r.StopReason == goai.StopReasonPending) {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out, nil
+	view, e := deriveContextView(s, id, 0, l)
+	return view.Messages, e
 }
 
 func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {

@@ -228,6 +228,9 @@ func validateBatchJSON(b Batch, l Limits) error {
 		var value JSON
 		switch {
 		case w.Entry != nil:
+			if _, e := copyEntry(*w.Entry, l); e != nil {
+				return e
+			}
 			value = w.Entry.Value
 		case w.Task != nil:
 			value = w.Task.Checkpoint
@@ -278,12 +281,11 @@ func candidateTables(s Snapshot) Snapshot {
 func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 	n := candidateTables(s)
 	for id, v := range s.Entries {
-		x, e := copyObject(v.Value, l)
+		owned, e := copyEntry(v, l)
 		if e != nil {
 			return Snapshot{}, e
 		}
-		v.Value = x
-		n.Entries[id] = v
+		n.Entries[id] = owned
 	}
 	for id, v := range s.Tasks {
 		x, e := copyObject(v.Checkpoint, l)
@@ -598,6 +600,17 @@ func validateState(s Snapshot, l Limits, final bool) error {
 	for _, v := range s.Entries {
 		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) || v.Value == nil {
 			return reject("invalid entry")
+		}
+		if _, e := copyEntry(v, l); e != nil {
+			return e
+		}
+		if uint64(v.ByTask) > MaxID || (final && v.ByTask != 0 && !existsTask(v.ByTask)) {
+			return reject("entry task missing")
+		}
+		for _, edit := range v.Edits {
+			if final && (!entryVisible(s, v.Conversation, edit.Target) || edit.Target > v.ID) {
+				return reject("context edit target not visible")
+			}
 		}
 		if v.Head != 0 && (v.Head > v.ID || (final && !entryVisible(s, v.Conversation, v.Head))) {
 			return reject("entry head is not visible at marker")

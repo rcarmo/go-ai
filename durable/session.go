@@ -19,6 +19,9 @@ type Session struct {
 	limits               Limits
 	definitionCache      map[definitionCacheKey]definitionCacheValue
 	definitionCacheBytes int64
+	observerMu           sync.Mutex
+	watches              map[*DocumentWatch]bool
+	subscriptions        map[*CommitSubscription]bool
 }
 
 // OpenSession claims one native memory/journal store. Storage remains owned
@@ -95,7 +98,8 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	if err = s.enter(ctx); err != nil {
 		return 0, err
 	}
-	defer s.leave()
+	ready := make(chan struct{})
+	defer func() { s.leave(); close(ready); s.kickWatches() }()
 	state, e := s.store.Snapshot(ctx)
 	if e != nil {
 		return 0, e
@@ -120,8 +124,22 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
+	publication, e := tx.preparePublication(ctx)
+	if e != nil {
+		return 0, e
+	}
+	frames, e := s.prepareWatchFrames(ctx, publication, ready)
+	if e != nil {
+		return 0, e
+	}
+	subs, e := s.prepareSubscriptions(ctx, publication, tx, ready)
+	if e != nil {
+		return 0, e
+	}
 	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
 	if err == nil {
+		s.enqueueWatchFrames(frames)
+		s.enqueueSubscriptions(subs)
 		// Only changed incarnations invalidate migration cache entries. An
 		// unrelated commit never turns a warm migration into a cold load.
 		for _, write := range tx.writes {
@@ -151,6 +169,7 @@ func (s *Session) Close(ctx context.Context) error {
 	}
 	s.once.Do(func() {
 		s.closing.Store(true)
+		s.closeWatches()
 		go func() { <-s.line; s.closeErr = s.core.close(context.Background(), true); close(s.done); s.leave() }()
 	})
 	select {

@@ -149,6 +149,25 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 	return nil
 }
 
+// watchDefinitionValue resolves a non-creating watch baseline on the Session
+// line. It shares snapshot migration/cache policy and never persists a base.
+func (s *Session) watchDefinitionValue(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (Document, JSON, bool, error) {
+	address, e := definitionAddress(def, owner, key)
+	if e != nil {
+		return Document{}, nil, false, e
+	}
+	state, e := s.store.Snapshot(ctx)
+	if e != nil {
+		return Document{}, nil, false, e
+	}
+	record, ok := findDocumentState(state, address, CurrentDocumentPoint())
+	if !ok {
+		return Document{}, nil, false, nil
+	}
+	value, e := s.definitionValue(def, record)
+	return record, value, e == nil, e
+}
+
 // SnapshotDefinition returns a detached typed-policy value without initialising
 // or persisting migration. Callback credentials/code are never serialized.
 func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
@@ -293,6 +312,7 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 			if err = t.stage(Write{Op: "put-document", Document: &d}); err != nil {
 				return nil, err
 			}
+			t.documentPlan(d.ID).ops = []Operation{}
 		}
 		t.documentPlan(d.ID).definition = def
 		return &DocumentHandle{t, d.ID, d.Scope, d.Owner, d.Kind, d.Key, d.Version}, nil

@@ -142,10 +142,11 @@ func (t *Tx) AppendEntry(v Entry) error {
 		return e
 	}
 	defer t.leave()
-	if _, e := copyObject(v.Value, t.limits); e != nil {
+	owned, e := copyEntry(v, t.limits)
+	if e != nil {
 		return e
 	}
-	return t.stage(Write{Op: "append-entry", Entry: &v})
+	return t.stage(Write{Op: "append-entry", Entry: &owned})
 }
 func (t *Tx) PutTask(v Task) error {
 	if e := t.enter(); e != nil {

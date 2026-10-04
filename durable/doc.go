@@ -6,8 +6,9 @@
 // independently focused-accepted, including definition/migration APIs. Final
 // definition normal/race runs each passed 11 tests plus eight subtests, no skips;
 // an independent public-API clone run passed 12 tests, 22 total passes, no skips.
-// Integrated durable normal/race passed 103 tests plus 394 subtests each, no
-// skips; full-project candidate gates have not run. Open reconciles running tasks to pending
+// Integrated durable normal/race passed 121 tests plus 418 subtests each, no
+// skips, at accepted S2d; full-project successor gates have not run.
+// Open reconciles running tasks to pending
 // but dispatches no model effect; Submit, Resume and Wait can schedule work.
 // Request intent pins a sanitized model behavior DTO, system/messages cutoff
 // and curated Temperature/MaxTokens settings. Terminal identity/usage attribution
@@ -113,6 +114,49 @@
 // structural diff. No wire dictionary, JS proxy or canonical tuple is promised.
 // Full M2-M4 parity and full-project candidate gates are unfinished. Legacy
 // latest-only pi.agent metadata rejects an unprovable historical harness fork.
+//
+// S2d typed entry/context and committed observer APIs are independently focused-
+// and integrated-accepted at candidate 5990d780dec1a03187f6a2d7badbedfb6cf096e1,
+// runtime eb728455ab0444dc512990cabde8c48cef8ae428. Focused normal2/race2 each
+// passed 18 top-level tests plus 24 subtests, zero skips. Independent clean-clone
+// validation passed 20 top-level tests (53 total passes), followed by a public
+// mixed-table placement/reopen probe with two backend subtests. Integrated
+// normal/race each passed 121 top-level tests plus 418 subtests, zero skips, at
+// 11:20:28Z/11:22:07Z on 2026-10-04. Actual sequential-admission Wait peaked at
+// 2711.843ms under the unchanged 3s limit; total elapsed includes other work.
+// Original candidate 9e78e3e9043ec4bb106eb38c6507b528f6e22cba failed normal1 at
+// 11:11:52Z: 15 top-level passes, two failures, no race. The head/edit pairing and
+// pending/excluded-stop tests rejected on both backends because DTO omitempty
+// lost empty tool-call arguments. Validated EmptyArguments witnesses now restore
+// fresh empty maps; invalid witnesses and unmarked nil arguments still reject.
+// Original/corrected receipts remain in /workspace/tmp/go-ai-durable-s2d/.
+// Entry contributions support owned text/thinking/image/tool calls, safe system
+// sections/tool additions/removals, and strict tool-result details. Raw errors,
+// diagnostics, deferred handles, signatures and opaque control fields reject
+// before staging; complete provider Message fidelity is a later obligation.
+// Context reduction captures ancestry/head/tail, applies newest visible edits,
+// keeps pending assistants, excludes aborted/error/deferred, orders call results
+// and supplies bounded missing-result receipts. Production request preparation
+// uses that same reducer. Legacy message Value records remain readable.
+// Watch acquisition and committed baseline registration share the Session line;
+// owned frames/publications prepare before storage and enqueue only after adoption.
+// Callbacks run off-line, serially, with producer context values but no producer
+// cancellation. Queues retain at most 100 frames and a fixed byte quota; overflow
+// produces one root replacement/resnapshot, preserving in-flight delivery.
+// Process capacity is min(MaxPage,64); watch/subscription byte quota is
+// MaxRetainedBytes/capacity. Oversized baselines reject; oversized later resets
+// end only that observer with budget_exceeded. Memory accounting uses encoded
+// data and bounded copies, not a hard heap/RSS promise. Detached Value reads,
+// callbacks and publications cannot mutate storage or another observer.
+// Stop/cancel/close detach future callbacks without joining caller-owned work;
+// retirement ends an incarnation and never follows recreation. Unload preserves
+// watchers, version changes replace old shapes, required migration-only bases
+// are quiet for observers already hydrated to the new shape. Disposable states
+// read committed incarnation data; no Chord transport/proxy emulation is supplied.
+// Full 60-source/42-suite parity remains unfinished. Generic task ownership and
+// recovery, extensions, steering/reset/retries, adaptive harness views/events,
+// compaction/reclamation/backends, legacy-agent backfill, coding environments
+// and subagents need later slices and full validation/publication gates.
 //
 // Records may contain sensitive user/model/tool data. Credentials, headers,
 // clients and executable callbacks have no persistence fields; errors never

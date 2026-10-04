@@ -91,7 +91,12 @@ type Entry struct {
 	Position     uint64 `json:"position,omitempty"`
 	// Head is the first visible entry contributing to active model context.
 	// A marker may select itself; zero leaves the preceding marker unchanged.
-	Head ID `json:"head,omitempty"`
+	Head    ID               `json:"head,omitempty"`
+	Data    any              `json:"data,omitempty"`
+	HasData bool             `json:"hasData,omitempty"`
+	Model   []MessageReceipt `json:"model,omitempty"`
+	Edits   []ContextEdit    `json:"edits,omitempty"`
+	ByTask  ID               `json:"byTask,omitempty"`
 }
 
 // Task stores a full checkpoint record; M1a does not execute tasks.

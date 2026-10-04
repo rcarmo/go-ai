@@ -244,10 +244,11 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	if e = fromObject(d.Value, &cp.Agent, h.session.limits); e != nil {
 		return e
 	}
-	messages, e := contextReceipts(s, task.Conversation, h.session.limits)
+	view, e := deriveContextView(s, task.Conversation, 0, h.session.limits)
 	if e != nil {
 		return e
 	}
+	messages := view.Messages
 	// Validate the process-local options seam before committing a request intent;
 	// only auth/read-only host observations are permitted, never payload rewrites.
 	if h.options.RequestOptions != nil {

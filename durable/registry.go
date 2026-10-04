@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -185,13 +186,189 @@ type MessageReceipt struct {
 	ToolName   string              `json:"toolName,omitempty"`
 	IsError    bool                `json:"isError,omitempty"`
 	Details    JSON                `json:"details,omitempty"`
+	// Non-object tool details use an explicit tagged adaptation; legacy Details
+	// objects keep their existing wire shape. Neither admits executable values.
+	DetailsValue any                  `json:"detailsValue,omitempty"`
+	HasDetails   bool                 `json:"hasDetails,omitempty"`
+	Sections     map[string]*string   `json:"sections,omitempty"`
+	ToolsAdded   []ContributionTool   `json:"toolsAdded,omitempty"`
+	ToolsRemoved []goai.ToolReference `json:"toolsRemoved,omitempty"`
+	// EmptyArguments witnesses validated empty tool-call objects which the
+	// legacy ContentBlock omitempty envelope cannot otherwise preserve.
+	// Indices must be unique, in bounds and point only to empty toolCall args.
+	EmptyArguments []int `json:"emptyArguments,omitempty"`
+}
+
+// ContributionTool owns decoded strict schema data instead of a RawMessage
+// marshaler. Conversion to provider JSON happens only at request projection.
+type ContributionTool struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  JSON   `json:"parameters"`
 }
 
 type messageReceipt = MessageReceipt
 
 func receiptMessage(r messageReceipt) goai.Message {
-	return goai.Message{Role: r.Role, Content: r.Content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorCode, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Details: r.Details}
+	content := append([]goai.ContentBlock(nil), r.Content...)
+	for _, index := range r.EmptyArguments {
+		if index >= 0 && index < len(content) && content[index].Type == "toolCall" && len(content[index].Arguments) == 0 {
+			content[index].Arguments = map[string]any{}
+		}
+	}
+	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorCode, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	if r.Details != nil {
+		m.Details = r.Details
+	}
+	if r.HasDetails {
+		m.Details = r.DetailsValue
+	}
+	for _, tool := range r.ToolsAdded {
+		parameters, _ := json.Marshal(tool.Parameters)
+		m.ToolsAdded = append(m.ToolsAdded, goai.Tool{Name: tool.Name, Description: tool.Description, Parameters: parameters})
+	}
+	return m
 }
 func userReceipt(text string) messageReceipt {
 	return messageReceipt{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: text}}}
+}
+
+// contributionReceipt projects only the supported persisted contribution
+// fields. Opaque/provider-control data rejects before staging rather than being
+// silently dropped or broadening terminal receipt redaction.
+func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
+	if m.Deferred != nil || m.ResponseID != "" || m.ResponseModel != "" || m.ProviderThinkingLevel != "" || m.ThinkingLevel != "" || len(m.Diagnostics) != 0 || m.RawStopReason != "" || m.ErrorMessage != "" || m.EndTurn != nil || m.NestedCalls != nil || len(m.AddedToolNames) != 0 {
+		return messageReceipt{}, reject("unsupported opaque message contribution fields")
+	}
+	if m.Role != goai.RoleUser && m.Role != goai.RoleAssistant && m.Role != goai.RoleToolResult && m.Role != goai.RoleSystem {
+		return messageReceipt{}, reject("invalid contribution role")
+	}
+	if m.Role != goai.RoleSystem && (len(m.Sections) != 0 || len(m.ToolsAdded) != 0 || len(m.ToolsRemoved) != 0) {
+		return messageReceipt{}, reject("system contribution fields on non-system role")
+	}
+	if m.Role != goai.RoleToolResult && m.Details != nil {
+		return messageReceipt{}, reject("details require tool-result role")
+	}
+	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content))}
+	for _, c := range m.Content {
+		if c.TextSignature != "" || c.TextSignaturePresent || c.ThinkingSignature != "" || c.ThinkingSignaturePresent || c.Redacted || c.RedactedPresent || c.ThoughtSignature != "" || c.ThoughtSignaturePresent || c.Namespace != "" || c.NamespacePresent {
+			return messageReceipt{}, reject("unsupported opaque contribution signature/control")
+		}
+		switch c.Type {
+		case "text":
+			if c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.MimeType != "" || c.Thinking != "" {
+				return messageReceipt{}, reject("text contribution shape")
+			}
+			r.Content = append(r.Content, goai.ContentBlock{Type: "text", Text: c.Text})
+		case "thinking":
+			if m.Role != goai.RoleAssistant || c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.Text != "" {
+				return messageReceipt{}, reject("thinking contribution shape")
+			}
+			r.Content = append(r.Content, goai.ContentBlock{Type: "thinking", Thinking: c.Thinking})
+		case "image":
+			if m.Role != goai.RoleUser && m.Role != goai.RoleToolResult {
+				return messageReceipt{}, reject("image contribution role")
+			}
+			if c.Arguments != nil || c.Text != "" || c.ID != "" || c.Thinking != "" || c.Name != "" {
+				return messageReceipt{}, reject("image contribution shape")
+			}
+			r.Content = append(r.Content, goai.ContentBlock{Type: "image", Data: c.Data, MimeType: c.MimeType})
+		case "toolCall":
+			if m.Role != goai.RoleAssistant || c.ID == "" || c.Name == "" || c.Arguments == nil || c.Text != "" || c.Data != "" || c.Thinking != "" {
+				return messageReceipt{}, reject("tool-call contribution shape")
+			}
+			args, e := copyObject(JSON(c.Arguments), l)
+			if e != nil {
+				return messageReceipt{}, e
+			}
+			if len(args) == 0 {
+				r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
+			}
+			r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: args})
+		default:
+			return messageReceipt{}, reject("unsupported contribution content")
+		}
+	}
+	if !validUsage(r.Usage) {
+		return messageReceipt{}, reject("invalid contribution usage")
+	}
+	if m.Sections != nil {
+		r.Sections = map[string]*string{}
+		for key, value := range m.Sections {
+			if value == nil {
+				r.Sections[key] = nil
+			} else {
+				copy := *value
+				r.Sections[key] = &copy
+			}
+		}
+	}
+	for _, tool := range m.ToolsAdded {
+		if !validKind(tool.Name) || tool.ConstrainedSampling != nil {
+			return messageReceipt{}, reject("unsupported tool contribution control")
+		}
+		var parameters JSON
+		if e := decodeStrict(tool.Parameters, l, l.MaxRecordBytes, &parameters); e != nil {
+			return messageReceipt{}, e
+		}
+		r.ToolsAdded = append(r.ToolsAdded, ContributionTool{Name: tool.Name, Description: tool.Description, Parameters: parameters})
+	}
+	r.ToolsRemoved = append([]goai.ToolReference(nil), m.ToolsRemoved...)
+	for _, tool := range r.ToolsRemoved {
+		if !validKind(tool.Name) {
+			return messageReceipt{}, reject("invalid removed tool contribution")
+		}
+	}
+	if m.Details != nil {
+		value, e := ownJSONValue(m.Details, l)
+		if e != nil {
+			return messageReceipt{}, e
+		}
+		if object, ok := value.(map[string]any); ok {
+			r.Details = JSON(object)
+		} else {
+			r.DetailsValue = value
+			r.HasDetails = true
+		}
+	}
+	object, e := dtoObject(r, l)
+	if e != nil {
+		return messageReceipt{}, e
+	}
+	var owned messageReceipt
+	if e = fromObject(object, &owned, l); e != nil {
+		return messageReceipt{}, e
+	}
+	if e = restoreReceiptArguments(&owned, l); e != nil {
+		return messageReceipt{}, e
+	}
+	return owned, nil
+}
+
+// Restore only a consistent serialized empty-object variant. Caller protocol
+// inputs are validated separately before any witness is created.
+func restoreReceiptArguments(r *MessageReceipt, l Limits) error {
+	seen := map[int]bool{}
+	for _, index := range r.EmptyArguments {
+		if index < 0 || index >= len(r.Content) || seen[index] || r.Role != goai.RoleAssistant {
+			return reject("invalid empty argument witness")
+		}
+		block := &r.Content[index]
+		if block.Type != "toolCall" || block.ID == "" || block.Name == "" || len(block.Arguments) != 0 {
+			return reject("inconsistent empty argument witness")
+		}
+		seen[index] = true
+		block.Arguments = map[string]any{}
+	}
+	for _, block := range r.Content {
+		if block.Type == "toolCall" {
+			if block.Arguments == nil {
+				return reject("tool-call arguments absent without witness")
+			}
+			if _, e := copyObject(JSON(block.Arguments), l); e != nil {
+				return e
+			}
+		}
+	}
+	return nil
 }
