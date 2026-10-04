@@ -864,3 +864,169 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 		t.Fatal("frame split/partialadoption")
 	}
 }
+
+func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		s := b.store
+		doc, task, sub, ent := mint(t, s), mint(t, s), mint(t, s), mint(t, s)
+		value := JSON{"nested": JSON{"v": "base"}, "items": []any{JSON{"v": "base"}}}
+		apply(t, s, entry(ent, value), Write{Op: "put-task", Task: &Task{ID: task, Conversation: 1, Kind: "test", Status: "pending", Checkpoint: value}}, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: 1, Type: "write", Status: "done", Value: value}}, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "conversation", Owner: 1, Kind: "app.cow", Version: 1, Value: value}})
+		before := snap(t, s)
+		h := sessionFor(t, s)
+		var escaped *DocumentHandle
+		var stagedInput, candidate JSON
+		sentinel := errors.New("rollback candidate")
+		_, e := h.Commit(bg, func(tx *Tx) error {
+			var err error
+			escaped, err = tx.Document(doc)
+			if err != nil {
+				return err
+			}
+			// This invokes currentDocument on a private COW candidate repeatedly.
+			stagedInput = JSON{"nested": JSON{"v": "set"}, "items": []any{JSON{"v": "set"}}}
+			if err = escaped.Set(stagedInput); err != nil {
+				return err
+			}
+			stagedInput["nested"].(JSON)["v"] = "caller mutated afterSet"
+			if err = escaped.Update(func(v JSON) error { candidate = v; v["nested"].(map[string]any)["v"] = "updated"; return nil }); err != nil {
+				return err
+			}
+			candidate["nested"].(map[string]any)["v"] = "caller mutated afterUpdate"
+			got, err := escaped.Get()
+			if err != nil {
+				return err
+			}
+			if got["nested"].(map[string]any)["v"] != "updated" {
+				t.Fatal("staged copy boundary lost")
+			}
+			got["items"].([]any)[0].(map[string]any)["v"] = "returned Get mutated"
+			if err = escaped.Update(func(v JSON) error { v["nested"].(map[string]any)["v"] = "failed update"; return sentinel }); !errors.Is(err, sentinel) {
+				t.Fatal(err)
+			}
+			got, err = escaped.Get()
+			if err != nil {
+				return err
+			}
+			if got["nested"].(map[string]any)["v"] != "updated" || got["items"].([]any)[0].(map[string]any)["v"] != "set" {
+				t.Fatal("candidate alias/failedUpdate leaked")
+			}
+			if err = escaped.Set(JSON{"invalid": math.NaN()}); err == nil {
+				t.Fatal("invalid Set accepted")
+			}
+			return sentinel
+		})
+		if !errors.Is(e, sentinel) {
+			t.Fatal(e)
+		}
+		after, e := h.Snapshot(bg)
+		if e != nil || !equalSnapshot(before, after) {
+			t.Fatal("rollback mutated immutable base", e)
+		}
+		if e = escaped.Set(JSON{}); !errors.Is(e, ErrSealed) {
+			t.Fatal("escaped handle writable", e)
+		}
+		_, e = h.Commit(bg, func(tx *Tx) error {
+			d, e := tx.Document(doc)
+			if e != nil {
+				return e
+			}
+			return d.Update(func(v JSON) error { v["nested"].(map[string]any)["v"] = "committed"; return nil })
+		})
+		if e != nil {
+			t.Fatal(e)
+		}
+		latest, e := h.Snapshot(bg)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if before.Documents[doc].Value["nested"].(map[string]any)["v"] != "base" || latest.Documents[doc].Value["nested"].(map[string]any)["v"] != "committed" {
+			t.Fatal("prior snapshot mutated")
+		}
+		// Every public table/query returns detached nested ownership, including rows
+		// untouched by the document replacement and shared internally by preparation.
+		latest.Entries[ent].Value["nested"].(map[string]any)["v"] = "read mutate"
+		latest.Tasks[task].Checkpoint["nested"].(map[string]any)["v"] = "read mutate"
+		latest.Submissions[sub].Value["nested"].(map[string]any)["v"] = "read mutate"
+		latest.Documents[doc].Value["items"].([]any)[0].(map[string]any)["v"] = "read mutate"
+		es, e := s.Entries(bg, 1, EntryCursor{}, 1)
+		if e != nil {
+			t.Fatal(e)
+		}
+		es[0].Value["nested"].(map[string]any)["v"] = "query mutate"
+		ts, e := s.Tasks(bg, Query{Limit: 1})
+		if e != nil {
+			t.Fatal(e)
+		}
+		ts[0].Checkpoint["nested"].(map[string]any)["v"] = "query mutate"
+		ss, e := s.Submissions(bg, Query{Limit: 1})
+		if e != nil {
+			t.Fatal(e)
+		}
+		ss[0].Value["nested"].(map[string]any)["v"] = "query mutate"
+		ds, e := s.Documents(bg, Query{Limit: 1})
+		if e != nil {
+			t.Fatal(e)
+		}
+		ds[0].Value["nested"].(map[string]any)["v"] = "query mutate"
+		authoritative, e := h.Snapshot(bg)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if authoritative.Entries[ent].Value["nested"].(map[string]any)["v"] != "base" || authoritative.Tasks[task].Checkpoint["nested"].(map[string]any)["v"] != "base" || authoritative.Submissions[sub].Value["nested"].(map[string]any)["v"] != "base" || authoritative.Documents[doc].Value["nested"].(map[string]any)["v"] != "committed" {
+			t.Fatal("public internal sharing")
+		}
+		if e = h.Close(bg); e != nil {
+			t.Fatal(e)
+		}
+		var reopened Storage
+		switch native := s.(type) {
+		case *MemoryStorage:
+			reopened, e = OpenMemory(MemoryOptions{Image: native.image})
+		case *JournalStorage:
+			reopened, e = OpenJournal(filepath.Dir(native.path), JournalOptions{})
+		}
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer reopened.Close(bg)
+		if !equalSnapshot(authoritative, snap(t, reopened)) {
+			t.Fatal("memory image/journal ownership changed")
+		}
+	})
+}
+
+func TestPrivateCandidateTablesNeverModifyBaseTables(t *testing.T) {
+	l := DefaultLimits()
+	base := initialState()
+	base.HighWater = 3
+	obj, e := copyObject(JSON{"nested": JSON{"v": "immutable"}}, l)
+	if e != nil {
+		t.Fatal(e)
+	}
+	base.Documents[2] = Document{ID: 2, Scope: "session", Kind: "state", Version: 1, Value: obj}
+	base.Entries[3] = Entry{ID: 3, Conversation: 1, Kind: "message", Value: obj, Seq: 1, Position: 1}
+	base.Seq = 1
+	candidate, e := prepare(base, commitRecord{Seq: 2, Writes: []Write{{Op: "retire-document", Document: &Document{ID: 2, Scope: "session", Kind: "state"}}}}, l)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if base.Documents[2].Retired || !candidate.Documents[2].Retired || base.Seq != 1 {
+		t.Fatal("candidate modified base record")
+	}
+	// Only the public clone may escape: its mutations cannot touch shared JSON in
+	// either prior base or candidate. Preparation itself never mutates nested JSON.
+	detached, e := cloneState(candidate, l)
+	if e != nil {
+		t.Fatal(e)
+	}
+	detached.Documents[2].Value["nested"].(map[string]any)["v"] = "external mutation"
+	detached.Entries[3].Value["nested"].(map[string]any)["v"] = "external mutation"
+	if base.Documents[2].Value["nested"].(map[string]any)["v"] != "immutable" || candidate.Entries[3].Value["nested"].(map[string]any)["v"] != "immutable" {
+		t.Fatal("clone shallow shared private value")
+	}
+	_, e = prepare(base, commitRecord{Seq: 2, Writes: []Write{{Op: "retire-document", Document: &Document{ID: 2, Scope: "session", Kind: "state"}}, entry(4, JSON{})}}, l)
+	rejected(t, e)
+	if base.Documents[2].Retired {
+		t.Fatal("rejected candidate mutated base")
+	}
+}

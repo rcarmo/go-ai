@@ -240,11 +240,34 @@ func validateBatchJSON(b Batch, l Limits) error {
 	return nil
 }
 
-func cloneState(s Snapshot, l Limits) (Snapshot, error) {
+// candidateTables is private copy-on-write preparation over an already-owned
+// immutable base. Every table is copied; unchanged nested JSON stays read-only.
+// New writes have been detached by Apply/Tx before reaching prepare. Updating a
+// record replaces its copied DTO; no preparation path mutates a shared value.
+// Never return this candidate through a public read or retained memory image.
+func candidateTables(s Snapshot) Snapshot {
 	n := Snapshot{Seq: s.Seq, HighWater: s.HighWater, Conversations: make(map[ID]Conversation, len(s.Conversations)), Entries: make(map[ID]Entry, len(s.Entries)), Tasks: make(map[ID]Task, len(s.Tasks)), Submissions: make(map[ID]Submission, len(s.Submissions)), Documents: make(map[ID]Document, len(s.Documents))}
 	for id, v := range s.Conversations {
 		n.Conversations[id] = v
 	}
+	for id, v := range s.Entries {
+		n.Entries[id] = v
+	}
+	for id, v := range s.Tasks {
+		n.Tasks[id] = v
+	}
+	for id, v := range s.Submissions {
+		n.Submissions[id] = v
+	}
+	for id, v := range s.Documents {
+		n.Documents[id] = v
+	}
+	return n
+}
+
+// cloneState is the strict deep-detachment boundary for public reads and images.
+func cloneState(s Snapshot, l Limits) (Snapshot, error) {
+	n := candidateTables(s)
 	for id, v := range s.Entries {
 		x, e := copyObject(v.Value, l)
 		if e != nil {
@@ -297,10 +320,8 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 	if len(r.Writes) == 0 || len(r.Writes) > l.MaxWrites {
 		return Snapshot{}, reject("invalid write count")
 	}
-	n, err := cloneState(s, l)
-	if err != nil {
-		return Snapshot{}, err
-	}
+	n := candidateTables(s)
+	var err error
 	n.Seq = r.Seq
 	used := map[ID]string{}
 	for id := range n.Conversations {
