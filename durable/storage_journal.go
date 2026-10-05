@@ -263,6 +263,7 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 	ordinal := uint64(0)
 	state := initialState()
 	configured := false
+	requiresCheckpoint := false
 	truncate := func() error {
 		if e := j.file.Truncate(pos); e != nil {
 			return fmt.Errorf("%w: tail truncation failed", ErrPoisoned)
@@ -289,6 +290,9 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 			return e
 		}
 		if n < 64 {
+			if n >= 11 && header[10] == 3 {
+				return fmt.Errorf("%w: truncated checkpoint", ErrCorrupt)
+			}
 			if e = truncate(); e != nil {
 				return e
 			}
@@ -300,6 +304,9 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 		high := binary.LittleEndian.Uint64(header[24:32])
 		total := length + 72
 		if available < total {
+			if typ == 3 {
+				return fmt.Errorf("%w: truncated checkpoint", ErrCorrupt)
+			}
 			// If payload is complete, validate any available terminator prefix. A
 			// mismatched suffix cannot be relabelled a harmless torn append.
 			if available > 64+length {
@@ -345,7 +352,7 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 			if e = decodeStrict(payload, DefaultLimits(), 16<<10, &config); e != nil {
 				return fmt.Errorf("%w: config JSON", ErrCorrupt)
 			}
-			if config.Version != 1 || config.Limits.validate() != nil {
+			if config.Version != 1 && config.Version != 2 || config.Limits.validate() != nil {
 				return fmt.Errorf("%w: persisted config", ErrCorrupt)
 			}
 			if options.Sync != nil && *options.Sync != config.Sync || options.Limits != nil && *options.Limits != config.Limits {
@@ -354,10 +361,14 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 			j.limits = config.Limits
 			j.syncWrites = config.Sync
 			configured = true
+			requiresCheckpoint = config.Version == 2
 			if size > j.limits.MaxJournalBytes {
 				return fmt.Errorf("%w: persisted journal file limit", ErrCorrupt)
 			}
 		case 1:
+			if requiresCheckpoint {
+				return fmt.Errorf("%w: missing checkpoint", ErrCorrupt)
+			}
 			var r reservation
 			if e = decodeStrict(payload, j.limits, j.limits.MaxFramePayloadBytes, &r); e != nil {
 				return fmt.Errorf("%w: reservation JSON", ErrCorrupt)
@@ -366,7 +377,26 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 				return fmt.Errorf("%w: reservation relation", ErrCorrupt)
 			}
 			state.HighWater = r.Last
+		case 3:
+			if ordinal != 1 {
+				return fmt.Errorf("%w: misplaced checkpoint", ErrCorrupt)
+			}
+			var checkpoint storageCheckpoint
+			if e = decodeStrict(payload, j.limits, j.limits.MaxRetainedBytesAsInt(), &checkpoint); e != nil {
+				return fmt.Errorf("%w: checkpoint JSON", ErrCorrupt)
+			}
+			if checkpoint.Ordinal != ord || checkpoint.HighWater != high {
+				return fmt.Errorf("%w: checkpoint header mismatch", ErrCorrupt)
+			}
+			state, e = restoreCheckpoint(checkpoint, j.limits)
+			if e != nil {
+				return e
+			}
+			requiresCheckpoint = false
 		case 2:
+			if requiresCheckpoint {
+				return fmt.Errorf("%w: missing checkpoint", ErrCorrupt)
+			}
 			var r commitRecord
 			if e = decodeStrict(payload, j.limits, j.limits.MaxFramePayloadBytes, &r); e != nil {
 				return fmt.Errorf("%w: commit JSON", ErrCorrupt)
@@ -379,6 +409,9 @@ func (j *JournalStorage) replay(options JournalOptions) error {
 		}
 		ordinal = ord
 		pos += total
+	}
+	if requiresCheckpoint {
+		return fmt.Errorf("%w: missing checkpoint", ErrCorrupt)
 	}
 	if configured {
 		j.state = state
@@ -413,7 +446,7 @@ func checkHeaderPrefix(b []byte, ordinal, high uint64, configured bool, l Limits
 	}
 	if n >= 11 {
 		typ := b[10]
-		if typ > 2 || (!configured && typ != 0) || (configured && typ == 0) {
+		if typ > 3 || (!configured && typ != 0) || (configured && typ == 0) || typ == 3 && ordinal != 1 {
 			return bad()
 		}
 	}
@@ -425,6 +458,8 @@ func checkHeaderPrefix(b []byte, ordinal, high uint64, configured bool, l Limits
 		max := l.MaxFramePayloadBytes
 		if b[10] == 0 {
 			max = 16 << 10
+		} else if b[10] == 3 {
+			max = l.MaxRetainedBytesAsInt()
 		}
 		if length == 0 || uint64(length) > uint64(max) {
 			return bad()
@@ -432,7 +467,7 @@ func checkHeaderPrefix(b []byte, ordinal, high uint64, configured bool, l Limits
 	}
 	if n >= 24 {
 		ord := binary.LittleEndian.Uint64(b[16:24])
-		if ordinal >= MaxID || ord != ordinal+1 || ord > MaxID {
+		if ordinal >= MaxID || ord > MaxID || b[10] == 3 && ord <= ordinal || b[10] != 3 && ord != ordinal+1 {
 			return bad()
 		}
 	}
@@ -448,6 +483,10 @@ func checkHeaderPrefix(b []byte, ordinal, high uint64, configured bool, l Limits
 			}
 		case 1:
 			if h <= high {
+				return bad()
+			}
+		case 3:
+			if h < high {
 				return bad()
 			}
 		case 2:

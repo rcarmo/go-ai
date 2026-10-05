@@ -9,9 +9,16 @@ import (
 )
 
 type Input struct {
-	Content   string
+	Content string
+	Blocks  []goai.ContentBlock
+	// Entry is a passive draft for Type=write; ID/placement are assigned on the
+	// boundary. Nil retains the backwards-compatible user-text write.
+	Entry     *Entry
 	RequestID string
 	Type      string
+	// WhenBusy selects steer/follow-up for inputs, or reject to refuse a
+	// new input while a generation is live. Deduplication precedes rejection.
+	WhenBusy string
 }
 type SubmissionHandle struct {
 	h  *Harness
@@ -23,78 +30,216 @@ type Settlement struct {
 	Message    *messageReceipt
 }
 type generationCheckpoint struct {
-	Phase      string           `json:"phase"`
-	Submission ID               `json:"submission"`
-	Input      string           `json:"input"`
-	Agent      agentState       `json:"agent"`
-	Model      *goai.Model      `json:"model,omitempty"`
-	Messages   []messageReceipt `json:"messages"`
-	Attempt    uint64           `json:"attempt"`
-	Partial    *MessageReceipt  `json:"partial,omitempty"`
-	Offered    []toolOffer      `json:"offered,omitempty"`
-	Children   []ID             `json:"children,omitempty"`
-	Abort      bool             `json:"abort,omitempty"`
-	Round      uint64           `json:"round,omitempty"`
+	Phase                 string               `json:"phase"`
+	Submission            ID                   `json:"submission"`
+	Input                 string               `json:"input"`
+	InputBlocks           []goai.ContentBlock  `json:"inputBlocks,omitempty"`
+	Agent                 agentState           `json:"agent"`
+	Model                 *goai.Model          `json:"model,omitempty"`
+	Messages              []messageReceipt     `json:"messages"`
+	Attempt               uint64               `json:"attempt"`
+	Partial               *MessageReceipt      `json:"partial,omitempty"`
+	Offered               []toolOffer          `json:"offered,omitempty"`
+	Children              []ID                 `json:"children,omitempty"`
+	Sequential            bool                 `json:"sequential,omitempty"`
+	ToolExecution         string               `json:"toolExecution,omitempty"`
+	Abort                 bool                 `json:"abort,omitempty"`
+	Round                 uint64               `json:"round,omitempty"`
+	Steered               []ID                 `json:"steered,omitempty"`
+	Reset                 bool                 `json:"reset,omitempty"`
+	RetryCount            int                  `json:"retryCount,omitempty"`
+	RetryUntil            int64                `json:"retryUntil,omitempty"`
+	Compaction            ID                   `json:"compaction,omitempty"`
+	ResumeAfterCompaction bool                 `json:"resumeAfterCompaction,omitempty"`
+	Deferred              *goai.DeferredHandle `json:"deferred,omitempty"`
+	PollAt                int64                `json:"pollAt,omitempty"`
 }
 
 func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*SubmissionHandle, error) {
+	return c.submitBound(ctx, input, nil)
+}
+func (c *ConversationHandle) submitBound(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
+	if binding != nil {
+		if err := binding.check(); err != nil {
+			return nil, err
+		}
+	}
+	return c.submitAdmission(ctx, input, binding)
+}
+
+// submitAdmission performs the authoritative lifetime/dedup action. Kept
+// separate from the early fast check so queued admission uses one line fence.
+func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
 	h := c.h
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
+	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" {
+		return nil, reject("invalid busy mode")
+	}
 	if input.Type == "" {
 		input.Type = "follow-up"
+		if input.WhenBusy == "steer" {
+			input.Type = "steer"
+		}
 	}
-	if input.Type != "follow-up" && input.Type != "write" {
+	if input.Entry != nil && input.Type != "write" {
+		return nil, reject("entry requires write submission")
+	}
+	if input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
+		return nil, reject("passive entry and content conflict")
+	}
+	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" {
 		return nil, ErrUnsupported
 	}
 	if len(input.RequestID) > h.session.limits.MaxRequestIDBytes {
 		return nil, reject("request ID limit")
 	}
-	state, e := h.session.Snapshot(ctx)
+	var state Snapshot
+	var dedupID ID
+	e := h.session.readTasks(ctx, func(current Snapshot) error {
+		if h.closing.Load() {
+			return ErrClosed
+		}
+		if binding != nil {
+			if err := binding.check(); err != nil {
+				return err
+			}
+			if taskAborted(current.Tasks[binding.taskID]) && !binding.abortMode {
+				return reject("bound submit after abort")
+			}
+		}
+		state = current
+		if _, ok := current.Conversations[c.id]; !ok {
+			return reject("unknown conversation")
+		}
+		for _, sub := range current.Submissions {
+			if input.RequestID != "" && sub.Conversation == c.id && sub.RequestID == input.RequestID {
+				if sub.Type != input.Type {
+					return reject("request ID cross-type conflict")
+				}
+				dedupID = sub.ID
+				if !terminalStatus(sub.Status) {
+					h.scheduler.enable()
+				}
+				break
+			}
+		}
+		return nil
+	})
 	if e != nil {
 		return nil, e
 	}
 	if _, ok := state.Conversations[c.id]; !ok {
 		return nil, reject("unknown conversation")
 	}
-	for _, sub := range state.Submissions {
-		if input.RequestID != "" && sub.Conversation == c.id && sub.RequestID == input.RequestID {
-			if sub.Type != input.Type {
-				return nil, reject("request ID cross-type conflict")
-			}
-			if !terminalStatus(sub.Status) {
-				h.scheduleLocked(c.id)
-			}
-			return &SubmissionHandle{h, sub.ID}, nil
+	if dedupID != 0 {
+		// Lookup, bound lifetime/mark check and any pending wake all belonged
+		// to the same line admission. Only diagnostic occupancy changes here.
+		if !terminalStatus(state.Submissions[dedupID].Status) {
+			h.workers[c.id] = true
 		}
+		return &SubmissionHandle{h, dedupID}, nil
 	}
 	if _, ok := agentDocument(state, c.id); !ok {
 		return nil, reject("agent not configured")
 	}
+	return c.submitNewAdmission(ctx, input, binding)
+}
+
+// submitNewAdmission is the fresh-write admission AFTER the initial committed
+// lookup. The caller owns h.mu; lifetime/Close is rechecked inside the write.
+func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
+	h := c.h
 	var subID ID
-	_, e = h.session.Commit(ctx, func(tx *Tx) error {
-		var err error
+	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		if h.closing.Load() {
+			return ErrClosed
+		}
+		if binding != nil {
+			if err := binding.check(); err != nil {
+				return err
+			}
+			if taskAborted(tx.state.Tasks[binding.taskID]) && !binding.abortMode {
+				return reject("bound submit after abort")
+			}
+			tx.byTask = binding.taskID
+			tx.taskConversation = c.id
+		}
+		receipt, err := inputReceipt(input.Content, input.Blocks, tx.limits)
+		if err != nil {
+			return err
+		}
+		busy := conversationGenerationBusy(tx.state, c.id)
+		if input.WhenBusy == "reject" && input.Type != "write" && busy {
+			return ErrConversationBusy
+		}
 		subID, err = tx.MintID()
 		if err != nil {
 			return err
 		}
 		value := JSON{"content": input.Content}
+		if len(input.Blocks) > 0 {
+			wire, err := dtoObject(receipt, tx.limits)
+			if err != nil {
+				return err
+			}
+			value["inputMessage"] = map[string]any(wire)
+		}
 		status := "pending"
 		if input.Type == "write" {
-			status = "done"
+			if !busy {
+				status = "done"
+			}
+			if input.Entry != nil {
+				entry, err := copyEntry(*input.Entry, tx.limits)
+				if err != nil {
+					return err
+				}
+				entry.ID, entry.Conversation, entry.Seq, entry.Position = 0, 0, 0, 0
+				wire, err := dtoObject(entry, tx.limits)
+				if err != nil {
+					return err
+				}
+				value["entry"] = map[string]any(wire)
+			}
 		}
 		if err = tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: input.Type, Status: status, Value: value}); err != nil {
 			return err
 		}
 		if input.Type == "write" {
+			if busy {
+				inbox, err := builtin(tx, c.id, "pi.inbox")
+				if err != nil {
+					return err
+				}
+				return inbox.Update(func(v JSON) error {
+					items, ok := v["items"].([]any)
+					if !ok {
+						return reject("inbox shape")
+					}
+					v["items"] = append(items, JSON{"id": subID, "mode": "write"})
+					return nil
+				})
+			}
+			if input.Entry != nil {
+				stale, err := passiveHeadStale(tx.state, c.id, value, tx.limits)
+				if err != nil {
+					return err
+				}
+				if stale {
+					value["errorCode"] = "stale"
+					return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "failed", Value: value})
+				}
+				return appendPassiveWrite(tx, c.id, value)
+			}
 			id, err := tx.MintID()
 			if err != nil {
 				return err
 			}
-			obj, err := dtoObject(userReceipt(input.Content), h.session.limits)
+			obj, err := dtoObject(receipt, h.session.limits)
 			if err != nil {
 				return err
 			}
@@ -104,11 +249,13 @@ func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*Submissi
 		if err != nil {
 			return err
 		}
-		checkpoint, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: subID, Input: input.Content}, h.session.limits)
+		checkpoint, err := dtoObject(generationCheckpoint{Phase: "queued", Submission: subID, Input: input.Content, InputBlocks: input.Blocks}, h.session.limits)
 		if err != nil {
 			return err
 		}
-		if err = tx.PutTask(Task{ID: taskID, Conversation: c.id, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}); err != nil {
+		// Private submission adapter, not public raw execution authority.
+		task := Task{ID: taskID, Conversation: c.id, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}
+		if err = tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 			return err
 		}
 		inbox, err := builtin(tx, c.id, "pi.inbox")
@@ -120,14 +267,18 @@ func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*Submissi
 			if !ok {
 				return reject("inbox shape")
 			}
-			v["items"] = append(items, JSON{"id": subID, "mode": "followUp", "input": JSON{"content": input.Content}})
+			mode := "followUp"
+			if input.Type == "steer" {
+				mode = "steer"
+			}
+			v["items"] = append(items, JSON{"id": subID, "mode": mode, "input": value})
 			return nil
 		})
 	})
 	if e != nil {
 		return nil, e
 	}
-	if input.Type == "follow-up" {
+	if input.Type == "follow-up" || input.Type == "steer" {
 		h.scheduleLocked(c.id)
 	}
 	return &SubmissionHandle{h, subID}, nil
@@ -152,33 +303,50 @@ func (s *SubmissionHandle) Wait(ctx context.Context) (Settlement, error) {
 	}
 	for {
 		signal := s.h.signal()
-		state, e := s.h.Snapshot(ctx)
-		if e != nil {
-			return Settlement{}, e
-		}
-		sub, ok := state.Submissions[s.id]
-		if !ok {
-			return Settlement{}, reject("unknown submission")
-		}
-		if terminalStatus(sub.Status) {
-			result := Settlement{Submission: sub}
-			for _, task := range state.Tasks {
+		var result Settlement
+		terminal := false
+		e := s.h.session.readTasks(ctx, func(state Snapshot) error {
+			sub, ok := state.Submissions[s.id]
+			if !ok {
+				return reject("unknown submission")
+			}
+			terminal = terminalStatus(sub.Status)
+			if !terminal {
+				return nil
+			}
+			value, err := copyObject(sub.Value, s.h.session.limits)
+			if err != nil {
+				return err
+			}
+			sub.Value = value
+			result.Submission = sub
+			for _, id := range ids(state.Tasks) {
+				task := state.Tasks[id]
 				if task.Kind != "pi.generation" {
 					continue
 				}
 				var cp generationCheckpoint
-				if fromObject(task.Checkpoint, &cp, s.h.session.limits) == nil && cp.Submission == s.id {
-					result.Task = task
+				if fromObject(task.Checkpoint, &cp, s.h.session.limits) == nil && generationIncludesSubmission(cp, s.id) && cp.Phase != "queued" {
+					result.Task, err = copyTask(task, s.h.session.limits)
+					if err != nil {
+						return err
+					}
 					break
 				}
 			}
 			if value, ok := sub.Value["message"].(map[string]any); ok {
 				var m messageReceipt
-				if e = fromObject(JSON(value), &m, s.h.session.limits); e != nil {
-					return Settlement{}, e
+				if err := fromObject(JSON(value), &m, s.h.session.limits); err != nil {
+					return err
 				}
 				result.Message = &m
 			}
+			return nil
+		})
+		if e != nil {
+			return Settlement{}, e
+		}
+		if terminal {
 			return result, nil
 		}
 		select {
@@ -200,6 +368,9 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 		return ErrClosed
 	}
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		if h.closing.Load() {
+			return ErrClosed
+		}
 		sub, ok := tx.state.Submissions[s.id]
 		if !ok {
 			return reject("unknown submission")
@@ -221,6 +392,9 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 				if cp.Phase != "queued" {
 					return reject("submission already placed")
 				}
+				if len(h.scheduler.ownedLive(tx.state, t.ID)) > 0 {
+					return reject("queued submission owns live work; abort its conversation")
+				}
 				task = t
 				cp.Phase = "terminal"
 				value, e := dtoObject(cp, h.session.limits)
@@ -236,6 +410,10 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 		if !found {
 			return reject("queued task unavailable")
 		}
+		if tx.taskTerminals == nil {
+			tx.taskTerminals = map[ID]bool{}
+		}
+		tx.taskTerminals[task.ID] = true
 		if e := tx.PutTask(task); e != nil {
 			return e
 		}
@@ -268,4 +446,25 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 		})
 	})
 	return e
+}
+
+func conversationGenerationBusy(state Snapshot, id ID) bool {
+	for _, task := range state.Tasks {
+		if task.Kind == "pi.generation" && task.Conversation == id && !terminalStatus(task.Status) {
+			return true
+		}
+	}
+	return false
+}
+
+func inputReceipt(text string, blocks []goai.ContentBlock, limits Limits) (MessageReceipt, error) {
+	if len(blocks) == 0 {
+		return userReceipt(text), nil
+	}
+	content := []goai.ContentBlock{}
+	if text != "" {
+		content = append(content, goai.ContentBlock{Type: "text", Text: text})
+	}
+	content = append(content, blocks...)
+	return contributionReceipt(goai.Message{Role: goai.RoleUser, Content: content}, limits)
 }

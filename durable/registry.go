@@ -14,17 +14,39 @@ type ModelRef struct {
 	ID       string        `json:"id"`
 }
 type RequestSettings struct {
-	Temperature *float64 `json:"temperature,omitempty"`
-	MaxTokens   *int     `json:"maxTokens,omitempty"`
+	Temperature   *float64              `json:"temperature,omitempty"`
+	MaxTokens     *int                  `json:"maxTokens,omitempty"`
+	ToolExecution string                `json:"toolExecution,omitempty"`
+	SteeringMode  string                `json:"steeringMode,omitempty"`
+	FollowUpMode  string                `json:"followUpMode,omitempty"`
+	Retry         RetryPolicy           `json:"retry,omitempty"`
+	Compaction    CompactionPolicy      `json:"compaction,omitempty"`
+	Deferred      *goai.DeferredOptions `json:"deferred,omitempty"`
 }
 type AgentChange struct {
 	Name         string
+	Cwd          string
 	Model        ModelRef
 	SystemPrompt string
 	Settings     RequestSettings
+	// Nil selects all installed extensions/tools; a pointer to an empty slice
+	// selects none. Names are persisted; executable registrations stay local.
+	Extensions *[]string
+	Tools      *[]string
 }
 type Options struct {
+	Now func() int64
+	// Env resolves process-local capabilities for each tool use, off the Session
+	// line. Only agent cwd is persisted; environments and credentials are not.
+	Env func(context.Context, EnvTarget) (ExecutionEnvironment, error)
+	// OnReport runs off-line after reservation rollback/adoption. It must return
+	// promptly and must not synchronously join this Harness (Close/Wait APIs).
+	// Panic is contained; no detached unbounded reporting goroutines are used.
+	OnReport func(error)
 	Registry *Registry
+	// Sections render process-local prompt contributions before request intent.
+	// Only rendered text and ordering are persisted, never callbacks.
+	Sections []PromptSection
 	Models   func(goai.Provider, string) *goai.Model
 	// RequestOptions resolves process-local credentials and hooks once per
 	// dispatched attempt. M1b behavior options are limited to persisted Settings;
@@ -167,30 +189,46 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	if e == nil && ((n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
 		return n, reject("invalid request settings")
 	}
+	if e == nil && (n.SteeringMode != "" && n.SteeringMode != "one" && n.SteeringMode != "all" || n.FollowUpMode != "" && n.FollowUpMode != "one" && n.FollowUpMode != "all") {
+		return n, reject("invalid queue mode")
+	}
+	if e == nil && n.ToolExecution != "" && n.ToolExecution != "parallel" && n.ToolExecution != "sequential" {
+		e = reject("invalid tool execution mode")
+	}
+	if e == nil {
+		e = validateRetryPolicy(n.Retry)
+	}
+	if e == nil && (n.Compaction.TriggerTokens < 0 || n.Compaction.KeepRecentTokens < 0 || n.Compaction.MaxTokens < 0 || n.Compaction.ReserveTokens < 0 || n.Compaction.BackgroundTokens < 0) {
+		e = reject("invalid compaction policy")
+	}
 	return n, e
 }
 
 // Safe protocol receipt fields omit raw provider errors, opaque deferred handles,
 // HTTP headers and metadata. Text/thinking are retained only at terminal commit.
 type MessageReceipt struct {
-	Role       goai.Role           `json:"role"`
-	Content    []goai.ContentBlock `json:"content"`
-	Api        goai.Api            `json:"api,omitempty"`
-	Provider   goai.Provider       `json:"provider,omitempty"`
-	Model      string              `json:"model,omitempty"`
-	Usage      *goai.Usage         `json:"usage,omitempty"`
-	StopReason goai.StopReason     `json:"stopReason,omitempty"`
-	Timestamp  int64               `json:"timestamp,omitempty"`
-	ErrorCode  string              `json:"errorCode,omitempty"`
-	ToolCallID string              `json:"toolCallId,omitempty"`
-	ToolName   string              `json:"toolName,omitempty"`
-	IsError    bool                `json:"isError,omitempty"`
-	Details    JSON                `json:"details,omitempty"`
+	Role            goai.Role            `json:"role"`
+	Content         []goai.ContentBlock  `json:"content"`
+	Api             goai.Api             `json:"api,omitempty"`
+	Provider        goai.Provider        `json:"provider,omitempty"`
+	Model           string               `json:"model,omitempty"`
+	Usage           *goai.Usage          `json:"usage,omitempty"`
+	StopReason      goai.StopReason      `json:"stopReason,omitempty"`
+	Timestamp       int64                `json:"timestamp,omitempty"`
+	ErrorCode       string               `json:"errorCode,omitempty"`
+	Retryable       bool                 `json:"retryable,omitempty"`
+	ContextOverflow bool                 `json:"contextOverflow,omitempty"`
+	Deferred        *goai.DeferredHandle `json:"deferred,omitempty"`
+	ToolCallID      string               `json:"toolCallId,omitempty"`
+	ToolName        string               `json:"toolName,omitempty"`
+	IsError         bool                 `json:"isError,omitempty"`
+	Details         JSON                 `json:"details,omitempty"`
 	// Non-object tool details use an explicit tagged adaptation; legacy Details
 	// objects keep their existing wire shape. Neither admits executable values.
 	DetailsValue any                  `json:"detailsValue,omitempty"`
 	HasDetails   bool                 `json:"hasDetails,omitempty"`
 	Sections     map[string]*string   `json:"sections,omitempty"`
+	SectionOrder []string             `json:"sectionOrder,omitempty"`
 	ToolsAdded   []ContributionTool   `json:"toolsAdded,omitempty"`
 	ToolsRemoved []goai.ToolReference `json:"toolsRemoved,omitempty"`
 	// EmptyArguments witnesses validated empty tool-call objects which the

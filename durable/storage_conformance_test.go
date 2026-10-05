@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -96,146 +97,147 @@ func rejected(t *testing.T, e error) {
 }
 
 func TestStorageConformance(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
-		s := b.store
-		t.Run("01_reserved_root_immutable", func(t *testing.T) {
-			v := snap(t, s)
-			if v.HighWater != 1 || len(v.Conversations) != 1 || v.Conversations[1].ID != 1 {
-				t.Fatal(v)
-			}
-			_, e := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
-			rejected(t, e)
-		})
-		// 02/03/04: one mixed atomic revision, detached originals and returned graphs.
-		conv, task, sub, doc := mint(t, s), mint(t, s), mint(t, s), mint(t, s)
-		e1, e2 := mint(t, s), mint(t, s)
-		value := JSON{"__proto__": JSON{"constructor": "data"}, "\x00 key ": []any{"original", json.Number("12345678901234567890")}}
-		seq := apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: conv, Owner: task}}, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "waiting", Checkpoint: JSON{"step": 1}}}, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: " \x00exact ", Type: "write", Status: "pending", Value: JSON{}}}, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "conversation", Owner: conv, Kind: "app.state", Key: "\x00 exact ", Version: 1, Value: value}}, entry(e2, JSON{"secondID": "first"}), entry(e1, JSON{"firstID": "second"}))
-		value["\x00 key "].([]any)[0] = "mutated"
+	backends(t, runStorageConformance)
+}
+func runStorageConformance(t *testing.T, b backend) {
+	s := b.store
+	t.Run("01_reserved_root_immutable", func(t *testing.T) {
 		v := snap(t, s)
-		if seq != 1 || v.Seq != 1 || v.Documents[doc].Value["\x00 key "].([]any)[0] != "original" {
-			t.Fatal("02/03/04 mixed/detached state")
+		if v.HighWater != 1 || len(v.Conversations) != 1 || v.Conversations[1].ID != 1 {
+			t.Fatal(v)
 		}
-		v.Documents[doc].Value["__proto__"].(map[string]any)["constructor"] = "changed"
-		if snap(t, s).Documents[doc].Value["__proto__"].(map[string]any)["constructor"] != "data" {
-			t.Fatal("03 detached reads")
+		_, e := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
+		rejected(t, e)
+	})
+	// 02/03/04: one mixed atomic revision, detached originals and returned graphs.
+	conv, task, sub, doc := mint(t, s), mint(t, s), mint(t, s), mint(t, s)
+	e1, e2 := mint(t, s), mint(t, s)
+	value := JSON{"__proto__": JSON{"constructor": "data"}, "\x00 key ": []any{"original", json.Number("12345678901234567890")}}
+	seq := apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: conv, Owner: task}}, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "waiting", Checkpoint: JSON{"step": 1}}}, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: " \x00exact ", Type: "write", Status: "pending", Value: JSON{}}}, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "conversation", Owner: conv, Kind: "app.state", Key: "\x00 exact ", Version: 1, Value: value}}, entry(e2, JSON{"secondID": "first"}), entry(e1, JSON{"firstID": "second"}))
+	value["\x00 key "].([]any)[0] = "mutated"
+	v := snap(t, s)
+	if seq != 1 || v.Seq != 1 || v.Documents[doc].Value["\x00 key "].([]any)[0] != "original" {
+		t.Fatal("02/03/04 mixed/detached state")
+	}
+	v.Documents[doc].Value["__proto__"].(map[string]any)["constructor"] = "changed"
+	if snap(t, s).Documents[doc].Value["__proto__"].(map[string]any)["constructor"] != "data" {
+		t.Fatal("03 detached reads")
+	}
+	t.Run("02_20_partial_supported_batch_rollback", func(t *testing.T) {
+		id := mint(t, s)
+		_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{}), {Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}}}}})
+		rejected(t, e)
+		if len(snap(t, s).Entries) != 2 || snap(t, s).Seq != 1 {
+			t.Fatal("partial batch visibility")
 		}
-		t.Run("02_20_partial_supported_batch_rollback", func(t *testing.T) {
-			id := mint(t, s)
-			_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{}), {Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}}}}})
-			rejected(t, e)
-			if len(snap(t, s).Entries) != 2 || snap(t, s).Seq != 1 {
-				t.Fatal("partial batch visibility")
-			}
-		})
-		t.Run("05_06_entry_order_and_stable_cursor", func(t *testing.T) {
-			r, e := s.Entries(bg, 1, EntryCursor{}, 1)
-			if e != nil || len(r) != 1 || r[0].ID != e2 {
-				t.Fatalf("%v %v", r, e)
-			}
-			cursor := EntryCursor{1, r[0].Seq, r[0].Position}
-			apply(t, s, entry(mint(t, s), JSON{}))
-			r, e = s.Entries(bg, 1, cursor, 10)
-			if e != nil || len(r) != 2 || r[0].ID != e1 {
-				t.Fatal("entry cursor changed")
-			}
-			_, e = s.Entries(bg, conv, cursor, 1)
-			rejected(t, e)
-		})
-		t.Run("07_08_partial_owner_conjunctive", func(t *testing.T) {
-			r, e := s.Conversations(bg, Query{Owner: task, Conversation: conv, Limit: 1})
-			if e != nil || len(r) != 1 || r[0].ID != conv {
-				t.Fatal(r, e)
-			}
-			r, e = s.Conversations(bg, Query{After: 1, Limit: 1})
-			if e != nil || len(r) != 1 || r[0].ID != conv {
-				t.Fatal(r, e)
-			}
-		})
-		t.Run("10_11_full_replacement_status_raw_no_scheduler", func(t *testing.T) {
-			apply(t, s, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "completing", Checkpoint: JSON{"new": true}}})
-			r, e := s.Tasks(bg, Query{Conversation: conv, Status: "completing", Kind: "generation", Limit: 1})
-			if e != nil || len(r) != 1 || len(r[0].Checkpoint) != 1 {
-				t.Fatal(r, e)
-			}
-		})
-		t.Run("12_13_request_identity_write_union", func(t *testing.T) {
-			r, ok, e := s.Request(bg, conv, " \x00exact ")
-			if e != nil || !ok || r.ID != sub || r.Type != "write" {
-				t.Fatal(r, ok, e)
-			}
-			apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "write", Status: "done", Value: JSON{"result": true}}})
-			id := mint(t, s)
-			_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: id, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
-			rejected(t, e)
-			id = mint(t, s)
-			apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: id, Conversation: 1, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}})
-			_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
-			rejected(t, e)
-		})
-		t.Run("14_17_18_19_21_partial_current_only", func(t *testing.T) {
-			old := snap(t, s).Documents[doc]
-			old.Version = 2
-			old.Value = JSON{"base": true}
-			apply(t, s, Write{Op: "put-document", Document: &old})
-			key := old.Key
-			r, e := s.Documents(bg, Query{Scope: "conversation", Owner: conv, Kind: "app.state", Key: &key, Limit: 1})
-			if e != nil || len(r) != 1 || r[0].Version != 2 {
-				t.Fatal(r, e)
-			}
-			apply(t, s, Write{Op: "retire-document", Document: &old})
-			id := mint(t, s)
-			old.ID = id
-			old.CreatedAt, old.RetiredAt = 0, 0 // new incarnation stamps belong to storage
-			old.Version = 1
-			apply(t, s, Write{Op: "put-document", Document: &old})
-			r, e = s.Documents(bg, Query{Scope: "conversation", Owner: conv, Key: &key, Limit: 2})
-			if e != nil || len(r) != 1 || r[0].ID != id {
-				t.Fatal(r, e)
-			}
-			old.ID = mint(t, s)
-			old.Kind = " bad "
-			_, e = s.Apply(bg, Batch{[]Write{{Op: "put-document", Document: &old}}})
-			rejected(t, e)
-		})
-		t.Run("09_15_16_UNSUPPORTED_rejection_not_parity", func(t *testing.T) {
-			for _, op := range []string{"fork", "delta", "copy", "historical"} {
-				_, e := s.Apply(bg, Batch{[]Write{{Op: op, Document: &Document{ID: doc}}}})
-				if !errors.Is(e, ErrUnsupported) {
-					t.Fatalf("unsupported %s %v", op, e)
-				}
-			}
-			id := mint(t, s)
-			_, e := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: id, Parent: 1}}}})
+	})
+	t.Run("05_06_entry_order_and_stable_cursor", func(t *testing.T) {
+		r, e := s.Entries(bg, 1, EntryCursor{}, 1)
+		if e != nil || len(r) != 1 || r[0].ID != e2 {
+			t.Fatalf("%v %v", r, e)
+		}
+		cursor := EntryCursor{1, r[0].Seq, r[0].Position}
+		apply(t, s, entry(mint(t, s), JSON{}))
+		r, e = s.Entries(bg, 1, cursor, 10)
+		if e != nil || len(r) != 2 || r[0].ID != e1 {
+			t.Fatal("entry cursor changed")
+		}
+		_, e = s.Entries(bg, conv, cursor, 1)
+		rejected(t, e)
+	})
+	t.Run("07_08_partial_owner_conjunctive", func(t *testing.T) {
+		r, e := s.Conversations(bg, Query{Owner: task, Conversation: conv, Limit: 1})
+		if e != nil || len(r) != 1 || r[0].ID != conv {
+			t.Fatal(r, e)
+		}
+		r, e = s.Conversations(bg, Query{After: 1, Limit: 1})
+		if e != nil || len(r) != 1 || r[0].ID != conv {
+			t.Fatal(r, e)
+		}
+	})
+	t.Run("10_11_full_replacement_status_raw_no_scheduler", func(t *testing.T) {
+		apply(t, s, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "completing", Checkpoint: JSON{"new": true}}})
+		r, e := s.Tasks(bg, Query{Conversation: conv, Status: "completing", Kind: "generation", Limit: 1})
+		if e != nil || len(r) != 1 || len(r[0].Checkpoint) != 1 {
+			t.Fatal(r, e)
+		}
+	})
+	t.Run("12_13_request_identity_write_union", func(t *testing.T) {
+		r, ok, e := s.Request(bg, conv, " \x00exact ")
+		if e != nil || !ok || r.ID != sub || r.Type != "write" {
+			t.Fatal(r, ok, e)
+		}
+		apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "write", Status: "done", Value: JSON{"result": true}}})
+		id := mint(t, s)
+		_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: id, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
+		rejected(t, e)
+		id = mint(t, s)
+		apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: id, Conversation: 1, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}})
+		_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
+		rejected(t, e)
+	})
+	t.Run("14_17_18_19_21_partial_current_only", func(t *testing.T) {
+		old := snap(t, s).Documents[doc]
+		old.Version = 2
+		old.Value = JSON{"base": true}
+		apply(t, s, Write{Op: "put-document", Document: &old})
+		key := old.Key
+		r, e := s.Documents(bg, Query{Scope: "conversation", Owner: conv, Kind: "app.state", Key: &key, Limit: 1})
+		if e != nil || len(r) != 1 || r[0].Version != 2 {
+			t.Fatal(r, e)
+		}
+		apply(t, s, Write{Op: "retire-document", Document: &old})
+		id := mint(t, s)
+		old.ID = id
+		old.CreatedAt, old.RetiredAt = 0, 0 // new incarnation stamps belong to storage
+		old.Version = 1
+		apply(t, s, Write{Op: "put-document", Document: &old})
+		r, e = s.Documents(bg, Query{Scope: "conversation", Owner: conv, Key: &key, Limit: 2})
+		if e != nil || len(r) != 1 || r[0].ID != id {
+			t.Fatal(r, e)
+		}
+		old.ID = mint(t, s)
+		old.Kind = " bad "
+		_, e = s.Apply(bg, Batch{[]Write{{Op: "put-document", Document: &old}}})
+		rejected(t, e)
+	})
+	t.Run("09_15_16_UNSUPPORTED_rejection_not_parity", func(t *testing.T) {
+		for _, op := range []string{"fork", "delta", "copy", "historical"} {
+			_, e := s.Apply(bg, Batch{[]Write{{Op: op, Document: &Document{ID: doc}}}})
 			if !errors.Is(e, ErrUnsupported) {
-				t.Fatal(e)
+				t.Fatalf("unsupported %s %v", op, e)
 			}
-		})
-		before := snap(t, s)
-		s = b.reopen()
-		after := snap(t, s)
-		if !equalSnapshot(before, after) {
-			t.Fatal("reopen differs")
 		}
-		t.Run("22_global_namespace", func(t *testing.T) {
-			id := mint(t, s)
-			apply(t, s, entry(id, JSON{}))
-			_, e := s.Apply(bg, Batch{[]Write{{Op: "put-task", Task: &Task{ID: id, Conversation: 1, Kind: "task", Status: "pending", Checkpoint: JSON{}}}}})
-			rejected(t, e)
-			_, e = s.Apply(bg, Batch{[]Write{entry(ID(MaxID+1), JSON{})}})
-			rejected(t, e)
-		})
-		t.Run("23_every_operation_after_close", func(t *testing.T) {
-			if e := s.Close(bg); e != nil {
+		id := mint(t, s)
+		_, e := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: id, Parent: 1}}}})
+		if !errors.Is(e, ErrUnsupported) {
+			t.Fatal(e)
+		}
+	})
+	before := snap(t, s)
+	s = b.reopen()
+	after := snap(t, s)
+	if !equalSnapshot(before, after) {
+		t.Fatal("reopen differs")
+	}
+	t.Run("22_global_namespace", func(t *testing.T) {
+		id := mint(t, s)
+		apply(t, s, entry(id, JSON{}))
+		_, e := s.Apply(bg, Batch{[]Write{{Op: "put-task", Task: &Task{ID: id, Conversation: 1, Kind: "task", Status: "pending", Checkpoint: JSON{}}}}})
+		rejected(t, e)
+		_, e = s.Apply(bg, Batch{[]Write{entry(ID(MaxID+1), JSON{})}})
+		rejected(t, e)
+	})
+	t.Run("23_every_operation_after_close", func(t *testing.T) {
+		if e := s.Close(bg); e != nil {
+			t.Fatal(e)
+		}
+		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, e := s.Conversations(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Entries(bg, 1, EntryCursor{}, 1); return e }, func() error { _, e := s.Tasks(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
+		for _, f := range checks {
+			if e := f(); !errors.Is(e, ErrClosed) {
 				t.Fatal(e)
 			}
-			checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, e := s.Conversations(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Entries(bg, 1, EntryCursor{}, 1); return e }, func() error { _, e := s.Tasks(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
-			for _, f := range checks {
-				if e := f(); !errors.Is(e, ErrClosed) {
-					t.Fatal(e)
-				}
-			}
-		})
+		}
 	})
 }
 func equalSnapshot(a, b Snapshot) bool {
@@ -1030,4 +1032,85 @@ func TestPrivateCandidateTablesNeverModifyBaseTables(t *testing.T) {
 	if base.Documents[2].Retired {
 		t.Fatal("rejected candidate mutated base")
 	}
+}
+
+func TestIncrementalValidationMatchesColdValidationAndRetainedBudget(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		store := b.store
+		id := mint(t, store)
+		doc := historyDocument(id, 1, "cache.validation", "", "rewindable", "asOf")
+		doc.Value = JSON{"xs": []any{}, "text": "base"}
+		apply(t, store, putDocument(doc))
+		for i := 0; i < 3; i++ {
+			apply(t, store, deltaWrite(id, 1, Operation{"p", []any{"xs"}, i, 0, []any{i}}))
+		}
+		var core *storeCore
+		if memory, ok := store.(*MemoryStorage); ok {
+			core = memory.storeCore
+		} else {
+			core = store.(*JournalStorage).storeCore
+		}
+		<-core.line
+		warm := core.state
+		core.leave()
+		if warm.retained == nil {
+			t.Fatal("confirmed state lacks private size cache")
+		}
+		cold, err := cloneState(warm, core.limits)
+		if err != nil || cold.retained != nil {
+			t.Fatal("public snapshot retained private cache", err)
+		}
+		retainedBytes := int64(0)
+		for _, n := range warm.retained.records {
+			retainedBytes += int64(n)
+		}
+		for _, sizes := range warm.retained.revisions {
+			for _, n := range sizes {
+				retainedBytes += int64(n)
+			}
+		}
+		noop := warm.Documents[id]
+		noop.Value = JSON{"xs": []any{0, 1, 2}, "text": "base"}
+		for _, variant := range []string{"delta", "version-base", "invalid-path", "retire"} {
+			t.Run(variant, func(t *testing.T) {
+				write := deltaWrite(id, 1, Operation{"a", []any{"text"}, " extended"})
+				switch variant {
+				case "version-base":
+					next := noop
+					next.Version = 2
+					next.Value = JSON{"xs": []any{}, "text": "new"}
+					write = putDocument(next)
+				case "invalid-path":
+					write = deltaWrite(id, 1, Operation{"a", []any{"missing"}, "bad"})
+				case "retire":
+					write = Write{Op: "retire-document", Document: &noop}
+				}
+				record := commitRecord{Seq: warm.Seq + 1, Writes: []Write{write}}
+				for _, restricted := range []bool{false, true} {
+					limits := core.limits
+					if restricted {
+						limits.MaxRetainedBytes = retainedBytes
+					}
+					a, ae := prepare(warm, record, limits)
+					b, be := prepare(cold, record, limits)
+					if (ae == nil) != (be == nil) {
+						t.Fatal("warm/cold acceptance differs", restricted, ae, be)
+					}
+					if ae == nil {
+						a.retained, b.retained = nil, nil
+						if !reflect.DeepEqual(a, b) {
+							t.Fatal("warm/cold persisted state differs")
+						}
+					} else if ae.Error() != be.Error() {
+						t.Fatal("warm/cold rejection differs", ae, be)
+					}
+				}
+			})
+		}
+		// A public detached revision cannot grant cache authority on a later prepare.
+		cold.DocumentRevisions[id][1].Version = 2
+		if _, err := prepare(cold, commitRecord{Seq: cold.Seq + 1, Writes: []Write{putDocument(noop)}}, core.limits); err == nil {
+			t.Fatal("cold malformed history accepted")
+		}
+	})
 }

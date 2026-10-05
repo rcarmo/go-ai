@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -316,15 +317,48 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	options.Registry = registry
 	s, dir := newJournal(t)
 	h := openHarness(t, s, options)
+	cleanupTaskGates(t, release)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "block"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	<-entered
-	ctx, cancel := context.WithTimeout(bg, 30*time.Millisecond)
+	ctx, cancel := context.WithCancel(bg)
 	defer cancel()
-	if e = r.Abort(ctx); !errors.Is(e, context.DeadlineExceeded) {
+	aborted := make(chan error, 1)
+	go func() { aborted <- r.Abort(ctx) }()
+	// Observe durable marks and the parent Hold before cancelling the caller.
+	// A short elapsed-time deadline can expire BEFORE admission under -race.
+	deadline, stop := context.WithTimeout(bg, 3*time.Second)
+	defer stop()
+	for {
+		state, err := h.Snapshot(deadline)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parentHeld, childMarked := false, false
+		for _, task := range state.Tasks {
+			if task.Kind == "pi.generation" {
+				parentHeld = task.Status == "completing" && taskAborted(task)
+			} else if task.Kind == "pi.tool" {
+				childMarked = taskAborted(task)
+			}
+		}
+		if parentHeld && childMarked {
+			break
+		}
+		select {
+		case err := <-aborted:
+			t.Fatal("Abort returned before noncooperative host", err)
+		case <-deadline.Done():
+			t.Fatal("Abort marks/Hold not adopted", deadline.Err())
+		default:
+			runtime.Gosched()
+		}
+	}
+	cancel()
+	if e = <-aborted; !errors.Is(e, context.Canceled) {
 		t.Fatal("Abort failed towaitnoncooperative", e)
 	}
 	state, e := h.Snapshot(bg)
@@ -917,9 +951,37 @@ func TestM1cAbortAtOfferedCallBoundaryStartsNoTool(t *testing.T) {
 		t.Fatal(e)
 	}
 	<-entered
-	ctx, cancel := context.WithTimeout(bg, 20*time.Millisecond)
+	ctx, cancel := context.WithCancel(bg)
 	defer cancel()
-	if e = r.Abort(ctx); !errors.Is(e, context.DeadlineExceeded) {
+	aborted := make(chan error, 1)
+	go func() { aborted <- r.Abort(ctx) }()
+	deadline, stop := context.WithTimeout(bg, 3*time.Second)
+	defer stop()
+	for {
+		state, err := h.Snapshot(deadline)
+		if err != nil {
+			t.Fatal(err)
+		}
+		marked := false
+		for _, task := range state.Tasks {
+			if task.Kind == "pi.generation" && taskAborted(task) {
+				marked = true
+			}
+		}
+		if marked {
+			break
+		}
+		select {
+		case err := <-aborted:
+			t.Fatal("Abort returned before provider return", err)
+		case <-deadline.Done():
+			t.Fatal("Abort mark not adopted", deadline.Err())
+		default:
+			runtime.Gosched()
+		}
+	}
+	cancel()
+	if e = <-aborted; !errors.Is(e, context.Canceled) {
 		t.Fatal(e)
 	}
 	releaseOnce.Do(func() { close(release) })

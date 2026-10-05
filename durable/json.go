@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -26,10 +27,52 @@ func (b *limitedJSON) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+type jsonStructField struct {
+	index     int
+	name      string
+	omitEmpty bool
+}
+
+var jsonStructFields sync.Map // reflect.Type -> immutable field descriptions
+func structJSONFields(t reflect.Type) []jsonStructField {
+	if cached, ok := jsonStructFields.Load(t); ok {
+		return cached.([]jsonStructField)
+	}
+	fields := make([]jsonStructField, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		name, options, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		fields = append(fields, jsonStructField{i, name, options == "omitempty"})
+	}
+	actual, _ := jsonStructFields.LoadOrStore(t, fields)
+	return actual.([]jsonStructField)
+}
+
 type jsonBudget struct {
 	l      Limits
 	nodes  int
 	active map[uintptr]bool
+	// Allocation hint only, never an acceptance gate. Saturated during the
+	// existing validation walk so huge/omitted values cannot reserve huge buffers.
+	encodedHint int
+}
+
+func (b *jsonBudget) hint(size int) {
+	const capHint = 64 << 10
+	if size > capHint-b.encodedHint {
+		b.encodedHint = capHint
+	} else {
+		b.encodedHint += size
+	}
 }
 
 func (b *jsonBudget) node() error {
@@ -40,6 +83,7 @@ func (b *jsonBudget) node() error {
 	return nil
 }
 func (b *jsonBudget) str(s string) error {
+	b.hint(len(s) + 2)
 	if !utf8.ValidString(s) || len(s) > b.l.MaxStringBytes {
 		return reject("invalid or oversized JSON string")
 	}
@@ -50,16 +94,19 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		return err
 	}
 	if !v.IsValid() {
+		b.hint(4)
 		return nil
 	}
 	for v.Kind() == reflect.Interface {
 		if v.IsNil() {
+			b.hint(4)
 			return nil
 		}
 		v = v.Elem()
 	}
 	if v.Type() == reflect.TypeOf(json.Number("")) {
 		n := string(v.Interface().(json.Number))
+		b.hint(len(n))
 		if len(n) > b.l.MaxStringBytes {
 			return reject("JSON numeric spelling byte limit")
 		}
@@ -70,12 +117,15 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 	}
 	switch v.Kind() {
 	case reflect.Bool:
+		b.hint(5)
 		return nil
 	case reflect.String:
 		return b.str(v.String())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		b.hint(20)
 		return nil
 	case reflect.Float32, reflect.Float64:
+		b.hint(24)
 		if math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0) {
 			return reject("nonfinite JSON number")
 		}
@@ -96,8 +146,10 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		return b.walk(v.Elem(), depth, objectsOnly)
 	case reflect.Map:
 		if v.IsNil() {
+			b.hint(4)
 			return nil
 		}
+		b.hint(2 + 2*v.Len())
 		if v.Type().Key().Kind() != reflect.String {
 			return reject("JSON map keys must be strings")
 		}
@@ -111,25 +163,31 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		b.active[ptr] = true
 		defer delete(b.active, ptr)
 		it := v.MapRange()
+		key := reflect.New(v.Type().Key()).Elem()
+		value := reflect.New(v.Type().Elem()).Elem()
 		for it.Next() {
-			if hasMarshalAuthority(it.Key().Type()) {
+			key.SetIterKey(it)
+			value.SetIterValue(it)
+			if hasMarshalAuthority(key.Type()) {
 				return reject("caller-defined map key marshal authority")
 			}
 			if err := b.node(); err != nil {
 				return err
 			}
-			if err := b.str(it.Key().String()); err != nil {
+			if err := b.str(key.String()); err != nil {
 				return err
 			}
-			if err := b.walk(it.Value(), depth+1, objectsOnly); err != nil {
+			if err := b.walk(value, depth+1, objectsOnly); err != nil {
 				return err
 			}
 		}
 		return nil
 	case reflect.Slice, reflect.Array:
 		if v.Kind() == reflect.Slice && v.IsNil() {
+			b.hint(4)
 			return nil
 		}
+		b.hint(2 + v.Len())
 		if depth > b.l.MaxDepth || v.Len() > b.l.MaxMembers {
 			return reject("JSON container limit")
 		}
@@ -154,12 +212,10 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if depth > b.l.MaxDepth || v.NumField() > b.l.MaxMembers {
 			return reject("JSON container limit")
 		}
-		for i := 0; i < v.NumField(); i++ {
-			f := v.Type().Field(i)
-			if f.PkgPath != "" || f.Tag.Get("json") == "-" {
-				continue
-			}
-			if err := b.walk(v.Field(i), depth+1, objectsOnly); err != nil {
+		b.hint(2)
+		for _, field := range structJSONFields(v.Type()) {
+			b.hint(len(field.name) + 4)
+			if err := b.walk(v.Field(field.index), depth+1, objectsOnly); err != nil {
 				return err
 			}
 		}
@@ -195,7 +251,11 @@ func encodeBounded(v any, l Limits, max int) ([]byte, error) {
 	}
 	// Native incremental encoding never invokes caller marshalers or allocates a
 	// complete oversized escaped JSON value before the output limit is checked.
-	out := &limitedJSON{max: max}
+	hint := b.encodedHint
+	if hint > max {
+		hint = max
+	}
+	out := &limitedJSON{max: max, data: make([]byte, 0, hint)}
 	if e := encodeValue(out, reflect.ValueOf(v)); e != nil {
 		return nil, e
 	}
@@ -207,7 +267,21 @@ func encodeString(b *limitedJSON, s string) error {
 		return e
 	}
 	const hex = "0123456789abcdef"
-	for _, r := range s {
+	for i := 0; i < len(s); {
+		// Most persisted text is ASCII. Emit safe spans in one bounded write
+		// instead of allocating and copying each rune separately.
+		start := i
+		for i < len(s) && s[i] >= 32 && s[i] < utf8.RuneSelf && s[i] != '\\' && s[i] != '"' {
+			i++
+		}
+		if i > start {
+			if e := emit(b, s[start:i]); e != nil {
+				return e
+			}
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		i += size
 		var value string
 		switch r {
 		case '\\':
@@ -270,20 +344,24 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		}
 		first := true
 		it := v.MapRange()
+		key := reflect.New(v.Type().Key()).Elem()
+		value := reflect.New(v.Type().Elem()).Elem()
 		for it.Next() {
+			key.SetIterKey(it)
+			value.SetIterValue(it)
 			if !first {
 				if e := emit(b, ","); e != nil {
 					return e
 				}
 			}
 			first = false
-			if e := encodeString(b, it.Key().String()); e != nil {
+			if e := encodeString(b, key.String()); e != nil {
 				return e
 			}
 			if e := emit(b, ":"); e != nil {
 				return e
 			}
-			if e := encodeValue(b, it.Value()); e != nil {
+			if e := encodeValue(b, value); e != nil {
 				return e
 			}
 		}
@@ -311,21 +389,9 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 			return e
 		}
 		first := true
-		for i := 0; i < v.NumField(); i++ {
-			field := v.Type().Field(i)
-			if field.PkgPath != "" {
-				continue
-			}
-			parts := strings.Split(field.Tag.Get("json"), ",")
-			name := parts[0]
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = field.Name
-			}
-			value := v.Field(i)
-			if len(parts) > 1 && parts[1] == "omitempty" && isEmpty(value) {
+		for _, field := range structJSONFields(v.Type()) {
+			value := v.Field(field.index)
+			if field.omitEmpty && isEmpty(value) {
 				continue
 			}
 			if !first {
@@ -334,7 +400,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 				}
 			}
 			first = false
-			if e := encodeString(b, name); e != nil {
+			if e := encodeString(b, field.name); e != nil {
 				return e
 			}
 			if e := emit(b, ":"); e != nil {
@@ -562,10 +628,16 @@ func (s *jsonScanner) string() (string, error) {
 	start := s.pos
 	s.pos++
 	decoded := 0
+	escaped := false
 	for s.pos < len(s.data) {
 		c := s.data[s.pos]
 		s.pos++
 		if c == '"' {
+			if !escaped {
+				// UTF-8 validity and control/byte limits were checked by the
+				// scanner. Avoid a second JSON decoder for ordinary strings.
+				return string(s.data[start+1 : s.pos-1]), nil
+			}
 			var out string
 			if err := json.Unmarshal(s.data[start:s.pos], &out); err != nil {
 				return "", reject("invalid JSON string")
@@ -585,6 +657,7 @@ func (s *jsonScanner) string() (string, error) {
 			}
 			continue
 		}
+		escaped = true
 		if s.pos >= len(s.data) {
 			return "", reject("incomplete JSON escape")
 		}

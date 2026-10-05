@@ -15,6 +15,15 @@ type Tx struct {
 	limits  Limits
 	state   Snapshot
 	writes  []Write
+	// Bound only by Harness task commits or invocation admission. Callers never
+	// supply executable authority by copying a raw task record.
+	taskConversation   ID
+	byTask             ID
+	taskStops          []taskStop
+	taskAdoptState     *Snapshot   // immutable confirmed storage view, private to adoption
+	taskRollback       func(error) // trusted bounded bookkeeping BEFORE Session.leave
+	taskTerminals      map[ID]bool // private builtin withdrawal cleanup; no legacy rewrite
+	externalTaskCommit bool        // public host transaction, not a scheduler/adapter pass
 	// Immediate parents of successfully staged high-level forks. This fence is
 	// broader than copy source IDs: new current-policy parent docs also reject.
 	forkParents   map[ID]bool
@@ -46,6 +55,22 @@ func (t *Tx) seal() error {
 }
 func (t *Tx) stage(w Write) error {
 	// Every method detaches before returning, independently of final seal.
+	// Trusted DTO encoding cannot grant nested task JSON marshaler authority.
+	if w.Entry != nil && t.byTask != 0 {
+		entry := *w.Entry
+		if entry.ByTask != 0 && entry.ByTask != t.byTask {
+			return reject("runtime entry task attribution")
+		}
+		entry.ByTask = t.byTask
+		w.Entry = &entry
+	}
+	if w.Task != nil {
+		owned, e := copyTask(*w.Task, t.limits)
+		if e != nil {
+			return e
+		}
+		w.Task = &owned
+	}
 	p, e := encodeBounded(w, t.limits, t.limits.MaxRecordBytes)
 	if e != nil {
 		return e
@@ -153,10 +178,21 @@ func (t *Tx) PutTask(v Task) error {
 		return e
 	}
 	defer t.leave()
-	if _, e := copyObject(v.Checkpoint, t.limits); e != nil {
+	current := t.state.Tasks[v.ID]
+	if t.byTask != 0 && (v.Kind == "pi.tool" || v.Kind == "pi.generation" || current.Kind == "pi.tool" || current.Kind == "pi.generation") {
+		return reject("runtime raw builtin task replacement")
+	}
+	if v.Execution != nil {
+		return reject("execution task replacement requires invocation authority")
+	}
+	if current, exists := t.state.Tasks[v.ID]; exists && current.Execution != nil {
+		return reject("execution task replacement requires invocation authority")
+	}
+	owned, e := copyTask(v, t.limits)
+	if e != nil {
 		return e
 	}
-	return t.stage(Write{Op: "put-task", Task: &v})
+	return t.stage(Write{Op: "put-task", Task: &owned})
 }
 func (t *Tx) PutSubmission(v Submission) error {
 	if e := t.enter(); e != nil {
@@ -174,7 +210,14 @@ func (t *Tx) current() (Snapshot, error) {
 func (t *Tx) currentDocument(id ID) (Document, error) {
 	var s Snapshot
 	var e error
-	if len(t.writes) == 0 {
+	changed := false
+	for _, write := range t.writes {
+		if write.Document != nil && write.Document.ID == id || write.Delta != nil && write.Delta.ID == id {
+			changed = true
+			break
+		}
+	}
+	if !changed {
 		s = t.state
 	} else {
 		s, e = t.current()
@@ -204,6 +247,25 @@ func (t *Tx) CreateDocument(v Document) (*DocumentHandle, error) {
 		return nil, e
 	}
 	defer t.leave()
+	if v.Scope == "task" {
+		state := t.state
+		if len(t.writes) > 0 {
+			var err error
+			state, err = t.current()
+			if err != nil {
+				return nil, err
+			}
+		}
+		// New raw acquisition observes the same candidate lifetime as typed
+		// acquisition for native/metadata owners. Existing document handles
+		// can still edit before final retirement; absentExecution legacy and
+		// forward raw references retain their final-reference validation.
+		if _, exists := state.Documents[v.ID]; !exists {
+			if owner, known := state.Tasks[v.Owner]; known && owner.Execution != nil && terminalStatus(owner.Status) {
+				return nil, reject("native task document owner is terminal")
+			}
+		}
+	}
 	if _, e := copyObject(v.Value, t.limits); e != nil {
 		return nil, e
 	}
@@ -394,6 +456,73 @@ func (t *Tx) documentPlan(id ID) *transactionDocumentPlan {
 	t.documentPlans[id] = p
 	return p
 }
+
+// finalizeTaskWrites operates after public Tx seal, before document predicates.
+// It uses private stage only; no public capability is reopened.
+func (t *Tx) finalizeTaskWrites() error {
+	needsCandidate := len(t.taskTerminals) > 0
+	for _, write := range t.writes {
+		if write.Task != nil && write.Task.Execution != nil && terminalStatus(write.Task.Status) ||
+			write.Op == "create-conversation" && write.Conversation.Owner != 0 {
+			needsCandidate = true
+		}
+		if write.Op == "put-task" && write.Task.Owner != 0 {
+			if _, existing := t.state.Tasks[write.Task.ID]; !existing {
+				needsCandidate = true
+			}
+		}
+	}
+	if !needsCandidate {
+		return nil
+	}
+	candidate, err := t.current()
+	if err != nil {
+		return err
+	}
+	terminals := map[ID]bool{}
+	for id := range t.taskTerminals {
+		if task, ok := candidate.Tasks[id]; !ok || !terminalStatus(task.Status) {
+			return reject("builtin terminal cleanup identity")
+		}
+		terminals[id] = true
+	}
+	for _, write := range t.writes {
+		if write.Task != nil && write.Task.Execution != nil && terminalStatus(write.Task.Status) {
+			terminals[write.Task.ID] = true
+		}
+		var owner ID
+		if write.Op == "create-conversation" {
+			owner = write.Conversation.Owner
+		}
+		if write.Op == "put-task" {
+			if _, existing := t.state.Tasks[write.Task.ID]; !existing {
+				owner = write.Task.Owner
+			}
+		}
+		if owner != 0 {
+			parent, exists := candidate.Tasks[owner]
+			if !exists || !taskCanOwnNewWork(parent) {
+				return reject("new work final owner is missing, decided or abort-marked")
+			}
+		}
+	}
+	retiring := map[ID]bool{}
+	for _, write := range t.writes {
+		if write.Op == "retire-document" {
+			retiring[write.Document.ID] = true
+		}
+	}
+	for _, id := range ids(candidate.Documents) {
+		document := candidate.Documents[id]
+		if document.Scope == "task" && terminals[document.Owner] && !document.Retired && !retiring[id] {
+			if err := t.stage(Write{Op: "retire-document", Document: &document}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (t *Tx) finalizeDocuments() error {
 	if len(t.writes) == 0 {
 		return nil
@@ -504,8 +633,12 @@ func (t *Tx) finalizeDocuments() error {
 		if _, err = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits, t.limits.MaxFramePayloadBytes); err != nil {
 			return err
 		}
-		if _, err = prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits); err != nil {
-			return err
+		// When selection did not change the provisional writes, the candidate
+		// above already validated them. Storage still validates the final batch.
+		if len(predicates) > 0 {
+			if _, err = prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits); err != nil {
+				return err
+			}
 		}
 	}
 	t.writes = selected

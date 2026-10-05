@@ -19,13 +19,14 @@ type DocumentID = ID
 type JSON map[string]any
 
 var (
-	ErrClosed      = errors.New("durable: closed")
-	ErrPoisoned    = errors.New("durable: uncertain storage outcome; close and reopen required")
-	ErrCorrupt     = errors.New("durable: corrupt journal")
-	ErrUnsupported = errors.New("durable: unsupported operation")
-	ErrSealed      = errors.New("durable: transaction sealed")
-	ErrConcurrent  = errors.New("durable: overlapping or reentrant transaction method")
-	ErrOwned       = errors.New("durable: storage already owned in this process")
+	ErrClosed           = errors.New("durable: closed")
+	ErrPoisoned         = errors.New("durable: uncertain storage outcome; close and reopen required")
+	ErrCorrupt          = errors.New("durable: corrupt journal")
+	ErrUnsupported      = errors.New("durable: unsupported operation")
+	ErrConversationBusy = errors.New("durable: conversation busy")
+	ErrSealed           = errors.New("durable: transaction sealed")
+	ErrConcurrent       = errors.New("durable: overlapping or reentrant transaction method")
+	ErrOwned            = errors.New("durable: storage already owned in this process")
 )
 
 // StorageRejected establishes that no write was admitted for this operation.
@@ -99,14 +100,127 @@ type Entry struct {
 	ByTask  ID               `json:"byTask,omitempty"`
 }
 
-// Task stores a full checkpoint record; M1a does not execute tasks.
+// Task retains the original native journal checkpoint envelope. Execution is
+// absent in old journals; those records are never guessed into generic tasks.
+// New readers accept old records. Old binaries reject new Execution fields.
 type Task struct {
-	ID           ID     `json:"id"`
-	Conversation ID     `json:"conversation"`
-	Owner        ID     `json:"owner,omitempty"`
-	Kind         string `json:"kind"`
-	Status       string `json:"status"`
-	Checkpoint   JSON   `json:"checkpoint"`
+	ID           ID             `json:"id"`
+	Conversation ID             `json:"conversation"`
+	Owner        ID             `json:"owner,omitempty"`
+	Kind         string         `json:"kind"`
+	Status       string         `json:"status"`
+	Checkpoint   JSON           `json:"checkpoint"`
+	Execution    *TaskExecution `json:"execution,omitempty"`
+}
+
+// TaskValue explicitly distinguishes an absent field from a strict JSON null.
+// Present must be true. Value accepts primitive, array, object or null roots;
+// executable/custom-marshaler values never cross the task ownership boundary.
+type TaskValue struct {
+	Present bool `json:"present"`
+	Value   any  `json:"value"`
+}
+
+type TaskOutcomeError struct {
+	Message string     `json:"message"`
+	Detail  *TaskValue `json:"detail,omitempty"`
+}
+
+type TaskOutcome struct {
+	Status string            `json:"status"`
+	Result *TaskValue        `json:"result,omitempty"`
+	Error  *TaskOutcomeError `json:"error,omitempty"`
+	Reason string            `json:"reason,omitempty"`
+}
+
+// TaskState is a strict union. Live states own an object checkpoint. Outcomes
+// have no checkpoint/memos; waiting additionally owns On and Policy.
+type TaskState struct {
+	Status     string       `json:"status"`
+	Checkpoint JSON         `json:"checkpoint,omitempty"`
+	On         []ID         `json:"on,omitempty"`
+	Policy     string       `json:"policy,omitempty"`
+	Outcome    *TaskOutcome `json:"outcome,omitempty"`
+}
+
+type NativeTaskExecution struct {
+	Version        uint64                `json:"version"`
+	Input          *TaskValue            `json:"input"`
+	Background     bool                  `json:"background"`
+	AbortRequested bool                  `json:"abortRequested"`
+	Memos          map[string]*TaskValue `json:"memos,omitempty"`
+	State          TaskState             `json:"state"`
+}
+
+// BuiltinTaskHold is a private-adapter disposition, not executable authority.
+// Receipt actions identify an already committed receipt and spend; finalising
+// them performs deterministic cleanup only, never a host callback or effect.
+type BuiltinTaskHold struct {
+	Stage        string      `json:"stage"` // held or final
+	Action       string      `json:"action"`
+	Outcome      TaskOutcome `json:"outcome"`
+	FinalStatus  string      `json:"finalStatus"`
+	Entry        ID          `json:"entry,omitempty"`
+	Submission   ID          `json:"submission,omitempty"`
+	Conversation ID          `json:"conversation"`
+	Owner        ID          `json:"owner,omitempty"`
+	CallID       string      `json:"callId,omitempty"`
+}
+
+type BuiltinTaskExecution struct {
+	Background     bool                  `json:"background"`
+	AbortRequested bool                  `json:"abortRequested"`
+	Memos          map[string]*TaskValue `json:"memos,omitempty"`
+	Hold           *BuiltinTaskHold      `json:"hold,omitempty"`
+}
+
+// Exactly one tag-matched variant may be present. Built-ins keep their single
+// live checkpoint in Task.Checkpoint, including legacy cp.Abort/tool joins.
+type TaskExecution struct {
+	Tag     string                `json:"tag"`
+	Native  *NativeTaskExecution  `json:"native,omitempty"`
+	Builtin *BuiltinTaskExecution `json:"builtin,omitempty"`
+}
+
+// TaskRecord is a detached canonical runtime view. Legacy raw records remain
+// available through Snapshot; their absent generic results are not invented.
+type TaskRecord struct {
+	ID             ID
+	Conversation   ID
+	Owner          ID
+	Kind           string
+	Version        uint64
+	Input          *TaskValue
+	Background     bool
+	AbortRequested bool
+	Memos          map[string]*TaskValue
+	State          TaskState
+}
+
+type TaskOwnership struct {
+	Kind string // conversation or task; explicitly required
+	Task ID
+}
+
+type TaskOptions struct {
+	Conversation ID
+	Ownership    TaskOwnership
+	Background   bool
+}
+
+type TaskInspection struct {
+	Record   TaskRecord
+	Kind     string // ready, running, waiting, completing, blocked
+	Reason   string
+	Migrates bool
+	On       []ID
+}
+
+type ConversationAbortOptions struct{ Background bool }
+
+type TaskInspectionView struct {
+	Scheduling string // paused, running, closing
+	Tasks      []TaskInspection
 }
 
 // Submission type is follow-up or write. Steering is unsupported in M1a.
@@ -202,6 +316,16 @@ type Snapshot struct {
 	Submissions       map[ID]Submission         `json:"submissions"`
 	Documents         map[ID]Document           `json:"documents"`
 	DocumentRevisions map[ID][]DocumentRevision `json:"documentRevisions,omitempty"`
+	retained          *retainedSizes            // private immutable encoded-size cache; never persisted
+}
+
+type retainedSizes struct {
+	records   map[retainedKey]int
+	revisions map[ID][]int
+}
+type retainedKey struct {
+	kind string
+	id   ID
 }
 
 type Query struct {

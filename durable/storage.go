@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"sync"
 	"sync/atomic"
 )
-
-var kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,127}$`)
 
 // storeCore owns the only mutation line. Every admitted append settles while
 // holding it, irrespective of the admission caller's later cancellation.
@@ -233,7 +230,10 @@ func validateBatchJSON(b Batch, l Limits) error {
 			}
 			value = w.Entry.Value
 		case w.Task != nil:
-			value = w.Task.Checkpoint
+			if _, e := copyTask(*w.Task, l); e != nil {
+				return e
+			}
+			continue
 		case w.Submission != nil:
 			value = w.Submission.Value
 		case w.Document != nil && w.Op != "retire-document" && w.Op != "copy-document":
@@ -254,7 +254,7 @@ func validateBatchJSON(b Batch, l Limits) error {
 // record replaces its copied DTO; no preparation path mutates a shared value.
 // Never return this candidate through a public read or retained memory image.
 func candidateTables(s Snapshot) Snapshot {
-	n := Snapshot{Seq: s.Seq, HighWater: s.HighWater, Conversations: make(map[ID]Conversation, len(s.Conversations)), Entries: make(map[ID]Entry, len(s.Entries)), Tasks: make(map[ID]Task, len(s.Tasks)), Submissions: make(map[ID]Submission, len(s.Submissions)), Documents: make(map[ID]Document, len(s.Documents))}
+	n := Snapshot{Seq: s.Seq, HighWater: s.HighWater, retained: s.retained, Conversations: make(map[ID]Conversation, len(s.Conversations)), Entries: make(map[ID]Entry, len(s.Entries)), Tasks: make(map[ID]Task, len(s.Tasks)), Submissions: make(map[ID]Submission, len(s.Submissions)), Documents: make(map[ID]Document, len(s.Documents))}
 	for id, v := range s.Conversations {
 		n.Conversations[id] = v
 	}
@@ -280,6 +280,7 @@ func candidateTables(s Snapshot) Snapshot {
 // cloneState is the strict deep-detachment boundary for public reads and images.
 func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 	n := candidateTables(s)
+	n.retained = nil // detached public maps cannot retain a trusted immutable cache
 	for id, v := range s.Entries {
 		owned, e := copyEntry(v, l)
 		if e != nil {
@@ -288,12 +289,11 @@ func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 		n.Entries[id] = owned
 	}
 	for id, v := range s.Tasks {
-		x, e := copyObject(v.Checkpoint, l)
+		owned, e := copyTask(v, l)
 		if e != nil {
 			return Snapshot{}, e
 		}
-		v.Checkpoint = x
-		n.Tasks[id] = v
+		n.Tasks[id] = owned
 	}
 	for id, v := range s.Submissions {
 		x, e := copyObject(v.Value, l)
@@ -459,9 +459,14 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			v.Position = uint64(i + 1)
 			n.Entries[id] = v
 		case "put-task":
-			v := *w.Task
-			if old, ok := n.Tasks[id]; ok && (old.Conversation != v.Conversation || old.Kind != v.Kind) {
-				return Snapshot{}, reject("task identity changed")
+			v, e := copyTask(*w.Task, l)
+			if e != nil {
+				return Snapshot{}, e
+			}
+			if old, ok := n.Tasks[id]; ok {
+				if e = validateTaskReplacement(old, v, l); e != nil {
+					return Snapshot{}, e
+				}
 			}
 			n.Tasks[id] = v
 		case "put-submission":
@@ -563,7 +568,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			delete(n.DocumentRevisions, id)
 		}
 	}
-	if err = validateState(n, l, final); err != nil {
+	if err = validateState(&n, l, final, s, r.Writes); err != nil {
 		return Snapshot{}, err
 	}
 	return n, nil
@@ -571,7 +576,19 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 func sameAddress(a, b Document) bool {
 	return documentAddress(a) == documentAddress(b)
 }
-func validKind(s string) bool { return kindPattern.MatchString(s) }
+func validKind(s string) bool {
+	if len(s) < 1 || len(s) > 128 || s[0] < 'a' || s[0] > 'z' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == '.' || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
 func validStatus(s string) bool {
 	switch s {
 	case "pending", "running", "waiting", "completing", "done", "failed", "aborted":
@@ -579,7 +596,42 @@ func validStatus(s string) bool {
 	}
 	return false
 }
-func validateState(s Snapshot, l Limits, final bool) error {
+func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write) error {
+	s := *candidate
+	changed := map[retainedKey]bool{}
+	for _, write := range writes {
+		switch {
+		case write.Conversation != nil:
+			changed[retainedKey{"conversation", write.Conversation.ID}] = true
+		case write.Entry != nil:
+			changed[retainedKey{"entry", write.Entry.ID}] = true
+		case write.Task != nil:
+			changed[retainedKey{"task", write.Task.ID}] = true
+		case write.Submission != nil:
+			changed[retainedKey{"submission", write.Submission.ID}] = true
+		case write.Document != nil:
+			changed[retainedKey{"document", write.Document.ID}] = true
+		case write.Delta != nil:
+			changed[retainedKey{"document", write.Delta.ID}] = true
+		}
+	}
+	// Unchanged records have already passed their JSON/shape/history checks.
+	// Global references and retained budgets still run for every candidate.
+	changedEntries, changedTasks, changedDocuments := map[ID]bool{}, map[ID]bool{}, map[ID]bool{}
+	for _, write := range writes {
+		if write.Entry != nil {
+			changedEntries[write.Entry.ID] = true
+		}
+		if write.Task != nil {
+			changedTasks[write.Task.ID] = true
+		}
+		if write.Document != nil {
+			changedDocuments[write.Document.ID] = true
+		}
+		if write.Delta != nil {
+			changedDocuments[write.Delta.ID] = true
+		}
+	}
 	revisionCount := 0
 	for _, revisions := range s.DocumentRevisions {
 		revisionCount += len(revisions)
@@ -601,8 +653,10 @@ func validateState(s Snapshot, l Limits, final bool) error {
 		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) || v.Value == nil {
 			return reject("invalid entry")
 		}
-		if _, e := copyEntry(v, l); e != nil {
-			return e
+		if prior.retained == nil || changedEntries[v.ID] {
+			if _, e := copyEntry(v, l); e != nil {
+				return e
+			}
 		}
 		if uint64(v.ByTask) > MaxID || (final && v.ByTask != 0 && !existsTask(v.ByTask)) {
 			return reject("entry task missing")
@@ -617,8 +671,21 @@ func validateState(s Snapshot, l Limits, final bool) error {
 		}
 	}
 	for _, v := range s.Tasks {
-		if uint64(v.Conversation) > MaxID || uint64(v.Owner) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) || !validStatus(v.Status) || v.Checkpoint == nil || v.Owner == v.ID || (final && v.Owner != 0 && !existsTask(v.Owner)) {
+		if (final && !existsConv(v.Conversation)) || (final && v.Owner != 0 && !existsTask(v.Owner)) {
 			return reject("invalid task")
+		}
+		if prior.retained == nil || changedTasks[v.ID] {
+			if err := validateTaskRecord(v, l); err != nil {
+				return err
+			}
+		}
+		if final && v.Execution != nil {
+			if err := validateTaskReferences(s, v, l); err != nil {
+				return err
+			}
+			if _, err := taskOwnerChain(s, v); err != nil {
+				return err
+			}
 		}
 	}
 	// Ownership edges cannot contain cycles, including forward same-batch edges.
@@ -638,7 +705,7 @@ func validateState(s Snapshot, l Limits, final bool) error {
 	}
 	requests := map[requestKey]ID{}
 	for _, v := range s.Submissions {
-		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "write") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
+		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
 		}
 		if v.RequestID != "" {
@@ -673,8 +740,10 @@ func validateState(s Snapshot, l Limits, final bool) error {
 		default:
 			return reject("invalid scope")
 		}
-		if _, err := encodeBounded(v.Value, l, l.MaxDocumentBytes); err != nil {
-			return err
+		if prior.retained == nil || changedDocuments[v.ID] {
+			if _, err := encodeBounded(v.Value, l, l.MaxDocumentBytes); err != nil {
+				return err
+			}
 		}
 		if !v.Retired {
 			key := documentAddress(v)
@@ -685,39 +754,55 @@ func validateState(s Snapshot, l Limits, final bool) error {
 		}
 	}
 	var retained int64
-	add := func(v any) error {
-		p, e := encodeBounded(v, l, l.MaxRecordBytes)
-		if e != nil {
-			return e
+	cache := &retainedSizes{records: map[retainedKey]int{}, revisions: map[ID][]int{}}
+	add := func(v any, size int) (int, error) {
+		if size == 0 {
+			p, e := encodeBounded(v, l, l.MaxRecordBytes)
+			if e != nil {
+				return 0, e
+			}
+			size = len(p)
 		}
-		retained += int64(len(p))
+		retained += int64(size)
 		if retained > l.MaxRetainedBytes {
-			return reject("retained data limit")
+			return 0, reject("retained data limit")
 		}
-		return nil
+		return size, nil
 	}
-	for _, v := range s.Conversations {
-		if e := add(v); e != nil {
+	addRecord := func(kind string, id ID, value any) error {
+		key := retainedKey{kind, id}
+		size := 0
+		if prior.retained != nil && !changed[key] {
+			size = prior.retained.records[key]
+		}
+		n, err := add(value, size)
+		if err == nil {
+			cache.records[key] = n
+		}
+		return err
+	}
+	for id, v := range s.Conversations {
+		if e := addRecord("conversation", id, v); e != nil {
 			return e
 		}
 	}
-	for _, v := range s.Entries {
-		if e := add(v); e != nil {
+	for id, v := range s.Entries {
+		if e := addRecord("entry", id, v); e != nil {
 			return e
 		}
 	}
-	for _, v := range s.Tasks {
-		if e := add(v); e != nil {
+	for id, v := range s.Tasks {
+		if e := addRecord("task", id, v); e != nil {
 			return e
 		}
 	}
-	for _, v := range s.Submissions {
-		if e := add(v); e != nil {
+	for id, v := range s.Submissions {
+		if e := addRecord("submission", id, v); e != nil {
 			return e
 		}
 	}
-	for _, v := range s.Documents {
-		if e := add(v); e != nil {
+	for id, v := range s.Documents {
+		if e := addRecord("document", id, v); e != nil {
 			return e
 		}
 	}
@@ -725,11 +810,33 @@ func validateState(s Snapshot, l Limits, final bool) error {
 		if _, ok := s.Documents[id]; !ok {
 			return reject("revision document missing")
 		}
+		sizes := make([]int, len(revisions))
+		addRevision := func(index int, revision DocumentRevision) error {
+			size := 0
+			// Rewindable histories append without modifying earlier revisions.
+			if prior.retained != nil && (!changedDocuments[id] || documentHistory(s.Documents[id]) == "rewindable") && index < len(prior.retained.revisions[id]) {
+				size = prior.retained.revisions[id][index]
+			}
+			n, err := add(revision, size)
+			if err == nil {
+				sizes[index] = n
+			}
+			return err
+		}
+		cache.revisions[id] = sizes
+		if prior.retained != nil && !changedDocuments[id] && len(prior.DocumentRevisions[id]) == len(revisions) {
+			for index, revision := range revisions {
+				if e := addRevision(index, revision); e != nil {
+					return e
+				}
+			}
+			continue
+		}
 		var previous uint64
 		var version uint64
 		var count uint64
 		var value JSON
-		for _, revision := range revisions {
+		for index, revision := range revisions {
 			if revision.Seq == 0 || revision.Seq <= previous || revision.Seq > s.Seq || revision.Version == 0 || revision.Version > MaxID || (revision.Kind != "delta" && revision.Value == nil) {
 				return reject("invalid document revision")
 			}
@@ -760,7 +867,7 @@ func validateState(s Snapshot, l Limits, final bool) error {
 				}
 				value, version, count = revision.Value, revision.Version, 0
 			}
-			if e := add(revision); e != nil {
+			if e := addRevision(index, revision); e != nil {
 				return e
 			}
 		}
@@ -779,6 +886,7 @@ func validateState(s Snapshot, l Limits, final bool) error {
 			}
 		}
 	}
+	candidate.retained = cache
 	return nil
 }
 func checkPage(l Limits, n int) error {

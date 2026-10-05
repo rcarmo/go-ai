@@ -38,15 +38,24 @@
 - No hidden skips, broad TODO classifications, test weakening, or unproven completion claims.
 - `RELEASE.md` must record every Go implementation, fix, adaptation, N/A decision, local validation result, deliberate fault-gate result, SBOM/security evidence, hosted CI evidence, and final/rollback SHAs.
 
+## Mandatory test profiling
+
+- Every test, race, benchmark and fuzz run must capture CPU and heap/allocation profiles and receive post-run performance analysis. This includes focused runs, delegates, regression runs and failing runs. Unprofiled test execution is prohibited; `go test` itself is permitted with CPU/heap capture, a retained binary and post-run analysis.
+- Prefer `make test`, `make test-race`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. All run through `scripts/test-profile.sh`, package by package, with retained test binaries, logs, CPU/heap profiles and `pprof` reports for cumulative CPU, `alloc_space` and `alloc_objects`.
+- Focus a run with `PACKAGES=./durable TEST_FLAGS='-run ^TestName$ -count=3'`. Change artifact location with `PROFILE_ROOT=/workspace/tmp/<run>`. The wrapper manages profile paths; it refuses overrides and fails a successful test run if its required profiles or analysis are missing.
+- Direct focused runs may use `go test ./package -cpuprofile=<run>/cpu.pprof -memprofile=<run>/heap.pprof -o <run>/test.bin`, followed by `go tool pprof -top -cum` for CPU and `-top -alloc_space` / `-top -alloc_objects` for heap. Capture separate profiles per package when testing several packages.
+- Analyse profiles after failures too. Build failures and process crashes may prevent complete profiles; retain the logs and explicitly record unavailable data. Subprocess tests must profile their child work or explicitly use a profiled parent fixture; never silently drop child profiling.
+- Inspect allocation and CPU call chains after each run. Record measured reductions against comparable workloads, or state why no safe change applies. Generated reports enforce capture and provide the starting analysis; they do not replace engineering judgement. Do not weaken assertions, increase acceptance deadlines or skip verification to improve performance numbers.
+
 ## Local gates and review
 
 - Required local validation for upstream release parity includes:
   - focused tests for every changed behavior;
   - full-record clean text and image regeneration checks;
   - independent deliberate text and image fault gates proving regeneration comparators fail on real drift;
-  - `go test ./...`;
-  - `TMPDIR=/workspace/tmp go test -shuffle=on ./...`;
-  - `TMPDIR=/workspace/tmp CGO_ENABLED=1 go test -race ./... -count=1`;
+  - `make test`;
+  - `make test-shuffle`;
+  - `make test-race`;
   - `go vet ./...`;
   - `make staticcheck`;
   - `make check-logging`;

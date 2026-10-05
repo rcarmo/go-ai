@@ -30,6 +30,7 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 	})
 	s, _ := NewMemory()
 	h := openHarness(t, s, options)
+	cleanupTaskGates(t, release)
 	r := root(t, h, ref)
 	first, e := r.Submit(bg, Input{Content: "first", RequestID: "same"})
 	if e != nil {
@@ -52,7 +53,7 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 	if _, e = r.Submit(bg, Input{Content: "cross-type", RequestID: "same", Type: "write"}); e == nil {
 		t.Fatal("cross-type reuse")
 	}
-	if _, e = r.Submit(bg, Input{Content: "steer", Type: "steer"}); !errors.Is(e, ErrUnsupported) {
+	if _, e = r.Submit(bg, Input{Content: "invalid", Type: "unsupported"}); !errors.Is(e, ErrUnsupported) {
 		t.Fatal(e)
 	}
 	if _, e = r.Commit(bg, func(*Tx) error { return nil }); e == nil {

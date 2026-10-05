@@ -1,21 +1,28 @@
 // Package durable implements native atomic storage and persistent model → owned
 // host tool → answer runs through goai.Stream. Copied definitions, bounded schema
 // validation, persisted final arguments and conservative replay guard effects.
-// The M1 runtime is published; full pi-durable parity and deferred model requests
-// remain incomplete. Entry ancestry and full-base document/fork semantics are
+// The M1 runtime is published. Local work adds generic tasks, selected extensions
+// and hooks, steering/reset/passive boundaries, compaction/retry/deferred polling,
+// committed views/events, coding tools, subagents and native SQLite. Full pinned
+// pi-durable parity and independent acceptance of these additions are incomplete.
+// Entry ancestry and full-base document/fork semantics are
 // independently focused-accepted, including definition/migration APIs. Final
 // definition normal/race runs each passed 11 tests plus eight subtests, no skips;
 // an independent public-API clone run passed 12 tests, 22 total passes, no skips.
 // Integrated durable normal/race passed 121 tests plus 418 subtests each, no
-// skips, at accepted S2d; full-project successor gates have not run.
+// skips, at accepted S2d. Later local gates and precise gaps are recorded in
+// docs/durable/contract-crosswalk.md; the S2d counts are historical.
 // Open reconciles running tasks to pending
 // but dispatches no model effect; Submit, Resume and Wait can schedule work.
 // Request intent pins a sanitized model behavior DTO, system/messages cutoff
-// and curated Temperature/MaxTokens settings. Terminal identity/usage attribution
+// and curated request settings. Terminal identity/usage attribution
 // comes from that pinned model, never from omitted/conflicting provider claims.
 // Endpoint, headers and credentials are stripped before persisted DTO validation
 // and resolve process-locally; private header sizes do not relax persisted caps.
-// Other behavior options and payload-rewrite hooks reject. Read-only host observers have no purity guarantee. Close joins provider
+// Unpinned provider behavior options and payload-rewrite hooks reject. Extension
+// beforeRequest hooks receive detached context and may edit one request without
+// changing its persisted intent. Host callbacks have no purity guarantee.
+// Close joins provider
 // channels (including noncooperative ones); received terminal outcomes settle
 // atomically even during Close, unfinished requests/tools remain pending for
 // conservative recovery. Abort commits marks before signalling/joining children,
@@ -30,7 +37,9 @@
 // rounds16. Replay requires stored/current safe with exact implementation/version
 // and schema identity; unsafe/missing/changed code never silently reruns.
 // pi.agent/pi.live/pi.inbox/pi.usage are version1 native bases; inbox placement
-// covers follow-up/write, not full steering/reset/post-tools boundary parity.
+// covers one/all follow-up and steer selection, busy rejection, passive writes,
+// reset and post-tools continuation. Queued writes survive input withdrawal;
+// stale head writes cannot restore a range removed by a newer head.
 //
 // Transactions are synchronous, single-owner and callback-scoped. Set and Update
 // strictly validate and detach JSON before returning. Retained inputs, Update
@@ -59,7 +68,13 @@
 // ordinals never exceed 2^53-1. Root1 is reserved; first minted ID2. Complete bad
 // headers/checksums/JSON/relations fail closed. Only a legal final incomplete
 // header/frame/terminator prefix is truncated; no magic scanning/repair occurs.
-// No sidecar, rename, reclamation or automatic corruption repair exists.
+// The journal has no sidecar, reclamation or automatic corruption repair.
+// OpenSQLite (CGO + system sqlite3 on Unix) stores native reservation/commit
+// frames in WAL transactions with synchronous=FULL. Reclaim replaces physical
+// frames with a complete logical checkpoint, retaining every entry and revision.
+// Its files are distinct from upstream SQLite files. Canonical parent paths and
+// an inode flock exclude cooperating processes until Close; directory/file
+// replacement by the host or a noncooperating writer is outside that guarantee.
 //
 // Sync defaults true. File sync follows append; directory creation syncs parent
 // edges and new file directory metadata before acknowledgement. Unsupported or
@@ -112,7 +127,8 @@
 // predicates. Explicit operations preserve structural intent even when values
 // compare equal. Native Set replaces the root; detached Update emits a bounded
 // structural diff. No wire dictionary, JS proxy or canonical tuple is promised.
-// Full M2-M4 parity and full-project candidate gates are unfinished. Legacy
+// Full M2-M4 parity and exact-runtime hosted/independent candidate gates are
+// unfinished. Legacy
 // latest-only pi.agent metadata rejects an unprovable historical harness fork.
 //
 // S2d typed entry/context and committed observer APIs are independently focused-
@@ -153,10 +169,23 @@
 // watchers, version changes replace old shapes, required migration-only bases
 // are quiet for observers already hydrated to the new shape. Disposable states
 // read committed incarnation data; no Chord transport/proxy emulation is supplied.
-// Full 60-source/42-suite parity remains unfinished. Generic task ownership and
-// recovery, extensions, steering/reset/retries, adaptive harness views/events,
-// compaction/reclamation/backends, legacy-agent backfill, coding environments
-// and subagents need later slices and full validation/publication gates.
+// Full 60-source/42-suite parity is unfinished. Local tests exercise task
+// ownership/recovery, hooks, queues, compaction, deferred cancellation, committed
+// message/tool deltas, structural watches, coding tools and subagent reporting.
+// Environment factories resolve persisted cwd off-line on each tool use.
+// Positional tool declarations, argument preparation, replay progress clearing
+// and explicit UTF-8 head/tail output limits are covered by profiled tests.
+// Diagnostic remarks are separate from details and appended as model-visible
+// <harness> text; reported isError is independent of the execution outcome.
+// Nil output limits preserve the published 32KiB overflow-rejection contract;
+// upstream defaults retain 2000 lines/50KiB and batch progress adaptively.
+// Native SQLite and journal reclamation preserve logical history and spent IDs;
+// a reclaimed journal uses version-2 config plus an atomic full checkpoint.
+// No upstream storage-file interoperability or universal power-loss guarantee
+// is provided. Pinned reads report unsupported_image; native PNG/JPEG/GIF reads
+// are an extension, and resizing is not a pinned obligation. Fuzzy edit/diff,
+// portable environments, progress batching/automatic truncation remarks, exact scheduler-tool
+// fault/orphan mapping and legacy-agent backfill need further work.
 //
 // Records may contain sensitive user/model/tool data. Credentials, headers,
 // clients and executable callbacks have no persistence fields; errors never

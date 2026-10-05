@@ -1,10 +1,14 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test publisher-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race staticcheck
+.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test publisher-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race test-shuffle staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
 GOFMT ?= gofumpt
 GOLINT ?= golangci-lint
 GOSEC ?= gosec
 GO_TMPDIR ?= /workspace/tmp
+PROFILE_ROOT ?= artifacts/profiles
+PACKAGES ?= ./...
+TEST_FLAGS ?=
+PROFILE_TEST = GO=$(GO) TMPDIR=$(GO_TMPDIR) PROFILE_ROOT=$(PROFILE_ROOT) bash scripts/test-profile.sh
 GOTOOLCHAIN ?= auto
 STATICCHECK_VERSION ?= v0.7.0
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
@@ -76,28 +80,31 @@ format: ## Format code with gofumpt
 	@which $(GOFMT) > /dev/null || (echo "Installing gofumpt..." && $(GO) install mvdan.cc/gofumpt@latest)
 	$(GOFMT) -w .
 
-test: ## Run tests
-	TMPDIR=$(GO_TMPDIR) $(GO) test ./... -count=1
+test: ## Run tests with CPU/heap profiles and allocation analysis
+	$(PROFILE_TEST) $(PACKAGES) -- $(TEST_FLAGS)
 
-test-deterministic: ## Run tests three times to catch nondeterminism
-	TMPDIR=$(GO_TMPDIR) $(GO) test ./... -count=3
+test-deterministic: ## Profile tests three times to catch nondeterminism
+	$(PROFILE_TEST) $(PACKAGES) -- -count=3 $(TEST_FLAGS)
+
+test-shuffle: ## Profile tests with shuffled order
+	$(PROFILE_TEST) $(PACKAGES) -- -shuffle=on $(TEST_FLAGS)
 
 vet: ## Run go vet
 	TMPDIR=$(GO_TMPDIR) $(GO) vet ./...
 
 coverage: ## Run tests with coverage
-	TMPDIR=$(GO_TMPDIR) $(GO) test -coverprofile=coverage.out ./...
+	COVERAGE_FILE=coverage.out $(PROFILE_TEST) $(PACKAGES) -- -cover $(TEST_FLAGS)
 	$(GO) tool cover -func=coverage.out
 
 bench: ## Run benchmarks
-	TMPDIR=$(GO_TMPDIR) $(GO) test -run '^$$' -bench . ./...
+	$(PROFILE_TEST) $(PACKAGES) -- -run '^$$' -bench . -benchmem $(TEST_FLAGS)
 
 fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzPartialJSON -fuzztime $(or $(FUZZTIME),30s) ./internal/jsonparse/
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s) ./transports/sse/
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzContextRoundTrip -fuzztime $(or $(FUZZTIME),30s) .
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) .
-	TMPDIR=$(GO_TMPDIR) $(GO) test -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) .
+	$(PROFILE_TEST) ./internal/jsonparse/ -- -fuzz FuzzPartialJSON -fuzztime $(or $(FUZZTIME),30s)
+	$(PROFILE_TEST) ./transports/sse/ -- -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s)
+	$(PROFILE_TEST) . -- -fuzz FuzzContextRoundTrip -fuzztime $(or $(FUZZTIME),30s)
+	$(PROFILE_TEST) . -- -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s)
+	$(PROFILE_TEST) . -- -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s)
 
 check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/publisher/security gates
 
@@ -156,10 +163,10 @@ staticcheck: ## Run staticcheck at a pinned version
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
 test-race: ## Run race tests (requires gcc/clang + CGO)
-	CGO_ENABLED=1 TMPDIR=$(GO_TMPDIR) $(GO) test -race ./... -count=1
+	CGO_ENABLED=1 $(PROFILE_TEST) $(PACKAGES) -- -race $(TEST_FLAGS)
 
-test-repro-fast: ## Reproducible local gate (no race)
-	TMPDIR=$(GO_TMPDIR) $(GO) test ./... -count=1
+test-repro-fast: ## Reproducible local gate (profiled tests, no race)
+	$(MAKE) test
 	TMPDIR=$(GO_TMPDIR) $(GO) vet ./...
 	TMPDIR=$(GO_TMPDIR) $(GO) build ./...
 	$(MAKE) staticcheck

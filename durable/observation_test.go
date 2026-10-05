@@ -204,7 +204,8 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 		<-release
 		return nil
 	})
-	producer, cancel := context.WithCancel(context.WithValue(bg, "watch-key", "context-owned"))
+	type watchContextKey struct{}
+	producer, cancel := context.WithCancel(context.WithValue(bg, watchContextKey{}, "context-owned"))
 	if _, e = s.Commit(producer, func(tx *Tx) error {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
@@ -217,8 +218,8 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	watchReceive(t, entered)
 	actual := watchReceive(t, deliveryContext)
 	cancel()
-	if actual.Value("watch-key") != "context-owned" || actual.Err() != nil || actual.Done() != nil {
-		t.Fatal("actual producer context lost values/cancellation", actual.Value("watch-key"), actual.Err())
+	if actual.Value(watchContextKey{}) != "context-owned" || actual.Err() != nil || actual.Done() != nil {
+		t.Fatal("actual producer context lost values/cancellation", actual.Value(watchContextKey{}), actual.Err())
 	}
 	done := make(chan error, 1)
 	go func() { done <- s.Close(bg) }()

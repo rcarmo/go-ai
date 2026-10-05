@@ -357,7 +357,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 		return h
 	}
 	h := open()
-	root, e := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}})
+	_, e := h.Root(bg, AgentChange{Model: ModelRef{model.Provider, model.ID}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -369,7 +369,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 	h.Close(bg)
 	h = open()
 	defer h.Close(bg)
-	root, e = h.Conversation(bg, 1)
+	root, e := h.Conversation(bg, 1)
 	if e != nil {
 		t.Fatal(e)
 	}

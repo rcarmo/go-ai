@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 )
@@ -22,6 +23,7 @@ type Session struct {
 	observerMu           sync.Mutex
 	watches              map[*DocumentWatch]bool
 	subscriptions        map[*CommitSubscription]bool
+	taskScheduler        *taskScheduler // private line-owned Harness integration
 }
 
 // OpenSession claims one native memory/journal store. Storage remains owned
@@ -31,14 +33,11 @@ func OpenSession(store Storage) (*Session, error) {
 		return nil, reject("nil storage")
 	}
 	var core *storeCore
-	switch native := store.(type) {
-	case *MemoryStorage:
-		core = native.storeCore
-	case *JournalStorage:
-		core = native.storeCore
-	default:
-		return nil, reject("M1a requires native storage")
+	native, ok := store.(nativeStorage)
+	if !ok {
+		return nil, reject("session requires native storage")
 	}
+	core = native.nativeCore()
 	if e := core.claim(); e != nil {
 		return nil, e
 	}
@@ -91,20 +90,63 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 // Commit seals every escaped handle after callback return, including panic. A
 // canceled preparation may reject before Apply; after storage admission the
 // native store completes adopt-or-poison without releasing the mutation line.
-func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uint64, err error) {
+func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
+	return s.commit(ctx, callback, true, 0)
+}
+
+func (s *Session) taskCommit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
+	return s.commit(ctx, callback, false, 0)
+}
+func (s *Session) invocationCommit(ctx context.Context, taskID ID, callback func(*Tx) error) (uint64, error) {
+	return s.commit(ctx, callback, false, taskID)
+}
+
+// Internal scheduler/adapter admissions cannot create their own retry epoch.
+// Runtime admission identity witnesses a failed apply BEFORE storage, retaining
+// a genuine external wake that arrives while the failed storage is settling.
+func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external bool, taskID ID) (seq uint64, err error) {
 	if callback == nil {
 		return 0, reject("nil transaction callback")
 	}
 	if err = s.enter(ctx); err != nil {
 		return 0, err
 	}
+	markAdmission := func() {
+		if s.taskScheduler != nil && taskID != 0 {
+			if r := s.taskScheduler.invocations[taskID]; r != nil {
+				r.admissionEpoch = s.taskScheduler.epoch.Load()
+				if r.fallbackEpoch != nil {
+					r.admissionEpoch = *r.fallbackEpoch
+				}
+			}
+		}
+	}
+	markAdmission()
 	ready := make(chan struct{})
-	defer func() { s.leave(); close(ready); s.kickWatches() }()
-	state, e := s.store.Snapshot(ctx)
+	var tx *Tx
+	defer func() {
+		if err != nil && tx != nil && tx.taskRollback != nil {
+			tx.taskRollback(err)
+		}
+		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
+			s.taskScheduler.notifyWaiters(ErrPoisoned)
+			for target := range s.taskScheduler.tickets {
+				s.taskScheduler.failTicket(target, ErrPoisoned)
+			}
+		}
+		s.leave()
+		close(ready)
+		s.kickWatches()
+		if s.taskScheduler != nil {
+			s.taskScheduler.dispatchStops()
+		}
+	}()
+	state, e := s.taskSnapshot(ctx)
 	if e != nil {
+		err = e
 		return 0, e
 	}
-	tx := &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s}
+	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external}
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err
@@ -113,6 +155,11 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 		return 0, err
 	}
 	if err = ctx.Err(); err != nil {
+		return 0, err
+	}
+	// Task owner validation and same-batch retirement precede document content
+	// selection. This private sealed-Tx path executes no task/host callbacks.
+	if err = s.finalizeTaskWrites(tx); err != nil {
 		return 0, err
 	}
 	if err = tx.finalizeDocuments(); err != nil {
@@ -138,6 +185,16 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	}
 	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
 	if err == nil {
+		if s.taskScheduler != nil {
+			// Storage already validated and adopted the immutable candidate. The
+			// Session owns its sole writer; scheduler bookkeeping reads this private
+			// view only. Do not replay/validate the entire history a second time.
+			<-s.core.line
+			adopted := s.core.state
+			s.core.leave()
+			tx.taskAdoptState = &adopted
+		}
+		s.adoptTaskEffects(seq, tx)
 		s.enqueueWatchFrames(frames)
 		s.enqueueSubscriptions(subs)
 		// Only changed incarnations invalidate migration cache entries. An
@@ -163,6 +220,55 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (seq uin
 	}
 	return seq, err
 }
+func (s *Session) finalizeTaskWrites(tx *Tx) error {
+	if s.taskScheduler != nil {
+		if err := s.taskScheduler.prepareTaskWrites(tx); err != nil {
+			return err
+		}
+	}
+	return tx.finalizeTaskWrites()
+}
+func (s *Session) adoptTaskEffects(seq uint64, tx *Tx) {
+	if s.taskScheduler != nil {
+		s.taskScheduler.adopt(seq, tx)
+	}
+}
+
+// taskBookkeeping holds the line without any store snapshot. Poison cannot
+// prevent reservation rollback or Close from seeing every retained host join.
+func (s *Session) taskBookkeeping(work func()) { <-s.line; defer s.leave(); work() }
+
+// readTasks runs only bounded internal bookkeeping on the line. It is not a
+// host callback API and never executes phases/migrations/provider effects.
+func (s *Session) readTasks(ctx context.Context, read func(Snapshot) error) error {
+	if err := s.enter(ctx); err != nil {
+		return err
+	}
+	defer s.leave()
+	state, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	return read(state)
+}
+
+// taskSnapshot is an immutable internal view while the Session line is owned.
+// Tx methods detach values before exposing them; scheduler reads never expose
+// these maps. Public Snapshot remains deeply detached. Preserve wrapped storage
+// adapters (including fault gates) rather than bypassing their Snapshot contract.
+func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
+	switch s.store.(type) {
+	case *MemoryStorage, *JournalStorage:
+		if err := s.core.enter(ctx); err != nil {
+			return Snapshot{}, err
+		}
+		defer s.core.leave()
+		return s.core.state, nil
+	default:
+		return s.store.Snapshot(ctx)
+	}
+}
+
 func (s *Session) Close(ctx context.Context) error {
 	if ctx == nil {
 		return reject("nil context")

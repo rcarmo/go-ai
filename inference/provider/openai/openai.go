@@ -1077,7 +1077,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		StopReason: goai.StopReasonPending,
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	ch <- goai.SnapshotEvent(&goai.StartEvent{Partial: partial})
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
@@ -1146,18 +1146,18 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		if delta.Content != nil && *delta.Content != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				ch <- &goai.TextStartEvent{
+				ch <- goai.SnapshotEvent(&goai.TextStartEvent{
 					ContentIndex: len(partial.Content) - 1,
 					Partial:      partial,
-				}
+				})
 			}
 			idx := len(partial.Content) - 1
 			partial.Content[idx].Text += *delta.Content
-			ch <- &goai.TextDeltaEvent{
+			ch <- goai.SnapshotEvent(&goai.TextDeltaEvent{
 				ContentIndex: idx,
 				Delta:        *delta.Content,
 				Partial:      partial,
-			}
+			})
 		}
 
 		// Thinking/reasoning content — check fields in priority order
@@ -1174,21 +1174,21 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				thinkingBlockIdx = len(partial.Content) - 1
-				ch <- &goai.ThinkingStartEvent{
+				ch <- goai.SnapshotEvent(&goai.ThinkingStartEvent{
 					ContentIndex: thinkingBlockIdx,
 					Partial:      partial,
-				}
+				})
 			}
 			idx := len(partial.Content) - 1
 			if partial.Content[idx].Type == "thinking" {
 				thinkingBlockIdx = idx
 			}
 			partial.Content[idx].Thinking += reasoningDelta
-			ch <- &goai.ThinkingDeltaEvent{
+			ch <- goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
 				Delta:        reasoningDelta,
 				Partial:      partial,
-			}
+			})
 		}
 
 		// Tool calls
@@ -1221,7 +1221,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					contentIdx: contentIdx,
 				})
 				at = &activeTools[len(activeTools)-1]
-				ch <- &goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial}
+				ch <- goai.SnapshotEvent(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
 			if isCustom {
 				at.custom = true
@@ -1230,7 +1230,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			// Accumulate arguments/input
 			if tc.Function.Arguments != "" {
 				at.argsBuf += tc.Function.Arguments
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial}
+				ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
 			}
 			if tc.Custom.Input != "" {
 				next := at.customInput + tc.Custom.Input
@@ -1242,7 +1242,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				at.customInput = next
 				partial.Content[at.contentIdx].Arguments = map[string]interface{}{"input": next}
 				if deltaJSON != "" {
-					ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial}
+					ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 				}
 			}
 
@@ -1267,7 +1267,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				thinkingBlockIdx = len(partial.Content) - 1
-				ch <- &goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial}
+				ch <- goai.SnapshotEvent(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
 			}
 		}
 	}
@@ -1281,10 +1281,10 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	// Close any open text blocks
 	for i, c := range partial.Content {
 		if c.Type == "text" {
-			ch <- &goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial}
+			ch <- goai.SnapshotEvent(&goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial})
 		}
 		if c.Type == "thinking" {
-			ch <- &goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial}
+			ch <- goai.SnapshotEvent(&goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial})
 		}
 	}
 
@@ -1298,7 +1298,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				return
 			}
 			if deltaJSON != "" {
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial}
+				ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 			}
 			args = map[string]interface{}{"input": at.customInput}
 		} else {
@@ -1308,7 +1308,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 		}
 		partial.Content[at.contentIdx].Arguments = args
-		ch <- &goai.ToolCallEndEvent{
+		ch <- goai.SnapshotEvent(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall: goai.ToolCall{
 				Type:      "toolCall",
@@ -1317,7 +1317,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				Arguments: args,
 			},
 			Partial: partial,
-		}
+		})
 	}
 
 	// Determine stop reason
