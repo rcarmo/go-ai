@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.26.6']
+        go-version: ['1.27.1']
     steps:
       - uses: actions/checkout@v4
       - name: Initialize project-owned temporary paths
@@ -28,6 +28,8 @@ jobs:
           mkdir -p "$root/cache/go-build" "$root/cache/go-mod" "$root/cache/go-path" "$root/cache/xdg" "$root/cache/python" "$root/build/tmp"
           {
             echo "PROJECT_TMP_ROOT=$root"
+            echo "GOVULNCHECK_GOTOOLCHAIN=go1.27.1"
+            echo "STATICCHECK_VERSION=v0.8.1"
             echo "GOCACHE=$root/cache/go-build"
             echo "GOMODCACHE=$root/cache/go-mod"
             echo "GOPATH=$root/cache/go-path"
@@ -53,8 +55,10 @@ jobs:
         run: make test-race
 
       - name: Test with coverage
-        if: matrix.go-version == '1.26.6'
-        run: make coverage
+        if: matrix.go-version == '1.27.1'
+        # External black-box tests otherwise contain no instrumented code;
+        # instrument production packages in their subprocesses as well.
+        run: make coverage TEST_FLAGS='-coverpkg=./...'
 
       - name: Logging quality gate
         run: ./scripts/check-logging.sh
@@ -92,6 +96,8 @@ jobs:
           mkdir -p "$root/cache/go-build" "$root/cache/go-mod" "$root/cache/go-path" "$root/cache/xdg" "$root/cache/python" "$root/build/tmp"
           {
             echo "PROJECT_TMP_ROOT=$root"
+            echo "GOVULNCHECK_GOTOOLCHAIN=go1.27.1"
+            echo "STATICCHECK_VERSION=v0.8.1"
             echo "GOCACHE=$root/cache/go-build"
             echo "GOMODCACHE=$root/cache/go-mod"
             echo "GOPATH=$root/cache/go-path"
@@ -101,7 +107,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.1'
           cache: false
 
       - name: Fuzz - Partial JSON parser
