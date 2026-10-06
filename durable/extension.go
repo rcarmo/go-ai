@@ -10,16 +10,32 @@ type Extension struct {
 	Hooks           GenerationHooks
 	ToolHooks       ToolHooks
 	CompactionHooks CompactionHooks
+	// Wraps run in declaration order after selected definitions compose, before
+	// tool filtering. Callbacks must be pure; failures drop only their target.
+	Wraps     []ExtensionWrap
+	TaskHooks []TaskHookRegistration
+}
+
+// ExtensionWrap specifies exactly one tool or prompt-section wrapper. Wrapped
+// definitions must retain their target name/key and satisfy registration rules.
+type ExtensionWrap struct {
+	Tool        string
+	Section     string
+	WrapTool    func(ToolRegistration) (ToolRegistration, error)
+	WrapSection func(PromptSection) (PromptSection, error)
 }
 type installedExtension struct {
 	source          *Extension
 	name            string
 	tools           map[string]registeredTool
+	toolOrder       []string
 	tasks           map[string]*TaskDefinition
 	sections        []PromptSection
 	hooks           GenerationHooks
 	toolHooks       ToolHooks
 	compactionHooks CompactionHooks
+	wraps           []ExtensionWrap
+	taskHooks       []TaskHookRegistration
 }
 
 func (r *Registry) effectiveToolsLocked() map[string]registeredTool {
@@ -51,6 +67,33 @@ func (r *Registry) Install(extension *Extension) error {
 		return reject("invalid extension")
 	}
 	prepared := installedExtension{source: extension, name: extension.Name, tools: map[string]registeredTool{}, tasks: map[string]*TaskDefinition{}, sections: append([]PromptSection(nil), extension.Sections...), hooks: extension.Hooks, toolHooks: extension.ToolHooks, compactionHooks: extension.CompactionHooks}
+	prepared.wraps = append([]ExtensionWrap(nil), extension.Wraps...)
+	if len(prepared.wraps) > DefaultLimits().MaxPage {
+		return reject("extension wrapper limit")
+	}
+	for _, wrap := range prepared.wraps {
+		tool := wrap.Tool != "" && wrap.Section == "" && wrap.WrapTool != nil && wrap.WrapSection == nil && validKind(wrap.Tool)
+		section := wrap.Section != "" && wrap.Tool == "" && wrap.WrapSection != nil && wrap.WrapTool == nil && sectionKey.MatchString(wrap.Section)
+		if !tool && !section {
+			return reject("invalid extension wrapper")
+		}
+	}
+	if len(extension.TaskHooks) > DefaultLimits().MaxPage {
+		return reject("extension task hook limit")
+	}
+	for _, registration := range extension.TaskHooks {
+		if !validKind(registration.Task) || len(registration.Handlers) > DefaultLimits().MaxMembers {
+			return reject("invalid task hook registration")
+		}
+		owned := TaskHookRegistration{Task: registration.Task, Handlers: map[string]TaskHook{}}
+		for name, handler := range registration.Handlers {
+			if !validKind(name) || handler == nil {
+				return reject("invalid task hook handler")
+			}
+			owned.Handlers[name] = handler
+		}
+		prepared.taskHooks = append(prepared.taskHooks, owned)
+	}
 	trial := NewRegistry()
 	for _, tool := range extension.Tools {
 		if _, exists := prepared.tools[tool.Definition.Name]; exists {
@@ -60,10 +103,14 @@ func (r *Registry) Install(extension *Extension) error {
 			return err
 		}
 		prepared.tools[tool.Definition.Name] = trial.tools[tool.Definition.Name]
+		prepared.toolOrder = append(prepared.toolOrder, tool.Definition.Name)
 	}
 	for _, task := range extension.Tasks {
 		if task == nil || !task.constructed {
 			return reject("invalid extension task")
+		}
+		if task.options.Kind == "task.pi.compaction" {
+			return reject("builtin task cannot be replaced")
 		}
 		if _, exists := prepared.tasks[task.Kind()]; exists {
 			return reject("duplicate extension task")
@@ -141,7 +188,7 @@ func (r *Registry) Uninstall(extension *Extension) {
 	r.mu.Lock()
 	found := false
 	for i, ext := range r.extensions {
-		if ext.source == extension {
+		if ext.name == extension.Name {
 			r.extensions = append(r.extensions[:i], r.extensions[i+1:]...)
 			found = true
 			break

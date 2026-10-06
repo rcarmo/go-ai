@@ -17,7 +17,7 @@ import (
 )
 
 func fakeModel(api goai.Api) *goai.Model {
-	return &goai.Model{ID: "durable-test", Provider: goai.ProviderOpenAI, Api: api, BaseURL: "https://unreachable.invalid", ContextWindow: 8192, MaxTokens: 256}
+	return &goai.Model{ID: "durable-test", Provider: goai.ProviderOpenAI, Api: api, BaseURL: "https://unreachable.invalid", ContextWindow: 128000, MaxTokens: 256}
 }
 func terminal(text string) *goai.DoneEvent {
 	return &goai.DoneEvent{Reason: goai.StopReasonStop, Message: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: text}}, StopReason: goai.StopReasonStop, Usage: &goai.Usage{Input: 3, Output: 2, TotalTokens: 5}}}

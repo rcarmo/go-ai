@@ -377,7 +377,12 @@ func TestTaskLegacySchedulerToolFinalPrefixBoundAndNoReplay(t *testing.T) {
 						if outcome == "orphaned" {
 							decision = TaskOutcome{Status: "orphaned", Reason: "missing_builtin_adapter"}
 						}
-						return h.scheduler.builtinDecision(tx, tx.state.Tasks[toolID], decision)
+						// Reproduce the stored pre-parity hold, whose replay must remain
+						// compatible. New decisions use scheduler-tool-missing.
+						task := tx.state.Tasks[toolID]
+						task.Status = "completing"
+						task.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: &BuiltinTaskHold{Stage: "held", Action: "scheduler-tool", Outcome: decision, FinalStatus: "failed", Conversation: 1, Owner: parentID, CallID: "stored-call"}}}
+						return h.finalizeBuiltinHold(tx, task)
 					})
 					if err != nil {
 						t.Fatal(err)

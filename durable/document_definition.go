@@ -175,6 +175,12 @@ func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinitio
 		return nil, false, err
 	}
 	defer s.leave()
+	return s.snapshotDefinition(ctx, def, owner, key)
+}
+
+// snapshotDefinition runs on the Session line. Invocation callers check their
+// lifetime on that same line before migration callbacks or cache admission.
+func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
 	address, err := definitionAddress(def, owner, key)
 	if err != nil {
 		return nil, false, err
@@ -198,6 +204,12 @@ func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 		return nil, false, err
 	}
 	defer s.leave()
+	return s.snapshotDefinitionAsOf(ctx, def, conversation, key, at)
+}
+
+// snapshotDefinitionAsOf shares historical materialisation between public
+// Session reads and invocation-fenced reads; caller holds the Session line.
+func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (JSON, bool, error) {
 	address, err := definitionAddress(def, conversation, key)
 	if err != nil {
 		return nil, false, err

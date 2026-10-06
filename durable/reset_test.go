@@ -74,8 +74,46 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		oldGeneration, oldReceipts := ID(0), 0
+		for _, raw := range state.Tasks {
+			if raw.Kind == "pi.generation" {
+				var cp generationCheckpoint
+				if err := fromObject(raw.Checkpoint, &cp, h.session.limits); err != nil {
+					t.Fatal(err)
+				}
+				if cp.Submission == first.ID() {
+					oldGeneration = raw.ID
+					record, err := CanonicalTask(raw, h.session.limits)
+					if err != nil || record.State.Outcome.Status != "completed" {
+						t.Fatal("post-tools reset changed completed generation", record, err)
+					}
+					for _, mutation := range []string{"checkpoint", "entry", "outcome", "status"} {
+						invalid, err := copyTask(raw, h.session.limits)
+						if err != nil {
+							t.Fatal(err)
+						}
+						switch mutation {
+						case "checkpoint":
+							invalid.Checkpoint["reset"] = false
+						case "entry":
+							invalid.Execution.Builtin.Hold.Entry++
+						case "outcome":
+							invalid.Execution.Builtin.Hold.Outcome = TaskOutcome{Status: "aborted"}
+						case "status":
+							invalid.Execution.Builtin.Hold.FinalStatus = "aborted"
+						}
+						if err := validateBuiltinHold(invalid, invalid.Execution.Builtin.Hold, h.session.limits); err == nil {
+							t.Fatal("invalid reset disposition accepted", mutation)
+						}
+					}
+				}
+			}
+		}
 		resetCount := 0
 		for _, entry := range state.Entries {
+			if entry.ByTask == oldGeneration && entry.Kind == "message" {
+				oldReceipts++
+			}
 			if entry.Kind == "pi.reset" {
 				resetCount++
 				if entry.Head != entry.ID {
@@ -83,8 +121,12 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 				}
 			}
 		}
-		if resetCount != 2 {
-			t.Fatal("reset placement", resetCount)
+		if resetCount != 2 || oldReceipts != 1 {
+			t.Fatal("reset placement or synthetic assistant", resetCount, oldReceipts)
+		}
+		public, err := first.Status(bg)
+		if err != nil || public.Status != "unanswered" || public.Reason != "reset" || public.Answer != 0 {
+			t.Fatal("reset settlement projection", public, err)
 		}
 	})
 }

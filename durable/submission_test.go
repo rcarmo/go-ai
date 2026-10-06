@@ -56,9 +56,11 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 	if _, e = r.Submit(bg, Input{Content: "invalid", Type: "unsupported"}); !errors.Is(e, ErrUnsupported) {
 		t.Fatal(e)
 	}
-	if _, e = r.Commit(bg, func(*Tx) error { return nil }); e == nil {
-		t.Fatal("busy passivecommit")
+	committed := false
+	if _, e = r.Commit(bg, func(*Tx) error { committed = true; return nil }); e != nil || !committed {
+		t.Fatal("live passive commit rejected", e)
 	}
+	if calls.Load() != 1 { t.Fatal("passive commit dispatched queued provider work", calls.Load()) }
 	close(release)
 	if waitSubmission(t, first).Submission.Status != "done" || waitSubmission(t, second).Submission.Status != "done" || calls.Load() != 2 {
 		t.Fatal("queue discarded")

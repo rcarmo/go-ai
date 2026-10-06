@@ -1,6 +1,7 @@
 package durable
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -24,6 +25,34 @@ func validateToolDiagnostics(diagnostics []ToolDiagnostic, l Limits) error {
 	}
 	_, err := encodeBounded(diagnostics, l, l.MaxDocumentBytes)
 	return err
+}
+func toolErrorMessage(name, code string) string {
+	switch code {
+	case "aborted":
+		return "Tool " + name + " was aborted"
+	case "interrupted":
+		return "Tool " + name + " was interrupted and may have partially run"
+	case "tool_unavailable":
+		return "Tool " + name + " is not available"
+	case "blocked":
+		return "Tool call blocked"
+	case "invalid_arguments":
+		return "Invalid arguments for tool " + name
+	default:
+		return code
+	}
+}
+
+func truncatedToolOutput(bytes, lines uint64, retain string) ToolDiagnostic {
+	kept := ""
+	if retain != "" {
+		position := "beginning"
+		if retain == "tail" {
+			position = "end"
+		}
+		kept = " to its " + position
+	}
+	return ToolDiagnostic{Severity: "warn", Code: "truncated", Message: fmt.Sprintf("Output truncated%s: %d lines, %d bytes dropped", kept, lines, bytes)}
 }
 func renderToolDiagnostics(diagnostics []ToolDiagnostic) string {
 	var text strings.Builder

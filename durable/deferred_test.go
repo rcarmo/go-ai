@@ -137,7 +137,7 @@ func TestDeferredRepollKeepsRequestAttemptAndSkipsRequestHooks(t *testing.T) {
 		}
 	})
 }
-func TestDeferredExpiryOnReopenDoesNotPoll(t *testing.T) {
+func TestDeferredExpiryOnReopenStillPollsProvider(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		api := goai.Api("durable-expiry-" + strings.ReplaceAll(t.Name(), "/", "-"))
 		var streams, polls atomic.Int64
@@ -151,7 +151,8 @@ func TestDeferredExpiryOnReopenDoesNotPoll(t *testing.T) {
 			return ch
 		}, FetchDeferred: func(context.Context, *goai.Model, goai.DeferredHandle, *goai.StreamOptions) <-chan goai.Event {
 			polls.Add(1)
-			ch := make(chan goai.Event)
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("provider decides expired handle")
 			close(ch)
 			return ch
 		}})
@@ -187,14 +188,14 @@ func TestDeferredExpiryOnReopenDoesNotPoll(t *testing.T) {
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		clock.Store(1500)
+		clock.Store(2000)
 		second := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
 		handle, err := second.Submission(bg, sub.ID())
 		if err != nil {
 			t.Fatal(err)
 		}
 		result := waitSubmission(t, handle)
-		if result.Submission.Status != "failed" || result.Message.ErrorCode != "deferred_expired" || streams.Load() != 1 || polls.Load() != 0 {
+		if result.Submission.Status != "done" || result.Message.Content[0].Text != "provider decides expired handle" || streams.Load() != 1 || polls.Load() != 1 {
 			t.Fatal("expired handle dispatched", result, streams.Load(), polls.Load())
 		}
 	})

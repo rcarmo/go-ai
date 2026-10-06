@@ -89,6 +89,13 @@ func TestEnvironmentFactoryAbortAndFailureFenceEffects(t *testing.T) {
 					t.Fatal("factory private error persisted")
 				}
 			}
+			encoded, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(encoded), "SECRET ENV") {
+				t.Fatal("factory private error persisted outside task")
+			}
 		})
 	}
 }

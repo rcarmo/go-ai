@@ -29,6 +29,11 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 			if err := api.Output("abcdef"); err != nil {
 				return ToolResult{}, err
 			}
+			// Details is an actual progress-flush barrier; coalescing must not
+			// erase the previous window before the trim/append observation.
+			if err := api.Details(JSON{"child": JSON{"id": 12}}); err != nil {
+				return ToolResult{}, err
+			}
 			if err := api.SetOutput("defXYZ"); err != nil {
 				return ToolResult{}, err
 			}
@@ -133,7 +138,7 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if cp.Result.Content[0].Text != "defXYZ final" || cp.Result.Details["retained"] != true {
+				if cp.Result.Content[0].Text != " final" || cp.Result.Details["retained"] != true {
 					t.Fatal("progress checkpoint", cp)
 				}
 			}

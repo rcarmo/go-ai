@@ -22,13 +22,11 @@ func (r *TaskRuntime) CreateOwnedConversation(ctx context.Context, key string, c
 				return nil, nil
 			}
 		}
-		parent, ok := agentDocument(tx.state, r.ConversationID())
-		if !ok {
-			return nil, reject("owner agent unavailable")
-		}
 		var state agentState
-		if err := fromObject(parent.Value, &state, tx.limits); err != nil {
-			return nil, err
+		if parent, ok := agentDocument(tx.state, r.ConversationID()); ok {
+			if err := fromObject(parent.Value, &state, tx.limits); err != nil {
+				return nil, err
+			}
 		}
 		if change != nil {
 			next, err := r.harness.agent(*change)
@@ -45,16 +43,28 @@ func (r *TaskRuntime) CreateOwnedConversation(ctx context.Context, key string, c
 		if err = tx.CreateConversation(Conversation{ID: id, Owner: r.TaskID()}); err != nil {
 			return nil, err
 		}
-		docID, err := tx.MintID()
-		if err != nil {
-			return nil, err
-		}
 		value, err := dtoObject(state, tx.limits)
 		if err != nil {
 			return nil, err
 		}
-		if _, err = tx.CreateDocument(Document{ID: docID, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value}); err != nil {
-			return nil, err
+		{
+			candidate, err := tx.current()
+			if err != nil {
+				return nil, err
+			}
+			existing, ok := agentDocument(candidate, id)
+			if !ok {
+				return nil, reject("created agent unavailable")
+			}
+			handle, err := tx.Document(existing.ID)
+			if err != nil {
+				return nil, err
+			}
+			if change != nil {
+				if err := handle.Set(value); err != nil {
+					return nil, err
+				}
+			}
 		}
 		if err = initializeBuiltins(tx, id); err != nil {
 			return nil, err

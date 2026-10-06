@@ -268,11 +268,13 @@ func encodeString(b *limitedJSON, s string) error {
 	}
 	const hex = "0123456789abcdef"
 	for i := 0; i < len(s); {
-		// Most persisted text is ASCII. Emit safe spans in one bounded write
-		// instead of allocating and copying each rune separately.
+		// Strings were UTF-8 checked by the budget walker. Standard-library
+		// span scanning avoids one instrumented check per byte for large text.
 		start := i
-		for i < len(s) && s[i] >= 32 && s[i] < utf8.RuneSelf && s[i] != '\\' && s[i] != '"' {
-			i++
+		if at := strings.IndexAny(s[i:], jsonStringSpecial); at < 0 {
+			i = len(s)
+		} else {
+			i += at
 		}
 		if i > start {
 			if e := emit(b, s[start:i]); e != nil {
@@ -621,12 +623,22 @@ func (s *jsonScanner) number() error {
 	}
 	return nil
 }
+
+const jsonStringSpecial = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\\\""
+
 func (s *jsonScanner) string() (string, error) {
 	if s.pos >= len(s.data) || s.data[s.pos] != '"' {
 		return "", reject("expected JSON string")
 	}
 	start := s.pos
 	s.pos++
+	if at := bytes.IndexAny(s.data[s.pos:], jsonStringSpecial); at >= 0 && s.data[s.pos+at] == '"' {
+		if at > s.l.MaxStringBytes {
+			return "", reject("JSON string byte limit")
+		}
+		s.pos += at + 1
+		return string(s.data[start+1 : s.pos-1]), nil
+	}
 	decoded := 0
 	escaped := false
 	for s.pos < len(s.data) {

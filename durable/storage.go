@@ -708,6 +708,18 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
 		}
+		if raw, present := v.Value["taskId"]; present {
+			number, ok := exactNumber(raw)
+			if !ok || !number.IsInt() || number.Sign() <= 0 || !number.Num().IsUint64() || number.Num().Uint64() > MaxID || !terminalStatus(v.Status) {
+				return reject("submission outcome task id")
+			}
+			if final {
+				task, ok := s.Tasks[ID(number.Num().Uint64())]
+				if !ok || task.Kind != "pi.generation" || task.Conversation != v.Conversation {
+					return reject("submission outcome task missing")
+				}
+			}
+		}
 		if v.RequestID != "" {
 			key := requestKey{v.Conversation, v.RequestID}
 			if _, ok := requests[key]; ok {

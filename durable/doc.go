@@ -3,21 +3,25 @@
 // validation, persisted final arguments and conservative replay guard effects.
 // The M1 runtime is published. Local work adds generic tasks, selected extensions
 // and hooks, steering/reset/passive boundaries, compaction/retry/deferred polling,
-// committed views/events, coding tools, subagents and native SQLite. Full pinned
-// pi-durable parity and independent acceptance of these additions are incomplete.
+// committed views/events, coding tools, subagents and native SQLite. Native
+// runtime alignment with pinned pi-durable 1.0.0 is complete within documented
+// native API/storage/platform boundaries. Clean-clone/hosted release acceptance
+// of the local candidate is separate from local runtime completion.
 // Entry ancestry and full-base document/fork semantics are
 // independently focused-accepted, including definition/migration APIs. Final
 // definition normal/race runs each passed 11 tests plus eight subtests, no skips;
 // an independent public-API clone run passed 12 tests, 22 total passes, no skips.
 // Integrated durable normal/race passed 121 tests plus 418 subtests each, no
-// skips, at accepted S2d. Later local gates and precise gaps are recorded in
-// docs/durable/contract-crosswalk.md; the S2d counts are historical.
+// skips, at accepted S2d. Final local gates and native boundaries are recorded in
+// docs/durable/parity-closure.md; the S2d counts are historical.
 // Open reconciles running tasks to pending
 // but dispatches no model effect; Submit, Resume and Wait can schedule work.
 // Request intent pins a sanitized model behavior DTO, system/messages cutoff
-// and curated request settings. Terminal identity/usage attribution
-// comes from that pinned model, never from omitted/conflicting provider claims.
-// Endpoint, headers and credentials are stripped before persisted DTO validation
+// and curated request settings. Native attribution uses the pinned model.
+// Assistant response IDs, thinking/tool signatures and protocol presence flags
+// survive detached history and provider-context replay; provider error text is
+// retained in failed attempt receipts. Host callback payloads stay private.
+// Endpoint, local authentication headers and credentials are stripped before persisted DTO validation
 // and resolve process-locally; private header sizes do not relax persisted caps.
 // Unpinned provider behavior options and payload-rewrite hooks reject. Extension
 // beforeRequest hooks receive detached context and may edit one request without
@@ -33,9 +37,20 @@
 // Wait cancellation only ends that wait. Committed terminal receipts, tasks,
 // application docs, submission and pi.usage accounting are atomic. Selected
 // bounded model partials/tool prefixes are explicit committed checkpoints; raw
-// frames are never visible. Tool output is capped32KiB, registry/offered16 tools,
-// rounds16. Replay requires stored/current safe with exact implementation/version
-// and schema identity; unsafe/missing/changed code never silently reruns.
+// frames are never visible. Tool output defaults to 50KiB/2000 lines, retaining
+// the head; returned content replaces progress. Registry/offered tools are bounded
+// by native record/page limits. Tool rounds atomically finish the current generation
+// and create a successor. Replay requires stored and current safety; current call
+// preparation/validation determines execution without implementation-ID equality.
+// Missing started tools settle interrupted; invalid returns fault without receipts.
+// Aborting converts only committed assistant partials, without a synthetic error.
+// Inspect returns live tasks and unsettled submissions; Snapshot returns raw state.
+// pi.live exposes committed generation, tool and compaction progress. Generation
+// partials use trailing 100ms writes, with one write in flight and a joined stop.
+// Background compaction status survives run start/end. Host SetSettings refreshes
+// future resolutions atomically; request intents retain their pinned behaviour.
+// Conversations may have no model; their admitted inputs settle no_model without
+// an assistant error entry. Poll callbacks can fault a generation without receipts.
 // pi.agent/pi.live/pi.inbox/pi.usage are version1 native bases; inbox placement
 // covers one/all follow-up and steer selection, busy rejection, passive writes,
 // reset and post-tools continuation. Queued writes survive input withdrawal;
@@ -128,8 +143,9 @@
 // compare equal. Native Set replaces the root; detached Update emits a bounded
 // structural diff. No wire dictionary, JS proxy or canonical tuple is promised.
 // Full M2-M4 parity and exact-runtime hosted/independent candidate gates are
-// unfinished. Legacy
-// latest-only pi.agent metadata rejects an unprovable historical harness fork.
+// unfinished. The pinned AgentDoc uses rewindable/asOf history and supplies no
+// legacy-agent backfill migration. Native latest-only pi.agent metadata rejects
+// an unprovable historical harness fork.
 //
 // S2d typed entry/context and committed observer APIs are independently focused-
 // and integrated-accepted at candidate 5990d780dec1a03187f6a2d7badbedfb6cf096e1,
@@ -177,15 +193,35 @@
 // and explicit UTF-8 head/tail output limits are covered by profiled tests.
 // Diagnostic remarks are separate from details and appended as model-visible
 // <harness> text; reported isError is independent of the execution outcome.
-// Nil output limits preserve the published 32KiB overflow-rejection contract;
-// upstream defaults retain 2000 lines/50KiB and batch progress adaptively.
+// Nil output limits retain the reference default of2000 lines/50KiB.
+// Explicit native policies use the
+// pinned adaptive100ms/100KiB-per-second schedule, incremental byte decoding
+// and automatic truncation remarks; terminal settlement flushes pending output.
+// Completed tool controls add names, terminate unanimously, or reset context
+// to the last handoff in call order before the final queue boundary.
 // Native SQLite and journal reclamation preserve logical history and spent IDs;
 // a reclaimed journal uses version-2 config plus an atomic full checkpoint.
 // No upstream storage-file interoperability or universal power-loss guarantee
 // is provided. Pinned reads report unsupported_image; native PNG/JPEG/GIF reads
-// are an extension, and resizing is not a pinned obligation. Fuzzy edit/diff,
-// portable environments, progress batching/automatic truncation remarks, exact scheduler-tool
-// fault/orphan mapping and legacy-agent backfill need further work.
+// are an extension, and resizing is not a pinned obligation. Fuzzy edits/diffs,
+// portable FileSystem/Shell/image-detector capabilities and pure extension wrappers
+// are implemented. Wrappers run after ordered composition and before filtering;
+// errors/panics/renames drop their target and report outside registry locks.
+// Tool recovery reselects the current committed agent while checking recorded
+// implementation/schema identity. Native required models, stale-object uninstall,
+// nil-output overflow rejection and non-Unix local process support are boundaries.
+// TaskRuntime.Agent resolves lazily from its phase registry and committed agent;
+// return values detach, failures cache until the next phase, cancelled callers do
+// not cancel shared work, and phase/Close joins retain host callback ownership.
+// Extension.TaskHooks/TaskRuntime.EachHook visit phase-selected handlers in order,
+// report isolated errors/panics and stop on cancellation. TaskRuntime.Environment
+// resolves current cwd per use; conversation Agent reads current selection without
+// writes or scheduler enable. Latest local additions
+// passed full profiled Go1.25.5 shuffled race and exact Go1.25.0 shuffled normal gates
+// both in the working tree and a clean Git clone. Complete pinned-case mapping,
+// independent review and exact-runtime hosted acceptance are unfinished. Go1.25
+// compatibility tests do not clear its standard-library advisories; the pinned
+// Go1.26.6 security policy scan passes without exceptions.
 //
 // Records may contain sensitive user/model/tool data. Credentials, headers,
 // clients and executable callbacks have no persistence fields; errors never
@@ -205,7 +241,7 @@
 //	07 complete: ascending opaque conversation cursor.
 //	08 partial: owner-edge/conjunctive raw scans; scheduler cascade later.
 //	09 focused-accepted: ancestry scans/heads/visible lookups/public fork copies;
-//	   legacy-agent historical backfill still required for full parity.
+//	   unprovable native latest-only agent forks reject; no pinned backfill exists.
 //	10 complete: full task replacement/filter scans; no scheduler.
 //	11 complete: owner/waiting/completing raw statuses; joins later.
 //	12 complete: local requestID index/replacement/cross-type conflict.

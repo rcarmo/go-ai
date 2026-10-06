@@ -106,7 +106,7 @@ func TestToolDiagnosticsCommittedDetachedAndRenderedOutsideDetails(t *testing.T)
 				if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if len(cp.Diagnostics) != 2 || cp.Diagnostics[0].Message != "partial remark" {
+				if len(cp.Diagnostics) != 2 || cp.Diagnostics[0].Message != "partial remark" || cp.Result == nil || !equalJSONValue(cp.Result.Diagnostics, cp.Diagnostics) {
 					t.Fatal("diagnostic alias", cp)
 				}
 			}
@@ -132,7 +132,7 @@ func TestToolDiagnosticsInvalidReturnRejectsAppMutation(t *testing.T) {
 			ch <- toolAnswer("bad-call", "bad-diagnostic", JSON{})
 		} else {
 			for _, m := range input.Messages {
-				if m.Role == goai.RoleToolResult && (!m.IsError || !strings.Contains(m.Content[0].Text, "invalid_diagnostics")) {
+				if m.Role == goai.RoleToolResult && (!m.IsError || !strings.Contains(m.Content[0].Text, "Tool result unavailable")) {
 					t.Error(m)
 				}
 			}
@@ -152,5 +152,18 @@ func TestToolDiagnosticsInvalidReturnRejectsAppMutation(t *testing.T) {
 	waitSubmission(t, sub)
 	if committed {
 		t.Fatal("invalid diagnostics ran callback")
+	}
+	state, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range state.Tasks {
+		if task.Kind != "pi.tool" {
+			continue
+		}
+		record, err := CanonicalTask(task, h.session.limits)
+		if err != nil || record.State.Outcome.Status != "faulted" || record.State.Outcome.Error.Message != "invalid_diagnostics" {
+			t.Fatal("invalid diagnostics did not fault", record, err)
+		}
 	}
 }

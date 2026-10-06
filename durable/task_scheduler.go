@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"sort"
 	"sync"
@@ -154,8 +155,29 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 		if fromObject(task.Checkpoint, &cp, s.h.session.limits) != nil {
 			return false
 		}
-		// A conversation queue remains ID-ordered, independent of worker launch.
+		// A committed live run outranks queued inputs even when its successor
+		// has a newer ID. Keep ID ordering within genuinely queued runs.
+		var active ID
+		for _, doc := range state.Documents {
+			if doc.Scope != "conversation" || doc.Owner != task.Conversation || doc.Kind != "pi.live" || doc.Retired {
+				continue
+			}
+			if run, ok := doc.Value["run"].(map[string]any); ok {
+				if value, ok := exactNumber(run["task"]); ok && value.IsInt() {
+					active = ID(value.Num().Uint64())
+				}
+			}
+			break
+		}
+		if active != 0 && active != task.ID {
+			if live, ok := state.Tasks[active]; ok && !terminalStatus(live.Status) {
+				return false
+			}
+		}
 		for _, other := range state.Tasks {
+			if active == task.ID {
+				continue
+			}
 			if other.Kind == task.Kind && other.Conversation == task.Conversation && other.ID < task.ID && !terminalStatus(other.Status) {
 				return false
 			}
@@ -386,8 +408,11 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 				return false, err
 			}
-			ctx, cancel := context.WithCancel(s.h.life)
-			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, context: ctx, cancel: cancel, registry: snapshot, definition: definition, abortMode: taskAborted(task), done: make(chan struct{})}
+			// Close first seals admission and stops invocation-owned watches,
+			// then explicitly signals handlers and joins their actual return.
+			// Inheriting life cancellation would signal before that stop order.
+			ctx, cancel := context.WithCancel(context.WithoutCancel(s.h.life))
+			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, kind: task.Kind, context: ctx, cancel: cancel, registry: snapshot, definition: definition, abortMode: taskAborted(task), done: make(chan struct{})}
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
 			reservations = append(reservations, runtime)
@@ -448,6 +473,21 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 	}
 	if task.Kind == "pi.tool" {
 		if err := s.h.executeTool(task, runtime); err != nil {
+			var invalid *invalidToolResult
+			if errors.As(err, &invalid) {
+				_, faultErr := s.h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
+					current := tx.state.Tasks[task.ID]
+					if s.sealed.Load() || taskAborted(current) {
+						return nil
+					}
+					return s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: invalid.reason}})
+				})
+				if faultErr != nil {
+					runtime.admissionFailed = true
+					s.report(faultErr)
+				}
+				return
+			}
 			runtime.admissionFailed = true
 			s.report(err)
 			return
@@ -460,8 +500,25 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 			return
 		}
 		if err := s.h.runGenerationInvocation(runtime, task, cp); err != nil {
+			var provider *generationProviderFault
+			if errors.As(err, &provider) {
+				_, faultErr := s.h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
+					current := tx.state.Tasks[task.ID]
+					if taskAborted(current) || s.h.closing.Load() {
+						return ErrSealed
+					}
+					return s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: provider.Error()}})
+				})
+				if faultErr != nil {
+					runtime.admissionFailed = true
+					s.report(faultErr)
+				}
+				return
+			}
 			runtime.admissionFailed = true
-			s.report(err)
+			if !s.expectedGenerationStop(runtime, err) {
+				s.report(err)
+			}
 			return
 		}
 	}
@@ -492,6 +549,28 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 	}
 }
 
+// Normal abort/Close races can stop a built-in before its host work starts.
+// Suppress only control-flow errors with a verified cancellation intent; genuine
+// storage, provider and callback failures still reach OnReport.
+func (s *taskScheduler) expectedGenerationStop(runtime *TaskRuntime, err error) bool {
+	var rejected *StorageRejected
+	control := errors.Is(err, context.Canceled) || errors.Is(err, ErrSealed) || errors.Is(err, ErrClosed) ||
+		(errors.As(err, &rejected) && rejected.Reason == "generation aborted")
+	if !control {
+		return false
+	}
+	if s.sealed.Load() || s.h.closing.Load() || runtime.context.Err() != nil || runtime.ended.Load() {
+		return true
+	}
+	stopped := false
+	_ = s.h.session.readTasks(context.Background(), func(state Snapshot) error {
+		current, ok := state.Tasks[runtime.taskID]
+		stopped = !ok || taskAborted(current) || taskBelowCancelled(state, current) || taskSelectedFailFastCancellation(state, current.ID)
+		return nil
+	})
+	return stopped
+}
+
 func (s *taskScheduler) run(runtime *TaskRuntime) {
 	defer func() {
 		var watches []*DocumentWatch
@@ -502,6 +581,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			watch.Stop()
 		}
 		runtime.cancel()
+		runtime.joinPhaseAgent()
 		s.h.session.taskBookkeeping(func() {
 			if s.invocations[runtime.taskID] == runtime {
 				delete(s.invocations, runtime.taskID)
@@ -563,7 +643,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					return s.fault(tx, raw, handlerError)
 				}
 				if runtime.abortMode {
-					return s.fault(tx, raw, reject("abort handler returned without outcome"))
+					return s.fault(tx, raw, fmt.Errorf("Abort handler of task %d returned without a terminal outcome", raw.ID))
 				}
 				before, err := ownJSONValue(previous, tx.limits)
 				if err != nil {
@@ -574,7 +654,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					return err
 				}
 				if equalDeltaJSON(before, after) {
-					return s.fault(tx, raw, reject("task phase returned without durable progress"))
+					return s.fault(tx, raw, fmt.Errorf("Task %s phase %s returned without durable progress", raw.Kind, previous["phase"]))
 				}
 				snapshot, err := s.h.options.Registry.taskSnapshot(tx.limits)
 				if err != nil {
@@ -605,7 +685,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					runtime.handoverToken = nil
 				}
 				runtime.phaseMu.Lock()
-				runtime.registry = snapshot
+				runtime.publishAgentPhaseLocked(snapshot)
 				runtime.phaseMu.Unlock()
 			}
 			proceed = true
@@ -634,6 +714,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		} else {
 			handlerError = callTaskPhase(handler, runtime.context, task, runtime)
 		}
+		runtime.joinPhaseAgent()
 	}
 }
 func callTaskMigration(def *TaskDefinition, input any, checkpoint JSON, version uint64) (value any, next JSON, err error) {
@@ -647,8 +728,8 @@ func callTaskMigration(def *TaskDefinition, input any, checkpoint JSON, version 
 
 func callTaskPhase(handler TaskPhase, ctx context.Context, task TaskRecord, runtime *TaskRuntime) (err error) {
 	defer func() {
-		if recover() != nil {
-			err = reject("task handler panic")
+		if value := recover(); value != nil {
+			err = fmt.Errorf("%v", value)
 		}
 	}()
 	return handler(ctx, task, runtime)
@@ -691,7 +772,7 @@ func (s *taskScheduler) orphan(tx *Tx, task Task, reason string) error {
 }
 
 func (s *taskScheduler) fault(tx *Tx, task Task, err error) error {
-	outcome := TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "task_phase_fault"}}
+	outcome := TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: err.Error()}}
 	if errors.Is(err, ErrClosed) {
 		return nil
 	}
@@ -1058,6 +1139,7 @@ func (s *taskScheduler) adopt(_ uint64, tx *Tx) {
 			s.refreshBoundWaits(*tx.taskAdoptState)
 		}
 		s.notifyWaiters(nil)
+		s.h.notifySubmissionWaiters(tx)
 		s.kick()
 	}
 }
@@ -1472,6 +1554,16 @@ func (s *taskScheduler) toolRoundChildren(state Snapshot, parent Task, cp genera
 		if toolCP.CallID == "" {
 			return nil, reject("tool round call identity")
 		}
+		if terminalStatus(child.Status) && toolCP.Result == nil && child.Execution != nil && child.Execution.Builtin != nil {
+			hold := child.Execution.Builtin.Hold
+			if hold != nil && hold.Stage == "final" && hold.Action == "scheduler-tool-missing" && hold.Entry == 0 && (hold.Outcome.Status == "faulted" || hold.Outcome.Status == "orphaned") {
+				if err := validateBuiltinHold(child, hold, s.h.session.limits); err != nil {
+					return nil, err
+				}
+				children = append(children, child)
+				continue
+			}
+		}
 		if terminalStatus(child.Status) || toolCP.Result != nil {
 			if toolCP.Result == nil || toolCP.Result.Role != goai.RoleToolResult || toolCP.Result.ToolCallID != toolCP.CallID || toolCP.Result.ToolName != toolCP.Offer.Name {
 				return nil, reject("tool round result identity")
@@ -1525,7 +1617,7 @@ func (s *taskScheduler) builtinDecision(tx *Tx, task Task, outcome TaskOutcome) 
 		if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
 			return err
 		}
-		hold.Action = "scheduler-tool"
+		hold.Action = "scheduler-tool-missing"
 		hold.CallID = cp.CallID
 	default:
 		return reject("unknown builtin adapter")

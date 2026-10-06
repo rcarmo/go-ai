@@ -4,8 +4,8 @@ import (
 	"math"
 )
 
-// RetryPolicy is persisted request behaviour. Defaults disable durable retries;
-// transport-level retries remain independently controlled by the provider.
+// RetryPolicy is a durable conversation override. Host defaults enable three
+// retries with a 2-second base; transport retries are provider-controlled.
 type RetryPolicy struct {
 	Enabled     bool  `json:"enabled,omitempty"`
 	MaxRetries  int   `json:"maxRetries,omitempty"`
@@ -20,14 +20,8 @@ func validateRetryPolicy(policy RetryPolicy) error {
 	return nil
 }
 func retryDelay(policy RetryPolicy, attempt int) int64 {
-	base := policy.BaseDelayMs
-	if base == 0 {
-		base = 1000
-	}
-	cap := policy.MaxDelayMs
-	if cap == 0 {
-		cap = 60000
-	}
+	// Callers supply resolved settings; explicit zero means no delay.
+	base, cap := policy.BaseDelayMs, policy.MaxDelayMs
 	for i := 1; i < attempt && base < cap; i++ {
 		if base > cap/2 {
 			base = cap

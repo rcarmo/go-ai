@@ -34,7 +34,7 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		if err := fromObject(doc.Value, &latest, tx.limits); err != nil {
 			return err
 		}
-		settings = latest.Settings
+		settings = h.resolvedSettings(latest.Settings)
 	}
 	selected := map[ID]bool{}
 	pickedSteer := 0
@@ -84,6 +84,10 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 			return err
 		}
 		queued.Phase = "terminal"
+		queued.InputEntry = entryID
+		if err := markSubmissionEntry(tx, sub.ID, entryID); err != nil {
+			return err
+		}
 		owned, err := copyTask(task, tx.limits)
 		if err != nil {
 			return err

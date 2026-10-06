@@ -39,7 +39,7 @@ func TestM1cStoredCurrentReplayPolicyAndIdentity(t *testing.T) {
 				if modelCalls.Add(1) == 1 {
 					ch <- toolAnswer("same-call", "compute", JSON{"n": 2})
 				} else {
-					if mode == "both-safe" {
+					if mode == "both-safe" || mode == "changed-id" || mode == "changed-version" || mode == "changed-schema" {
 						assertOriginalCallAndResult(t, conv, "compute", "same-call", "n", json.Number("2"), "3")
 					}
 					ch <- terminal("answer")
@@ -112,10 +112,10 @@ func TestM1cStoredCurrentReplayPolicyAndIdentity(t *testing.T) {
 				t.Fatal(result)
 			}
 			want := int64(1)
-			if mode == "both-safe" {
+			if mode == "both-safe" || mode == "changed-id" || mode == "changed-version" || mode == "changed-schema" {
 				want = 2
 			}
-			if effects.Load() != want || repairs.Load() != 1 {
+			if effects.Load() != want || repairs.Load() != 2 {
 				t.Fatal("replay safety or repair repeated", effects.Load(), repairs.Load())
 			}
 			snapshot, e = h2.Snapshot(bg)
@@ -135,7 +135,11 @@ func TestM1cStoredCurrentReplayPolicyAndIdentity(t *testing.T) {
 						if cp.ErrorCode != "interrupted" {
 							t.Fatal(cp.ErrorCode)
 						}
-					} else if mode != "both-safe" && cp.ErrorCode != "tool_unavailable" {
+					} else if mode == "missing" {
+						if cp.ErrorCode != "interrupted" {
+							t.Fatal(cp.ErrorCode)
+						}
+					} else if cp.ErrorCode != "" {
 						t.Fatal(cp.ErrorCode)
 					}
 				}

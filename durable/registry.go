@@ -14,28 +14,52 @@ type ModelRef struct {
 	ID       string        `json:"id"`
 }
 type RequestSettings struct {
-	Temperature   *float64              `json:"temperature,omitempty"`
-	MaxTokens     *int                  `json:"maxTokens,omitempty"`
-	ToolExecution string                `json:"toolExecution,omitempty"`
-	SteeringMode  string                `json:"steeringMode,omitempty"`
-	FollowUpMode  string                `json:"followUpMode,omitempty"`
-	Retry         RetryPolicy           `json:"retry,omitempty"`
-	Compaction    CompactionPolicy      `json:"compaction,omitempty"`
-	Deferred      *goai.DeferredOptions `json:"deferred,omitempty"`
+	Temperature   *float64         `json:"temperature,omitempty"`
+	MaxTokens     *int             `json:"maxTokens,omitempty"`
+	ToolExecution string           `json:"toolExecution,omitempty"`
+	SteeringMode  string           `json:"steeringMode,omitempty"`
+	FollowUpMode  string           `json:"followUpMode,omitempty"`
+	Retry         RetryPolicy      `json:"retry,omitempty"`
+	Compaction    CompactionPolicy `json:"compaction,omitempty"`
+	// Presence-aware native counterparts of reference per-field object merges.
+	// Whole policies above retain their existing replacement semantics.
+	RetryOverrides      *RetrySettings        `json:"retryOverrides,omitempty"`
+	CompactionOverrides *CompactionSettings   `json:"compactionOverrides,omitempty"`
+	Deferred            *goai.DeferredOptions `json:"deferred,omitempty"`
+	// Curated provider request behaviour, pinned at request/compaction intent.
+	// Credentials supplied by RequestOptions remain process-local.
+	Transport       goai.Transport      `json:"transport,omitempty"`
+	TimeoutMs       *int                `json:"timeoutMs,omitempty"`
+	MaxRetries      *int                `json:"maxRetries,omitempty"`
+	MaxRetryDelayMs *int                `json:"maxRetryDelayMs,omitempty"`
+	Headers         map[string]string   `json:"headers,omitempty"`
+	Metadata        map[string]any      `json:"metadata,omitempty"`
+	CacheRetention  goai.CacheRetention `json:"cacheRetention,omitempty"`
 }
 type AgentChange struct {
-	Name         string
-	Cwd          string
-	Model        ModelRef
-	SystemPrompt string
-	Settings     RequestSettings
+	Name  string
+	Cwd   string
+	Model ModelRef
+	// Empty or off disables reasoning; other values map to pi-ai Reasoning.
+	ThinkingLevel goai.ModelThinkingLevel
+	SystemPrompt  string  // Native raw prompt prefix; reference instructions use a section.
+	Instructions  *string // nil absent; empty is an explicitly rendered instruction section.
+	Settings      RequestSettings
 	// Nil selects all installed extensions/tools; a pointer to an empty slice
 	// selects none. Names are persisted; executable registrations stay local.
 	Extensions *[]string
 	Tools      *[]string
+	// Filters follow the installed defaults instead of freezing an explicit list.
+	ExtensionFilter *ExtensionFilter
+	ToolsRemoved    *[]string
+}
+type ExtensionFilter struct {
+	Add    []string `json:"add,omitempty"`
+	Remove []string `json:"remove,omitempty"`
 }
 type Options struct {
-	Now func() int64
+	Settings *HarnessSettings
+	Now      func() int64
 	// Env resolves process-local capabilities for each tool use, off the Session
 	// line. Only agent cwd is persisted; environments and credentials are not.
 	Env func(context.Context, EnvTarget) (ExecutionEnvironment, error)
@@ -44,6 +68,13 @@ type Options struct {
 	// Panic is contained; no detached unbounded reporting goroutines are used.
 	OnReport func(error)
 	Registry *Registry
+	// ConversationCreated runs after Harness builtin/agent initialization and
+	// before convenience overrides. Nil skips only the callback. It must only
+	// use its Tx; reentering the Harness/Session would deadlock its serial line.
+	ConversationCreated func(*Tx, Conversation) error
+	// Extensions selects host defaults by installed name; nil follows all
+	// installations. Explicit per-agent arrays replace these defaults.
+	Extensions *[]string
 	// Sections render process-local prompt contributions before request intent.
 	// Only rendered text and ordering are persisted, never callbacks.
 	Sections []PromptSection
@@ -189,8 +220,32 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	if e == nil && ((n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
 		return n, reject("invalid request settings")
 	}
-	if e == nil && (n.SteeringMode != "" && n.SteeringMode != "one" && n.SteeringMode != "all" || n.FollowUpMode != "" && n.FollowUpMode != "one" && n.FollowUpMode != "all") {
+	if e != nil {
+		return n, e
+	}
+	if n.TimeoutMs != nil && (*n.TimeoutMs < 0 || uint64(*n.TimeoutMs) > uint64(MaxID)) || n.MaxRetries != nil && *n.MaxRetries < 0 || n.MaxRetryDelayMs != nil && *n.MaxRetryDelayMs < 0 {
+		return n, reject("invalid request settings")
+	}
+	switch n.Transport {
+	case "", goai.TransportSSE, goai.TransportWebSocket, goai.TransportWebSocketCached, goai.TransportAuto:
+	default:
+		return n, reject("invalid transport")
+	}
+	switch n.CacheRetention {
+	case "", goai.CacheRetentionNone, goai.CacheRetentionShort, goai.CacheRetentionLong:
+	default:
+		return n, reject("invalid cache retention")
+	}
+	if e == nil && (n.SteeringMode != "" && n.SteeringMode != "one" && n.SteeringMode != "one-at-a-time" && n.SteeringMode != "all" || n.FollowUpMode != "" && n.FollowUpMode != "one" && n.FollowUpMode != "one-at-a-time" && n.FollowUpMode != "all") {
 		return n, reject("invalid queue mode")
+	}
+	// Keep the published native spelling as an input alias; resolved/persisted
+	// values use the reference vocabulary.
+	if n.SteeringMode == "one" {
+		n.SteeringMode = "one-at-a-time"
+	}
+	if n.FollowUpMode == "one" {
+		n.FollowUpMode = "one-at-a-time"
 	}
 	if e == nil && n.ToolExecution != "" && n.ToolExecution != "parallel" && n.ToolExecution != "sequential" {
 		e = reject("invalid tool execution mode")
@@ -201,28 +256,51 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	if e == nil && (n.Compaction.TriggerTokens < 0 || n.Compaction.KeepRecentTokens < 0 || n.Compaction.MaxTokens < 0 || n.Compaction.ReserveTokens < 0 || n.Compaction.BackgroundTokens < 0) {
 		e = reject("invalid compaction policy")
 	}
+	if e == nil {
+		e = validateRetryPolicy(applyRetryOverrides(RetryPolicy{}, n.RetryOverrides))
+	}
+	if e == nil {
+		policy := applyCompactionOverrides(CompactionPolicy{}, n.CompactionOverrides)
+		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 || policy.MaxTokens < 0 {
+			e = reject("invalid compaction overrides")
+		}
+	}
 	return n, e
 }
 
 // Safe protocol receipt fields omit raw provider errors, opaque deferred handles,
 // HTTP headers and metadata. Text/thinking are retained only at terminal commit.
 type MessageReceipt struct {
-	Role            goai.Role            `json:"role"`
-	Content         []goai.ContentBlock  `json:"content"`
-	Api             goai.Api             `json:"api,omitempty"`
-	Provider        goai.Provider        `json:"provider,omitempty"`
-	Model           string               `json:"model,omitempty"`
-	Usage           *goai.Usage          `json:"usage,omitempty"`
-	StopReason      goai.StopReason      `json:"stopReason,omitempty"`
-	Timestamp       int64                `json:"timestamp,omitempty"`
-	ErrorCode       string               `json:"errorCode,omitempty"`
-	Retryable       bool                 `json:"retryable,omitempty"`
-	ContextOverflow bool                 `json:"contextOverflow,omitempty"`
-	Deferred        *goai.DeferredHandle `json:"deferred,omitempty"`
-	ToolCallID      string               `json:"toolCallId,omitempty"`
-	ToolName        string               `json:"toolName,omitempty"`
-	IsError         bool                 `json:"isError,omitempty"`
-	Details         JSON                 `json:"details,omitempty"`
+	Role                  goai.Role                         `json:"role"`
+	Content               []goai.ContentBlock               `json:"content"`
+	Api                   goai.Api                          `json:"api,omitempty"`
+	Provider              goai.Provider                     `json:"provider,omitempty"`
+	Model                 string                            `json:"model,omitempty"`
+	Usage                 *goai.Usage                       `json:"usage,omitempty"`
+	StopReason            goai.StopReason                   `json:"stopReason,omitempty"`
+	Timestamp             int64                             `json:"timestamp,omitempty"`
+	ResponseID            string                            `json:"responseId,omitempty"`
+	ResponseModel         string                            `json:"responseModel,omitempty"`
+	ProviderThinkingLevel string                            `json:"providerThinkingLevel,omitempty"`
+	ThinkingLevel         goai.ModelThinkingLevel           `json:"thinkingLevel,omitempty"`
+	AssistantDiagnostics  []goai.AssistantMessageDiagnostic `json:"assistantDiagnostics,omitempty"`
+	RawStopReason         string                            `json:"rawStopReason,omitempty"`
+	EndTurn               *bool                             `json:"endTurn,omitempty"`
+	ContentPresence       []ReceiptContentPresence          `json:"contentPresence,omitempty"`
+	ErrorCode             string                            `json:"errorCode,omitempty"`
+	ErrorMessage          string                            `json:"errorMessage,omitempty"`
+	// Dispatch-local provider text for classifying summary failure. It is not
+	// a persisted assistant receipt field and is never rehydrated on reopen.
+	providerError      string
+	providerStopReason goai.StopReason
+	Retryable          bool                 `json:"retryable,omitempty"`
+	ContextOverflow    bool                 `json:"contextOverflow,omitempty"`
+	Deferred           *goai.DeferredHandle `json:"deferred,omitempty"`
+	ToolCallID         string               `json:"toolCallId,omitempty"`
+	ToolName           string               `json:"toolName,omitempty"`
+	IsError            bool                 `json:"isError,omitempty"`
+	Diagnostics        []ToolDiagnostic     `json:"diagnostics,omitempty"`
+	Details            JSON                 `json:"details,omitempty"`
 	// Non-object tool details use an explicit tagged adaptation; legacy Details
 	// objects keep their existing wire shape. Neither admits executable values.
 	DetailsValue any                  `json:"detailsValue,omitempty"`
@@ -237,6 +315,28 @@ type MessageReceipt struct {
 	EmptyArguments []int `json:"emptyArguments,omitempty"`
 }
 
+// ReceiptContentPresence preserves explicit empty protocol fields hidden by
+// pi-ai ContentBlock presence flags during detached JSON copies.
+type ReceiptContentPresence struct {
+	Index             int  `json:"index"`
+	TextSignature     bool `json:"textSignature,omitempty"`
+	ThinkingSignature bool `json:"thinkingSignature,omitempty"`
+	Redacted          bool `json:"redacted,omitempty"`
+	ThoughtSignature  bool `json:"thoughtSignature,omitempty"`
+	Namespace         bool `json:"namespace,omitempty"`
+}
+
+func captureContentPresence(blocks []goai.ContentBlock) []ReceiptContentPresence {
+	var result []ReceiptContentPresence
+	for index, block := range blocks {
+		p := ReceiptContentPresence{Index: index, TextSignature: block.TextSignaturePresent, ThinkingSignature: block.ThinkingSignaturePresent, Redacted: block.RedactedPresent, ThoughtSignature: block.ThoughtSignaturePresent, Namespace: block.NamespacePresent}
+		if p.TextSignature || p.ThinkingSignature || p.Redacted || p.ThoughtSignature || p.Namespace {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 // ContributionTool owns decoded strict schema data instead of a RawMessage
 // marshaler. Conversion to provider JSON happens only at request projection.
 type ContributionTool struct {
@@ -249,12 +349,26 @@ type messageReceipt = MessageReceipt
 
 func receiptMessage(r messageReceipt) goai.Message {
 	content := append([]goai.ContentBlock(nil), r.Content...)
+	for _, presence := range r.ContentPresence {
+		if presence.Index < 0 || presence.Index >= len(content) {
+			continue
+		}
+		block := &content[presence.Index]
+		block.TextSignaturePresent = presence.TextSignature
+		block.ThinkingSignaturePresent = presence.ThinkingSignature
+		block.RedactedPresent = presence.Redacted
+		block.ThoughtSignaturePresent = presence.ThoughtSignature
+		block.NamespacePresent = presence.Namespace
+	}
 	for _, index := range r.EmptyArguments {
 		if index >= 0 && index < len(content) && content[index].Type == "toolCall" && len(content[index].Arguments) == 0 {
 			content[index].Arguments = map[string]any{}
 		}
 	}
-	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorCode, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorMessage, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	if m.ErrorMessage == "" {
+		m.ErrorMessage = r.ErrorCode
+	}
 	if r.Details != nil {
 		m.Details = r.Details
 	}
@@ -275,7 +389,7 @@ func userReceipt(text string) messageReceipt {
 // fields. Opaque/provider-control data rejects before staging rather than being
 // silently dropped or broadening terminal receipt redaction.
 func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
-	if m.Deferred != nil || m.ResponseID != "" || m.ResponseModel != "" || m.ProviderThinkingLevel != "" || m.ThinkingLevel != "" || len(m.Diagnostics) != 0 || m.RawStopReason != "" || m.ErrorMessage != "" || m.EndTurn != nil || m.NestedCalls != nil || len(m.AddedToolNames) != 0 {
+	if m.Deferred != nil || m.NestedCalls != nil || len(m.AddedToolNames) != 0 {
 		return messageReceipt{}, reject("unsupported opaque message contribution fields")
 	}
 	if m.Role != goai.RoleUser && m.Role != goai.RoleAssistant && m.Role != goai.RoleToolResult && m.Role != goai.RoleSystem {
@@ -287,9 +401,12 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 	if m.Role != goai.RoleToolResult && m.Details != nil {
 		return messageReceipt{}, reject("details require tool-result role")
 	}
-	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content))}
+	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content)), ResponseID: m.ResponseID, ResponseModel: m.ResponseModel, ProviderThinkingLevel: m.ProviderThinkingLevel, ThinkingLevel: m.ThinkingLevel, AssistantDiagnostics: m.Diagnostics, RawStopReason: m.RawStopReason, ErrorMessage: m.ErrorMessage, EndTurn: m.EndTurn, ContentPresence: captureContentPresence(m.Content)}
+	if m.Role != goai.RoleAssistant && (m.ResponseID != "" || m.ResponseModel != "" || m.ProviderThinkingLevel != "" || m.ThinkingLevel != "" || len(m.Diagnostics) != 0 || m.RawStopReason != "" || m.ErrorMessage != "" || m.EndTurn != nil) {
+		return messageReceipt{}, reject("assistant protocol fields require assistant role")
+	}
 	for _, c := range m.Content {
-		if c.TextSignature != "" || c.TextSignaturePresent || c.ThinkingSignature != "" || c.ThinkingSignaturePresent || c.Redacted || c.RedactedPresent || c.ThoughtSignature != "" || c.ThoughtSignaturePresent || c.Namespace != "" || c.NamespacePresent {
+		if m.Role != goai.RoleAssistant && (c.TextSignature != "" || c.TextSignaturePresent || c.ThinkingSignature != "" || c.ThinkingSignaturePresent || c.Redacted || c.RedactedPresent || c.ThoughtSignature != "" || c.ThoughtSignaturePresent || c.Namespace != "" || c.NamespacePresent) {
 			return messageReceipt{}, reject("unsupported opaque contribution signature/control")
 		}
 		switch c.Type {
@@ -297,12 +414,12 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 			if c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.MimeType != "" || c.Thinking != "" {
 				return messageReceipt{}, reject("text contribution shape")
 			}
-			r.Content = append(r.Content, goai.ContentBlock{Type: "text", Text: c.Text})
+			r.Content = append(r.Content, goai.ContentBlock{Type: "text", Text: c.Text, TextSignature: c.TextSignature, TextSignaturePresent: c.TextSignaturePresent})
 		case "thinking":
 			if m.Role != goai.RoleAssistant || c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.Text != "" {
 				return messageReceipt{}, reject("thinking contribution shape")
 			}
-			r.Content = append(r.Content, goai.ContentBlock{Type: "thinking", Thinking: c.Thinking})
+			r.Content = append(r.Content, goai.ContentBlock{Type: "thinking", Thinking: c.Thinking, ThinkingSignature: c.ThinkingSignature, ThinkingSignaturePresent: c.ThinkingSignaturePresent, Redacted: c.Redacted, RedactedPresent: c.RedactedPresent})
 		case "image":
 			if m.Role != goai.RoleUser && m.Role != goai.RoleToolResult {
 				return messageReceipt{}, reject("image contribution role")
@@ -322,7 +439,7 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 			if len(args) == 0 {
 				r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
 			}
-			r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: args})
+			r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: args, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
 		default:
 			return messageReceipt{}, reject("unsupported contribution content")
 		}
@@ -386,6 +503,22 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 // Restore only a consistent serialized empty-object variant. Caller protocol
 // inputs are validated separately before any witness is created.
 func restoreReceiptArguments(r *MessageReceipt, l Limits) error {
+	presenceSeen := map[int]bool{}
+	for _, p := range r.ContentPresence {
+		if p.Index < 0 || p.Index >= len(r.Content) || presenceSeen[p.Index] || r.Role != goai.RoleAssistant {
+			return reject("invalid content presence witness")
+		}
+		block := &r.Content[p.Index]
+		if (p.TextSignature && block.Type != "text") || (p.ThinkingSignature || p.Redacted) && block.Type != "thinking" || (p.ThoughtSignature || p.Namespace) && block.Type != "toolCall" {
+			return reject("inconsistent content presence witness")
+		}
+		presenceSeen[p.Index] = true
+		block.TextSignaturePresent = p.TextSignature
+		block.ThinkingSignaturePresent = p.ThinkingSignature
+		block.RedactedPresent = p.Redacted
+		block.ThoughtSignaturePresent = p.ThoughtSignature
+		block.NamespacePresent = p.Namespace
+	}
 	seen := map[int]bool{}
 	for _, index := range r.EmptyArguments {
 		if index < 0 || index >= len(r.Content) || seen[index] || r.Role != goai.RoleAssistant {

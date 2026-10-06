@@ -7,15 +7,19 @@ import (
 	"path/filepath"
 )
 
-func readTextFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
 func writeTextFileAtomic(path, content string) error {
+	// Write through an existing symlink, as pinned env.writeFile does. Renaming
+	// a temporary file over the alias would destroy the link and leave its
+	// target stale, despite both aliases sharing the mutation lock.
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return err
+		}
+		path = resolved
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err

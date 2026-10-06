@@ -24,6 +24,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 	if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
 		return false, err
 	}
+	agent.Settings = h.resolvedSettings(agent.Settings)
 	policy := agent.Settings.Compaction
 	if !policy.Enabled {
 		return false, nil
@@ -32,8 +33,13 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 	if err != nil {
 		return false, err
 	}
+	// No removable range means no compaction work; do not resolve the model
+	// twice or surface a preparation error before ordinary request preparation.
+	if compactionCut(view, policy.KeepRecentTokens) <= 0 {
+		return false, nil
+	}
 	tokens := estimateContextTokens(view)
-	if cp.Phase == "queued" {
+	if cp.Phase == "queued" && cp.InputEntry == 0 {
 		input, err := inputReceipt(cp.Input, cp.InputBlocks, h.session.limits)
 		if err != nil {
 			return false, err
@@ -52,11 +58,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		if model.ContextWindow <= 0 && !overflow {
 			return false, nil
 		}
-		reserve := policy.ReserveTokens
-		if reserve == 0 {
-			reserve = model.ContextWindow / 5
-		}
-		trigger = model.ContextWindow - reserve
+		trigger = model.ContextWindow - policy.ReserveTokens
 	}
 	background := !overflow && policy.BackgroundTokens > 0 && tokens <= trigger && tokens > trigger-policy.BackgroundTokens
 	if !overflow && tokens <= trigger && !background || compactionCut(view, policy.KeepRecentTokens) <= 0 {
@@ -99,7 +101,9 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 				}
 			}
 		}
-		child, err := tx.CreateTask(definition, JSON{"reason": reason, "keepRecentTokens": policy.KeepRecentTokens, "maxTokens": policy.MaxTokens, "retry": JSON{"enabled": agent.Settings.Retry.Enabled, "maxRetries": agent.Settings.Retry.MaxRetries, "baseDelayMs": agent.Settings.Retry.BaseDelayMs, "maxDelayMs": agent.Settings.Retry.MaxDelayMs}}, TaskOptions{Ownership: ownership, Background: background})
+		// Automatic work follows current retry settings after each response;
+		// never convert host defaults into an explicit task-local override.
+		child, err := tx.CreateTask(definition, JSON{"reason": reason, "keepRecentTokens": policy.KeepRecentTokens, "maxTokens": policy.MaxTokens}, TaskOptions{Ownership: ownership, Background: background})
 		if err != nil {
 			return err
 		}
@@ -107,12 +111,29 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 			return nil
 		}
 		if receipt != nil {
+			value, err := dtoObject(*receipt, tx.limits)
+			if err != nil {
+				return err
+			}
+			entry, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: entry, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); err != nil {
+				return err
+			}
 			usage, err := builtin(tx, task.Conversation, "pi.usage")
 			if err != nil {
 				return err
 			}
 			if err = usage.Update(func(value JSON) error { return addModelUsage(value, *receipt, tx.limits) }); err != nil {
 				return err
+			}
+		}
+		if overflow {
+			cp.OverflowMessage = "Context overflow"
+			if receipt != nil && receipt.ErrorMessage != "" {
+				cp.OverflowMessage = receipt.ErrorMessage
 			}
 		}
 		cp.ResumeAfterCompaction = overflow || cp.Phase == "prepare-next"

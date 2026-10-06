@@ -9,12 +9,13 @@ import (
 // accessor exists. Reentrant/overlapping methods reject; escaped methods reject
 // after settlement. Concurrent mutation DURING copy is unsupported Go misuse.
 type Tx struct {
-	store   *storeCore
-	session *Session
-	ctx     context.Context
-	limits  Limits
-	state   Snapshot
-	writes  []Write
+	store         *storeCore
+	session       *Session
+	ctx           context.Context
+	limits        Limits
+	state         Snapshot
+	writes        []Write
+	creationError error // creation callback failure poisons only this transaction
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
 	taskConversation   ID
@@ -160,7 +161,24 @@ func (t *Tx) CreateConversation(v Conversation) error {
 		return e
 	}
 	defer t.leave()
-	return t.stage(Write{Op: "create-conversation", Conversation: &v})
+	before := t.writes
+	if err := t.stage(Write{Op: "create-conversation", Conversation: &v}); err != nil {
+		return err
+	}
+	if t.session != nil && t.session.taskScheduler != nil {
+		// Nested Tx methods must enter without releasing the Session line.
+		t.leave()
+		err := t.session.taskScheduler.h.initializeCreatedConversation(t, v)
+		if enterErr := t.enter(); enterErr != nil {
+			return enterErr
+		}
+		if err != nil {
+			t.writes = before
+			t.creationError = err
+			return err
+		}
+	}
+	return nil
 }
 func (t *Tx) AppendEntry(v Entry) error {
 	if e := t.enter(); e != nil {
@@ -205,6 +223,9 @@ func (t *Tx) PutSubmission(v Submission) error {
 	return t.stage(Write{Op: "put-submission", Submission: &v})
 }
 func (t *Tx) current() (Snapshot, error) {
+	if len(t.writes) == 0 {
+		return t.state, nil
+	}
 	return prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: t.writes}, t.limits, false)
 }
 func (t *Tx) currentDocument(id ID) (Document, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"testing"
@@ -31,233 +32,253 @@ func observeTaskState(t *testing.T, h *Harness, id ID, status string) TaskRecord
 	}
 }
 func TestTaskOwnershipHeldFailureFailFastBeforeDescendantDrain(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
-		grandAbort := make(chan struct{})
-		releaseGrand := make(chan struct{})
-		siblingAbort := make(chan struct{})
-		outsideEntered, releaseOutside, outsideTerminal, returnOutside := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
-		var outsideRuntime *TaskRuntime
-		var outsideAborts atomic.Int64
-		outside := taskDefinition(t, "task.failfast.outside", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			outsideRuntime = r
-			close(outsideEntered)
-			<-releaseOutside
-			if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("outside"), nil }); err != nil {
-				return err
-			}
-			close(outsideTerminal)
-			<-returnOutside
-			return nil
-		})
-		outside.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			outsideAborts.Add(1)
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
-			})
-		}
-		t.Cleanup(func() {
-			select {
-			case <-releaseGrand:
-			default:
-				close(releaseGrand)
-			}
-		})
-		grand := taskDefinition(t, "task.failfast.grand", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-ctx.Done(); return ctx.Err() })
-		grand.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			close(grandAbort)
-			<-releaseGrand
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
-			})
-		}
-		sibling := taskDefinition(t, "task.failfast.sibling", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-ctx.Done(); return ctx.Err() })
-		sibling.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			close(siblingAbort)
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-				return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
-			})
-		}
-		var failedID, siblingID, grandID, outsideID ID
-		failed := taskDefinition(t, "task.failfast.failed", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			if task.State.Checkpoint["phase"] == "finish" {
-				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "declined"}, Result: &TaskValue{Present: true, Value: nil}}}, nil
+	for _, ending := range []string{"failed", "faulted"} {
+		t.Run(ending, func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				grandAbort := make(chan struct{})
+				releaseGrand := make(chan struct{})
+				siblingAbort := make(chan struct{})
+				outsideEntered, releaseOutside, outsideTerminal, returnOutside := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+				var outsideRuntime *TaskRuntime
+				var outsideAborts atomic.Int64
+				outside := taskDefinition(t, "task.failfast.outside", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					outsideRuntime = r
+					close(outsideEntered)
+					<-releaseOutside
+					if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("outside"), nil }); err != nil {
+						return err
+					}
+					close(outsideTerminal)
+					<-returnOutside
+					return nil
 				})
-			}
-			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-				var err error
-				grandID, err = tx.CreateTask(grand, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
-				if err != nil {
-					return nil, err
+				outside.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					outsideAborts.Add(1)
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
 				}
-				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish"}}, nil
+				t.Cleanup(func() {
+					select {
+					case <-releaseGrand:
+					default:
+						close(releaseGrand)
+					}
+				})
+				grand := taskDefinition(t, "task.failfast.grand", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-ctx.Done(); return ctx.Err() })
+				grand.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					close(grandAbort)
+					<-releaseGrand
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
+				}
+				sibling := taskDefinition(t, "task.failfast.sibling", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-ctx.Done(); return ctx.Err() })
+				sibling.options.Abort = func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					close(siblingAbort)
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
+				}
+				var failedID, siblingID, grandID, outsideID ID
+				failed := taskDefinition(t, "task.failfast.failed", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					if task.State.Checkpoint["phase"] == "finish" {
+						if ending == "faulted" {
+							return errors.New("actual held child phase failure")
+						}
+						return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+							return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "declined"}, Result: &TaskValue{Present: true, Value: nil}}}, nil
+						})
+					}
+					return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+						var err error
+						grandID, err = tx.CreateTask(grand, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
+						if err != nil {
+							return nil, err
+						}
+						return &TaskState{Status: "running", Checkpoint: JSON{"phase": "finish"}}, nil
+					})
+				})
+				opts := failed.options
+				opts.Phases = map[string]TaskPhase{"work": failed.options.Phases["work"], "finish": failed.options.Phases["work"]}
+				var err error
+				failed, err = DefineTask(opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var outcomes []TaskOutcome
+				parent := taskDefinition(t, "task.failfast.parent", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					if task.State.Checkpoint["phase"] == "join" {
+						var err error
+						outcomes, err = r.Outcomes(ctx, []ID{failedID, siblingID})
+						if err != nil {
+							return err
+						}
+						return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("parent"), nil })
+					}
+					return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+						var err error
+						failedID, err = tx.CreateTask(failed, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
+						if err != nil {
+							return nil, err
+						}
+						siblingID, err = tx.CreateTask(sibling, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
+						if err != nil {
+							return nil, err
+						}
+						outsideID, err = tx.CreateTask(outside, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
+						if err != nil {
+							return nil, err
+						}
+						return &TaskState{Status: "waiting", Checkpoint: JSON{"phase": "join"}, On: []ID{failedID, siblingID}, Policy: "failFast"}, nil
+					})
+				})
+				opts = parent.options
+				opts.Phases = map[string]TaskPhase{"work": parent.options.Phases["work"], "join": parent.options.Phases["work"]}
+				parent, err = DefineTask(opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				h := taskTestHarness(t, b.store, parent, failed, sibling, grand, outside)
+				cleanupTaskGates(t, releaseGrand, releaseOutside, returnOutside)
+				id := createPublicTask(t, h, parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				if err := h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				awaitTaskSignal(t, grandAbort)
+				awaitTaskSignal(t, siblingAbort)
+				awaitTaskSignal(t, outsideEntered)
+				record := observeTaskState(t, h, failedID, "completing")
+				if record.State.Outcome.Status != ending {
+					t.Fatal(record)
+				}
+				if record, _, err := h.Task(bg, id); err != nil || record.AbortRequested || record.State.Status != "waiting" {
+					t.Fatal("failFast marked/resumed parent early", record, err)
+				}
+				releaseTaskGate(releaseGrand)
+				waitPublicTask(t, h, failedID)
+				record = observeTaskState(t, h, id, "completing")
+				if record.AbortRequested || record.State.Outcome.Status != "completed" {
+					t.Fatal("parent final outcome did not Hold for outside child", record)
+				}
+				for _, member := range []ID{failedID, siblingID, outsideID} {
+					child, ok, err := h.Task(bg, member)
+					if err != nil || !ok || child.AbortRequested != (member == siblingID) {
+						t.Fatal("failFast marked outside On or failing member", child, err)
+					}
+				}
+				if child, _, err := h.Task(bg, outsideID); err != nil || child.State.Status != "running" {
+					t.Fatal("outside child not live", child, err)
+				}
+				releaseTaskGate(releaseOutside)
+				awaitTaskSignal(t, outsideTerminal)
+				if record, _, err := h.Task(bg, id); err != nil || record.State.Status != "completing" {
+					t.Fatal("parent skipped terminal-but-unreturned outside host", record, err)
+				}
+				releaseTaskGate(returnOutside)
+				awaitTaskSignal(t, outsideRuntime.done)
+				record = waitPublicTask(t, h, id)
+				if outsideAborts.Load() != 0 {
+					t.Fatal("outside child was aborted", outsideAborts.Load())
+				}
+				if record.State.Outcome.Status != "completed" || len(outcomes) != 2 || outcomes[0].Status != ending || outcomes[1].Status != "aborted" {
+					t.Fatal("held failure join", record, outcomes)
+				}
+				waitPublicTask(t, h, grandID)
 			})
 		})
-		opts := failed.options
-		opts.Phases = map[string]TaskPhase{"work": failed.options.Phases["work"], "finish": failed.options.Phases["work"]}
-		var err error
-		failed, err = DefineTask(opts)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var outcomes []TaskOutcome
-		parent := taskDefinition(t, "task.failfast.parent", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			if task.State.Checkpoint["phase"] == "join" {
-				var err error
-				outcomes, err = r.Outcomes(ctx, []ID{failedID, siblingID})
-				if err != nil {
-					return err
-				}
-				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("parent"), nil })
-			}
-			return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
-				var err error
-				failedID, err = tx.CreateTask(failed, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
-				if err != nil {
-					return nil, err
-				}
-				siblingID, err = tx.CreateTask(sibling, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
-				if err != nil {
-					return nil, err
-				}
-				outsideID, err = tx.CreateTask(outside, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
-				if err != nil {
-					return nil, err
-				}
-				return &TaskState{Status: "waiting", Checkpoint: JSON{"phase": "join"}, On: []ID{failedID, siblingID}, Policy: "failFast"}, nil
-			})
-		})
-		opts = parent.options
-		opts.Phases = map[string]TaskPhase{"work": parent.options.Phases["work"], "join": parent.options.Phases["work"]}
-		parent, err = DefineTask(opts)
-		if err != nil {
-			t.Fatal(err)
-		}
-		h := taskTestHarness(t, b.store, parent, failed, sibling, grand, outside)
-		cleanupTaskGates(t, releaseGrand, releaseOutside, returnOutside)
-		id := createPublicTask(t, h, parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		if err := h.Resume(bg); err != nil {
-			t.Fatal(err)
-		}
-		awaitTaskSignal(t, grandAbort)
-		awaitTaskSignal(t, siblingAbort)
-		awaitTaskSignal(t, outsideEntered)
-		record := observeTaskState(t, h, failedID, "completing")
-		if record.State.Outcome.Status != "failed" {
-			t.Fatal(record)
-		}
-		if record, _, err := h.Task(bg, id); err != nil || record.AbortRequested || record.State.Status != "waiting" {
-			t.Fatal("failFast marked/resumed parent early", record, err)
-		}
-		releaseTaskGate(releaseGrand)
-		waitPublicTask(t, h, failedID)
-		record = observeTaskState(t, h, id, "completing")
-		if record.AbortRequested || record.State.Outcome.Status != "completed" {
-			t.Fatal("parent final outcome did not Hold for outside child", record)
-		}
-		for _, member := range []ID{failedID, siblingID, outsideID} {
-			child, ok, err := h.Task(bg, member)
-			if err != nil || !ok || child.AbortRequested != (member == siblingID) {
-				t.Fatal("failFast marked outside On or failing member", child, err)
-			}
-		}
-		if child, _, err := h.Task(bg, outsideID); err != nil || child.State.Status != "running" {
-			t.Fatal("outside child not live", child, err)
-		}
-		releaseTaskGate(releaseOutside)
-		awaitTaskSignal(t, outsideTerminal)
-		if record, _, err := h.Task(bg, id); err != nil || record.State.Status != "completing" {
-			t.Fatal("parent skipped terminal-but-unreturned outside host", record, err)
-		}
-		releaseTaskGate(returnOutside)
-		awaitTaskSignal(t, outsideRuntime.done)
-		record = waitPublicTask(t, h, id)
-		if outsideAborts.Load() != 0 {
-			t.Fatal("outside child was aborted", outsideAborts.Load())
-		}
-		if record.State.Outcome.Status != "completed" || len(outcomes) != 2 || outcomes[0].Status != "failed" || outcomes[1].Status != "aborted" {
-			t.Fatal("held failure join", record, outcomes)
-		}
-		waitPublicTask(t, h, grandID)
-	})
+	}
 }
 
 func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
-		gate := make(chan struct{})
-		started := make(chan struct{})
-		t.Cleanup(func() {
-			select {
-			case <-gate:
-			default:
-				close(gate)
-			}
+	for _, reopened := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reopen-%t", reopened), func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				gate := make(chan struct{})
+				started := make(chan struct{})
+				t.Cleanup(func() {
+					select {
+					case <-gate:
+					default:
+						close(gate)
+					}
+				})
+				live := taskDefinition(t, "task.background.live", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					select {
+					case <-started:
+					default:
+						close(started)
+					}
+					select {
+					case <-gate:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+				})
+				done := taskDefinition(t, "task.background.done", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+				})
+				h := taskTestHarness(t, b.store, live, done)
+				cleanupTaskGates(t, gate)
+				background := createPublicTask(t, h, done, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
+				var childConversation ID
+				_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
+					var err error
+					childConversation, err = tx.MintID()
+					if err != nil {
+						return err
+					}
+					return tx.CreateConversation(Conversation{ID: childConversation, Owner: background})
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				waitPublicTask(t, h, background)
+				if reopened {
+					if err := h.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+					h = taskTestHarness(t, reopenStoreAfterHarnessClose(t, b.store), live, done)
+				}
+				var child ID
+				_, err = h.CommitTasks(bg, childConversation, func(tx *Tx) error {
+					var err error
+					child, err = tx.CreateTask(live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+					return err
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				awaitTaskSignal(t, started)
+				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+				defer cancel()
+				if err := h.WaitForIdle(ctx); err != nil {
+					t.Fatal("terminal background owner boundary lost", err)
+				}
+				rootHandle, err := h.Conversation(bg, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := rootHandle.Abort(ctx); err != nil {
+					t.Fatal(err)
+				}
+				record, _, err := h.Task(bg, child)
+				if err != nil || record.AbortRequested || record.State.Status != "running" {
+					t.Fatal("terminal owner cascaded", record, err)
+				}
+				if err := rootHandle.AbortWithOptions(ctx, ConversationAbortOptions{Background: true}); err != nil {
+					t.Fatal(err)
+				}
+				if record := waitPublicTask(t, h, child); record.State.Outcome.Status != "aborted" {
+					t.Fatal(record)
+				}
+			})
 		})
-		live := taskDefinition(t, "task.background.live", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			select {
-			case <-started:
-			default:
-				close(started)
-			}
-			select {
-			case <-gate:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
-		})
-		done := taskDefinition(t, "task.background.done", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
-		})
-		h := taskTestHarness(t, b.store, live, done)
-		cleanupTaskGates(t, gate)
-		background := createPublicTask(t, h, done, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})
-		var childConversation ID
-		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
-			var err error
-			childConversation, err = tx.MintID()
-			if err != nil {
-				return err
-			}
-			return tx.CreateConversation(Conversation{ID: childConversation, Owner: background})
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitPublicTask(t, h, background)
-		var child ID
-		_, err = h.CommitTasks(bg, childConversation, func(tx *Tx) error {
-			var err error
-			child, err = tx.CreateTask(live, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-			return err
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		awaitTaskSignal(t, started)
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		if err := h.WaitForIdle(ctx); err != nil {
-			t.Fatal("terminal background owner boundary lost", err)
-		}
-		rootHandle, err := h.Conversation(bg, 1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := rootHandle.Abort(ctx); err != nil {
-			t.Fatal(err)
-		}
-		record, _, err := h.Task(bg, child)
-		if err != nil || record.AbortRequested || record.State.Status != "running" {
-			t.Fatal("terminal owner cascaded", record, err)
-		}
-		if err := rootHandle.AbortWithOptions(ctx, ConversationAbortOptions{Background: true}); err != nil {
-			t.Fatal(err)
-		}
-		if record := waitPublicTask(t, h, child); record.State.Outcome.Status != "aborted" {
-			t.Fatal(record)
-		}
-	})
+	}
 }
 
 func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testing.T) {
@@ -1480,6 +1501,10 @@ func TestTaskOwnershipInspectMarkedOwnedAbortActualReturnPrecedence(t *testing.T
 		check("ready", nil)
 		if runs.Load() != 2 || aborts.Load() != 1 || clocks.Load() != 0 {
 			t.Fatal("inspection dispatched/clock effects", runs.Load(), aborts.Load(), clocks.Load())
+		}
+		final := waitPublicTask(t, h, id)
+		if final.State.Outcome == nil || final.State.Outcome.Status != "aborted" {
+			t.Fatal("marked owner final settlement", final)
 		}
 	})
 }

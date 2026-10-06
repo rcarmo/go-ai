@@ -20,11 +20,20 @@ func TestCompactionCutUsesEligibleBoundaryAndProtectsPendingResult(t *testing.T)
 	if cut := compactionCut(view, keep); cut != 4 {
 		t.Fatal("pending pair split", cut)
 	}
-	if cut := compactionCut(view, 0); cut != 0 {
-		t.Fatal("no eligible retained entry at zero budget", cut)
+	if cut := compactionCut(view, 0); cut != 4 {
+		t.Fatal("zero budget selects last eligible boundary", cut)
 	}
 	if cut := compactionCut(view, 10000); cut != 0 {
-		t.Fatal("whole history selected as summary", cut)
+		t.Fatal("large budget must keep entire transcript", cut)
+	}
+	boundary := ContextView{Entries: []Entry{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}}, Contributions: [][]MessageReceipt{{call}, {userReceipt("eligible")}, {MessageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "text", Text: "answer"}}}}, {result}}}
+	if !compactionCuttable(boundary, 1) {
+		t.Fatal("next assistant failed to end pending-call boundary")
+	}
+	marker := Entry{ID: 10, Head: 11}
+	withHead := ContextView{Head: &marker, Entries: []Entry{marker, {ID: 11}}, Contributions: [][]MessageReceipt{{userReceipt("summary")}, {userReceipt("new")}}}
+	if cut := compactionCut(withHead, 0); cut != 0 {
+		t.Fatal("head alone made removable prefix", cut)
 	}
 	// A raw entry with no model contribution cannot be the retained boundary.
 	view.Entries = append(view.Entries, Entry{ID: 7})

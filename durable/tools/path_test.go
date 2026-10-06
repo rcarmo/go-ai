@@ -41,12 +41,12 @@ func TestPinnedToolPathExpansionAndReadVariants(t *testing.T) {
 	if err != nil || string(data) != "written" {
 		t.Fatal(string(data), err)
 	}
-	for _, filename := range []string{"shot 10.00\u202fAM.png", "someone’s.txt"} {
+	for _, filename := range []string{"shot 10.00\u202fAM.png", "someone’s.txt", "café.txt", "café’s.txt"} {
 		if err := os.WriteFile(filepath.Join(directory, filename), []byte("variant"), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, filename := range []string{"shot 10.00 AM.png", "someone's.txt"} {
+	for _, filename := range []string{"shot 10.00 AM.png", "someone's.txt", "café.txt", "café's.txt"} {
 		result, err := Read(env).Execute(context.Background(), durable.JSON{"path": filename}, nil)
 		if err != nil || result.Content != "variant" {
 			t.Fatal(filename, result, err)

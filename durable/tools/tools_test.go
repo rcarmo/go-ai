@@ -38,14 +38,11 @@ func TestReadBoundedOffsetAndLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := run(t, Read(LocalEnv(dir)), durable.JSON{"path": "sample.txt", "offset": 2, "limit": 2})
-	if result.Content != "two\nthree\n" {
+	if result.Content != "two\nthree" {
 		t.Fatalf("content=%q", result.Content)
 	}
-	if got := result.Details["nextOffset"]; got != 4 {
-		t.Fatalf("nextOffset=%v", got)
-	}
-	if got := result.Details["remainingLines"]; got != 2 {
-		t.Fatalf("remainingLines=%v", got)
+	if result.Details != nil || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "" || !strings.Contains(result.Diagnostics[0].Message, "offset=4") {
+		t.Fatal(result)
 	}
 }
 
@@ -59,13 +56,13 @@ func TestReadTruncatesByLinesAndBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := run(t, Read(LocalEnv(dir)), durable.JSON{"path": "many.txt"})
-	if got := result.Details["truncatedBy"]; got != "lines" {
+	if got := result.Details["truncation"].(durable.JSON)["truncatedBy"]; got != "lines" {
 		t.Fatalf("truncatedBy=%v", got)
 	}
-	if got := result.Details["nextOffset"]; got != MaxReadLines+1 {
-		t.Fatalf("nextOffset=%v", got)
+	if len(result.Diagnostics) != 1 || !strings.Contains(result.Diagnostics[0].Message, "offset=2001") {
+		t.Fatal(result)
 	}
-	if count := strings.Count(result.Content, "\n"); count != MaxReadLines {
+	if count := strings.Count(result.Content, "\n"); count != MaxReadLines-1 {
 		t.Fatalf("line count=%d", count)
 	}
 
@@ -74,7 +71,7 @@ func TestReadTruncatesByLinesAndBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	result = run(t, Read(LocalEnv(dir)), durable.JSON{"path": "long.txt"})
-	if got := result.Details["truncatedBy"]; got != "bytes" {
+	if got := result.Details["truncation"].(durable.JSON)["truncatedBy"]; got != "bytes" {
 		t.Fatalf("truncatedBy=%v", got)
 	}
 	if len([]byte(result.Content)) > MaxReadBytes {
@@ -138,20 +135,20 @@ func TestEditRejectsNonUniqueAndOverlappingReplacements(t *testing.T) {
 	_, err := Edit(LocalEnv(dir)).Execute(context.Background(), durable.JSON{"path": "edit.txt", "edits": []any{
 		map[string]any{"oldText": "repeat", "newText": "x"},
 	}}, nil)
-	if err == nil || !strings.Contains(err.Error(), "not unique") {
+	if err == nil || !strings.Contains(err.Error(), "must be unique") {
 		t.Fatalf("err=%v", err)
 	}
 	_, err = Edit(LocalEnv(dir)).Execute(context.Background(), durable.JSON{"path": "edit.txt", "edits": []any{
 		map[string]any{"oldText": "aa", "newText": "x"},
 	}}, nil)
-	if err == nil || !strings.Contains(err.Error(), "not unique") {
+	if err == nil || !strings.Contains(err.Error(), "must be unique") {
 		t.Fatalf("err=%v", err)
 	}
 	_, err = Edit(LocalEnv(dir)).Execute(context.Background(), durable.JSON{"path": "edit.txt", "edits": []any{
 		map[string]any{"oldText": "abc", "newText": "x"},
 		map[string]any{"oldText": "bcd", "newText": "y"},
 	}}, nil)
-	if err == nil || !strings.Contains(err.Error(), "overlaps") {
+	if err == nil || !strings.Contains(err.Error(), "overlap") {
 		t.Fatalf("err=%v", err)
 	}
 	data, readErr := os.ReadFile(path)
@@ -255,7 +252,7 @@ func TestSpillIsPrivateAndReadKeepsLargeSource(t *testing.T) {
 		t.Fatal("spill lost source", err)
 	}
 	result, err := Read(env).Execute(context.Background(), durable.JSON{"path": path}, nil)
-	if err != nil || len(result.Content) > durable.MaxToolOutputBytes || result.Details["fullOutputPath"] != path {
+	if err != nil || len(result.Content) > durable.MaxToolOutputBytes || result.Details["truncation"] == nil || len(result.Diagnostics) != 1 {
 		t.Fatal("large source unavailable", result.Details, err)
 	}
 }

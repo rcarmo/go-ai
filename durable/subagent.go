@@ -47,13 +47,11 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 		if err != nil {
 			return err
 		}
-		stateDoc, ok := agentDocument(tx.state, c.id)
-		if !ok {
-			return reject("parent agent unavailable")
-		}
 		var agent agentState
-		if err := fromObject(stateDoc.Value, &agent, tx.limits); err != nil {
-			return err
+		if stateDoc, ok := agentDocument(tx.state, c.id); ok {
+			if err := fromObject(stateDoc.Value, &agent, tx.limits); err != nil {
+				return err
+			}
 		}
 		if change != nil {
 			agent, err = h.agent(*change)
@@ -68,21 +66,33 @@ func (c *ConversationHandle) CreateBackgroundConversation(ctx context.Context, k
 		if err = tx.CreateConversation(Conversation{ID: child, Owner: owner}); err != nil {
 			return err
 		}
-		id, err := tx.MintID()
-		if err != nil {
-			return err
-		}
 		value, err := dtoObject(agent, tx.limits)
 		if err != nil {
 			return err
 		}
-		if _, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: child, Kind: "pi.agent", Version: 1, History: "rewindable", Fork: "asOf", Value: value}); err != nil {
-			return err
+		{
+			candidate, err := tx.current()
+			if err != nil {
+				return err
+			}
+			existing, ok := agentDocument(candidate, child)
+			if !ok {
+				return reject("created agent unavailable")
+			}
+			handle, err := tx.Document(existing.ID)
+			if err != nil {
+				return err
+			}
+			if change != nil {
+				if err := handle.Set(value); err != nil {
+					return err
+				}
+			}
 		}
 		if err = initializeBuiltins(tx, child); err != nil {
 			return err
 		}
-		id, err = tx.MintID()
+		id, err := tx.MintID()
 		if err != nil {
 			return err
 		}

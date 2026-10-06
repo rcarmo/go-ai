@@ -13,15 +13,23 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 	backends(t, func(t *testing.T, b backend) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var summaries, requests atomic.Int64
-		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
 			if strings.Contains(input.SystemPrompt, "Summarise") {
 				summaries.Add(1)
 				go func() { close(entered); <-release; ch <- terminal("background summary"); close(ch) }()
 			} else {
 				requests.Add(1)
-				ch <- terminal("answer without waiting")
-				close(ch)
+				// Witness selection before the answer changes the keep-token tail.
+				// The answer still returns while the actual summary host is held.
+				go func() {
+					defer close(ch)
+					select {
+					case <-entered:
+						ch <- terminal("answer without waiting")
+					case <-ctx.Done():
+					}
+				}()
 			}
 			return ch
 		})
@@ -67,6 +75,19 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 		state, err := h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
+		}
+		statusFound := false
+		for _, document := range state.Documents {
+			if document.Kind == "pi.live" && document.Owner == conversation.ID() {
+				items, _ := document.Value["compactions"].([]any)
+				statusFound = len(items) == 1
+				if document.Value["run"] != nil {
+					t.Fatal("settled run retained", document)
+				}
+			}
+		}
+		if !statusFound {
+			t.Fatal("answer cleanup erased background compaction")
 		}
 		var id ID
 		for _, task := range state.Tasks {

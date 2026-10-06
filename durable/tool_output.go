@@ -6,12 +6,20 @@ import (
 	"unicode/utf8"
 )
 
-// ToolOutputLimits bounds progress and final text independently. Zero bytes or
-// lines retain no text. Native persisted receipts still cap bytes at 32 KiB.
+// ToolOutputLimits bounds progress and final text independently. Omitted
+// limits use the reference default: 50 KiB, 2000 lines, head retention.
+// Zero bytes or lines retain no text.
 type ToolOutputLimits struct {
 	MaxBytes int    `json:"maxBytes"`
 	MaxLines int    `json:"maxLines"`
 	Retain   string `json:"retain"`
+}
+
+func resolvedToolOutputLimits(l *ToolOutputLimits) ToolOutputLimits {
+	if l == nil {
+		return ToolOutputLimits{MaxBytes: 50 * 1024, MaxLines: 2000, Retain: "head"}
+	}
+	return *l
 }
 
 func validateOutputLimits(l ToolOutputLimits) error {

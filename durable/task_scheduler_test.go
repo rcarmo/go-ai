@@ -291,8 +291,8 @@ func TestTaskSchedulerNoProgressAndCommittedTerminalPrecedence(t *testing.T) {
 		h := taskTestHarness(t, b.store, equal, done)
 		a := createPublicTask(t, h, equal, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		bID := createPublicTask(t, h, done, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		if record := waitPublicTask(t, h, a); record.State.Outcome.Status != "faulted" {
-			t.Fatal("no progress accepted", record)
+		if record := waitPublicTask(t, h, a); record.State.Outcome.Status != "faulted" || record.State.Outcome.Error.Message != "Task task.equal phase work returned without durable progress" {
+			t.Fatal("no progress or message differs", record)
 		}
 		if record := waitPublicTask(t, h, bID); record.State.Outcome.Status != "completed" {
 			t.Fatal("late handler error replaced terminal", record)
@@ -1048,6 +1048,12 @@ func TestTaskSchedulerBoundWriteAttributionAndEscapedSettlementSeal(t *testing.T
 		if _, err := captured.Wait(bg); !errors.Is(err, ErrSealed) {
 			t.Fatal("escaped bound settlement survived adopted seal", err)
 		}
+		if _, err := captured.Status(bg); !errors.Is(err, ErrSealed) {
+			t.Fatal("escaped bound status survived seal", err)
+		}
+		if _, err := captured.Abort(bg); !errors.Is(err, ErrSealed) {
+			t.Fatal("escaped bound abort survived seal", err)
+		}
 		if _, err := boundConversation.Submit(bg, Input{Type: "write", Content: "late"}); !errors.Is(err, ErrSealed) {
 			t.Fatal("escaped submit survived adopted seal", err)
 		}
@@ -1784,7 +1790,8 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return tx.CreateConversation(Conversation{ID: foreign, Owner: owner})
+					// Minimal storage seed isolates exact withdrawal write budgets.
+					return tx.stage(Write{Op: "create-conversation", Conversation: &Conversation{ID: foreign, Owner: owner}})
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -2221,7 +2228,8 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 						if err != nil {
 							return err
 						}
-						return tx.CreateConversation(Conversation{ID: conversation, Owner: owner})
+						// Minimal storage seed isolates exact withdrawal write budgets.
+						return tx.stage(Write{Op: "create-conversation", Conversation: &Conversation{ID: conversation, Owner: owner}})
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -2328,12 +2336,14 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		}
 		var firstEntry, secondEntry ID
 		var captured *TaskRuntime
+		var handlerContext context.Context
 		var watch *DocumentWatch
 		var seen []any
 		reported := errors.New("bounded host report")
 		reports := make(chan error, 2)
 		def := taskDefinition(t, "task.runtime.reads", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			captured = r
+			handlerContext = ctx
 			current, ok, err := r.SnapshotDefinition(ctx, notes, 1, nil)
 			if err != nil || !ok {
 				return errors.New("runtime committed notes missing")
@@ -2425,6 +2435,28 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		}
 		if err := captured.Report(reported); !errors.Is(err, ErrSealed) {
 			t.Fatal("ended report", err)
+		}
+		awaitTaskSignal(t, captured.done)
+		if handlerContext.Err() == nil {
+			t.Fatal("ended handler context not cancelled")
+		}
+		if _, err := captured.Agent(handlerContext); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended agent must win over handler cancellation", err)
+		}
+		if _, _, err := captured.Memo(bg, "late"); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended memo read", err)
+		}
+		if _, err := captured.MemoCandidate(bg, "late", 1); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended memo write", err)
+		}
+		if err := captured.Commit(bg, func(*Tx, TaskRecord) (*TaskState, error) { t.Error("ended callback ran"); return taskDone(nil), nil }); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended commit", err)
+		}
+		if err := captured.SleepUntil(bg, 0); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended sleep", err)
+		}
+		if _, err := captured.WatchDefinition(bg, notes, 1, nil); !errors.Is(err, ErrSealed) {
+			t.Fatal("ended watch", err)
 		}
 	})
 }

@@ -73,6 +73,27 @@ func (t *Tx) AppendTypedEntry(def *EntryDefinition, conversation ID, c EntryCont
 	}
 	return copyEntry(owned, t.limits)
 }
+
+// TypedEntry reads the latest transaction overlay through an entry token.
+func (t *Tx) TypedEntry(def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
+	if err := t.enter(); err != nil {
+		return Entry{}, false, err
+	}
+	defer t.leave()
+	if def == nil {
+		return Entry{}, false, reject("nil entry definition")
+	}
+	state, err := t.current()
+	if err != nil {
+		return Entry{}, false, err
+	}
+	entry, found := state.Entries[id]
+	if !found || !entryVisible(state, conversation, id) || !def.Is(entry) {
+		return Entry{}, false, nil
+	}
+	owned, err := copyEntry(entry, t.limits)
+	return owned, err == nil, err
+}
 func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
 	if e := s.enter(ctx); e != nil {
 		return Entry{}, false, e

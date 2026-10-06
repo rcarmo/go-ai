@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"math"
 	"math/big"
@@ -14,8 +15,10 @@ import (
 	"sync"
 )
 
-const MaxTools = 16
-const MaxToolOutputBytes = 32 << 10
+// Registry cardinality follows the native record/page budget, not an arbitrary
+// 16-tool runtime policy. Generation rounds are bounded by storage admission.
+const MaxTools = 256
+const MaxToolOutputBytes = 50 << 10
 
 // ToolRegistration is copied at registration. Version/Implementation identify
 // code selected for an intent. ReplaySafe defaults false; external idempotency
@@ -29,8 +32,8 @@ type ToolRegistration struct {
 	// PrepareArguments repairs detached model arguments before validation. Its
 	// result is persisted as intent; it never reruns for a started recovery.
 	PrepareArguments func(context.Context, JSON) (JSON, error)
-	// Nil preserves native overflow rejection. Configured limits retain a
-	// bounded head/tail window and report the discarded progress counts.
+	// Nil uses 50KiB/2000-line head retention. Configured limits select a
+	// bounded head/tail window and report discarded progress counts.
 	OutputLimits *ToolOutputLimits
 	// Validator is required for schemas outside the enforced native subset. It
 	// returns final rewritten arguments before intent and is NOT rerun on recovery.
@@ -58,6 +61,7 @@ type registeredTool struct {
 type Registry struct {
 	mu                   sync.RWMutex
 	tools                map[string]registeredTool
+	toolOrder            []string
 	tasks                map[string]*TaskDefinition
 	taskRegistrations    map[string]uint64
 	nextTaskRegistration uint64
@@ -113,6 +117,9 @@ func (r *Registry) Register(reg ToolRegistration) error {
 		r.mu.Unlock()
 		return reject("tool registry limit")
 	}
+	if _, exists := r.tools[offer.Name]; !exists {
+		r.toolOrder = append(r.toolOrder, offer.Name)
+	}
 	r.tools[offer.Name] = registeredTool{offer, reg.Execute, reg.Validator, reg.PrepareArguments}
 	wake := r.taskListenersLocked()
 	r.mu.Unlock()
@@ -128,6 +135,14 @@ func (r *Registry) Remove(name string) {
 	r.mu.Lock()
 	_, existed := r.tools[name]
 	delete(r.tools, name)
+	if existed {
+		for index, item := range r.toolOrder {
+			if item == name {
+				r.toolOrder = append(r.toolOrder[:index], r.toolOrder[index+1:]...)
+				break
+			}
+		}
+	}
 	wake := r.taskListenersLocked()
 	r.mu.Unlock()
 	if existed {
@@ -449,22 +464,31 @@ type ToolResult struct {
 	Content string
 	// Blocks adds strict text/image content to the tool receipt. Content remains
 	// the backwards-compatible text field; streamed prefixes precede Blocks.
-	Blocks  []goai.ContentBlock
-	Details JSON
+	Blocks       []goai.ContentBlock
+	Details      JSON // Object-valued convenience form.
+	DetailsValue any
+	HasDetails   bool
 	// Diagnostics are model/UI remarks, separate from application details.
-	Diagnostics []ToolDiagnostic
-	IsError     bool
-	Usage       *goai.Usage
-	Commit      func(*Tx) error
+	Diagnostics             []ToolDiagnostic
+	IsError                 bool
+	Control                 *ToolControl
+	Usage                   *goai.Usage
+	Commit                  func(*Tx) error
+	usesRetainedOutput      bool
+	usesReportedDiagnostics bool
+	thrownError             string
 }
 type toolCheckpoint struct {
-	Offer            toolOffer        `json:"offer"`
-	CallID           string           `json:"callId"`
-	Arguments        JSON             `json:"arguments"`
-	Started          bool             `json:"started"`
-	Abort            bool             `json:"abort,omitempty"`
-	ErrorCode        string           `json:"errorCode,omitempty"`
-	ReportedError    bool             `json:"reportedError,omitempty"`
+	Offer         toolOffer `json:"offer"`
+	CallID        string    `json:"callId"`
+	Arguments     JSON      `json:"arguments"`
+	Started       bool      `json:"started"`
+	Abort         bool      `json:"abort,omitempty"`
+	ErrorCode     string    `json:"errorCode,omitempty"`
+	ReportedError bool      `json:"reportedError,omitempty"`
+	// Present for final results that have passed afterTool. Older receipts
+	// derive their error flag from ErrorCode/ReportedError.
+	FinalIsError     *bool            `json:"finalIsError,omitempty"`
 	Output           string           `json:"output"`
 	Details          any              `json:"details,omitempty"`
 	HasDetails       bool             `json:"hasDetails,omitempty"`
@@ -476,52 +500,65 @@ type toolCheckpoint struct {
 	OutputNewlines   uint64           `json:"outputNewlines,omitempty"`
 	OutputTerminated bool             `json:"outputTerminated,omitempty"`
 	Diagnostics      []ToolDiagnostic `json:"diagnostics,omitempty"`
+	Control          *ToolControl     `json:"control,omitempty"`
 	Result           *MessageReceipt  `json:"result,omitempty"`
 }
 
 // ToolAPI publishes only bounded committed prefixes while the invocation lives.
 // Output is fenced after return/abort; application mutation belongs to Commit.
 type ToolAPI struct {
-	mu         sync.Mutex
-	h          *Harness
-	task       Task
-	checkpoint toolCheckpoint
-	active     bool
-	ctx        context.Context
-	runtime    *TaskRuntime
+	mu                  sync.Mutex
+	h                   *Harness
+	task                Task
+	checkpoint          toolCheckpoint
+	active              bool
+	ctx                 context.Context
+	runtime             *TaskRuntime
+	environment         ExecutionEnvironment
+	environmentErr      error
+	environmentResolved bool
+	outputDecoder       outputDecoder
+	progress            *toolProgress
+	pendingProgress     []progressWaiter
 }
 
-func (a *ToolAPI) Output(text string) error {
+func (a *ToolAPI) OutputBytes(chunk []byte) error {
 	return a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
-		if cp.Offer.OutputLimits != nil {
-			return retainToolOutput(cp, text, *cp.Offer.OutputLimits, false)
+		decoder := a.outputDecoder
+		text := decoder.decode(chunk, false)
+		if err := appendToolProgress(cp, text); err != nil {
+			return err
 		}
-		if len(text) > MaxToolOutputBytes-len(cp.Output) {
-			return reject("tool output limit")
-		}
-		cp.Output += text
+		a.outputDecoder = decoder
 		return nil
 	})
+}
+func (a *ToolAPI) Output(text string) error {
+	return a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
+		decoder := a.outputDecoder
+		text = decoder.end() + text
+		if err := appendToolProgress(cp, text); err != nil {
+			return err
+		}
+		a.outputDecoder = decoder
+		return nil
+	})
+}
+func appendToolProgress(cp *toolCheckpoint, text string) error {
+	return retainToolOutput(cp, text, resolvedToolOutputLimits(cp.Offer.OutputLimits), false)
 }
 
 // SetOutput replaces a retained output window; it is bounded and fenced like
 // Output, and does not change the final ToolResult contract.
 func (a *ToolAPI) SetOutput(text string) error {
 	return a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
-		if cp.Offer.OutputLimits != nil {
-			return retainToolOutput(cp, text, *cp.Offer.OutputLimits, true)
-		}
-		if len(text) > MaxToolOutputBytes {
-			return reject("tool output limit")
-		}
-		cp.Output = text
-		return nil
+		return retainToolOutput(cp, text, resolvedToolOutputLimits(cp.Offer.OutputLimits), true)
 	})
 }
 
 // Details commits detached UI metadata. Nil explicitly clears earlier details.
 func (a *ToolAPI) Details(value any) error {
-	return a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
+	return a.updateProgressWait(func(cp *toolCheckpoint, l Limits) error {
 		owned, err := ownJSONValue(value, l)
 		if err != nil {
 			return err
@@ -540,11 +577,60 @@ func (a *ToolAPI) Diagnostic(diagnostic ToolDiagnostic) error {
 		if len(cp.Diagnostics) >= l.MaxMembers {
 			return reject("tool diagnostic limit")
 		}
-		cp.Diagnostics = append(cp.Diagnostics, diagnostic)
+		cp.Diagnostics = append(append([]ToolDiagnostic{}, cp.Diagnostics...), diagnostic)
 		return nil
 	})
 }
 func (a *ToolAPI) updateProgress(change func(*toolCheckpoint, Limits) error) error {
+	return a.updateProgressMode(change, false)
+}
+func (a *ToolAPI) updateProgressWait(change func(*toolCheckpoint, Limits) error) error {
+	return a.updateProgressMode(change, true)
+}
+func (a *ToolAPI) updateProgressMode(change func(*toolCheckpoint, Limits) error, wait bool) error {
+	if a.progress != nil {
+		a.mu.Lock()
+		if !a.active {
+			a.mu.Unlock()
+			return ErrSealed
+		}
+		if a.h.closing.Load() {
+			a.mu.Unlock()
+			return ErrClosed
+		}
+		if err := a.ctx.Err(); err != nil {
+			a.mu.Unlock()
+			return err
+		}
+		// Progress changes replace scalar/owned fields; keep the immutable offer
+		// and result shared rather than serialising the entire call on each chunk.
+		candidate := a.checkpoint
+		decoder := a.outputDecoder
+		err := change(&candidate, a.h.session.limits)
+		if err == nil {
+			_, err = dtoObject(candidate, a.h.session.limits)
+		}
+		if err != nil {
+			a.outputDecoder = decoder
+			a.mu.Unlock()
+			return err
+		}
+		a.checkpoint = candidate
+		waiter := a.progress.mark(wait)
+		a.mu.Unlock()
+		if waiter != nil {
+			select {
+			case err := <-waiter:
+				return err
+			case <-a.ctx.Done():
+				return a.ctx.Err()
+			}
+		}
+		return nil
+	}
+	return a.updateProgressSync(change)
+}
+func (a *ToolAPI) updateProgressSync(change func(*toolCheckpoint, Limits) error) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.active {
@@ -553,6 +639,7 @@ func (a *ToolAPI) updateProgress(change func(*toolCheckpoint, Limits) error) err
 	if e := a.ctx.Err(); e != nil {
 		return e
 	}
+	decoderBefore := a.outputDecoder
 	var task Task
 	var candidate toolCheckpoint
 	_, e := a.h.session.invocationCommit(context.Background(), a.task.ID, func(tx *Tx) error {
@@ -589,10 +676,46 @@ func (a *ToolAPI) updateProgress(change func(*toolCheckpoint, Limits) error) err
 	if e == nil {
 		a.checkpoint = candidate
 		a.task = task
+	} else {
+		a.outputDecoder = decoderBefore
 	}
 	return e
 }
-func (a *ToolAPI) seal()      { a.mu.Lock(); a.active = false; a.mu.Unlock() }
+func (a *ToolAPI) seal() error {
+	if a.progress != nil {
+		a.mu.Lock()
+		decoder := a.outputDecoder
+		err := appendToolProgress(&a.checkpoint, decoder.end())
+		if err == nil {
+			a.outputDecoder = decoder
+		}
+		a.active = false
+		a.mu.Unlock()
+		pending := a.progress.stop()
+		a.pendingProgress = pending
+		return err
+	}
+	a.mu.Lock()
+	pending := a.outputDecoder.pending != ""
+	if !pending {
+		a.active = false
+		a.mu.Unlock()
+		return nil
+	}
+	a.mu.Unlock()
+	err := a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
+		decoder := a.outputDecoder
+		if err := appendToolProgress(cp, decoder.end()); err != nil {
+			return err
+		}
+		a.outputDecoder = decoder
+		return nil
+	})
+	a.mu.Lock()
+	a.active = false
+	a.mu.Unlock()
+	return err
+}
 func (a *ToolAPI) TaskID() ID { a.mu.Lock(); defer a.mu.Unlock(); return a.task.ID }
 
 // Additive runtime forwarding never changes the restricted atomic ToolResult
@@ -680,14 +803,6 @@ func validateArguments(ctx context.Context, reg registeredTool, args JSON, l Lim
 }
 
 func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message messageReceipt) error {
-	if cp.Round >= 16 {
-		error := errorReceipt("tool_round_limit")
-		error.Usage = message.Usage
-		return h.finish(parent, cp, error, false)
-	}
-	h.mu.Lock()
-	pins := h.pins[parent.ID]
-	h.mu.Unlock()
 	calls := []goai.ContentBlock{}
 	seen := map[string]bool{}
 	for _, call := range message.Content {
@@ -700,7 +815,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		seen[call.ID] = true
 		calls = append(calls, call)
 	}
-	if len(calls) == 0 || len(calls) > MaxTools {
+	if len(calls) == 0 {
 		error := errorReceipt("invalid_tool_round")
 		error.Usage = message.Usage
 		return h.finish(parent, cp, error, false)
@@ -733,22 +848,9 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		if !found {
 			tc.Offer.Name = call.Name
 			tc.ErrorCode = "tool_not_offered"
-		} else {
-			reg, ok := pins[call.Name]
-			if !ok {
-				reg, ok = h.options.Registry.current(call.Name)
-			}
-			if !ok || !sameImplementation(offer, reg.offer) {
-				tc.ErrorCode = "tool_unavailable"
-			} else {
-				args, e := validateArguments(h.life, reg, tc.Arguments, h.session.limits)
-				if e != nil {
-					tc.ErrorCode = "invalid_tool_arguments"
-				} else {
-					tc.Arguments = args
-				}
-			}
 		}
+		// Argument preparation and validation are call-phase host work, not
+		// assistant admission work. Sequential pending calls remain untouched.
 		prepared = append(prepared, tc)
 	}
 	// Preserve the model's original bounded call arguments in the transcript.
@@ -779,7 +881,30 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		if e = tx.AppendEntry(Entry{ID: entryID, Conversation: parent.Conversation, Kind: "message", Value: value, ByTask: parent.ID}); e != nil {
 			return e
 		}
+		cp.AssistantEntry = entryID
+		cp.PendingTools = nil
+		cp.UnstartedCalls = nil
 		for _, tool := range prepared {
+			if tool.ErrorCode == "tool_not_offered" {
+				receipt := MessageReceipt{Role: goai.RoleToolResult, ToolCallID: tool.CallID, ToolName: tool.Offer.Name, Content: []goai.ContentBlock{{Type: "text", Text: "Tool " + tool.Offer.Name + " was not offered"}}, IsError: true, ErrorCode: "tool_unavailable", Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "tool_unavailable", Message: "Tool " + tool.Offer.Name + " was not offered"}}, Details: JSON{}}
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				value, err := dtoObject(receipt, tx.limits)
+				if err != nil {
+					return err
+				}
+				if err := tx.AppendEntry(Entry{ID: id, Conversation: parent.Conversation, Kind: "message", ByTask: parent.ID, Value: value}); err != nil {
+					return err
+				}
+				cp.UnstartedCalls = append(cp.UnstartedCalls, tool.CallID)
+				continue
+			}
+			if cp.Sequential && len(cp.Children) > 0 {
+				cp.PendingTools = append(cp.PendingTools, tool)
+				continue
+			}
 			id, e := tx.MintID()
 			if e != nil {
 				return e
@@ -816,6 +941,9 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 	return e
 }
 func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generationCheckpoint) error {
+	if len(cp.PendingTools) > 0 {
+		return h.startNextSequentialTool(runtime, *parent)
+	}
 	for _, id := range cp.Children {
 		s, e := h.session.Snapshot(context.Background())
 		if e != nil {
@@ -858,30 +986,72 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 	if latest.Abort {
 		return h.drainAborted(current, latest)
 	}
-	hooks := h.options.Registry.selectedHooks(latest.Agent)
-	results := []MessageReceipt{}
+	// The tool-round wait includes work already owned before this phase.
+	// Hooks run only after that wait; new work created by them may hold the
+	// resulting generation outcome without blocking successor creation.
+	if len(h.scheduler.ownedLive(s, current.ID)) != 0 {
+		return reject("tool drain incomplete")
+	}
+	hooks := runtime.phaseSelection().selectedHooks(h.selectionAgent(latest.Agent))
+	// The reference passes committed assistant/result entry identities in
+	// call order, including calls answered without a tool task. Faulted tools
+	// with no receipt contribute no entry; synthetic context results are not
+	// committed hook authority.
+	var assistant MessageReceipt
+	if err := fromObject(s.Entries[latest.AssistantEntry].Value, &assistant, h.session.limits); err != nil {
+		return err
+	}
+	producers := map[ID]bool{current.ID: true}
 	for _, id := range latest.Children {
-		var tool toolCheckpoint
-		if err := fromObject(s.Tasks[id].Checkpoint, &tool, h.session.limits); err != nil {
+		producers[id] = true
+	}
+	byCall := map[string]ID{}
+	for _, id := range ids(s.Entries) {
+		entry := s.Entries[id]
+		if id <= latest.AssistantEntry || entry.Conversation != current.Conversation || entry.Kind != "message" || !producers[entry.ByTask] {
+			continue
+		}
+		var receipt MessageReceipt
+		if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
 			return err
 		}
-		if tool.Result != nil {
-			results = append(results, *tool.Result)
+		if receipt.Role == goai.RoleToolResult {
+			byCall[receipt.ToolCallID] = id
+		}
+	}
+	results, resultEntries := []MessageReceipt{}, []ID{}
+	for _, call := range assistant.Content {
+		if call.Type != "toolCall" {
+			continue
+		}
+		if id, ok := byCall[call.ID]; ok {
+			var receipt MessageReceipt
+			if err := fromObject(s.Entries[id].Value, &receipt, h.session.limits); err != nil {
+				return err
+			}
+			results, resultEntries = append(results, receipt), append(resultEntries, id)
 		}
 	}
 	for _, hook := range hooks {
-		if hook.AfterTools == nil {
-			continue
-		}
-		copy, err := detachReceipts(results, h.session.limits)
-		if err != nil {
-			return err
-		}
-		if err = callAfterTools(runtime.context, hook.AfterTools, copy, runtime); err != nil {
-			if runtime.context.Err() != nil {
-				return runtime.context.Err()
+		if hook.AfterTools != nil {
+			copy, err := detachReceipts(results, h.session.limits)
+			if err != nil {
+				return err
 			}
-			h.scheduler.report(err)
+			if err = callAfterTools(runtime.context, hook.AfterTools, copy, runtime); err != nil {
+				if runtime.context.Err() != nil {
+					return runtime.context.Err()
+				}
+				h.scheduler.report(err)
+			}
+		}
+		if hook.AfterToolEntries != nil {
+			if err := callAfterToolEntries(runtime.context, hook.AfterToolEntries, latest.AssistantEntry, resultEntries, runtime); err != nil {
+				if runtime.context.Err() != nil {
+					return runtime.context.Err()
+				}
+				h.scheduler.report(err)
+			}
 		}
 	}
 	_, e = h.session.invocationCommit(context.Background(), parent.ID, func(tx *Tx) error {
@@ -921,8 +1091,15 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 				return reject("ordered tool round still live")
 			}
 		}
-		if len(h.scheduler.ownedLive(tx.state, current.ID)) != 0 {
-			return reject("tool drain incomplete")
+		// The ordered tool tasks have drained. Work created by afterTools
+		// belongs to this generation and may hold its decided outcome while a
+		// conversation-owned successor proceeds, as in finishToolRound.
+		terminal, err := h.applyToolControls(tx, current, &latest, children)
+		if err != nil {
+			return err
+		}
+		if terminal {
+			return nil
 		}
 		if h.hasQueuedReset(tx.state, current.Conversation) {
 			return h.resetToolsRun(tx, current, latest)
@@ -941,55 +1118,20 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 		if err != nil {
 			return err
 		}
-		latest.Messages, latest.Phase, latest.Children = messages, "prepare-next", nil
-		owned, err := copyTask(current, tx.limits)
+		latest.Messages = messages
+		successor, next, err := h.handoffToolGeneration(tx, current, latest)
 		if err != nil {
 			return err
 		}
-		owned.Status = "pending"
-		owned.Checkpoint, err = dtoObject(latest, tx.limits)
-		if err != nil {
-			return err
-		}
-		if err := tx.stage(Write{Op: "put-task", Task: &owned}); err != nil {
-			return err
-		}
-		*parent, *cp = owned, latest
+		*parent, *cp = successor, next
 		return nil
 	})
 	return e
 }
-func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
+func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) {
 	var cp toolCheckpoint
 	if e := fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
 		return e
-	}
-	reg, current := h.options.Registry.current(cp.Offer.Name)
-	h.mu.Lock()
-	pins := h.pins[task.Owner]
-	pin, pinned := pins[cp.Offer.Name]
-	h.mu.Unlock()
-	if pinned && !cp.Started {
-		reg = pin
-		current = true
-	}
-	code := cp.ErrorCode
-	if cp.Abort {
-		code = "aborted"
-	} else if code == "" {
-		if !current || !sameImplementation(cp.Offer, reg.offer) {
-			code = "tool_unavailable"
-		} else if cp.Started && (!cp.Offer.ReplaySafe || !reg.offer.ReplaySafe) {
-			code = "interrupted"
-		}
-	}
-	if code != "" {
-		return h.finishTool(task, cp, ToolResult{}, code)
-	}
-	if !pinned {
-		if !reg.offer.HostValidation && checkSchema(reg.offer.Schema, cp.Arguments, 1) != nil {
-			return h.finishTool(task, cp, ToolResult{}, "invalid_stored_arguments")
-		}
 	}
 	var parentCheckpoint generationCheckpoint
 	if err := h.session.readTasks(context.Background(), func(state Snapshot) error {
@@ -1000,11 +1142,49 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 		if !ok {
 			return reject("tool parent missing")
 		}
-		return fromObject(parent.Checkpoint, &parentCheckpoint, h.session.limits)
+		if err := fromObject(parent.Checkpoint, &parentCheckpoint, h.session.limits); err != nil {
+			return err
+		}
+		// Configuration is resolved at first phase use. Registrations below come
+		// from the invocation's captured snapshot, not a later registry change.
+		if doc, ok := agentDocument(state, task.Conversation); ok {
+			parentCheckpoint.Agent = agentState{}
+			return fromObject(doc.Value, &parentCheckpoint.Agent, h.session.limits)
+		}
+		return reject("tool agent missing")
 	}); err != nil {
 		return err
 	}
-	hooks := h.options.Registry.selectedToolHooks(parentCheckpoint.Agent)
+	registry := runtime.registry.selection
+	if registry == nil {
+		registry = NewRegistry()
+	}
+	_, selectedPins, _, _, err := registry.selectedGeneration(h.selectionAgent(parentCheckpoint.Agent), h.session.limits, h.scheduler.report)
+	if err != nil {
+		return err
+	}
+	reg, current := selectedPins[cp.Offer.Name]
+	code := cp.ErrorCode
+	if cp.Abort {
+		code = "aborted"
+	} else if code == "" {
+		if cp.Started && (!current || !cp.Offer.ReplaySafe || !reg.offer.ReplaySafe) {
+			code = "interrupted"
+		} else if !current {
+			code = "tool_unavailable"
+		}
+	}
+	if code != "" {
+		return h.finishTool(task, cp, ToolResult{}, code)
+	}
+	if !cp.Started {
+		cp.Arguments, err = validateArguments(runtime.context, reg, cp.Arguments, h.session.limits)
+		if err != nil {
+			return h.finishTool(task, cp, ToolResult{}, "invalid_arguments")
+		}
+		cp.Offer = reg.offer
+	}
+	hooks := registry.selectedToolHooks(h.selectionAgent(parentCheckpoint.Agent))
 	if !cp.Started {
 		for _, hook := range hooks {
 			if hook.BeforeTool == nil {
@@ -1019,27 +1199,31 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 				if runtime.context.Err() != nil {
 					return runtime.context.Err()
 				}
-				code = "tool_blocked"
+				code = "blocked"
 				break
 			}
 			if decision == nil {
 				continue
 			}
 			if decision.Block != "" {
-				code = "tool_blocked"
+				code = "blocked"
 				break
 			}
 			if decision.Arguments != nil {
 				cp.Arguments, err = copyObject(decision.Arguments, h.session.limits)
 				if err != nil {
-					code = "invalid_tool_arguments"
+					code = "invalid_arguments"
 					break
 				}
 			}
 		}
-		if code == "" && !reg.offer.HostValidation {
-			if err := checkSchema(reg.offer.Schema, cp.Arguments, 0); err != nil {
-				code = "invalid_tool_arguments"
+		if code == "" {
+			// Revalidate hook-rewritten arguments, without rerunning prepare.
+			checked := reg
+			checked.prepare = nil
+			cp.Arguments, err = validateArguments(runtime.context, checked, cp.Arguments, h.session.limits)
+			if err != nil {
+				code = "invalid_arguments"
 			}
 		}
 		if code != "" {
@@ -1145,14 +1329,26 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 		return err
 	}
 	api := &ToolAPI{h: h, task: task, checkpoint: cp, active: true, ctx: ctx, runtime: runtime}
+	api.progress = newToolProgress(api.publishProgress, func(err error) {
+		if ctx.Err() == nil {
+			h.scheduler.report(err)
+		}
+	})
+	defer func() { settleProgress(api.pendingProgress, finalErr) }()
 	var result ToolResult
 	var executionError error
 	func() {
 		defer func() {
-			if recover() != nil {
-				executionError = errors.New("tool panic")
+			if value := recover(); value != nil {
+				executionError = fmt.Errorf("%v", value)
 			}
 		}()
+		api.environment, api.environmentErr = resolveInvocationEnvironment(ctx, h, runtime, task.Conversation, true)
+		api.environmentResolved = true
+		if api.environmentErr != nil {
+			executionError = api.environmentErr
+			return
+		}
 		args, err := copyObject(cp.Arguments, h.session.limits)
 		if err != nil {
 			executionError = err
@@ -1160,17 +1356,39 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 		}
 		result, executionError = reg.execute(ctx, args, api)
 	}()
-	api.seal()
+	if err := api.seal(); err != nil && executionError == nil {
+		executionError = err
+	}
 	cp = api.checkpoint
-	if executionError == nil {
+	if executionError != nil && ctx.Err() == nil && h.life.Err() == nil {
+		result = ToolResult{Content: cp.Output, usesRetainedOutput: true, IsError: true, Usage: result.Usage, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "tool_error", Message: executionError.Error()}}}
+	}
+	// Resolve omitted content before afterTool, including thrown error results.
+	if ctx.Err() == nil && h.life.Err() == nil {
+		if result.Content == "" && result.Blocks == nil {
+			result.Content = cp.Output
+			result.usesRetainedOutput = true
+		}
+		result.Diagnostics = append(append([]ToolDiagnostic{}, cp.Diagnostics...), result.Diagnostics...)
+		result.usesReportedDiagnostics = true
+		if result.Details == nil && !result.HasDetails && cp.HasDetails {
+			result.DetailsValue, result.HasDetails = cp.Details, true
+			switch value := cp.Details.(type) {
+			case JSON:
+				result.Details = value
+			case map[string]any:
+				result.Details = JSON(value)
+			}
+		}
+	}
+	if ctx.Err() == nil && h.life.Err() == nil {
 		for _, hook := range hooks {
 			if hook.AfterTool == nil {
 				continue
 			}
 			copy, err := detachToolResult(result, h.session.limits)
 			if err != nil {
-				executionError = err
-				break
+				return &invalidToolResult{reason: "invalid_tool_result"}
 			}
 			callArgs, err := copyObject(cp.Arguments, h.session.limits)
 			if err != nil {
@@ -1187,10 +1405,11 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 				continue
 			}
 			if next != nil {
+				next.usesRetainedOutput = result.usesRetainedOutput && next.Content == result.Content && equalJSONValue(next.Blocks, result.Blocks)
+				next.usesReportedDiagnostics = result.usesReportedDiagnostics
 				result, err = detachToolResult(*next, h.session.limits)
 				if err != nil {
-					executionError = err
-					break
+					return &invalidToolResult{reason: "invalid_tool_result"}
 				}
 			}
 		}
@@ -1213,10 +1432,16 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) error {
 		return nil
 	}
 	if executionError != nil {
-		return h.finishTool(task, cp, ToolResult{Usage: result.Usage}, "tool_error")
+		result.thrownError = fmt.Sprintf("Tool %s threw", cp.Offer.Name)
+		return h.finishTool(task, cp, result, "tool_error")
 	}
 	return h.finishTool(task, cp, result, "")
 }
+
+type invalidToolResult struct{ reason string }
+
+func (e *invalidToolResult) Error() string { return "durable: invalid tool result: " + e.reason }
+
 func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, code string) error {
 	// Detach and validate known usage before any app callback/outcome staging.
 	// Invalid receipts settle once with no usage/app mutation; fallback never
@@ -1244,29 +1469,38 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 			}
 		}
 	}
-	text := cp.Output
-	if cp.Offer.OutputLimits != nil {
-		// Bound once after all text blocks are assembled, as pinned
-		// boundContent does. An early whole-line cut can otherwise allow a
-		// later block to refill bytes beyond the original head cutoff.
-		text += result.Content
-	} else if len(result.Content) > MaxToolOutputBytes-len(text) {
-		code = "output_limit"
-	} else {
-		text += result.Content
-	}
+	// Returned content replaces streamed progress; omitted content uses the
+	// retained buffer. Bound all final blocks once, as reference finalResult.
+	text := result.Content
 	if code != "" {
-		text = cp.Output
-		if text != "" {
-			text += "\n"
+		// Reference harness errors keep the durable partial output and add an
+		// error diagnostic, rendered separately from returned content.
+		if code != "tool_error" || result.thrownError == "" {
+			text = cp.Output
 		}
-		text += code
-		if len(text) > MaxToolOutputBytes {
-			text = code
+		found := false
+		for _, diagnostic := range result.Diagnostics {
+			if diagnostic.Severity == "error" && diagnostic.Code == code {
+				found = true
+				break
+			}
+		}
+		if !found && code != "tool_error" {
+			result.Diagnostics = append(result.Diagnostics, ToolDiagnostic{Severity: "error", Code: code, Message: toolErrorMessage(cp.Offer.Name, code)})
+		}
+		if cp.DroppedBytes > 0 {
+			result.Diagnostics = append(result.Diagnostics, truncatedToolOutput(cp.DroppedBytes, cp.DroppedLines, resolvedToolOutputLimits(cp.Offer.OutputLimits).Retain))
 		}
 	}
 	details := result.Details
-	if details == nil && cp.HasDetails && cp.Details != nil {
+	var detailsValue any
+	hasDetailsValue := result.HasDetails
+	if hasDetailsValue {
+		detailsValue = result.DetailsValue
+	} else if details == nil && cp.HasDetails {
+		detailsValue, hasDetailsValue = cp.Details, true
+	}
+	if details == nil && !hasDetailsValue && cp.HasDetails && cp.Details != nil {
 		switch value := cp.Details.(type) {
 		case map[string]any:
 			details = JSON(value)
@@ -1278,15 +1512,33 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 			result.Commit = nil
 		}
 	}
-	if details == nil {
-		details = JSON{}
+	if hasDetailsValue {
+		var err error
+		detailsValue, err = ownJSONValue(detailsValue, h.session.limits)
+		if err != nil {
+			code = "invalid_details"
+			text = code
+			result.Commit = nil
+			detailsValue = nil
+		}
+		if object, ok := detailsValue.(map[string]any); ok {
+			details = JSON(object)
+			hasDetailsValue = false
+		}
+		if object, ok := detailsValue.(JSON); ok {
+			details = object
+			hasDetailsValue = false
+		}
 	}
-	owned, e := copyObject(details, h.session.limits)
-	if e != nil {
-		code = "invalid_details"
-		text = code
-		owned = JSON{}
-		result.Commit = nil
+	var owned JSON
+	var e error
+	if details != nil {
+		owned, e = copyObject(details, h.session.limits)
+		if e != nil {
+			code = "invalid_details"
+			result.Commit = nil
+			text = code
+		}
 	}
 	if !validUsage(result.Usage) {
 		code = "invalid_usage"
@@ -1308,27 +1560,74 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 			content = append(content, blocks.Content...)
 		}
 	}
-	if code == "" && cp.Offer.OutputLimits != nil {
-		content = boundToolBlocks(content, *cp.Offer.OutputLimits)
+	var truncations []ToolDiagnostic
+	if code == "" {
+		limits := resolvedToolOutputLimits(cp.Offer.OutputLimits)
+		if result.usesRetainedOutput && cp.DroppedBytes > 0 {
+			truncations = append(truncations, truncatedToolOutput(cp.DroppedBytes, cp.DroppedLines, limits.Retain))
+		}
+		var joined strings.Builder
+		for _, block := range content {
+			if block.Type == "text" {
+				joined.WriteString(block.Text)
+			}
+		}
+		original := joined.String()
+		bounded := boundToolText(original, limits)
+		if len(bounded) < len(original) {
+			truncations = append(truncations, truncatedToolOutput(uint64(len(original)-len(bounded)), outputLines(original)-outputLines(bounded), limits.Retain))
+		}
+		content = boundToolBlocks(content, limits)
 	}
-	diagnostics := append(append([]ToolDiagnostic{}, cp.Diagnostics...), result.Diagnostics...)
+	diagnostics := append([]ToolDiagnostic{}, result.Diagnostics...)
+	if !result.usesReportedDiagnostics {
+		diagnostics = append(append([]ToolDiagnostic{}, cp.Diagnostics...), diagnostics...)
+	}
+	diagnostics = append(diagnostics, truncations...)
 	if err := validateToolDiagnostics(diagnostics, h.session.limits); err != nil {
 		code = "invalid_diagnostics"
 		result.Commit = nil
 		diagnostics = nil
 		content = []goai.ContentBlock{{Type: "text", Text: code}}
 	}
+	if err := validateToolControl(result.Control, h.session.limits); err != nil {
+		code = "invalid_control"
+		result.Control = nil
+		result.Commit = nil
+		content = []goai.ContentBlock{{Type: "text", Text: code}}
+	}
+	if code == "invalid_usage" || code == "invalid_details" || code == "invalid_content" || code == "invalid_diagnostics" || code == "invalid_control" {
+		return &invalidToolResult{reason: code}
+	}
 	if len(diagnostics) > 0 {
 		content = append(content, goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(diagnostics)})
 	}
-	receipt := messageReceipt{Role: goai.RoleToolResult, Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: code != "" || result.IsError, ErrorCode: code, Details: owned, Usage: result.Usage}
+	receipt := messageReceipt{Role: goai.RoleToolResult, Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
 	value, e := dtoObject(receipt, h.session.limits)
 	if e != nil {
-		return e
+		return &invalidToolResult{reason: "invalid_tool_result"}
 	}
+	cp.HasDetails = hasDetailsValue || owned != nil
+	cp.Details = nil
+	if hasDetailsValue {
+		cp.Details = detailsValue
+	} else if owned != nil {
+		cp.Details = owned
+	}
+	cp.FinalIsError = &receipt.IsError
 	cp.Result = &receipt
 	cp.ReportedError = result.IsError
 	cp.Diagnostics = diagnostics
+	cp.Control = nil
+	if code == "" && result.Control != nil {
+		control := *result.Control
+		control.AddTools = append([]string(nil), control.AddTools...)
+		if control.Handoff != nil {
+			value := *control.Handoff
+			control.Handoff = &value
+		}
+		cp.Control = &control
+	}
 	cp.ErrorCode = code
 	task.Status = "done"
 	if code == "aborted" {
@@ -1371,8 +1670,19 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 			return e
 		}
 		outcome := TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
-		if code != "" {
-			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: code}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+		if code != "" && !toolCallCompletedError(code) {
+			message := code
+			if code == "tool_error" && result.thrownError != "" {
+				message = result.thrownError
+			} else if code == "tool_error" {
+				for _, diagnostic := range diagnostics {
+					if diagnostic.Code == code && diagnostic.Severity == "error" {
+						message = diagnostic.Message
+						break
+					}
+				}
+			}
+			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
 		}
 		if code == "aborted" {
 			outcome = TaskOutcome{Status: "aborted", Reason: "aborted", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
@@ -1543,12 +1853,12 @@ func (h *Harness) drainAborted(parent Task, cp generationCheckpoint, observed ..
 	if len(observed) == 0 && len(taskOwnedLive(s, parent.ID)) > 0 {
 		return reject("abort descendants still live")
 	}
-	cp.Abort = true
-	r := errorReceipt("aborted")
-	if len(observed) > 0 {
-		r.Usage = observed[0].Usage
+	if len(cp.PendingTools) > 0 {
+		if err := h.abortPendingSequentialTools(parent, &cp); err != nil {
+			return err
+		}
 	}
-	return h.finish(parent, cp, r, false)
+	return h.finishAbortedGeneration(parent, cp)
 }
 
 func exactNumber(v any) (*big.Rat, bool) {

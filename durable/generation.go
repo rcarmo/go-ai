@@ -45,6 +45,28 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		return h.runOwnedTools(runtime, &task, &cp)
 	}
 	if cp.Phase == "compaction" {
+		if cp.OverflowMessage != "" {
+			state, err := h.session.Snapshot(runtime.context)
+			if err != nil {
+				return err
+			}
+			child, ok := state.Tasks[cp.Compaction]
+			if !ok {
+				return reject("compaction child missing")
+			}
+			record, err := CanonicalTask(child, h.session.limits)
+			if err != nil {
+				return err
+			}
+			valid := record.State.Outcome != nil && record.State.Outcome.Status == "completed" && record.State.Outcome.Result != nil
+			if valid {
+				result, ok := record.State.Outcome.Result.Value.(map[string]any)
+				valid = ok && result["entryId"] != nil
+			}
+			if !valid {
+				return h.finishRecordedModelFailure(task, cp, cp.OverflowMessage)
+			}
+		}
 		cp.Phase = "queued"
 		if cp.ResumeAfterCompaction {
 			cp.Phase = "prepare-next"
@@ -55,7 +77,9 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		if err := runtime.SleepUntil(runtime.context, cp.RetryUntil); err != nil {
 			return err
 		}
-		cp.Phase, cp.RetryUntil = "intent", 0
+		// A durable retry starts a new logical attempt from current committed
+		// agent/context/registry, unlike transport-level resends of old intent.
+		cp.Phase, cp.RetryUntil = "prepare-next", 0
 		value, err := dtoObject(cp, h.session.limits)
 		if err != nil {
 			return err
@@ -100,7 +124,11 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				return err
 			}
 			defer h.session.taskBookkeeping(func() { runtime.fallbackEpoch = nil })
-			if preparationErr := h.prepareRequest(&task, &cp); preparationErr != nil {
+			if preparationErr := h.prepareRequest(runtime, &task, &cp); preparationErr != nil {
+				var missing *generationNoModel
+				if errors.As(preparationErr, &missing) {
+					return h.finishGenerationNoModel(task, cp, missing)
+				}
 				var rejected *StorageRejected
 				if h.life.Err() == nil && errors.As(preparationErr, &rejected) {
 					fallbackErr := h.finish(task, cp, errorReceipt("invalid_preparation"), false)
@@ -164,6 +192,9 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		return reject("missing pinned model")
 	}
 	local, e := callModelResolver(h.options.Models, cp.Agent.Model)
+	if e == nil && local == nil {
+		return h.finishGenerationNoModel(task, cp, &generationNoModel{ref: cp.Agent.Model})
+	}
 	var model *goai.Model
 	if e == nil {
 		model, e = cloneModel(cp.Model, h.session.limits)
@@ -197,16 +228,21 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	if e != nil {
 		return h.finish(task, cp, errorReceipt("invalid_options"), false)
 	}
-	options.Deferred = cp.Agent.Settings.Deferred
-	options.Temperature = cp.Agent.Settings.Temperature
-	options.MaxTokens = cp.Agent.Settings.MaxTokens
+	if err := applyRequestSettings(options, cp.Agent.Settings, h.session.limits); err != nil {
+		return h.finish(task, cp, errorReceipt("invalid_options"), false)
+	}
+	options.Reasoning = nil
+	if cp.Agent.ThinkingLevel != "" && cp.Agent.ThinkingLevel != "off" {
+		level := goai.ThinkingLevel(cp.Agent.ThinkingLevel)
+		options.Reasoning = &level
+	}
 	conv := &goai.Context{SystemPrompt: cp.Agent.SystemPrompt}
 	conv.Tools, e = protocolTools(cp.Offered, h.session.limits)
 	if e != nil {
 		return e
 	}
 	requestMessages := cp.Messages
-	hooks := h.options.Registry.selectedHooks(cp.Agent)
+	hooks := runtime.phaseSelection().selectedHooks(h.selectionAgent(cp.Agent))
 	for _, hook := range hooks {
 		if hook.BeforeRequest == nil || cp.Phase == "poll" {
 			continue
@@ -251,33 +287,15 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		if cp.Deferred == nil {
 			return h.finish(task, cp, errorReceipt("invalid_deferred_handle"), false)
 		}
-		now, err := runtime.Now()
-		if err != nil {
+		if err := runtime.SleepUntil(runtime.context, cp.PollAt); err != nil {
 			return err
-		}
-		if cp.Deferred.ExpiresAt > 0 && now >= cp.Deferred.ExpiresAt {
-			return h.finish(task, cp, errorReceipt("deferred_expired"), false)
-		}
-		until := cp.PollAt
-		if cp.Deferred.ExpiresAt > 0 && cp.Deferred.ExpiresAt < until {
-			until = cp.Deferred.ExpiresAt
-		}
-		if err := runtime.SleepUntil(runtime.context, until); err != nil {
-			return err
-		}
-		now, err = runtime.Now()
-		if err != nil {
-			return err
-		}
-		if cp.Deferred.ExpiresAt > 0 && now >= cp.Deferred.ExpiresAt {
-			return h.finish(task, cp, errorReceipt("deferred_expired"), false)
 		}
 		message, err := goai.FetchDeferred(runtime.context, model, *cp.Deferred, options)
 		if err != nil {
 			if runtime.context.Err() != nil {
 				return err
 			}
-			return h.finish(task, cp, errorReceipt("deferred_poll_failed"), false)
+			return &generationProviderFault{cause: err}
 		}
 		events := make(chan goai.Event, 1)
 		events <- &goai.DoneEvent{Reason: message.StopReason, Message: message}
@@ -349,7 +367,14 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		})
 		return err
 	}
-	if success && receipt.StopReason == goai.StopReasonToolUse {
+	toolCalls := false
+	for _, block := range receipt.Content {
+		if block.Type == "toolCall" {
+			toolCalls = true
+			break
+		}
+	}
+	if success && receipt.StopReason == goai.StopReasonToolUse && toolCalls {
 		if e = h.acceptTools(task, cp, receipt); e != nil {
 			if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
 				return e
@@ -369,15 +394,31 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		}
 		return h.finish(task, cp, receipt, false)
 	}
-	if !success && h.life.Err() == nil && cp.Agent.Settings.Retry.Enabled && cp.RetryCount < cp.Agent.Settings.Retry.MaxRetries && retryableReceipt(receipt) {
+	settings := cp.Agent.Settings
+	if !success && h.life.Err() == nil {
+		if err := h.session.readTasks(runtime.context, func(state Snapshot) error {
+			if doc, ok := agentDocument(state, task.Conversation); ok {
+				var current agentState
+				if err := fromObject(doc.Value, &current, h.session.limits); err != nil {
+					return err
+				}
+				settings = h.resolvedSettings(current.Settings)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if !success && h.life.Err() == nil && settings.Retry.Enabled && cp.RetryCount < settings.Retry.MaxRetries && retryableReceipt(receipt) {
 		cp.RetryCount++
 		now, err := runtime.Now()
 		if err != nil {
 			return err
 		}
 		cp.Phase = "retry"
+		cp.RetryMessage = receipt.ErrorMessage
 		cp.Deferred, cp.PollAt = nil, 0
-		cp.RetryUntil = retryDeadline(now, retryDelay(cp.Agent.Settings.Retry, cp.RetryCount))
+		cp.RetryUntil = retryDeadline(now, retryDelay(settings.Retry, cp.RetryCount))
 		checkpoint, err := dtoObject(cp, h.session.limits)
 		if err != nil {
 			return err
@@ -394,6 +435,17 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if err = usage.Update(func(value JSON) error { return addModelUsage(value, receipt, tx.limits) }); err != nil {
 				return err
 			}
+			value, err := dtoObject(receipt, tx.limits)
+			if err != nil {
+				return err
+			}
+			entry, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: entry, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); err != nil {
+				return err
+			}
 			owned, err := copyTask(tx.state.Tasks[task.ID], tx.limits)
 			if err != nil {
 				return err
@@ -403,7 +455,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		})
 		return err
 	}
-	if success && (receipt.StopReason == goai.StopReasonStop || receipt.StopReason == goai.StopReasonLength) {
+	if success && (receipt.StopReason == goai.StopReasonStop || receipt.StopReason == goai.StopReasonLength || receipt.StopReason == goai.StopReasonToolUse) {
 		for _, hook := range hooks {
 			if hook.OnYield == nil {
 				continue
@@ -466,7 +518,7 @@ func callRequestOptions(resolve func(context.Context, ModelRef) (*goai.StreamOpt
 	return resolve(ctx, ref)
 }
 
-func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err error) {
+func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generationCheckpoint) (err error) {
 	original := *cp
 	continuation := cp.Phase == "prepare-next"
 	defer func() {
@@ -478,12 +530,15 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	if e != nil {
 		return e
 	}
-	d, ok := agentDocument(s, task.Conversation)
-	if !ok {
-		return reject("agent unavailable")
+	cp.Agent = agentState{}
+	if d, ok := agentDocument(s, task.Conversation); ok {
+		if e = fromObject(d.Value, &cp.Agent, h.session.limits); e != nil {
+			return e
+		}
 	}
-	if e = fromObject(d.Value, &cp.Agent, h.session.limits); e != nil {
-		return e
+	cp.Agent.Settings = h.resolvedSettings(cp.Agent.Settings)
+	if cp.Agent.Model.ID == "" {
+		return &generationNoModel{ref: cp.Agent.Model}
 	}
 	view, e := deriveContextView(s, task.Conversation, 0, h.session.limits)
 	if e != nil {
@@ -507,6 +562,9 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	if e != nil {
 		return e
 	}
+	if local == nil {
+		return &generationNoModel{ref: cp.Agent.Model}
+	}
 	model, e := cloneModel(local, h.session.limits)
 	if e != nil {
 		return e
@@ -518,16 +576,17 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	model.Headers = nil
 	model.BaseURL = ""
 	cp.Model = model
-	offers, pins, selectedSections, _, e := h.options.Registry.selectedGeneration(cp.Agent, h.session.limits)
+	offers, pins, selectedSections, _, e := runtime.phaseSelection().selectedGeneration(h.selectionAgent(cp.Agent), h.session.limits, h.scheduler.report)
 	if e != nil {
 		return e
 	}
 	cp.Offered = offers
 	var promptEntries []Entry
 	sections := append(selectedSections, h.options.Sections...)
+	sections = withInstructionSection(sections, cp.Agent.Instructions)
 	// Preserve unmanaged historical contributions at initial preparation; once
 	// native pi.system entries exist, loadout changes are explicit transcript patches.
-	managed := len(offers) > 0 || cp.Agent.Tools != nil || cp.Agent.Extensions != nil
+	managed := len(offers) > 0 || cp.Agent.Tools != nil || cp.Agent.Extensions != nil || cp.Agent.ToolsRemoved != nil || cp.Agent.ExtensionFilter != nil
 	for _, entry := range view.Entries {
 		if entry.Kind == "pi.system" {
 			managed = true
@@ -539,12 +598,25 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 			return err
 		}
 		shown := ReplayPromptSections(messages)
-		desired, err := RenderPromptSections(h.life, sections, PromptInput{Conversation: task.Conversation, Agent: AgentChange{Name: cp.Agent.Name, Cwd: cp.Agent.Cwd, Model: cp.Agent.Model, SystemPrompt: cp.Agent.SystemPrompt, Settings: cp.Agent.Settings}, Tools: tools, Messages: messages}, ReplayPromptSections(messages), h.options.OnReport)
+		environment, envErr := resolveInvocationEnvironment(runtime.context, h, runtime, task.Conversation, false)
+		if envErr != nil {
+			if runtime.context.Err() != nil {
+				return runtime.context.Err()
+			}
+			h.scheduler.report(envErr)
+		}
+		desired, err := RenderPromptSections(runtime.context, sections, PromptInput{Env: environment, Read: &InvocationReader{runtime}, Shown: shown, Conversation: task.Conversation, Agent: AgentChange{Name: cp.Agent.Name, Cwd: cp.Agent.Cwd, Model: cp.Agent.Model, ThinkingLevel: cp.Agent.ThinkingLevel, SystemPrompt: cp.Agent.SystemPrompt, Instructions: cp.Agent.Instructions, Settings: cp.Agent.Settings, Extensions: cp.Agent.Extensions, Tools: cp.Agent.Tools, ExtensionFilter: cp.Agent.ExtensionFilter, ToolsRemoved: cp.Agent.ToolsRemoved}, Tools: tools, Messages: messages}, ReplayPromptSections(messages), h.options.OnReport)
 		if err != nil {
 			return err
 		}
 		if len(sections) == 0 && !continuation {
-			desired = shown
+			// Legacy unmanaged contributions remain readable, but clearing the
+			// reserved agent field must remove its persisted section.
+			for _, section := range shown {
+				if section.Key != "instructions" {
+					desired = append(desired, section)
+				}
+			}
 		}
 		now := time.Now().UnixMilli()
 		if h.options.Now != nil {
@@ -568,7 +640,7 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 	if err != nil {
 		return err
 	}
-	if !continuation {
+	if !continuation && cp.InputEntry == 0 {
 		cp.Messages = append(cp.Messages, input)
 	}
 	value, e := dtoObject(cp, h.session.limits)
@@ -595,7 +667,7 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 				return err
 			}
 		}
-		if !continuation {
+		if !continuation && cp.InputEntry == 0 {
 			id, e := tx.MintID()
 			if e != nil {
 				return e
@@ -607,11 +679,17 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 			if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: user}); e != nil {
 				return e
 			}
+			cp.InputEntry = id
+			if err := markSubmissionEntry(tx, cp.Submission, id); err != nil {
+				return err
+			}
+		}
+		if !continuation {
 			if err := h.applyQueuedInputs(tx, *task, cp, true); err != nil {
 				return err
 			}
 		}
-		if continuation || len(cp.Steered) > 0 {
+		if continuation || len(cp.Steered) > 0 || cp.InputEntry != 0 {
 			state := tx.state
 			var err error
 			if len(tx.writes) > 0 {
@@ -674,7 +752,7 @@ func (h *Harness) prepareRequest(task *Task, cp *generationCheckpoint) (err erro
 		for _, id := range cp.Steered {
 			inputs = append(inputs, id)
 		}
-		return live.Set(JSON{"run": JSON{"task": task.ID, "inputs": inputs}})
+		return live.Update(func(value JSON) error { value["run"] = JSON{"task": task.ID, "inputs": inputs}; return nil })
 	})
 	if e == nil {
 		h.mu.Lock()
@@ -699,6 +777,20 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 	// Partial visibility is limited to explicit durable checkpoints, never raw
 	// event forwarding. Consecutive duplicate prefixes are ignored.
 	var lastPartial *MessageReceipt
+	var progress *generationProgress
+	if len(taskID) > 0 {
+		progress = newGenerationProgress(func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }, func(err error) {
+			if h.closing.Load() {
+				return
+			}
+			state, readErr := h.session.Snapshot(context.Background())
+			if readErr == nil && taskAborted(state.Tasks[taskID[0]]) {
+				return
+			}
+			reportTaskError(h.options.OnReport, err)
+		})
+		defer progress.stop()
+	}
 	for event := range events {
 		var message *goai.Message
 		ok := false
@@ -720,34 +812,24 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 			code = "provider_error"
 		default:
 			if len(taskID) > 0 {
-				var partial *goai.Message
-				switch e := event.(type) {
-				case *goai.TextDeltaEvent:
-					partial = e.Partial
-				case *goai.ThinkingDeltaEvent:
-					partial = e.Partial
-				case *goai.ToolCallDeltaEvent:
-					partial = e.Partial
-				}
+				partial := generationEventPartial(event)
 				if partial != nil && len(partial.Content) > 0 {
-					r, err := contributionReceipt(goai.Message{Role: goai.RoleAssistant, Content: partial.Content, Usage: partial.Usage}, h.session.limits)
+					copy := *partial
+					copy.Role, copy.ErrorMessage, copy.Deferred = goai.RoleAssistant, "", nil
+					r, err := contributionReceipt(copy, h.session.limits)
 					if err != nil {
 						continue
 					}
-					r.Api, r.Provider, r.Model, r.StopReason = pinned.Api, pinned.Provider, pinned.ID, goai.StopReasonAborted
-					encoded, err := encodeBounded(r, h.session.limits, MaxToolOutputBytes)
-					if err != nil || len(encoded) > MaxToolOutputBytes {
+					r.Api, r.Provider, r.Model = pinned.Api, pinned.Provider, pinned.ID
+					_, err = encodeBounded(r, h.session.limits, h.session.limits.MaxRecordBytes)
+					if err != nil {
 						continue
 					}
 					if lastPartial != nil && equalJSONValue(*lastPartial, r) {
 						continue
 					}
-					if err := h.commitPartial(taskID[0], r); err != nil {
-						result = errorReceipt("partial_commit_failed")
-						success = false
-					} else {
-						lastPartial = &r
-					}
+					progress.mark(r)
+					lastPartial = &r
 				}
 			}
 			continue
@@ -759,11 +841,11 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 		}
 		// Terminal provider claims are not attribution authority. Use the model
 		// committed with the request, even when identity is absent or conflicting.
-		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow)}
+		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow), providerError: message.ErrorMessage, ErrorMessage: message.ErrorMessage, providerStopReason: message.StopReason, ResponseID: message.ResponseID, ResponseModel: message.ResponseModel, ProviderThinkingLevel: message.ProviderThinkingLevel, ThinkingLevel: message.ThinkingLevel, AssistantDiagnostics: message.Diagnostics, RawStopReason: message.RawStopReason, EndTurn: message.EndTurn, ContentPresence: captureContentPresence(message.Content)}
 		for _, c := range message.Content {
 			switch c.Type {
 			case "text", "thinking":
-				r.Content = append(r.Content, goai.ContentBlock{Type: c.Type, Text: c.Text, Thinking: c.Thinking})
+				r.Content = append(r.Content, goai.ContentBlock{Type: c.Type, Text: c.Text, Thinking: c.Thinking, TextSignature: c.TextSignature, TextSignaturePresent: c.TextSignaturePresent, ThinkingSignature: c.ThinkingSignature, ThinkingSignaturePresent: c.ThinkingSignaturePresent, Redacted: c.Redacted, RedactedPresent: c.RedactedPresent})
 			case "toolCall":
 				if h.options.Registry == nil {
 					ok = false
@@ -781,7 +863,10 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 					r.ErrorCode = "invalid_tool_arguments"
 					continue
 				}
-				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments})
+				if len(arguments) == 0 {
+					r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
+				}
+				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
 			default:
 				ok = false
 				r.ErrorCode = "content_unsupported"
@@ -796,10 +881,7 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 				}
 			}
 		case goai.StopReasonToolUse:
-			if len(r.Content) == 0 {
-				ok = false
-				r.ErrorCode = "invalid_tool_round"
-			}
+			// Empty toolUse is a final answer in the reference runtime.
 		case goai.StopReasonDeferred:
 			if message.Deferred == nil || message.Deferred.ID == "" {
 				ok = false
@@ -851,6 +933,7 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 			success = false
 			continue
 		}
+		owned.providerError, owned.providerStopReason = r.providerError, r.providerStopReason
 		result = owned
 		success = ok
 	}
@@ -913,6 +996,13 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		outcome := TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
 		if status == "failed" {
 			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: r.ErrorCode}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+			if r.ErrorCode == "provider_error" {
+				outcome.Error.Message = r.ErrorMessage
+				if outcome.Error.Message == "" {
+					outcome.Error.Message = fmt.Sprintf("Model response ended with stop reason %s", r.StopReason)
+				}
+				outcome.Error.Detail = &TaskValue{Present: true, Value: JSON{"reason": "model_error"}}
+			}
 			if outcome.Error.Message == "" {
 				outcome.Error.Message = "provider_error"
 			}
@@ -936,7 +1026,10 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		if len(h.scheduler.ownedLive(candidate, task.ID)) > 0 {
 			hold.Stage = "held"
 			task.Status = "completing"
-		} else if err := h.cleanupGeneration(tx, task, hold, value); err != nil {
+		}
+		// endRun settles inputs at the deciding commit. Owned work holds the
+		// task's terminal state, not its answer or the next run boundary.
+		if err := h.cleanupGeneration(tx, task, hold, value); err != nil {
 			return err
 		}
 		if e = tx.stage(Write{Op: "put-task", Task: &task}); e != nil {
@@ -1090,7 +1183,6 @@ func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckp
 		}
 		receipt := *latest.Partial
 		receipt.StopReason = goai.StopReasonAborted
-		receipt.ErrorCode = "interrupted"
 		id, e := tx.MintID()
 		if e != nil {
 			return e
@@ -1101,6 +1193,13 @@ func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckp
 		}
 		if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); e != nil {
 			return e
+		}
+		usage, err := builtin(tx, task.Conversation, "pi.usage")
+		if err != nil {
+			return err
+		}
+		if err := usage.Update(func(value JSON) error { return addModelUsage(value, receipt, tx.limits) }); err != nil {
+			return err
 		}
 		latest.Partial = nil
 		value, e = dtoObject(latest, h.session.limits)

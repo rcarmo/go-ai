@@ -13,7 +13,11 @@ import (
 )
 
 // Env configures local filesystem-backed durable tools.
-type Env struct{ cwd string }
+type Env struct {
+	cwd       string
+	processMu sync.Mutex
+	processes map[int]struct{}
+}
 
 // LocalEnv returns a local filesystem environment rooted at cwd for relative paths.
 // Absolute paths are preserved.
@@ -33,7 +37,7 @@ func (e *Env) Cwd() string {
 	return e.cwd
 }
 
-func resolveToolEnv(ctx context.Context, fallback *Env, api *durable.ToolAPI) (*Env, error) {
+func resolveToolEnv(ctx context.Context, fallback durable.FileSystem, api *durable.ToolAPI) (durable.FileSystem, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -47,9 +51,9 @@ func resolveToolEnv(ctx context.Context, fallback *Env, api *durable.ToolAPI) (*
 	if resolved == nil {
 		return fallback, nil
 	}
-	env, ok := resolved.(*Env)
+	env, ok := resolved.(durable.FileSystem)
 	if !ok {
-		return nil, errors.New("coding tools require a local filesystem environment")
+		return nil, errors.New("coding tools require a filesystem environment")
 	}
 	return env, nil
 }

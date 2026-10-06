@@ -64,7 +64,7 @@ func TestEditArgumentPreparationRepairsLegacyShapesWithoutMutatingProvenance(t *
 			defer goai.UnregisterApi(api)
 			store, _ := durable.NewMemory()
 			h, err := durable.Open(context.Background(), store, durable.Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model {
-				return &goai.Model{ID: "edit-model", Provider: goai.ProviderOpenAI, Api: api, ContextWindow: 4096, MaxTokens: 100}
+				return &goai.Model{ID: "edit-model", Provider: goai.ProviderOpenAI, Api: api, ContextWindow: 128000, MaxTokens: 100}
 			}})
 			if err != nil {
 				t.Fatal(err)

@@ -25,7 +25,7 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 		})
 		options.Now = clock.Load
 		first := openHarness(t, b.store, options)
-		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000}}})
+		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000, MaxDelayMs: 60000}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,6 +63,22 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 				t.Fatal("retry checkpoint missing")
 			default:
 			}
+		}
+		before, err := first.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		errorEntries := 0
+		for _, entry := range before.Entries {
+			if entry.Value["role"] == string(goai.RoleAssistant) && entry.Value["stopReason"] == string(goai.StopReasonError) {
+				errorEntries++
+				if entry.Value["errorMessage"] != "overloaded_error" {
+					t.Fatal("retry error text lost", entry)
+				}
+			}
+		}
+		if errorEntries != 1 {
+			t.Fatal("retry failed attempt not appended", errorEntries)
 		}
 		if err := first.Close(bg); err != nil {
 			t.Fatal(err)

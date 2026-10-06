@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestBashOutputExitAndBounds(t *testing.T) {
@@ -84,5 +85,19 @@ func TestBashCancelledBeforeStartDoesNotExecute(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(directory, "unexpected")); !os.IsNotExist(err) {
 		t.Fatal("cancelled command ran", err)
+	}
+}
+
+func TestBashUsesPortableUTF8DecoderAndCharacterSafeTail(t *testing.T) {
+	env := LocalEnv(t.TempDir())
+	result, err := Bash(env).Execute(context.Background(), durable.JSON{"command": "printf '\\360\\237'; sleep 0.01; printf '\\230\\200'; printf '\\342\\202' >&2"}, nil)
+	if err != nil || !utf8.ValidString(result.Content) || !strings.Contains(result.Content, "😀") || !strings.Contains(result.Content, "�") {
+		t.Fatal(result, err)
+	}
+	capture := &bashCapture{}
+	capture.append([]byte("€" + strings.Repeat("a", MaxReadBytes-1)))
+	result = capture.result()
+	if !utf8.ValidString(result.Content) {
+		t.Fatal("byte tail split UTF8", result.Content[:min(4, len(result.Content))])
 	}
 }

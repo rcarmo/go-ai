@@ -295,7 +295,7 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 		return reject("builtin hold raw status disagreement")
 	}
 	switch hold.Action {
-	case "generation-receipt", "scheduler-generation":
+	case "generation-receipt", "generation-handoff", "generation-reset", "generation-abort", "generation-no-model", "generation-model-failure", "scheduler-generation":
 		if task.Kind != "pi.generation" || hold.Submission == 0 || hold.CallID != "" {
 			return reject("generation hold union")
 		}
@@ -303,10 +303,19 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 		if err := fromObject(task.Checkpoint, &cp, l); err != nil {
 			return err
 		}
-		if cp.Submission != hold.Submission || hold.Action == "generation-receipt" && (hold.Entry == 0 || cp.Phase != "terminal") || hold.Action == "scheduler-generation" && hold.Stage == "held" && hold.Entry != 0 {
+		if (hold.Action == "generation-no-model" || hold.Action == "generation-model-failure") && (hold.Outcome.Status != "failed" || hold.FinalStatus != "failed" || cp.Phase != "terminal" || hold.Entry != 0) {
+			return reject("generation no-model hold disagreement")
+		}
+		if hold.Action == "generation-abort" && (hold.Outcome.Status != "aborted" || hold.FinalStatus != "aborted" || cp.Phase != "terminal") {
+			return reject("generation abort hold disagreement")
+		}
+		if hold.Action == "generation-reset" && (!cp.Reset || hold.Outcome.Status != "completed" || hold.FinalStatus != "done" || cp.AssistantEntry != hold.Entry) {
+			return reject("generation reset hold disagreement")
+		}
+		if cp.Submission != hold.Submission || (hold.Action == "generation-receipt" || hold.Action == "generation-handoff" || hold.Action == "generation-reset") && (hold.Entry == 0 || cp.Phase != "terminal") || hold.Action == "scheduler-generation" && hold.Stage == "held" && hold.Entry != 0 {
 			return reject("generation hold checkpoint disagreement")
 		}
-	case "tool-receipt", "scheduler-tool":
+	case "tool-receipt", "scheduler-tool", "scheduler-tool-missing":
 		if task.Kind != "pi.tool" || hold.Submission != 0 || hold.CallID == "" || hold.Owner == 0 {
 			return reject("tool hold union")
 		}
@@ -323,6 +332,9 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 		if cp.CallID != hold.CallID || hold.Action == "tool-receipt" && (hold.Entry == 0 || cp.Result == nil) || hold.Action == "scheduler-tool" && hold.Stage == "held" && (hold.Entry != 0 || cp.Result != nil) || hold.Action == "scheduler-tool" && hold.Stage == "final" && (hold.Entry == 0 || cp.Result == nil) {
 			return reject("tool hold checkpoint disagreement")
 		}
+		if hold.Action == "scheduler-tool-missing" && (hold.Entry != 0 || cp.Result != nil) {
+			return reject("scheduler missing tool result disagreement")
+		}
 	default:
 		return reject("unsupported builtin hold action")
 	}
@@ -335,11 +347,18 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 	return nil
 }
 
-// Legacy tool application errors settle raw done (except abort), while their
-// canonical failed outcome is cancellation/failFast intent. Never label errors
-// completed merely to satisfy the physical M1 journal status.
+// Call-phase harness errors complete with an error result. Host execution
+// throws/interruption fail and retain cancellation intent.
+func toolCallCompletedError(code string) bool {
+	return code == "tool_unavailable" || code == "invalid_arguments" || code == "blocked"
+}
+
 func toolReceiptRawStatus(outcome TaskOutcome, cp toolCheckpoint) (string, error) {
-	if cp.Result == nil || cp.Result.ErrorCode != cp.ErrorCode || cp.Result.IsError != (cp.ErrorCode != "" || cp.ReportedError) {
+	wantError := cp.ErrorCode != "" || cp.ReportedError
+	if cp.FinalIsError != nil {
+		wantError = *cp.FinalIsError
+	}
+	if cp.Result == nil || cp.Result.ErrorCode != cp.ErrorCode || cp.Result.IsError != wantError {
 		return "", reject("tool receipt error union")
 	}
 	if cp.ErrorCode == "aborted" {
@@ -348,8 +367,14 @@ func toolReceiptRawStatus(outcome TaskOutcome, cp toolCheckpoint) (string, error
 		}
 		return "aborted", nil
 	}
+	if toolCallCompletedError(cp.ErrorCode) {
+		if outcome.Status != "completed" || outcome.Error != nil {
+			return "", reject("completed tool call error disagreement")
+		}
+		return "done", nil
+	}
 	if cp.ErrorCode != "" {
-		if outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Message != cp.ErrorCode {
+		if outcome.Status != "failed" || outcome.Error == nil || (cp.ErrorCode != "tool_error" && outcome.Error.Message != cp.ErrorCode) {
 			return "", reject("tool failed receipt outcome")
 		}
 		return "done", nil
@@ -539,6 +564,23 @@ func validateTaskReferences(s Snapshot, task Task, l Limits) error {
 			submission, ok := s.Submissions[hold.Submission]
 			if !ok || submission.Conversation != task.Conversation {
 				return reject("hold submission missing")
+			}
+		}
+		if hold.Action == "generation-handoff" {
+			// The full task/checkpoint JSON ownership budget is already validated.
+			// Inspect only these scalar references; decoding both retained request
+			// transcripts again on every later commit creates quadratic churn.
+			id, valid := exactNumber(task.Checkpoint["successor"])
+			if !valid || !id.IsInt() || id.Sign() <= 0 || !id.Num().IsUint64() || id.Num().Uint64() > MaxID {
+				return reject("generation handoff successor id")
+			}
+			successor, ok := s.Tasks[ID(id.Num().Uint64())]
+			if successor.ID <= task.ID || !ok || successor.Kind != "pi.generation" || successor.Conversation != task.Conversation || successor.Owner != 0 || hold.FinalStatus != "done" || hold.Outcome.Status != "completed" {
+				return reject("generation handoff successor disagreement")
+			}
+			submission, valid := exactNumber(successor.Checkpoint["submission"])
+			if !valid || !submission.IsInt() || !submission.Num().IsUint64() || ID(submission.Num().Uint64()) != hold.Submission {
+				return reject("generation handoff input disagreement")
 			}
 		}
 		if hold.Entry != 0 {

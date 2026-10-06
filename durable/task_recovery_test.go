@@ -735,8 +735,8 @@ func TestTaskRecoveryGenerationHeldReceiptFinalCleanup(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if state.Submissions[sub.ID()].Status != "pending" || state.Documents[taskDocID].Retired {
-			t.Fatal("generation cleanup leaked into Hold")
+		if state.Submissions[sub.ID()].Status != "done" || state.Documents[taskDocID].Retired {
+			t.Fatal("held generation must settle answer but retain task documents")
 		}
 		assertTaskModelSpend(t, state, conv.ID(), model.Provider, model.ID, 5)
 		var receipts int
@@ -757,6 +757,7 @@ func TestTaskRecoveryGenerationHeldReceiptFinalCleanup(t *testing.T) {
 		if settled := waitSubmission(t, sub); settled.Submission.Status != "done" || settled.Message == nil {
 			t.Fatal("decided generation changed", settled)
 		}
+		waitPublicTask(t, h, generationID)
 		state, err = h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -1186,9 +1187,16 @@ func TestTaskRecoveryRealSIGKILLAdoptedStages(t *testing.T) {
 			if effects.Load() != 0 || !equalTaskValue(opened.Tasks[witness.Task].Execution.Native.Input, witness.Snapshot.Tasks[witness.Task].Execution.Native.Input, h.session.limits) {
 				t.Fatal("Open effects/input changed")
 			}
+			if stage == "reservation-append" {
+				// No host ran before the crash. Mark before enabling progress
+				// so only the fresh abort handler can execute after reopen.
+				if _, err := h.AbortTask(bg, witness.Task); err != nil {
+					t.Fatal(err)
+				}
+			}
 			record := waitPublicTask(t, h, witness.Task)
 			want := "completed"
-			if stage == "marked" || strings.HasPrefix(stage, "abort-") {
+			if stage == "marked" || stage == "reservation-append" || strings.HasPrefix(stage, "abort-") {
 				want = "aborted"
 			}
 			if record.State.Outcome.Status != want {
@@ -1202,8 +1210,11 @@ func TestTaskRecoveryRealSIGKILLAdoptedStages(t *testing.T) {
 			if (stage == "marked" || stage == "abort-host" || stage == "abort-outcome-append") && (parentRuns.Load() != 0 || abortRuns.Load() != 1 || effects.Load() != 0) {
 				t.Fatal("confirmed mark replayed run/missed fresh abort", parentRuns.Load(), abortRuns.Load(), effects.Load())
 			}
-			if (stage == "mark-append" || stage == "reservation-append" || stage == "running") && (parentRuns.Load() != 1 || abortRuns.Load() != 0) {
+			if (stage == "mark-append" || stage == "running") && (parentRuns.Load() != 1 || abortRuns.Load() != 0) {
 				t.Fatal("unconfirmed mark/reservation recovery dispatch", parentRuns.Load(), abortRuns.Load())
+			}
+			if stage == "reservation-append" && (parentRuns.Load() != 0 || abortRuns.Load() != 1 || effects.Load() != 0) {
+				t.Fatal("crashed reservation escaped mark", parentRuns.Load(), abortRuns.Load(), effects.Load())
 			}
 			if (stage == "final" || stage == "abort-final") && (effects.Load() != 0 || abortRuns.Load() != 0) {
 				t.Fatal("terminal effect replayed")
@@ -1434,7 +1445,7 @@ func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 					t.Fatal(err)
 				}
 				task := state.Tasks[firstWitness.runtime.taskID]
-				if task.Status != "running" || taskHasDecidedOutcome(task) || len(state.Entries) != 0 || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
+				if task.Status != "running" || taskHasDecidedOutcome(task) || len(state.Entries) != 1 || submissionEntryID(state.Submissions[sub.ID()].Value["placedEntry"]) == 0 || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
 					t.Fatal("rejected sequence leaked effects/outcome", task, state.Submissions[sub.ID()])
 				}
 				for _, doc := range state.Documents {
@@ -1918,7 +1929,7 @@ func TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence(t *testing
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(state.Entries) != 0 || taskHasDecidedOutcome(state.Tasks[first.runtime.taskID]) || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
+				if len(state.Entries) != 1 || submissionEntryID(state.Submissions[sub.ID()].Value["placedEntry"]) == 0 || taskHasDecidedOutcome(state.Tasks[first.runtime.taskID]) || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
 					t.Fatal("offline rejected fallback leaked effects")
 				}
 				wantRetry := timing == "during-offline"
@@ -2445,12 +2456,16 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 				if confirmedSuccess {
 					wantCode = ""
 				}
-				wantText := "known-prefix\n" + wantCode
+				wantText := "known-prefix"
+				wantBlocks := 2
 				if confirmedSuccess {
-					wantText = "known-prefixreturned success"
+					wantText, wantBlocks = "returned success", 1
 				}
-				if cp.Result == nil || len(cp.Result.Content) != 1 || cp.Result.Content[0].Text != wantText || cp.Result.ToolCallID != cp.CallID || cp.Result.ToolName != cp.Offer.Name || cp.Result.IsError != (wantCode != "") {
+				if cp.Result == nil || len(cp.Result.Content) != wantBlocks || cp.Result.Content[0].Text != wantText || cp.Result.ToolCallID != cp.CallID || cp.Result.ToolName != cp.Offer.Name || cp.Result.IsError != (wantCode != "") {
 					t.Fatal("deciding confirmed receipt content/identity", cp.Result, wantText)
+				}
+				if !confirmedSuccess && (len(cp.Diagnostics) == 0 || cp.Diagnostics[len(cp.Diagnostics)-1].Code != wantCode || cp.Result.Content[1].Text != renderToolDiagnostics(cp.Diagnostics)) {
+					t.Fatal("recovery error diagnostic lost", cp)
 				}
 				if cp.ErrorCode != wantCode || cp.Result == nil || effects.Load() != 1 || callbacks.Load() != 1 || requests.Load() != 2 || !equalJSONValue(final.Documents[docID].Value["sum"], wantSum) {
 					t.Fatal("deciding recovery duplicated host/app/receipt", cp.ErrorCode, wantCode)
@@ -2866,7 +2881,15 @@ func TestTaskRecoveryCloseSealRejectsFreshMemoAndToolPrefix(t *testing.T) {
 					api.mu.Lock()
 					api.ctx = bg
 					api.mu.Unlock()
-					go func() { outputDone <- api.Output("late-prefix") }()
+					go func() {
+						if err := api.Output("late-prefix"); err != nil {
+							outputDone <- err
+							return
+						}
+						// Output is buffered/coalesced by the reference. Details waits
+						// for its publication, so the queued admission must reject.
+						outputDone <- api.Details(JSON{"late": true})
+					}()
 				}
 				closing := make(chan error, 1)
 				go func() { closing <- h.Close(bg) }()
@@ -3974,8 +3997,8 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 							t.Fatal(err)
 						}
 						assertTaskModelSpend(t, held, 1, model.Provider, model.ID, 5)
-						if held.Submissions[sub.ID()].Status != "pending" || held.Documents[taskDocID].Retired {
-							t.Fatal("generation cleanup leaked at Hold")
+						if held.Submissions[sub.ID()].Status != "done" || held.Documents[taskDocID].Retired {
+							t.Fatal("deciding generation must settle answer and retain held documents")
 						}
 						installFailure()
 						releaseTaskGate(releaseChild)
@@ -4001,7 +4024,11 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						if rejected.Submissions[sub.ID()].Status != "pending" || rejected.Documents[taskDocID].Retired || taskHasDecidedOutcome(rejected.Tasks[generation]) != (stage == "final") {
+						wantStatus := "pending"
+						if stage == "final" {
+							wantStatus = "done"
+						}
+						if rejected.Submissions[sub.ID()].Status != wantStatus || rejected.Documents[taskDocID].Retired || taskHasDecidedOutcome(rejected.Tasks[generation]) != (stage == "final") {
 							t.Fatal("rejected generation outcome subset adopted")
 						}
 						assertTaskModelSpendOrAbsent(t, rejected, 1, model.Provider, model.ID, map[bool]int{true: 5, false: 0}[stage == "final"])
@@ -4017,7 +4044,7 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					confirmedAfter := backendName == "journal" && failure == "uncertain-after"
 					confirmedReceipt := stage == "final" || confirmedAfter
 					confirmedFinal := stage == "final" && confirmedAfter
-					if taskHasDecidedOutcome(opened.Tasks[generation]) != confirmedReceipt || terminalStatus(opened.Submissions[sub.ID()].Status) != confirmedFinal || opened.Documents[taskDocID].Retired != confirmedFinal {
+					if taskHasDecidedOutcome(opened.Tasks[generation]) != confirmedReceipt || terminalStatus(opened.Submissions[sub.ID()].Status) != confirmedReceipt || opened.Documents[taskDocID].Retired != confirmedFinal {
 						t.Fatal("generation confirmed reopen prefix")
 					}
 					assertTaskModelSpendOrAbsent(t, opened, 1, model.Provider, model.ID, map[bool]int{true: 5, false: 0}[confirmedReceipt])
@@ -4027,6 +4054,7 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					if settled := waitSubmission(t, &SubmissionHandle{h: second, id: sub.ID()}); settled.Submission.Status != "done" || settled.Message == nil {
 						t.Fatal("generation recovery settlement", settled)
 					}
+					waitPublicTask(t, second, generation)
 					final, err := second.Snapshot(bg)
 					if err != nil {
 						t.Fatal(err)
@@ -5274,6 +5302,12 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 							code = "request_options_unavailable"
 						}
 					}
+					outcomeMessage := code
+					wantAssistant := 1
+					if failure == "model-nil" {
+						outcomeMessage = fmt.Sprintf("Model %s/%s is not available", model.Provider, model.ID)
+						wantAssistant = 0
+					}
 					var generation ID
 					for id, task := range state.Tasks {
 						if task.Kind != "pi.generation" {
@@ -5285,7 +5319,7 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 							t.Fatal(err)
 						}
 						view, err := CanonicalTask(task, h.session.limits)
-						if err != nil || task.Status != "failed" || view.State.Outcome.Status != "failed" || view.State.Outcome.Error.Message != code || cp.Phase != "terminal" {
+						if err != nil || task.Status != "failed" || view.State.Outcome.Status != "failed" || view.State.Outcome.Error.Message != outcomeMessage || cp.Phase != "terminal" {
 							t.Fatal("callback receipt disposition", view, cp, err)
 						}
 						if (cp.Model != nil) != (stage == "dispatched") || cp.Attempt != map[bool]uint64{true: 1, false: 0}[stage == "dispatched"] {
@@ -5304,14 +5338,14 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 						if receipt.Role == goai.RoleUser {
 							user++
 						}
-						if entry.ByTask == generation {
+						if entry.ByTask == generation && receipt.Role == goai.RoleAssistant {
 							assistant++
 							if receipt.ErrorCode != code || receipt.Usage != nil {
 								t.Fatal("callback error receipt/usage", receipt)
 							}
 						}
 					}
-					if generation == 0 || assistant != 1 || user != map[bool]int{true: 1, false: 0}[stage == "dispatched"] || requests.Load() != 0 || !equalJSONValue(state.Documents[doc].Value["sum"], 0) {
+					if generation == 0 || assistant != wantAssistant || user != 1 || requests.Load() != 0 || !equalJSONValue(state.Documents[doc].Value["sum"], 0) {
 						t.Fatal("callback preHTTP effects/entry placement", generation, assistant, user, requests.Load())
 					}
 					for _, d := range state.Documents {
@@ -5328,7 +5362,7 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 						t.Fatal(err)
 					}
 					second := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
-					if reopened, err := second.WaitForTask(bg, generation); err != nil || reopened.State.Outcome.Error.Message != code {
+					if reopened, err := second.WaitForTask(bg, generation); err != nil || reopened.State.Outcome.Error.Message != outcomeMessage {
 						t.Fatal("confirmed callback outcome reopen", reopened, err)
 					}
 					if requests.Load() != 0 || modelCalls.Load() != beforeModels || optionCalls.Load() != beforeOptions {
@@ -5619,10 +5653,12 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 					model.Headers = map[string]string{"Authorization": "Bearer durable-test"}
 					registry := NewRegistry()
 					if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "repair_failure", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "repair.failure", Version: 1, ReplaySafe: false, Validator: func(_ context.Context, args JSON) (JSON, error) {
-						repairs.Add(1)
+						first := repairs.Add(1) == 1
 						args["private_repair"] = "credential must not persist"
-						close(beforeIntent)
-						<-releaseRepair
+						if first {
+							close(beforeIntent)
+							<-releaseRepair
+						}
 						if hostFailure == "panic" {
 							panic("private repair credential")
 						}
@@ -5653,10 +5689,18 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 					if err != nil {
 						t.Fatal(err)
 					}
+					tools, assistants := 0, 0
 					for _, task := range prefix.Tasks {
 						if task.Kind == "pi.tool" {
-							t.Fatal("validator ran after child intent")
+							tools++
+							var cp toolCheckpoint
+							if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil || cp.Started {
+								t.Fatal("validator ran after execute intent", cp, err)
+							}
 						}
+					}
+					if tools != 1 {
+						t.Fatal("call-phase validation lacks admitted tool", tools)
 					}
 					for _, entry := range prefix.Entries {
 						if entry.Kind == "message" {
@@ -5664,10 +5708,15 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 							if err := fromObject(entry.Value, &r, h.session.limits); err != nil {
 								t.Fatal(err)
 							}
-							if r.Role != goai.RoleUser {
-								t.Fatal("validator failure before assistant receipt leaked", r)
+							if r.Role == goai.RoleAssistant {
+								assistants++
+							} else if r.Role != goai.RoleUser {
+								t.Fatal("call validation emitted result before deciding", r)
 							}
 						}
+					}
+					if assistants != 1 {
+						t.Fatal("call-phase assistant receipt count", assistants)
 					}
 					var core *storeCore
 					if native, ok := b.store.(*MemoryStorage); ok {
@@ -5786,7 +5835,7 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 						t.Fatal(err)
 					}
 					view, err := CanonicalTask(final.Tasks[toolID], second.session.limits)
-					if err != nil || final.Tasks[toolID].Status != "done" || view.State.Outcome.Status != "failed" || cp.ErrorCode != "invalid_tool_arguments" || cp.Started || cp.Result == nil || !cp.Result.IsError || cp.Result.Usage != nil || len(cp.Arguments) != 0 {
+					if err != nil || final.Tasks[toolID].Status != "done" || view.State.Outcome.Status != "completed" || cp.ErrorCode != "invalid_arguments" || cp.Started || cp.Result == nil || !cp.Result.IsError || cp.Result.Usage != nil || len(cp.Arguments) != 0 {
 						t.Fatal("invalid repair receipt/raw mapping", cp, view, err)
 					}
 					count := 0
@@ -5795,8 +5844,12 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 							count++
 						}
 					}
-					if count != 1 || effects.Load() != 0 || repairs.Load() != 1 || requests.Load() != 2 || !equalJSONValue(final.Documents[doc].Value["sum"], 0) {
-						t.Fatal("repair recovery revalidated/executed/recharged", count, effects.Load(), repairs.Load(), requests.Load())
+					wantRepairs := int64(1)
+					if !confirmed {
+						wantRepairs = 2
+					} // No execute intent: reference reruns call-phase validation.
+					if count != 1 || effects.Load() != 0 || repairs.Load() != wantRepairs || requests.Load() != 2 || !equalJSONValue(final.Documents[doc].Value["sum"], 0) {
+						t.Fatal("repair recovery call-phase/effect counts", count, effects.Load(), repairs.Load(), requests.Load())
 					}
 					for _, d := range final.Documents {
 						if d.Kind == "pi.usage" {
@@ -6038,7 +6091,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 
 func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *testing.T) {
 	for _, backendName := range []string{"memory", "journal"} {
-		for _, stage := range []string{"recovery", "recovery-caller-cancel", "subscription"} {
+		for _, stage := range []string{"recovery", "recovery-caller-cancel", "recovery-external-cancel", "subscription"} {
 			for _, reportMode := range []string{"returns", "panics"} {
 				t.Run(backendName+"/"+stage+"/"+reportMode, func(t *testing.T) {
 					image := &MemoryImage{}
@@ -6093,11 +6146,20 @@ func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *te
 						}
 						return secondary
 					}
+					appendEntered, releaseAppend := make(chan struct{}), make(chan struct{})
+					cleanupTaskGates(t, releaseAppend)
+					if stage == "recovery-external-cancel" {
+						go func() { <-appendEntered; cancel(); close(releaseAppend) }()
+					}
 					if stage != "subscription" {
 						core.appendFrame = func(kind byte, ordinal, high uint64, payload []byte) error {
 							if kind == 2 {
 								if stage == "recovery-caller-cancel" {
 									cancel()
+								}
+								if stage == "recovery-external-cancel" {
+									close(appendEntered)
+									<-releaseAppend
 								}
 								return primary
 							}
@@ -6136,7 +6198,7 @@ func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *te
 					if err == nil || errors.Is(err, secondary) || stage != "subscription" && !errors.Is(err, primary) || stage == "subscription" && !strings.Contains(err.Error(), "task registry listener capacity") {
 						t.Fatal("cleanup replaced primaryOpen error", err)
 					}
-					if stage == "recovery-caller-cancel" && (!errors.Is(caller.Err(), context.Canceled) || errors.Is(err, context.Canceled)) {
+					if (stage == "recovery-caller-cancel" || stage == "recovery-external-cancel") && (!errors.Is(caller.Err(), context.Canceled) || errors.Is(err, context.Canceled)) {
 						t.Fatal("postadmission cancel hid actual rejection", err)
 					}
 					if !errors.Is(reported, secondary) || reports.Load() != 1 || closes.Load() != 1 || effects.Load() != 0 {
@@ -6193,10 +6255,10 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				registry := NewRegistry()
 				var first *Harness
 				var document ID
-				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "successful_repair", Parameters: json.RawMessage(`{"type":"object","properties":{"repaired":{"type":"string"}}}`)}, Implementation: "successful.repair", Version: 1, ReplaySafe: false,
+				if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "successful_repair", Parameters: json.RawMessage(`{"type":"object","properties":{"repaired":{"type":"string"}}}`)}, Implementation: "successful.repair", Version: 1, ReplaySafe: true,
 					Validator: func(_ context.Context, args JSON) (JSON, error) {
 						n := repairs.Add(1)
-						if len(args) != 0 {
+						if len(args) != 0 && args["repaired"] != "accepted host repair" {
 							return nil, errors.New("original model arguments were overwritten")
 						}
 						args["repaired"] = "accepted host repair"
@@ -6221,6 +6283,9 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 							return ToolResult{}, err
 						}
 						if err := api.Output("repair-prefix"); err != nil {
+							return ToolResult{}, err
+						}
+						if err := api.Details(JSON{"phase": "executing"}); err != nil {
 							return ToolResult{}, err
 						}
 						executorEntered <- struct{}{}
@@ -6266,7 +6331,10 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				}
 				for _, task := range before.Tasks {
 					if task.Kind == "pi.tool" {
-						t.Fatal("tool intent preceded successful validation")
+						var cp toolCheckpoint
+						if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil || cp.Started {
+							t.Fatal("execute intent preceded successful validation", cp, err)
+						}
 					}
 				}
 				var core *storeCore
@@ -6289,14 +6357,15 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 							if write.Task == nil || write.Task.Kind != "pi.tool" {
 								continue
 							}
-							if _, exists := core.state.Tasks[write.Task.ID]; exists {
-								continue
-							}
+
 							var cp toolCheckpoint
 							if err := fromObject(write.Task.Checkpoint, &cp, first.session.limits); err != nil {
 								return err
 							}
-							if cp.Started || cp.Result != nil || cp.ErrorCode != "" || cp.Arguments["repaired"] != "accepted host repair" {
+							if !cp.Started {
+								continue
+							}
+							if cp.Result != nil || cp.ErrorCode != "" || cp.Arguments["repaired"] != "accepted host repair" {
 								return reject("invalid accepting-intent fixture")
 							}
 							if admissions.Add(1) == 1 {
@@ -6329,7 +6398,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				case <-time.After(3 * time.Second):
 					t.Fatal("accepting storage report missing")
 				}
-				if admissions.Load() != 1 || repairs.Load() != 1 || requests.Load() != 1 || executions.Load() != 0 || appCommits.Load() != 0 || proposedTool == 0 {
+				if admissions.Load() != 1 || repairs.Load() != 2 || requests.Load() != 1 || executions.Load() != 0 || appCommits.Load() != 0 || proposedTool == 0 {
 					t.Fatal("pre-confirmation host/attempt effects", admissions.Load(), repairs.Load(), requests.Load(), executions.Load())
 				}
 				if failure == "rejected" {
@@ -6351,7 +6420,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				}
 				_, journal := b.store.(*JournalStorage)
 				confirmed := journal && failure == "uncertain-after"
-				repeatRound.Store(!confirmed)
+				repeatRound.Store(false)
 				second := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
 				cleanupTaskGates(t, releaseExecutor) // LIFO: reopened harness never joins a gated executor first.
 				opened, err := second.Snapshot(bg)
@@ -6365,7 +6434,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 						toolCount++
 						openedTool = id
 						var cp toolCheckpoint
-						if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil || cp.Started || cp.Result != nil || cp.Arguments["repaired"] != "accepted host repair" {
+						if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil || cp.Started != confirmed || cp.Result != nil || (confirmed && cp.Arguments["repaired"] != "accepted host repair") || (!confirmed && len(cp.Arguments) != 0) {
 							t.Fatal("confirmed accepting intent metadata", cp, err)
 						}
 					}
@@ -6375,23 +6444,18 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 						callReceipts++
 					}
 				}
-				wantCount := 0
-				if confirmed {
-					wantCount = 1
-				}
-				if toolCount != wantCount || callReceipts != wantCount || confirmed && openedTool != proposedTool || repairs.Load() != 1 || executions.Load() != 0 || requests.Load() != 1 || !equalJSONValue(opened.Documents[document].Value["sum"], 0) {
+				wantCount := 1
+				if toolCount != wantCount || callReceipts != 0 || openedTool != proposedTool || repairs.Load() != 2 || executions.Load() != 0 || requests.Load() != 1 || !equalJSONValue(opened.Documents[document].Value["sum"], 0) {
 					t.Fatal("accepting confirmed prefix/no Open effects", confirmed, toolCount, callReceipts)
 				}
 				for _, d := range opened.Documents {
 					if d.Kind == "pi.usage" {
 						models := d.Value["models"].(map[string]any)
-						if confirmed {
+						{
 							var usage goai.Usage
 							if err := fromObject(JSON(models[string(model.Provider)+"/"+model.ID].(map[string]any)), &usage, second.session.limits); err != nil || usage.TotalTokens != 5 {
 								t.Fatal("accepted round known usage", usage, err)
 							}
-						} else if len(models) != 0 {
-							t.Fatal("unconfirmed round usage adopted")
 						}
 						if len(d.Value["tools"].(map[string]any)) != 0 {
 							t.Fatal("unexecuted intent charged tool")
@@ -6402,10 +6466,9 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 					t.Fatal(err)
 				}
 				awaitTaskSignal(t, executorEntered)
-				wantRepairs, wantRequests := int64(1), int64(1)
+				wantRepairs, wantRequests := int64(2), int64(1)
 				if !confirmed {
-					wantRepairs = 2
-					wantRequests = 2
+					wantRepairs = 4
 				}
 				if repairs.Load() != wantRepairs || requests.Load() != wantRequests || executions.Load() != 1 || appCommits.Load() != 0 {
 					t.Fatal("reopen revalidated confirmed intent or dispatched unconfirmed twice", repairs.Load(), requests.Load(), executions.Load())
@@ -6424,7 +6487,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 						}
 					}
 				}
-				if confirmed && finalTool != proposedTool || !confirmed && finalTool == proposedTool {
+				if finalTool != proposedTool {
 					t.Fatal("confirmed vs unconfirmed tool identity", finalTool, proposedTool)
 				}
 				releaseTaskGate(releaseExecutor)
@@ -6446,7 +6509,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 					t.Fatal(err)
 				}
 				view, err := CanonicalTask(final.Tasks[finalTool], second.session.limits)
-				if err != nil || final.Tasks[finalTool].Status != "done" || view.State.Outcome.Status != "completed" || view.Memos != nil || cp.Result == nil || cp.Result.IsError || len(cp.Result.Content) != 1 || cp.Result.Content[0].Text != "repair-prefix repaired-result" || cp.Result.Usage == nil || cp.Result.Usage.TotalTokens != 2 {
+				if err != nil || final.Tasks[finalTool].Status != "done" || view.State.Outcome.Status != "completed" || view.Memos != nil || cp.Result == nil || cp.Result.IsError || len(cp.Result.Content) != 1 || cp.Result.Content[0].Text != " repaired-result" || cp.Result.Usage == nil || cp.Result.Usage.TotalTokens != 2 {
 					t.Fatal("successful repaired final receipt", cp, view, err)
 				}
 				toolReceipts, toolCallReceipts := 0, 0

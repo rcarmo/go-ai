@@ -17,18 +17,41 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 const (
-	DefaultBashTimeout = 120 * time.Second
-	maxBashPrefixBytes = 8 << 10
+	DefaultBashTimeout = time.Duration(0) // Omitted timeout has no deadline.
 	maxTimeoutSeconds  = 2_147_483_647.0 / 1000.0
 )
 
-var bashSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Bash command to execute"},"timeout":{"type":"number","description":"Timeout in seconds (optional, defaults to 120 seconds)","minimum":0},"cwd":{"type":"string","description":"Working directory to run the command in (relative or absolute)"}},"required":["command"],"additionalProperties":false}`)
+var bashSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Bash command to execute"},"timeout":{"type":"number","description":"Timeout in seconds (optional, no default timeout)","minimum":0},"cwd":{"type":"string","description":"Working directory to run the command in (relative or absolute)"}},"required":["command"],"additionalProperties":false}`)
 
-// Bash returns a durable bash tool registration.
-func Bash(env *Env) durable.ToolRegistration {
+type bashCommandError struct {
+	message string
+	cause   error
+}
+
+func (err *bashCommandError) Error() string { return err.message }
+func (err *bashCommandError) Unwrap() error { return err.cause }
+
+type BashExecution struct {
+	Command    string
+	Cwd        string
+	Env        map[string]string
+	InheritEnv bool
+}
+type BashOptions struct {
+	CommandPrefix string
+	Prepare       func(context.Context, *BashExecution, *durable.ToolAPI) error
+}
+
+// Bash returns a durable bash registration. Options follow the reference factory.
+func Bash(env durable.FileSystem, options ...BashOptions) durable.ToolRegistration {
+	var config BashOptions
+	if len(options) > 0 {
+		config = options[0]
+	}
 	return durable.ToolRegistration{
 		Definition: goai.Tool{
 			Name:        "bash",
@@ -38,125 +61,50 @@ func Bash(env *Env) durable.ToolRegistration {
 		Implementation: "durable.tools.bash",
 		Version:        1,
 		ReplaySafe:     false,
+		OutputLimits:   &durable.ToolOutputLimits{MaxBytes: MaxReadBytes, MaxLines: MaxReadLines, Retain: "tail"},
 		Execute: func(ctx context.Context, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
-			env, err := resolveToolEnv(ctx, env, api)
+			// Reference validation runs before acquiring an environment or calling
+			// Prepare; invalid arguments must cause neither host effect.
+			if _, _, err := bashTimeoutArg(args, "timeout", DefaultBashTimeout); err != nil {
+				return durable.ToolResult{}, err
+			}
+			fs, err := resolveToolEnv(ctx, env, api)
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
-			return executeBash(ctx, env, args, api)
+			execution := BashExecution{Cwd: fs.Cwd(), Env: map[string]string{}, InheritEnv: true}
+			if cwd, exists := args["cwd"]; exists && cwd != nil {
+				path, ok := cwd.(string)
+				if !ok {
+					return durable.ToolResult{}, errors.New("cwd must be a string")
+				}
+				execution.Cwd, err = fs.AbsolutePath(ctx, path)
+				if err != nil {
+					return durable.ToolResult{}, err
+				}
+			}
+			execution.Command, _ = args["command"].(string)
+			if config.CommandPrefix != "" {
+				execution.Command = config.CommandPrefix + "\n" + execution.Command
+			}
+			if config.Prepare != nil {
+				if err := config.Prepare(ctx, &execution, api); err != nil {
+					return durable.ToolResult{}, err
+				}
+			}
+			copy := make(durable.JSON, len(args)+3)
+			for key, value := range args {
+				copy[key] = value
+			}
+			copy["command"], copy["cwd"], copy["executionEnv"], copy["inheritEnv"] = execution.Command, execution.Cwd, execution.Env, execution.InheritEnv
+			args = copy
+			shell, ok := fs.(durable.Shell)
+			if !ok {
+				return durable.ToolResult{}, errors.New("environment has no shell capability")
+			}
+			return executePortableBash(ctx, fs, shell, args, api)
 		},
 	}
-}
-
-func executeBash(ctx context.Context, env *Env, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
-	if err := ctx.Err(); err != nil {
-		return durable.ToolResult{}, err
-	}
-	command, ok := args["command"].(string)
-	if !ok {
-		return durable.ToolResult{}, errors.New("command must be a string")
-	}
-	if strings.TrimSpace(command) == "" {
-		return durable.ToolResult{}, errors.New("command is required")
-	}
-	timeout, timeoutSeconds, err := bashTimeoutArg(args, "timeout", DefaultBashTimeout)
-	if err != nil {
-		return durable.ToolResult{}, err
-	}
-	cwd, err := bashCWD(env, args["cwd"])
-	if err != nil {
-		return durable.ToolResult{}, err
-	}
-	shell, err := bashShellPath()
-	if err != nil {
-		return durable.ToolResult{}, err
-	}
-	cmd := exec.Command(shell, "-c", command)
-	cmd.Dir = cwd
-	cmd.Env = os.Environ()
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	spillPath, err := env.Spill(ctx, nil)
-	if err != nil {
-		return durable.ToolResult{}, err
-	}
-	spill, err := os.OpenFile(spillPath, os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return durable.ToolResult{}, err
-	}
-	defer spill.Close()
-	keepSpill := false
-	defer func() {
-		if !keepSpill {
-			os.Remove(spillPath)
-		}
-	}()
-	capture := &bashCapture{}
-	streamer := newBashStreamer(api)
-	writer := &bashCaptureWriter{capture: capture, streamer: streamer, spill: spill}
-	cmd.Stdout, cmd.Stderr = writer, writer
-	// Bound pipe copying even if the shell exits with background descendants.
-	cmd.WaitDelay = time.Second
-	if err := cmd.Start(); err != nil {
-		return durable.ToolResult{}, err
-	}
-	processDone := make(chan struct{})
-	monitorDone := make(chan struct{})
-	var stopErr error
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	go func() {
-		defer close(monitorDone)
-		select {
-		case <-processDone:
-		case <-ctx.Done():
-			stopErr = fmt.Errorf("command aborted: %w", ctx.Err())
-			killProcessGroup(cmd.Process.Pid)
-		case <-timer.C:
-			stopErr = fmt.Errorf("command timed out after %s: %w", formatTimeoutSeconds(timeoutSeconds), context.DeadlineExceeded)
-			killProcessGroup(cmd.Process.Pid)
-		}
-	}()
-	waitErr := cmd.Wait()
-	close(processDone)
-	<-monitorDone
-	// Shell success must not leave a background process from this tool running.
-	killProcessGroup(cmd.Process.Pid)
-	result := capture.result(streamer.streamedBytes(), api != nil)
-	if result.Details == nil {
-		result.Details = durable.JSON{}
-	}
-	if err := spill.Sync(); err != nil {
-		return result, err
-	}
-	if err := spill.Close(); err != nil {
-		return result, err
-	}
-	if result.Details["truncated"] == true {
-		keepSpill = true
-		result.Details["fullOutputPath"] = spillPath
-	}
-	result.Details["cwd"] = cwd
-	result.Details["timeoutSeconds"] = timeoutSeconds
-	if cmd.ProcessState != nil {
-		exitCode := cmd.ProcessState.ExitCode()
-		if exitCode >= 0 {
-			result.Details["exitCode"] = exitCode
-		}
-	}
-	if stopErr != nil {
-		return result, stopErr
-	}
-	if waitErr != nil {
-		exitCode := -1
-		if cmd.ProcessState != nil {
-			exitCode = cmd.ProcessState.ExitCode()
-		}
-		if exitCode >= 0 {
-			return result, fmt.Errorf("command exited with code %d", exitCode)
-		}
-		return result, waitErr
-	}
-	return result, nil
 }
 
 func bashTimeoutArg(args durable.JSON, key string, def time.Duration) (time.Duration, float64, error) {
@@ -166,10 +114,12 @@ func bashTimeoutArg(args durable.JSON, key string, def time.Duration) (time.Dura
 	}
 	seconds, ok := asFloat(value)
 	if !ok || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
-		return 0, 0, errors.New("timeout must be a finite number of seconds")
+		//lint:ignore ST1005 Reference tool argument diagnostic.
+		return 0, 0, errors.New("Invalid timeout: must be a finite number of seconds")
 	}
 	if seconds > maxTimeoutSeconds {
-		return 0, 0, fmt.Errorf("timeout must be <= %g seconds", maxTimeoutSeconds)
+		//lint:ignore ST1005 Reference tool argument diagnostic.
+		return 0, 0, fmt.Errorf("Invalid timeout: maximum is %g seconds", maxTimeoutSeconds)
 	}
 	return time.Duration(seconds * float64(time.Second)), seconds, nil
 }
@@ -190,55 +140,6 @@ func asFloat(value any) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func bashCWD(env *Env, value any) (string, error) {
-	var cwd string
-	if value == nil {
-		if env == nil {
-			return "", errors.New("nil env")
-		}
-		var err error
-		cwd, err = env.resolve(".")
-		if err != nil {
-			return "", err
-		}
-	} else {
-		text, ok := value.(string)
-		if !ok {
-			return "", errors.New("cwd must be a string")
-		}
-		if text == "" {
-			if env == nil {
-				return "", errors.New("nil env")
-			}
-			var err error
-			cwd, err = env.resolve(".")
-			if err != nil {
-				return "", err
-			}
-		} else {
-			if env == nil {
-				return "", errors.New("nil env")
-			}
-			var err error
-			cwd, err = env.resolve(text)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
-	info, err := os.Stat(cwd)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("working directory does not exist: %s", cwd)
-		}
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("working directory is not a directory: %s", cwd)
-	}
-	return cwd, nil
 }
 
 func bashShellPath() (string, error) {
@@ -308,29 +209,18 @@ func (c *bashCapture) append(p []byte) {
 	}
 }
 
-func (c *bashCapture) result(streamed int, streamedPrefix bool) durable.ToolResult {
+func (c *bashCapture) result() durable.ToolResult {
 	c.mu.Lock()
 	content := append([]byte(nil), c.buf...)
 	totalBytes := c.totalBytes
 	truncatedBytes := c.truncatedBytes
 	truncatedLines := c.truncatedLines
 	c.mu.Unlock()
-	clippedForHarness := false
-	if streamedPrefix {
-		if !truncatedBytes && !truncatedLines {
-			if streamed >= len(content) {
-				content = nil
-			} else if streamed > 0 {
-				content = content[streamed:]
-			}
-		}
-		maxTail := durable.MaxToolOutputBytes - streamed
-		if maxTail < 0 {
-			maxTail = 0
-		}
-		if len(content) > maxTail {
-			content = append([]byte(nil), content[len(content)-maxTail:]...)
-			clippedForHarness = true
+	// Tail retention can begin inside a multibyte character. Discard only
+	// continuation bytes of that clipped character, as the Harness does.
+	if truncatedBytes {
+		for len(content) > 0 && !utf8.RuneStart(content[0]) {
+			content = content[1:]
 		}
 	}
 	details := durable.JSON{
@@ -338,27 +228,21 @@ func (c *bashCapture) result(streamed int, streamedPrefix bool) durable.ToolResu
 		"outputBytes":   len(content),
 		"outputLines":   bashLineCount(content),
 	}
-	truncatedBy := bashTruncatedBy(truncatedBytes, truncatedLines, clippedForHarness)
+	truncatedBy := bashTruncatedBy(truncatedBytes, truncatedLines)
 	if truncatedBy != "" {
 		details["truncated"] = true
 		details["truncatedBy"] = truncatedBy
 	}
-	if clippedForHarness {
-		details["harnessOutputLimit"] = durable.MaxToolOutputBytes
-	}
 	return durable.ToolResult{Content: string(content), Details: details}
 }
 
-func bashTruncatedBy(bytesExceeded, linesExceeded, harness bool) string {
+func bashTruncatedBy(bytesExceeded, linesExceeded bool) string {
 	parts := make([]string, 0, 3)
 	if linesExceeded {
 		parts = append(parts, "lines")
 	}
 	if bytesExceeded {
 		parts = append(parts, "bytes")
-	}
-	if harness {
-		parts = append(parts, "toolLimit")
 	}
 	return strings.Join(parts, ",")
 }
@@ -375,15 +259,13 @@ func bashLineCount(content []byte) int {
 }
 
 type bashStreamer struct {
-	mu        sync.Mutex
-	api       *durable.ToolAPI
-	remaining int
-	streamed  int
-	disabled  bool
+	mu       sync.Mutex
+	api      *durable.ToolAPI
+	disabled bool
 }
 
 func newBashStreamer(api *durable.ToolAPI) *bashStreamer {
-	return &bashStreamer{api: api, remaining: maxBashPrefixBytes}
+	return &bashStreamer{api: api}
 }
 
 func (s *bashStreamer) write(p []byte) {
@@ -392,55 +274,18 @@ func (s *bashStreamer) write(p []byte) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.disabled || s.api == nil || s.remaining <= 0 {
+	if s.disabled || s.api == nil {
 		return
 	}
-	text := string(p)
-	if len([]byte(text)) > s.remaining {
-		text = truncateUTF8(text, s.remaining)
-	}
-	if text == "" {
+	if err := s.api.OutputBytes(p); err != nil {
 		s.disabled = true
 		return
 	}
-	if err := s.api.Output(text); err != nil {
-		s.disabled = true
-		return
-	}
-	bytes := len([]byte(text))
-	s.streamed += bytes
-	s.remaining -= bytes
-	if s.remaining <= 0 {
-		s.disabled = true
-	}
-}
-
-func (s *bashStreamer) streamedBytes() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.streamed
-}
-
-type bashCaptureWriter struct {
-	capture  *bashCapture
-	streamer *bashStreamer
-	spill    *os.File
-}
-
-func (w *bashCaptureWriter) Write(p []byte) (int, error) {
-	if w.spill != nil {
-		if _, err := w.spill.Write(p); err != nil {
-			return 0, err
-		}
-	}
-	w.capture.append(p)
-	w.streamer.write(p)
-	return len(p), nil
 }
 
 func formatTimeoutSeconds(seconds float64) string {
 	if math.Trunc(seconds) == seconds {
-		return fmt.Sprintf("%.0f seconds", seconds)
+		return fmt.Sprintf("%.0f", seconds)
 	}
-	return fmt.Sprintf("%g seconds", seconds)
+	return fmt.Sprintf("%g", seconds)
 }

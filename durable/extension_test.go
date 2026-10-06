@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"strings"
 	"testing"
 )
 
@@ -33,8 +34,11 @@ func TestExtensionAtomicReplacementTaskAndToolSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry.Uninstall(first)
-	if len(registry.Installed()) != 1 || registry.PromptSections()[0].Key != "extension" {
-		t.Fatal("stale uninstall removed replacement")
+	if len(registry.Installed()) != 0 {
+		t.Fatal("name-based uninstall retained replacement")
+	}
+	if err := registry.Install(replacement); err != nil {
+		t.Fatal(err)
 	}
 	if snapshot.Task(task.Kind()) != task {
 		t.Fatal("old snapshot changed")
@@ -79,4 +83,33 @@ func TestExtensionTaskActuallyRunsAndPromptParticipates(t *testing.T) {
 			t.Fatal(record)
 		}
 	})
+}
+
+func TestRegistryReferenceAgentSelectionDeduplicatesFirstPositionsAndMissingNames(t *testing.T) {
+	registry := NewRegistry()
+	for _, name := range []string{"first", "second"} {
+		if err := registry.Install(&Extension{Name: name, Tools: []ToolRegistration{wrapRegistration(name)}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := openHarness(t, mustMemory(t), Options{Registry: registry})
+	extensions := []string{"second", "missing", "second", "first"}
+	tools := []string{"first", "first", "second", "absent"}
+	conversation, err := h.CreateConversation(bg, AgentChange{Extensions: &extensions, Tools: &tools})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := conversation.Agent(bg)
+	if err != nil || strings.Join(agent.Extensions, ",") != "second,first" || len(agent.Tools) != 2 || agent.Tools[0].Name != "first" || agent.Tools[1].Name != "second" {
+		t.Fatal(agent, err)
+	}
+	if strings.Join(*agent.Configuration.Extensions, ",") != "second,missing,first" || strings.Join(*agent.Configuration.Tools, ",") != "first,second,absent" {
+		t.Fatal("stored order/dedup", agent.Configuration)
+	}
+	extensions[0] = "mutated"
+	tools[0] = "mutated"
+	agent, err = conversation.Agent(bg)
+	if err != nil || agent.Extensions[0] != "second" || agent.Tools[0].Name != "first" {
+		t.Fatal("selection aliases input", agent, err)
+	}
 }

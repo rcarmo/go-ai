@@ -23,7 +23,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	}
 	api := goai.Api("env-" + strings.ReplaceAll(t.Name(), "/", "-"))
 	var requests, factories atomic.Int64
-	var reader *durable.HookAPI
+	var reader *durable.InvocationReader
 	goai.RegisterApi(&goai.ApiProvider{Api: api, Stream: func(_ context.Context, model *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 		requests.Add(1)
 		result := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, StopReason: goai.StopReasonStop, Content: []goai.ContentBlock{{Type: "text", Text: "written"}}}
@@ -38,7 +38,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	}})
 	t.Cleanup(func() { goai.UnregisterApi(api) })
 	options := durable.Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model {
-		return &goai.Model{ID: "test", Provider: goai.ProviderOpenAI, Api: api, ContextWindow: 8192, MaxTokens: 100}
+		return &goai.Model{ID: "test", Provider: goai.ProviderOpenAI, Api: api, ContextWindow: 128000, MaxTokens: 100}
 	}, Env: func(ctx context.Context, target durable.EnvTarget) (durable.ExecutionEnvironment, error) {
 		factories.Add(1)
 		reader = target.Read
@@ -79,7 +79,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(firstDir, "result.txt")); err != nil || string(data) != "owned environment" {
 		t.Fatal(string(data), err)
 	}
-	if _, _, err := reader.Memo(context.Background(), "anything"); !errors.Is(err, durable.ErrSealed) {
+	if _, err := reader.ContextView(context.Background(), reader.ConversationID(), 0); !errors.Is(err, durable.ErrSealed) {
 		t.Fatal("escaped factory reader live", err)
 	}
 	if err := conversation.Configure(context.Background(), durable.AgentChange{Model: ref, Cwd: secondDir}); err != nil {
@@ -106,7 +106,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(secondDir, "result.txt")); err != nil || string(data) != "owned environment" {
 		t.Fatal(string(data), err)
 	}
-	if factories.Load() != 2 || requests.Load() != 4 {
+	if factories.Load() != 6 || requests.Load() != 4 {
 		t.Fatal("factory uses", factories.Load(), requests.Load())
 	}
 	if _, err := os.Stat(filepath.Join(fallback.Cwd(), "result.txt")); !errors.Is(err, os.ErrNotExist) {

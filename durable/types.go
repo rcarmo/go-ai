@@ -218,10 +218,15 @@ type TaskInspection struct {
 
 type ConversationAbortOptions struct{ Background bool }
 
-type TaskInspectionView struct {
+type HarnessInspection struct {
 	Scheduling string // paused, running, closing
 	Tasks      []TaskInspection
+	// Native pending/running correspond to reference queued/placed states.
+	Submissions []Submission
 }
+
+// TaskInspectionView preserves the existing Go helper result name.
+type TaskInspectionView = HarnessInspection
 
 // Submission type is follow-up or write. Steering is unsupported in M1a.
 // Replacement preserves conversation, request ID and type identity.

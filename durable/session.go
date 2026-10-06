@@ -129,6 +129,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			tx.taskRollback(err)
 		}
 		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
+			s.taskScheduler.h.wakeAllSubmissionWaiters()
 			s.taskScheduler.notifyWaiters(ErrPoisoned)
 			for target := range s.taskScheduler.tickets {
 				s.taskScheduler.failTicket(target, ErrPoisoned)
@@ -150,6 +151,9 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err
+	}
+	if tx.creationError != nil {
+		return 0, tx.creationError
 	}
 	if err = tx.seal(); err != nil {
 		return 0, err
@@ -225,6 +229,12 @@ func (s *Session) finalizeTaskWrites(tx *Tx) error {
 		if err := s.taskScheduler.prepareTaskWrites(tx); err != nil {
 			return err
 		}
+	}
+	if err := tx.syncGenerationStatuses(); err != nil {
+		return err
+	}
+	if err := tx.syncCompactionStatuses(); err != nil {
+		return err
 	}
 	return tx.finalizeTaskWrites()
 }

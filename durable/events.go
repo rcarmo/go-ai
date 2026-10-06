@@ -230,7 +230,12 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 						}
 						events = append(events, event)
 					}
-					if taskHasDecidedOutcome(task) && !taskHasDecidedOutcome(old) {
+					schedulerMissing := task.Execution != nil && task.Execution.Builtin != nil && task.Execution.Builtin.Hold != nil && task.Execution.Builtin.Hold.Action == "scheduler-tool-missing"
+					ended := taskHasDecidedOutcome(task) && !taskHasDecidedOutcome(old)
+					if schedulerMissing {
+						ended = terminalStatus(task.Status) && !terminalStatus(old.Status)
+					}
+					if ended {
 						event := base
 						event.Type = "tool_execution_end"
 						if after.Result != nil {
@@ -256,9 +261,7 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 							return err
 						}
 					}
-					if after.Attempt > before.Attempt {
-						events = append(events, AgentEvent{Type: "turn_start", Seq: next.Seq, Task: task.ID, Attempt: after.Attempt})
-					}
+
 					if after.Partial != nil && !equalJSONValue(after.Partial, before.Partial) {
 						copy, err := dtoObject(after.Partial, s.limits)
 						if err != nil {
@@ -298,14 +301,6 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 					}
 					if taskHasDecidedOutcome(task) && !taskHasDecidedOutcome(old) {
 						events = append(events, AgentEvent{Type: "turn_end", Seq: next.Seq, Task: task.ID})
-					}
-				} else if task.Kind == "task.pi.compaction" {
-					if old.ID == 0 {
-						reason := compactionEventReason(task, s.limits)
-						events = append(events, AgentEvent{Type: "compaction_start", Seq: next.Seq, Task: task.ID, Reason: reason, Blocking: task.Owner != 0})
-					}
-					if terminalStatus(task.Status) && !terminalStatus(old.Status) {
-						events = append(events, AgentEvent{Type: "compaction_end", Seq: next.Seq, Task: task.ID, Reason: compactionEventReason(task, s.limits)})
 					}
 				}
 				if terminalStatus(task.Status) && !terminalStatus(old.Status) {
@@ -385,13 +380,52 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 				events = append(events, event)
 			}
 			if doc.Kind == "pi.live" {
+				previous, current := eventCompactionStatuses(old.Value), eventCompactionStatuses(doc.Value)
+				for _, id := range ids(previous) {
+					if _, ok := current[id]; !ok {
+						events = append(events, AgentEvent{Type: "compaction_end", Seq: next.Seq, Task: id, Reason: previous[id].Reason})
+					}
+				}
+				for _, id := range ids(current) {
+					if _, ok := previous[id]; !ok {
+						status := current[id]
+						status.Type = "compaction_start"
+						status.Seq = next.Seq
+						events = append(events, status)
+					}
+				}
 				was := old.Value["run"]
 				now := doc.Value["run"]
-				if was == nil && now != nil {
-					events = append(events, AgentEvent{Type: "run_start", Seq: next.Seq, Inputs: eventRunInputs(now)})
+				oldInputs, newInputs := eventRunInputs(was), eventRunInputs(now)
+				var oldFirst, newFirst ID
+				if len(oldInputs) > 0 {
+					oldFirst = oldInputs[0]
 				}
-				if was != nil && now == nil {
-					events = append(events, AgentEvent{Type: "run_end", Seq: next.Seq, Inputs: eventRunInputs(was)})
+				if len(newInputs) > 0 {
+					newFirst = newInputs[0]
+				}
+				// The first input identifies the run; successor task handoff
+				// keeps it. Direct queued-user replacement ends/starts runs.
+				changed := oldFirst != newFirst || (was == nil) != (now == nil)
+				if changed && was != nil {
+					events = append(events, AgentEvent{Type: "run_end", Seq: next.Seq, Inputs: oldInputs})
+				}
+				if changed && now != nil {
+					events = append(events, AgentEvent{Type: "run_start", Seq: next.Seq, Inputs: newInputs})
+				}
+				runTask := func(value any) ID {
+					if run, ok := value.(map[string]any); ok {
+						if number, ok := exactNumber(run["task"]); ok && number.IsInt() && number.Num().IsUint64() {
+							return ID(number.Num().Uint64())
+						}
+					}
+					return 0
+				}
+				oldTask, newTask := runTask(was), runTask(now)
+				if newTask != 0 && newTask != oldTask {
+					if task, ok := next.Tasks[newTask]; ok && task.Kind == "pi.generation" {
+						events = append(events, AgentEvent{Type: "turn_start", Seq: next.Seq, Task: newTask})
+					}
 				}
 			}
 		}
@@ -448,19 +482,24 @@ func queuedEventItems(value JSON) []QueuedItem {
 	}
 	return result
 }
-func compactionEventReason(task Task, limits Limits) string {
-	record, err := CanonicalTask(task, limits)
-	if err == nil && record.Input != nil {
-		if input, ok := record.Input.Value.(map[string]any); ok {
-			if reason, ok := input["reason"].(string); ok {
-				return reason
-			}
+func eventCompactionStatuses(value JSON) map[ID]AgentEvent {
+	result := map[ID]AgentEvent{}
+	items, _ := value["compactions"].([]any)
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			continue
 		}
+		number, ok := exactNumber(object["taskId"])
+		if !ok || !number.IsInt() {
+			continue
+		}
+		id := ID(number.Num().Uint64())
+		reason, _ := object["reason"].(string)
+		blocking, _ := object["blocking"].(bool)
+		result[id] = AgentEvent{Task: id, Reason: reason, Blocking: blocking}
 	}
-	if task.Owner != 0 {
-		return "threshold"
-	}
-	return "manual"
+	return result
 }
 func eventOrder(kind string) int {
 	switch kind {

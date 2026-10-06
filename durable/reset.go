@@ -116,30 +116,21 @@ func (h *Harness) resetToolsRun(tx *Tx, current Task, cp generationCheckpoint) e
 		return err
 	}
 	cp.Reset = true
-	receipt := errorReceipt("reset")
-	if cp.Model != nil {
-		receipt.Api, receipt.Provider, receipt.Model = cp.Model.Api, cp.Model.Provider, cp.Model.ID
+	// finishToolRound returns the committed assistant on a reset boundary;
+	// no synthetic assistant or aborted generation outcome is introduced.
+	entry, ok := tx.state.Entries[cp.AssistantEntry]
+	if !ok || entry.ByTask != current.ID || entry.Conversation != current.Conversation {
+		return reject("reset assistant missing")
 	}
-	value, err := dtoObject(receipt, tx.limits)
-	if err != nil {
-		return err
-	}
-	entryID, err := tx.MintID()
-	if err != nil {
-		return err
-	}
-	// Internal reset receipt contributes no context; its placement is needed for
-	// the durable native generation result/receipt identity contract.
-	if err := tx.AppendEntry(Entry{ID: entryID, Conversation: current.Conversation, Kind: "message", Value: value, ByTask: current.ID}); err != nil {
-		return err
-	}
+	value := entry.Value
+	var err error
 	cp.Phase = "terminal"
 	cp.Children = nil
 	current.Checkpoint, err = dtoObject(cp, tx.limits)
 	if err != nil {
 		return err
 	}
-	hold := &BuiltinTaskHold{Stage: "final", Action: "generation-receipt", Outcome: TaskOutcome{Status: "aborted", Reason: "reset", Result: &TaskValue{Present: true, Value: JSON{"entryId": entryID}}}, FinalStatus: "aborted", Entry: entryID, Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
+	hold := &BuiltinTaskHold{Stage: "final", Action: "generation-reset", Outcome: TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": entry.ID}}}, FinalStatus: "done", Entry: entry.ID, Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
 	metadata := &BuiltinTaskExecution{}
 	if current.Execution != nil {
 		*metadata = *current.Execution.Builtin
@@ -147,7 +138,10 @@ func (h *Harness) resetToolsRun(tx *Tx, current Task, cp generationCheckpoint) e
 	metadata.Memos = nil
 	metadata.Hold = hold
 	current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: metadata}
-	current.Status = "aborted"
+	current.Status = "done"
+	if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
+		hold.Stage, current.Status = "held", "completing"
+	}
 	if err := h.cleanupGeneration(tx, current, hold, value); err != nil {
 		return err
 	}

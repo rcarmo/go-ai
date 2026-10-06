@@ -416,6 +416,16 @@ func (t *Tx) ForkConversation(parent, at ID, owner ID) (Conversation, error) {
 		t.forkParents = map[ID]bool{}
 	}
 	t.forkParents[parent] = true
+	if t.session != nil && t.session.taskScheduler != nil {
+		t.leave()
+		err := t.session.taskScheduler.h.initializeCreatedConversation(t, child)
+		if enterErr := t.enter(); enterErr != nil {
+			return Conversation{}, enterErr
+		}
+		if err != nil {
+			return Conversation{}, err
+		}
+	}
 	complete = true
 	return child, nil
 }
@@ -423,6 +433,12 @@ func (t *Tx) ForkConversation(parent, at ID, owner ID) (Conversation, error) {
 // Fork creates an ownerless child without scheduling work. Agent state is copied
 // as of the cutoff; live state, inbox and the child's own usage start empty.
 func (c *ConversationHandle) Fork(ctx context.Context, at ID) (*ConversationHandle, error) {
+	return c.fork(ctx, at, nil, nil)
+}
+func (c *ConversationHandle) ForkWithInit(ctx context.Context, at ID, change *AgentChange, init ConversationInit) (*ConversationHandle, error) {
+	return c.fork(ctx, at, change, init)
+}
+func (c *ConversationHandle) fork(ctx context.Context, at ID, change *AgentChange, init ConversationInit) (*ConversationHandle, error) {
 	h := c.h
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -447,7 +463,38 @@ func (c *ConversationHandle) Fork(ctx context.Context, at ID) (*ConversationHand
 		if err != nil {
 			return err
 		}
-		return initializeBuiltins(tx, child.ID)
+		if err := initializeBuiltins(tx, child.ID); err != nil {
+			return err
+		}
+		if change != nil {
+			state, err := h.agent(*change)
+			if err != nil {
+				return err
+			}
+			value, err := dtoObject(state, tx.limits)
+			if err != nil {
+				return err
+			}
+			candidate, err := tx.current()
+			if err != nil {
+				return err
+			}
+			doc, ok := agentDocument(candidate, child.ID)
+			if !ok {
+				return reject("fork agent unavailable")
+			}
+			handle, err := tx.Document(doc.ID)
+			if err != nil {
+				return err
+			}
+			if err := handle.Set(value); err != nil {
+				return err
+			}
+		}
+		if init != nil {
+			return callConversationInit(init, tx, child.ID)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

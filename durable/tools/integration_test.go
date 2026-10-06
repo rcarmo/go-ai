@@ -66,7 +66,7 @@ func TestCodingToolsProductionHTTPJournalAndReopen(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	model := &goai.Model{ID: "coding-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: server.URL, ContextWindow: 8192, MaxTokens: 256}
+	model := &goai.Model{ID: "coding-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: server.URL, ContextWindow: 128000, MaxTokens: 256}
 	options := durable.Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, durable.ModelRef) (*goai.StreamOptions, error) {
 		return &goai.StreamOptions{APIKey: "local-test"}, nil
 	}}

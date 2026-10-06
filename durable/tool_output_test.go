@@ -168,7 +168,7 @@ func TestToolOutputFinalHeadBoundsCombinedTextOnce(t *testing.T) {
 		} else {
 			for _, m := range input.Messages {
 				if m.Role == goai.RoleToolResult {
-					if len(m.Content) != 1 || m.Content[0].Text != "aa\n" || m.IsError {
+					if len(m.Content) != 2 || m.Content[0].Text != "aa\n" || m.Content[1].Text != "<harness>\n[warn] Output truncated to its beginning: 2 lines, 7 bytes dropped\n</harness>" || m.IsError {
 						t.Error("later text refilled head cutoff", m)
 					}
 				}
@@ -218,7 +218,11 @@ func TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks(t *testing.T) {
 						images := 0
 						for _, block := range m.Content {
 							if block.Type == "text" {
-								text += block.Text
+								if !strings.HasPrefix(block.Text, "<harness>") {
+									text += block.Text
+								} else if block.Text != "<harness>\n[warn] Output truncated to its end: 5000 lines, 50000 bytes dropped\n</harness>" {
+									t.Error("truncation remark", block.Text)
+								}
 							} else if block.Type == "image" {
 								images++
 							}

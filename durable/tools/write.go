@@ -11,7 +11,7 @@ import (
 var writeSchema = json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file to write (relative or absolute)"},"content":{"type":"string","description":"Content to write to the file"}},"required":["path","content"],"additionalProperties":false}`)
 
 // Write returns a durable write tool registration.
-func Write(env *Env) durable.ToolRegistration {
+func Write(env durable.FileSystem) durable.ToolRegistration {
 	return durable.ToolRegistration{
 		Definition: goai.Tool{
 			Name:        "write",
@@ -34,15 +34,18 @@ func Write(env *Env) durable.ToolRegistration {
 			if !ok {
 				return durable.ToolResult{}, errors.New("content must be a string")
 			}
-			abs, err := env.resolveToolPath(path)
+			abs, err := resolveFSPath(ctx, env, path)
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
-			if err := withSerializedMutation(abs, func() error {
+			if err := withFilesystemMutation(ctx, env, abs, func() error {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				return writeTextFileAtomic(abs, content)
+				if err := env.WriteFile(ctx, abs, []byte(content)); err != nil {
+					return err
+				}
+				return ctx.Err()
 			}); err != nil {
 				return durable.ToolResult{}, err
 			}

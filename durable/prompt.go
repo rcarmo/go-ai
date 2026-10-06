@@ -18,6 +18,9 @@ type PromptInput struct {
 	Agent        AgentChange
 	Tools        []goai.Tool
 	Messages     []MessageReceipt
+	Env          ExecutionEnvironment
+	Read         *InvocationReader
+	Shown        []RenderedSection
 }
 type PromptSection struct {
 	Key      string
@@ -233,4 +236,20 @@ func PlanPromptEntries(view ContextView, desired []RenderedSection, timestamp in
 		return nil, nil
 	}
 	return []Entry{entry(keys, patch)}, nil
+}
+
+// withInstructionSection follows the reference reserved section: agent
+// instructions render last. Extensions cannot register this reserved key.
+func withInstructionSection(sections []PromptSection, instructions *string) []PromptSection {
+	if instructions == nil {
+		return sections
+	}
+	text := *instructions
+	result := make([]PromptSection, 0, len(sections)+1)
+	for _, section := range sections {
+		if section.Key != "instructions" {
+			result = append(result, section)
+		}
+	}
+	return append(result, PromptSection{Key: "instructions", Render: func(context.Context, PromptInput) (*string, error) { copy := text; return &copy, nil }})
 }

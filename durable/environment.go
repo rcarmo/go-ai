@@ -2,37 +2,71 @@ package durable
 
 import "context"
 
-// ExecutionEnvironment is the native local/remote environment identity. Coding
-// tool packages may require richer capabilities on the returned implementation.
+// ExecutionEnvironment is the native local/remote environment identity.
+// Read/write/edit tools require FileSystem; the local Bash adapter additionally
+// requires its process capability. Factories and resources are not persisted.
 type ExecutionEnvironment interface{ Cwd() string }
 type EnvTarget struct {
 	Conversation ID
 	Cwd          string
-	Read         *HookAPI
+	Read         *InvocationReader
 }
 
+// Environment returns the capability constructed once before tool execution.
 func (a *ToolAPI) Environment(ctx context.Context) (ExecutionEnvironment, error) {
+	if ctx == nil {
+		return nil, reject("nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := a.runtime.check(); err != nil {
 		return nil, err
 	}
+	if a.environmentResolved {
+		return a.environment, a.environmentErr
+	}
+	return resolveInvocationEnvironment(ctx, a.h, a.runtime, a.task.Conversation, true)
+}
+
+// Environment resolves capabilities at every use with the current committed cwd,
+// independently of the phase-local Agent snapshot. No factory runs on the line.
+func (r *TaskRuntime) Environment(ctx context.Context) (ExecutionEnvironment, error) {
+	if err := r.check(); err != nil {
+		return nil, err
+	}
+	return resolveInvocationEnvironment(ctx, r.harness, r, r.conversation, false)
+}
+
+func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *TaskRuntime, conversation ID, rejectAborted bool) (ExecutionEnvironment, error) {
+	if ctx == nil {
+		return nil, reject("nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := runtime.context.Err(); err != nil {
+		return nil, err
+	}
 	var cwd string
-	err := a.h.session.readTasks(context.Background(), func(state Snapshot) error {
-		if err := a.runtime.check(); err != nil {
+	err := h.session.readTasks(ctx, func(state Snapshot) error {
+		if err := runtime.check(); err != nil {
 			return err
 		}
-		if a.h.closing.Load() {
+		if h.closing.Load() {
 			return ErrClosed
 		}
-		if taskAborted(state.Tasks[a.runtime.TaskID()]) {
+		if rejectAborted && taskAborted(state.Tasks[runtime.TaskID()]) {
 			return ErrSealed
 		}
-		doc, ok := agentDocument(state, a.task.Conversation)
-		if !ok {
-			return reject("agent unavailable")
+		if _, exists := state.Conversations[conversation]; !exists {
+			return reject("unknown conversation")
 		}
 		var agent agentState
-		if err := fromObject(doc.Value, &agent, a.h.session.limits); err != nil {
-			return err
+		if doc, ok := agentDocument(state, conversation); ok {
+			if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
+				return err
+			}
 		}
 		cwd = agent.Cwd
 		return nil
@@ -40,22 +74,31 @@ func (a *ToolAPI) Environment(ctx context.Context) (ExecutionEnvironment, error)
 	if err != nil {
 		return nil, err
 	}
-	if a.h.options.Env == nil {
-		return nil, nil
+	if h.options.Env == nil {
+		return nil, runtime.check()
 	}
-	target := EnvTarget{Conversation: a.task.Conversation, Cwd: cwd, Read: &HookAPI{a.runtime}}
-	env, err := callEnvironment(ctx, a.h.options.Env, target)
+	target := EnvTarget{Conversation: conversation, Cwd: cwd, Read: &InvocationReader{runtime}}
+	env, err := callEnvironment(ctx, h.options.Env, target)
 	if err != nil {
-		return nil, err
+		// This is a host callback, not a tool's own error. Report locally but
+		// never publish credentials/private payloads through durable outcomes.
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		reportTaskError(h.options.OnReport, err)
+		return nil, reject("environment callback failed")
 	}
-	if err := a.runtime.check(); err != nil {
+	if err := runtime.check(); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if a.h.closing.Load() {
+	if h.closing.Load() {
 		return nil, ErrClosed
+	}
+	if err := runtime.context.Err(); err != nil {
+		return nil, err
 	}
 	return env, nil
 }

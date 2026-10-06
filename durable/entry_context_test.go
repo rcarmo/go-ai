@@ -123,8 +123,8 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 	d := entryToken(t, "entry.safe")
 	for _, m := range []goai.Message{
 		{Role: goai.RoleUser, Deferred: &goai.DeferredHandle{ID: "OPAQUE_SECRET"}},
-		{Role: goai.RoleAssistant, ErrorMessage: "RAW_SECRET"},
-		{Role: goai.RoleAssistant, Diagnostics: []goai.AssistantMessageDiagnostic{{Error: goai.DiagnosticError{Message: "RAW_SECRET"}}}},
+		{Role: goai.RoleUser, ErrorMessage: "RAW_SECRET"},
+		{Role: goai.RoleUser, Diagnostics: []goai.AssistantMessageDiagnostic{{Error: goai.DiagnosticError{Message: "RAW_SECRET"}}}},
 		{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: "x", TextSignaturePresent: true}}},
 		{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{{Name: "x", Parameters: json.RawMessage(`{"type":"object"}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar"}}}},
 		{Role: goai.RoleToolResult, Details: func() {}},
@@ -164,7 +164,7 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := filepath.Join(t.TempDir(), "private")
-	model := &goai.Model{ID: "entry-http", Api: goai.ApiOpenAICompletions, Provider: goai.ProviderOpenAI, BaseURL: server.URL, ContextWindow: 4096, MaxTokens: 128, Input: []string{"text"}, Cost: goai.ModelCost{}}
+	model := &goai.Model{ID: "entry-http", Api: goai.ApiOpenAICompletions, Provider: goai.ProviderOpenAI, BaseURL: server.URL, ContextWindow: 128000, MaxTokens: 128, Input: []string{"text"}, Cost: goai.ModelCost{}}
 	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 		return &goai.StreamOptions{APIKey: "AUTH_SECRET_ONLY"}, nil
 	}}
@@ -342,7 +342,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 	}))
 	defer server.Close()
 	dir := filepath.Join(t.TempDir(), "private")
-	model := &goai.Model{ID: "empty-http", Api: goai.ApiOpenAICompletions, Provider: goai.ProviderOpenAI, BaseURL: server.URL, ContextWindow: 4096, MaxTokens: 128, Input: []string{"text"}}
+	model := &goai.Model{ID: "empty-http", Api: goai.ApiOpenAICompletions, Provider: goai.ProviderOpenAI, BaseURL: server.URL, ContextWindow: 128000, MaxTokens: 128, Input: []string{"text"}}
 	open := func() *Harness {
 		store, e := OpenJournal(dir, JournalOptions{})
 		if e != nil {

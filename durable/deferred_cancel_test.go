@@ -5,6 +5,7 @@ import (
 	"errors"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,7 +42,14 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 				}}
 				goai.RegisterApi(provider)
 				t.Cleanup(func() { goai.UnregisterApi(api) })
-				h := openHarness(t, b.store, Options{Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, OnReport: func(error) { reports.Add(1) }})
+				var reportMu sync.Mutex
+				var reportErrors []error
+				h := openHarness(t, b.store, Options{Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, OnReport: func(err error) {
+					reportMu.Lock()
+					reportErrors = append(reportErrors, err)
+					reportMu.Unlock()
+					reports.Add(1)
+				}})
 				conversation := root(t, h, ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"})
 				sub, err := conversation.Submit(bg, Input{Content: "go"})
 				if err != nil {
@@ -79,7 +87,10 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 					want = 1
 				}
 				if reports.Load() != want {
-					t.Fatal("cancellation failure report", reports.Load(), want)
+					reportMu.Lock()
+					t.Errorf("cancellation failure report got=%d want=%d errors=%v", reports.Load(), want, reportErrors)
+					reportMu.Unlock()
+					t.FailNow()
 				}
 				if status, err := h.AbortTask(bg, id); err != nil || status != "terminal" || cancels.Load() != 1 {
 					t.Fatal("terminal repeated cancellation", status, err, cancels.Load())

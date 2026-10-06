@@ -14,7 +14,7 @@ import (
 func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
-		var before, after, afterTools, beforeTool, afterTool atomic.Int64
+		var before, after, afterTools, afterEntries, beforeTool, afterTool atomic.Int64
 		var escaped *HookAPI
 		extension := &Extension{Name: "delegate", Sections: []PromptSection{{Key: "worker", Render: func(context.Context, PromptInput) (*string, error) { return promptString("worker section"), nil }}}}
 		extension.Tools = []ToolRegistration{{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)}, Implementation: "hooks.echo", Version: 1, Execute: func(_ context.Context, args JSON, _ *ToolAPI) (ToolResult, error) {
@@ -46,6 +46,20 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 				}
 				messages[0].Content[0].Text = "mutated result"
 				return nil
+			},
+			AfterToolEntries: func(ctx context.Context, assistant ID, results []ID, api *HookAPI) error {
+				afterEntries.Add(1)
+				entry, ok, err := api.Entry(ctx, assistant)
+				if err != nil || !ok || entry.ByTask != api.TaskID() || len(results) != 1 {
+					t.Errorf("committed afterTools identities: %+v %v %v", entry, results, err)
+					return err
+				}
+				result, ok, err := api.Entry(ctx, results[0])
+				if err != nil || !ok || result.Conversation != entry.Conversation || result.Value["toolCallId"] != "hook-call" {
+					t.Errorf("committed afterTools result: %+v %v", result, err)
+				}
+				results[0] = 0 // callback owns its entry ID collection
+				return err
 			},
 		}
 		extension.ToolHooks = ToolHooks{BeforeTool: func(_ context.Context, call goai.ToolCall, _ *HookAPI) (*BeforeToolResult, error) {
@@ -102,7 +116,7 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 		if result.Message == nil || len(result.Message.Content) == 0 || result.Message.Content[0].Text != "unmodified answer" {
 			t.Fatal("response mutation escaped", result)
 		}
-		if before.Load() != 2 || after.Load() != 2 || beforeTool.Load() != 1 || afterTool.Load() != 1 || afterTools.Load() != 1 {
+		if before.Load() != 2 || after.Load() != 2 || beforeTool.Load() != 1 || afterTool.Load() != 1 || afterTools.Load() != 1 || afterEntries.Load() != 1 {
 			t.Fatal("hook counts", before.Load(), after.Load(), beforeTool.Load(), afterTool.Load(), afterTools.Load())
 		}
 		if _, _, err := escaped.Memo(bg, "hook.request"); !errors.Is(err, ErrSealed) {
@@ -219,9 +233,9 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 				}
 				if message.Role == goai.RoleToolResult {
 					found = true
-					code := "tool_blocked"
+					code := "blocked"
 					if mode == "invalid" {
-						code = "invalid_tool_arguments"
+						code = "invalid_arguments"
 					}
 					if message.ErrorCode != code {
 						t.Fatal(message)
@@ -230,6 +244,15 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 			}
 			if !found || executed.Load() != 0 {
 				t.Fatal("hook allowed effect", found, executed.Load())
+			}
+			for _, task := range state.Tasks {
+				if task.Kind != "pi.tool" {
+					continue
+				}
+				record, err := CanonicalTask(task, h.session.limits)
+				if err != nil || record.State.Outcome.Status != "completed" {
+					t.Fatal("blocked/invalid call did not complete with error result", record, err)
+				}
 			}
 		})
 	}
@@ -309,8 +332,8 @@ func TestOnYieldContinuationUsesSameRunButQueuedUserWins(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !queued && len(state.Tasks) != 1 {
-				t.Fatal("yield created another run", state.Tasks)
+			if !queued && len(state.Tasks) != 2 {
+				t.Fatal("yield did not create one successor in same run", state.Tasks)
 			}
 		})
 	}

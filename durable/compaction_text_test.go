@@ -39,7 +39,7 @@ func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 		var changed atomic.Bool
 		ref, options := setupFakeAPI(t, func(ctx context.Context, model *goai.Model, input *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 			n := calls.Add(1)
-			if model.ContextWindow != 8192 || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.Temperature == nil || *opts.Temperature != 0.3 {
+			if model.ContextWindow != 128000 || opts.MaxTokens == nil || *opts.MaxTokens != 100 || opts.Temperature == nil || *opts.Temperature != 0.3 {
 				t.Error("summary behavior changed", model.ContextWindow, opts)
 			}
 			if !strings.Contains(input.Messages[0].Content[0].Text, "<conversation>\n[User]: old") || !strings.Contains(input.Messages[0].Content[0].Text, "Additional focus: paths") {

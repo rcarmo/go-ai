@@ -16,12 +16,16 @@ func (*InvocationWaitRequiresYield) Error() string { return "durable: invocation
 type TaskRuntime struct {
 	harness              *Harness
 	taskID, conversation ID
+	kind                 string
 	context              context.Context
 	cancel               context.CancelFunc
 	ended                atomic.Bool
 	marked               atomic.Bool
 	registry             TaskRegistrySnapshot
 	phaseMu              sync.RWMutex
+	agentResolution      *phaseAgentResolution
+	phaseDraining        bool // closes resolver admission until the next phase is published
+	phaseReady           chan struct{}
 	definition           *TaskDefinition
 	abortMode            bool
 	admissionFailed      bool // host-owned until return; published on the line
@@ -389,21 +393,29 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
-	v, ok, err := r.harness.session.SnapshotDefinition(ctx, def, owner, key)
-	if err == nil {
-		err = r.check()
+	session := r.harness.session
+	if err := session.enter(ctx); err != nil {
+		return nil, false, err
 	}
-	return v, ok, err
+	defer session.leave()
+	if err := r.check(); err != nil {
+		return nil, false, err
+	}
+	return session.snapshotDefinition(ctx, def, owner, key)
 }
 func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (JSON, bool, error) {
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
-	v, ok, err := r.harness.session.SnapshotDefinitionAsOf(ctx, def, owner, key, at)
-	if err == nil {
-		err = r.check()
+	session := r.harness.session
+	if err := session.enter(ctx); err != nil {
+		return nil, false, err
 	}
-	return v, ok, err
+	defer session.leave()
+	if err := r.check(); err != nil {
+		return nil, false, err
+	}
+	return session.snapshotDefinitionAsOf(ctx, def, owner, key, at)
 }
 func (r *TaskRuntime) WatchDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (*DocumentWatch, error) {
 	if err := r.check(); err != nil {
@@ -514,10 +526,13 @@ func (c *InvocationConversation) WaitForIdle(ctx context.Context) error {
 	return c.handle.h.waitIdleScope(ctx, c.handle.id, c.runtime)
 }
 func (c *InvocationConversation) Abort(ctx context.Context) error {
+	return c.AbortWithOptions(ctx, ConversationAbortOptions{})
+}
+func (c *InvocationConversation) AbortWithOptions(ctx context.Context, options ConversationAbortOptions) error {
 	if err := c.runtime.check(); err != nil {
 		return err
 	}
-	return c.handle.abortBound(ctx, ConversationAbortOptions{}, c.runtime)
+	return c.handle.abortBound(ctx, options, c.runtime)
 }
 
 type InvocationSubmission struct {
@@ -527,92 +542,5 @@ type InvocationSubmission struct {
 
 func (s *InvocationSubmission) ID() ID { return s.handle.id }
 func (s *InvocationSubmission) Wait(ctx context.Context) (Settlement, error) {
-	if err := s.runtime.check(); err != nil {
-		return Settlement{}, err
-	}
-	for {
-		var target ID
-		settled := false
-		err := s.runtime.harness.session.readTasks(ctx, func(state Snapshot) error {
-			if err := s.runtime.check(); err != nil {
-				return err
-			}
-			sub, ok := state.Submissions[s.handle.id]
-			if !ok {
-				return reject("unknown submission")
-			}
-			if terminalStatus(sub.Status) {
-				settled = true
-				return nil
-			}
-			for _, id := range ids(state.Tasks) {
-				task := state.Tasks[id]
-				if task.Kind != "pi.generation" {
-					continue
-				}
-				var cp generationCheckpoint
-				if fromObject(task.Checkpoint, &cp, s.runtime.harness.session.limits) == nil && generationIncludesSubmission(cp, sub.ID) && !terminalStatus(task.Status) {
-					target = task.ID
-					break
-				}
-			}
-			if target == 0 {
-				return reject("submission task unavailable")
-			}
-			return nil
-		})
-		if err != nil {
-			return Settlement{}, err
-		}
-		if settled {
-			break
-		}
-		if target != 0 {
-			if _, err := s.runtime.WaitForTask(ctx, target); err != nil {
-				return Settlement{}, err
-			}
-		}
-		// A queued placeholder may have been joined to another generation. Resolve
-		// again until its submission settles; never treat placeholder retirement as
-		// the answer boundary.
-	}
-	var result Settlement
-	err := s.runtime.harness.session.readTasks(ctx, func(state Snapshot) error {
-		if err := s.runtime.check(); err != nil {
-			return err
-		}
-		sub, ok := state.Submissions[s.handle.id]
-		if !ok || !terminalStatus(sub.Status) {
-			return reject("submission not settled")
-		}
-		value, err := copyObject(sub.Value, s.runtime.harness.session.limits)
-		if err != nil {
-			return err
-		}
-		sub.Value = value
-		result.Submission = sub
-		for _, id := range ids(state.Tasks) {
-			task := state.Tasks[id]
-			if task.Kind != "pi.generation" {
-				continue
-			}
-			var cp generationCheckpoint
-			if fromObject(task.Checkpoint, &cp, s.runtime.harness.session.limits) == nil && generationIncludesSubmission(cp, sub.ID) && cp.Phase != "queued" {
-				result.Task, err = copyTask(task, s.runtime.harness.session.limits)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
-		if value, ok := sub.Value["message"].(map[string]any); ok {
-			var message MessageReceipt
-			if err := fromObject(JSON(value), &message, s.runtime.harness.session.limits); err != nil {
-				return err
-			}
-			result.Message = &message
-		}
-		return nil
-	})
-	return result, err
+	return s.handle.wait(ctx, s.runtime)
 }

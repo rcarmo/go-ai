@@ -5,31 +5,44 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// HookAPI exposes committed reads and invocation memos, but no task or
-// conversation mutation authority. Escaped hooks are fenced on actual return.
-type HookAPI struct{ runtime *TaskRuntime }
+// HookAPI carries the invocation runtime, as in the pinned hook contract.
+// Embedded native methods share its commit/ownership/read authority fences;
+// escaped hooks cannot retain authority after the invocation ends.
+type HookAPI struct{ *TaskRuntime }
 
-func (a *HookAPI) TaskID() ID         { return a.runtime.TaskID() }
-func (a *HookAPI) ConversationID() ID { return a.runtime.ConversationID() }
-func (a *HookAPI) Memo(ctx context.Context, name string) (any, bool, error) {
-	return a.runtime.Memo(ctx, name)
-}
-func (a *HookAPI) MemoCandidate(ctx context.Context, name string, value any) (any, error) {
-	return a.runtime.MemoCandidate(ctx, name, value)
-}
-func (a *HookAPI) ContextView(ctx context.Context, conversation, at ID) (ContextView, error) {
+// InvocationReader is the narrower committed-read capability supplied to prompt
+// renderers and environment factories. It deliberately exposes no Commit or
+// owned-work operations even though runtime hooks receive those operations.
+type InvocationReader struct{ runtime *TaskRuntime }
+
+func (a *InvocationReader) TaskID() ID         { return a.runtime.TaskID() }
+func (a *InvocationReader) ConversationID() ID { return a.runtime.ConversationID() }
+func (a *InvocationReader) ContextView(ctx context.Context, conversation, at ID) (ContextView, error) {
 	return a.runtime.ContextView(ctx, conversation, at)
 }
-func (a *HookAPI) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (a *InvocationReader) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
 	return a.runtime.SnapshotDefinition(ctx, def, owner, key)
+}
+func (a *InvocationReader) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (JSON, bool, error) {
+	return a.runtime.SnapshotDefinitionAsOf(ctx, def, owner, key, at)
+}
+func (a *InvocationReader) Entry(ctx context.Context, id ID) (Entry, bool, error) {
+	return a.runtime.Entry(ctx, id)
+}
+func (a *InvocationReader) TypedEntry(ctx context.Context, def *EntryDefinition, id ID) (Entry, bool, error) {
+	return a.runtime.TypedEntry(ctx, def, id)
 }
 
 // Hooks run off the Session line on detached request/response data.
 type GenerationHooks struct {
 	BeforeRequest func(context.Context, []MessageReceipt, *HookAPI) ([]MessageReceipt, error)
 	AfterResponse func(context.Context, MessageReceipt, *HookAPI) error
-	AfterTools    func(context.Context, []MessageReceipt, *HookAPI) error
-	OnYield       func(context.Context, MessageReceipt, *HookAPI) (*Input, error)
+	// AfterTools retains the native detached-receipt callback.
+	AfterTools func(context.Context, []MessageReceipt, *HookAPI) error
+	// AfterToolEntries exposes the pinned committed assistant/result identities
+	// for hooks that need entry attribution or historical reads.
+	AfterToolEntries func(context.Context, ID, []ID, *HookAPI) error
+	OnYield          func(context.Context, MessageReceipt, *HookAPI) (*Input, error)
 }
 type ToolHooks struct {
 	BeforeTool func(context.Context, goai.ToolCall, *HookAPI) (*BeforeToolResult, error)
@@ -86,9 +99,9 @@ func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt,
 	err = fromObject(value, &copy, limits)
 	return copy.Messages, err
 }
-func (r *Registry) selectedGeneration(agent agentState, limits Limits) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
+func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	extensions := append([]installedExtension(nil), r.selectedExtensionsLocked(agent)...)
 	selected := func(names *[]string, name string) bool {
 		if names == nil {
 			return true
@@ -104,25 +117,101 @@ func (r *Registry) selectedGeneration(agent agentState, limits Limits) ([]toolOf
 	for name, tool := range r.tools {
 		tools[name] = tool
 	}
+	ordered := append([]string{}, r.toolOrder...)
+	known := map[string]bool{}
+	for _, name := range ordered {
+		known[name] = true
+	}
 	sections := []PromptSection{}
 	hooks := []GenerationHooks{}
-	for _, extension := range r.extensions {
-		if !selected(agent.Extensions, extension.name) {
-			continue
+	for _, extension := range extensions {
+		for _, name := range extension.toolOrder {
+			tools[name] = extension.tools[name]
+			if !known[name] {
+				ordered = append(ordered, name)
+				known[name] = true
+			}
 		}
-		for name, tool := range extension.tools {
-			tools[name] = tool
+		for _, section := range extension.sections {
+			index := -1
+			for i, existing := range sections {
+				if existing.Key == section.Key {
+					index = i
+					break
+				}
+			}
+			if index < 0 {
+				sections = append(sections, section)
+			} else {
+				sections[index] = section
+			}
 		}
-		sections = append(sections, extension.sections...)
 		hooks = append(hooks, extension.hooks)
+	}
+	r.mu.RUnlock()
+	// Host callbacks may reenter the registry. Compose from captured definitions,
+	// never while holding its lock. Reports are delivered by the harness later.
+	for _, extension := range extensions {
+		for _, wrap := range extension.wraps {
+			if wrap.Tool != "" {
+				tool, exists := tools[wrap.Tool]
+				if !exists {
+					continue
+				}
+				next, err := applyToolWrap(wrap, tool, limits)
+				if err != nil {
+					delete(tools, wrap.Tool)
+					reportSelectionError(reports, err)
+				} else {
+					tools[wrap.Tool] = next
+				}
+			} else {
+				index := -1
+				for i, section := range sections {
+					if section.Key == wrap.Section {
+						index = i
+						break
+					}
+				}
+				if index < 0 {
+					continue
+				}
+				next, err := applySectionWrap(wrap, sections[index])
+				if err != nil {
+					sections = append(sections[:index], sections[index+1:]...)
+					reportSelectionError(reports, err)
+				} else {
+					sections[index] = next
+				}
+			}
+		}
 	}
 	offers := []toolOffer{}
 	pins := map[string]registeredTool{}
-	for _, name := range sortedToolNames(tools) {
+	names := ordered
+	if agent.Tools != nil {
+		names = append([]string{}, (*agent.Tools)...)
+	}
+	for _, name := range names {
 		if !selected(agent.Tools, name) {
 			continue
 		}
-		tool := tools[name]
+		if agent.ToolsRemoved != nil {
+			excluded := false
+			for _, removed := range *agent.ToolsRemoved {
+				if name == removed {
+					excluded = true
+					break
+				}
+			}
+			if excluded {
+				continue
+			}
+		}
+		tool, exists := tools[name]
+		if !exists {
+			continue
+		}
 		schema, err := copyObject(tool.offer.Schema, limits)
 		if err != nil {
 			return nil, nil, nil, nil, err
@@ -138,19 +227,8 @@ func (r *Registry) selectedToolHooks(agent agentState) []ToolHooks {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	hooks := []ToolHooks{}
-	for _, extension := range r.extensions {
-		selected := agent.Extensions == nil
-		if agent.Extensions != nil {
-			for _, name := range *agent.Extensions {
-				if name == extension.name {
-					selected = true
-					break
-				}
-			}
-		}
-		if selected {
-			hooks = append(hooks, extension.toolHooks)
-		}
+	for _, extension := range r.selectedExtensionsLocked(agent) {
+		hooks = append(hooks, extension.toolHooks)
 	}
 	return hooks
 }
@@ -170,6 +248,15 @@ func callAfterTool(ctx context.Context, hook func(context.Context, goai.ToolCall
 	}()
 	return hook(ctx, call, result, &HookAPI{r})
 }
+func callAfterToolEntries(ctx context.Context, hook func(context.Context, ID, []ID, *HookAPI) error, assistant ID, results []ID, r *TaskRuntime) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = reject("afterTools hook panic")
+		}
+	}()
+	return hook(ctx, assistant, append([]ID(nil), results...), &HookAPI{r})
+}
+
 func callAfterTools(ctx context.Context, hook func(context.Context, []MessageReceipt, *HookAPI) error, results []MessageReceipt, r *TaskRuntime) (err error) {
 	defer func() {
 		if recover() != nil {
@@ -180,24 +267,34 @@ func callAfterTools(ctx context.Context, hook func(context.Context, []MessageRec
 }
 func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 	value, err := dtoObject(struct {
-		Content string              `json:"content"`
-		Blocks  []goai.ContentBlock `json:"blocks"`
-		Details JSON                `json:"details"`
-		Usage   *goai.Usage         `json:"usage"`
-	}{result.Content, result.Blocks, result.Details, result.Usage}, limits)
+		Content      string              `json:"content"`
+		Blocks       []goai.ContentBlock `json:"blocks"`
+		Details      JSON                `json:"details"`
+		DetailsValue any                 `json:"detailsValue"`
+		HasDetails   bool                `json:"hasDetails"`
+		Usage        *goai.Usage         `json:"usage"`
+		Diagnostics  []ToolDiagnostic    `json:"diagnostics"`
+		IsError      bool                `json:"isError"`
+		Control      *ToolControl        `json:"control"`
+	}{result.Content, result.Blocks, result.Details, result.DetailsValue, result.HasDetails, result.Usage, result.Diagnostics, result.IsError, result.Control}, limits)
 	if err != nil {
 		return ToolResult{}, err
 	}
 	var copy struct {
-		Content string              `json:"content"`
-		Blocks  []goai.ContentBlock `json:"blocks"`
-		Details JSON                `json:"details"`
-		Usage   *goai.Usage         `json:"usage"`
+		Content      string              `json:"content"`
+		Blocks       []goai.ContentBlock `json:"blocks"`
+		Details      JSON                `json:"details"`
+		DetailsValue any                 `json:"detailsValue"`
+		HasDetails   bool                `json:"hasDetails"`
+		Usage        *goai.Usage         `json:"usage"`
+		Diagnostics  []ToolDiagnostic    `json:"diagnostics"`
+		IsError      bool                `json:"isError"`
+		Control      *ToolControl        `json:"control"`
 	}
 	if err = fromObject(value, &copy, limits); err != nil {
 		return ToolResult{}, err
 	}
-	return ToolResult{Content: copy.Content, Blocks: copy.Blocks, Details: copy.Details, Usage: copy.Usage, Commit: result.Commit}, nil
+	return ToolResult{Content: copy.Content, Blocks: copy.Blocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
 }
 
 func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt, *HookAPI) (*Input, error), message MessageReceipt, r *TaskRuntime) (input *Input, err error) {
@@ -250,6 +347,7 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 		if err != nil {
 			return err
 		}
+		answerID := id
 		if err = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", ByTask: task.ID, Value: answer}); err != nil {
 			return err
 		}
@@ -291,12 +389,8 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 		if err != nil {
 			return err
 		}
-		current.Status = "pending"
-		current.Checkpoint, err = dtoObject(cp, tx.limits)
-		if err != nil {
-			return err
-		}
-		if err = tx.stage(Write{Op: "put-task", Task: &current}); err != nil {
+		cp.AssistantEntry = answerID
+		if _, _, err := h.handoffToolGeneration(tx, current, cp); err != nil {
 			return err
 		}
 		continued = true
@@ -309,19 +403,8 @@ func (r *Registry) selectedHooks(agent agentState) []GenerationHooks {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	hooks := []GenerationHooks{}
-	for _, extension := range r.extensions {
-		selected := agent.Extensions == nil
-		if agent.Extensions != nil {
-			for _, name := range *agent.Extensions {
-				if name == extension.name {
-					selected = true
-					break
-				}
-			}
-		}
-		if selected {
-			hooks = append(hooks, extension.hooks)
-		}
+	for _, extension := range r.selectedExtensionsLocked(agent) {
+		hooks = append(hooks, extension.hooks)
 	}
 	return hooks
 }
@@ -330,19 +413,8 @@ func (r *Registry) selectedCompactionHooks(agent agentState) []CompactionHooks {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	hooks := []CompactionHooks{}
-	for _, extension := range r.extensions {
-		selected := agent.Extensions == nil
-		if agent.Extensions != nil {
-			for _, name := range *agent.Extensions {
-				if name == extension.name {
-					selected = true
-					break
-				}
-			}
-		}
-		if selected {
-			hooks = append(hooks, extension.compactionHooks)
-		}
+	for _, extension := range r.selectedExtensionsLocked(agent) {
+		hooks = append(hooks, extension.compactionHooks)
 	}
 	return hooks
 }

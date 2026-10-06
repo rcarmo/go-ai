@@ -189,6 +189,7 @@ type TaskRegistrySnapshot struct {
 	offers      []toolOffer
 	pins        map[string]registeredTool
 	limits      Limits
+	selection   *Registry // immutable captured registration data for phase agents
 }
 
 func (s TaskRegistrySnapshot) Task(kind string) *TaskDefinition { return s.definitions[kind] }
@@ -208,11 +209,28 @@ func (r *Registry) taskListenersLocked() []func() {
 	return wake
 }
 
+func (r *Registry) registerBuiltinTask(definition *TaskDefinition) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.tasks == nil {
+		r.tasks = map[string]*TaskDefinition{}
+	}
+	// Builtin phases resolve their current Harness from TaskRuntime, so this
+	// immutable definition can be reused across Harness reopen.
+	if r.tasks[definition.Kind()] == nil {
+		r.tasks[definition.Kind()] = definition
+	}
+	return nil
+}
+
 // RegisterTask atomically replaces one immutable token. Disposal removes only
 // that registration, never a newer replacement of the same kind.
 func (r *Registry) RegisterTask(definition *TaskDefinition) (func(), error) {
 	if r == nil || definition == nil || !definition.constructed {
 		return nil, reject("nil task registration")
+	}
+	if definition.options.Kind == "task.pi.compaction" {
+		return nil, reject("builtin task cannot be replaced")
 	}
 	r.mu.Lock()
 	for _, extension := range r.extensions {
@@ -293,6 +311,10 @@ func (r *Registry) taskSnapshot(l Limits) (TaskRegistrySnapshot, error) {
 	defer r.mu.RUnlock()
 	for name, definition := range r.effectiveTasksLocked() {
 		result.definitions[name] = definition
+	}
+	result.selection = &Registry{tools: make(map[string]registeredTool, len(r.tools)), toolOrder: append([]string{}, r.toolOrder...), extensions: append([]installedExtension(nil), r.extensions...)}
+	for name, tool := range r.tools {
+		result.selection.tools[name] = tool
 	}
 	tools := r.effectiveToolsLocked()
 	for _, name := range sortedToolNames(tools) {

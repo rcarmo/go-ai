@@ -9,7 +9,7 @@ import (
 )
 
 func TestFollowUpQueueModeOneAndAllShareOnlySelectedAnswers(t *testing.T) {
-	for _, mode := range []string{"one", "all"} {
+	for _, mode := range []string{"one", "one-at-a-time", "all"} {
 		t.Run(mode, func(t *testing.T) {
 			backends(t, func(t *testing.T, b backend) {
 				entered, release := make(chan struct{}), make(chan struct{})

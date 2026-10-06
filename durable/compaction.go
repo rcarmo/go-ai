@@ -17,9 +17,12 @@ type CompactionPolicy struct {
 
 type CompactionOptions struct {
 	KeepRecentTokens int
-	Instructions     string
-	MaxTokens        int
-	Retry            RetryPolicy
+	// Nil follows resolved settings when KeepRecentTokens is zero. Use this
+	// pointer for an explicit zero recent-token budget.
+	KeepRecentTokensOverride *int
+	Instructions             string
+	MaxTokens                int
+	Retry                    RetryPolicy
 }
 
 const compactionSummaryPrefix = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n"
@@ -28,7 +31,7 @@ const compactionSummaryPrefix = "The conversation history before this point was 
 // intent survive reopen; summary placement is a passive write, queued while a
 // generation runs. Generation-owned blocking compactions append directly.
 func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOptions) (ID, error) {
-	if options.KeepRecentTokens < 0 || options.MaxTokens < 0 {
+	if options.KeepRecentTokens < 0 || options.MaxTokens < 0 || options.KeepRecentTokensOverride != nil && *options.KeepRecentTokensOverride < 0 {
 		return 0, reject("invalid compaction options")
 	}
 	if err := validateRetryPolicy(options.Retry); err != nil {
@@ -49,7 +52,14 @@ func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOpti
 	var id ID
 	_, err = h.CommitTasks(ctx, c.id, func(tx *Tx) error {
 		var err error
-		id, err = tx.CreateTask(definition, JSON{"reason": "manual", "keepRecentTokens": options.KeepRecentTokens, "instructions": options.Instructions, "maxTokens": options.MaxTokens, "retry": JSON{"enabled": options.Retry.Enabled, "maxRetries": options.Retry.MaxRetries, "baseDelayMs": options.Retry.BaseDelayMs, "maxDelayMs": options.Retry.MaxDelayMs}}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		input := JSON{"reason": "manual", "instructions": options.Instructions, "maxTokens": options.MaxTokens, "retry": JSON{"enabled": options.Retry.Enabled, "maxRetries": options.Retry.MaxRetries, "baseDelayMs": options.Retry.BaseDelayMs, "maxDelayMs": options.Retry.MaxDelayMs}}
+		if options.KeepRecentTokens != 0 {
+			input["keepRecentTokens"] = options.KeepRecentTokens
+		}
+		if options.KeepRecentTokensOverride != nil {
+			input["keepRecentTokens"] = *options.KeepRecentTokensOverride
+		}
+		id, err = tx.CreateTask(definition, input, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		return err
 	})
 	if err == nil {
@@ -65,8 +75,33 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if err != nil {
 				return err
 			}
+			snapshot, err := h.session.Snapshot(ctx)
+			if err != nil {
+				return err
+			}
+			var agent agentState
+			if doc, ok := agentDocument(snapshot, r.ConversationID()); ok {
+				if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
+					return err
+				}
+			}
+			agent.Settings = h.resolvedSettings(agent.Settings)
+			local, err := callModelResolver(h.options.Models, agent.Model)
+			if err != nil {
+				return err
+			}
+			if local == nil {
+				return failCompactionNoModel(ctx, r, agent.Model)
+			}
+			model, err := cloneModel(local, h.session.limits)
+			if err != nil {
+				return err
+			}
+			if model.ID != agent.Model.ID || model.Provider != agent.Model.Provider {
+				return reject("compaction model identity mismatch")
+			}
 			input := task.Input.Value.(map[string]any)
-			keep := 0
+			keep := agent.Settings.Compaction.KeepRecentTokens
 			if value, ok := input["keepRecentTokens"]; ok {
 				n, _ := exactNumber(value)
 				if n != nil {
@@ -78,18 +113,6 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"compacted": false}}}}, nil
 				})
-			}
-			snapshot, err := h.session.Snapshot(ctx)
-			if err != nil {
-				return err
-			}
-			doc, ok := agentDocument(snapshot, r.ConversationID())
-			if !ok {
-				return reject("compaction agent unavailable")
-			}
-			var agent agentState
-			if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
-				return err
 			}
 			tail := ID(0)
 			for _, entry := range view.Entries {
@@ -111,7 +134,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if reason == "" {
 				reason = "threshold"
 			}
-			for _, hook := range h.options.Registry.selectedCompactionHooks(agent) {
+			for _, hook := range r.phaseSelection().selectedCompactionHooks(h.selectionAgent(agent)) {
 				if hook.BeforeCompact == nil {
 					continue
 				}
@@ -153,23 +176,18 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					})
 				}
 			}
-			maxTokens := 2048
+			maxTokens := agent.Settings.Compaction.ReserveTokens/5*4 + agent.Settings.Compaction.ReserveTokens%5*4/5
+			if agent.Settings.Compaction.MaxTokens > 0 {
+				maxTokens = agent.Settings.Compaction.MaxTokens
+			}
 			if value, ok := input["maxTokens"]; ok {
 				n, _ := exactNumber(value)
 				if n != nil && n.Num().Int64() > 0 {
 					maxTokens = int(n.Num().Int64())
 				}
 			}
-			local, err := callModelResolver(h.options.Models, agent.Model)
-			if err != nil {
-				return err
-			}
-			model, err := cloneModel(local, h.session.limits)
-			if err != nil {
-				return err
-			}
-			if model.ID != agent.Model.ID || model.Provider != agent.Model.Provider {
-				return reject("compaction model identity mismatch")
+			if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
+				maxTokens = model.MaxTokens
 			}
 			pinned, err := dtoObject(model, h.session.limits)
 			if err != nil {
@@ -180,9 +198,22 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return err
 			}
 			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "source": text, "instructions": instructions, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
-			if retry, ok := input["retry"]; ok {
-				checkpoint["retry"] = retry
+			checkpoint["thinkingLevel"] = string(agent.ThinkingLevel)
+			retry := agent.Settings.Retry
+			if raw, ok := input["retry"].(map[string]any); ok {
+				var explicit RetryPolicy
+				if err := fromObject(JSON(raw), &explicit, h.session.limits); err != nil {
+					return err
+				}
+				if explicit != (RetryPolicy{}) {
+					retry = explicit
+				}
 			}
+			retryValue, err := dtoObject(retry, h.session.limits)
+			if err != nil {
+				return err
+			}
+			checkpoint["retry"] = retryValue
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 			})
@@ -196,8 +227,14 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return err
 			}
 			local, err := callModelResolver(h.options.Models, ref)
-			if err != nil || local == nil || local.ID != ref.ID || local.Provider != ref.Provider {
-				return reject("compaction model unavailable")
+			if err != nil {
+				return err
+			}
+			if local == nil {
+				return failCompactionNoModel(ctx, r, ref)
+			}
+			if local.ID != ref.ID || local.Provider != ref.Provider {
+				return reject("compaction model identity mismatch")
 			}
 			model, err := cloneModel(local, h.session.limits)
 			if err != nil {
@@ -231,15 +268,23 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			}
 			maximum, _ := exactNumber(cp["maxTokens"])
 			maxTokens := int(maximum.Num().Int64())
-			options.MaxTokens = &maxTokens
 			if raw, ok := cp["settings"].(map[string]any); ok {
 				var settings RequestSettings
 				if err := fromObject(JSON(raw), &settings, h.session.limits); err != nil {
 					return err
 				}
-				options.Temperature = settings.Temperature
+				if err := applyRequestSettings(options, settings, h.session.limits); err != nil {
+					return err
+				}
 			}
+			options.MaxTokens = &maxTokens
 			options.Deferred = nil
+			options.CacheRetention = goai.CacheRetentionNone
+			options.Reasoning = nil
+			if thinking, _ := cp["thinkingLevel"].(string); thinking != "" && thinking != "off" {
+				level := goai.ThinkingLevel(thinking)
+				options.Reasoning = &level
+			}
 			source, _ := cp["source"].(string)
 			instructions, _ := cp["instructions"].(string)
 			conv := &goai.Context{SystemPrompt: compactionSystemPrompt, Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: compactionRequestText(source, instructions)}}}}}
@@ -248,7 +293,11 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return err
 			}
 			parts := []string{}
+			hasToolCalls := false
 			for _, block := range message.Content {
+				if block.Type == "toolCall" {
+					hasToolCalls = true
+				}
 				if block.Type == "text" {
 					parts = append(parts, block.Text)
 				}
@@ -262,11 +311,24 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				if err = usage.Update(func(value JSON) error { return addModelUsage(value, message, tx.limits) }); err != nil {
 					return nil, err
 				}
-				if !success || message.StopReason != goai.StopReasonStop || strings.TrimSpace(summary) == "" {
-					var policy RetryPolicy
-					if raw, ok := cp["retry"].(map[string]any); ok {
-						if err := fromObject(JSON(raw), &policy, tx.limits); err != nil {
+				if !success || message.StopReason != goai.StopReasonStop || hasToolCalls || strings.TrimSpace(summary) == "" {
+					policy := h.resolvedSettings(RequestSettings{}).Retry
+					if document, ok := agentDocument(tx.state, r.ConversationID()); ok {
+						var agent agentState
+						if err := fromObject(document.Value, &agent, tx.limits); err != nil {
 							return nil, err
+						}
+						policy = h.resolvedSettings(agent.Settings).Retry
+					}
+					if input, ok := task.Input.Value.(map[string]any); ok {
+						if raw, ok := input["retry"].(map[string]any); ok {
+							var explicit RetryPolicy
+							if err := fromObject(JSON(raw), &explicit, tx.limits); err != nil {
+								return nil, err
+							}
+							if explicit != (RetryPolicy{}) {
+								policy = explicit
+							}
 						}
 					}
 					attempt := 1
@@ -276,7 +338,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 							attempt = int(value.Num().Int64())
 						}
 					}
-					if policy.Enabled && attempt <= policy.MaxRetries && retryableReceipt(message) {
+					if message.StopReason == goai.StopReasonError && policy.Enabled && attempt <= policy.MaxRetries && retryableReceipt(message) {
 						now, err := r.Now()
 						if err != nil {
 							return nil, err
@@ -286,9 +348,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 							return nil, err
 						}
 						next["phase"], next["until"], next["attempt"] = "retry", retryDeadline(now, retryDelay(policy, attempt)), attempt+1
+						next["retryError"] = message.ErrorMessage
 						return &TaskState{Status: "running", Checkpoint: next}, nil
 					}
-					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: "compaction model failed"}}}, nil
+					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: summaryFailure(message), Detail: &TaskValue{Present: true, Value: JSON{"reason": "model_error"}}}}}, nil
 				}
 				cut, _ := exactNumber(cp["firstKept"])
 				firstKept := ID(cut.Num().Uint64())
@@ -309,6 +372,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			}
 			checkpoint["phase"] = "summarize"
 			delete(checkpoint, "until")
+			delete(checkpoint, "retryError")
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 			})
@@ -320,25 +384,40 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 	}})
 }
 func compactionCut(view ContextView, keep int) int {
-	cut := len(view.Entries)
-	tokens := 0
-	for i := len(view.Entries) - 1; i >= 0; i-- {
-		for _, message := range view.Contributions[i] {
-			tokens += goai.EstimateMessageTokens(receiptMessage(message))
-		}
-		if tokens > keep {
-			break
-		}
-		cut = i
+	start := 0
+	if view.Head != nil {
+		start = 1
 	}
-	for cut < len(view.Entries) && !compactionCuttable(view, cut) {
-		cut++
+	candidates := []int{}
+	for index := start; index < len(view.Contributions); index++ {
+		if compactionCuttable(view, index) {
+			candidates = append(candidates, index)
+		}
 	}
-	if cut == 0 || cut == len(view.Entries) {
+	kept, cut := 0, -1
+	for index := len(view.Contributions) - 1; index >= start; index-- {
+		for _, message := range view.Contributions[index] {
+			kept += goai.EstimateMessageTokens(receiptMessage(message))
+		}
+		if kept < keep {
+			continue
+		}
+		for _, candidate := range candidates {
+			if candidate >= index {
+				cut = candidate
+				break
+			}
+		}
+		if cut < 0 && len(candidates) > 0 {
+			cut = candidates[len(candidates)-1]
+		}
+		break
+	}
+	if cut < 0 {
 		return 0
 	}
-	for _, messages := range view.Contributions[:cut] {
-		if len(messages) > 0 {
+	for index := start; index < cut; index++ {
+		if len(view.Contributions[index]) > 0 {
 			return cut
 		}
 	}
@@ -346,16 +425,20 @@ func compactionCut(view ContextView, keep int) int {
 }
 func compactionCuttable(view ContextView, index int) bool {
 	messages := view.Contributions[index]
-	if len(messages) == 0 || messages[0].Role == goai.RoleToolResult {
+	if len(messages) == 0 {
 		return false
 	}
-	if messages[0].Role != goai.RoleUser {
+	if messages[0].Role == goai.RoleAssistant {
 		return true
+	}
+	if messages[0].Role != goai.RoleUser {
+		return false
 	}
 	for previous := index - 1; previous >= 0; previous-- {
 		assistant := false
 		calls := map[string]bool{}
-		for _, message := range view.Contributions[previous] {
+		for index := len(view.Contributions[previous]) - 1; index >= 0; index-- {
+			message := view.Contributions[previous][index]
 			if message.Role != goai.RoleAssistant {
 				continue
 			}
@@ -365,6 +448,7 @@ func compactionCuttable(view ContextView, index int) bool {
 					calls[block.ID] = true
 				}
 			}
+			break
 		}
 		if !assistant {
 			continue
@@ -372,8 +456,11 @@ func compactionCuttable(view ContextView, index int) bool {
 		if len(calls) == 0 {
 			return true
 		}
-		for _, later := range view.Contributions[index:] {
-			for _, message := range later {
+		for offset, later := range view.Contributions[index:] {
+			for position, message := range later {
+				if message.Role == goai.RoleAssistant && (offset > 0 || position > 0) {
+					return true
+				}
 				if message.Role == goai.RoleToolResult && calls[message.ToolCallID] {
 					return false
 				}

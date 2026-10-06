@@ -82,7 +82,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 				v := m.(map[string]any)
 				if v["role"] == "tool" {
 					found = true
-					if i == 0 || messages[i-1].(map[string]any)["role"] != "assistant" || v["tool_call_id"] != "repeated-provider-id" || v["content"] != "computed:5" {
+					if i == 0 || messages[i-1].(map[string]any)["role"] != "assistant" || v["tool_call_id"] != "repeated-provider-id" || v["content"] != "5" {
 						t.Error("call/result pairing", messages)
 					}
 				}
@@ -131,7 +131,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 			child = task
 		}
 	}
-	if child.Owner != parent.ID || parent.Status != "done" || child.Status != "done" {
+	if child.Owner == 0 || snapshot.Tasks[child.Owner].Kind != "pi.generation" || snapshot.Tasks[child.Owner].Status != "done" || parent.Status != "done" || child.Status != "done" {
 		t.Fatal("owned drain")
 	}
 	assertToolUsageReceipts(t, snapshot, "sum", &goai.Usage{Output: 1, TotalTokens: 1}, h.session.limits)
@@ -224,7 +224,7 @@ func TestM1cSchemaSubsetAndRepairBeforeIntent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || repairs.Load() != 1 {
+	if waitSubmission(t, sub).Submission.Status != "done" || effects.Load() != 1 || repairs.Load() != 2 {
 		t.Fatal("repair/effectcount")
 	}
 	state, e := h.Snapshot(bg)
@@ -301,6 +301,9 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 		escaped = api
 		if e := api.Output("retained prefix"); e != nil {
 			return ToolResult{}, e
+		}
+		if err := api.Details(JSON{"progress": true}); err != nil {
+			return ToolResult{}, err
 		}
 		close(entered)
 		<-release
@@ -397,15 +400,17 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	childTerminalSeq, parentTerminalSeq := uint64(0), uint64(0)
+	childTerminalSeq := uint64(0)
 	for _, entry := range state.Entries {
 		if entry.Value["role"] == string(goai.RoleToolResult) {
 			childTerminalSeq = entry.Seq
-		} else if entry.Value["errorCode"] == "aborted" {
-			parentTerminalSeq = entry.Seq
+		}
+		if entry.Value["role"] == string(goai.RoleAssistant) && entry.Value["errorCode"] == "aborted" {
+			t.Fatal("abort invented assistant receipt", entry)
 		}
 	}
-	if childTerminalSeq == 0 || parentTerminalSeq <= childTerminalSeq {
+	parentTerminalSeq := state.Seq // Last commit settles generation/submission after tool receipt.
+	if childTerminalSeq == 0 || parentTerminalSeq <= childTerminalSeq || state.Tasks[parent.ID].Status != "aborted" {
 		t.Fatal("notbottomup", childTerminalSeq, parentTerminalSeq)
 	}
 	if effects.Load() != 1 {
@@ -510,8 +515,8 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 	registry := NewRegistry()
 	reg := ToolRegistration{Definition: goai.Tool{Name: "pin", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "pin.impl", Version: 1, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
 		oldCalls.Add(1)
-		if e := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); e == nil {
-			t.Error("oversizedoutputaccepted")
+		if e := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); e != nil {
+			return ToolResult{}, e
 		}
 		return ToolResult{Content: "ok", Commit: func(tx *Tx) error { return reject("applicationfailure") }}, nil
 	}}
@@ -542,13 +547,19 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 		t.Fatal(e)
 	}
 	<-entered
-	reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { newCalls.Add(1); return ToolResult{}, nil }
+	reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		newCalls.Add(1)
+		if err := api.Output(strings.Repeat("x", MaxToolOutputBytes+1)); err != nil {
+			return ToolResult{}, err
+		}
+		return ToolResult{Content: "ok", Commit: func(*Tx) error { return reject("applicationfailure") }}, nil
+	}
 	if e = registry.Register(reg); e != nil {
 		t.Fatal(e)
 	}
 	close(release)
-	if waitSubmission(t, sub).Submission.Status != "done" || oldCalls.Load() != 1 || newCalls.Load() != 0 {
-		t.Fatal("phaseimplementationnotpinned")
+	if waitSubmission(t, sub).Submission.Status != "done" || oldCalls.Load() != 0 || newCalls.Load() != 1 {
+		t.Fatal("tool call did not resolve its current phase implementation")
 	}
 	state, e := h.Snapshot(bg)
 	if e != nil {
@@ -558,7 +569,7 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 		if task.Kind == "pi.tool" {
 			var cp toolCheckpoint
 			_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-			if cp.ErrorCode != "tool_outcome_rejected" || cp.Output != "" {
+			if cp.ErrorCode != "tool_outcome_rejected" {
 				t.Fatal("appfailure/output notatomic", cp)
 			}
 		}
@@ -752,12 +763,15 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				if task.Kind == "pi.tool" {
 					var cp toolCheckpoint
 					_ = fromObject(task.Checkpoint, &cp, h.session.limits)
-					want := "invalid_usage"
 					if mode == "valid-error" {
-						want = "tool_error"
-					}
-					if task.Status != "done" || cp.ErrorCode != want {
-						t.Fatal("toolreceipt", task.Status, cp.ErrorCode)
+						if task.Status != "done" || cp.ErrorCode != "tool_error" || cp.Result == nil {
+							t.Fatal("executor throw result", task, cp)
+						}
+					} else {
+						record, err := CanonicalTask(task, h.session.limits)
+						if err != nil || record.State.Outcome.Status != "faulted" || record.State.Outcome.Error.Message != "invalid_usage" || cp.Result != nil {
+							t.Fatal("invalid result did not scheduler-fault without receipt", record, cp, err)
+						}
 					}
 				}
 			}
@@ -782,7 +796,16 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 			if mode == "valid-error" {
 				expectedUsage = &goai.Usage{Input: 2, Output: 1, TotalTokens: 3}
 			}
-			assertToolUsageReceipts(t, state, "usage", expectedUsage, h.session.limits)
+			if mode == "valid-error" {
+				assertToolUsageReceipts(t, state, "usage", expectedUsage, h.session.limits)
+			} else {
+				for _, entry := range state.Entries {
+					var receipt MessageReceipt
+					if entry.Kind == "message" && fromObject(entry.Value, &receipt, h.session.limits) == nil && receipt.Role == goai.RoleToolResult && receipt.ToolName == "usage" {
+						t.Fatal("invalid tool result invented transcript receipt", receipt)
+					}
+				}
+			}
 			_ = h.Close(bg)
 			s, e = OpenJournal(dir, JournalOptions{})
 			if e != nil {
@@ -804,7 +827,18 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			assertToolUsageReceipts(t, state, "usage", expectedUsage, h2.session.limits)
+			if mode == "valid-error" {
+				assertToolUsageReceipts(t, state, "usage", expectedUsage, h2.session.limits)
+			} else {
+				for _, task := range state.Tasks {
+					if task.Kind == "pi.tool" {
+						var cp toolCheckpoint
+						if err := fromObject(task.Checkpoint, &cp, h2.session.limits); err != nil || cp.Result != nil {
+							t.Fatal("faulted result appeared on reopen", cp, err)
+						}
+					}
+				}
+			}
 		})
 	}
 }
@@ -911,10 +945,30 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	done := make(chan struct{})
 	go func() { h.drain(ch, fakeModel("partial-ownership"), id); close(done) }()
 	ch <- &goai.TextDeltaEvent{Partial: message}
-	// The next send establishes the consumer completed its detached checkpoint
-	// before the producer mutates the earlier pointer. During-copy mutation remains
-	// an unsupported caller data race, not a fake immutability guarantee.
+	// The next send establishes detached capture, not a checkpoint. Wait for
+	// the trailing publisher's adopted checkpoint before ending the stream.
 	ch <- &goai.StartEvent{}
+	deadline, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	for {
+		state, err := h.session.Snapshot(deadline)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var checkpoint generationCheckpoint
+		if err := fromObject(state.Tasks[id].Checkpoint, &checkpoint, h.session.limits); err != nil {
+			t.Fatal(err)
+		}
+		if checkpoint.Partial != nil {
+			break
+		}
+		select {
+		case <-deadline.Done():
+			t.Fatal("partial publication missing")
+		default:
+			runtime.Gosched()
+		}
+	}
 	message.Content[0].Text = "producer mutated"
 	close(ch)
 	<-done
@@ -993,12 +1047,16 @@ func TestM1cAbortAtOfferedCallBoundaryStartsNoTool(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	// The terminal response arrived after abort was adopted. The reference
+	// converts only a committed partial; it does not bill/publish this response.
+	if result.Message != nil {
+		t.Fatal("aborted terminal response published", result)
+	}
 	for _, doc := range state.Documents {
 		if doc.Kind == "pi.usage" {
 			models := doc.Value["models"].(map[string]any)
-			var usage goai.Usage
-			if e = fromObject(JSON(models["openai/durable-test"].(map[string]any)), &usage, h.session.limits); e != nil || usage.TotalTokens != 5 {
-				t.Fatal("knownabortbilllost", usage, e)
+			if _, exists := models["openai/durable-test"]; exists {
+				t.Fatal("uncommitted abort response billed", models)
 			}
 		}
 	}

@@ -28,7 +28,11 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 			return err
 		}
 	}
-	return tx.AppendEntry(draft)
+	if err := tx.AppendEntry(draft); err != nil {
+		return err
+	}
+	value["placedEntry"] = id
+	return nil
 }
 func (h *Harness) placeQueuedWrites(tx *Tx, conversation ID) error {
 	inbox, err := builtin(tx, conversation, "pi.inbox")
@@ -80,6 +84,10 @@ func (h *Harness) placeQueuedWrites(tx *Tx, conversation ID) error {
 				value["errorCode"] = "stale"
 				sub.Value = value
 			} else {
+				sub.Value, err = copyObject(sub.Value, tx.limits)
+				if err != nil {
+					return err
+				}
 				if err := appendPassiveWrite(tx, conversation, sub.Value); err != nil {
 					return err
 				}
@@ -157,6 +165,10 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 			err = tx.PutSubmission(sub)
 		} else {
 			err = appendPassiveWrite(tx, conversation, value)
+			if err == nil {
+				sub.Value = value
+				err = tx.PutSubmission(sub)
+			}
 		}
 	}
 	return id, err

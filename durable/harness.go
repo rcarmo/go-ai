@@ -13,32 +13,48 @@ import (
 // Harness runs persistent model generations and their owned host tools. Opening never starts
 // provider effects. Explicit Submit/Resume/Wait may schedule committed work.
 type Harness struct {
-	session   *Session
-	scheduler *taskScheduler
-	options   Options
-	life      context.Context
-	cancel    context.CancelFunc
-	mu        sync.Mutex
-	closing   atomic.Bool
-	workers   map[ID]bool
-	pins      map[ID]map[string]registeredTool
-	closeOnce sync.Once
-	closeDone chan struct{}
-	closeErr  error
-	changed   chan struct{}
+	session           *Session
+	scheduler         *taskScheduler
+	options           Options
+	hostSettings      atomic.Pointer[HarnessSettings]
+	life              context.Context
+	cancel            context.CancelFunc
+	mu                sync.Mutex
+	closing           atomic.Bool
+	workers           map[ID]bool
+	pins              map[ID]map[string]registeredTool
+	closeOnce         sync.Once
+	closeDone         chan struct{}
+	closeErr          error
+	changed           chan struct{}
+	submissionWaiters map[ID]map[chan struct{}]bool // Session-line owned; bounded registrations.
 }
 type ConversationHandle struct {
 	h  *Harness
 	id ID
 }
 type agentState struct {
-	Model        ModelRef        `json:"model"`
-	Name         string          `json:"name"`
-	Cwd          string          `json:"cwd,omitempty"`
-	SystemPrompt string          `json:"systemPrompt"`
-	Settings     RequestSettings `json:"settings"`
-	Extensions   *[]string       `json:"extensions,omitempty"`
-	Tools        *[]string       `json:"tools,omitempty"`
+	Model           ModelRef                `json:"model"`
+	Name            string                  `json:"name"`
+	Cwd             string                  `json:"cwd,omitempty"`
+	SystemPrompt    string                  `json:"systemPrompt"`
+	Instructions    *string                 `json:"instructions,omitempty"`
+	Settings        RequestSettings         `json:"settings"`
+	ThinkingLevel   goai.ModelThinkingLevel `json:"thinkingLevel,omitempty"`
+	Extensions      *[]string               `json:"extensions,omitempty"`
+	Tools           *[]string               `json:"tools,omitempty"`
+	ExtensionFilter *ExtensionFilter        `json:"extensionFilter,omitempty"`
+	ToolsRemoved    *[]string               `json:"toolsRemoved,omitempty"`
+	// Process-local defaults are injected only for selection, never persisted.
+	defaultExtensions *[]string
+}
+
+func (h *Harness) selectionAgent(agent agentState) agentState {
+	agent.defaultExtensions = h.options.Extensions
+	if settings := h.hostSettings.Load(); settings != nil {
+		agent.defaultExtensions = settings.Extensions
+	}
+	return agent
 }
 
 func Open(ctx context.Context, store Storage, options Options) (*Harness, error) {
@@ -47,6 +63,30 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	}
 	if e := ctx.Err(); e != nil {
 		return nil, e
+	}
+	if options.Settings != nil {
+		resolved := (&Harness{options: options}).resolvedSettings(RequestSettings{})
+		value, err := cloneSettings(resolved, DefaultLimits())
+		if err != nil {
+			return nil, err
+		}
+		enabledRetry, enabledCompact := value.Retry.Enabled, value.Compaction.Enabled
+		extensions := options.Settings.Extensions
+		if extensions != nil {
+			names, err := agentSelectionNames(*extensions)
+			if err != nil {
+				return nil, err
+			}
+			extensions = &names
+		}
+		options.Settings = &HarnessSettings{Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode}
+	}
+	if options.Extensions != nil {
+		names, err := agentSelectionNames(*options.Extensions)
+		if err != nil {
+			return nil, err
+		}
+		options.Extensions = &names
 	}
 	s, e := OpenSession(store)
 	if e != nil {
@@ -57,6 +97,10 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		options.Models = goai.GetModel
 	}
 	h := &Harness{session: s, options: options, life: life, cancel: cancel, workers: map[ID]bool{}, pins: map[ID]map[string]registeredTool{}, closeDone: make(chan struct{}), changed: make(chan struct{})}
+	if options.Settings != nil && options.Settings.Extensions == nil {
+		options.Settings.Extensions = options.Extensions
+	}
+	h.hostSettings.Store(options.Settings)
 	failOpen := func(primary error) (*Harness, error) {
 		cancel()
 		s.taskScheduler = nil
@@ -107,7 +151,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if err != nil {
 		return failOpen(err)
 	}
-	if _, err = h.options.Registry.RegisterTask(compaction); err != nil {
+	if err = h.options.Registry.registerBuiltinTask(compaction); err != nil {
 		return failOpen(err)
 	}
 	anchor, err := backgroundAnchorDefinition()
@@ -137,19 +181,27 @@ func (h *Harness) notify() {
 	h.changed = make(chan struct{})
 	h.mu.Unlock()
 }
-func (h *Harness) signal() <-chan struct{} { h.mu.Lock(); defer h.mu.Unlock(); return h.changed }
 func (h *Harness) Root(ctx context.Context, change AgentChange) (*ConversationHandle, error) {
+	return h.RootWithInit(ctx, change, nil)
+}
+
+// RootWithInit initializes the reserved root once. Existing roots ignore both
+// the convenience agent change and initializer, matching lazy root acquisition.
+func (h *Harness) RootWithInit(ctx context.Context, change AgentChange, init ConversationInit) (*ConversationHandle, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
-	if e := h.configureLocked(ctx, 1, change, true); e != nil {
+	if e := h.configureLockedWithInit(ctx, 1, change, true, init); e != nil {
 		return nil, e
 	}
 	return &ConversationHandle{h: h, id: 1}, nil
 }
 func (h *Harness) Conversation(ctx context.Context, id ID) (*ConversationHandle, error) {
+	if h.closing.Load() {
+		return nil, ErrClosed
+	}
 	s, e := h.session.Snapshot(ctx)
 	if e != nil {
 		return nil, e
@@ -160,6 +212,10 @@ func (h *Harness) Conversation(ctx context.Context, id ID) (*ConversationHandle,
 	return &ConversationHandle{h: h, id: id}, nil
 }
 func (h *Harness) CreateConversation(ctx context.Context, change AgentChange) (*ConversationHandle, error) {
+	return h.createConversation(ctx, change, nil)
+}
+
+func (h *Harness) createConversation(ctx context.Context, change AgentChange, init func(*Tx, ID) error) (*ConversationHandle, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing.Load() {
@@ -180,19 +236,35 @@ func (h *Harness) CreateConversation(ctx context.Context, change AgentChange) (*
 		if e := tx.CreateConversation(Conversation{ID: id, Name: change.Name}); e != nil {
 			return e
 		}
-		doc, e := tx.MintID()
-		if e != nil {
-			return e
-		}
 		v, e := dtoObject(state, h.session.limits)
 		if e != nil {
 			return e
 		}
-		_, e = tx.CreateDocument(Document{ID: doc, Scope: "conversation", Owner: id, Kind: "pi.agent", Version: 1, Value: v, History: "rewindable", Fork: "asOf"})
+		{
+			candidate, err := tx.current()
+			if err != nil {
+				return err
+			}
+			if existing, ok := agentDocument(candidate, id); ok {
+				handle, err := tx.Document(existing.ID)
+				if err != nil {
+					return err
+				}
+				e = handle.Set(v)
+			} else {
+				e = reject("created agent unavailable")
+			}
+		}
 		if e != nil {
 			return e
 		}
-		return initializeBuiltins(tx, id)
+		if err := initializeBuiltins(tx, id); err != nil {
+			return err
+		}
+		if init != nil {
+			return callConversationInit(init, tx, id)
+		}
+		return nil
 	})
 	if e != nil {
 		return nil, e
@@ -200,14 +272,26 @@ func (h *Harness) CreateConversation(ctx context.Context, change AgentChange) (*
 	return &ConversationHandle{h: h, id: id}, nil
 }
 func (h *Harness) agent(c AgentChange) (agentState, error) {
-	if c.Model.ID == "" || c.Model.Provider == "" {
-		return agentState{}, reject("model reference required")
+	if (c.Model.ID == "") != (c.Model.Provider == "") {
+		return agentState{}, reject("incomplete model reference")
+	}
+	switch c.ThinkingLevel {
+	case "", "off", "minimal", "low", "medium", "high", "xhigh":
+	default:
+		return agentState{}, reject("invalid thinking level")
 	}
 	settings, e := cloneSettings(c.Settings, h.session.limits)
-	if e == nil && (c.Model.ID == "" || len(c.Model.ID) > h.session.limits.MaxStringBytes || len(c.SystemPrompt) > h.session.limits.MaxStringBytes || len(c.Cwd) > h.session.limits.MaxStringBytes) {
+	if e == nil && (len(c.Model.ID) > h.session.limits.MaxStringBytes || len(c.SystemPrompt) > h.session.limits.MaxStringBytes || len(c.Cwd) > h.session.limits.MaxStringBytes) {
 		return agentState{}, reject("agent string limit")
 	}
-	state := agentState{Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings}
+	state := agentState{Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
+	if c.Instructions != nil {
+		if len(*c.Instructions) > h.session.limits.MaxStringBytes {
+			return agentState{}, reject("agent string limit")
+		}
+		value := *c.Instructions
+		state.Instructions = &value
+	}
 	for _, selection := range []struct {
 		source *[]string
 		target **[]string
@@ -215,18 +299,34 @@ func (h *Harness) agent(c AgentChange) (agentState, error) {
 		if selection.source == nil {
 			continue
 		}
-		if len(*selection.source) > DefaultLimits().MaxPage {
-			return agentState{}, reject("agent selection limit")
+		names, err := agentSelectionNames(*selection.source)
+		if err != nil {
+			return agentState{}, err
 		}
-		copy := append([]string{}, (*selection.source)...)
-		seen := map[string]bool{}
-		for _, name := range copy {
-			if !validKind(name) || seen[name] {
-				return agentState{}, reject("invalid agent selection")
-			}
-			seen[name] = true
+		*selection.target = &names
+	}
+	if c.Extensions != nil && c.ExtensionFilter != nil || c.Tools != nil && c.ToolsRemoved != nil {
+		return agentState{}, reject("conflicting agent selection")
+	}
+	if c.ExtensionFilter != nil {
+		value := *c.ExtensionFilter
+		var err error
+		value.Add, err = agentSelectionNames(value.Add)
+		if err != nil {
+			return agentState{}, err
 		}
-		*selection.target = &copy
+		value.Remove, err = agentSelectionNames(value.Remove)
+		if err != nil {
+			return agentState{}, err
+		}
+		state.ExtensionFilter = &value
+	}
+	if c.ToolsRemoved != nil {
+		names, err := agentSelectionNames(*c.ToolsRemoved)
+		if err != nil {
+			return agentState{}, err
+		}
+		state.ToolsRemoved = &names
 	}
 	return state, e
 }
@@ -239,6 +339,10 @@ func agentDocument(s Snapshot, id ID) (Document, bool) {
 	return Document{}, false
 }
 func (h *Harness) configureLocked(ctx context.Context, id ID, c AgentChange, initializeOnly bool) error {
+	return h.configureLockedWithInit(ctx, id, c, initializeOnly, nil)
+}
+
+func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentChange, initializeOnly bool, init ConversationInit) error {
 	s, e := h.session.Snapshot(ctx)
 	if e != nil {
 		return e
@@ -261,6 +365,39 @@ func (h *Harness) configureLocked(ctx context.Context, id ID, c AgentChange, ini
 	_, e = h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
 			return ErrClosed
+		}
+		firstRoot := initializeOnly && id == 1 && !found
+		if firstRoot {
+			for _, retained := range tx.state.Documents {
+				if retained.Scope == "conversation" && retained.Owner == id && retained.Kind == "pi.agent" {
+					firstRoot = false
+					break
+				}
+			}
+		}
+		if firstRoot {
+			if err := h.initializeCreatedConversation(tx, tx.state.Conversations[id]); err != nil {
+				return err
+			}
+			candidate, err := tx.current()
+			if err != nil {
+				return err
+			}
+			created, ok := agentDocument(candidate, id)
+			if !ok {
+				return reject("created agent unavailable")
+			}
+			handle, err := tx.Document(created.ID)
+			if err != nil {
+				return err
+			}
+			if err := handle.Set(value); err != nil {
+				return err
+			}
+			if init != nil {
+				return callConversationInit(init, tx, id)
+			}
+			return nil
 		}
 		if found {
 			handle, e := tx.Document(doc.ID)
@@ -291,17 +428,21 @@ func (c *ConversationHandle) Configure(ctx context.Context, change AgentChange) 
 	return c.h.configureLocked(ctx, c.id, change, false)
 }
 func (c *ConversationHandle) Context(ctx context.Context) (*goai.Context, error) {
+	if c.h.closing.Load() {
+		return nil, ErrClosed
+	}
 	s, e := c.h.session.Snapshot(ctx)
 	if e != nil {
 		return nil, e
 	}
-	d, ok := agentDocument(s, c.id)
-	if !ok {
-		return nil, reject("agent not configured")
+	if _, exists := s.Conversations[c.id]; !exists {
+		return nil, reject("unknown conversation")
 	}
 	var a agentState
-	if e = fromObject(d.Value, &a, c.h.session.limits); e != nil {
-		return nil, e
+	if d, ok := agentDocument(s, c.id); ok {
+		if e = fromObject(d.Value, &a, c.h.session.limits); e != nil {
+			return nil, e
+		}
 	}
 	messages, e := contextReceipts(s, c.id, c.h.session.limits)
 	if e != nil {
@@ -314,39 +455,31 @@ func (c *ConversationHandle) Context(ctx context.Context) (*goai.Context, error)
 	return conv, nil
 }
 func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextView, error) {
+	if c.h.closing.Load() {
+		return ContextView{}, ErrClosed
+	}
 	return c.h.session.ContextView(ctx, c.id, at)
 }
 
 func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, limit int) ([]Entry, error) {
+	if c.h.closing.Load() {
+		return nil, ErrClosed
+	}
 	return c.h.session.store.Entries(ctx, c.id, cursor, limit)
 }
 
-// Commit allows passive application records only while no generation owns this
-// conversation. It does not trigger a model. Full scheduler ownership is M1c.
+// Commit binds task/document creation to this conversation without enabling
+// scheduling. Committed application changes are allowed while work is live.
 func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
 	c.h.mu.Lock()
 	defer c.h.mu.Unlock()
-	if c.h.closing.Load() {
-		return 0, ErrClosed
-	}
-	s, e := c.h.session.Snapshot(ctx)
-	if e != nil {
-		return 0, e
-	}
-	for _, t := range s.Tasks {
-		if t.Conversation == c.id && !terminalStatus(t.Status) {
-			return 0, reject("conversation busy")
-		}
-	}
-	return c.h.session.Commit(ctx, func(tx *Tx) error {
-		if c.h.closing.Load() {
-			return ErrClosed
-		}
-		return callback(tx)
-	})
+	return c.h.CommitTasks(ctx, c.id, callback)
 }
 func (h *Harness) Snapshot(ctx context.Context) (Snapshot, error) { return h.session.Snapshot(ctx) }
-func (h *Harness) Inspect(ctx context.Context) (Snapshot, error)  { return h.Snapshot(ctx) }
+
+// Inspect returns live work without scheduling, migration, or callbacks.
+// Snapshot is the separate raw storage inspection surface.
+func (h *Harness) Inspect(ctx context.Context) (HarnessInspection, error) { return h.InspectTasks(ctx) }
 func terminalStatus(status string) bool {
 	return status == "done" || status == "failed" || status == "aborted"
 }
@@ -434,6 +567,19 @@ func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
 			return tx.Document(d.ID)
 		}
 	}
+	// Newly initialized plain-Session conversations have no committed baseline.
+	// Build a candidate only for that miss; existing handles read staged edits.
+	if len(tx.writes) > 0 {
+		candidate, err := tx.current()
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range candidate.Documents {
+			if !d.Retired && d.Scope == "conversation" && d.Owner == conversation && d.Kind == kind && d.Key == "" {
+				return tx.Document(d.ID)
+			}
+		}
+	}
 	return nil, reject("builtin document missing")
 }
 func initializeBuiltins(tx *Tx, conversation ID) error {
@@ -441,6 +587,30 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 		kind  string
 		value JSON
 	}{{"pi.live", JSON{}}, {"pi.inbox", JSON{"items": []any{}}}, {"pi.usage", JSON{"models": JSON{}, "tools": JSON{}}}} {
+		if tx.session != nil && tx.session.taskScheduler != nil {
+			found := false
+			for _, doc := range tx.state.Documents {
+				if doc.Scope == "conversation" && doc.Owner == conversation && doc.Kind == v.kind && !doc.Retired {
+					found = true
+					break
+				}
+			}
+			if !found && len(tx.writes) > 0 {
+				candidate, err := tx.current()
+				if err != nil {
+					return err
+				}
+				for _, doc := range candidate.Documents {
+					if doc.Scope == "conversation" && doc.Owner == conversation && doc.Kind == v.kind && !doc.Retired {
+						found = true
+						break
+					}
+				}
+			}
+			if found {
+				continue
+			}
+		}
 		id, e := tx.MintID()
 		if e != nil {
 			return e
@@ -452,8 +622,8 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 	return nil
 }
 
-// CommitTasks binds native task creation while preserving legacy passive busy
-// Commit behaviour. Execution replacements still require private runtime actions.
+// CommitTasks binds native task creation to an optional conversation.
+// Execution replacements still require private runtime actions.
 func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback func(*Tx) error) (uint64, error) {
 	if h.closing.Load() {
 		return 0, ErrClosed
@@ -462,8 +632,10 @@ func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback fun
 		if h.closing.Load() {
 			return ErrClosed
 		}
-		if _, ok := tx.state.Conversations[conversation]; !ok {
-			return reject("unknown conversation")
+		if conversation != 0 {
+			if _, ok := tx.state.Conversations[conversation]; !ok {
+				return reject("unknown conversation")
+			}
 		}
 		tx.taskConversation = conversation
 		return callback(tx)
@@ -615,7 +787,7 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 	return result, nil
 }
 func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) {
-	result := TaskInspectionView{Scheduling: "paused"}
+	result := TaskInspectionView{Scheduling: "paused", Tasks: []TaskInspection{}, Submissions: []Submission{}}
 	err := h.session.readTasks(ctx, func(state Snapshot) error {
 		if h.closing.Load() {
 			result.Scheduling = "closing"
@@ -627,6 +799,18 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 		snapshot, err := h.options.Registry.taskSnapshot(h.session.limits)
 		if err != nil {
 			return err
+		}
+		for _, id := range ids(state.Submissions) {
+			submission := state.Submissions[id]
+			if submission.Status == "pending" || submission.Status == "running" {
+				copy := submission
+				value, err := copyObject(submission.Value, h.session.limits)
+				if err != nil {
+					return err
+				}
+				copy.Value = value
+				result.Submissions = append(result.Submissions, copy)
+			}
 		}
 		for _, id := range ids(state.Tasks) {
 			task := state.Tasks[id]
@@ -690,7 +874,15 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 			continue
 		}
 		steer.Status = hold.FinalStatus
-		steer.Value = JSON{"message": value}
+		oldValue := steer.Value
+		steer.Value = JSON{"taskId": task.ID}
+		if checkpoint.Reset {
+			steer.Status, steer.Value["errorCode"] = "aborted", "reset"
+		}
+		retainSubmissionPlacement(oldValue, steer.Value, hold.Entry)
+		if value != nil {
+			steer.Value["message"] = value
+		}
 		if err := tx.PutSubmission(steer); err != nil {
 			return err
 		}
@@ -700,9 +892,20 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 		return reject("submission unavailable")
 	}
 	if !terminalStatus(sub.Status) {
+		oldValue := sub.Value
 		sub.Status = hold.FinalStatus
 		if checkpoint.Reset {
+			sub.Status = "aborted" // native envelope projects unanswered/reset
 			sub.Value = JSON{"errorCode": "reset", "message": value}
+		} else if hold.Action == "generation-no-model" {
+			sub.Value = JSON{"errorCode": "no_model"}
+		} else if hold.Action == "generation-model-failure" {
+			sub.Value = JSON{"errorCode": "model_error"}
+		} else if hold.Action == "generation-abort" {
+			sub.Value = JSON{"errorCode": "aborted"}
+			if value != nil {
+				sub.Value["message"] = value
+			}
 		} else if hold.Action == "scheduler-generation" {
 			sub.Value = JSON{"errorCode": hold.Outcome.Status, "reason": hold.Outcome.Reason}
 			if hold.Entry != 0 {
@@ -710,7 +913,21 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 			}
 		} else {
 			sub.Value = JSON{"message": value}
+			if hold.Outcome.Status == "failed" && hold.Outcome.Error != nil && hold.Outcome.Error.Detail != nil {
+				var detail map[string]any
+				switch value := hold.Outcome.Error.Detail.Value.(type) {
+				case JSON:
+					detail = value
+				case map[string]any:
+					detail = value
+				}
+				if detail["reason"] == "model_error" {
+					sub.Value["errorCode"] = "model_error"
+				}
+			}
 		}
+		sub.Value["taskId"] = task.ID
+		retainSubmissionPlacement(oldValue, sub.Value, hold.Entry)
 		if err := tx.PutSubmission(sub); err != nil {
 			return err
 		}
@@ -725,7 +942,12 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 	}
 	run, _ := current["run"].(map[string]any)
 	if run != nil && fmt.Sprint(run["task"]) == strconv.FormatUint(uint64(task.ID), 10) {
-		if err = live.Set(JSON{}); err != nil {
+		if err = live.Update(func(value JSON) error {
+			delete(value, "run")
+			delete(value, "generation")
+			delete(value, "tools")
+			return nil
+		}); err != nil {
 			return err
 		}
 	}
@@ -773,8 +995,13 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 		if !ok {
 			return reject("hold receipt missing")
 		}
-		if err := h.cleanupGeneration(tx, task, hold, entry.Value); err != nil {
-			return err
+		// Fresh decisions already ran endRun. Only legacy held receipts with
+		// pending inputs need boundary cleanup here; repeating it could place
+		// writes queued for a later live run.
+		if !terminalStatus(tx.state.Submissions[hold.Submission].Status) {
+			if err := h.cleanupGeneration(tx, task, hold, entry.Value); err != nil {
+				return err
+			}
 		}
 	}
 	if hold.Action == "scheduler-generation" {
@@ -789,7 +1016,6 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 		if cp.Partial != nil {
 			receipt := *cp.Partial
 			receipt.StopReason = goai.StopReasonAborted
-			receipt.ErrorCode = hold.Outcome.Status
 			encoded, err := dtoObject(receipt, tx.limits)
 			if err != nil {
 				return err
@@ -821,6 +1047,9 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 			return err
 		}
 	}
+	// Stored scheduler-tool holds retain their legacy receipt cleanup. New
+	// scheduler-tool-missing holds settle without inventing transcript records;
+	// context derivation supplies the missing-result envelope to the provider.
 	if hold.Action == "scheduler-tool" {
 		var cp toolCheckpoint
 		if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
