@@ -60,8 +60,20 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		// Build request body
+		baseURL := model.BaseURL
+		deployment := model.ID
+		if model.Provider == goai.ProviderAzureOpenAI {
+			var err error
+			baseURL, deployment, _, err = goai.ResolveAzureConfig(model, opts)
+			if err != nil {
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				return
+			}
+		}
+		// Deployment is a wire override; callbacks/response attribution retain
+		// the catalog identity and callers can still replace the payload.
 		body := buildRequestBody(model, convCtx, opts)
+		body.Model = deployment
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
@@ -74,12 +86,11 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		baseURL := model.BaseURL
 		if goai.IsCloudflareProvider(model.Provider) {
 			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
 		}
-		url := baseURL + "/chat/completions"
-		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
+		endpoint := strings.TrimRight(baseURL, "/") + "/chat/completions"
+		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyJSON))
 		if err != nil {
 			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 			return
@@ -220,6 +231,9 @@ type chatMessage struct {
 	Role             string            `json:"role"`
 	Content          interface{}       `json:"content"` // string or []contentPart
 	ReasoningDetails []reasoningDetail `json:"reasoning_details,omitempty"`
+	ReasoningContent *string           `json:"reasoning_content,omitempty"`
+	Reasoning        *string           `json:"reasoning,omitempty"`
+	ReasoningText    *string           `json:"reasoning_text,omitempty"`
 	ToolCalls        []toolCallPart    `json:"tool_calls,omitempty"`
 	ToolCallID       string            `json:"tool_call_id,omitempty"`
 	Name             string            `json:"name,omitempty"`
@@ -610,22 +624,15 @@ func applyAnthropicCacheControl(msgs []chatMessage, marker *cacheControl) {
 }
 
 func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string]interface{} {
-	var out map[string]interface{}
-	if model != nil && len(model.SamplingParams) > 0 {
-		out = make(map[string]interface{}, len(model.SamplingParams))
-		for k, v := range model.SamplingParams {
-			out[k] = v
+	level := goai.ThinkingOff
+	var overrides map[string]any
+	if opts != nil {
+		if opts.Reasoning != nil {
+			level = goai.ModelThinkingLevel(*opts.Reasoning)
 		}
+		overrides = opts.SamplingParams
 	}
-	if opts != nil && len(opts.SamplingParams) > 0 {
-		if out == nil {
-			out = make(map[string]interface{}, len(opts.SamplingParams))
-		}
-		for k, v := range opts.SamplingParams {
-			out[k] = v
-		}
-	}
-	return out
+	return goai.ResolveSamplingParams(model, level, overrides)
 }
 
 func buildChatTemplateValues(model *goai.Model, opts *goai.StreamOptions, effort string, values map[string]goai.ChatTemplateKwargValue) map[string]interface{} {
@@ -815,6 +822,27 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 				msg.Content = parts
 			} else if len(textParts) > 0 {
 				msg.Content = goai.SanitizeSurrogates(joinStrings(textParts))
+			}
+
+			if len(msg.ReasoningDetails) == 0 && len(thinkingParts) > 0 && (compat.RequiresThinkingAsText == nil || !*compat.RequiresThinkingAsText) {
+				for _, block := range m.Content {
+					if block.Type == "thinking" && block.Thinking != "" {
+						value := strings.Join(thinkingParts, "\n")
+						switch block.ThinkingSignature {
+						case "reasoning_content":
+							msg.ReasoningContent = &value
+						case "reasoning":
+							msg.Reasoning = &value
+						case "reasoning_text":
+							msg.ReasoningText = &value
+						}
+						break
+					}
+				}
+			}
+			if msg.ReasoningContent == nil && model.Reasoning && compat.RequiresReasoningContentOnAssistantMessages != nil && *compat.RequiresReasoningContentOnAssistantMessages {
+				value := ""
+				msg.ReasoningContent = &value
 			}
 
 			// Skip empty assistant messages with no tool calls
@@ -1162,13 +1190,13 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 
 		// Thinking/reasoning content — check fields in priority order
 		// (reasoning_content for llama.cpp, reasoning for other endpoints, reasoning_text)
-		var reasoningDelta string
+		var reasoningDelta, reasoningField string
 		if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
-			reasoningDelta = *delta.ReasoningContent
+			reasoningDelta, reasoningField = *delta.ReasoningContent, "reasoning_content"
 		} else if delta.Reasoning != nil && *delta.Reasoning != "" {
-			reasoningDelta = *delta.Reasoning
+			reasoningDelta, reasoningField = *delta.Reasoning, "reasoning"
 		} else if delta.ReasoningText != nil && *delta.ReasoningText != "" {
-			reasoningDelta = *delta.ReasoningText
+			reasoningDelta, reasoningField = *delta.ReasoningText, "reasoning_text"
 		}
 		if reasoningDelta != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
@@ -1184,6 +1212,9 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				thinkingBlockIdx = idx
 			}
 			partial.Content[idx].Thinking += reasoningDelta
+			if partial.Content[idx].ThinkingSignature == "" {
+				partial.Content[idx].ThinkingSignature = reasoningField
+			}
 			ch <- goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
 				Delta:        reasoningDelta,

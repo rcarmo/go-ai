@@ -14,6 +14,12 @@ func retryMessage(errorMessage string) *goai.Message {
 }
 
 func TestRetryAssistantErrorMatchesExplicitProviderRetryGuidance(t *testing.T) {
+	if !goai.IsRetryableAssistantError(retryMessage("Pending stream has been canceled")) {
+		t.Fatal("Bedrock stalled HTTP/2 cancellation must be retryable")
+	}
+	if goai.IsRetryableAssistantError(retryMessage("quota exceeded: pending stream has been canceled")) {
+		t.Fatal("quota exclusion must precede retry phrase")
+	}
 	if !goai.IsRetryableAssistantError(retryMessage(openAIExplicitRetryMessage)) {
 		t.Fatal("expected OpenAI explicit retry guidance to be retryable")
 	}

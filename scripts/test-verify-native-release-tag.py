@@ -7,6 +7,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("test-verify-native-release-tag")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VERIFY = ROOT / "scripts" / "verify-native-release-tag.py"
 RUI_NAME = "Rui Carmo"

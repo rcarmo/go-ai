@@ -2234,6 +2234,15 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 					if err != nil {
 						t.Fatal(err)
 					}
+					// Provider identity is a new 1.0.4 builtin. Seed it separately
+					// so the exact 3/4-write withdrawal budget remains unchanged.
+					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
+						_, err := ensureProviderDocument(tx, conversation)
+						return err
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
 					_, err = h.CommitTasks(bg, conversation, func(tx *Tx) error {
 						if err := initializeBuiltins(tx, conversation); err != nil {
 							return err

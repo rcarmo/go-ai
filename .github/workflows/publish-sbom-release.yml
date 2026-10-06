@@ -26,6 +26,18 @@ on:
 permissions:
   contents: write
 
+env:
+  PROJECT_TMP_ROOT: ${{ runner.temp }}/go-ai
+  GOCACHE: ${{ runner.temp }}/go-ai/cache/go-build
+  GOMODCACHE: ${{ runner.temp }}/go-ai/cache/go-mod
+  GOPATH: ${{ runner.temp }}/go-ai/cache/go-path
+  XDG_CACHE_HOME: ${{ runner.temp }}/go-ai/cache/xdg
+  TMPDIR: ${{ runner.temp }}/go-ai/build/tmp
+  TMP: ${{ runner.temp }}/go-ai/build/tmp
+  TEMP: ${{ runner.temp }}/go-ai/build/tmp
+  GOTMPDIR: ${{ runner.temp }}/go-ai/build/tmp
+  PYTHONPYCACHEPREFIX: ${{ runner.temp }}/go-ai/cache/python
+
 jobs:
   publish-sbom:
     name: Publish accepted runtime SBOM
@@ -117,11 +129,14 @@ jobs:
           printf '%s\n' "runtime_full_ref=$actual_ref" >> "$GITHUB_ENV"
           printf '%s\n' "runtime_short_ref=${actual_ref:0:12}" >> "$GITHUB_ENV"
 
+      - name: Initialize project-owned temporary paths
+        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
-          cache: true
+          go-version: '1.26.6'
+          cache: false
           cache-dependency-path: runtime/go.sum
 
       - name: Generate SBOM from runtime and run security/license gates
@@ -129,7 +144,7 @@ jobs:
         working-directory: runtime
         run: |
           set -euo pipefail
-          make sbom vuln-check license-check GO_TMPDIR=/tmp
+          make sbom vuln-check license-check PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai GO_TMPDIR=${{ runner.temp }}/go-ai/build/tmp
 
       - name: Normalize and validate SBOM with workflow tooling
         shell: bash
@@ -143,7 +158,7 @@ jobs:
           sha256sum runtime/artifacts/sbom.cdx.json > runtime/artifacts/sbom.cdx.json.sha256
           sed -i 's#  runtime/artifacts/sbom.cdx.json#  artifacts/sbom.cdx.json#' runtime/artifacts/sbom.cdx.json.sha256
           python3 tooling/scripts/validate-sbom.py runtime/artifacts/sbom.cdx.json runtime/artifacts/sbom.cdx.json.sha256 --expected-revision "$sbom_root_version" --expected-vcs-revision "$runtime_full_ref"
-          python3 tooling/scripts/test-validate-sbom.py
+          bash tooling/scripts/test-python-profile.sh tooling/scripts/test-validate-sbom.py
           python3 - <<'PY'
           import json
           import os
@@ -180,6 +195,15 @@ jobs:
               raise SystemExit(1)
           print(f"SBOM provenance matches runtime {os.environ['runtime_full_ref']} using tooling {os.environ['tooling_full_ref']}")
           PY
+
+      - name: Upload helper analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ai-publisher-profiles-${{ github.sha }}
+          path: ${{ runner.temp }}/go-ai/evidence/analysis/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Normalize release asset names
         shell: bash

@@ -24,6 +24,51 @@ type TextLine struct {
 	Text       string
 	Terminated bool
 }
+type BinaryReader interface {
+	Info(context.Context) (FileInfo, error)
+	Read(context.Context, int64, int) ([]byte, error)
+	ScanLines(context.Context, int64, *int64) (LineScan, error)
+	Close(context.Context) error
+}
+type LineScan struct {
+	Newlines                      int64
+	Start, End                    int64
+	FirstLineEnd, LastLineStart   int64
+	SelectedBytes, FirstLineBytes int64
+}
+type DirPage struct {
+	Entries []FileInfo
+	Done    bool
+}
+type DirReader interface {
+	Next(context.Context, int) (DirPage, error)
+	Close(context.Context) error
+}
+type WatchTarget struct {
+	Path          string
+	Recursive     bool
+	ExcludeHidden bool
+	ExcludeNames  []string
+}
+type WatchChange struct {
+	Paths    []string
+	Overflow bool
+	Error    *FileError
+}
+type FileWatcher interface {
+	Mode() string
+	Close(context.Context) error
+}
+
+// ExtendedFileSystem adds 1.0.4 capabilities without breaking existing injected
+// environments. Production reads prefer this bounded positional interface.
+type ExtendedFileSystem interface {
+	FileSystem
+	OpenBinaryReader(context.Context, string, bool) (BinaryReader, error)
+	OpenDirReader(context.Context, string) (DirReader, error)
+	Watch(context.Context, []WatchTarget, func(WatchChange)) (FileWatcher, error)
+}
+
 type TextLineReader interface {
 	ReadLine(context.Context) (TextLine, bool, error)
 	Close(context.Context) error

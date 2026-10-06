@@ -17,13 +17,35 @@ type ShellSpillOptions struct {
 	AfterBytes int
 	AfterLines int
 }
+type ShellOutputSkip struct {
+	Bytes, Newlines int64
+	EndsWithNewline bool
+}
+type ShellOutputInfo struct {
+	Stream  string
+	Skipped *ShellOutputSkip
+}
+type ShellOutputWindow struct {
+	MaxBytes, MaxLines int
+	MinIntervalMs      int64
+	BytesPerSecond     int
+}
+
+// ArgvShell executes directly without an intervening shell. This additive
+// capability preserves existing injected string-command shell implementations.
+type ArgvShell interface {
+	Shell
+	ExecArgs(context.Context, []string, ShellExecOptions) (ShellExecResult, error)
+}
 type ShellExecOptions struct {
-	Cwd        string
-	Env        map[string]string
-	InheritEnv *bool    // nil defaults true
-	Timeout    *float64 // seconds; nil has no timeout
-	OnOutput   func(context.Context, string) error
-	Spill      *ShellSpillOptions
+	Cwd          string
+	Env          map[string]string
+	InheritEnv   *bool    // nil defaults true
+	Timeout      *float64 // seconds; nil has no timeout
+	OnOutput     func(context.Context, string) error
+	OnOutputInfo func(context.Context, string, ShellOutputInfo) error
+	Window       *ShellOutputWindow
+	Spill        *ShellSpillOptions
 }
 type ShellExecResult struct {
 	ExitCode  int

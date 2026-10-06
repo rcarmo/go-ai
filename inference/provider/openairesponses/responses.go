@@ -382,73 +382,11 @@ func inferGrammarInputProperty(t goai.Tool) (string, error) {
 }
 
 func resolveAzureResponsesConfig(model *goai.Model, opts *goai.StreamOptions) (baseURL string, deploymentName string, apiVersion string, err error) {
-	env := goai.ProviderEnvFromOptions(opts)
-	apiVersion = "v1"
-	deploymentName = model.ID
-	if opts != nil {
-		if opts.AzureAPIVersion != "" {
-			apiVersion = opts.AzureAPIVersion
-		}
-		if opts.AzureDeploymentName != "" {
-			deploymentName = opts.AzureDeploymentName
-		}
-	}
-	if v := goai.GetProviderEnvValue("AZURE_OPENAI_API_VERSION", env); apiVersion == "v1" && v != "" {
-		apiVersion = v
-	}
-	if deploymentName == model.ID {
-		if mapped := parseAzureDeploymentNameMap(goai.GetProviderEnvValue("AZURE_OPENAI_DEPLOYMENT_NAME_MAP", env))[model.ID]; mapped != "" {
-			deploymentName = mapped
-		}
-	}
-
-	if opts != nil && strings.TrimSpace(opts.AzureBaseURL) != "" {
-		baseURL = strings.TrimSpace(opts.AzureBaseURL)
-	}
-	if baseURL == "" {
-		baseURL = strings.TrimSpace(goai.GetProviderEnvValue("AZURE_OPENAI_BASE_URL", env))
-	}
-	resourceName := ""
-	if opts != nil {
-		resourceName = opts.AzureResourceName
-	}
-	if resourceName == "" {
-		resourceName = goai.GetProviderEnvValue("AZURE_OPENAI_RESOURCE_NAME", env)
-	}
-	if baseURL == "" && resourceName != "" {
-		baseURL = "https://" + resourceName + ".openai.azure.com/openai/v1"
-	}
-	if baseURL == "" {
-		baseURL = model.BaseURL
-	}
-	if baseURL == "" {
-		return "", "", "", fmt.Errorf("azure OpenAI base URL is required; set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME, or pass AzureBaseURL, AzureResourceName, or model.BaseURL")
-	}
-	baseURL, err = normalizeAzureBaseURL(baseURL)
+	baseURL, deploymentName, apiVersion, err = goai.ResolveAzureConfig(model, opts)
 	if err != nil {
 		return "", "", "", err
 	}
 	return baseURL + "/deployments/" + urlpkg.PathEscape(deploymentName), deploymentName, apiVersion, nil
-}
-
-func parseAzureDeploymentNameMap(value string) map[string]string {
-	out := map[string]string{}
-	for _, entry := range strings.Split(value, ",") {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		modelID := strings.TrimSpace(parts[0])
-		deployment := strings.TrimSpace(parts[1])
-		if modelID != "" && deployment != "" {
-			out[modelID] = deployment
-		}
-	}
-	return out
 }
 
 func normalizeAzureBaseURL(baseURL string) (string, error) {
@@ -467,22 +405,15 @@ func normalizeAzureBaseURL(baseURL string) (string, error) {
 }
 
 func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string]interface{} {
-	var out map[string]interface{}
-	if model != nil && len(model.SamplingParams) > 0 {
-		out = make(map[string]interface{}, len(model.SamplingParams))
-		for k, v := range model.SamplingParams {
-			out[k] = v
+	level := goai.ThinkingOff
+	var overrides map[string]any
+	if opts != nil {
+		if opts.Reasoning != nil {
+			level = goai.ModelThinkingLevel(*opts.Reasoning)
 		}
+		overrides = opts.SamplingParams
 	}
-	if opts != nil && len(opts.SamplingParams) > 0 {
-		if out == nil {
-			out = make(map[string]interface{}, len(opts.SamplingParams))
-		}
-		for k, v := range opts.SamplingParams {
-			out[k] = v
-		}
-	}
-	return out
+	return goai.ResolveSamplingParams(model, level, overrides)
 }
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {

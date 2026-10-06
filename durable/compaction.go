@@ -277,6 +277,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					return err
 				}
 			}
+			options.SessionID, err = r.providerSessionID(ctx)
+			if err != nil {
+				return err
+			}
 			options.MaxTokens = &maxTokens
 			options.Deferred = nil
 			options.CacheRetention = goai.CacheRetentionNone

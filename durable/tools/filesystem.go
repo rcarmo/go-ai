@@ -33,7 +33,7 @@ func fileError(path string, err error) error {
 		code = "not_directory"
 	case errors.Is(err, syscall.EISDIR):
 		code = "is_directory"
-	case errors.Is(err, os.ErrInvalid):
+	case errors.Is(err, os.ErrInvalid), errors.Is(err, syscall.ELOOP):
 		code = "invalid"
 	case errors.Is(err, errors.ErrUnsupported):
 		code = "not_supported"
@@ -381,6 +381,20 @@ func (e *Env) CreateTempFile(ctx context.Context, prefix, suffix string) (string
 	path := file.Name()
 	return path, fileError(path, file.Close())
 }
-func (e *Env) Cleanup(context.Context) error { e.cleanupProcesses(); return nil }
+func (e *Env) Cleanup(ctx context.Context) error {
+	e.cleanupProcesses()
+	e.watchMu.Lock()
+	watchers := make([]*localWatcher, 0, len(e.watchers))
+	for watcher := range e.watchers {
+		watchers = append(watchers, watcher)
+	}
+	e.watchMu.Unlock()
+	for _, watcher := range watchers {
+		if err := watcher.Close(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 var _ durable.FileSystem = (*Env)(nil)

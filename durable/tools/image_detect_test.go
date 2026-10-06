@@ -1,8 +1,10 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"github.com/rcarmo/go-ai/durable"
 	"os"
 	"path/filepath"
@@ -45,5 +47,85 @@ func TestPinnedImageDetectionBMPWebPAPNGAndNativeReadBoundary(t *testing.T) {
 	result, err = Read(fs).Execute(context.Background(), durable.JSON{"path": "image"}, nil)
 	if err != nil || !result.IsError || result.Diagnostics[0].Message != "image is an image (image/webp); reading images is not supported" {
 		t.Fatal(result, err)
+	}
+}
+
+func pngChunk104(kind string, length int) []byte {
+	data := make([]byte, length+12)
+	binary.BigEndian.PutUint32(data, uint32(length))
+	copy(data[4:], kind)
+	return data
+}
+func pngChunks104(marker string, padding int) []byte {
+	data := append([]byte{}, []byte{137, 80, 78, 71, 13, 10, 26, 10}...)
+	data = append(data, pngChunk104("IHDR", 13)...)
+	data = append(data, pngChunk104("tEXt", padding)...)
+	return append(data, pngChunk104(marker, 8)...)
+}
+func TestRead104PositionalImageChunkHeadersBeyondProbe(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	env := &countedEnv104{Env: LocalEnv(dir)}
+	for _, tc := range []struct {
+		name string
+		data []byte
+	}{
+		{"late-animation", pngChunks104("acTL", 70000)},
+		{"block-edge", pngChunks104("acTL", 65534)},
+		{"still-image", pngChunks104("IDAT", 70000)},
+		{"IDAT-before-animation", append(pngChunks104("IDAT", 70000), pngChunk104("acTL", 8)...)},
+		{"invalid-length", append(pngChunks104("tEXt", 0), []byte{255, 255, 255, 255, 't', 'E', 'X', 't'}...)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(dir, tc.name), tc.data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := durable.JSON{"path": tc.name}
+			got, err := Read(env).Execute(ctx, args, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, wantErr := Read(legacyRead104{env.Env}).Execute(ctx, args, nil)
+			if wantErr != nil {
+				t.Fatal(wantErr)
+			}
+			if got.IsError != want.IsError || !bytes.Equal([]byte(got.Content), []byte(want.Content)) {
+				t.Fatal("positional/whole-file MIME differs", got.IsError, want.IsError)
+			}
+			if env.opened.largest > 64<<10 || env.opened.bytes > 3*(64<<10)+512 {
+				t.Fatal("unbounded PNG reads", env.opened.bytes, env.opened.largest)
+			}
+		})
+	}
+}
+
+type failingImageReader104 struct {
+	durable.BinaryReader
+	at int64
+}
+
+func (r failingImageReader104) Read(ctx context.Context, at int64, n int) ([]byte, error) {
+	if at >= r.at {
+		return nil, errors.New("injected PNG chunk read failure")
+	}
+	return r.BinaryReader.Read(ctx, at, n)
+}
+
+func TestRead104ImageChunkReadFailurePropagates(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	env := LocalEnv(dir)
+	data := pngChunks104("acTL", 70000)
+	if err := os.WriteFile(filepath.Join(dir, "file"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := env.OpenBinaryReader(ctx, "file", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close(ctx)
+	_, err = detectImageMimeOf(ctx, failingImageReader104{BinaryReader: reader, at: 8}, int64(len(data)), data[:512])
+	if err == nil || err.Error() != "injected PNG chunk read failure" {
+		t.Fatal("image read error swallowed", err)
 	}
 }

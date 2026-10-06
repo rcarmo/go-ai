@@ -1,6 +1,29 @@
+<!-- RUI-PROFILE-LIFECYCLE-20261005 -->
+## Current profiling and cleanup rule — supersedes older text below
+
+Rui's explicit rule: **profile and tune during pre-release tests; remove profiling data immediately after analysis/use.** Ordinary development tests do not require profiling on every run. Targeted diagnostic profiling is optional when useful and follows the same disposal rule.
+
+- During pre-release verification, capture CPU and heap/allocation behaviour, analyse hotspots and tune avoidable allocations/repeated work. Compare equivalent workloads without weakening correctness/security/numerical contracts. For Go, inspect CPU, alloc_space and alloc_objects; coverage alone is not profiling.
+- Keep captures and matching artifacts only while the current analysis needs them. Once used, immediately delete raw profiles, traces, matching test binaries, temporary fixtures and disposable logs, including failed/probe artifacts after diagnosis. Retain only concise conclusions and important measurements/limitations. Do not keep indefinite raw archives or copy them into exports/reports/evidence to evade cleanup.
+- Remove all completed disposable cache/build/test/run data promptly. Never delete files still in use: finish or safely pause the owning job and clean at a safe boundary. Preserve source, installed toolchains, durable datasets/checkpoints and intentional release assets. Minimise disk usage; no random exports or redundant snapshots.
+- This rule overrides **every conflicting older paragraph in this file and linked local guidance**, including “profile every test”, “unprofiled tests prohibited”, “retain all raw evidence”, “never delete profiles” and cleanup exclusions based only on an evidence/profiles directory name. Update helper/CI cleanup behaviour accordingly; do not weaken pre-release analysis.
+- Existing no-agent-contact and execution-pause rules remain unchanged. This policy grants no unsolicited coordination or automatic job restart.
+<!-- /RUI-PROFILE-LIFECYCLE-20261005 -->
+
+
+
 # Coding
 
 * Follow YAGNI principles.
+
+## Project-owned cache and temporary paths
+
+- Canonical host root: `/workspace/tmp/go-ai/`. Reproducible caches use `cache/go-build`, `cache/go-mod`, `cache/go-path`, `cache/model-regeneration`, `cache/xdg`, `cache/npm`, `cache/bun`, and `cache/python`; ordinary build scratch uses `build/tmp`; isolated tests/regeneration use `runs/<purpose>/<run-id>`.
+- `Makefile` exports `TMPDIR`, `TMP`, `TEMP`, `GOTMPDIR`, `GOCACHE`, `GOMODCACHE`, `GOPATH` and relevant Python/Bun/npm cache variables. Helpers source `scripts/project-env.sh`, which rejects paths outside the project root. For direct shell work, `source scripts/project-env.sh` before Go/Bun/Python commands. Never fall back to bare `/tmp` or home caches.
+- The vendored `scripts/project-tmp.sh` snapshots inherited `TMPDIR` as `PROJECT_ORIGINAL_TMPDIR` and resolves once before exporting child paths. `PROJECT_TMP_BASE` selects `<base>/go-ai`; compatible `PROJECT_TMP_ROOT` must be absolute and end in `go-ai`. If both are set they must agree. Invalid, unusable or symlinked paths fail without fallback (this host's `/workspace` alias is allowed). CI chooses `$RUNNER_TEMP/go-ai`, original `$TMPDIR/go-ai`, then platform `/tmp/go-ai`, even when `/workspace` exists. Local hosts choose writable `/workspace/tmp/go-ai`, then platform `/tmp/go-ai`. Propagate the chosen root to children to prevent double nesting. CI requires no host-only helper or `/workspace/Makefile`.
+- All fallback roots use the same `cache`, `build`, `tests`, `logs`, `runs` and `evidence` layout. `tests`/`logs` are disposable; test logs and profiles in `evidence` are transient and deleted immediately after analysis. Installed Go binaries/toolchains and pinned reference/data assets are preserved; this migration does not delete or relocate them.
+- Capture CPU/heap profiles and matching binaries in transient `evidence/profiles` directories. After analysis, dispose them and full logs immediately; keep concise findings in `evidence/analysis`. The wrapper creates unique `runs/tests` scratch and removes it on exit. Test mutations must not target source/cache/conclusions.
+- `make project-tmp-init` validates/creates paths without deletion. `clean` preserves conclusions and SBOM/release assets. Completed captures/runs/caches are disposable; never remove active work, source, fixtures/datasets, checkpoints or publication assets. No cross-project cleanup. Old completed go-ai profile/clone/log trees were disposed at Rui's request; old raw-evidence pointers are historical.
 
 ## Source tree layout
 
@@ -38,16 +61,19 @@
 - No hidden skips, broad TODO classifications, test weakening, or unproven completion claims.
 - `RELEASE.md` must record every Go implementation, fix, adaptation, N/A decision, local validation result, deliberate fault-gate result, SBOM/security evidence, hosted CI evidence, and final/rollback SHAs.
 
-## Mandatory test profiling
+## Pre-release profiling and disposal
 
-- Every test, race, benchmark and fuzz run must capture CPU and heap/allocation profiles and receive post-run performance analysis. This includes focused runs, delegates, regression runs and failing runs. Unprofiled test execution is prohibited; `go test` itself is permitted with CPU/heap capture, a retained binary and post-run analysis.
-- Prefer `make test`, `make test-race`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. All run through `scripts/test-profile.sh`, package by package, with retained test binaries, logs, CPU/heap profiles and `pprof` reports for cumulative CPU, `alloc_space` and `alloc_objects`.
-- Focus a run with `PACKAGES=./durable TEST_FLAGS='-run ^TestName$ -count=3'`. Change artifact location with `PROFILE_ROOT=/workspace/tmp/<run>`. The wrapper manages profile paths; it refuses overrides and fails a successful test run if its required profiles or analysis are missing.
+- During pre-release tests, capture CPU and heap/allocation behaviour, analyse hotspots and tune avoidable work using equivalent workloads. Ordinary development tests do not require profiling. Delete raw captures, matching binaries, traces and disposable logs immediately after analysis/use; retain only concise conclusions and measured results. Missing or incomplete capture is a limitation, not a profiling pass. Preserve active-job files until a safe boundary, source, durable datasets/checkpoints and intentional release artifacts.
+
+- Prefer `make test`, `make test-race`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. All run through `scripts/test-profile.sh`, package by package, capturing and analysing cumulative CPU, `alloc_space` and `alloc_objects`, saving a compact summary and disposing raw output immediately.
+- Focus a run with `PACKAGES=./durable TEST_FLAGS='-run TestName -count=3'`. `PROFILE_ROOT` is transient capture storage below the selected project root; disposable test roots use `runs/tests/<run-id>/`. The wrapper manages paths and rejects a successful run if required capture/analysis is missing. Exit traps dispose incomplete output too, after recording capture failures.
 - Direct focused runs may use `go test ./package -cpuprofile=<run>/cpu.pprof -memprofile=<run>/heap.pprof -o <run>/test.bin`, followed by `go tool pprof -top -cum` for CPU and `-top -alloc_space` / `-top -alloc_objects` for heap. Capture separate profiles per package when testing several packages.
-- Analyse profiles after failures too. Build failures and process crashes may prevent complete profiles; retain the logs and explicitly record unavailable data. Subprocess tests must profile their child work or explicitly use a profiled parent fixture; never silently drop child profiling.
+- Analyse profiles after failures too. Build failures and process crashes may prevent complete profiles; record a concise diagnostic and explicitly note unavailable data, then dispose failed output. Subprocess tests must profile their child work or explicitly use a profiled parent fixture; never silently drop child profiling.
 - Inspect allocation and CPU call chains after each run. Record measured reductions against comparable workloads, or state why no safe change applies. Generated reports enforce capture and provide the starting analysis; they do not replace engineering judgement. Do not weaken assertions, increase acceptance deadlines or skip verification to improve performance numbers.
 
 ## Local gates and review
+
+- Rui's current validation instruction (6 October 2026): use one modern Go toolchain only, currently Go 1.26.6, for remaining 1.0.4 work. Do not repeat minimum-version or dual-toolchain runs. Existing historical receipts and the declared module minimum keep their original scope; this instruction changes ongoing validation, not compatibility metadata.
 
 - Required local validation for upstream release parity includes:
   - focused tests for every changed behavior;

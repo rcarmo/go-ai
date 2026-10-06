@@ -1,5 +1,7 @@
 # pi-durable parity closure
 
+Current audited target: pi-durable 1.0.4. [Delta crosswalk](../v104/changed-paths-crosswalk.md), [47-suite corpus](../v104/test-corpus-crosswalk.md) and [final local verification](../v104/local-validation.md) supersede the target version and candidate receipts below. The following 1.0.0 closure is retained as historical scope. Rui authorised native v1.0.4 commit/tag/publication on 6 October 2026; [release audit](../../RELEASE.md) records the outcome.
+
 Native runtime alignment with pinned pi-durable 1.0.0 is complete within the Go API/storage/platform boundaries below. The final candidate passes the repository, race, static and public-import checks. Scoped independent reviews accepted the corrected lifetime, hooks, owned-work handoff, reset, observer, shell, compaction and settings contracts. This is local runtime completion; no blanket independent replay of every TypeScript inner subcase or clean-clone release acceptance is claimed. Published releases and stash `9be4ebbd0c1de275d69bd95a4f1fc3db78f00e74` are preserved. Checkpoint `52d01064100411e62f8528cfa6de36f210f81aab` is the parent of the scoped local commit authorised on 6 October 2026. No push, hosted CI or publication is authorised.
 
 ## Reference and evidence

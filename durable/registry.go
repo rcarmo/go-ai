@@ -25,6 +25,7 @@ type RequestSettings struct {
 	// Whole policies above retain their existing replacement semantics.
 	RetryOverrides      *RetrySettings        `json:"retryOverrides,omitempty"`
 	CompactionOverrides *CompactionSettings   `json:"compactionOverrides,omitempty"`
+	Progress            *ProgressSettings     `json:"progress,omitempty"`
 	Deferred            *goai.DeferredOptions `json:"deferred,omitempty"`
 	// Curated provider request behaviour, pinned at request/compaction intent.
 	// Credentials supplied by RequestOptions remain process-local.
@@ -222,6 +223,9 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	if e != nil {
 		return n, e
+	}
+	if n.Progress != nil && (n.Progress.PartialIntervalMs != nil && *n.Progress.PartialIntervalMs < 0 || n.Progress.OutputIntervalMs != nil && *n.Progress.OutputIntervalMs < 0) {
+		return n, reject("negative progress interval")
 	}
 	if n.TimeoutMs != nil && (*n.TimeoutMs < 0 || uint64(*n.TimeoutMs) > uint64(MaxID)) || n.MaxRetries != nil && *n.MaxRetries < 0 || n.MaxRetryDelayMs != nil && *n.MaxRetryDelayMs < 0 {
 		return n, reject("invalid request settings")

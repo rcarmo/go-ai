@@ -10,13 +10,22 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Env configures local filesystem-backed durable tools.
+type WatchOptions struct {
+	PollInterval   time.Duration
+	MaxDirectories int
+}
+
 type Env struct {
-	cwd       string
-	processMu sync.Mutex
-	processes map[int]struct{}
+	watchOptions WatchOptions
+	watchMu      sync.Mutex
+	watchers     map[*localWatcher]bool
+	cwd          string
+	processMu    sync.Mutex
+	processes    map[int]struct{}
 }
 
 // LocalEnv returns a local filesystem environment rooted at cwd for relative paths.
@@ -30,6 +39,11 @@ func LocalEnv(cwd string) *Env {
 	return &Env{cwd: filepath.Clean(cwd)}
 }
 
+func LocalEnvWithWatchOptions(cwd string, options WatchOptions) *Env {
+	env := LocalEnv(cwd)
+	env.watchOptions = options
+	return env
+}
 func (e *Env) Cwd() string {
 	if e == nil {
 		return ""

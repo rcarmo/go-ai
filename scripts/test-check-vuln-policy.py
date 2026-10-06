@@ -7,6 +7,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("test-check-vuln-policy")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "scripts" / "check-vuln-policy.py"
 

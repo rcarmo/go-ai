@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Registry cardinality follows the native record/page budget, not an arbitrary
@@ -544,6 +545,54 @@ func (a *ToolAPI) Output(text string) error {
 		return nil
 	})
 }
+
+// OutputWindow advertises the retained tail to remote/environment adapters.
+// Nil means every decoded chunk must be delivered. Returned policy is detached.
+func (a *ToolAPI) OutputWindow() *ShellOutputWindow {
+	limits := resolvedToolOutputLimits(a.checkpoint.Offer.OutputLimits)
+	if limits.Retain != "tail" {
+		return nil
+	}
+	interval := int64(100)
+	if progress := a.h.resolvedSettings(RequestSettings{}).Progress; progress.OutputIntervalMs != nil {
+		interval = *progress.OutputIntervalMs
+	}
+	return &ShellOutputWindow{MaxBytes: limits.MaxBytes, MaxLines: limits.MaxLines, MinIntervalMs: interval, BytesPerSecond: 100 * 1024}
+}
+
+// OutputSkipped is the tail-only native counterpart of output(chunk, skipped).
+// Omitted decoded data contributes raw counters but never retained text.
+func (a *ToolAPI) OutputSkipped(text string, skipped *ShellOutputSkip) error {
+	return a.updateProgress(func(cp *toolCheckpoint, l Limits) error {
+		limits := resolvedToolOutputLimits(cp.Offer.OutputLimits)
+		if skipped != nil {
+			decoder := a.outputDecoder
+			if flushed := decoder.end(); flushed != "" {
+				if err := retainToolOutput(cp, flushed, limits, false); err != nil {
+					return err
+				}
+			}
+			a.outputDecoder = decoder
+			if limits.Retain != "tail" || skipped.Bytes < 0 || skipped.Newlines < 0 || skipped.Newlines > skipped.Bytes {
+				return reject("invalid skipped tool output")
+			}
+			bytes, lines := uint64(skipped.Bytes), uint64(skipped.Newlines)
+			if ^uint64(0)-cp.OutputBytes < bytes || ^uint64(0)-cp.OutputNewlines < lines {
+				return reject("tool output count overflow")
+			}
+			cp.OutputBytes += bytes
+			cp.OutputNewlines += lines
+			if bytes > 0 {
+				cp.OutputRaw = ""
+			}
+			if bytes > 0 {
+				cp.OutputTerminated = skipped.EndsWithNewline
+			}
+		}
+		return retainToolOutput(cp, text, limits, false)
+	})
+}
+
 func appendToolProgress(cp *toolCheckpoint, text string) error {
 	return retainToolOutput(cp, text, resolvedToolOutputLimits(cp.Offer.OutputLimits), false)
 }
@@ -1329,11 +1378,15 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		return err
 	}
 	api := &ToolAPI{h: h, task: task, checkpoint: cp, active: true, ctx: ctx, runtime: runtime}
-	api.progress = newToolProgress(api.publishProgress, func(err error) {
+	interval := int64(100)
+	if settings := h.resolvedSettings(RequestSettings{}).Progress; settings.OutputIntervalMs != nil {
+		interval = *settings.OutputIntervalMs
+	}
+	api.progress = newToolProgressInterval(api.publishProgress, func(err error) {
 		if ctx.Err() == nil {
 			h.scheduler.report(err)
 		}
-	})
+	}, time.Now, time.After, progressInterval(interval))
 	defer func() { settleProgress(api.pendingProgress, finalErr) }()
 	var result ToolResult
 	var executionError error

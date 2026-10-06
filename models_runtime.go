@@ -370,6 +370,13 @@ func cloneModel(model *Model) *Model {
 		copy.Enabled = &enabled
 	}
 	copy.Providers = append([]ModelProviderInfo{}, model.Providers...)
+	copy.SamplingParams = cloneSamplingParams(model.SamplingParams)
+	if model.SamplingParamsByThinkingLevel != nil {
+		copy.SamplingParamsByThinkingLevel = make(map[ModelThinkingLevel]map[string]any, len(model.SamplingParamsByThinkingLevel))
+		for level, params := range model.SamplingParamsByThinkingLevel {
+			copy.SamplingParamsByThinkingLevel[level] = cloneSamplingParams(params)
+		}
+	}
 	if model.Headers != nil {
 		copy.Headers = map[string]string{}
 		for k, v := range model.Headers {

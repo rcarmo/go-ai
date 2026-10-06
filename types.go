@@ -36,7 +36,7 @@ const (
 	ProviderGoogleGeminiCLI         Provider = "google-gemini-cli"
 	ProviderGoogleAntigravity       Provider = "google-antigravity"
 	ProviderGoogleVertex            Provider = "google-vertex"
-	ProviderAzureOpenAI             Provider = "azure-openai-responses"
+	ProviderAzureOpenAI             Provider = "azure"
 	ProviderOpenAICodex             Provider = "openai-codex"
 	ProviderGitHubCopilot           Provider = "github-copilot"
 	ProviderAmazonBedrock           Provider = "amazon-bedrock"
@@ -308,10 +308,10 @@ type Message struct {
 	ToolsRemoved []ToolReference    `json:"toolsRemoved,omitempty"`
 
 	// ToolResult-only fields
-	ToolCallID     string   `json:"toolCallId,omitempty"`
-	ToolName       string   `json:"toolName,omitempty"`
-	AddedToolNames []string `json:"addedToolNames,omitempty"`
-	IsError        bool     `json:"isError,omitempty"`
+	ToolCallID     string           `json:"toolCallId,omitempty"`
+	ToolName       string           `json:"toolName,omitempty"`
+	AddedToolNames []string         `json:"addedToolNames,omitempty"`
+	IsError        bool             `json:"isError,omitempty"`
 	Details        any              `json:"details,omitempty"`
 	NestedCalls    *NestedToolCalls `json:"nestedCalls,omitempty"`
 }
@@ -446,6 +446,9 @@ type Model struct {
 	// SamplingParams carries model-default OpenAI-compatible sampling parameters.
 	// Request-level StreamOptions.SamplingParams override these per key.
 	SamplingParams map[string]any `json:"samplingParams,omitempty"`
+	// SamplingParamsByThinkingLevel applies defaults after thinking-level
+	// clamping; explicit request parameters override these per key.
+	SamplingParamsByThinkingLevel map[ModelThinkingLevel]map[string]any `json:"samplingParamsByThinkingLevel,omitempty"`
 
 	// Optional overrides
 	Headers           map[string]string        `json:"headers,omitempty"`

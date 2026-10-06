@@ -60,6 +60,9 @@ func readTool(env durable.FileSystem, inlineImages bool) durable.ToolRegistratio
 				}
 				return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details}, nil
 			}
+			if positional, ok := env.(durable.ExtendedFileSystem); ok {
+				return readPositional(ctx, positional, abs, path, args)
+			}
 			data, err := env.ReadBinaryFile(ctx, abs)
 			if err != nil {
 				return durable.ToolResult{}, err

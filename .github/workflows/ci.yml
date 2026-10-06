@@ -11,39 +11,62 @@ on:
     - cron: '17 4 * * 1'
   workflow_dispatch:
 
+env:
+  PROJECT_TMP_ROOT: ${{ runner.temp }}/go-ai
+  GOCACHE: ${{ runner.temp }}/go-ai/cache/go-build
+  GOMODCACHE: ${{ runner.temp }}/go-ai/cache/go-mod
+  GOPATH: ${{ runner.temp }}/go-ai/cache/go-path
+  XDG_CACHE_HOME: ${{ runner.temp }}/go-ai/cache/xdg
+  TMPDIR: ${{ runner.temp }}/go-ai/build/tmp
+  TMP: ${{ runner.temp }}/go-ai/build/tmp
+  TEMP: ${{ runner.temp }}/go-ai/build/tmp
+  GOTMPDIR: ${{ runner.temp }}/go-ai/build/tmp
+  PYTHONPYCACHEPREFIX: ${{ runner.temp }}/go-ai/cache/python
+
 jobs:
   check:
     name: Vet, Staticcheck & Deterministic Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.24.x']
+        go-version: ['1.26.6']
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize project-owned temporary paths
+        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: false
 
       - name: Download dependencies
-        run: go mod download
+        run: make deps
 
       - name: Build
-        run: go build ./...
+        run: make build
 
       - name: Check (vet, staticcheck, deterministic tests)
-        run: make check GO_TMPDIR=/tmp
+        run: make check PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Race tests
-        run: go test ./... -count=1 -race
+        run: make test-race PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Test with coverage
-        if: matrix.go-version == '1.24.x'
-        run: |
-          go test -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+        if: matrix.go-version == '1.26.6'
+        run: make coverage PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Logging quality gate
         run: ./scripts/check-logging.sh
+
+      - name: Upload test analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ai-test-profiles-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/go-ai/evidence/analysis/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
@@ -60,21 +83,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize project-owned temporary paths
+        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.26.6'
+          cache: false
 
       - name: Fuzz - Partial JSON parser
-        run: go test -fuzz FuzzPartialJSON -fuzztime 30s ./internal/jsonparse/
+        run: make fuzz PACKAGES=./internal/jsonparse FUZZ_TARGET=FuzzPartialJSON FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Fuzz - SSE parser
-        run: go test -fuzz FuzzSSEParse -fuzztime 30s ./transports/sse/
+        run: make fuzz PACKAGES=./transports/sse FUZZ_TARGET=FuzzSSEParse FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Fuzz - Context round-trip
-        run: go test -fuzz FuzzContextRoundTrip -fuzztime 30s .
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzContextRoundTrip FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Fuzz - Message transformation
-        run: go test -fuzz FuzzTransformMessages -fuzztime 30s .
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzTransformMessages FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
 
       - name: Fuzz - Overflow detection
-        run: go test -fuzz FuzzOverflowDetection -fuzztime 30s .
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzOverflowDetection FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+
+      - name: Upload fuzz analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ai-fuzz-profiles-${{ github.sha }}
+          path: ${{ runner.temp }}/go-ai/evidence/analysis/
+          if-no-files-found: error
+          retention-days: 14

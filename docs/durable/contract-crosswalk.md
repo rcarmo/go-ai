@@ -1,5 +1,7 @@
 # Pinned runtime source crosswalk
 
+These fixed 1.0.0 rows retain their historical scope. Current pi-durable 1.0.4 has 65 TS sources and 42 changed paths: [exact inventory](../v104/durable-inventory.json), [delta dispositions](../v104/changed-paths-crosswalk.md), [native results and limitations](../v104/local-validation.md).
+
 The table maps the 60 fixed official durable source paths to their native implementations and concrete assertions. Native API/storage/observer differences are specified in [parity closure](parity-closure.md). Historical candidate receipts are preserved in [validation history](validation-history.md).
 
 | # | Fixed upstream source | Native classification | Coverage / remainder | Named proof or boundary |

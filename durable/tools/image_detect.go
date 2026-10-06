@@ -1,6 +1,54 @@
 package tools
 
-import "bytes"
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+
+	"github.com/rcarmo/go-ai/durable"
+)
+
+// detectImageMimeOf matches the pinned file-backed detector. Only PNG chunk
+// headers before acTL/IDAT need additional reads; payloads are skipped and each
+// cached block is at most 64KiB, independent of image/file size.
+func detectImageMimeOf(ctx context.Context, reader durable.BinaryReader, size int64, header []byte) (string, error) {
+	mime := detectImageMime(header)
+	if mime != "image/png" {
+		return mime, nil
+	}
+	var block []byte
+	var blockStart int64
+	for offset := int64(8); offset <= size-8; {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if offset < blockStart || offset+8 > blockStart+int64(len(block)) {
+			blockStart = offset
+			var err error
+			block, err = reader.Read(ctx, offset, int(min(int64(64<<10), size-offset)))
+			if err != nil {
+				return "", err
+			}
+		}
+		at := int(offset - blockStart)
+		if len(block)-at < 8 {
+			break
+		}
+		chunk := block[at : at+8]
+		switch string(chunk[4:]) {
+		case "acTL":
+			return "", nil
+		case "IDAT":
+			return "image/png", nil
+		}
+		next := offset + 12 + int64(binary.BigEndian.Uint32(chunk))
+		if next <= offset || next > size {
+			break
+		}
+		offset = next
+	}
+	return "image/png", nil
+}
 
 // detectImageMime follows the pinned tools/image.ts detector, including APNG
 // rejection and BMP structural checks. Detection is not image decoding.

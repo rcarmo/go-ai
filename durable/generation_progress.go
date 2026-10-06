@@ -10,22 +10,23 @@ import (
 // detached before mark; one write runs at a time. Stop drops pending work and
 // joins the actual write before terminal classification or host return.
 type generationProgress struct {
-	mu      sync.Mutex
-	pending *MessageReceipt
-	stopped bool
-	wake    chan struct{}
-	halt    chan struct{}
-	done    chan struct{}
-	after   func(time.Duration) <-chan time.Time
-	write   func(MessageReceipt) error
-	report  func(error)
+	mu       sync.Mutex
+	pending  *MessageReceipt
+	stopped  bool
+	wake     chan struct{}
+	halt     chan struct{}
+	done     chan struct{}
+	after    func(time.Duration) <-chan time.Time
+	interval time.Duration
+	write    func(MessageReceipt) error
+	report   func(error)
 }
 
-func newGenerationProgress(write func(MessageReceipt) error, report func(error)) *generationProgress {
-	return newGenerationProgressClock(write, report, time.After)
-}
 func newGenerationProgressClock(write func(MessageReceipt) error, report func(error), after func(time.Duration) <-chan time.Time) *generationProgress {
-	p := &generationProgress{wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), after: after, write: write, report: report}
+	return newGenerationProgressInterval(write, report, after, 100*time.Millisecond)
+}
+func newGenerationProgressInterval(write func(MessageReceipt) error, report func(error), after func(time.Duration) <-chan time.Time, interval time.Duration) *generationProgress {
+	p := &generationProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), after: after, write: write, report: report}
 	go p.run()
 	return p
 }
@@ -76,7 +77,7 @@ func (p *generationProgress) run() {
 			select {
 			case <-p.halt:
 				return
-			case <-p.after(100 * time.Millisecond):
+			case <-p.after(p.interval):
 			}
 			p.mu.Lock()
 			if p.stopped {

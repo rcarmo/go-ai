@@ -231,6 +231,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	if err := applyRequestSettings(options, cp.Agent.Settings, h.session.limits); err != nil {
 		return h.finish(task, cp, errorReceipt("invalid_options"), false)
 	}
+	options.SessionID, e = runtime.providerSessionID(runtime.context)
+	if e != nil {
+		return e
+	}
 	options.Reasoning = nil
 	if cp.Agent.ThinkingLevel != "" && cp.Agent.ThinkingLevel != "off" {
 		level := goai.ThinkingLevel(cp.Agent.ThinkingLevel)
@@ -779,7 +783,11 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 	var lastPartial *MessageReceipt
 	var progress *generationProgress
 	if len(taskID) > 0 {
-		progress = newGenerationProgress(func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }, func(err error) {
+		interval := int64(100)
+		if settings := h.resolvedSettings(RequestSettings{}).Progress; settings.PartialIntervalMs != nil {
+			interval = *settings.PartialIntervalMs
+		}
+		progress = newGenerationProgressInterval(func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }, func(err error) {
 			if h.closing.Load() {
 				return
 			}
@@ -788,7 +796,7 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 				return
 			}
 			reportTaskError(h.options.OnReport, err)
-		})
+		}, time.After, progressInterval(interval))
 		defer progress.stop()
 	}
 	for event := range events {

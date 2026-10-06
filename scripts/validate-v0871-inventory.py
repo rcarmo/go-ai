@@ -10,6 +10,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("validate-v0871-inventory")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FILES = {
     "changed-paths.txt": (16, "2756fce613d0163b6eb5c47b599584589a229e5c7ed30a86b65380031e272eb6"),

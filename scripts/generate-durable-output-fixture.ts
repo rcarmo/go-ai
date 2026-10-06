@@ -31,6 +31,17 @@ for (const retain of ["head", "tail"] as const) for (const maxBytes of [0, 1, 3,
   }
   cases.push({ limits, chunks, bounded: boundOutput(text, limits) });
 }
+const byteCases=[];
+for(const limits of [{maxBytes:30,maxLines:3,retain:"head"},{maxBytes:9,maxLines:2,retain:"tail"}]){
+  for(const inputs of [
+    [[0xf0,0x9f],[0x98,0x80,10],"x",[0xe2,0x82]],
+    [[0xe2],"x",[0xe2,0x82]],
+    [[0xef],[0xbb,0xbf,97],[0xef,0xbb,0xbf]],
+    [[0xe0,0x80,0x80],[0xed,0xa0,0x80],[0xf4,0x90,0x80,0x80]],
+    [[0xe2,0x82,97],[0xc0,0xaf],[0xf0,0x9f,0x98,97]],
+    [[0xc2],[0x80],[0xf0,0x9f,0x98,0x80],"text\nmore\n"]
+  ]){const buffer=new OutputBuffer(limits);const chunks=[];for(const input of inputs){buffer.push(typeof input==="string"?input:new Uint8Array(input));chunks.push({input,...buffer.snapshot()})};buffer.end();byteCases.push({limits,chunks,ended:buffer.snapshot()})}
+}
 const output = path.join(import.meta.dir, "../durable/testdata/output-reference.json");
-fs.writeFileSync(output, JSON.stringify({ source: relative, revision, cases }));
+fs.writeFileSync(output, JSON.stringify({ source: relative, revision, cases,byteCases }));
 console.log(`${cases.length} cases, ${cases.length * 20} pinned snapshots -> ${output}`);

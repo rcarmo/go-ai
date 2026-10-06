@@ -23,12 +23,53 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"time"
 )
 
 func main() {
+	os.Exit(profiledMain())
+}
+
+// Helper self-tests launch this binary as a child; retain its profiles too.
+func profiledMain() int {
+	if root := os.Getenv("GO_AI_HELPER_PROFILE_ROOT"); root != "" {
+		dir, err := os.MkdirTemp(root, "generator-")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		cpu, err := os.Create(filepath.Join(dir, "cpu.pprof"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if err = pprof.StartCPUProfile(cpu); err != nil {
+			cpu.Close()
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			cpu.Close()
+			runtime.GC()
+			heap, err := os.Create(filepath.Join(dir, "heap.pprof"))
+			if err == nil {
+				err = pprof.WriteHeapProfile(heap)
+				heap.Close()
+			}
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "helper heap capture:", err)
+			}
+		}()
+	}
+	return generateMain()
+}
+
+func generateMain() int {
 	defaultInput := findModelsJS()
 	input := flag.String("input", defaultInput, "path to models.generated.js")
 	output := flag.String("output", "models_generated.go", "output Go file path")
@@ -37,13 +78,13 @@ func main() {
 	flag.Parse()
 	if *kind != "chat" && *kind != "image" && *kind != "classifier" {
 		fmt.Fprintln(os.Stderr, "invalid catalog kind")
-		os.Exit(1)
+		return 1
 	}
 
 	if *input == "" && *dataDir == "" {
 		fmt.Fprintln(os.Stderr, "ERROR: could not find models.generated.js")
 		fmt.Fprintln(os.Stderr, "Specify with -input /path/to/models.generated.js")
-		os.Exit(1)
+		return 1
 	}
 
 	fmt.Fprintf(os.Stderr, "Input:  %s\n", *input)
@@ -55,18 +96,18 @@ func main() {
 		parsed, err = readOfflineCatalog(*dataDir)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1
 		}
 	} else {
 		data, err := os.ReadFile(*input)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1
 		}
 		jsText := inlineModularModels(*input, string(data), *kind)
 		if err := json.Unmarshal([]byte(jsObjectToJSON(jsText)), &parsed); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1
 		}
 	}
 	models := filterModelsByKind(parsed, *kind)
@@ -82,33 +123,35 @@ func main() {
 	goSource := generateGoSource(models, total, *kind)
 	if err := writeAtomicCatalog(*output, []byte(goSource)); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	fmt.Fprintf(os.Stderr, "Wrote %s (%d bytes)\n", *output, len(goSource))
+	return 0
 }
 
 type modelEntry struct {
-	ID               string                 `json:"id"`
-	Type             string                 `json:"type"`
-	Name             string                 `json:"name"`
-	Api              string                 `json:"api"`
-	Provider         string                 `json:"provider"`
-	BaseURL          string                 `json:"baseUrl"`
-	Headers          map[string]string      `json:"headers"`
-	Compat           compatEntry            `json:"compat"`
-	Reasoning        bool                   `json:"reasoning"`
-	ThinkingLevelMap map[string]*string     `json:"thinkingLevelMap"`
-	Input            []string               `json:"input"`
-	InputLimits      *inputLimitsEntry      `json:"inputLimits"`
-	PromptCache      *promptCacheEntry      `json:"promptCache"`
-	Enabled          *bool                  `json:"enabled"`
-	Lab              string                 `json:"lab"`
-	Providers        []providerInfoEntry    `json:"providers"`
-	Cost             costEntry              `json:"cost"`
-	ContextWindow    int                    `json:"contextWindow"`
-	MaxTokens        int                    `json:"maxTokens"`
-	SamplingParams   map[string]interface{} `json:"samplingParams"`
+	ID                            string                            `json:"id"`
+	Type                          string                            `json:"type"`
+	Name                          string                            `json:"name"`
+	Api                           string                            `json:"api"`
+	Provider                      string                            `json:"provider"`
+	BaseURL                       string                            `json:"baseUrl"`
+	Headers                       map[string]string                 `json:"headers"`
+	Compat                        compatEntry                       `json:"compat"`
+	Reasoning                     bool                              `json:"reasoning"`
+	ThinkingLevelMap              map[string]*string                `json:"thinkingLevelMap"`
+	Input                         []string                          `json:"input"`
+	InputLimits                   *inputLimitsEntry                 `json:"inputLimits"`
+	PromptCache                   *promptCacheEntry                 `json:"promptCache"`
+	Enabled                       *bool                             `json:"enabled"`
+	Lab                           string                            `json:"lab"`
+	Providers                     []providerInfoEntry               `json:"providers"`
+	Cost                          costEntry                         `json:"cost"`
+	ContextWindow                 int                               `json:"contextWindow"`
+	MaxTokens                     int                               `json:"maxTokens"`
+	SamplingParams                map[string]interface{}            `json:"samplingParams"`
+	SamplingParamsByThinkingLevel map[string]map[string]interface{} `json:"samplingParamsByThinkingLevel"`
 }
 
 type compatEntry struct {
@@ -551,6 +594,19 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 			b.WriteString(fmt.Sprintf("\t\tContextWindow: %d,\n", m.ContextWindow))
 			b.WriteString(fmt.Sprintf("\t\tMaxTokens:     %d,\n", m.MaxTokens))
 			writeMapField(&b, "SamplingParams", m.SamplingParams)
+			if len(m.SamplingParamsByThinkingLevel) > 0 {
+				b.WriteString("SamplingParamsByThinkingLevel: map[ModelThinkingLevel]map[string]any{")
+				levels := make([]string, 0, len(m.SamplingParamsByThinkingLevel))
+				for level := range m.SamplingParamsByThinkingLevel {
+					levels = append(levels, level)
+				}
+				sortStrings(levels)
+				for _, level := range levels {
+					data, _ := json.Marshal(m.SamplingParamsByThinkingLevel[level])
+					fmt.Fprintf(&b, "ModelThinkingLevel(%q): mustMap(%q),", level, string(data))
+				}
+				b.WriteString("},")
+			}
 			b.WriteString("\t},\n")
 		}
 	}
@@ -838,8 +894,8 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return nil, err
 	}
-	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "03d2e1aeeee6eb16959d4f727b47b9b187efaf863c688a47889fb90d200e6812" {
-		return nil, fmt.Errorf("invalid v1.0.1 catalog manifest")
+	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "a907117564782a9905f2630a85a279d2d17e0e4233888732bbbb82f729307140" {
+		return nil, fmt.Errorf("invalid v1.0.4 catalog manifest")
 	}
 	if _, err := time.Parse(time.RFC3339Nano, manifest.GeneratedAt); err != nil {
 		return nil, fmt.Errorf("invalid catalog generation timestamp")

@@ -8,6 +8,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("test-check-model-regeneration")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -27,7 +30,7 @@ def replace_once(path: pathlib.Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-MISMATCH_PHRASE = "does not match regeneration from exact v1.0.1 schema-v6 catalog"
+MISMATCH_PHRASE = "does not match regeneration from exact v1.0.4 schema-v6 catalog"
 
 
 def run_check(repo: pathlib.Path, name: str, filename: str, corrupt_marker: str) -> None:

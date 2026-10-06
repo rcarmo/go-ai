@@ -3,17 +3,21 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+source "$repo_root/scripts/project-env.sh"
 go_cmd="${GO:-go}"
-tmp_root="${TMPDIR:-${GO_TMPDIR:-/tmp}}"
-cache_base="${GO_AI_MODEL_REGEN_CACHE:-${XDG_CACHE_HOME:-${HOME:-$tmp_root}/.cache}/go-ai/model-regeneration}"
+tmp_root="$PROJECT_TMP_ROOT/runs/model-regeneration"
+project_path_usable "$tmp_root"
+mkdir -p "$tmp_root"
+cache_base="$GO_AI_MODEL_REGEN_CACHE"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v1.0.1"
-upstream_sha="${PI_AI_UPSTREAM_SHA:-}"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.0.1.tgz}"
-npm_sha256="8a9e69b1309cf93405d87729fa123c8b11c6be7c646b16f34f8bef7b792f9138"
+upstream_tag="v1.0.4"
+upstream_sha="${PI_AI_UPSTREAM_SHA:-7c10bd4337495ee613f2224843ecdf349b80d1df}"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.0.4.tgz}"
+npm_sha256="2fd5bf57c6a5b5b82d4563b18a2627b14d74dc4aacbf69a3dcf91c091e6038cf"
 
-workdir="$(mktemp -d "${tmp_root%/}/go-ai-model-regen.XXXXXX")"
+workdir="$(mktemp -d "${tmp_root%/}/run-XXXXXX")"
+export TMPDIR="$workdir" TMP="$workdir" TEMP="$workdir" GOTMPDIR="$workdir"
 cleanup() {
   rm -rf "$workdir"
 }
@@ -83,12 +87,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-1.0.1-package"
+  local dir="$cache_base/pi-ai-1.0.4-package"
   local marker="$dir/.sha256"
   if [[ ! -f "$dir/package/dist/models.generated.js" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-1.0.1.tgz"
+    local tgz="$workdir/pi-ai-1.0.4.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"
@@ -121,9 +125,15 @@ fi
 
 (
   cd "$repo_root"
-  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind chat -output "$generated_chat" >/dev/null
-  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind image -output "$generated_images" >/dev/null
-  "$go_cmd" run ./scripts/generate-models.go -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind classifier -output "$generated_classifiers" >/dev/null
+  generator=("$go_cmd" run ./scripts/generate-models.go)
+  if [[ -n ${GO_AI_HELPER_PROFILE_ROOT:-} ]]; then
+    binary=$(mktemp "$GO_AI_HELPER_PROFILE_ROOT/generator-bin-XXXXXX")
+    "$go_cmd" build -o "$binary" ./scripts/generate-models.go
+    generator=("$binary")
+  fi
+  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind chat -output "$generated_chat" >/dev/null
+  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind image -output "$generated_images" >/dev/null
+  "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind classifier -output "$generated_classifiers" >/dev/null
 )
 "$go_cmd" fmt "$generated_chat" "$generated_images" "$generated_classifiers" >/dev/null
 
@@ -132,7 +142,7 @@ compare_generated() {
   local got="$2"
   local label="$3"
   diff -u "$want" "$got" >/dev/null || {
-    echo "$label does not match regeneration from exact v1.0.1 schema-v6 catalog" >&2
+    echo "$label does not match regeneration from exact v1.0.4 schema-v6 catalog" >&2
     echo "source: $source_models_js" >&2
     diff -u "$want" "$got" >&2 || true
     exit 1

@@ -9,6 +9,9 @@ import sys
 import tempfile
 from copy import deepcopy
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("test-normalize-sbom")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 NORMALIZER = ROOT / "scripts" / "normalize-sbom.py"
 ROOT_MODULE = "github.com/rcarmo/go-ai"

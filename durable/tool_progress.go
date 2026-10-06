@@ -21,13 +21,17 @@ type toolProgress struct {
 	report         func(error)
 	now            func() time.Time
 	after          func(time.Duration) <-chan time.Time
+	interval       time.Duration
 }
 
 func newToolProgress(write func() (int, error), report func(error)) *toolProgress {
 	return newToolProgressClock(write, report, time.Now, time.After)
 }
 func newToolProgressClock(write func() (int, error), report func(error), now func() time.Time, after func(time.Duration) <-chan time.Time) *toolProgress {
-	p := &toolProgress{wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), write: write, report: report, now: now, after: after}
+	return newToolProgressInterval(write, report, now, after, 100*time.Millisecond)
+}
+func newToolProgressInterval(write func() (int, error), report func(error), now func() time.Time, after func(time.Duration) <-chan time.Time, interval time.Duration) *toolProgress {
+	p := &toolProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), write: write, report: report, now: now, after: after}
 	go p.run()
 	return p
 }
@@ -66,12 +70,21 @@ func settleProgress(waiters []progressWaiter, err error) {
 		close(waiter)
 	}
 }
-func progressDelay(bytes int) time.Duration {
-	// ceil byte-proportional duration; negative byte reports buy only the minimum.
-	if bytes <= 10*1024 {
-		return 100 * time.Millisecond
+func progressDelayInterval(bytes int, minimum time.Duration) time.Duration {
+	if bytes <= 0 {
+		return minimum
 	}
-	return time.Duration(bytes) * time.Second / (100 * 1024)
+	proportional := time.Duration(bytes) * time.Second / (100 * 1024)
+	if proportional < minimum {
+		return minimum
+	}
+	return proportional
+}
+func progressInterval(ms int64) time.Duration {
+	if ms > int64((1<<63-1)/int64(time.Millisecond)) {
+		return time.Duration(1<<63 - 1)
+	}
+	return time.Duration(ms) * time.Millisecond
 }
 func (p *toolProgress) run() {
 	defer close(p.done)
@@ -110,9 +123,9 @@ func (p *toolProgress) run() {
 			p.mu.Unlock()
 			started := p.now()
 			bytes, err := p.write()
-			next = started.Add(progressDelay(bytes))
+			next = started.Add(progressDelayInterval(bytes, p.interval))
 			if err != nil {
-				next = started.Add(100 * time.Millisecond)
+				next = started.Add(p.interval)
 			}
 			settleProgress(waiters, err)
 			if err != nil && p.report != nil {

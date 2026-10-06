@@ -225,8 +225,11 @@ Audit at least:
 Practical diff commands:
 
 ```bash
-PREV=/tmp/pi-ai-prev/package/dist
-NEW=/tmp/pi-ai-new/package/dist
+source scripts/project-env.sh
+mkdir -p "$PROJECT_TMP_ROOT/runs/release-audit"
+AUDIT_RUN=$(mktemp -d "$PROJECT_TMP_ROOT/runs/release-audit/run-XXXXXX")
+PREV="$AUDIT_RUN/pi-ai-prev/package/dist"
+NEW="$AUDIT_RUN/pi-ai-new/package/dist"
 
 # Surface-level deltas
 diff -u "$PREV/types.d.ts" "$NEW/types.d.ts" | sed -n '1,220p'
@@ -307,7 +310,7 @@ Workflow when multiple releases are pending:
 npm view @earendil-works/pi-ai versions --json | tail -n 10
 
 # Download each release tarball individually
-curl -sSL "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-X.Y.Z.tgz" -o /tmp/pi-ai-X.Y.Z.tgz
+curl -sSL "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-X.Y.Z.tgz" -o "$AUDIT_RUN/pi-ai-X.Y.Z.tgz"
 
 # Diff against previous, port, test, commit, tag — then repeat for next version
 ```

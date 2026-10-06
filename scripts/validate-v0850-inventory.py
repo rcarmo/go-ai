@@ -15,6 +15,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("validate-v0850-inventory")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs" / "v0850"
 FILES = {

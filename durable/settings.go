@@ -18,6 +18,14 @@ type CompactionSettings struct {
 	BackgroundTokens *int  `json:"backgroundTokens,omitempty"`
 	MaxTokens        *int  `json:"maxTokens,omitempty"`
 }
+
+// ProgressSettings preserves explicit zero intervals. Omitted fields inherit
+// the reference 100ms defaults, independently for partials and tool output.
+type ProgressSettings struct {
+	PartialIntervalMs *int64 `json:"partialIntervalMs,omitempty"`
+	OutputIntervalMs  *int64 `json:"outputIntervalMs,omitempty"`
+}
+
 type HarnessSettings struct {
 	Extensions    *[]string
 	Stream        RequestSettings
@@ -26,6 +34,7 @@ type HarnessSettings struct {
 	ToolExecution string
 	SteeringMode  string
 	FollowUpMode  string
+	Progress      *ProgressSettings
 }
 
 func defaultHarnessSettings() RequestSettings {
@@ -60,6 +69,7 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 		settings.Compaction = applyCompactionOverrides(settings.Compaction, host.Stream.CompactionOverrides)
 		settings.Retry = applyRetryOverrides(settings.Retry, host.Retry)
 		settings.Compaction = applyCompactionOverrides(settings.Compaction, host.Compaction)
+		settings.Progress = mergeProgress(settings.Progress, host.Progress)
 		if host.ToolExecution != "" {
 			settings.ToolExecution = host.ToolExecution
 		}
@@ -112,6 +122,9 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	settings.Compaction = applyCompactionOverrides(settings.Compaction, stored.CompactionOverrides)
 	// Resolved intents contain concrete policies, not input presence metadata.
 	settings.RetryOverrides, settings.CompactionOverrides = nil, nil
+	settings.Progress = mergeProgress(settings.Progress, stored.Progress)
+	partial, output := int64(100), int64(100)
+	settings.Progress = mergeProgress(&ProgressSettings{PartialIntervalMs: &partial, OutputIntervalMs: &output}, settings.Progress)
 	if stored.ToolExecution != "" {
 		settings.ToolExecution = stored.ToolExecution
 	}
@@ -183,7 +196,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 		return err
 	}
 	retryEnabled, compactionEnabled := value.Retry.Enabled, value.Compaction.Enabled
-	copy := &HarnessSettings{Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode}
+	copy := &HarnessSettings{Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	if settings.Extensions != nil {
 		names, err := agentSelectionNames(*settings.Extensions)
 		if err != nil {
@@ -210,4 +223,22 @@ func (r *TaskRuntime) Settings(ctx context.Context) (RequestSettings, error) {
 		return RequestSettings{}, err
 	}
 	return cloneSettings(r.harness.resolvedSettings(RequestSettings{}), r.harness.session.limits)
+}
+
+func mergeProgress(base, override *ProgressSettings) *ProgressSettings {
+	result := &ProgressSettings{}
+	for _, value := range []*ProgressSettings{base, override} {
+		if value == nil {
+			continue
+		}
+		if value.PartialIntervalMs != nil {
+			n := *value.PartialIntervalMs
+			result.PartialIntervalMs = &n
+		}
+		if value.OutputIntervalMs != nil {
+			n := *value.OutputIntervalMs
+			result.OutputIntervalMs = &n
+		}
+	}
+	return result
 }

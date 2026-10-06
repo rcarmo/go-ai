@@ -4,11 +4,53 @@ GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/
 GOFMT ?= gofumpt
 GOLINT ?= golangci-lint
 GOSEC ?= gosec
-GO_TMPDIR ?= /workspace/tmp
-PROFILE_ROOT ?= artifacts/profiles
+PROJECT := go-ai
+# Resolve once BEFORE replacing TMPDIR. Portable helpers are vendored here.
+# PROJECT_TMP_BASE selects <base>/go-ai; compatible explicit ROOT must agree.
+# CI: RUNNER_TEMP, inherited TMPDIR, /tmp. Local: /workspace/tmp, /tmp.
+PROJECT_ORIGINAL_TMPDIR ?= $(TMPDIR)
+PROJECT_ORIGINAL_TMPDIR := $(PROJECT_ORIGINAL_TMPDIR)
+export PROJECT_ORIGINAL_TMPDIR
+ifeq ($(origin PROJECT_TMP_ROOT),undefined)
+PROJECT_TMP_RESOLVED := $(shell $(if $(filter undefined,$(origin PROJECT_TMP_BASE)),,PROJECT_TMP_BASE='$(subst ','"'"',$(PROJECT_TMP_BASE))') PROJECT_ORIGINAL_TMPDIR='$(subst ','"'"',$(PROJECT_ORIGINAL_TMPDIR))' PROJECT=$(PROJECT) bash scripts/project-tmp.sh root)
+else
+PROJECT_TMP_RESOLVED := $(shell $(if $(filter undefined,$(origin PROJECT_TMP_BASE)),,PROJECT_TMP_BASE='$(subst ','"'"',$(PROJECT_TMP_BASE))') PROJECT_TMP_ROOT='$(subst ','"'"',$(PROJECT_TMP_ROOT))' PROJECT_ORIGINAL_TMPDIR='$(subst ','"'"',$(PROJECT_ORIGINAL_TMPDIR))' PROJECT=$(PROJECT) bash scripts/project-tmp.sh root)
+endif
+override PROJECT_TMP_ROOT := $(PROJECT_TMP_RESOLVED)
+ifeq ($(strip $(PROJECT_TMP_ROOT)),)
+$(error Cannot resolve a safe project temporary root)
+endif
+GO_TMPDIR ?= $(PROJECT_TMP_ROOT)/build/tmp
+GOCACHE ?= $(PROJECT_TMP_ROOT)/cache/go-build
+GOMODCACHE ?= $(PROJECT_TMP_ROOT)/cache/go-mod
+GOPATH ?= $(PROJECT_TMP_ROOT)/cache/go-path
+XDG_CACHE_HOME ?= $(PROJECT_TMP_ROOT)/cache/xdg
+npm_config_cache ?= $(PROJECT_TMP_ROOT)/cache/npm
+BUN_INSTALL_CACHE_DIR ?= $(PROJECT_TMP_ROOT)/cache/bun
+PYTHONPYCACHEPREFIX ?= $(PROJECT_TMP_ROOT)/cache/python
+GO_AI_MODEL_REGEN_CACHE ?= $(PROJECT_TMP_ROOT)/cache/model-regeneration
+PROFILE_ROOT ?= $(PROJECT_TMP_ROOT)/evidence/profiles
+TMPDIR := $(GO_TMPDIR)
+TMP := $(GO_TMPDIR)
+TEMP := $(GO_TMPDIR)
+GOTMPDIR := $(GO_TMPDIR)
+export PROJECT_TMP_ROOT GOCACHE GOMODCACHE GOPATH XDG_CACHE_HOME npm_config_cache BUN_INSTALL_CACHE_DIR PYTHONPYCACHEPREFIX GO_AI_MODEL_REGEN_CACHE PROFILE_ROOT TMPDIR TMP TEMP GOTMPDIR
 PACKAGES ?= ./...
 TEST_FLAGS ?=
-PROFILE_TEST = GO=$(GO) TMPDIR=$(GO_TMPDIR) PROFILE_ROOT=$(PROFILE_ROOT) bash scripts/test-profile.sh
+PROFILE_TEST = GO=$(GO) PROFILE_ROOT=$(PROFILE_ROOT) bash scripts/test-profile.sh
+
+.PHONY: project-tmp-init project-paths project-tmp-self-test
+project-tmp-init: ## Validate/init project caches and scratch without deleting evidence
+	@bash -c 'source scripts/project-env.sh'
+
+project-tmp-self-test: project-tmp-init ## Profile portable routing and unsafe-root/isolation tests
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-project-temp.py
+
+project-paths: ## Show canonical cache/build/run/evidence paths
+	@printf '%s\n' 'PROJECT_TMP_ROOT=$(PROJECT_TMP_ROOT)' 'GOCACHE=$(GOCACHE)' 'GOMODCACHE=$(GOMODCACHE)' 'GO_TMPDIR=$(GO_TMPDIR)' 'PROFILE_ROOT=$(PROFILE_ROOT)'
+
+# Enforce routing for all cache/temp-producing entrypoints, including recursive Make.
+deps install lint format test test-deterministic test-shuffle test-race coverage bench fuzz vet staticcheck build generate check-model-regeneration check-model-regeneration-self-test vuln-check vuln-self-test license-check sbom sbom-self-test publisher-self-test toolchain-info check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta: | project-tmp-init
 GOTOOLCHAIN ?= auto
 STATICCHECK_VERSION ?= v0.7.0
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
@@ -53,7 +95,7 @@ vuln-check: ## Run govulncheck at a pinned version/toolchain and enforce securit
 	GOTOOLCHAIN=$(GOVULNCHECK_GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) python3 scripts/check-vuln-policy.py security-vuln-policy.json $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -json ./...
 
 vuln-self-test: ## Run negative vulnerability policy self-tests
-	python3 scripts/test-check-vuln-policy.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-check-vuln-policy.py
 
 license-check: ## Review dependency licenses; unknown/forbidden fail unless documented and explicitly allowed
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) check --include_tests --allowed_licenses=$(ALLOWED_LICENSES) ./...
@@ -68,11 +110,11 @@ sbom-check: sbom ## Validate SBOM schema/required fields/checksum/dependency out
 	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION) --expected-vcs-revision $(SBOM_VCS_REVISION)
 
 sbom-self-test: ## Run negative SBOM normalizer and validator self-tests
-	python3 scripts/test-normalize-sbom.py
-	python3 scripts/test-validate-sbom.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-normalize-sbom.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-validate-sbom.py
 
 publisher-self-test: ## Run native publisher tag policy simulations
-	python3 scripts/test-verify-native-release-tag.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-verify-native-release-tag.py
 
 ci-artifacts: sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Generate and validate release CI security artifacts
 
@@ -99,53 +141,57 @@ coverage: ## Run tests with coverage
 bench: ## Run benchmarks
 	$(PROFILE_TEST) $(PACKAGES) -- -run '^$$' -bench . -benchmem $(TEST_FLAGS)
 
-fuzz: ## Run fuzz tests (30s each by default, override with FUZZTIME=60s)
-	$(PROFILE_TEST) ./internal/jsonparse/ -- -fuzz FuzzPartialJSON -fuzztime $(or $(FUZZTIME),30s)
-	$(PROFILE_TEST) ./transports/sse/ -- -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s)
-	$(PROFILE_TEST) . -- -fuzz FuzzContextRoundTrip -fuzztime $(or $(FUZZTIME),30s)
-	$(PROFILE_TEST) . -- -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s)
-	$(PROFILE_TEST) . -- -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s)
+fuzz: ## Run profiled fuzz targets (default 30s each; focus with FUZZ_TARGET/PACKAGES)
+	@if test -n "$(FUZZ_TARGET)"; then \
+	  $(PROFILE_TEST) $(PACKAGES) -- -run '^$$' -fuzz '$(FUZZ_TARGET)' -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS); \
+	else \
+	  $(PROFILE_TEST) ./internal/jsonparse -- -run '^$$' -fuzz FuzzPartialJSON -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS) && \
+	  $(PROFILE_TEST) ./transports/sse -- -run '^$$' -fuzz FuzzSSEParse -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS) && \
+	  $(PROFILE_TEST) ./tests -- -run '^$$' -fuzz FuzzContextRoundTrip -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS) && \
+	  $(PROFILE_TEST) ./tests -- -run '^$$' -fuzz FuzzTransformMessages -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS) && \
+	  $(PROFILE_TEST) ./tests -- -run '^$$' -fuzz FuzzOverflowDetection -fuzztime $(or $(FUZZTIME),30s) $(TEST_FLAGS); \
+	fi
 
-check: test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/publisher/security gates
+check: project-tmp-self-test test-deterministic vet staticcheck check-logging check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta check-model-regeneration check-model-regeneration-self-test sbom-check sbom-self-test publisher-self-test vuln-check vuln-self-test license-check ## Run deterministic tests + vet + staticcheck + logging + model/SBOM/publisher/security gates
 
 check-v0850-inventory: ## Validate committed v0.85.0 release inventories and negative self-test
-	python3 scripts/validate-v0850-inventory.py
-	python3 scripts/validate-v0850-inventory.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0850-inventory.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0850-inventory.py --self-test
 	python3 scripts/validate-test-manifest.py docs/v0850-142-test-manifest.md
 
 check-v0850-catalog-delta: ## Validate exact full-record v0.84.4->v0.85.0 catalog deltas and negative self-test
-	python3 scripts/validate-v0850-catalog-delta.py
-	python3 scripts/validate-v0850-catalog-delta.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0850-catalog-delta.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0850-catalog-delta.py --self-test
 
 check-model-regeneration-self-test: ## Prove text/image generation comparators fail on non-ID metadata drift
-	python3 scripts/test-check-model-regeneration.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-check-model-regeneration.py
 
 check-v0851-inventory: ## Validate committed v0.85.1 release inventories and negative self-test
-	python3 scripts/validate-v0851-inventory.py
-	python3 scripts/validate-v0851-inventory.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0851-inventory.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0851-inventory.py --self-test
 	python3 scripts/validate-test-manifest.py docs/v0851-142-test-manifest.md docs/v0851/test-corpus-142.txt
 
 check-v0851-catalog-delta: ## Validate exact full-record v0.85.0->v0.85.1 catalog deltas and negative self-test
-	python3 scripts/validate-v0851-catalog-delta.py
-	python3 scripts/validate-v0851-catalog-delta.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0851-catalog-delta.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0851-catalog-delta.py --self-test
 
 check-v0870-inventory: ## Validate committed v0.87.0 release inventories and negative self-test
-	python3 scripts/validate-v0870-inventory.py
-	python3 scripts/validate-v0870-inventory.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0870-inventory.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0870-inventory.py --self-test
 	python3 scripts/validate-test-manifest.py docs/v0870-150-test-manifest.md docs/v0870/test-corpus-150.txt
 
 check-v0870-catalog-delta: ## Validate exact full-record v0.85.1->v0.87.0 catalog deltas and negative self-test
-	python3 scripts/validate-v0870-catalog-delta.py
-	python3 scripts/validate-v0870-catalog-delta.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0870-catalog-delta.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0870-catalog-delta.py --self-test
 
 check-v0871-inventory: ## Validate committed v0.87.1 release inventories and negative self-test
-	python3 scripts/validate-v0871-inventory.py
-	python3 scripts/validate-v0871-inventory.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0871-inventory.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0871-inventory.py --self-test
 	python3 scripts/validate-test-manifest.py docs/v0871-150-test-manifest.md docs/v0871/test-corpus-150.txt
 
 check-v0871-catalog-delta: ## Validate exact full-record v0.87.0->v0.87.1 catalog deltas and negative self-test
-	python3 scripts/validate-v0871-catalog-delta.py
-	python3 scripts/validate-v0871-catalog-delta.py --self-test
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0871-catalog-delta.py
+	GO=$(GO) bash scripts/test-python-profile.sh scripts/validate-v0871-catalog-delta.py --self-test
 
 # =============================================================================
 # Reproducible verification targets
@@ -165,7 +211,7 @@ staticcheck: ## Run staticcheck at a pinned version
 test-race: ## Run race tests (requires gcc/clang + CGO)
 	CGO_ENABLED=1 $(PROFILE_TEST) $(PACKAGES) -- -race $(TEST_FLAGS)
 
-test-repro-fast: ## Reproducible local gate (profiled tests, no race)
+test-repro-fast: project-tmp-self-test ## Reproducible local gate (profiled tests, no race)
 	$(MAKE) test
 	TMPDIR=$(GO_TMPDIR) $(GO) vet ./...
 	TMPDIR=$(GO_TMPDIR) $(GO) build ./...
@@ -204,9 +250,10 @@ check-model-regeneration: ## Verify models_generated.go matches exact normalized
 # Clean targets
 # =============================================================================
 
-clean: ## Remove build artifacts and cache
+clean: project-tmp-init ## Remove local disposable output; retain profiles/receipts/SBOM evidence
 	$(GO) clean
-	rm -rf coverage.out $(SBOM_DIR)
+	rm -f coverage.out
+	@echo 'Project caches and retained evidence are preserved; no recursive root cleanup.'
 
 clean-all: clean ## Remove everything including vendor
 	rm -rf vendor

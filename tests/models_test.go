@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1536 {
-		t.Fatalf("expected exactly 1536 generated models from pi-ai v1.0.1, got %d", total)
+	if total != 1537 {
+		t.Fatalf("expected exactly 1537 generated models from pi-ai v1.0.1, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -88,8 +88,8 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		t.Fatalf("expected OpenRouter Kimi K2.7 Code v0.99.2 metadata and image limits, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.41 || openRouterGLM52.Cost.Output != 3.99 || openRouterGLM52.Cost.CacheRead != 0.26 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v1.0.0 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.032 || openRouterGLM52.Cost.Output != 12 || openRouterGLM52.Cost.CacheRead != 0.032 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 131072 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v1.0.4 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {

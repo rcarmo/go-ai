@@ -11,6 +11,9 @@ import subprocess
 import sys
 import tempfile
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("validate-v0871-catalog-delta")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_FILES = {
     "text-v0870.jsonl": (1445, "baf3a836d7e8bc386dd65ec2a9f61e458e5009d19cd884a12daa4f637c3546ef"),

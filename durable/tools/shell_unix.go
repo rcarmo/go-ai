@@ -35,6 +35,7 @@ type shellWriter struct {
 	mu              sync.Mutex
 	ctx             context.Context
 	callback        func(context.Context, string) error
+	callbackInfo    func(context.Context, string, durable.ShellOutputInfo) error
 	spillOptions    *durable.ShellSpillOptions
 	env             *Env
 	prefix          []byte
@@ -100,7 +101,10 @@ func (w *shellWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-type shellCallbackWriter struct{ writer *shellWriter }
+type shellCallbackWriter struct {
+	writer *shellWriter
+	stream string
+}
 
 func (w shellCallbackWriter) Write(data []byte) (int, error) {
 	w.writer.mu.Lock()
@@ -108,7 +112,14 @@ func (w shellCallbackWriter) Write(data []byte) (int, error) {
 	if w.writer.failure != nil {
 		return 0, w.writer.failure
 	}
-	if w.writer.callback != nil {
+	if w.writer.callbackInfo != nil {
+		if err := callShellOutputInfo(w.writer.ctx, w.writer.callbackInfo, string(data), durable.ShellOutputInfo{Stream: w.stream}); err != nil {
+			w.writer.failure, w.writer.failureCode = err, "callback_error"
+			w.writer.cancel()
+			return 0, err
+		}
+	}
+	if w.writer.callbackInfo == nil && w.writer.callback != nil {
 		if err := callShellOutput(w.writer.ctx, w.writer.callback, string(data)); err != nil {
 			w.writer.failure = err
 			w.writer.failureCode = "callback_error"
@@ -130,7 +141,24 @@ func (p *shellPipe) Write(data []byte) (int, error) {
 	}
 	return p.decoded.Write(data)
 }
+func callShellOutputInfo(ctx context.Context, callback func(context.Context, string, durable.ShellOutputInfo) error, text string, info durable.ShellOutputInfo) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errors.New("shell callback panic")
+		}
+	}()
+	return callback(ctx, text, info)
+}
 func (e *Env) Exec(ctx context.Context, command string, options durable.ShellExecOptions) (durable.ShellExecResult, error) {
+	return e.execCommand(ctx, command, nil, options)
+}
+func (e *Env) ExecArgs(ctx context.Context, args []string, options durable.ShellExecOptions) (durable.ShellExecResult, error) {
+	if len(args) == 0 || args[0] == "" {
+		return durable.ShellExecResult{}, shellFailure("spawn_error", "", os.ErrInvalid)
+	}
+	return e.execCommand(ctx, "", append([]string(nil), args...), options)
+}
+func (e *Env) execCommand(ctx context.Context, command string, args []string, options durable.ShellExecOptions) (durable.ShellExecResult, error) {
 	if ctx == nil {
 		return durable.ShellExecResult{}, shellFailure("unknown", "", os.ErrInvalid)
 	}
@@ -157,9 +185,12 @@ func (e *Env) Exec(ctx context.Context, command string, options durable.ShellExe
 	if err != nil {
 		return durable.ShellExecResult{}, shellFailure("spawn_error", "", err)
 	}
-	shell, err := bashShellPath()
-	if err != nil {
-		return durable.ShellExecResult{}, shellFailure("shell_unavailable", "", err)
+	var shell string
+	if args == nil {
+		shell, err = bashShellPath()
+		if err != nil {
+			return durable.ShellExecResult{}, shellFailure("shell_unavailable", "", err)
+		}
 	}
 	run, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -169,6 +200,9 @@ func (e *Env) Exec(ctx context.Context, command string, options durable.ShellExe
 		defer stop()
 	}
 	cmd := exec.Command(shell, "-c", command)
+	if args != nil {
+		cmd = exec.Command(args[0], args[1:]...)
+	}
 	cmd.Dir = absolute
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = time.Second
@@ -195,9 +229,9 @@ func (e *Env) Exec(ctx context.Context, command string, options durable.ShellExe
 	if cmd.Env == nil {
 		cmd.Env = []string{}
 	}
-	writer := &shellWriter{ctx: ctx, callback: options.OnOutput, spillOptions: options.Spill, env: e, cancel: cancel}
-	stdout := &shellPipe{writer, transform.NewWriter(shellCallbackWriter{writer}, unicode.UTF8BOM.NewDecoder())}
-	stderr := &shellPipe{writer, transform.NewWriter(shellCallbackWriter{writer}, unicode.UTF8BOM.NewDecoder())}
+	writer := &shellWriter{ctx: ctx, callback: options.OnOutput, callbackInfo: options.OnOutputInfo, spillOptions: options.Spill, env: e, cancel: cancel}
+	stdout := &shellPipe{writer, transform.NewWriter(shellCallbackWriter{writer: writer, stream: "stdout"}, unicode.UTF8BOM.NewDecoder())}
+	stderr := &shellPipe{writer, transform.NewWriter(shellCallbackWriter{writer: writer, stream: "stderr"}, unicode.UTF8BOM.NewDecoder())}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Start(); err != nil {
 		return durable.ShellExecResult{}, shellFailure("spawn_error", "", err)

@@ -11,6 +11,10 @@ import (
 )
 
 func executePortableBash(ctx context.Context, fs durable.FileSystem, shell durable.Shell, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
+	return executePortableCommand(ctx, fs, args, api, shell.Exec)
+}
+
+func executePortableCommand(ctx context.Context, fs durable.FileSystem, args durable.JSON, api *durable.ToolAPI, exec func(context.Context, string, durable.ShellExecOptions) (durable.ShellExecResult, error)) (durable.ToolResult, error) {
 	if err := ctx.Err(); err != nil {
 		return durable.ToolResult{}, err
 	}
@@ -47,7 +51,23 @@ func executePortableBash(ctx context.Context, fs durable.FileSystem, shell durab
 		inherit = value
 	}
 	environment, _ := args["executionEnv"].(map[string]string)
-	executed, err := shell.Exec(ctx, command, durable.ShellExecOptions{Cwd: cwd, Env: environment, InheritEnv: &inherit, Timeout: timeout, Spill: &durable.ShellSpillOptions{AfterBytes: MaxReadBytes, AfterLines: MaxReadLines}, OnOutput: func(_ context.Context, text string) error {
+	var window *durable.ShellOutputWindow
+	if api != nil {
+		window = api.OutputWindow()
+	}
+	// Legacy callbacks remain supported; 1.0.4 adapters use metadata so omitted
+	// bytes contribute retention counters without being transported again.
+	output := func(_ context.Context, text string, info durable.ShellOutputInfo) error {
+		if info.Skipped != nil && api != nil {
+			return api.OutputSkipped(text, info.Skipped)
+		}
+		if capture != nil {
+			capture.append([]byte(text))
+		}
+		streamer.write([]byte(text))
+		return nil
+	}
+	executed, err := exec(ctx, command, durable.ShellExecOptions{Cwd: cwd, Env: environment, InheritEnv: &inherit, Timeout: timeout, Window: window, Spill: &durable.ShellSpillOptions{AfterBytes: MaxReadBytes, AfterLines: MaxReadLines}, OnOutputInfo: output, OnOutput: func(_ context.Context, text string) error {
 		if capture != nil {
 			capture.append([]byte(text))
 		}

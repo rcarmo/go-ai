@@ -1,6 +1,6 @@
 # Historical durable validation receipts
 
-These receipts retain their original candidate/time scope. Current closure decisions are in [parity closure](parity-closure.md).
+These receipts retain their original candidate/time scope. Current 1.0.4 results are in [local validation](../v104/local-validation.md); [parity closure](parity-closure.md) preserves the prior 1.0.0 completion and native boundaries.
 
 ## contract-crosswalk history
 

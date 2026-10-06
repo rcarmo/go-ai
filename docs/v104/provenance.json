@@ -1,0 +1,25 @@
+{
+  "target": "v1.0.4",
+  "revision": "7c10bd4337495ee613f2224843ecdf349b80d1df",
+  "priorAI": "a7229ddc21810d6245105978033b7df645ecc2f7",
+  "priorDurable": "a13d35a742c6ef8462812a28fbe1d8c8b7431c32",
+  "packages": {
+    "ai": {
+      "name": "@earendil-works/pi-ai",
+      "version": "1.0.4",
+      "gitHead": "7c10bd4337495ee613f2224843ecdf349b80d1df",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.0.4.tgz",
+      "integrity": "sha512-/Eu5R0gfor6wcmRcVyOmulUiZmsHJ0bKu5wXXnpCoSHF3y4FnW4fgnjRlLjNza8NJWXdvW5Uew90Zukx7Sh2rw==",
+      "sha256": "2fd5bf57c6a5b5b82d4563b18a2627b14d74dc4aacbf69a3dcf91c091e6038cf"
+    },
+    "durable": {
+      "name": "@earendil-works/pi-durable",
+      "version": "1.0.4",
+      "gitHead": "7c10bd4337495ee613f2224843ecdf349b80d1df",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-durable/-/pi-durable-1.0.4.tgz",
+      "integrity": "sha512-i22unyhavxrTF/KS/JcBOKprQRgepufOIztnqBKZXJCWbEHsXDzcINtjmmBSbFB/3S+4FWIl3eJ5FMbRe33Ybg==",
+      "sha256": "c54e3dfedcc0776d9eb010c33cb5f3332783e95d0e81465a4745ab683850d20d"
+    }
+  },
+  "scope": "official tags/npm artifacts only; no upstream main"
+}

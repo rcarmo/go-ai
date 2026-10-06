@@ -79,7 +79,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			}
 			extensions = &names
 		}
-		options.Settings = &HarnessSettings{Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode}
+		options.Settings = &HarnessSettings{Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	}
 	if options.Extensions != nil {
 		names, err := agentSelectionNames(*options.Extensions)
@@ -618,6 +618,10 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 		if _, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: conversation, Kind: v.kind, Version: 1, Value: v.value}); e != nil {
 			return e
 		}
+	}
+	if tx.session != nil && tx.session.taskScheduler != nil {
+		_, err := ensureProviderDocument(tx, conversation)
+		return err
 	}
 	return nil
 }

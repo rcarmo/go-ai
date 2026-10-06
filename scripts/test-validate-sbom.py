@@ -9,6 +9,9 @@ import sys
 import tempfile
 from copy import deepcopy
 
+from project_temp import configure as configure_project_temp
+configure_project_temp("test-validate-sbom")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "scripts" / "validate-sbom.py"
 REVISION = "abc123def456"
