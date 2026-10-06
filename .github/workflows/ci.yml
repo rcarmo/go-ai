@@ -47,14 +47,14 @@ jobs:
         run: make build
 
       - name: Check (vet, staticcheck, deterministic tests)
-        run: make check PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make check
 
       - name: Race tests
-        run: make test-race PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make test-race
 
       - name: Test with coverage
         if: matrix.go-version == '1.26.6'
-        run: make coverage PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make coverage
 
       - name: Logging quality gate
         run: ./scripts/check-logging.sh
@@ -105,19 +105,19 @@ jobs:
           cache: false
 
       - name: Fuzz - Partial JSON parser
-        run: make fuzz PACKAGES=./internal/jsonparse FUZZ_TARGET=FuzzPartialJSON FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make fuzz PACKAGES=./internal/jsonparse FUZZ_TARGET=FuzzPartialJSON FUZZTIME=30s
 
       - name: Fuzz - SSE parser
-        run: make fuzz PACKAGES=./transports/sse FUZZ_TARGET=FuzzSSEParse FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make fuzz PACKAGES=./transports/sse FUZZ_TARGET=FuzzSSEParse FUZZTIME=30s
 
       - name: Fuzz - Context round-trip
-        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzContextRoundTrip FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzContextRoundTrip FUZZTIME=30s
 
       - name: Fuzz - Message transformation
-        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzTransformMessages FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzTransformMessages FUZZTIME=30s
 
       - name: Fuzz - Overflow detection
-        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzOverflowDetection FUZZTIME=30s PROJECT_TMP_ROOT=${{ runner.temp }}/go-ai
+        run: make fuzz PACKAGES=./tests FUZZ_TARGET=FuzzOverflowDetection FUZZTIME=30s
 
       - name: Upload fuzz analysis
         if: always()
