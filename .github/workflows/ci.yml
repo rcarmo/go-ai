@@ -11,18 +11,6 @@ on:
     - cron: '17 4 * * 1'
   workflow_dispatch:
 
-env:
-  PROJECT_TMP_ROOT: ${{ runner.temp }}/go-ai
-  GOCACHE: ${{ runner.temp }}/go-ai/cache/go-build
-  GOMODCACHE: ${{ runner.temp }}/go-ai/cache/go-mod
-  GOPATH: ${{ runner.temp }}/go-ai/cache/go-path
-  XDG_CACHE_HOME: ${{ runner.temp }}/go-ai/cache/xdg
-  TMPDIR: ${{ runner.temp }}/go-ai/build/tmp
-  TMP: ${{ runner.temp }}/go-ai/build/tmp
-  TEMP: ${{ runner.temp }}/go-ai/build/tmp
-  GOTMPDIR: ${{ runner.temp }}/go-ai/build/tmp
-  PYTHONPYCACHEPREFIX: ${{ runner.temp }}/go-ai/cache/python
-
 jobs:
   check:
     name: Vet, Staticcheck & Deterministic Tests
@@ -33,7 +21,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize project-owned temporary paths
-        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/go-ai"
+          mkdir -p "$root/cache/go-build" "$root/cache/go-mod" "$root/cache/go-path" "$root/cache/xdg" "$root/cache/python" "$root/build/tmp"
+          {
+            echo "PROJECT_TMP_ROOT=$root"
+            echo "GOCACHE=$root/cache/go-build"
+            echo "GOMODCACHE=$root/cache/go-mod"
+            echo "GOPATH=$root/cache/go-path"
+            echo "XDG_CACHE_HOME=$root/cache/xdg"
+            echo "PYTHONPYCACHEPREFIX=$root/cache/python"
+            for name in TMPDIR TMP TEMP GOTMPDIR; do echo "$name=$root/build/tmp"; done
+          } >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
@@ -84,7 +85,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize project-owned temporary paths
-        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/go-ai"
+          mkdir -p "$root/cache/go-build" "$root/cache/go-mod" "$root/cache/go-path" "$root/cache/xdg" "$root/cache/python" "$root/build/tmp"
+          {
+            echo "PROJECT_TMP_ROOT=$root"
+            echo "GOCACHE=$root/cache/go-build"
+            echo "GOMODCACHE=$root/cache/go-mod"
+            echo "GOPATH=$root/cache/go-path"
+            echo "XDG_CACHE_HOME=$root/cache/xdg"
+            echo "PYTHONPYCACHEPREFIX=$root/cache/python"
+            for name in TMPDIR TMP TEMP GOTMPDIR; do echo "$name=$root/build/tmp"; done
+          } >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.6'

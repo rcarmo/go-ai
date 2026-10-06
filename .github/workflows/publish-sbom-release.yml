@@ -26,18 +26,6 @@ on:
 permissions:
   contents: write
 
-env:
-  PROJECT_TMP_ROOT: ${{ runner.temp }}/go-ai
-  GOCACHE: ${{ runner.temp }}/go-ai/cache/go-build
-  GOMODCACHE: ${{ runner.temp }}/go-ai/cache/go-mod
-  GOPATH: ${{ runner.temp }}/go-ai/cache/go-path
-  XDG_CACHE_HOME: ${{ runner.temp }}/go-ai/cache/xdg
-  TMPDIR: ${{ runner.temp }}/go-ai/build/tmp
-  TMP: ${{ runner.temp }}/go-ai/build/tmp
-  TEMP: ${{ runner.temp }}/go-ai/build/tmp
-  GOTMPDIR: ${{ runner.temp }}/go-ai/build/tmp
-  PYTHONPYCACHEPREFIX: ${{ runner.temp }}/go-ai/cache/python
-
 jobs:
   publish-sbom:
     name: Publish accepted runtime SBOM
@@ -130,7 +118,20 @@ jobs:
           printf '%s\n' "runtime_short_ref=${actual_ref:0:12}" >> "$GITHUB_ENV"
 
       - name: Initialize project-owned temporary paths
-        run: mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$XDG_CACHE_HOME" "$TMPDIR" "$PYTHONPYCACHEPREFIX"
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/go-ai"
+          mkdir -p "$root/cache/go-build" "$root/cache/go-mod" "$root/cache/go-path" "$root/cache/xdg" "$root/cache/python" "$root/build/tmp"
+          {
+            echo "PROJECT_TMP_ROOT=$root"
+            echo "GOCACHE=$root/cache/go-build"
+            echo "GOMODCACHE=$root/cache/go-mod"
+            echo "GOPATH=$root/cache/go-path"
+            echo "XDG_CACHE_HOME=$root/cache/xdg"
+            echo "PYTHONPYCACHEPREFIX=$root/cache/python"
+            for name in TMPDIR TMP TEMP GOTMPDIR; do echo "$name=$root/build/tmp"; done
+          } >> "$GITHUB_ENV"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -158,7 +159,7 @@ jobs:
           sha256sum runtime/artifacts/sbom.cdx.json > runtime/artifacts/sbom.cdx.json.sha256
           sed -i 's#  runtime/artifacts/sbom.cdx.json#  artifacts/sbom.cdx.json#' runtime/artifacts/sbom.cdx.json.sha256
           python3 tooling/scripts/validate-sbom.py runtime/artifacts/sbom.cdx.json runtime/artifacts/sbom.cdx.json.sha256 --expected-revision "$sbom_root_version" --expected-vcs-revision "$runtime_full_ref"
-          bash tooling/scripts/test-python-profile.sh tooling/scripts/test-validate-sbom.py
+          (cd tooling && bash scripts/test-python-profile.sh scripts/test-validate-sbom.py)
           python3 - <<'PY'
           import json
           import os
@@ -209,11 +210,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf runtime/dist
-          mkdir -p runtime/dist
-          cp runtime/artifacts/sbom.cdx.json runtime/dist/sbom.cdx.json
-          sha256sum runtime/dist/sbom.cdx.json | sed 's#  runtime/dist/sbom.cdx.json#  sbom.cdx.json#' > runtime/dist/sbom.cdx.json.sha256
-          (cd runtime/dist && sha256sum -c sbom.cdx.json.sha256)
+          release_dir="$PROJECT_TMP_ROOT/build/release"
+          mkdir -p "$release_dir"
+          cp runtime/artifacts/sbom.cdx.json "$release_dir/sbom.cdx.json"
+          (cd "$release_dir" && sha256sum sbom.cdx.json > sbom.cdx.json.sha256 && sha256sum -c sbom.cdx.json.sha256)
 
       - name: Create or update SBOM release
         shell: bash
@@ -229,10 +229,14 @@ jobs:
               --repo "${GITHUB_REPOSITORY}" \
               --tag "$RELEASE_TAG" \
               --runtime-ref "$runtime_full_ref"
-            git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
           fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            if [[ "$release_mode" == "native" ]]; then
+              echo "Native release $RELEASE_TAG already exists; refusing to edit or overwrite assets" >&2
+              exit 1
+            fi
+            git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
             tag_commit="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"
             if [[ "$tag_commit" != "$runtime_full_ref" ]]; then
               echo "release tag $RELEASE_TAG points to $tag_commit, expected $runtime_full_ref" >&2
@@ -249,4 +253,9 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --title "$release_title" --notes "$release_notes" --target "$runtime_full_ref"
           fi
-          gh release upload "$RELEASE_TAG" dist/sbom.cdx.json dist/sbom.cdx.json.sha256 --clobber
+          assets=("$PROJECT_TMP_ROOT/build/release/sbom.cdx.json" "$PROJECT_TMP_ROOT/build/release/sbom.cdx.json.sha256")
+          if [[ "$release_mode" == "native" ]]; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}"
+          else
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          fi
