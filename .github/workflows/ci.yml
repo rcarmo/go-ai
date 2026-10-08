@@ -54,6 +54,8 @@ jobs:
       - name: Race tests
         # Hosted two-core runners need a larger aggregate package budget;
         # individual three-second correctness deadlines remain unchanged.
+        env:
+          GOMAXPROCS: '2'
         run: make test-race TEST_FLAGS='-timeout=12m'
 
       - name: Test with coverage
