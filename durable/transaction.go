@@ -9,13 +9,16 @@ import (
 // accessor exists. Reentrant/overlapping methods reject; escaped methods reject
 // after settlement. Concurrent mutation DURING copy is unsupported Go misuse.
 type Tx struct {
-	store         *storeCore
-	session       *Session
-	ctx           context.Context
-	limits        Limits
-	state         Snapshot
-	writes        []Write
-	creationError error // creation callback failure poisons only this transaction
+	store            *storeCore
+	session          *Session
+	ctx              context.Context
+	limits           Limits
+	state            Snapshot
+	writes           []Write
+	stagedState      *Snapshot // private immutable prepare result; exact write-slice identity
+	stagedWrites     []Write
+	publicationState *Snapshot // sealed final candidate; reused only before storage admission
+	creationError    error     // creation callback failure poisons only this transaction
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
 	taskConversation   ID
@@ -99,10 +102,13 @@ func (t *Tx) stage(w Write) error {
 	if _, e = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, t.limits.MaxFramePayloadBytes); e != nil {
 		return e
 	}
-	if _, e = prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, false); e != nil {
-		return e
+	prepared, err := prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, false)
+	if err != nil {
+		return err
 	}
 	t.writes = candidate
+	t.stagedState = &prepared
+	t.stagedWrites = candidate
 	if owned.Op == "put-document" {
 		d := *owned.Document
 		plan := t.documentPlan(d.ID)
@@ -235,6 +241,11 @@ func (t *Tx) PutSubmission(v Submission) error {
 func (t *Tx) current() (Snapshot, error) {
 	if len(t.writes) == 0 {
 		return t.state, nil
+	}
+	if t.stagedState != nil && len(t.stagedWrites) == len(t.writes) && &t.stagedWrites[0] == &t.writes[0] {
+		state := *t.stagedState
+		state.HighWater = t.state.HighWater
+		return state, nil
 	}
 	return prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: t.writes}, t.limits, false)
 }

@@ -49,6 +49,14 @@ Very short packages have zero CPU samples despite valid capture files; those cap
 * The final scan audit corrected conversation-history default direction to ascending, while Storage keeps descending. Dedicated page/continuation assertions pass.
 * Independent read-only review delegates timed out and supply no review acceptance. Local inspection and executable tests provide the recorded evidence.
 
+## Authorised publication verification
+
+Rui authorised commit/release at09:55UTC on8October. First pushed runtime candidate `b51fa03741aabc2992ff4ea0cd1ccb10b93db5a8` passed hosted deterministic/static and fuzz checks in run37760316841, but race tests exceeded several unchanged3s deadlines and the6m aggregate package limit. It was not tagged/published.
+
+Local diagnosis identified repeated sealed-candidate preparation in subscription publication and staged-state reads. `Tx` now reuses private immutable preparation only for an exact unchanged write-slice identity, refreshing HighWater; rollback/reselection invalidates by identity. Subscriptions reuse the publication candidate, keep detached frames/snapshots, and storage still independently validates admission. Full durable/tools race/profile with GOMAXPROCS=2 passes307.386s/26.196s; the hosted failing tests pass focused count3 under the same two-core setting. Repository vet/staticcheck/logging pass. No equivalent-workload end-to-end speedup is claimed from runs with different shuffle/CPU settings.
+
+Hosted race package timeout is12m, matching slower runners' aggregate workload. Individual3s behaviour assertions are unchanged. Final immutable runtime/CI/tag/public receipts are added to `RELEASE.md` after acceptance.
+
 ## Verification limits
 
 Live provider billing/quality, live OAuth, Windows/installed-PowerShell, Cloudflare deployments, a fresh clean-clone consumer and hosted CI have not been run for this candidate. Npm SHA512 integrity and decoded SLSA subjects match; DSSE signatures/certificates were not cryptographically verified. Every official suite has a disposition; this is not certification of every inner TypeScript subcase. Native Codex device-flow default is retained for AI compatibility, while browser login adds the 1.1.0 originator option. Compiled native providers do not have a JavaScript lazy-module loader. Published 1.0.4 remains immutable.

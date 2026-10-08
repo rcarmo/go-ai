@@ -387,6 +387,7 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 	if e != nil {
 		return CommitPublication{}, e
 	}
+	t.publicationState = &state
 	changed := map[ID]bool{}
 	for _, write := range t.writes {
 		if write.Document != nil {
@@ -645,10 +646,13 @@ func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPu
 	if len(list) == 0 {
 		return nil, nil
 	}
-	state, e := prepare(tx.state, commitRecord{Seq: publication.Seq, Writes: tx.writes}, s.limits)
-	if e != nil {
-		return nil, e
+	// Publication already validated this exact sealed candidate. Subscribers
+	// still receive independently detached frames and snapshots; storage repeats
+	// validation at its admission boundary. Reuse avoids a full replay per commit.
+	if tx.publicationState == nil {
+		return nil, reject("publication candidate missing")
 	}
+	state := *tx.publicationState
 	result := []preparedSubscription{}
 	for _, p := range list {
 		// Each subscription owns its independent batch and fallback snapshot, copied
