@@ -1499,8 +1499,11 @@ func TestTaskOwnershipInspectMarkedOwnedAbortActualReturnPrecedence(t *testing.T
 		releaseTaskGate(returnAbort)
 		awaitTaskSignal(t, pickedAbort.done)
 		check("ready", nil)
-		if runs.Load() != 2 || aborts.Load() != 1 || clocks.Load() != 0 {
-			t.Fatal("inspection dispatched/clock effects", runs.Load(), aborts.Load(), clocks.Load())
+		// Two tasks start and the child terminates before the parent return is
+		// released: lifecycle stamps use Now, while inspection stays effect-free
+		// (asserted against a captured clock count above).
+		if runs.Load() != 2 || aborts.Load() != 1 || clocks.Load() != 3 {
+			t.Fatal("unexpected dispatch/lifecycle clock effects", runs.Load(), aborts.Load(), clocks.Load())
 		}
 		final := waitPublicTask(t, h, id)
 		if final.State.Outcome == nil || final.State.Outcome.Status != "aborted" {
@@ -1583,6 +1586,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					})
 					inspect := func(host *Harness, want string, on []ID, reason string) {
 						t.Helper()
+						beforeClock := clocks.Load()
 						before, err := host.Snapshot(bg)
 						if err != nil {
 							t.Fatal(err)
@@ -1619,7 +1623,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 							t.Fatal("paused parent omitted")
 						}
 						after, err := host.Snapshot(bg)
-						if err != nil || after.Seq != before.Seq || host.scheduler.epoch.Load() != epoch || effects.Load() != 0 || clocks.Load() != 0 || migrations.Load() != 0 || !equalTaskValue(&TaskValue{Present: true, Value: before.Tasks[parentID].Checkpoint}, &TaskValue{Present: true, Value: after.Tasks[parentID].Checkpoint}, host.session.limits) {
+						if err != nil || after.Seq != before.Seq || host.scheduler.epoch.Load() != epoch || effects.Load() != 0 || clocks.Load() != beforeClock || migrations.Load() != 0 || !equalTaskValue(&TaskValue{Present: true, Value: before.Tasks[parentID].Checkpoint}, &TaskValue{Present: true, Value: after.Tasks[parentID].Checkpoint}, host.session.limits) {
 							t.Fatal("Inspect changed records/callbacks/wake", err)
 						}
 						if origin == "native" || origin == "native-pending" || origin == "native-running" {

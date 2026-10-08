@@ -46,6 +46,7 @@ func streamCodexSimple(ctx context.Context, model *goai.Model, convCtx *goai.Con
 
 func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -54,7 +55,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
 		}
 
@@ -71,12 +72,12 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			} else {
 				retriedConnectionLimit := false
 				for {
-					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, ch)
+					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, send)
 					if err == nil {
 						return
 					}
 					if ctx.Err() != nil {
-						ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+						send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 						return
 					}
 					connectionLimit := isWebSocketConnectionLimitReachedError(err)
@@ -85,7 +86,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						continue
 					}
 					if isCodexNonTransportError(err) && !connectionLimit {
-						ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 						return
 					}
 					diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
@@ -113,7 +114,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 		}
 
 		// SSE fallback (same as OpenAI Responses but with Codex URL)
-		streamViaSSE(ctx, model, convCtx, opts, apiKey, ch, diagnostics)
+		streamViaSSE(ctx, model, convCtx, opts, apiKey, send, diagnostics)
 	}()
 
 	return ch
@@ -235,12 +236,12 @@ func codexPiUserAgent() string {
 
 func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string) http.Header {
 	h := http.Header{}
+	h.Set("originator", "pi")
+	h.Set("User-Agent", codexPiUserAgent())
 	goai.ApplyHeaders(h, modelHeaders)
 	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
-	h.Set("originator", "pi")
-	h.Set("User-Agent", codexPiUserAgent())
 	h.Set("OpenAI-Beta", "responses=experimental")
 	h.Set("Accept", "text/event-stream")
 	h.Set("Content-Type", "application/json")
@@ -254,12 +255,12 @@ func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHe
 
 func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, requestID string) http.Header {
 	h := http.Header{}
+	h.Set("originator", "pi")
+	h.Set("User-Agent", codexPiUserAgent())
 	goai.ApplyHeaders(h, modelHeaders)
 	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
 	h.Set("chatgpt-account-id", accountID)
-	h.Set("originator", "pi")
-	h.Set("User-Agent", codexPiUserAgent())
 	h.Set("OpenAI-Beta", "responses_websockets=2026-02-06")
 	if requestID != "" {
 		h.Set("session-id", requestID)
@@ -648,7 +649,7 @@ func normalizeJSONValue(v interface{}) interface{} {
 	return out
 }
 
-func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event) error {
+func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event)) error {
 	wsURL := resolveCodexWSURL(model.BaseURL)
 	goai.GetLogger().Debug("WebSocket connect", "url", wsURL, "provider", model.Provider)
 
@@ -771,7 +772,7 @@ readLoop:
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				if started {
-					ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+					send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 					return nil
 				}
 				return ctx.Err()
@@ -783,7 +784,7 @@ readLoop:
 			if !started {
 				return fmt.Errorf("WebSocket read: %w", err)
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return nil
 		}
 
@@ -804,7 +805,7 @@ readLoop:
 		}
 		if raw.Type != "error" && raw.Type != "response.failed" && !started {
 			started = true
-			ch <- &goai.StartEvent{Partial: partial}
+			send(&goai.StartEvent{Partial: partial})
 		}
 
 		// Same event processing as OpenAI Responses
@@ -830,12 +831,12 @@ readLoop:
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "reasoning", contentIdx: idx}
-				ch <- &goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "message", contentIdx: idx}
-				ch <- &goai.TextStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
@@ -844,19 +845,19 @@ readLoop:
 				})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: item.Type, contentIdx: idx}
-				ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 			}
 
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.output_text.delta":
 			if current != nil && current.itemType == "message" {
 				partial.Content[current.contentIdx].Text += raw.Delta
-				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.function_call_arguments.delta":
@@ -866,14 +867,14 @@ readLoop:
 				if args != nil {
 					partial.Content[current.contentIdx].Arguments = args
 				}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.custom_tool_call_input.delta":
 			if current != nil && current.itemType == "custom_tool_call" {
 				current.customPayload += raw.Delta
 				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 		case "response.custom_tool_call_input.done":
 			if current != nil && current.itemType == "custom_tool_call" {
@@ -900,7 +901,7 @@ readLoop:
 					if strings.HasPrefix(done.Arguments, previous) {
 						delta := strings.TrimPrefix(done.Arguments, previous)
 						if delta != "" {
-							ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial}
+							send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 						}
 					}
 				}
@@ -914,13 +915,13 @@ readLoop:
 			switch current.itemType {
 			case "reasoning":
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
-				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
+				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
-				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				args := map[string]interface{}{"input": current.customPayload}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
 				if args == nil {
@@ -935,11 +936,11 @@ readLoop:
 					args = map[string]interface{}{}
 				}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall:     goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args},
 					Partial:      partial,
-				}
+				})
 			}
 			current = nil
 
@@ -998,7 +999,7 @@ readLoop:
 				}
 				return err
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return nil
 
 		case "response.failed":
@@ -1023,7 +1024,7 @@ readLoop:
 			if !started {
 				return err
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return nil
 		}
 	}
@@ -1059,10 +1060,10 @@ readLoop:
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")})
 		return nil
 	}
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 	return nil
 }
 
@@ -1084,11 +1085,11 @@ func compressCodexRequestBodyZstd(bodyJSON []byte) ([]byte, bool) {
 	return buf.Bytes(), true
 }
 
-func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
+func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic) {
 	body := buildCodexRequest(model, convCtx, opts)
 	payload, err := goai.InvokeOnPayload(opts, body, model)
 	if err != nil {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 		return
 	}
 	bodyJSON, _ := json.Marshal(payload)
@@ -1103,12 +1104,12 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 	if err != nil {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 		return
 	}
 	accountID, err := extractCodexAccountID(apiKey)
 	if err != nil {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("extract codex account id: %w", err)}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("extract codex account id: %w", err)})
 		return
 	}
 	sessionID := ""
@@ -1135,9 +1136,9 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 	if err != nil {
 		if ctx.Err() != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 		} else {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 		}
 		return
 	}
@@ -1148,20 +1149,20 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	if resp.StatusCode != 200 {
 		goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))})
 		return
 	}
 
 	// Reuse same SSE processing as OpenAI Responses
-	processCodexSSE(resp.Body, model, ch, diagnostics)
+	processCodexSSE(resp.Body, model, send, diagnostics)
 }
 
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
-func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, diagnostics []goai.AssistantMessageDiagnostic) {
+func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic) {
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
 	}
-	ch <- &goai.StartEvent{Partial: partial}
+	send(&goai.StartEvent{Partial: partial})
 
 	type activeItem struct {
 		itemType      string
@@ -1174,7 +1175,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		if evt.Data == "[DONE]" {
@@ -1212,25 +1213,25 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			case "reasoning":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				current = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
-				ch <- &goai.ThinkingStartEvent{ContentIndex: current.contentIdx, Partial: partial}
+				send(&goai.ThinkingStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				current = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
-				ch <- &goai.TextStartEvent{ContentIndex: current.contentIdx, Partial: partial}
+				send(&goai.TextStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 				current = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
-				ch <- &goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial}
+				send(&goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			}
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 		case "response.output_text.delta":
 			if current != nil && current.itemType == "message" {
 				partial.Content[current.contentIdx].Text += raw.Delta
-				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 		case "response.function_call_arguments.delta":
 			if current != nil && current.itemType == "function_call" {
@@ -1239,13 +1240,13 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 				if args != nil {
 					partial.Content[current.contentIdx].Arguments = args
 				}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 		case "response.custom_tool_call_input.delta":
 			if current != nil && current.itemType == "custom_tool_call" {
 				current.customPayload += raw.Delta
 				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 		case "response.custom_tool_call_input.done":
 			if current != nil && current.itemType == "custom_tool_call" {
@@ -1272,7 +1273,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 					if strings.HasPrefix(done.Arguments, previous) {
 						delta := strings.TrimPrefix(done.Arguments, previous)
 						if delta != "" {
-							ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial}
+							send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 						}
 					}
 				}
@@ -1285,13 +1286,13 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			switch current.itemType {
 			case "reasoning":
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
-				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
+				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
-				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				args := map[string]interface{}{"input": current.customPayload}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
 			case "function_call":
 				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
 				if args == nil {
@@ -1306,12 +1307,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 					args = map[string]interface{}{}
 				}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial}
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
 			}
 			current = nil
 		case "error":
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)})
 			return
 		case "response.failed":
 			var failed struct {
@@ -1330,7 +1331,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			if failed.Response != nil {
 				partial.RawStopReason = failed.Response.Status
 			}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", message)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", message)})
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			var resp struct {
@@ -1367,7 +1368,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")})
 		return
 	}
 	for _, c := range partial.Content {
@@ -1376,7 +1377,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, ch chan<- goai.Event, di
 			break
 		}
 	}
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
 // --- Request building ---

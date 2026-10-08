@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,7 +24,12 @@ const (
 )
 
 // OpenAICodexProvider implements the OAuth device flow for OpenAI Codex.
-type OpenAICodexProvider struct{}
+type OpenAICodexProvider struct {
+	client                 *http.Client
+	authorizeURL, tokenURL string
+	callbackPort           int
+	listen                 func(string, string) (net.Listener, error)
+}
 
 func init() {
 	RegisterProvider(&OpenAICodexProvider{})
@@ -33,16 +39,41 @@ func (p *OpenAICodexProvider) ID() string   { return "openai-codex" }
 func (p *OpenAICodexProvider) Name() string { return "OpenAI Codex" }
 
 func (p *OpenAICodexProvider) Login(callbacks LoginCallbacks) (*Credentials, error) {
+	// Preserve native device-flow default; hosts can select the official
+	// browser flow. AgentName applies to its originator, never token authority.
+	method := "device_code"
+	if callbacks.AgentName != nil {
+		method = "browser"
+	}
+	if callbacks.OnSelect != nil {
+		selected, e := callbacks.OnSelect(SelectPrompt{Message: "Choose OpenAI Codex sign-in method", Options: []SelectOption{{Value: "browser", Label: "Browser login"}, {Value: "device_code", Label: "Device code login (headless)"}}, Default: method})
+		if e != nil {
+			return nil, e
+		}
+		if selected != "" {
+			method = selected
+		}
+	}
+	if method == "browser" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		return p.loginBrowser(ctx, callbacks)
+	}
+	if method != "device_code" {
+		return nil, fmt.Errorf("unsupported OpenAI Codex login method %q", method)
+	}
 	// Start device flow
 	device, err := startCodexDeviceFlow()
 	if err != nil {
 		return nil, fmt.Errorf("device flow: %w", err)
 	}
 
-	callbacks.OnAuth(AuthInfo{
-		URL:          device.VerificationURI,
-		Instructions: fmt.Sprintf("Enter code: %s", device.UserCode),
-	})
+	if callbacks.OnAuth != nil {
+		callbacks.OnAuth(AuthInfo{
+			URL:          device.VerificationURI,
+			Instructions: fmt.Sprintf("Enter code: %s", device.UserCode),
+		})
+	}
 
 	// Poll for access token
 	ctx := context.Background()
@@ -56,6 +87,9 @@ func (p *OpenAICodexProvider) RefreshToken(creds *Credentials) (*Credentials, er
 func (p *OpenAICodexProvider) RefreshTokenContext(ctx context.Context, creds *Credentials) (*Credentials, error) {
 	if creds == nil || creds.Refresh == "" {
 		return nil, fmt.Errorf("OpenAI Codex OAuth refresh token is missing")
+	}
+	if clientID, _ := creds.Extra["clientId"].(string); clientID == codexBrowserClientID {
+		return p.browserToken(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {creds.Refresh}, "client_id": {clientID}}, creds.Refresh)
 	}
 	return refreshCodexToken(ctx, creds.Refresh)
 }

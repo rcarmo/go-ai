@@ -36,6 +36,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 - Read relevant files before editing; never edit blind.
 - Keep changes minimal and scoped. Preserve public compatibility unless a release audit explicitly requires a breaking change.
+- Rui's 8 October 2026 instruction for the active 1.1.0 port: target durable 1.1.0 directly; legacy durable API/journal compatibility is no longer an acceptance requirement. Breaking durable changes are allowed when needed for the target contract. Preserve correctness, cancellation, ownership/security fences, AI compatibility and published 1.0.4 refs/assets. Do not delete existing coverage merely because it tests an older surface.
 - Do not hand-edit generated artifacts. Generated Go source and image/text catalogs must come from exact pinned upstream inputs and checked-in generators.
 - Preserve unrelated local work and do not weaken existing tests or gates.
 

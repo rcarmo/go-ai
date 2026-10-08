@@ -53,8 +53,11 @@ type SelectPrompt struct {
 
 // LoginCallbacks are implemented by the host to handle OAuth UI.
 type LoginCallbacks struct {
-	OnAuth   func(info AuthInfo)
-	OnPrompt func(prompt Prompt) (string, error)
+	// AgentName replaces the provider's default agent hint during login.
+	// Pointer distinguishes omission from an explicit empty name.
+	AgentName *string
+	OnAuth    func(info AuthInfo)
+	OnPrompt  func(prompt Prompt) (string, error)
 	// OnPromptContext allows ChatGPT callback/manual competition. The host must
 	// return after cancellation; login cancels and joins it before returning.
 	// Legacy OnPrompt remains synchronous and cannot be forcibly cancelled.

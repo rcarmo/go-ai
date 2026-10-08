@@ -48,6 +48,7 @@ func streamBedrockSimple(ctx context.Context, model *goai.Model, convCtx *goai.C
 
 func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -98,7 +99,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 		if err != nil {
 			goai.GetLogger().Warn("AWS config error", "error", err)
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("AWS config: %w", err)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("AWS config: %w", err)})
 			return
 		}
 
@@ -136,7 +137,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		input := buildConverseInput(model, convCtx, opts)
 		payload, err := goai.InvokeOnPayload(opts, input, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 		if replaced, ok := payload.(*bedrockruntime.ConverseStreamInput); ok && replaced != nil {
@@ -147,18 +148,18 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		resp, err := client.ConverseStream(ctx, input)
 		if err != nil {
 			if ctx.Err() != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("Bedrock API error", "provider", model.Provider, "model", model.ID, "error", err)
 				msg := bedrockErrorMessage(model, err)
 				appendBedrockFailureDiagnostic(msg, err, "")
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("bedrock: %w", err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("bedrock: %w", err)})
 			}
 			return
 		}
 
 		invokeBedrockResponseHook(opts, resp, model)
-		processConverseStream(resp, model, ch)
+		processConverseStream(resp, model, send)
 	}()
 
 	return ch
@@ -377,7 +378,7 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 
 	// Thinking config for Claude models. Newer Claude models on Bedrock support
 	// adaptive thinking with native effort strings; older models use token budgets.
-	if model.Reasoning && opts != nil && opts.Reasoning != nil {
+	if model.Reasoning && opts != nil && opts.Reasoning != nil && isAnthropicClaudeModel(model) {
 		var addFields map[string]interface{}
 		govCloud := isGovCloudBedrockTarget(model, opts, goai.ProviderEnvFromOptions(opts))
 		if supportsAdaptiveThinking(model) {
@@ -413,6 +414,31 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		input.AdditionalModelRequestFields = mustDocument(mustJSON(addFields))
 	}
 
+	// OpenAI models on Converse use native reasoning fields, not Claude
+	// thinking/budget controls. Prefer gpt-oss across both ID/name matches.
+	if model.Reasoning && opts != nil && opts.Reasoning != nil && !isAnthropicClaudeModel(model) {
+		isGPT, isGPTOSS := false, false
+		for _, candidate := range getModelMatchCandidates(model.ID, model.Name) {
+			isGPT = isGPT || strings.Contains(candidate, "gpt-")
+			isGPTOSS = isGPTOSS || strings.Contains(candidate, "gpt-oss")
+		}
+		level := *opts.Reasoning
+		effort := string(level)
+		if level == goai.ThinkingMinimal {
+			effort = "low"
+		}
+		if isGPTOSS {
+			if level == goai.ThinkingXHigh || level == goai.ThinkingMax {
+				effort = "high"
+			}
+			input.AdditionalModelRequestFields = mustDocument(mustJSON(map[string]any{"reasoning_effort": effort}))
+		} else if isGPT {
+			if mapped, ok := model.ThinkingLevelMap[goai.ModelThinkingLevel(level)]; ok && mapped != nil {
+				effort = *mapped
+			}
+			input.AdditionalModelRequestFields = mustDocument(mustJSON(map[string]any{"reasoning": map[string]any{"effort": effort}}))
+		}
+	}
 	return input
 }
 
@@ -614,7 +640,7 @@ func supportsAdaptiveThinking(model *goai.Model) bool {
 		if strings.Contains(s, "opus-4-6") || strings.Contains(s, "opus-4-7") ||
 			strings.Contains(s, "opus-4-8") || strings.Contains(s, "opus-5") ||
 			strings.Contains(s, "sonnet-4-6") || strings.Contains(s, "sonnet-5") ||
-			strings.Contains(s, "fable-5") {
+			strings.Contains(s, "fable-5") || strings.Contains(s, "haiku-5") {
 			return true
 		}
 	}
@@ -628,7 +654,7 @@ func supportsNativeXhighEffort(model *goai.Model) bool {
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
 		if strings.Contains(s, "opus-4-7") || strings.Contains(s, "opus-4-8") ||
 			strings.Contains(s, "opus-5") || strings.Contains(s, "sonnet-5") ||
-			strings.Contains(s, "fable-5") {
+			strings.Contains(s, "fable-5") || strings.Contains(s, "haiku-5") {
 			return true
 		}
 	}
@@ -642,7 +668,7 @@ func supportsThinkingBlockBinding(model *goai.Model) bool {
 	for _, s := range getModelMatchCandidates(model.ID, model.Name) {
 		if strings.Contains(s, "opus-4-7") || strings.Contains(s, "opus-4-8") ||
 			strings.Contains(s, "opus-5") || strings.Contains(s, "sonnet-5") ||
-			strings.Contains(s, "fable-5") {
+			strings.Contains(s, "fable-5") || strings.Contains(s, "haiku-5") {
 			return true
 		}
 	}
@@ -677,7 +703,7 @@ func supportsPromptCaching(model *goai.Model, env goai.ProviderEnv) bool {
 	}
 	// Claude 4.x models
 	for _, s := range candidates {
-		if strings.Contains(s, "-4-") {
+		if strings.Contains(s, "-4-") || strings.Contains(s, "haiku-5") {
 			return true
 		}
 	}
@@ -788,7 +814,7 @@ func finalizeBedrockThinkingBlock(block *goai.ContentBlock, redacted []byte) {
 
 // --- Stream processing ---
 
-func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, ch chan<- goai.Event) {
+func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, send func(goai.Event)) {
 	responseRequestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata)
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
@@ -813,10 +839,10 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 		case *types.ConverseStreamOutputMemberMessageStart:
 			if e.Value.Role != types.ConversationRoleAssistant {
 				//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Unexpected assistant message start but got user message start instead")}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Unexpected assistant message start but got user message start instead")})
 				return
 			}
-			ch <- &goai.StartEvent{Partial: partial}
+			send(&goai.StartEvent{Partial: partial})
 
 		case *types.ConverseStreamOutputMemberContentBlockStart:
 			idx := 0
@@ -834,7 +860,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 					})
 					ci := len(partial.Content) - 1
 					blockMap[idx] = &blockState{contentIdx: ci}
-					ch <- &goai.ToolCallStartEvent{ContentIndex: ci, Partial: partial}
+					send(&goai.ToolCallStartEvent{ContentIndex: ci, Partial: partial})
 				}
 			}
 
@@ -854,10 +880,10 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 					ci := len(partial.Content) - 1
 					bs = &blockState{contentIdx: ci}
 					blockMap[idx] = bs
-					ch <- &goai.TextStartEvent{ContentIndex: ci, Partial: partial}
+					send(&goai.TextStartEvent{ContentIndex: ci, Partial: partial})
 				}
 				partial.Content[bs.contentIdx].Text += d.Value
-				ch <- &goai.TextDeltaEvent{ContentIndex: bs.contentIdx, Delta: d.Value, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: bs.contentIdx, Delta: d.Value, Partial: partial})
 
 			case *types.ContentBlockDeltaMemberToolUse:
 				bs, ok := blockMap[idx]
@@ -870,7 +896,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 				if args != nil {
 					partial.Content[bs.contentIdx].Arguments = args
 				}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: bs.contentIdx, Delta: input, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: bs.contentIdx, Delta: input, Partial: partial})
 
 			case *types.ContentBlockDeltaMemberReasoningContent:
 				bs, ok := blockMap[idx]
@@ -879,13 +905,13 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 					ci := len(partial.Content) - 1
 					bs = &blockState{contentIdx: ci}
 					blockMap[idx] = bs
-					ch <- &goai.ThinkingStartEvent{ContentIndex: ci, Partial: partial}
+					send(&goai.ThinkingStartEvent{ContentIndex: ci, Partial: partial})
 				}
 				// ReasoningContentBlockDelta is a union type
 				switch rc := d.Value.(type) {
 				case *types.ReasoningContentBlockDeltaMemberText:
 					partial.Content[bs.contentIdx].Thinking += rc.Value
-					ch <- &goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: rc.Value, Partial: partial}
+					send(&goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: rc.Value, Partial: partial})
 				case *types.ReasoningContentBlockDeltaMemberSignature:
 					if !partial.Content[bs.contentIdx].Redacted {
 						partial.Content[bs.contentIdx].ThinkingSignature += rc.Value
@@ -895,7 +921,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 						partial.Content[bs.contentIdx].Redacted = true
 						partial.Content[bs.contentIdx].Thinking = "[Reasoning redacted]"
 						partial.Content[bs.contentIdx].ThinkingSignature = ""
-						ch <- &goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: "[Reasoning redacted]", Partial: partial}
+						send(&goai.ThinkingDeltaEvent{ContentIndex: bs.contentIdx, Delta: "[Reasoning redacted]", Partial: partial})
 					}
 					bs.redacted = append(bs.redacted, rc.Value...)
 				}
@@ -914,23 +940,23 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 			block := partial.Content[ci]
 			switch block.Type {
 			case "text":
-				ch <- &goai.TextEndEvent{ContentIndex: ci, Content: block.Text, Partial: partial}
+				send(&goai.TextEndEvent{ContentIndex: ci, Content: block.Text, Partial: partial})
 			case "thinking":
 				finalizeBedrockThinkingBlock(&partial.Content[ci], bs.redacted)
-				ch <- &goai.ThinkingEndEvent{ContentIndex: ci, Content: partial.Content[ci].Thinking, Partial: partial}
+				send(&goai.ThinkingEndEvent{ContentIndex: ci, Content: partial.Content[ci].Thinking, Partial: partial})
 			case "toolCall":
 				args, _ := jsonparse.ParsePartialJSON(bs.partialJSON)
 				if args == nil {
 					args = map[string]interface{}{}
 				}
 				partial.Content[ci].Arguments = args
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: ci,
 					ToolCall: goai.ToolCall{
 						Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: args,
 					},
 					Partial: partial,
-				}
+				})
 			}
 
 		case *types.ConverseStreamOutputMemberMessageStop:
@@ -964,7 +990,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = err.Error()
 		appendBedrockFailureDiagnostic(partial, err, responseRequestID)
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 		return
 	}
 
@@ -978,14 +1004,14 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Bedrock stream ended without a stop reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("bedrock stream ended without a stop reason")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("bedrock stream ended without a stop reason")})
 		return
 	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}
 
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
 func mapStopReason(reason types.StopReason) goai.StopReason {

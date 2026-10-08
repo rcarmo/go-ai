@@ -5,12 +5,14 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Session serializes transaction preparation, storage settlement and committed
 // reads. M1a has no execution/scheduling API and dispatches no external effects.
 type Session struct {
 	store                Storage
+	now                  func() int64 // line-owned wall clock for lifecycle stamps
 	core                 *storeCore
 	line                 chan struct{}
 	closing              atomic.Bool
@@ -18,6 +20,8 @@ type Session struct {
 	done                 chan struct{}
 	closeErr             error
 	limits               Limits
+	contextRanges        map[ID]*contextRange
+	contextExpiry        *time.Timer
 	definitionCache      map[definitionCacheKey]definitionCacheValue
 	definitionCacheBytes int64
 	observerMu           sync.Mutex
@@ -29,6 +33,14 @@ type Session struct {
 // OpenSession claims one native memory/journal store. Storage remains owned
 // until the common Close operation drains admitted transactions and settles.
 func OpenSession(store Storage) (*Session, error) {
+	return OpenSessionWithOptions(store, SessionOptions{})
+}
+
+// SessionOptions.Now supplies Unix milliseconds; omitted uses the wall clock.
+// It runs synchronously on the transaction line and must not reenter the Session.
+type SessionOptions struct{ Now func() int64 }
+
+func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, error) {
 	if store == nil {
 		return nil, reject("nil storage")
 	}
@@ -45,7 +57,11 @@ func OpenSession(store Storage) (*Session, error) {
 	if e != nil {
 		return nil, e
 	}
-	s := &Session{store: store, core: core, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l}
+	now := options.Now
+	if now == nil {
+		now = func() int64 { return time.Now().UnixMilli() }
+	}
+	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l}
 	s.line <- struct{}{}
 	return s, nil
 }
@@ -189,6 +205,9 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	}
 	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
 	if err == nil {
+		<-s.core.line
+		s.invalidateContextRanges(s.core.state, tx.writes)
+		s.core.leave()
 		if s.taskScheduler != nil {
 			// Storage already validated and adopted the immutable candidate. The
 			// Session owns its sole writer; scheduler bookkeeping reads this private
@@ -286,7 +305,16 @@ func (s *Session) Close(ctx context.Context) error {
 	s.once.Do(func() {
 		s.closing.Store(true)
 		s.closeWatches()
-		go func() { <-s.line; s.closeErr = s.core.close(context.Background(), true); close(s.done); s.leave() }()
+		go func() {
+			<-s.line
+			if s.contextExpiry != nil {
+				s.contextExpiry.Stop()
+			}
+			s.contextRanges = nil
+			s.closeErr = s.core.close(context.Background(), true)
+			close(s.done)
+			s.leave()
+		}()
 	})
 	select {
 	case <-s.done:

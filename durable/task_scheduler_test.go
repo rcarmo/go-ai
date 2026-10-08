@@ -3213,7 +3213,9 @@ func TestTaskSchedulerSleepFullClockRangeAndCancelledPast(t *testing.T) {
 					t.Fatal(err)
 				}
 				if variant == "extreme-future" || variant == "cross-sign-future" {
-					for k := 0; k < 2; k++ {
+					// First read stamps running, second checks the sleep, third
+					// proves the bounded timer rechecks even a full-range clock.
+					for k := 0; k < 3; k++ {
 						select {
 						case value := <-observed:
 							if value != clock.Load() {
@@ -3232,8 +3234,10 @@ func TestTaskSchedulerSleepFullClockRangeAndCancelledPast(t *testing.T) {
 					t.Fatal(record)
 				}
 				if variant == "cancelled-past" || variant == "nil-context" {
-					if reads.Load() != 0 {
-						t.Fatal("invalid/cancelled past sleep observed host clock")
+					// Only the start/end lifecycle stamps read Now; SleepUntil
+					// still rejects these inputs before consulting the clock.
+					if reads.Load() != 2 {
+						t.Fatal("invalid/cancelled past sleep added clock reads", reads.Load())
 					}
 				}
 			})

@@ -162,7 +162,7 @@ func TestOpenAIResponsesServiceTierCostMultipliers(t *testing.T) {
 			model := &goai.Model{ID: tc.modelID, Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, Cost: goai.ModelCost{Input: 2.5, Output: 15, CacheRead: 0.25, CacheWrite: 3}}
 			body := strings.NewReader(`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","service_tier":"` + tc.serviceTier + `","usage":{"input_tokens":400000,"output_tokens":100000,"total_tokens":500000,"input_tokens_details":{"cached_tokens":100000,"cache_write_tokens":100000}}}}` + "\n\n")
 			ch := make(chan goai.Event, 8)
-			processStreamWithOptions(body, model, nil, ch)
+			processStreamWithOptions(body, model, nil, goai.NewAssistantEventSender(ch))
 			close(ch)
 			var done *goai.DoneEvent
 			for ev := range ch {

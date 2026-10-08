@@ -37,6 +37,7 @@ type Registration struct {
 	mu              sync.Mutex
 	responses       []ResponseStep
 	deferred        map[string]*deferredEntry
+	promptCache     map[string][]string
 	tokensPerSecond int
 	deferredOptions FauxDeferredOptions
 }
@@ -310,6 +311,7 @@ func ErrorMessage(errMsg string) *goai.Message {
 
 func (r *Registration) stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -338,12 +340,13 @@ func (r *Registration) stream(ctx context.Context, model *goai.Model, convCtx *g
 			r.deferred[handle.ID] = &deferredEntry{handle: handle, step: step, context: convCtx, options: opts, model: model, pendingFetches: r.deferredOptions.PendingFetches}
 			r.mu.Unlock()
 			msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Content: []goai.ContentBlock{}, Usage: &goai.Usage{}, StopReason: goai.StopReasonDeferred, Deferred: &handle, Timestamp: time.Now().UnixMilli()}
-			ch <- &goai.StartEvent{Partial: msg}
-			ch <- &goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg}
+			send(&goai.StartEvent{Partial: msg})
+			send(&goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg})
 			return
 		}
 
 		msg := r.resolveStep(step, convCtx, opts, callNum)
+		r.estimateUsage(msg, convCtx, opts)
 
 		// Fill in model info
 		msg.Api = model.Api
@@ -354,55 +357,55 @@ func (r *Registration) stream(ctx context.Context, model *goai.Model, convCtx *g
 		}
 
 		// Simulate streaming
-		ch <- &goai.StartEvent{Partial: msg}
+		send(&goai.StartEvent{Partial: msg})
 
 		for i, block := range msg.Content {
 			switch block.Type {
 			case "text":
-				ch <- &goai.TextStartEvent{ContentIndex: i, Partial: msg}
+				send(&goai.TextStartEvent{ContentIndex: i, Partial: msg})
 				// Stream character by character with delay
 				delay := r.charDelay(block.Text)
 				for _, chunk := range chunkText(block.Text, 10) {
 					if ctx.Err() != nil {
 						msg.StopReason = goai.StopReasonAborted
-						ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: ctx.Err()}
+						send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: ctx.Err()})
 						return
 					}
-					ch <- &goai.TextDeltaEvent{ContentIndex: i, Delta: chunk, Partial: msg}
+					send(&goai.TextDeltaEvent{ContentIndex: i, Delta: chunk, Partial: msg})
 					if delay > 0 {
 						time.Sleep(delay)
 					}
 				}
-				ch <- &goai.TextEndEvent{ContentIndex: i, Content: block.Text, Partial: msg}
+				send(&goai.TextEndEvent{ContentIndex: i, Content: block.Text, Partial: msg})
 
 			case "thinking":
-				ch <- &goai.ThinkingStartEvent{ContentIndex: i, Partial: msg}
+				send(&goai.ThinkingStartEvent{ContentIndex: i, Partial: msg})
 				delay := r.charDelay(block.Thinking)
 				for _, chunk := range chunkText(block.Thinking, 10) {
-					ch <- &goai.ThinkingDeltaEvent{ContentIndex: i, Delta: chunk, Partial: msg}
+					send(&goai.ThinkingDeltaEvent{ContentIndex: i, Delta: chunk, Partial: msg})
 					if delay > 0 {
 						time.Sleep(delay)
 					}
 				}
-				ch <- &goai.ThinkingEndEvent{ContentIndex: i, Content: block.Thinking, Partial: msg}
+				send(&goai.ThinkingEndEvent{ContentIndex: i, Content: block.Thinking, Partial: msg})
 
 			case "toolCall":
-				ch <- &goai.ToolCallStartEvent{ContentIndex: i, Partial: msg}
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallStartEvent{ContentIndex: i, Partial: msg})
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: i,
 					ToolCall: goai.ToolCall{
 						Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: block.Arguments,
 					},
 					Partial: msg,
-				}
+				})
 			}
 		}
 
 		// Final event
 		if msg.StopReason == goai.StopReasonError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)})
 		} else {
-			ch <- &goai.DoneEvent{Reason: msg.StopReason, Message: msg}
+			send(&goai.DoneEvent{Reason: msg.StopReason, Message: msg})
 		}
 	}()
 
@@ -454,6 +457,8 @@ func (r *Registration) resolveStep(step ResponseStep, convCtx *goai.Context, opt
 
 func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, handle goai.DeferredHandle, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 16)
+	// Polling cannot observe the original request's monotonic start.
+	send := func(event goai.Event) { ch <- goai.SnapshotEvent(event) }
 	go func() {
 		defer close(ch)
 		atomic.AddInt64(&r.State.DeferredFetchCount, 1)
@@ -475,16 +480,16 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 			r.mu.Unlock()
 			msg := ErrorMessage("unknown faux deferred response: " + handle.ID)
 			msg.Api, msg.Provider, msg.Model = model.Api, model.Provider, model.ID
-			ch <- &goai.StartEvent{Partial: msg}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+			send(&goai.StartEvent{Partial: msg})
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)})
 			return
 		}
 		if entry.cancelled {
 			r.mu.Unlock()
 			msg := ErrorMessage("faux deferred response was cancelled: " + handle.ID)
 			msg.Api, msg.Provider, msg.Model = model.Api, model.Provider, model.ID
-			ch <- &goai.StartEvent{Partial: msg}
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+			send(&goai.StartEvent{Partial: msg})
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)})
 			return
 		}
 		if entry.pendingFetches > 0 {
@@ -492,8 +497,8 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 			pending := entry.handle
 			r.mu.Unlock()
 			msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Content: []goai.ContentBlock{}, Usage: &goai.Usage{}, StopReason: goai.StopReasonDeferred, Deferred: &pending, Timestamp: time.Now().UnixMilli()}
-			ch <- &goai.StartEvent{Partial: msg}
-			ch <- &goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg}
+			send(&goai.StartEvent{Partial: msg})
+			send(&goai.DoneEvent{Reason: goai.StopReasonDeferred, Message: msg})
 			return
 		}
 		if entry.final == nil {
@@ -501,7 +506,10 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 		}
 		msg := entry.final
 		r.mu.Unlock()
-		r.emitMessage(ctx, model, msg, ch)
+		if msg.Usage == nil {
+			r.estimateUsage(msg, entry.context, entry.options)
+		}
+		r.emitMessage(ctx, model, msg, send)
 	}()
 	return ch
 }
@@ -528,7 +536,7 @@ func (r *Registration) cancelDeferred(ctx context.Context, model *goai.Model, ha
 	return nil
 }
 
-func (r *Registration) emitMessage(ctx context.Context, model *goai.Model, msg *goai.Message, ch chan<- goai.Event) {
+func (r *Registration) emitMessage(ctx context.Context, model *goai.Model, msg *goai.Message, send func(goai.Event)) {
 	if msg == nil {
 		msg = ErrorMessage("nil faux response")
 	}
@@ -541,34 +549,34 @@ func (r *Registration) emitMessage(ctx context.Context, model *goai.Model, msg *
 	if msg.Usage == nil {
 		msg.Usage = &goai.Usage{Input: 100, Output: 1, TotalTokens: 101}
 	}
-	ch <- &goai.StartEvent{Partial: msg}
+	send(&goai.StartEvent{Partial: msg})
 	for i, block := range msg.Content {
 		switch block.Type {
 		case "text":
-			ch <- &goai.TextStartEvent{ContentIndex: i, Partial: msg}
+			send(&goai.TextStartEvent{ContentIndex: i, Partial: msg})
 			if block.Text != "" {
-				ch <- &goai.TextDeltaEvent{ContentIndex: i, Delta: block.Text, Partial: msg}
+				send(&goai.TextDeltaEvent{ContentIndex: i, Delta: block.Text, Partial: msg})
 			}
-			ch <- &goai.TextEndEvent{ContentIndex: i, Content: block.Text, Partial: msg}
+			send(&goai.TextEndEvent{ContentIndex: i, Content: block.Text, Partial: msg})
 		case "thinking":
-			ch <- &goai.ThinkingStartEvent{ContentIndex: i, Partial: msg}
+			send(&goai.ThinkingStartEvent{ContentIndex: i, Partial: msg})
 			if block.Thinking != "" {
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: i, Delta: block.Thinking, Partial: msg}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: i, Delta: block.Thinking, Partial: msg})
 			}
-			ch <- &goai.ThinkingEndEvent{ContentIndex: i, Content: block.Thinking, Partial: msg}
+			send(&goai.ThinkingEndEvent{ContentIndex: i, Content: block.Thinking, Partial: msg})
 		case "toolCall":
-			ch <- &goai.ToolCallStartEvent{ContentIndex: i, Partial: msg}
-			ch <- &goai.ToolCallEndEvent{ContentIndex: i, ToolCall: goai.ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: block.Arguments}, Partial: msg}
+			send(&goai.ToolCallStartEvent{ContentIndex: i, Partial: msg})
+			send(&goai.ToolCallEndEvent{ContentIndex: i, ToolCall: goai.ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: block.Arguments}, Partial: msg})
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		msg.StopReason = goai.StopReasonAborted
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: err}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: err})
 		return
 	}
 	if msg.StopReason == goai.StopReasonError {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("%s", msg.ErrorMessage)})
 		return
 	}
-	ch <- &goai.DoneEvent{Reason: msg.StopReason, Message: msg}
+	send(&goai.DoneEvent{Reason: msg.StopReason, Message: msg})
 }

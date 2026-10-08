@@ -34,7 +34,7 @@ func runReasoningReplayStream(t *testing.T, doneItem, completedItem string) *goa
 	}, "\n\n") + "\n\n")
 	ch := make(chan goai.Event, 16)
 	model := &goai.Model{ID: "gpt-5-mini", Provider: goai.ProviderAzureOpenAI, Api: goai.ApiAzureOpenAIResponses, Reasoning: true}
-	processStream(body, model, ch)
+	processStream(body, model, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.DoneEvent
 	for event := range ch {

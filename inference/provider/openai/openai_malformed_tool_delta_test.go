@@ -15,7 +15,7 @@ func TestOpenAICompletionsMalformedToolDeltaFunctionWithEmptyCustomPreservesFunc
 
 `)
 	ch := make(chan goai.Event, 20)
-	processSSEStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}, ch)
+	processSSEStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
 		if done, ok := ev.(*goai.DoneEvent); ok {

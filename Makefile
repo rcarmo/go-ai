@@ -52,10 +52,10 @@ project-paths: ## Show canonical cache/build/run/evidence paths
 # Enforce routing for all cache/temp-producing entrypoints, including recursive Make.
 deps install lint format test test-deterministic test-shuffle test-race coverage bench fuzz vet staticcheck build generate check-model-regeneration check-model-regeneration-self-test vuln-check vuln-self-test license-check sbom sbom-self-test publisher-self-test toolchain-info check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta: | project-tmp-init
 GOTOOLCHAIN ?= auto
-STATICCHECK_VERSION ?= v0.7.0
+STATICCHECK_VERSION ?= v0.8.1
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
 GOVULNCHECK_VERSION ?= v1.7.0
-GOVULNCHECK_GOTOOLCHAIN ?= go1.26.6
+GOVULNCHECK_GOTOOLCHAIN ?= go1.27.1
 GO_LICENSES_VERSION ?= v1.6.0
 SBOM_DIR ?= artifacts
 SBOM_FILE ?= $(SBOM_DIR)/sbom.cdx.json

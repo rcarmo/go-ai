@@ -20,8 +20,8 @@ func TestV0844CatalogCountsAndProviderAPIs(t *testing.T) {
 		providers[model.Provider] = true
 		apis[model.Api] = true
 	}
-	if len(models) != 1537 || len(providers) != 41 || len(apis) != 10 {
-		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1537/41/10", len(models), len(providers), len(apis))
+	if len(models) != 1563 || len(providers) != 41 || len(apis) != 10 {
+		t.Fatalf("catalog models/providers/apis = %d/%d/%d, want current 1563/41/10", len(models), len(providers), len(apis))
 	}
 }
 

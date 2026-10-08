@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reviewedAt": "2026-08-29",
-  "notes": "Toolchain-scoped vulnerability policy. The active pinned vulnerability scan runs govulncheck with GOVULNCHECK_GOTOOLCHAIN=go1.26.6 and currently has no reachable findings. Exceptions are intentionally empty; any future dependency/module/toolchain finding must include owner, rationale, mitigation, expiry, Go version, and scope.",
+  "reviewedAt": "2026-10-08",
+  "notes": "Toolchain-scoped vulnerability policy. The active pinned scan uses Go 1.27.1. The 1.1.0 candidate upgrades golang.org/x/text to v0.41.0 for GO-2026-6629; the resulting scan has no reachable findings. Exceptions are empty; any future dependency/module/toolchain finding must include owner, rationale, mitigation, expiry, Go version, and scope.",
   "allowedFindings": []
 }

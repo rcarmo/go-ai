@@ -4,10 +4,16 @@ import "testing"
 
 func TestSnapshotEventOwnsMutableProviderPartial(t *testing.T) {
 	partial := &Message{Role: RoleAssistant, Content: []ContentBlock{{Type: "toolCall", ID: "call", Name: "tool", Arguments: map[string]any{"nested": map[string]any{"value": "original"}}}}, Usage: &Usage{Input: 1}, Deferred: &DeferredHandle{ID: "job", Data: map[string]any{"state": "original"}}}
+	duration := int64(12)
+	partial.DurationMs = &duration
 	event := SnapshotEvent(&ToolCallDeltaEvent{Partial: partial, Delta: "x"}).(*ToolCallDeltaEvent)
 	partial.Content[0].Name = "mutated"
 	partial.Content[0].Arguments["nested"].(map[string]any)["value"] = "mutated"
 	partial.Usage.Input = 9
+	duration = 100
+	if event.Partial.DurationMs == nil || *event.Partial.DurationMs != 12 {
+		t.Fatal("snapshot duration aliases provider state")
+	}
 	partial.Deferred.Data.(map[string]any)["state"] = "mutated"
 	if event.Partial.Content[0].Name != "tool" || event.Partial.Content[0].Arguments["nested"].(map[string]any)["value"] != "original" || event.Partial.Usage.Input != 1 || event.Partial.Deferred.Data.(map[string]any)["state"] != "original" {
 		t.Fatal("provider event alias", event)

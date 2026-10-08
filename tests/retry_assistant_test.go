@@ -14,6 +14,14 @@ func retryMessage(errorMessage string) *goai.Message {
 }
 
 func TestRetryAssistantErrorMatchesExplicitProviderRetryGuidance(t *testing.T) {
+	for _, message := range []string{"server_busy", "servers are currently busy"} {
+		if !goai.IsRetryableAssistantError(retryMessage(message)) {
+			t.Fatalf("1.1.0 busy error not retryable: %s", message)
+		}
+		if goai.IsRetryableAssistantError(retryMessage("quota exceeded: " + message)) {
+			t.Fatal("busy text bypassed quota exclusion")
+		}
+	}
 	if !goai.IsRetryableAssistantError(retryMessage("Pending stream has been canceled")) {
 		t.Fatal("Bedrock stalled HTTP/2 cancellation must be retryable")
 	}

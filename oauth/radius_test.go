@@ -31,7 +31,7 @@ func TestRadiusOAuthDiscoversDeviceAuthorizationAndReportsAuthURL(t *testing.T) 
 	}
 }
 
-func TestRadiusOAuthRefreshLoadsGatewayConfigAndAddsPiMessagesModels(t *testing.T) {
+func TestRadiusOAuthRefreshLoadsGatewayConfigAndReplacesPiMessagesModels(t *testing.T) {
 	server := newRadiusTestServer(t, radiusServerOptions{})
 	provider := NewRadiusProvider(RadiusProviderOptions{Gateway: server.URL, Client: server.Client()})
 	creds, err := provider.RefreshToken(&Credentials{Refresh: "old-refresh"})
@@ -46,8 +46,8 @@ func TestRadiusOAuthRefreshLoadsGatewayConfigAndAddsPiMessagesModels(t *testing.
 	}
 
 	models := provider.ModifyModels([]*goai.Model{{ID: "custom", Provider: "radius", Api: goai.ApiPiMessages}}, creds)
-	if len(models) != 3 {
-		t.Fatalf("expected custom + 2 gateway models, got %#v", models)
+	if len(models) != 2 {
+		t.Fatalf("expected account catalog replacing custom baseline, got %#v", models)
 	}
 	model := findModel(models, "radius-small")
 	if model == nil || model.Api != goai.ApiPiMessages || model.Provider != "radius" || model.BaseURL != server.URL+"/v1" || !model.Reasoning || model.ContextWindow != 128000 || model.Cost.Input != 1.25 {

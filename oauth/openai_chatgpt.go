@@ -120,7 +120,7 @@ func (p *OpenAIChatGPTProvider) loginContext(ctx context.Context, callbacks Logi
 	}
 	defer callback.Close()
 	redirectURI := callback.RedirectURI
-	authURL, err := p.authorizationURL(deviceID, redirectURI, state, challenge, nonce)
+	authURL, err := p.authorizationURL(deviceID, redirectURI, state, challenge, nonce, callbacks.AgentName)
 	if err != nil {
 		return nil, err
 	}
@@ -202,14 +202,18 @@ func openAIChatGPTWaitForAuthorization(ctx context.Context, callback *oauthCallb
 	}
 }
 
-func (p *OpenAIChatGPTProvider) authorizationURL(deviceID, redirectURI, state, challenge, nonce string) (string, error) {
+func (p *OpenAIChatGPTProvider) authorizationURL(deviceID, redirectURI, state, challenge, nonce string, agentName *string) (string, error) {
+	name := openAIChatGPTAgentNameHint
+	if agentName != nil {
+		name = *agentName
+	}
 	base, err := url.Parse(p.authorizeURL)
 	if err != nil {
 		return "", err
 	}
 	base.RawQuery = url.Values{
 		"client_id":             {openAIChatGPTDynamicClientID},
-		"agent_name_hint":       {openAIChatGPTAgentNameHint},
+		"agent_name_hint":       {name},
 		"ext_agent_host_id":     {"urn:uuid:" + strings.ToLower(deviceID)},
 		"response_type":         {"code"},
 		"redirect_uri":          {redirectURI},

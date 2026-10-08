@@ -27,18 +27,20 @@ type ProgressSettings struct {
 }
 
 type HarnessSettings struct {
-	Extensions    *[]string
-	Stream        RequestSettings
-	Retry         *RetrySettings
-	Compaction    *CompactionSettings
-	ToolExecution string
-	SteeringMode  string
-	FollowUpMode  string
-	Progress      *ProgressSettings
+	ContextRetentionMs *int64
+	Extensions         *[]string
+	Stream             RequestSettings
+	Retry              *RetrySettings
+	Compaction         *CompactionSettings
+	ToolExecution      string
+	SteeringMode       string
+	FollowUpMode       string
+	Progress           *ProgressSettings
 }
 
 func defaultHarnessSettings() RequestSettings {
-	return RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000, MaxDelayMs: 60000}, Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000, BackgroundTokens: 32768}, ToolExecution: "parallel", SteeringMode: "one-at-a-time", FollowUpMode: "one-at-a-time"}
+	retention := int64(600000)
+	return RequestSettings{ContextRetentionMs: &retention, Retry: RetryPolicy{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000, MaxDelayMs: 60000}, Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000, BackgroundTokens: 32768}, ToolExecution: "parallel", SteeringMode: "one-at-a-time", FollowUpMode: "one-at-a-time"}
 }
 
 func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
@@ -49,6 +51,13 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	}
 	if host != nil {
 		settings = host.Stream
+		if host.ContextRetentionMs != nil {
+			settings.ContextRetentionMs = copyTaskTime(host.ContextRetentionMs)
+		}
+		if settings.ContextRetentionMs == nil {
+			retention := int64(600000)
+			settings.ContextRetentionMs = &retention
+		}
 		defaults := defaultHarnessSettings()
 		if settings.Retry == (RetryPolicy{}) {
 			settings.Retry = defaults.Retry
@@ -82,6 +91,9 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	}
 	// Retain the public per-conversation override surface; empty configuration
 	// follows host settings instead of silently disabling runtime defaults.
+	if stored.ContextRetentionMs != nil {
+		settings.ContextRetentionMs = copyTaskTime(stored.ContextRetentionMs)
+	}
 	if stored.Temperature != nil {
 		settings.Temperature = stored.Temperature
 	}
@@ -196,7 +208,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 		return err
 	}
 	retryEnabled, compactionEnabled := value.Retry.Enabled, value.Compaction.Enabled
-	copy := &HarnessSettings{Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+	copy := &HarnessSettings{ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Stream: value, Retry: &RetrySettings{Enabled: &retryEnabled, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &compactionEnabled, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	if settings.Extensions != nil {
 		names, err := agentSelectionNames(*settings.Extensions)
 		if err != nil {
@@ -208,6 +220,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 		return ErrClosed
 	}
 	h.hostSettings.Store(copy)
+	h.session.taskBookkeeping(func() { h.session.expireContextRanges() })
 	return nil
 }
 

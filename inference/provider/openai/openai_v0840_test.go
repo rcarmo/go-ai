@@ -173,7 +173,7 @@ func TestOpenAICompletionsAllowsMissingFinishReasonWhenCompatDisablesIt(t *testi
 	body := strings.NewReader("data: {\"id\":\"chatcmpl\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n")
 	ch := make(chan goai.Event, 8)
 	noFinish := false
-	processSSEStream(body, &goai.Model{ID: "no-finish", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, CompletionsCompat: &goai.OpenAICompletionsCompat{SupportsFinishReason: &noFinish}}, ch)
+	processSSEStream(body, &goai.Model{ID: "no-finish", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, CompletionsCompat: &goai.OpenAICompletionsCompat{SupportsFinishReason: &noFinish}}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.DoneEvent
 	for ev := range ch {

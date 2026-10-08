@@ -235,7 +235,7 @@ func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {
 	))
 	ch := make(chan goai.Event, 16)
 	model := &goai.Model{ID: "requested-model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}
-	processSSEStream(body, model, ch)
+	processSSEStream(body, model, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var done *goai.DoneEvent
@@ -265,7 +265,7 @@ func TestProcessSSEStreamAttachesPendingEncryptedReasoningDetails(t *testing.T) 
 	))
 	ch := make(chan goai.Event, 16)
 	model := &goai.Model{ID: "requested-model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}
-	processSSEStream(body, model, ch)
+	processSSEStream(body, model, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var done *goai.DoneEvent

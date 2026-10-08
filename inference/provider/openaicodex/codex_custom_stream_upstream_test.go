@@ -14,7 +14,7 @@ func TestCodexResponsesCustomToolStreamReconstructsInput(t *testing.T) {
 		"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"custom_tool_call\",\"call_id\":\"call_1\",\"id\":\"ctc_1\",\"name\":\"grammar\",\"input\":\"abc\"}}\n\n" +
 		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n")
 	ch := make(chan goai.Event, 20)
-	processCodexSSE(body, &goai.Model{ID: "gpt-5.4-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}, ch, nil)
+	processCodexSSE(body, &goai.Model{ID: "gpt-5.4-codex", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}, goai.NewAssistantEventSender(ch), nil)
 	close(ch)
 	var done *goai.DoneEvent
 	for ev := range ch {

@@ -12,7 +12,7 @@ func TestOpenAICompletionsCustomGrammarStreamReconstructsInput(t *testing.T) {
 		"data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"type\":\"custom\",\"custom\":{\"input\":\"c\"}}]}}]}\n\n" +
 		"data: {\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"delta\":{}}]}\n\n")
 	ch := make(chan goai.Event, 20)
-	processSSEStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}, ch)
+	processSSEStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var deltas []string
 	var done *goai.DoneEvent

@@ -23,7 +23,7 @@ func TestV0844OpenAICompletionsReasoningDetailsMergeAndReplay(t *testing.T) {
 	))
 	model := &goai.Model{ID: "google/gemini-test", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions}
 	ch := make(chan goai.Event, 32)
-	processSSEStream(body, model, ch)
+	processSSEStream(body, model, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var assistant *goai.Message

@@ -17,7 +17,7 @@ func TestV0842ResponsesNamespaceRoundTripAndEndTurn(t *testing.T) {
 		`data: [DONE]`,
 	}, "\n\n")
 	ch := make(chan goai.Event, 16)
-	processStream(strings.NewReader(stream), model, ch)
+	processStream(strings.NewReader(stream), model, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var done *goai.Message

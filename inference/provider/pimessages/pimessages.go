@@ -32,18 +32,19 @@ func (e *responseError) Code() any     { return e.code }
 
 func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 	go func() {
 		defer close(ch)
 		apiKey := resolveAPIKey(model, opts)
 		if apiKey == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- createErrorEvent(model, fmt.Errorf("No API key provided for provider \"%s\"", model.Provider), false)
+			send(createErrorEvent(model, fmt.Errorf("No API key provided for provider \"%s\"", model.Provider), false))
 			return
 		}
 		base := strings.TrimRight(model.BaseURL, "/")
 		u, err := url.Parse(base + "/messages")
 		if err != nil {
-			ch <- createErrorEvent(model, err, false)
+			send(createErrorEvent(model, err, false))
 			return
 		}
 		if opts != nil && boolMeta(opts, "debug") {
@@ -54,17 +55,17 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 		body := map[string]any{"model": model.ID, "context": convCtx, "options": buildOptions(opts)}
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- createErrorEvent(model, err, false)
+			send(createErrorEvent(model, err, false))
 			return
 		}
 		data, err := json.Marshal(payload)
 		if err != nil {
-			ch <- createErrorEvent(model, err, false)
+			send(createErrorEvent(model, err, false))
 			return
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
 		if err != nil {
-			ch <- createErrorEvent(model, err, false)
+			send(createErrorEvent(model, err, false))
 			return
 		}
 		req.Header.Set("authorization", "Bearer "+apiKey)
@@ -75,7 +76,7 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			ch <- createErrorEvent(model, err, ctx.Err() != nil)
+			send(createErrorEvent(model, err, ctx.Err() != nil))
 			return
 		}
 		defer resp.Body.Close()
@@ -84,14 +85,14 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			b, _ := io.ReadAll(resp.Body)
-			ch <- createErrorEvent(model, newResponseError(model, u.String(), resp, string(b)), false)
+			send(createErrorEvent(model, newResponseError(model, u.String(), resp, string(b)), false))
 			return
 		}
 		sawTerminal := false
 		convert := newConverter(model)
 		for ev := range sse.Parse(resp.Body) {
 			if ev.Event == sse.EventError {
-				ch <- createErrorEvent(model, fmt.Errorf("%s", ev.Data), false)
+				send(createErrorEvent(model, fmt.Errorf("%s", ev.Data), false))
 				return
 			}
 			if strings.TrimSpace(ev.Data) == "" || strings.TrimSpace(ev.Data) == "[DONE]" {
@@ -99,11 +100,11 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 			}
 			out, terminal, err := convert([]byte(ev.Data))
 			if err != nil {
-				ch <- createErrorEvent(model, err, false)
+				send(createErrorEvent(model, err, false))
 				return
 			}
 			if out != nil {
-				ch <- out
+				send(out)
 			}
 			if terminal {
 				sawTerminal = true
@@ -111,7 +112,7 @@ func stream(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts 
 			}
 		}
 		if !sawTerminal {
-			ch <- createErrorEvent(model, fmt.Errorf("%s stream ended without a terminal event", model.Provider), false)
+			send(createErrorEvent(model, fmt.Errorf("%s stream ended without a terminal event", model.Provider), false))
 		}
 	}()
 	return ch

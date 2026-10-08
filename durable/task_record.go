@@ -11,6 +11,8 @@ const (
 // strictly BEFORE the trusted DTO envelope can encode it. It also serves replay,
 // raw queries, image cloning and pre-admission publication through prepare.
 func copyTask(task Task, l Limits) (Task, error) {
+	task.StartedAt = copyTaskTime(task.StartedAt)
+	task.EndedAt = copyTaskTime(task.EndedAt)
 	checkpoint, err := copyObject(task.Checkpoint, l)
 	if err != nil {
 		return Task{}, err
@@ -401,6 +403,9 @@ func taskBackground(task Task) bool {
 // Replacements cannot erase an admitted execution envelope or mutate ownership.
 // Historical raw legacy ownership is preserved on first metadata attachment.
 func validateTaskReplacement(old, next Task, l Limits) error {
+	if old.StartedAt != nil && (next.StartedAt == nil || *old.StartedAt != *next.StartedAt) || old.EndedAt != nil && (next.EndedAt == nil || *old.EndedAt != *next.EndedAt) {
+		return reject("task lifecycle time replacement")
+	}
 	if old.Conversation != next.Conversation || old.Kind != next.Kind {
 		return reject("task identity changed")
 	}

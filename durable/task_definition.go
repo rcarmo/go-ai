@@ -345,7 +345,7 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 	if err != nil {
 		return TaskRecord{}, err
 	}
-	view := TaskRecord{ID: owned.ID, Conversation: owned.Conversation, Owner: owned.Owner, Kind: owned.Kind, Background: taskBackground(owned)}
+	view := TaskRecord{StartedAt: owned.StartedAt, EndedAt: owned.EndedAt, ID: owned.ID, Conversation: owned.Conversation, Owner: owned.Owner, Kind: owned.Kind, Background: taskBackground(owned)}
 	if owned.Execution != nil && owned.Execution.Native != nil {
 		native := owned.Execution.Native
 		view.Version = native.Version

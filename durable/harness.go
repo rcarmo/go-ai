@@ -79,7 +79,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			}
 			extensions = &names
 		}
-		options.Settings = &HarnessSettings{Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+		options.Settings = &HarnessSettings{ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	}
 	if options.Extensions != nil {
 		names, err := agentSelectionNames(*options.Extensions)
@@ -88,11 +88,14 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 		options.Extensions = &names
 	}
-	s, e := OpenSession(store)
+	s, e := OpenSessionWithOptions(store, SessionOptions{Now: options.Now})
 	if e != nil {
 		return nil, e
 	}
 	life, cancel := context.WithCancel(context.Background())
+	if options.Catalog != nil {
+		options.Models = options.Catalog.GetModel
+	}
 	if options.Models == nil {
 		options.Models = goai.GetModel
 	}
@@ -427,29 +430,39 @@ func (c *ConversationHandle) Configure(ctx context.Context, change AgentChange) 
 	}
 	return c.h.configureLocked(ctx, c.id, change, false)
 }
-func (c *ConversationHandle) Context(ctx context.Context) (*goai.Context, error) {
+
+// Context returns current or as-of provider context. Zero/omitted at means current.
+func (c *ConversationHandle) Context(ctx context.Context, cutoff ...ID) (*goai.Context, error) {
+	if len(cutoff) > 1 {
+		return nil, reject("multiple context cutoffs")
+	}
+	var at ID
+	if len(cutoff) == 1 {
+		at = cutoff[0]
+	}
 	if c.h.closing.Load() {
 		return nil, ErrClosed
 	}
-	s, e := c.h.session.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	if _, exists := s.Conversations[c.id]; !exists {
-		return nil, reject("unknown conversation")
-	}
 	var a agentState
-	if d, ok := agentDocument(s, c.id); ok {
-		if e = fromObject(d.Value, &a, c.h.session.limits); e != nil {
-			return nil, e
+	var view ContextView
+	e := c.h.session.readTasks(ctx, func(state Snapshot) error {
+		if _, ok := state.Conversations[c.id]; !ok {
+			return reject("unknown conversation")
 		}
-	}
-	messages, e := contextReceipts(s, c.id, c.h.session.limits)
+		if d, ok := agentDocument(state, c.id); ok {
+			if err := fromObject(d.Value, &a, c.h.session.limits); err != nil {
+				return err
+			}
+		}
+		var err error
+		view, err = c.h.session.cachedContextView(state, c.id, at)
+		return err
+	})
 	if e != nil {
 		return nil, e
 	}
 	conv := &goai.Context{SystemPrompt: a.SystemPrompt}
-	for _, m := range messages {
+	for _, m := range view.Messages {
 		conv.Messages = append(conv.Messages, receiptMessage(m))
 	}
 	return conv, nil
@@ -459,6 +472,23 @@ func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextVie
 		return ContextView{}, ErrClosed
 	}
 	return c.h.session.ContextView(ctx, c.id, at)
+}
+
+// ScanEntries pages the fork-visible history in the selected ID order.
+func (c *ConversationHandle) ScanEntries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
+	// Conversation history defaults oldest-first, while direct Storage scans
+	// default newest-first. Continuing without order follows its cursor.
+	if q.Order == "" && cursor == "" {
+		q.Order = Ascending
+	}
+	if q.Conversation != 0 && q.Conversation != c.id {
+		return Page[Entry]{}, reject("entry query conversation mismatch")
+	}
+	q.Conversation = c.id
+	if c.h.closing.Load() {
+		return Page[Entry]{}, ErrClosed
+	}
+	return c.h.session.ScanEntries(ctx, q, limit, cursor)
 }
 
 func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, limit int) ([]Entry, error) {

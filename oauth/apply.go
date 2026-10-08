@@ -19,6 +19,9 @@ type RuntimeCredentials struct {
 	// provider. For GitHub Copilot this applies account availability and token
 	// derived base URLs.
 	Models []*goai.Model
+	// ClassifierModels is the credential-specific classifier catalog. ChatGPT
+	// OAuth runtimes omit OpenAI Decisions, which accepts API keys only.
+	ClassifierModels []*goai.ClassifierModel
 }
 
 // StreamOptions returns request options pre-populated with the runtime API key.
@@ -63,6 +66,17 @@ func (r *RuntimeCredentials) SelectModel(selection string) (*goai.Model, error) 
 // SwitchContextForModel transforms a conversation for a selected runtime model.
 func (r *RuntimeCredentials) SwitchContextForModel(ctx *goai.Context, model *goai.Model) *goai.Context {
 	return goai.SwitchModel(ctx, model)
+}
+
+// RuntimeForAPIKey exposes only this provider's API-key-capable native catalogs.
+// It does not log in or reinterpret an OAuth bearer token as an API key.
+func RuntimeForAPIKey(provider goai.Provider, apiKey string) (*RuntimeCredentials, error) {
+	if apiKey == "" {
+		return nil, goai.NewModelsError(goai.ModelsErrorAuth, "API key is required", nil)
+	}
+	goai.RegisterBuiltinModels()
+	goai.RegisterBuiltinClassifierModels()
+	return &RuntimeCredentials{APIKey: apiKey, Models: goai.ListModels(provider), ClassifierModels: goai.ListClassifierModels(goai.ClassifierProvider(provider))}, nil
 }
 
 // RuntimeForProvider refreshes OAuth credentials if needed, extracts the API
@@ -111,7 +125,14 @@ func RuntimeForProviderContext(ctx context.Context, id string, creds *Credential
 		}
 	}
 	models := provider.ModifyModels(goai.ListModels(""), updated)
-	return &RuntimeCredentials{Credentials: updated, APIKey: apiKey, Models: models}, nil
+	goai.RegisterBuiltinClassifierModels()
+	classifiers := goai.ListClassifierModels(goai.ClassifierProvider(id))
+	// openai-chatgpt credentials modify the OpenAI chat catalog only; they
+	// must never make Decisions classifiers available.
+	if id == "openai-chatgpt" || id == "openai-codex" {
+		classifiers = nil
+	}
+	return &RuntimeCredentials{Credentials: updated, APIKey: apiKey, Models: models, ClassifierModels: classifiers}, nil
 }
 
 // RuntimeForGitHubCopilot is a convenience wrapper around RuntimeForProvider

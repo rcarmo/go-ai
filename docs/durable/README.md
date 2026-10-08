@@ -2,6 +2,12 @@
 
 `github.com/rcarmo/go-ai/durable` persists provider → owned host tool → provider answer runs in a native memory store or append journal. The useful M1 runtime is independently accepted and published in [native v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/v1.0.1) and [upstream-v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/upstream-v1.0.1), both targeting `33fcb88e6d9d5996279cd6f88687f988728aa2d8`. The working tree aligns the audited pi-durable 1.0.4 deltas and passes minimum-toolchain, race, static and local public-consumer checks. [1.0.4 validation](../v104/local-validation.md) records polling/argv/PowerShell, host-store, decoder and platform boundaries. The earlier 1.0.0 [parity closure](parity-closure.md) retains its version scope. Rui authorised the native v1.0.4 commit/tag/publication cycle on 6 October 2026; [release audit](../../RELEASE.md) records its outcome. Independent blanket TypeScript replay and external clean-clone acceptance have not been performed.
 
+## Native 1.1.0 candidate
+
+The current uncommitted port targets official durable1.1.0 directly. Rui removed legacy durable API/journal compatibility from its acceptance requirements. Required `Storage` scans support ordered pages; cursors preserve direction. Storage entry scans default descending, conversation history ascending. `ConversationHandle.Context(ctx, at)` selects a visible as-of entry. Context caching defaults to600000ms idle retention; `HarnessSettings.ContextRetentionMs` preserves explicit zero. Initial system/baseline ordering, incremental contexts and edit/head/fork invalidation remain detached and Session-owned.
+
+Tasks expose optional `StartedAt`/`EndedAt` milliseconds; receipts expose optional monotonic `DurationMs`. Executor durations measure each attempt, including failed/panic results; blocked calls and later-fetched deferred responses remain untimed. `Options.Catalog` shares host model discovery/refresh, and invocation-bound `Models()` access provides credential-free catalog reads and `Complete` through the host request boundary. [Candidate validation](../v110/local-validation.md) and [changed-path crosswalk](../v110/changed-paths-crosswalk.md) include native SQLite/Cloudflare distinctions, profiling and verification limits. Published1.0.4 is unchanged.
+
 ## Run the local example
 
 ```sh

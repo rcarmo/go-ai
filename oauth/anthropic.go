@@ -126,27 +126,58 @@ func (p *AnthropicProvider) loginBrowser(ctx context.Context, callbacks LoginCal
 		return nil, err
 	}
 	state := verifier
+	var callbackCode string
 	var credentials *Credentials
-	callback, err := startOAuthCallbackServer(ctx, oauthCallbackOptions{
+	var redirectURI string
+	options := oauthCallbackOptions{
 		ProviderName: "Anthropic", Host: p.callbackHost, Port: p.callbackPort, Path: p.callbackPath, State: state, Listen: p.listen,
 		Complete: func(_ context.Context, callbackURL *url.URL) error {
 			code, err := anthropicCodeFromCallback(callbackURL, state)
 			if err != nil {
 				return err
 			}
-			redirectURI := anthropicBrowserRedirect
-			if p.callbackPort != anthropicCallbackPort || p.callbackPath != anthropicCallbackPath {
-				redirectURI = callbackURL.Scheme + "://" + callbackURL.Host + callbackURL.Path
+			// Selection precedes exchange: callback/manual competition must never
+			// spend the same authorization grant twice.
+			callbackCode = code
+			if callbacks.OnPromptContext == nil && callbacks.OnPrompt == nil {
+				credentials, err = p.exchangeCode(ctx, code, state, verifier, redirectURI)
+				return err
 			}
-			credentials, err = p.exchangeCode(ctx, code, state, verifier, redirectURI)
-			return err
+			return nil
 		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("callback server: %w", err)
 	}
-	defer callback.Close()
-	redirectURI := p.browserRedirectURI(callback.RedirectURI)
+	callback, err := startOAuthCallbackServer(ctx, options)
+	fallback := false
+	if err != nil && options.Port != 0 {
+		// Reserved or occupied preferred ports must not prevent browser login.
+		options.Port = 0
+		fallback = true
+		callback, err = startOAuthCallbackServer(ctx, options)
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if callbacks.OnPromptContext == nil && callbacks.OnPrompt == nil {
+			return nil, fmt.Errorf("callback server: %w", err)
+		}
+		callback = nil
+		redirectURI = anthropicBrowserRedirect
+	} else {
+		defer callback.Close()
+		redirectURI = p.browserRedirectURI(callback.RedirectURI)
+		if fallback {
+			redirectURI = callback.RedirectURI
+			if p.callbackPort == anthropicCallbackPort && p.callbackPath == anthropicCallbackPath {
+				actual, parseErr := url.Parse(redirectURI)
+				if parseErr != nil {
+					return nil, parseErr
+				}
+				actual.Host = net.JoinHostPort("localhost", actual.Port())
+				redirectURI = actual.String()
+			}
+		}
+	}
 	authURL, err := p.authorizationURL(redirectURI, state, challenge)
 	if err != nil {
 		return nil, err
@@ -154,10 +185,77 @@ func (p *AnthropicProvider) loginBrowser(ctx context.Context, callbacks LoginCal
 	if callbacks.OnAuth != nil {
 		callbacks.OnAuth(AuthInfo{URL: authURL, Instructions: "Complete Anthropic login in your browser."})
 	}
-	if _, err := callback.Wait(); err != nil {
-		return nil, err
+	manual := func(input string) (*Credentials, error) {
+		code, pastedState, e := parseAnthropicCopyCodeInput(input)
+		if e != nil {
+			return nil, e
+		}
+		if pastedState != "" && pastedState != state {
+			return nil, fmt.Errorf("oauth state mismatch")
+		}
+		return p.exchangeCode(ctx, code, state, verifier, redirectURI)
 	}
-	return credentials, nil
+	prompt := Prompt{Message: "Complete login in your browser, or paste the authorization code / redirect URL here:", Placeholder: redirectURI, AllowEmpty: false}
+	if callback == nil {
+		var input string
+		if callbacks.OnPromptContext != nil {
+			input, err = callbacks.OnPromptContext(ctx, prompt)
+		} else {
+			input, err = callbacks.OnPrompt(prompt)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return manual(input)
+	}
+	if callbacks.OnPromptContext == nil {
+		if callbacks.OnPrompt != nil {
+			input, e := callbacks.OnPrompt(prompt)
+			if e != nil {
+				return nil, e
+			}
+			return manual(input)
+		}
+		if _, err = callback.Wait(); err != nil {
+			return nil, err
+		}
+		if credentials != nil {
+			return credentials, nil
+		}
+		return p.exchangeCode(ctx, callbackCode, state, verifier, redirectURI)
+	}
+	promptCtx, cancelPrompt := context.WithCancel(ctx)
+	type promptResult struct {
+		input string
+		err   error
+	}
+	answers := make(chan promptResult, 1)
+	promptDone := make(chan struct{})
+	go func() {
+		defer close(promptDone)
+		input, e := callbacks.OnPromptContext(promptCtx, prompt)
+		answers <- promptResult{input, e}
+	}()
+	completed := make(chan error, 1)
+	callbackDone := make(chan struct{})
+	go func() { defer close(callbackDone); _, e := callback.Wait(); completed <- e }()
+	defer func() { cancelPrompt(); <-promptDone; callback.Close(); <-callbackDone }()
+	select {
+	case e := <-completed:
+		if e != nil {
+			return nil, e
+		}
+		return p.exchangeCode(ctx, callbackCode, state, verifier, redirectURI)
+	case answer := <-answers:
+		if answer.err != nil {
+			return nil, answer.err
+		}
+		callback.Close()
+		<-callbackDone
+		return manual(answer.input)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (p *AnthropicProvider) browserRedirectURI(callbackRedirectURI string) string {

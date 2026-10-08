@@ -15,7 +15,7 @@ func TestOpenAICompletionsReasoningDetailsPreservesBeforeMatchingToolCall(t *tes
 		stringsReader("data: [DONE]\n\n"),
 	))
 	ch := make(chan goai.Event, 16)
-	processSSEStream(body, &goai.Model{ID: "google/gemini-test", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions}, ch)
+	processSSEStream(body, &goai.Model{ID: "google/gemini-test", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var assistant *goai.Message

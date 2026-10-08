@@ -30,7 +30,7 @@ func TestV0991OpenAICompletionsProviderStreamEventHookBeforeNormalizationAndFail
 			return wantErr
 		}
 		return nil
-	}}, ch)
+	}}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var text strings.Builder

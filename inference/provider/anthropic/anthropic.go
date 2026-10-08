@@ -285,6 +285,7 @@ func normalizeAnthropicBaseURL(baseURL string) string {
 
 func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -313,25 +314,25 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		federation, hasFederation := getAnthropicFederationConfig(model, env, baseURL)
 		if apiKey == "" && authToken == "" && !hasExplicitAuth && !hasFederation {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
 		}
 
 		body := buildRequest(model, convCtx, opts)
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
 		req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/messages", bytes.NewReader(bodyJSON))
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -367,7 +368,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				client := retryCfg.NewHTTPClient()
 				bearer, err := getAnthropicFederationBearer(ctx, client, federation)
 				if err != nil {
-					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 					return
 				}
 				req.Header.Set("Authorization", "Bearer "+bearer)
@@ -413,10 +414,10 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			}
 			return
 		}
@@ -427,10 +428,10 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
-			}
+			})
 			return
 		}
 
@@ -438,7 +439,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if compat.supportsMidConvoEffort {
 			providerThinkingLevel = anthropicEffortForOptions(model, opts)
 		}
-		processAnthropicStream(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, ch, anthropicOAuthNames(model, opts))
+		processAnthropicStream(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, send, anthropicOAuthNames(model, opts))
 	}()
 
 	return ch
@@ -855,7 +856,7 @@ func extractText(blocks []goai.ContentBlock) string {
 
 // --- SSE processing ---
 
-func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, ch chan<- goai.Event, oauthNames ...bool) {
+func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool, providerThinkingLevel string, send func(goai.Event), oauthNames ...bool) {
 	namingModel := model
 	if len(oauthNames) > 0 && oauthNames[0] {
 		copyModel := *model
@@ -874,7 +875,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 		partial.ProviderThinkingLevel = providerThinkingLevel
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	send(&goai.StartEvent{Partial: partial})
 
 	usageModel := model
 	toolJSON := map[int]string{}
@@ -883,7 +884,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		switch evt.Event {
@@ -900,23 +901,23 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				} `json:"content_block"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			switch data.ContentBlock.Type {
 			case "text":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text", Text: data.ContentBlock.Text})
-				ch <- &goai.TextStartEvent{ContentIndex: data.Index, Partial: partial}
+				send(&goai.TextStartEvent{ContentIndex: data.Index, Partial: partial})
 			case "thinking":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking", Thinking: data.ContentBlock.Thinking, ThinkingSignature: data.ContentBlock.Signature})
-				ch <- &goai.ThinkingStartEvent{ContentIndex: data.Index, Partial: partial}
+				send(&goai.ThinkingStartEvent{ContentIndex: data.Index, Partial: partial})
 			case "tool_use":
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall",
 					ID:   data.ContentBlock.ID,
 					Name: fromClaudeCodeToolName(data.ContentBlock.Name, tools, namingModel),
 				})
-				ch <- &goai.ToolCallStartEvent{ContentIndex: data.Index, Partial: partial}
+				send(&goai.ToolCallStartEvent{ContentIndex: data.Index, Partial: partial})
 			}
 
 		case "content_block_delta":
@@ -931,7 +932,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				} `json:"delta"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			idx := data.Index
@@ -941,10 +942,10 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			switch data.Delta.Type {
 			case "text_delta":
 				partial.Content[idx].Text += data.Delta.Text
-				ch <- &goai.TextDeltaEvent{ContentIndex: idx, Delta: data.Delta.Text, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: idx, Delta: data.Delta.Text, Partial: partial})
 			case "thinking_delta":
 				partial.Content[idx].Thinking += data.Delta.Thinking
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: data.Delta.Thinking, Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: data.Delta.Thinking, Partial: partial})
 			case "signature_delta":
 				partial.Content[idx].ThinkingSignature += data.Delta.Signature
 			case "input_json_delta":
@@ -952,7 +953,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
 					partial.Content[idx].Arguments = args
 				}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: data.Delta.PartialJSON, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: data.Delta.PartialJSON, Partial: partial})
 			}
 
 		case "content_block_stop":
@@ -960,7 +961,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				Index int `json:"index"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			idx := data.Index
@@ -970,22 +971,22 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			c := partial.Content[idx]
 			switch c.Type {
 			case "text":
-				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: c.Text, Partial: partial}
+				send(&goai.TextEndEvent{ContentIndex: idx, Content: c.Text, Partial: partial})
 			case "thinking":
-				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: c.Thinking, Partial: partial}
+				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: c.Thinking, Partial: partial})
 			case "toolCall":
 				if partial.Content[idx].Arguments == nil && toolJSON[idx] != "" {
 					if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
 						partial.Content[idx].Arguments = args
 					}
 				}
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
 						Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: partial.Content[idx].Arguments,
 					},
 					Partial: partial,
-				}
+				})
 			}
 
 		case "message_delta":
@@ -1004,7 +1005,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				} `json:"usage"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			partial.Usage.Output = data.Usage.OutputTokens
@@ -1047,7 +1048,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 				} `json:"message"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
 			partial.ResponseID = data.Message.ID
@@ -1076,7 +1077,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	}
 
 	if sawMessageStart && !sawMessageStop {
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended before message_stop")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended before message_stop")})
 		return
 	}
 
@@ -1086,11 +1087,11 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Anthropic stream ended without a stop reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended without a stop reason")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("anthropic stream ended without a stop reason")})
 		return
 	}
 
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
 func anthropicSSEParseError(evt sse.SSEEvent, err error) error {

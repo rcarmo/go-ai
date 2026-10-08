@@ -37,6 +37,7 @@ func streamMistralSimple(ctx context.Context, model *goai.Model, convCtx *goai.C
 
 func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -46,19 +47,19 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
 		}
 
 		body := buildRequest(model, convCtx, opts)
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -76,7 +77,7 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		req, err := http.NewRequestWithContext(requestCtx, "POST", baseURL+"/chat/completions", bytes.NewReader(bodyJSON))
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -103,10 +104,10 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			}
 			return
 		}
@@ -117,14 +118,14 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
-			}
+			})
 			return
 		}
 
-		processSSEStream(resp.Body, model, ch)
+		processSSEStream(resp.Body, model, send)
 	}()
 
 	return ch
@@ -370,7 +371,7 @@ func getMistralCachedPromptTokens(usage *sseUsage) int {
 	return cached
 }
 
-func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -380,7 +381,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		StopReason: goai.StopReasonPending,
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	send(&goai.StartEvent{Partial: partial})
 
 	type activeTC struct {
 		index      int
@@ -395,7 +396,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		if evt.Data == "[DONE]" {
@@ -441,22 +442,22 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		if delta.Content != nil && *delta.Content != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				ch <- &goai.TextStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial}
+				send(&goai.TextStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial})
 			}
 			idx := len(partial.Content) - 1
 			partial.Content[idx].Text += *delta.Content
-			ch <- &goai.TextDeltaEvent{ContentIndex: idx, Delta: *delta.Content, Partial: partial}
+			send(&goai.TextDeltaEvent{ContentIndex: idx, Delta: *delta.Content, Partial: partial})
 		}
 
 		// Reasoning
 		if delta.Reasoning != nil && *delta.Reasoning != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				ch <- &goai.ThinkingStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial}
+				send(&goai.ThinkingStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial})
 			}
 			idx := len(partial.Content) - 1
 			partial.Content[idx].Thinking += *delta.Reasoning
-			ch <- &goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: *delta.Reasoning, Partial: partial}
+			send(&goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: *delta.Reasoning, Partial: partial})
 		}
 
 		// Tool calls
@@ -477,11 +478,11 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 					index: tc.Index, id: tc.ID, name: tc.Function.Name, contentIdx: contentIdx,
 				})
 				at = &activeTools[len(activeTools)-1]
-				ch <- &goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial}
+				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
 			if tc.Function.Arguments != "" {
 				at.argsBuf += tc.Function.Arguments
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
 			}
 			if tc.ID != "" {
 				at.id = tc.ID
@@ -497,10 +498,10 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	// Close text/thinking blocks
 	for i, c := range partial.Content {
 		if c.Type == "text" {
-			ch <- &goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial}
+			send(&goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial})
 		}
 		if c.Type == "thinking" {
-			ch <- &goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial}
+			send(&goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial})
 		}
 	}
 
@@ -511,13 +512,13 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			args = map[string]interface{}{}
 		}
 		partial.Content[at.contentIdx].Arguments = args
-		ch <- &goai.ToolCallEndEvent{
+		send(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall: goai.ToolCall{
 				Type: "toolCall", ID: at.id, Name: at.name, Arguments: args,
 			},
 			Partial: partial,
-		}
+		})
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
@@ -532,7 +533,7 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 			reason = goai.StopReasonToolUse
 		case "error":
 			reason = goai.StopReasonError
-			partial.ErrorMessage = "Provider stopped with: " + *finishReason
+			partial.ErrorMessage = "Provider stopped with: error (server error)"
 		default:
 			reason = goai.StopReasonError
 			partial.ErrorMessage = "Provider stopped with: " + *finishReason
@@ -541,12 +542,12 @@ func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	if finishReason == nil {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Mistral stream ended without a finish reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("mistral stream ended without a finish reason")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("mistral stream ended without a finish reason")})
 		return
 	}
 	partial.StopReason = reason
 
-	ch <- &goai.DoneEvent{Reason: reason, Message: partial}
+	send(&goai.DoneEvent{Reason: reason, Message: partial})
 }
 
 func usesReasoningEffort(model *goai.Model) bool {

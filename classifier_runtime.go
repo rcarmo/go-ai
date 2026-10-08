@@ -76,6 +76,15 @@ func Classify(model *ClassifierModel, ctx ClassifierContext, opts *ClassifierOpt
 	if p == nil {
 		return classifierError(model, fmt.Errorf("no classifier provider registered"), false), nil
 	}
+	if len(ctx.Images) > 0 {
+		acceptsImages := false
+		for _, input := range model.Input {
+			acceptsImages = acceptsImages || input == "image"
+		}
+		if !acceptsImages {
+			return classifierError(model, fmt.Errorf("model %s/%s does not accept image input", model.Provider, model.ID), false), nil
+		}
+	}
 	// Validate and normalize the public JSON union before any provider request.
 	encoded, err := json.Marshal(ctx)
 	if err != nil {
@@ -126,6 +135,7 @@ func init() {
 		}}, model, ctx, opts)
 	}})
 	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiLlamaCPP, Classify: classifyLlamaCPP})
+	RegisterClassifierApiProvider(&ClassifierApiProvider{Api: ClassifierApiOpenAIDecisions, Classify: classifyOpenAIDecisions})
 }
 
 func ProviderEnvFromClassifierOptions(opts *ClassifierOptions) ProviderEnv {
@@ -137,6 +147,9 @@ func ProviderEnvFromClassifierOptions(opts *ClassifierOptions) ProviderEnv {
 
 func classifySystemOne(transport systemOneTransport, model *ClassifierModel, classCtx ClassifierContext, opts *ClassifierOptions) (*ClassifierResult, error) {
 	out := classifierBaseResult(model)
+	if len(classCtx.Images) > 0 {
+		return classifierError(model, fmt.Errorf("%s does not support image input", transport.label), false), nil
+	}
 	ctx := context.Background()
 	if opts != nil && opts.Context != nil {
 		ctx = opts.Context
@@ -159,66 +172,9 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 		payload["state"] = wire["state"]
 		payload["questions"] = wire["questions"]
 	}
-	if opts != nil && opts.OnPayload != nil {
-		transformed, err := opts.OnPayload(payload, model)
-		if err != nil {
-			return classifierError(model, err, false), nil
-		}
-		if transformed != nil {
-			payload = transformed
-		}
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return classifierError(model, err, false), nil
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, transport.url(model), bytes.NewReader(body))
-	if err != nil {
-		return classifierError(model, err, false), nil
-	}
-	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-	applyClassifierHeaders(req.Header, model, apiKey, opts)
-	client := http.DefaultClient
-	if opts != nil && opts.HTTPClient != nil {
-		client = opts.HTTPClient
-	}
-	retryCfg := classifierRetryConfig(opts)
-	if opts != nil && opts.Timeout > 0 {
-		retryCfg.RequestTimeout = opts.Timeout
-	}
-	if opts != nil && opts.TimeoutMs > 0 {
-		retryCfg.RequestTimeout = time.Duration(opts.TimeoutMs) * time.Millisecond
-	}
-	client = withClassifierTimeout(client, retryCfg)
-	resp, err := DoProviderRequestWithRetry(ctx, client, req, retryCfg)
+	value, err := postClassifierRequest(ctx, transport.label, transport.url(model), model, payload, opts, nil)
 	if err != nil {
 		return classifierError(model, err, ctx.Err() != nil), nil
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
-	if err != nil || len(data) > 1<<20 {
-		return classifierError(model, fmt.Errorf("%s could not read response", transport.label), ctx.Err() != nil), nil
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return classifierError(model, fmt.Errorf("%s returned %d", transport.label, resp.StatusCode), false), nil
-	}
-	var value any
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	// Validate the entire document, but defer numeric conversion until field
-	// parsing so an overflowing answer still retains reported billed usage.
-	if !json.Valid(data) {
-		return classifierError(model, fmt.Errorf("%s returned invalid JSON", transport.label), false), nil
-	}
-	if err := decoder.Decode(&value); err != nil {
-		return classifierError(model, fmt.Errorf("%s returned invalid JSON", transport.label), false), nil
-	}
-	// Match upstream: only successfully read/decoded 2xx replies are observed,
-	// including valid JSON whose answers or transport envelope are malformed.
-	if opts != nil && opts.OnResponse != nil {
-		if err := opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model); err != nil {
-			return classifierError(model, err, ctx.Err() != nil), nil
-		}
 	}
 	decoded, ok := value.(map[string]any)
 	if !ok {
@@ -329,9 +285,7 @@ func parseClassifierUsage(value any, model *ClassifierModel) *Usage {
 		}
 	}
 	usage := &Usage{Input: input, Output: output, TotalTokens: input + output}
-	usage.Cost.Input = float64(input) / 1_000_000 * model.Cost.Input
-	usage.Cost.Output = float64(output) / 1_000_000 * model.Cost.Output
-	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output
+	usage.Cost = CalculateCost(&Model{Cost: model.Cost}, usage)
 	return usage
 }
 
@@ -427,3 +381,96 @@ func requiredFloat(label string, value any, field string) (float64, error) {
 	}
 	return f, nil
 }
+
+// postClassifierRequest shares the bounded HTTP/retry/timeout/hook boundary.
+func postClassifierRequest(ctx context.Context, label, endpoint string, model *ClassifierModel, payload map[string]any, opts *ClassifierOptions, noRetryStatuses []int) (any, error) {
+	apiKey := ""
+	if opts != nil {
+		apiKey = opts.APIKey
+	}
+	if opts != nil && opts.OnPayload != nil {
+		transformed, err := opts.OnPayload(payload, model)
+		if err != nil {
+			return nil, err
+		}
+		if transformed != nil {
+			payload = transformed
+		}
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+	applyClassifierHeaders(req.Header, model, apiKey, opts)
+	client := http.DefaultClient
+	if opts != nil && opts.HTTPClient != nil {
+		client = opts.HTTPClient
+	}
+	retryCfg := classifierRetryConfig(opts)
+	if opts != nil && opts.Timeout > 0 {
+		retryCfg.RequestTimeout = opts.Timeout
+	}
+	if opts != nil && opts.TimeoutMs > 0 {
+		retryCfg.RequestTimeout = time.Duration(opts.TimeoutMs) * time.Millisecond
+	}
+	if len(noRetryStatuses) > 0 {
+		retryCfg.RetryableStatuses = []int{408, 409, 429}
+		for status := 500; status < 600; status++ {
+			skip := false
+			for _, excluded := range noRetryStatuses {
+				skip = skip || status == excluded
+			}
+			if !skip {
+				retryCfg.RetryableStatuses = append(retryCfg.RetryableStatuses, status)
+			}
+		}
+	}
+	client = withClassifierTimeout(client, retryCfg)
+	resp, err := DoProviderRequestWithRetry(ctx, client, req, retryCfg)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil || len(data) > 1<<20 {
+		return nil, fmt.Errorf("%s could not read response", label)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &classifierHTTPError{status: resp.StatusCode, body: string(data), label: label}
+	}
+	var value any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	// Validate the entire document, but defer numeric conversion until field
+	// parsing so an overflowing answer still retains reported billed usage.
+	if !json.Valid(data) {
+		return nil, fmt.Errorf("%s returned invalid JSON", label)
+	}
+	if err := decoder.Decode(&value); err != nil {
+		return nil, fmt.Errorf("%s returned invalid JSON", label)
+	}
+	// Match upstream: only successfully read/decoded 2xx replies are observed,
+	// including valid JSON whose answers or transport envelope are malformed.
+	if opts != nil && opts.OnResponse != nil {
+		if err := opts.OnResponse(ClassifierResponseMetadata{Status: resp.StatusCode, Headers: responseHeaders(resp.Header)}, model); err != nil {
+			return nil, err
+		}
+	}
+	return value, nil
+}
+
+type classifierHTTPError struct {
+	status      int
+	body, label string
+}
+
+func (e *classifierHTTPError) Error() string                    { return fmt.Sprintf("%s returned %d", e.label, e.status) }
+func (e *classifierHTTPError) ProviderErrorStatus() (int, bool) { return e.status, true }
+func (e *classifierHTTPError) ProviderErrorBody() (any, bool)   { return e.body, true }
+
+var _ ProviderErrorShape = (*classifierHTTPError)(nil)

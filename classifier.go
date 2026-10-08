@@ -10,6 +10,8 @@ type ClassifierApi string
 type ClassifierProvider string
 
 const (
+	ClassifierApiOpenAIDecisions          ClassifierApi      = "openai-decisions"
+	ClassifierProviderOpenAI              ClassifierProvider = "openai"
 	ClassifierApiTypeSafeSystemOne        ClassifierApi      = "typesafe-system-one"
 	ClassifierApiCloudflareWorkersAI      ClassifierApi      = "cloudflare-workers-ai-system-one"
 	ClassifierApiLlamaCPP                 ClassifierApi      = "llama-cpp-classify"
@@ -101,6 +103,7 @@ func cloneClassifierModel(model *ClassifierModel) *ClassifierModel {
 	}
 	copy := *model
 	copy.Input = append([]string{}, model.Input...)
+	copy.Cost.Tiers = append([]ModelCostTier(nil), model.Cost.Tiers...)
 	if model.Headers != nil {
 		copy.Headers = map[string]string{}
 		for key, value := range model.Headers {

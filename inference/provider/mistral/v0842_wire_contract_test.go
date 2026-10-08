@@ -148,7 +148,7 @@ func TestV0842MistralRawByteSplitUTF8Stream(t *testing.T) {
 		"data: {\"choices\":[{\"finish_reason\":\"stop\",\"delta\":{}}]}\n\n" +
 		"data: [DONE]\n\n"
 	ch := make(chan goai.Event, 16)
-	processSSEStream(&bytewiseReaderForMistralTest{data: []byte(payload)}, &goai.Model{ID: "mistral-large-latest", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations}, ch)
+	processSSEStream(&bytewiseReaderForMistralTest{data: []byte(payload)}, &goai.Model{ID: "mistral-large-latest", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.Message
 	for ev := range ch {

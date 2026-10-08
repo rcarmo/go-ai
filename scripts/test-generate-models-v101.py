@@ -6,14 +6,14 @@ from project_temp import configure as configure_project_temp
 configure_project_temp("test-generate-models-v101")
 repo=pathlib.Path(__file__).resolve().parents[1]
 source_file=os.environ.get('PI_AI_MODELS_GENERATED_JS')
-if not source_file: raise RuntimeError('set PI_AI_MODELS_GENERATED_JS to the pinned 1.0.4 package dist/models.generated.js')
+if not source_file: raise RuntimeError('set PI_AI_MODELS_GENERATED_JS to the pinned 1.1.0 package dist/models.generated.js')
 source=pathlib.Path(source_file).parent/'providers/data'
 with tempfile.TemporaryDirectory(prefix='go-ai-v101-hydrate-') as tmp:
  root=pathlib.Path(tmp);binary=root/'generator'
  if os.environ.get('GO_AI_HELPER_PROFILE_ROOT'):
   fd,name=tempfile.mkstemp(prefix='generator-bin-',dir=os.environ['GO_AI_HELPER_PROFILE_ROOT']);os.close(fd);binary=pathlib.Path(name)
  subprocess.run([os.environ.get('GO','go'),'build','-o',str(binary),'./scripts/generate-models.go'],cwd=repo,check=True)
- for kind,count in [('chat',1537),('image',60),('classifier',23)]:
+ for kind,count in [('chat',1563),('image',61),('classifier',26)]:
   a=root/(kind+'.go');b=root/(kind+'-again.go')
   for dest in [a,b]:
    r=subprocess.run([str(binary),'-data-dir',str(source),'-kind',kind,'-output',str(dest)],capture_output=True,text=True)

@@ -42,7 +42,7 @@ func TestProcessConverseStreamRejectsNonAssistantMessageStart(t *testing.T) {
 	setConverseEventStream(resp, stream)
 
 	ch := make(chan goai.Event, 4)
-	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	for ev := range ch {
@@ -73,7 +73,7 @@ func TestProcessConverseStreamAddsFailureDiagnosticForStreamErr(t *testing.T) {
 	setConverseEventStream(resp, stream)
 
 	ch := make(chan goai.Event, 4)
-	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	for ev := range ch {
@@ -97,7 +97,7 @@ func TestProcessConverseStreamSurfacesStreamErr(t *testing.T) {
 	setConverseEventStream(resp, stream)
 
 	ch := make(chan goai.Event, 4)
-	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var sawErr bool
@@ -125,7 +125,7 @@ func TestProcessConverseStreamPreservesRawStopReason(t *testing.T) {
 	})
 	setConverseEventStream(resp, stream)
 	ch := make(chan goai.Event, 8)
-	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	processConverseStream(resp, &goai.Model{ID: "m", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
 		if done, ok := ev.(*goai.DoneEvent); ok {

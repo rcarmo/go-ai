@@ -184,20 +184,16 @@ func (p *RadiusProvider) ModifyModels(models []*goai.Model, creds *Credentials) 
 	if !ok {
 		return models
 	}
-	existing := map[string]bool{}
+	// A known account catalog replaces this provider's baseline, including
+	// explicit empty lists and organisation-disabled models. Other providers
+	// retain their own catalogs.
+	out := make([]*goai.Model, 0, len(models)+len(config.Models))
 	for _, model := range models {
-		if model != nil && model.Provider == goai.Provider(p.id) {
-			existing[model.ID] = true
+		if model != nil && model.Provider != goai.Provider(p.id) {
+			out = append(out, model)
 		}
 	}
-	out := append([]*goai.Model{}, models...)
-	for _, model := range p.modelsFromGatewayConfig(config) {
-		if model.ID == "" || existing[model.ID] {
-			continue
-		}
-		existing[model.ID] = true
-		out = append(out, model)
-	}
+	out = append(out, p.modelsFromGatewayConfig(config)...)
 	return out
 }
 

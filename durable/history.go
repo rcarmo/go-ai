@@ -16,13 +16,14 @@ type Page[T any] struct {
 	Next  Cursor `json:"next,omitempty"`
 }
 
-// EntryQuery selects inclusive ID bounds in fork-aware, newest-first history.
-// Zero bounds are omitted. This differs intentionally from the legacy direct
+// EntryQuery selects inclusive ID bounds in fork-aware history (descending by
+// default). Zero bounds are omitted; a continuation preserves its scan order. This differs intentionally from the legacy direct
 // Entries API, whose EntryCursor remains commit/position ordered.
 type EntryQuery struct {
-	Conversation ID `json:"conversation"`
-	MinEntryID   ID `json:"minEntryId,omitempty"`
-	MaxEntryID   ID `json:"maxEntryId,omitempty"`
+	Conversation ID        `json:"conversation"`
+	MinEntryID   ID        `json:"minEntryId,omitempty"`
+	MaxEntryID   ID        `json:"maxEntryId,omitempty"`
+	Order        ScanOrder `json:"order,omitempty"`
 }
 
 // HistoryStorage is the additive entry-history surface implemented by native
@@ -33,10 +34,7 @@ type HistoryStorage interface {
 	FindLatestHeadMarker(context.Context, ID, ID) (Entry, bool, error)
 }
 
-type historyCursor struct {
-	Query EntryQuery `json:"query"`
-	After ID         `json:"after"`
-}
+type historyCursor = scanCursor[EntryQuery]
 
 func validateAncestry(s Snapshot, final bool) error {
 	for id, v := range s.Conversations {
@@ -132,6 +130,13 @@ func visibleHistory(s Snapshot, q EntryQuery) ([]Entry, error) {
 		}
 		id = v.Parent
 	}
+	if q.Order == Ascending {
+		// Reverse the fork segments and each segment's IDs together. Sorting
+		// globally would change ancestry semantics for IDs committed out of order.
+		for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+			out[i], out[j] = out[j], out[i]
+		}
+	}
 	return out, nil
 }
 
@@ -143,40 +148,47 @@ func (c *storeCore) ScanEntries(ctx context.Context, q EntryQuery, limit int, cu
 	if err := checkPage(c.limits, limit); err != nil {
 		return Page[Entry]{}, err
 	}
+	return scanEntries(c.state, q, limit, cursor, c.limits)
+}
+
+func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limits) (Page[Entry], error) {
+	if uint64(q.MinEntryID) > MaxID || uint64(q.MaxEntryID) > MaxID {
+		return Page[Entry]{}, reject("entry query outside ID bounds")
+	}
 	original := q
-	if cursor != "" {
-		if len(cursor) > 1024 {
-			return Page[Entry]{}, reject("invalid entry cursor")
+	original.Order = ""
+	order, after, err := resolveScan(original, q.Order, Descending, cursor, l)
+	if err != nil {
+		return Page[Entry]{}, err
+	}
+	q.Order = order
+	if after != 0 {
+		if _, ok := state.Conversations[q.Conversation]; !ok {
+			return Page[Entry]{}, reject("unknown conversation")
 		}
-		data, err := base64.RawURLEncoding.DecodeString(string(cursor))
-		if err != nil {
-			return Page[Entry]{}, reject("invalid entry cursor")
-		}
-		var continuation historyCursor
-		if err = decodeStrict(data, c.limits, 1024, &continuation); err != nil {
-			return Page[Entry]{}, err
-		}
-		if continuation.Query != q || continuation.After < 1 || uint64(continuation.After) > MaxID {
-			return Page[Entry]{}, reject("entry cursor query mismatch")
-		}
-		// An exclusive ID ceiling is stable when newer entries are appended.
-		if continuation.After == 1 {
-			if _, ok := c.state.Conversations[q.Conversation]; !ok {
-				return Page[Entry]{}, reject("unknown conversation")
+		if order == Descending {
+			if after == 1 {
+				return Page[Entry]{Items: []Entry{}}, nil
 			}
-			return Page[Entry]{Items: []Entry{}}, nil
-		}
-		if q.MaxEntryID == 0 || q.MaxEntryID >= continuation.After {
-			q.MaxEntryID = continuation.After - 1
+			if q.MaxEntryID == 0 || q.MaxEntryID >= after {
+				q.MaxEntryID = after - 1
+			}
+		} else {
+			if uint64(after) == MaxID {
+				return Page[Entry]{Items: []Entry{}}, nil
+			}
+			if q.MinEntryID <= after {
+				q.MinEntryID = after + 1
+			}
 		}
 	}
-	entries, err := visibleHistory(c.state, q)
+	entries, err := visibleHistory(state, q)
 	if err != nil {
 		return Page[Entry]{}, err
 	}
 	page := Page[Entry]{Items: []Entry{}}
 	if len(entries) > limit {
-		data, err := encodeBounded(historyCursor{original, entries[limit-1].ID}, c.limits, 1024)
+		data, err := encodeBounded(historyCursor{Query: original, After: entries[limit-1].ID, Order: order}, l, 1024)
 		if err != nil {
 			return Page[Entry]{}, err
 		}
@@ -184,7 +196,7 @@ func (c *storeCore) ScanEntries(ctx context.Context, q EntryQuery, limit int, cu
 		entries = entries[:limit]
 	}
 	for _, entry := range entries {
-		entry, err = copyEntry(entry, c.limits)
+		entry, err = copyEntry(entry, l)
 		if err != nil {
 			return Page[Entry]{}, err
 		}

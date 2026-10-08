@@ -285,6 +285,9 @@ type Message struct {
 	Role      Role           `json:"role"`
 	Content   []ContentBlock `json:"content"`
 	Timestamp int64          `json:"timestamp"`
+	// DurationMs is observed monotonic request/tool execution time. Nil means
+	// unobserved (including subsequently fetched deferred completions).
+	DurationMs *int64 `json:"durationMs,omitempty"`
 
 	// Assistant-only fields
 	Api                   Api                          `json:"api,omitempty"`

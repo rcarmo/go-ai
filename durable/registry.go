@@ -14,13 +14,14 @@ type ModelRef struct {
 	ID       string        `json:"id"`
 }
 type RequestSettings struct {
-	Temperature   *float64         `json:"temperature,omitempty"`
-	MaxTokens     *int             `json:"maxTokens,omitempty"`
-	ToolExecution string           `json:"toolExecution,omitempty"`
-	SteeringMode  string           `json:"steeringMode,omitempty"`
-	FollowUpMode  string           `json:"followUpMode,omitempty"`
-	Retry         RetryPolicy      `json:"retry,omitempty"`
-	Compaction    CompactionPolicy `json:"compaction,omitempty"`
+	ContextRetentionMs *int64           `json:"contextRetentionMs,omitempty"`
+	Temperature        *float64         `json:"temperature,omitempty"`
+	MaxTokens          *int             `json:"maxTokens,omitempty"`
+	ToolExecution      string           `json:"toolExecution,omitempty"`
+	SteeringMode       string           `json:"steeringMode,omitempty"`
+	FollowUpMode       string           `json:"followUpMode,omitempty"`
+	Retry              RetryPolicy      `json:"retry,omitempty"`
+	Compaction         CompactionPolicy `json:"compaction,omitempty"`
 	// Presence-aware native counterparts of reference per-field object merges.
 	// Whole policies above retain their existing replacement semantics.
 	RetryOverrides      *RetrySettings        `json:"retryOverrides,omitempty"`
@@ -80,6 +81,8 @@ type Options struct {
 	// Only rendered text and ordering are persisted, never callbacks.
 	Sections []PromptSection
 	Models   func(goai.Provider, string) *goai.Model
+	// Catalog shares credential-scoped discovery/refresh with tools and hooks.
+	Catalog ModelCatalog
 	// RequestOptions resolves process-local credentials and hooks once per
 	// dispatched attempt. M1b behavior options are limited to persisted Settings;
 	// other behavior fields reject rather than silently changing after recovery.
@@ -218,7 +221,7 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	var n RequestSettings
 	e = decodeStrict(p, l, l.MaxRecordBytes, &n)
-	if e == nil && ((n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
+	if e == nil && ((n.ContextRetentionMs != nil && *n.ContextRetentionMs < 0) || (n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
 		return n, reject("invalid request settings")
 	}
 	if e != nil {
@@ -283,6 +286,7 @@ type MessageReceipt struct {
 	Usage                 *goai.Usage                       `json:"usage,omitempty"`
 	StopReason            goai.StopReason                   `json:"stopReason,omitempty"`
 	Timestamp             int64                             `json:"timestamp,omitempty"`
+	DurationMs            *int64                            `json:"durationMs,omitempty"`
 	ResponseID            string                            `json:"responseId,omitempty"`
 	ResponseModel         string                            `json:"responseModel,omitempty"`
 	ProviderThinkingLevel string                            `json:"providerThinkingLevel,omitempty"`
@@ -369,7 +373,7 @@ func receiptMessage(r messageReceipt) goai.Message {
 			content[index].Arguments = map[string]any{}
 		}
 	}
-	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, ErrorMessage: r.ErrorMessage, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
+	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, DurationMs: copyTaskTime(r.DurationMs), ErrorMessage: r.ErrorMessage, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
 	if m.ErrorMessage == "" {
 		m.ErrorMessage = r.ErrorCode
 	}
@@ -405,7 +409,7 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 	if m.Role != goai.RoleToolResult && m.Details != nil {
 		return messageReceipt{}, reject("details require tool-result role")
 	}
-	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content)), ResponseID: m.ResponseID, ResponseModel: m.ResponseModel, ProviderThinkingLevel: m.ProviderThinkingLevel, ThinkingLevel: m.ThinkingLevel, AssistantDiagnostics: m.Diagnostics, RawStopReason: m.RawStopReason, ErrorMessage: m.ErrorMessage, EndTurn: m.EndTurn, ContentPresence: captureContentPresence(m.Content)}
+	r := messageReceipt{Role: m.Role, Api: m.Api, Provider: m.Provider, Model: m.Model, Usage: m.Usage, StopReason: m.StopReason, Timestamp: m.Timestamp, DurationMs: copyTaskTime(m.DurationMs), ToolCallID: m.ToolCallID, ToolName: m.ToolName, IsError: m.IsError, Content: make([]goai.ContentBlock, 0, len(m.Content)), ResponseID: m.ResponseID, ResponseModel: m.ResponseModel, ProviderThinkingLevel: m.ProviderThinkingLevel, ThinkingLevel: m.ThinkingLevel, AssistantDiagnostics: m.Diagnostics, RawStopReason: m.RawStopReason, ErrorMessage: m.ErrorMessage, EndTurn: m.EndTurn, ContentPresence: captureContentPresence(m.Content)}
 	if m.Role != goai.RoleAssistant && (m.ResponseID != "" || m.ResponseModel != "" || m.ProviderThinkingLevel != "" || m.ThinkingLevel != "" || len(m.Diagnostics) != 0 || m.RawStopReason != "" || m.ErrorMessage != "" || m.EndTurn != nil) {
 		return messageReceipt{}, reject("assistant protocol fields require assistant role")
 	}

@@ -64,7 +64,7 @@ func runOpenAICompletionsResponseModelChunks(t *testing.T, chunks []string) *goa
 	body := io.NopCloser(strings.NewReader(b.String()))
 	ch := make(chan goai.Event, 16)
 	model := &goai.Model{ID: "openrouter/auto", Provider: goai.ProviderOpenRouter, Api: goai.ApiOpenAICompletions}
-	processSSEStream(body, model, ch)
+	processSSEStream(body, model, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
 		switch e := ev.(type) {

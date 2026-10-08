@@ -64,7 +64,7 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 
 	ch1 := make(chan goai.Event, 32)
 	ctx1 := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
-	if err := streamViaWebSocket(context.Background(), model, ctx1, opts, jwt, ch1); err != nil {
+	if err := streamViaWebSocket(context.Background(), model, ctx1, opts, jwt, goai.NewAssistantEventSender(ch1)); err != nil {
 		t.Fatalf("first streamViaWebSocket: %v", err)
 	}
 	close(ch1)
@@ -80,7 +80,7 @@ func TestStreamViaWebSocketAutoUsesCachedDeltaAndDebugStats(t *testing.T) {
 
 	ch2 := make(chan goai.Event, 32)
 	ctx2 := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello"), *msg1, goai.UserMessage("next")}}
-	if err := streamViaWebSocket(context.Background(), model, ctx2, opts, jwt, ch2); err != nil {
+	if err := streamViaWebSocket(context.Background(), model, ctx2, opts, jwt, goai.NewAssistantEventSender(ch2)); err != nil {
 		t.Fatalf("second streamViaWebSocket: %v", err)
 	}
 	close(ch2)
@@ -214,7 +214,7 @@ func TestStreamViaWebSocketClosedBeforeCompletionErrorMatchesUpstream(t *testing
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
 	ch := make(chan goai.Event, 32)
-	err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, ch)
+	err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, goai.NewAssistantEventSender(ch))
 	if err == nil || err.Error() != "WebSocket stream closed before response.completed" {
 		t.Fatalf("unexpected terminal WS error: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestStreamViaWebSocketProtocolFlow(t *testing.T) {
 	convCtx := &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}
 	ch := make(chan goai.Event, 32)
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
-	if err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, ch); err != nil {
+	if err := streamViaWebSocket(context.Background(), model, convCtx, &goai.StreamOptions{}, jwt, goai.NewAssistantEventSender(ch)); err != nil {
 		t.Fatalf("streamViaWebSocket: %v", err)
 	}
 	close(ch)

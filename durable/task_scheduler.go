@@ -586,6 +586,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			if s.invocations[runtime.taskID] == runtime {
 				delete(s.invocations, runtime.taskID)
 			}
+			s.h.session.expireContextRanges()
 			if runtime.admissionFailed {
 				s.retryAfter[runtime.taskID] = runtime.admissionEpoch
 			} else {

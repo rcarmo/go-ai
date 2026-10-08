@@ -55,7 +55,7 @@ func TestV0850ResponsesIncompleteErrorsRetainMappedErrorMessage(t *testing.T) {
 func collectV0850ResponsesDone(t *testing.T, body *strings.Reader) *goai.Message {
 	t.Helper()
 	ch := make(chan goai.Event, 16)
-	processStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, Cost: goai.ModelCost{}}, ch)
+	processStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, Cost: goai.ModelCost{}}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.Message
 	for ev := range ch {

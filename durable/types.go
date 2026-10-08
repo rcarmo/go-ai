@@ -111,6 +111,9 @@ type Task struct {
 	Status       string         `json:"status"`
 	Checkpoint   JSON           `json:"checkpoint"`
 	Execution    *TaskExecution `json:"execution,omitempty"`
+	// Optional Unix millisecond lifecycle times. Old records keep these absent.
+	StartedAt *int64 `json:"startedAt,omitempty"`
+	EndedAt   *int64 `json:"endedAt,omitempty"`
 }
 
 // TaskValue explicitly distinguishes an absent field from a strict JSON null.
@@ -185,6 +188,8 @@ type TaskExecution struct {
 // TaskRecord is a detached canonical runtime view. Legacy raw records remain
 // available through Snapshot; their absent generic results are not invented.
 type TaskRecord struct {
+	StartedAt      *int64
+	EndedAt        *int64
 	ID             ID
 	Conversation   ID
 	Owner          ID
@@ -359,6 +364,11 @@ type Storage interface {
 	MintID(context.Context) (ID, error)
 	Apply(context.Context, Batch) (uint64, error)
 	Snapshot(context.Context) (Snapshot, error)
+	// The 1.1.0 ordered scan contract is required of storage implementations.
+	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)
+	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
+	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[Task], error)
+	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
 	Conversations(context.Context, Query) ([]Conversation, error)
 	Entries(context.Context, ID, EntryCursor, int) ([]Entry, error)
 	Tasks(context.Context, Query) ([]Task, error)

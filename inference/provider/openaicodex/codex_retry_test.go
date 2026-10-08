@@ -14,7 +14,7 @@ import (
 func TestProcessCodexSSEResponseFailedErrorMatchesUpstream(t *testing.T) {
 	body := strings.NewReader("data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"bad\",\"message\":\"terminal failed\"}}}\n\n")
 	ch := make(chan goai.Event, 8)
-	processCodexSSE(body, &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}, ch, nil)
+	processCodexSSE(body, &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}, goai.NewAssistantEventSender(ch), nil)
 	close(ch)
 	for ev := range ch {
 		if e, ok := ev.(*goai.ErrorEvent); ok {
@@ -51,7 +51,7 @@ func TestStreamViaSSERetries429AndSucceeds(t *testing.T) {
 
 	ch := make(chan goai.Event, 32)
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
-	streamViaSSE(context.Background(), model, convCtx, opts, jwt, ch, nil)
+	streamViaSSE(context.Background(), model, convCtx, opts, jwt, goai.NewAssistantEventSender(ch), nil)
 	close(ch)
 
 	var done *goai.DoneEvent

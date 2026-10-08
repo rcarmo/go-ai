@@ -27,8 +27,8 @@ func TestOpenAICompletionsEmptyToolsUpstream(t *testing.T) {
 		if _, ok := payload["max_tokens"]; ok {
 			t.Fatalf("max_tokens should be omitted, got %#v", payload["max_tokens"])
 		}
-		if got := payload["max_completion_tokens"]; got != float64(3904) {
-			t.Fatalf("max_completion_tokens = %#v, want 3904", got)
+		if got := payload["max_completion_tokens"]; got != float64(3618) {
+			t.Fatalf("max_completion_tokens = %#v, want 3618", got)
 		}
 	})
 
@@ -40,8 +40,8 @@ func TestOpenAICompletionsEmptyToolsUpstream(t *testing.T) {
 		if _, ok := payload["max_tokens"]; ok {
 			t.Fatalf("max_tokens should be omitted, got %#v", payload["max_tokens"])
 		}
-		if got := payload["max_completion_tokens"]; got != float64(3904) {
-			t.Fatalf("max_completion_tokens = %#v, want 3904", got)
+		if got := payload["max_completion_tokens"]; got != float64(3618) {
+			t.Fatalf("max_completion_tokens = %#v, want 3618", got)
 		}
 	})
 

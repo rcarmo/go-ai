@@ -544,7 +544,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	if cp.Agent.Model.ID == "" {
 		return &generationNoModel{ref: cp.Agent.Model}
 	}
-	view, e := deriveContextView(s, task.Conversation, 0, h.session.limits)
+	view, e := h.session.ContextView(runtime.context, task.Conversation, 0)
 	if e != nil {
 		return e
 	}
@@ -849,7 +849,7 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 		}
 		// Terminal provider claims are not attribution authority. Use the model
 		// committed with the request, even when identity is absent or conflicting.
-		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow), providerError: message.ErrorMessage, ErrorMessage: message.ErrorMessage, providerStopReason: message.StopReason, ResponseID: message.ResponseID, ResponseModel: message.ResponseModel, ProviderThinkingLevel: message.ProviderThinkingLevel, ThinkingLevel: message.ThinkingLevel, AssistantDiagnostics: message.Diagnostics, RawStopReason: message.RawStopReason, EndTurn: message.EndTurn, ContentPresence: captureContentPresence(message.Content)}
+		r := messageReceipt{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, Api: pinned.Api, Provider: pinned.Provider, Model: pinned.ID, Usage: message.Usage, StopReason: message.StopReason, Timestamp: message.Timestamp, DurationMs: copyTaskTime(message.DurationMs), ErrorCode: code, Retryable: goai.IsRetryableAssistantError(message), ContextOverflow: goai.IsContextOverflow(message, pinned.ContextWindow), providerError: message.ErrorMessage, ErrorMessage: message.ErrorMessage, providerStopReason: message.StopReason, ResponseID: message.ResponseID, ResponseModel: message.ResponseModel, ProviderThinkingLevel: message.ProviderThinkingLevel, ThinkingLevel: message.ThinkingLevel, AssistantDiagnostics: message.Diagnostics, RawStopReason: message.RawStopReason, EndTurn: message.EndTurn, ContentPresence: captureContentPresence(message.Content)}
 		for _, c := range message.Content {
 			switch c.Type {
 			case "text", "thinking":

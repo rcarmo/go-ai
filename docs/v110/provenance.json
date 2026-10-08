@@ -1,0 +1,156 @@
+{
+  "target": "v1.1.0",
+  "revision": "abe508e1b89912adde45528136c3221eb69acdd7",
+  "prior": "v1.0.4",
+  "priorRevision": "7c10bd4337495ee613f2224843ecdf349b80d1df",
+  "nativeBase": "65e25029c969d154560d0c26eec032d2605d80da",
+  "packages": {
+    "ai": {
+      "name": "@earendil-works/pi-ai",
+      "version": "1.1.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.1.0.tgz",
+      "integrity": "sha512-1T7LAkc/5Bvc0v6w4vAGVdCrli0o/E0pEmYKTnixu95vSFArBjvbhS/G4ZwI0RUePgf0Imcu0VyqlM4EcXxqfw==",
+      "sha256": "6caab33cec57480ed02c57fe37428a030a77cc2a0662814b435a5cf8932ad829",
+      "gitHead": null,
+      "provenance": "npm omits gitHead; decoded SLSA digest/repository/tag/gitCommit matches official tag; signatures not cryptographically verified",
+      "attestations": [
+        {
+          "predicateType": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+          "subject": [
+            {
+              "name": "pkg:npm/%40earendil-works/pi-ai@1.1.0",
+              "digest": {
+                "sha512": "d53ecb02473fe41bdcd2feb0e2f00655d0ab962d28fc4d2912660a4e78b1bbde6f48502b063bdb852fc6e19c08d1151e3e07f422672ed15caa94ce04717c6a7f"
+              }
+            }
+          ],
+          "predicate": {
+            "name": "@earendil-works/pi-ai",
+            "version": "1.1.0",
+            "registry": "https://registry.npmjs.org"
+          }
+        },
+        {
+          "predicateType": "https://slsa.dev/provenance/v1",
+          "subject": [
+            {
+              "name": "pkg:npm/%40earendil-works/pi-ai@1.1.0",
+              "digest": {
+                "sha512": "d53ecb02473fe41bdcd2feb0e2f00655d0ab962d28fc4d2912660a4e78b1bbde6f48502b063bdb852fc6e19c08d1151e3e07f422672ed15caa94ce04717c6a7f"
+              }
+            }
+          ],
+          "predicate": {
+            "buildDefinition": {
+              "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+              "externalParameters": {
+                "workflow": {
+                  "ref": "refs/tags/v1.1.0",
+                  "repository": "https://github.com/earendil-works/pi",
+                  "path": ".github/workflows/build-binaries.yml"
+                }
+              },
+              "internalParameters": {
+                "github": {
+                  "event_name": "push",
+                  "repository_id": "1035029907",
+                  "repository_owner_id": "207902832"
+                }
+              },
+              "resolvedDependencies": [
+                {
+                  "uri": "git+https://github.com/earendil-works/pi@refs/tags/v1.1.0",
+                  "digest": {
+                    "gitCommit": "abe508e1b89912adde45528136c3221eb69acdd7"
+                  }
+                }
+              ]
+            },
+            "runDetails": {
+              "builder": {
+                "id": "https://github.com/actions/runner/github-hosted"
+              },
+              "metadata": {
+                "invocationId": "https://github.com/earendil-works/pi/actions/runs/37690337028/attempts/2"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "durable": {
+      "name": "@earendil-works/pi-durable",
+      "version": "1.1.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-durable/-/pi-durable-1.1.0.tgz",
+      "integrity": "sha512-NtuB3RY24vQ+0/rWYpeHupyFWBfXuKq17to3VMYUYqfD/uuGnz6F6UTPBEm51VSxxA6LZwRcDwLX2LtRehnIgQ==",
+      "sha256": "a0f95b4a418e8bc219e9cbde06baedada940c62c47068829208e4fff278c07be",
+      "gitHead": null,
+      "provenance": "npm omits gitHead; decoded SLSA digest/repository/tag/gitCommit matches official tag; signatures not cryptographically verified",
+      "attestations": [
+        {
+          "predicateType": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+          "subject": [
+            {
+              "name": "pkg:npm/%40earendil-works/pi-durable@1.1.0",
+              "digest": {
+                "sha512": "36db81dd1636e2f43ed3fad6629787ba9c855817d7b8aab5eeda3754c61462a7c3feeb869f3e85e944cf0449b9d554b1c40e8b67045c0f02d7d8bb517a19c881"
+              }
+            }
+          ],
+          "predicate": {
+            "name": "@earendil-works/pi-durable",
+            "version": "1.1.0",
+            "registry": "https://registry.npmjs.org"
+          }
+        },
+        {
+          "predicateType": "https://slsa.dev/provenance/v1",
+          "subject": [
+            {
+              "name": "pkg:npm/%40earendil-works/pi-durable@1.1.0",
+              "digest": {
+                "sha512": "36db81dd1636e2f43ed3fad6629787ba9c855817d7b8aab5eeda3754c61462a7c3feeb869f3e85e944cf0449b9d554b1c40e8b67045c0f02d7d8bb517a19c881"
+              }
+            }
+          ],
+          "predicate": {
+            "buildDefinition": {
+              "buildType": "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+              "externalParameters": {
+                "workflow": {
+                  "ref": "refs/tags/v1.1.0",
+                  "repository": "https://github.com/earendil-works/pi",
+                  "path": ".github/workflows/build-binaries.yml"
+                }
+              },
+              "internalParameters": {
+                "github": {
+                  "event_name": "push",
+                  "repository_id": "1035029907",
+                  "repository_owner_id": "207902832"
+                }
+              },
+              "resolvedDependencies": [
+                {
+                  "uri": "git+https://github.com/earendil-works/pi@refs/tags/v1.1.0",
+                  "digest": {
+                    "gitCommit": "abe508e1b89912adde45528136c3221eb69acdd7"
+                  }
+                }
+              ]
+            },
+            "runDetails": {
+              "builder": {
+                "id": "https://github.com/actions/runner/github-hosted"
+              },
+              "metadata": {
+                "invocationId": "https://github.com/earendil-works/pi/actions/runs/37690337028/attempts/2"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scope": "official tags/npm packages only; no main"
+}

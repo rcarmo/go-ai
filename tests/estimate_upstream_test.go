@@ -6,7 +6,12 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func TestEstimateTextTokensUsesCeilFourCharsPerToken(t *testing.T) {
+func TestEstimateTextTokensUsesCeilThreePointFiveCharsPerToken(t *testing.T) {
+	for text, want := range map[string]int{"": 0, "abcd": 2, "abcdefg": 2, "abcdefgh": 3, "€€€€": 2, "😀😀": 2} {
+		if got := goai.EstimateTextTokens(text); got != want {
+			t.Fatalf("estimate %q=%d want %d", text, got, want)
+		}
+	}
 	if got := goai.EstimateTextTokens("hello"); got != 2 {
 		t.Fatalf("EstimateTextTokens(5 chars)=%d, want 2", got)
 	}
@@ -14,8 +19,8 @@ func TestEstimateTextTokensUsesCeilFourCharsPerToken(t *testing.T) {
 
 func TestEstimateMessageTokensCountsImagesAsUpstreamChars(t *testing.T) {
 	msg := goai.Message{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "image", Data: "x", MimeType: "image/png"}}}
-	if got := goai.EstimateMessageTokens(msg); got != 1200 {
-		t.Fatalf("image token estimate=%d, want 1200", got)
+	if got := goai.EstimateMessageTokens(msg); got != 1372 {
+		t.Fatalf("image token estimate=%d, want 1372", got)
 	}
 }
 

@@ -27,6 +27,9 @@ var (
 )
 
 func classifyLlamaCPP(model *ClassifierModel, classCtx ClassifierContext, opts *ClassifierOptions) (*ClassifierResult, error) {
+	if len(classCtx.Images) > 0 {
+		return classifierError(model, fmt.Errorf("llama.cpp classification does not support image input"), false), nil
+	}
 	out := classifierBaseResult(model)
 	ctx := context.Background()
 	if opts != nil && opts.Context != nil {

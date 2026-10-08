@@ -16,7 +16,7 @@ func TestV0844MistralMergesIndexedToolCallFragmentsWithoutRepeatedID(t *testing.
 		strings.NewReader("data: [DONE]\n\n"),
 	))
 	ch := make(chan goai.Event, 16)
-	processSSEStream(body, &goai.Model{ID: "mistral-test", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations}, ch)
+	processSSEStream(body, &goai.Model{ID: "mistral-test", Provider: goai.ProviderMistral, Api: goai.ApiMistralConversations}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var done *goai.Message

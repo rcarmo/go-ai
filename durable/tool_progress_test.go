@@ -231,8 +231,8 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 				if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if cp.Output != "" || cp.HasDetails || cp.Details != nil {
-					t.Fatal("replay retained stale UI", cp)
+				if cp.Output != "" || cp.HasDetails || cp.Details != nil || cp.DurationMs != nil {
+					t.Fatal("replay retained stale UI/attempt timing", cp)
 				}
 			}
 		}
@@ -258,8 +258,8 @@ func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
 				if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if cp.Result.Content[0].Text != "fresh" {
-					t.Fatal("replay receipt reused prefix", cp)
+				if cp.Result.Content[0].Text != "fresh" || cp.Result.DurationMs == nil || cp.DurationMs == nil || *cp.DurationMs != *cp.Result.DurationMs {
+					t.Fatal("replay receipt reused prefix or lost attempt duration", cp)
 				}
 			}
 		}

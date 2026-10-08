@@ -480,6 +480,7 @@ type ToolResult struct {
 	thrownError             string
 }
 type toolCheckpoint struct {
+	DurationMs    *int64    `json:"durationMs,omitempty"`
 	Offer         toolOffer `json:"offer"`
 	CallID        string    `json:"callId"`
 	Arguments     JSON      `json:"arguments"`
@@ -1330,6 +1331,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			return err
 		}
 		if replaying {
+			latest.DurationMs = nil
 			latest.Output = ""
 			latest.Details = nil
 			latest.HasDetails = false
@@ -1390,6 +1392,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	defer func() { settleProgress(api.pendingProgress, finalErr) }()
 	var result ToolResult
 	var executionError error
+	var durationMs *int64
 	func() {
 		defer func() {
 			if value := recover(); value != nil {
@@ -1407,12 +1410,19 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			executionError = err
 			return
 		}
+		// Measure only this execute attempt, excluding env/args/hooks/settlement.
+		started := time.Now()
+		defer func() {
+			elapsed := int64(math.Round(float64(time.Since(started)) / float64(time.Millisecond)))
+			durationMs = &elapsed
+		}()
 		result, executionError = reg.execute(ctx, args, api)
 	}()
 	if err := api.seal(); err != nil && executionError == nil {
 		executionError = err
 	}
 	cp = api.checkpoint
+	cp.DurationMs = durationMs
 	if executionError != nil && ctx.Err() == nil && h.life.Err() == nil {
 		result = ToolResult{Content: cp.Output, usesRetainedOutput: true, IsError: true, Usage: result.Usage, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "tool_error", Message: executionError.Error()}}}
 	}
@@ -1655,7 +1665,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 	if len(diagnostics) > 0 {
 		content = append(content, goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(diagnostics)})
 	}
-	receipt := messageReceipt{Role: goai.RoleToolResult, Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
+	receipt := messageReceipt{Role: goai.RoleToolResult, DurationMs: copyTaskTime(cp.DurationMs), Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
 	value, e := dtoObject(receipt, h.session.limits)
 	if e != nil {
 		return &invalidToolResult{reason: "invalid_tool_result"}

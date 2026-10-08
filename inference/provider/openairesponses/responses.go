@@ -43,6 +43,7 @@ func streamResponsesSimple(ctx context.Context, model *goai.Model, convCtx *goai
 
 func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -58,7 +59,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 		if apiKey == "" && !goai.HasOpenAIAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
 		}
 
@@ -69,7 +70,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			var err error
 			baseURL, requestModelID, azureAPIVersion, err = resolveAzureResponsesConfig(model, opts)
 			if err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 				return
 			}
 		} else if goai.IsCloudflareProvider(model.Provider) {
@@ -80,12 +81,12 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		body.Model = requestModelID
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -95,7 +96,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -151,10 +152,10 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			}
 			return
 		}
@@ -165,14 +166,14 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, addChatGPTUsageGuidance(string(bodyBytes))),
-			}
+			})
 			return
 		}
 
-		processStreamWithOptions(resp.Body, model, opts, ch)
+		processStreamWithOptions(resp.Body, model, opts, send)
 	}()
 
 	return ch
@@ -924,11 +925,11 @@ func normalizeResponsesIDPart(s string) string {
 
 // --- Stream processing ---
 
-func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
-	processStreamWithOptions(body, model, nil, ch)
+func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
+	processStreamWithOptions(body, model, nil, send)
 }
 
-func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, ch chan<- goai.Event) {
+func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event)) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -938,7 +939,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		StopReason: goai.StopReasonPending,
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	send(&goai.StartEvent{Partial: partial})
 
 	type activeItem struct {
 		itemType      string // "reasoning", "message", "function_call", "custom_tool_call"
@@ -952,7 +953,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		if evt.Data == "[DONE]" {
@@ -966,7 +967,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		}
 		if opts != nil && opts.OnProviderStreamEvent != nil {
 			if err := opts.OnProviderStreamEvent(providerEvent, model); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}
 		}
@@ -1016,13 +1017,13 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "reasoning", contentIdx: idx}
-				ch <- &goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "message", contentIdx: idx}
-				ch <- &goai.TextStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
 
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
@@ -1033,13 +1034,13 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: item.Type, contentIdx: idx}
-				ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
+				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 			}
 
 		case "response.reasoning_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.reasoning_summary_part.added":
@@ -1048,25 +1049,25 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.reasoning_summary_part.done":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += "\n\n"
-				ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: "\n\n", Partial: partial}
+				send(&goai.ThinkingDeltaEvent{ContentIndex: current.contentIdx, Delta: "\n\n", Partial: partial})
 			}
 
 		case "response.output_text.delta":
 			if current != nil && current.itemType == "message" {
 				partial.Content[current.contentIdx].Text += raw.Delta
-				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.refusal.delta":
 			if current != nil && current.itemType == "message" {
 				partial.Content[current.contentIdx].Text += raw.Delta
-				ch <- &goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.TextDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.function_call_arguments.delta":
@@ -1076,14 +1077,14 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				if args != nil {
 					partial.Content[current.contentIdx].Arguments = args
 				}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.custom_tool_call_input.delta":
 			if current != nil && current.itemType == "custom_tool_call" {
 				current.customPayload += raw.Delta
 				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial}
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
 		case "response.custom_tool_call_input.done":
@@ -1109,7 +1110,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 						if args != nil {
 							partial.Content[current.contentIdx].Arguments = args
 						}
-						ch <- &goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: trailing, Partial: partial}
+						send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: trailing, Partial: partial})
 					}
 				}
 			}
@@ -1132,7 +1133,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			case "reasoning":
 				// Store the full item as thinkingSignature for replay
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
-				ch <- &goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial}
+				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
 				// Extract text signature from item
 				var item struct {
@@ -1146,7 +1147,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				}
 				sigJSON, _ := json.Marshal(sig)
 				partial.Content[idx].TextSignature = string(sigJSON)
-				ch <- &goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial}
+				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				input := current.customPayload
 				if input == "" {
@@ -1157,7 +1158,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				}
 				args := map[string]interface{}{"input": input}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
 						Type:      "toolCall",
@@ -1167,7 +1168,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 						Namespace: partial.Content[idx].Namespace,
 					},
 					Partial: partial,
-				}
+				})
 			case "function_call":
 				if doneItem.Arguments != "" {
 					current.partialJSON = doneItem.Arguments
@@ -1177,7 +1178,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					args = map[string]interface{}{}
 				}
 				partial.Content[idx].Arguments = args
-				ch <- &goai.ToolCallEndEvent{
+				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
 						Type:      "toolCall",
@@ -1187,7 +1188,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 						Namespace: partial.Content[idx].Namespace,
 					},
 					Partial: partial,
-				}
+				})
 			}
 			current = nil
 
@@ -1259,10 +1260,10 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			}
 
 		case "error":
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("API error %s: %s", raw.Code, addChatGPTUsageGuidance(raw.Message)),
-			}
+			})
 			return
 
 		case "response.failed":
@@ -1289,7 +1290,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			partial.RawStopReason = resp.Status
 			msg = addChatGPTUsageGuidance(msg)
 			partial.ErrorMessage = msg
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", msg)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", msg)})
 			return
 		}
 	}
@@ -1298,14 +1299,14 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	if !terminalResponseSeen {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "OpenAI Responses stream ended before a terminal response event"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("openai responses stream ended before a terminal response event")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("openai responses stream ended before a terminal response event")})
 		return
 	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}
 
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
 func resolveServiceTier(responseTier string, opts *goai.StreamOptions) string {

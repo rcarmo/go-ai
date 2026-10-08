@@ -37,7 +37,7 @@ func TestV0991OpenAIResponsesProviderStreamEventSeesRawEventBeforeAzureNormaliza
 			return wantErr
 		}
 		return nil
-	}}, ch)
+	}}, goai.NewAssistantEventSender(ch))
 	close(ch)
 
 	var gotErr *goai.ErrorEvent
@@ -117,7 +117,7 @@ func TestV0991OpenAIResponsesUsageLimitGuidanceForHTTPAndSSEErrors(t *testing.T)
 	t.Run("sse error", func(t *testing.T) {
 		body := strings.NewReader(`data: {"type":"error","code":"subscription_sharing_usage_limit_exceeded","message":"subscription_sharing_usage_limit_exceeded: limit"}` + "\n\n")
 		ch := make(chan goai.Event, 8)
-		processStreamWithOptions(body, model, nil, ch)
+		processStreamWithOptions(body, model, nil, goai.NewAssistantEventSender(ch))
 		close(ch)
 		assertUsageLimitError(t, ch)
 	})
@@ -125,7 +125,7 @@ func TestV0991OpenAIResponsesUsageLimitGuidanceForHTTPAndSSEErrors(t *testing.T)
 	t.Run("sse response failed", func(t *testing.T) {
 		body := strings.NewReader(`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"subscription_sharing_usage_limit_exceeded","message":"limit"}}}` + "\n\n")
 		ch := make(chan goai.Event, 8)
-		processStreamWithOptions(body, model, nil, ch)
+		processStreamWithOptions(body, model, nil, goai.NewAssistantEventSender(ch))
 		close(ch)
 		assertUsageLimitError(t, ch)
 	})

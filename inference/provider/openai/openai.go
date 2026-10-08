@@ -38,6 +38,7 @@ func streamOpenAISimple(ctx context.Context, model *goai.Model, convCtx *goai.Co
 // streamOpenAI implements the OpenAI Chat Completions streaming protocol.
 func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -52,11 +53,11 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			suppressHeaders = opts.SuppressHeaders
 		}
 		if apiKey == "" && !goai.HasOpenAIAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 				Err: fmt.Errorf("No API key for provider: %s", model.Provider),
-			}
+			})
 			return
 		}
 
@@ -66,7 +67,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			var err error
 			baseURL, deployment, _, err = goai.ResolveAzureConfig(model, opts)
 			if err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 				return
 			}
 		}
@@ -76,13 +77,13 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		body.Model = deployment
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
 		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -92,7 +93,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		endpoint := strings.TrimRight(baseURL, "/") + "/chat/completions"
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyJSON))
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -142,10 +143,10 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			}
 			return
 		}
@@ -156,14 +157,14 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
-			}
+			})
 			return
 		}
 
-		processSSEStreamWithOptions(resp.Body, model, opts, ch)
+		processSSEStreamWithOptions(resp.Body, model, opts, send)
 	}()
 
 	return ch
@@ -1091,11 +1092,11 @@ type sseUsage struct {
 	} `json:"prompt_tokens_details"`
 }
 
-func processSSEStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
-	processSSEStreamWithOptions(body, model, nil, ch)
+func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
+	processSSEStreamWithOptions(body, model, nil, send)
 }
 
-func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, ch chan<- goai.Event) {
+func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event)) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -1105,7 +1106,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		StopReason: goai.StopReasonPending,
 	}
 
-	ch <- goai.SnapshotEvent(&goai.StartEvent{Partial: partial})
+	send(&goai.StartEvent{Partial: partial})
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
@@ -1125,7 +1126,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		if evt.Data == "[DONE]" {
@@ -1138,7 +1139,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		}
 		if opts != nil && opts.OnProviderStreamEvent != nil {
 			if err := opts.OnProviderStreamEvent(chunk, model); err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}
 		}
@@ -1174,18 +1175,18 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		if delta.Content != nil && *delta.Content != "" {
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				ch <- goai.SnapshotEvent(&goai.TextStartEvent{
+				send(goai.SnapshotEvent(&goai.TextStartEvent{
 					ContentIndex: len(partial.Content) - 1,
 					Partial:      partial,
-				})
+				}))
 			}
 			idx := len(partial.Content) - 1
 			partial.Content[idx].Text += *delta.Content
-			ch <- goai.SnapshotEvent(&goai.TextDeltaEvent{
+			send(goai.SnapshotEvent(&goai.TextDeltaEvent{
 				ContentIndex: idx,
 				Delta:        *delta.Content,
 				Partial:      partial,
-			})
+			}))
 		}
 
 		// Thinking/reasoning content — check fields in priority order
@@ -1202,10 +1203,10 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				thinkingBlockIdx = len(partial.Content) - 1
-				ch <- goai.SnapshotEvent(&goai.ThinkingStartEvent{
+				send(goai.SnapshotEvent(&goai.ThinkingStartEvent{
 					ContentIndex: thinkingBlockIdx,
 					Partial:      partial,
-				})
+				}))
 			}
 			idx := len(partial.Content) - 1
 			if partial.Content[idx].Type == "thinking" {
@@ -1215,11 +1216,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if partial.Content[idx].ThinkingSignature == "" {
 				partial.Content[idx].ThinkingSignature = reasoningField
 			}
-			ch <- goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
+			send(goai.SnapshotEvent(&goai.ThinkingDeltaEvent{
 				ContentIndex: idx,
 				Delta:        reasoningDelta,
 				Partial:      partial,
-			})
+			}))
 		}
 
 		// Tool calls
@@ -1252,7 +1253,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					contentIdx: contentIdx,
 				})
 				at = &activeTools[len(activeTools)-1]
-				ch <- goai.SnapshotEvent(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
+				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
 			if isCustom {
 				at.custom = true
@@ -1261,19 +1262,19 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			// Accumulate arguments/input
 			if tc.Function.Arguments != "" {
 				at.argsBuf += tc.Function.Arguments
-				ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
+				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
 			}
 			if tc.Custom.Input != "" {
 				next := at.customInput + tc.Custom.Input
 				deltaJSON, err := appendGrammarInputDelta(at.customInput, next, false)
 				if err != nil {
-					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 					return
 				}
 				at.customInput = next
 				partial.Content[at.contentIdx].Arguments = map[string]interface{}{"input": next}
 				if deltaJSON != "" {
-					ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
+					send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 				}
 			}
 
@@ -1298,7 +1299,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if thinkingBlockIdx < 0 || thinkingBlockIdx >= len(partial.Content) || partial.Content[thinkingBlockIdx].Type != "thinking" {
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				thinkingBlockIdx = len(partial.Content) - 1
-				ch <- goai.SnapshotEvent(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
+				send(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
 			}
 		}
 	}
@@ -1312,10 +1313,10 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	// Close any open text blocks
 	for i, c := range partial.Content {
 		if c.Type == "text" {
-			ch <- goai.SnapshotEvent(&goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial})
+			send(&goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial})
 		}
 		if c.Type == "thinking" {
-			ch <- goai.SnapshotEvent(&goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial})
+			send(&goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial})
 		}
 	}
 
@@ -1325,11 +1326,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		if at.custom {
 			deltaJSON, err := appendGrammarInputDelta(at.customInput, at.customInput, true)
 			if err != nil {
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}
 			if deltaJSON != "" {
-				ch <- goai.SnapshotEvent(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
+				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 			}
 			args = map[string]interface{}{"input": at.customInput}
 		} else {
@@ -1339,7 +1340,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 		}
 		partial.Content[at.contentIdx].Arguments = args
-		ch <- goai.SnapshotEvent(&goai.ToolCallEndEvent{
+		send(goai.SnapshotEvent(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall: goai.ToolCall{
 				Type:      "toolCall",
@@ -1348,7 +1349,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				Arguments: args,
 			},
 			Partial: partial,
-		})
+		}))
 	}
 
 	// Determine stop reason
@@ -1382,13 +1383,13 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		} else {
 			partial.StopReason = goai.StopReasonError
 			partial.ErrorMessage = "OpenAI Completions stream ended without a finish reason"
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Completions stream ended without a finish reason")}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("OpenAI Completions stream ended without a finish reason")})
 			return
 		}
 	}
 	partial.StopReason = reason
 
-	ch <- &goai.DoneEvent{Reason: reason, Message: partial}
+	send(&goai.DoneEvent{Reason: reason, Message: partial})
 }
 
 func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {

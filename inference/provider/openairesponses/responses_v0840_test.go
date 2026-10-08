@@ -21,7 +21,7 @@ func TestResponsesIncompleteTerminalReasonMapping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			body := strings.NewReader(`data: {"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"` + tc.reason + `"},"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}` + "\n\n")
 			ch := make(chan goai.Event, 10)
-			processStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}, ch)
+			processStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}, goai.NewAssistantEventSender(ch))
 			close(ch)
 			var done *goai.DoneEvent
 			for ev := range ch {

@@ -66,7 +66,17 @@ func (t *Tx) stage(w Write) error {
 		w.Entry = &entry
 	}
 	if w.Task != nil {
-		owned, e := copyTask(*w.Task, t.limits)
+		stamped := *w.Task
+		if t.session != nil {
+			prior := t.state.Tasks[stamped.ID]
+			for _, write := range t.writes {
+				if write.Task != nil && write.Task.ID == stamped.ID {
+					prior = *write.Task
+				}
+			}
+			stamped = stampTaskTimes(stamped, prior, t.session.now)
+		}
+		owned, e := copyTask(stamped, t.limits)
 		if e != nil {
 			return e
 		}

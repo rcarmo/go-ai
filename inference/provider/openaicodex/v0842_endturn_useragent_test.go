@@ -14,7 +14,7 @@ func TestV0842CodexSSECapturesEndTurn(t *testing.T) {
 		`data: [DONE]`,
 	}, "\n\n")
 	ch := make(chan goai.Event, 8)
-	processCodexSSE(strings.NewReader(stream), model, ch, nil)
+	processCodexSSE(strings.NewReader(stream), model, goai.NewAssistantEventSender(ch), nil)
 	close(ch)
 	var done *goai.Message
 	for event := range ch {

@@ -25,7 +25,7 @@ func TestV0843BedrockPreservesRedactedReasoning(t *testing.T) {
 	setConverseEventStream(resp, stream)
 
 	ch := make(chan goai.Event, 16)
-	processConverseStream(resp, &goai.Model{ID: "global.openai.gpt-5.6-terra", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, ch)
+	processConverseStream(resp, &goai.Model{ID: "global.openai.gpt-5.6-terra", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
 		if done, ok := ev.(*goai.DoneEvent); ok {

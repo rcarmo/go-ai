@@ -44,6 +44,7 @@ func streamGoogleSimple(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 	ch := make(chan goai.Event, 32)
+	send := goai.NewAssistantEventSender(ch)
 
 	go func() {
 		defer close(ch)
@@ -53,32 +54,32 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		apiKey := goai.ResolveAPIKey(model, opts)
 		if apiKey == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
 		}
 
 		body := buildRequest(model, convCtx, opts)
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 		bodyJSON, err := json.Marshal(payload)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
 		// Build URL: REST API for Gemini/Vertex.
 		url, err := buildStreamURL(model, apiKey, opts)
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyJSON))
 		if err != nil {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
 
@@ -99,10 +100,10 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
-				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			}
 			return
 		}
@@ -113,14 +114,14 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
 			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			ch <- &goai.ErrorEvent{
+			send(&goai.ErrorEvent{
 				Reason: goai.StopReasonError,
 				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
-			}
+			})
 			return
 		}
 
-		processStream(resp.Body, model, ch)
+		processStream(resp.Body, model, send)
 	}()
 
 	return ch
@@ -621,7 +622,7 @@ type geminiUsage struct {
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 
-func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
+func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -631,7 +632,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 		StopReason: goai.StopReasonPending,
 	}
 
-	ch <- &goai.StartEvent{Partial: partial}
+	send(&goai.StartEvent{Partial: partial})
 
 	type currentBlock = currentBlockT
 	var current *currentBlock
@@ -641,7 +642,7 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 	// and incrementally instead of buffering the full response body.
 	for evt := range sse.Parse(body) {
 		if evt.Event == sse.EventError {
-			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)}
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
 		if evt.Data == "" || evt.Data == "[DONE]" {
@@ -672,19 +673,19 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 							(!isThinking && current.blockType != "text") {
 							// Close previous block
 							if current != nil {
-								closeBlock(current, partial, ch)
+								closeBlock(current, partial, send)
 							}
 							// Open new block
 							if isThinking {
 								partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 								idx := len(partial.Content) - 1
 								current = &currentBlock{"thinking", idx}
-								ch <- &goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial}
+								send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 							} else {
 								partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 								idx := len(partial.Content) - 1
 								current = &currentBlock{"text", idx}
-								ch <- &goai.TextStartEvent{ContentIndex: idx, Partial: partial}
+								send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
 							}
 						}
 
@@ -693,20 +694,20 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 							if part.ThoughtSignature != "" {
 								partial.Content[current.index].ThinkingSignature = part.ThoughtSignature
 							}
-							ch <- &goai.ThinkingDeltaEvent{ContentIndex: current.index, Delta: part.Text, Partial: partial}
+							send(&goai.ThinkingDeltaEvent{ContentIndex: current.index, Delta: part.Text, Partial: partial})
 						} else {
 							partial.Content[current.index].Text += part.Text
 							if part.ThoughtSignature != "" {
 								partial.Content[current.index].TextSignature = part.ThoughtSignature
 							}
-							ch <- &goai.TextDeltaEvent{ContentIndex: current.index, Delta: part.Text, Partial: partial}
+							send(&goai.TextDeltaEvent{ContentIndex: current.index, Delta: part.Text, Partial: partial})
 						}
 					}
 
 					// Function call (delivered atomically, not streamed)
 					if part.FunctionCall != nil {
 						if current != nil {
-							closeBlock(current, partial, ch)
+							closeBlock(current, partial, send)
 							current = nil
 						}
 
@@ -728,16 +729,16 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 						partial.Content = append(partial.Content, tc)
 						idx := len(partial.Content) - 1
 
-						ch <- &goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial}
+						send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 						argsJSON, _ := json.Marshal(tc.Arguments)
-						ch <- &goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: string(argsJSON), Partial: partial}
-						ch <- &goai.ToolCallEndEvent{
+						send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: string(argsJSON), Partial: partial})
+						send(&goai.ToolCallEndEvent{
 							ContentIndex: idx,
 							ToolCall: goai.ToolCall{
 								Type: "toolCall", ID: tcID, Name: tc.Name, Arguments: tc.Arguments,
 							},
 							Partial: partial,
-						}
+						})
 					}
 				}
 			}
@@ -773,21 +774,21 @@ func processStream(body io.Reader, model *goai.Model, ch chan<- goai.Event) {
 
 	// Close any open block
 	if current != nil {
-		closeBlock(current, partial, ch)
+		closeBlock(current, partial, send)
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Google stream ended without a finish reason"
-		ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("google stream ended without a finish reason")}
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("google stream ended without a finish reason")})
 		return
 	}
 	if partial.StopReason == "" {
 		partial.StopReason = goai.StopReasonStop
 	}
 
-	ch <- &goai.DoneEvent{Reason: partial.StopReason, Message: partial}
+	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
 type currentBlockT struct {
@@ -795,12 +796,12 @@ type currentBlockT struct {
 	index     int
 }
 
-func closeBlock(current *currentBlockT, partial *goai.Message, ch chan<- goai.Event) {
+func closeBlock(current *currentBlockT, partial *goai.Message, send func(goai.Event)) {
 	switch current.blockType {
 	case "text":
-		ch <- &goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial}
+		send(&goai.TextEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Text, Partial: partial})
 	case "thinking":
-		ch <- &goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial}
+		send(&goai.ThinkingEndEvent{ContentIndex: current.index, Content: partial.Content[current.index].Thinking, Partial: partial})
 	}
 }
 

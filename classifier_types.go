@@ -28,6 +28,7 @@ type ClassifierBoolCriteria struct {
 type ClassifierContext struct {
 	State     map[string]any                `json:"state"`
 	Questions map[string]ClassifierQuestion `json:"questions"`
+	Images    []ImageContent                `json:"images,omitempty"`
 }
 
 func (c ClassifierContext) MarshalJSON() ([]byte, error) {

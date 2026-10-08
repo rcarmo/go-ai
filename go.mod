@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.25.0
 	github.com/coder/websocket v1.8.14
 	github.com/klauspost/compress v1.19.0
-	golang.org/x/text v0.39.0
+	golang.org/x/text v0.41.0
 )
 
 require (

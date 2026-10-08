@@ -41,7 +41,7 @@ func TestProcessStreamHandlesMultilineSSE(t *testing.T) {
 	ch := make(chan goai.Event, 16)
 	processStream(strings.NewReader("data: {\"responseId\":\"resp_1\",\n"+
 		"data: \"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\n"+
-		"data: \"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n"), model, ch)
+		"data: \"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n"), model, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.DoneEvent
 	var sawText bool

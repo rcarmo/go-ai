@@ -245,6 +245,11 @@ func deriveContextView(state Snapshot, conversation, at ID, l Limits) (ContextVi
 	if e != nil {
 		return ContextView{}, e
 	}
+	return deriveContextHistory(history, l)
+}
+
+func deriveContextHistory(history []Entry, l Limits) (ContextView, error) {
+	var e error
 	view := ContextView{}
 	var head ID
 	for _, entry := range history {
@@ -317,7 +322,7 @@ func deriveContextView(state Snapshot, conversation, at ID, l Limits) (ContextVi
 		view.Contributions = append(view.Contributions, filtered)
 		view.Messages = append(view.Messages, filtered...)
 	}
-	view.Messages = orderContextToolResults(view.Messages)
+	view.Messages = leadContextWithSystem(orderContextToolResults(view.Messages))
 	return view, nil
 }
 func orderContextToolResults(messages []MessageReceipt) []MessageReceipt {
@@ -357,9 +362,9 @@ func (s *Session) ContextView(ctx context.Context, conversation, at ID) (Context
 		return ContextView{}, e
 	}
 	defer s.leave()
-	state, e := s.store.Snapshot(ctx)
+	state, e := s.taskSnapshot(ctx)
 	if e != nil {
 		return ContextView{}, e
 	}
-	return deriveContextView(state, conversation, at, s.limits)
+	return s.cachedContextView(state, conversation, at)
 }

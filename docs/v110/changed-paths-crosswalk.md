@@ -1,0 +1,93 @@
+# Official 1.1.0 changed-path dispositions
+
+Pinned `abe508e1b89912adde45528136c3221eb69acdd7` against official `7c10bd4337495ee613f2224843ecdf349b80d1df`. Native worktree is uncommitted on `1a5a1cf3`; [validation](local-validation.md) records scope and gates. Durable legacy compatibility is not required. Every changed path appears once.
+
+## ai: 48 paths
+
+| Status / official path | Disposition | Native production path | Proof |
+| --- | --- | --- | --- |
+| M `packages/ai/CHANGELOG.md` | Release/API documentation adapted | `RELEASE.md; docs/v110` | Documentation/link audit |
+| M `packages/ai/README.md` | Release/API documentation adapted | `RELEASE.md; docs/v110` | Documentation/link audit |
+| M `packages/ai/package.json` | JS package/dependency metadata; native module tracked independently | `go.mod; go.sum` | Go1.27.1 builds; license/vulnerability/SBOM gates |
+| A `packages/ai/scripts/ai-gateway-pricing.ts` | Pinned artifact consumption; remote pricing scraper is not native runtime | `scripts/generate-models.go` | catalog regeneration/full-record comparators; hydration fault tests |
+| M `packages/ai/scripts/generate-models.ts` | Schema-v6 pinned artifact native generator | `scripts/generate-models.go` | test-generate-models-v101.py; check-model-regeneration.sh |
+| M `packages/ai/scripts/openrouter-catalog.ts` | Pinned official full records consumed; no remote live-scraper parity claimed | `scripts/generate-models.go` | full-record comparators; tests/catalog_110_test.go |
+| M `packages/ai/src/api/bedrock-converse-stream.ts` | Implemented | `inference/provider/bedrock/bedrock.go` | bedrock_110_test.go; bedrock_thinking_payload_upstream_test.go |
+| A `packages/ai/src/api/classifier-shared.ts` | Native shared transport | `classifier_runtime.go` | tests/classifier_contract_issue1_test.go; tests/classifier_decisions_110_test.go |
+| M `packages/ai/src/api/cloudflare-workers-ai-system-one.ts` | Shared transport adaptation | `classifier_runtime.go` | tests/classifier_contract_issue1_test.go |
+| M `packages/ai/src/api/lazy.ts` | Native adaptation: providers are compiled/registered synchronously; no JS module-loader setup promise. Producer timer starts before setup and terminal failure. | `assistant_stream.go; inference/provider/*` | assistant_stream_110_test.go; provider error suites |
+| M `packages/ai/src/api/llama-cpp-classify.ts` | Implemented image rejection | `classifier_llama_cpp.go` | tests/classifier_decisions_110_test.go; legacy classifier suites |
+| M `packages/ai/src/api/mistral-conversations.ts` | Implemented | `inference/provider/mistral/mistral.go` | raw_stop_reason_upstream_test.go |
+| M `packages/ai/src/api/openai-codex-responses.ts` | Implemented header precedence | `inference/provider/openaicodex/codex.go` | headers_110_test.go; codex_ws_test.go |
+| A `packages/ai/src/api/openai-decisions.lazy.ts` | Compiled registration; JS lazy module is inapplicable | `classifier_decisions.go; classifier_runtime.go` | tests/classifier_decisions_110_test.go |
+| A `packages/ai/src/api/openai-decisions.ts` | Implemented native production HTTP transport | `classifier_decisions.go` | tests/classifier_decisions_110_test.go |
+| M `packages/ai/src/api/system-one-shared.ts` | Shared HTTP/usage adaptation | `classifier_runtime.go` | tests/classifier_contract_issue1_test.go |
+| M `packages/ai/src/api/typesafe-system-one.ts` | Shared HTTP/usage adaptation | `classifier_runtime.go` | tests/classifier_contract_issue1_test.go |
+| M `packages/ai/src/auth/oauth/anthropic.ts` | Implemented free-port/manual fallback; synchronous legacy prompt remains blocking by host contract | `oauth/anthropic.go` | anthropic_110_test.go; anthropic_manual_110_test.go; anthropic_test.go |
+| M `packages/ai/src/auth/oauth/openai-chatgpt.ts` | Implemented agent hint | `oauth/openai_chatgpt.go` | agent_name_110_test.go |
+| M `packages/ai/src/auth/oauth/openai-codex.ts` | Native browser flow added with originator/default/empty hint, PKCE, callback/manual and browser-client refresh. Native device flow remains default for existing hosts. | `oauth/openai_codex_browser.go; oauth/openai_codex.go` | codex_browser_110_test.go; oauth_test.go |
+| M `packages/ai/src/auth/types.ts` | Additive native login option | `oauth/oauth.go` | agent_name_110_test.go; codex_browser_110_test.go |
+| M `packages/ai/src/models.ts` | Implemented classifier input checks and credential-specific availability | `classifier.go; oauth/apply.go` | tests/classifier_decisions_110_test.go; oauth/classifier_availability_110_test.go |
+| M `packages/ai/src/providers/faux.ts` | Implemented message-part prompt cache; UTF-16 token/prefix accounting and session isolation | `inference/provider/faux/prompt_cache.go` | prompt_cache_110_test.go; faux_test.go |
+| M `packages/ai/src/providers/openai.ts` | Implemented API-key classifiers; OAuth excludes Decisions | `oauth/apply.go` | classifier_availability_110_test.go |
+| M `packages/ai/src/providers/radius.ts` | Known account catalog replaces provider baseline, including empty catalog | `oauth/radius.go` | radius_catalog_110_test.go; radius_runtime_test.go |
+| M `packages/ai/src/types.ts` | Native optional durations, classifier images and catalog identities | `types.go; classifier_types.go` | assistant_stream_110_test.go; tests/classifier_decisions_110_test.go |
+| M `packages/ai/src/utils/estimate.ts` | Implemented UTF-16 3.5 chars/token and image1372 | `harness.go` | tests/estimate_upstream_test.go |
+| M `packages/ai/src/utils/event-stream.ts` | Producer-side monotonic timing in all native providers/direct invocations; old timestamps/existing durations retained; later Faux deferred fetch untimed | `assistant_stream.go; event_snapshot.go; inference/provider/*` | assistant_stream_110_test.go; event_snapshot_test.go; inference/provider/faux/duration_110_test.go |
+| M `packages/ai/src/utils/model-operations.ts` | Implemented classifier capability checks | `classifier.go` | tests/classifier_decisions_110_test.go |
+| M `packages/ai/src/utils/provider-retry.ts` | Decisions no-retry 504 at shared transport policy; existing retry policy retained | `classifier_runtime.go` | tests/classifier_decisions_110_test.go; tests/retry_assistant_test.go |
+| M `packages/ai/src/utils/retry.ts` | Busy retry with quota precedence | `retry_assistant.go` | tests/retry_assistant_test.go |
+| M `packages/ai/test/anthropic-adaptive-thinking-models.test.ts` | Changed suite crosswalk: Haiku5.5 catalog/adaptive effort | `tests/catalog_110_test.go; inference/provider/anthropic/*adaptive*test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/anthropic-oauth.test.ts` | Changed suite crosswalk: callback/manual/state/redirect and token contracts | `oauth/anthropic_110_test.go; oauth/anthropic_manual_110_test.go; oauth/anthropic_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/bedrock-thinking-payload.test.ts` | Changed suite crosswalk: Claude/GPT precedence and default effort | `inference/provider/bedrock/bedrock_110_test.go; bedrock_thinking_payload_upstream_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/classifier-models.test.ts` | Changed suite crosswalk: 26classifier identity/input/pricing records | `tests/catalog_110_test.go; tests/models_v100_typed_registry_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/context-estimate.test.ts` | Changed suite crosswalk: UTF-16 estimates and usage anchors | `tests/estimate_upstream_test.go; tests/estimate_upstream_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/event-stream.test.ts` | Changed suite crosswalk: producer timing and detached progress; TS queue/end result uses native channel/Complete adaptation | `assistant_stream_110_test.go; event_snapshot_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/faux-provider.test.ts` | Changed suite crosswalk: part-prefix/cache isolation and direct timing | `inference/provider/faux/prompt_cache_110_test.go; faux_test.go; duration_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/mistral-raw-stop-reason.test.ts` | Changed suite crosswalk: server error classification | `inference/provider/mistral/raw_stop_reason_upstream_test.go` | Full native normal/race and focused tests; see validation |
+| A `packages/ai/test/model-cost-tiers.test.ts` | Changed suite crosswalk: tiered cost and detached prices | `tests/catalog_110_test.go; tests/classifier_decisions_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/openai-chatgpt-oauth.test.ts` | Changed suite crosswalk: default/override/explicit empty hint and callback/manual | `oauth/agent_name_110_test.go; oauth/openai_chatgpt_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/openai-codex-oauth.test.ts` | Changed suite crosswalk: native browser/manual/refresh and retained device flow; live OAuth not exercised | `oauth/codex_browser_110_test.go; oauth/oauth_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/openai-codex-stream.test.ts` | Changed suite crosswalk: header precedence SSE/WS and recovery | `inference/provider/openaicodex/headers_110_test.go; codex_ws_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/openai-completions-empty-tools.test.ts` | Changed suite crosswalk: updated estimated budget and empty-tools compatibility | `inference/provider/openai/openai_completions_empty_tools_upstream_test.go` | Full native normal/race and focused tests; see validation |
+| A `packages/ai/test/openai-decisions.test.ts` | Changed suite crosswalk: production wire/errors/refusals/usage/retries/images | `tests/classifier_decisions_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/provider-retry.test.ts` | Changed suite crosswalk: busy/quota precedence and 504 policy | `tests/retry_assistant_test.go; tests/retry_assistant_test.go; tests/classifier_decisions_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/radius-provider.test.ts` | Changed suite crosswalk: baseline replacement/empty account/cache/validators | `oauth/radius_catalog_110_test.go; radius_runtime_test.go; radius_revalidation_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/ai/test/typesafe-system-one.test.ts` | Changed suite crosswalk: shared HTTP remains compatible | `tests/classifier_contract_issue1_test.go; tests/classifier_runtime_v0991_test.go` | Full native normal/race and focused tests; see validation |
+
+## durable: 32 paths
+
+| Status / official path | Disposition | Native production path | Proof |
+| --- | --- | --- | --- |
+| M `packages/durable/CHANGELOG.md` | Release/API documentation adapted | `RELEASE.md; docs/v110` | Documentation/link audit |
+| M `packages/durable/README.md` | Release/API documentation adapted | `RELEASE.md; docs/v110` | Documentation/link audit |
+| M `packages/durable/docs/spec.md` | Release/API documentation adapted | `RELEASE.md; docs/v110` | Documentation/link audit |
+| M `packages/durable/package.json` | JS package/dependency metadata; native module tracked independently | `go.mod; go.sum` | Go1.27.1 builds; license/vulnerability/SBOM gates |
+| M `packages/durable/src/harness/agent.ts` | Presence-aware 600000ms retention setting; explicit zero | `durable/settings.go; durable/registry.go` | context_cache_110_test.go; settings_test.go |
+| M `packages/durable/src/harness/compaction.ts` | As-of context boundary at captured tail; native ID parameter | `durable/compaction_generation.go; durable/compaction.go` | durable/compaction*test.go; context_cache_110_test.go |
+| M `packages/durable/src/harness/context.ts` | As-of bounds, initial system ordering, append-only range extension/open suffix; edits/head/fork/out-of-order invalidation; detached reads | `durable/context_cache.go; durable/entry_definition.go` | context_cache_110_test.go; history_test.go; prompt_test.go |
+| M `packages/durable/src/harness/generation.ts` | As-of/incremental context API integration and duration receipt projection | `durable/generation.go; durable/entry_definition.go` | harness_generation_test.go; context_cache_110_test.go; receipt_duration_110_test.go |
+| M `packages/durable/src/harness/harness.ts` | Session clock, context cutoff, scan query integration and Catalog | `durable/harness.go; durable/session.go` | context_cache_110_test.go; scan_110_test.go; models_110_test.go |
+| M `packages/durable/src/harness/scheduler.ts` | Context cache/idle expiry and model runtime capabilities | `durable/context_cache.go; durable/task_scheduler.go; durable/models.go` | context_cache_110_test.go; models_110_test.go; model_request_110_test.go |
+| M `packages/durable/src/harness/tool.ts` | Executed-attempt monotonic duration; zero/unexecuted distinction; model access | `durable/tool.go; durable/models.go` | tool_duration_110_test.go; tool_progress_test.go; model_request_110_test.go |
+| M `packages/durable/src/harness/types.ts` | Native exported context/settings/model/tool access types | `durable/harness.go; durable/settings.go; durable/models.go; durable/types.go` | external consumer; context_cache_110_test.go; model_request_110_test.go |
+| M `packages/durable/src/index.ts` | Go package exports; Cloudflare-only entrypoint has no Go platform counterpart | `durable/types.go; durable/storage_sqlite.go; durable/scan.go` | external consumer; native SQLite tests |
+| M `packages/durable/src/session/session.ts` | Injected lifecycle clock and admission/cache ownership | `durable/session.go` | task_times_110_test.go; task recovery/ownership suites |
+| M `packages/durable/src/session/transaction.ts` | Staged first-run/terminal times and ordered transaction scans | `durable/transaction.go; durable/task_times.go; durable/scan.go` | task_times_110_test.go; scan_110_test.go |
+| M `packages/durable/src/storage/memory.ts` | Ordered native scans/cursors | `durable/scan.go; durable/history.go; durable/storage_memory.go` | scan_110_test.go; history_test.go |
+| A `packages/durable/src/storage/scan.ts` | Order persistence/default/mismatch and exclusive ID cursor rules | `durable/scan.go; durable/history.go` | scan_110_test.go |
+| A `packages/durable/src/storage/sqlite/cloudflare.ts` | Platform-specific N/A: Cloudflare Durable Object SqlStorage/transactionSync do not exist in Go. Native sqlite3 WAL backend supplies serial atomic settlement, bounds, BLOB/journal persistence. No Cloudflare deployment claim. | `durable/storage_sqlite.go` | storage_sqlite_test.go; native cgo/full suite |
+| M `packages/durable/src/storage/sqlite/storage.ts` | Native SQLite shares validated core scans; upstream SQLite file/schema format not required | `durable/storage_sqlite.go; durable/scan.go; durable/history.go` | storage_sqlite_test.go; scan_sqlite_110_test.go; scan_110_test.go memory/journal |
+| M `packages/durable/src/testing/storage-conformance.ts` | Native two-backend conformance includes ordered scans/cursors and transaction isolation | `durable/scan.go; durable/history.go` | storage_conformance_test.go; scan_110_test.go; storage_sqlite_test.go |
+| M `packages/durable/src/types.ts` | Native ordered queries, duration/task stamps, model access and context settings | `durable/types.go; durable/registry.go; durable/models.go; durable/scan.go` | new110 tests and external consumer |
+| M `packages/durable/test/harness-compaction.test.ts` | Changed suite crosswalk: head changes, prompt baselines, background compaction | `durable/compaction*test.go; context_cache_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-context.test.ts` | Changed suite crosswalk: as-of/visibility/edit/head/tool ordering/cache expiry | `durable/context_cache_110_test.go; history_test.go; prompt_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-conversations.test.ts` | Changed suite crosswalk: ordered scans/forks/conversation ownership; conversation history defaults ascending | `durable/scan_110_test.go; conversation_created_test.go; history_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-generation-recovery.test.ts` | Changed suite crosswalk: recovery/join/persisted receipt timing | `durable/task_recovery_test.go; task_structured_recovery_test.go; receipt_duration_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-generation.test.ts` | Changed suite crosswalk: production generation, duration projection, defaults | `durable/harness_generation_test.go; generation_progress_test.go; models_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-inbox.test.ts` | Changed suite crosswalk: ordered submissions and queue policies | `durable/inbox*test.go; submission_test.go; scan_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-tasks-recovery.test.ts` | Changed suite crosswalk: first-start preservation across reopen/recovery | `durable/task_recovery_test.go; task_times_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-tasks.test.ts` | Changed suite crosswalk: lifecycle/ordered pages/model capability/deadlines | `durable/task_times_110_test.go; task_scheduler_test.go; models_110_test.go; model_request_110_test.go` | Full native normal/race and focused tests; see validation |
+| M `packages/durable/test/harness-tools.test.ts` | Changed suite crosswalk: per-attempt durations/recovery/unexecuted calls/model access | `durable/tool_duration_110_test.go; tool_progress_test.go; harness_tools_test.go` | Full native normal/race and focused tests; see validation |
+| A `packages/durable/test/sqlite-cloudflare.test.ts` | Changed suite crosswalk: native SQLite atomic persistence; Cloudflare JS binding adapter N/A | `durable/storage_sqlite_test.go` | Full native normal/race and focused tests; see validation |
+| A `packages/durable/test/system-order-cache-e2e.test.ts` | Changed suite crosswalk: leading baseline/system edits preserve provider context; no live Anthropic prompt-cache hit-rate measurement | `durable/context_cache_110_test.go; prompt_test.go; prompt_tools_test.go` | Full native normal/race and focused tests; see validation |
