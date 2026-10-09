@@ -2,6 +2,14 @@
 
 This file is the root release-audit source of truth for `github.com/rcarmo/go-ai` parity with upstream `@earendil-works/pi-ai` / `github.com/earendil-works/pi`.
 
+## Codex WebSocket message-limit fix -- 2026-10-09
+
+Codex now sets a 4 MiB incoming WebSocket message limit after each successful dial, matching the SSE parser's single-line budget. The general-purpose WebSocket transport retains coder/websocket's default; the provider override covers explicit, auto and cached connections without disabling size protection. Existing native tags and release assets are unchanged.
+
+Regression tests first reproduced `read limited at 32769 bytes` in all three modes. They now preserve complete 40 KiB and 1 MiB delta/final envelopes over two turns, check cached reuse, accept exactly 4 MiB and reject one excess byte. Focused production-path tests pass three race-enabled repetitions; the full Go suite, vet and staticcheck pass on Go 1.27.1 after installing the missing SQLite development headers.
+
+CPU, alloc_space and alloc_objects were inspected. In the repeated race workload, allocation sampling attributed about 195 MiB of 367 MiB to `io.ReadAll`, chiefly the large-message/boundary fixtures; CPU was dominated by race instrumentation. Setting a larger limit does not preallocate that capacity for small events. No buffer pool or eager 4 MiB allocation was added: these would introduce retention and ownership changes outside this fix. No matched performance improvement is claimed. Raw profiles, matching test binaries and disposable logs were removed after analysis.
+
 ## Native 1.1.0 release -- 2026-10-08
 
 Rui authorised commit and release on 8 October at09:55UTC. This supersedes the earlier no-publication instruction for1.1.0. The validated runtime will be committed once, with an immutable Rui-authored annotated `v1.1.0` tag. Hosted CI and exact-runtime release/SBOM receipts are recorded after publication; the local validation below predates that authorisation.
