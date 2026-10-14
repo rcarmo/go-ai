@@ -536,27 +536,47 @@
         {
           "line": 549,
           "name": "terminates a synchronous infinite loop on timeout",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go",
+            "internal/quickjs/microtask_120_test.go"
+          ],
+          "note": "Native synchronous/microtask deadlines enforced; upstream exact timeoutMs/error message and non-hard-kill mode differ."
         },
         {
           "line": 557,
           "name": "runs without a deadline when timeoutMs is Infinity",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native timeout zero uses bounded default; no explicit infinite timeout mode or exact upstream ordinary execute timing contract."
         },
         {
           "line": 565,
           "name": "fails a script that waits on a promise nothing can settle",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go"
+          ],
+          "note": "Hard-loop deadline followed by healthy executions covered; reusable engine matches recovery intent but native wall deadline API differs."
         },
         {
           "line": 581,
           "name": "terminates a microtask-spinning loop on timeout",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/lifetime_crosswalk_120_test.go"
+          ],
+          "note": "Never-settling Promise returns script error promptly. Returning with an unawaited call succeeds, cancels callback and waits for actual callback return."
         },
         {
           "line": 587,
           "name": "aborts via signal and cancels in-flight calls",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/settlement_120_test.go",
+            "durable/codemode_global_cancel_120_test.go"
+          ],
+          "note": "Caller cancellation joins callback/VM and close joins custom globals. Exact caller reason/output clearing and remote abort protocol remain partial."
         },
         {
           "line": 629,

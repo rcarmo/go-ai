@@ -748,6 +748,12 @@ Concrete VM tests now cover a classifier provider returning `stopReason: error` 
 
 Focused classifier race count 3 passes in 18.979s. Full normal root tests pass (durable 79.474s, tools 6.008s), with static/logging/non-CGO and diff checks. Fixtures were corrected to the existing typed catalogue and classifier registration API before passing evidence. Diagnostic logs were disposed after analysis. Declaration review remains 57/149; two existing partial mappings gained integration evidence. Final acceptance is unfinished.
 
+## Sandbox lifetime review
+
+Reviewed five pinned timeout/lifetime declarations. New VM tests verify that returning with an unawaited call succeeds, cancels the host callback and joins its actual return; a never-settling Promise returns a script error. Native default-bounded timeouts differ from upstream's infinite-timeout mode. Review total is 62/149, with 87 unreviewed.
+
+Focused lifetime race count 3 passes in 14.479s. Full normal root tests pass (durable 74.358s, tools 4.653s), with static/logging/non-CGO and diff checks. The initial test reassigned a callback-captured release channel and triggered a fixture race; a once-only close corrected it before passing evidence. No production lifetime changes were needed. Diagnostic logs were removed after analysis. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
