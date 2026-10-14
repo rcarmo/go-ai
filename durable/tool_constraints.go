@@ -38,3 +38,18 @@ func copyToolConstraints(value *goai.ToolConstrainedSampling, l Limits) (*goai.T
 	}
 	return &copy, nil
 }
+
+func sameToolConstraints(a, b *goai.ToolConstrainedSampling) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Type != b.Type || a.Strict != b.Strict || len(a.Variants) != len(b.Variants) {
+		return false
+	}
+	for key, value := range a.Variants {
+		if b.Variants[key] != value {
+			return false
+		}
+	}
+	return true
+}

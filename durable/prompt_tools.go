@@ -35,7 +35,7 @@ func ReplayToolDeclarations(messages []MessageReceipt) []ContributionTool {
 	return shown
 }
 func sameDeclaration(a, b ContributionTool) bool {
-	return a.Name == b.Name && a.Description == b.Description && equalJSONValue(a.Parameters, b.Parameters)
+	return a.Name == b.Name && a.Description == b.Description && equalJSONValue(a.Parameters, b.Parameters) && sameToolConstraints(a.ConstrainedSampling, b.ConstrainedSampling)
 }
 func promptBaseline(view ContextView) bool {
 	if view.Head == nil {

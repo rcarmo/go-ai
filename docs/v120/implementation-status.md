@@ -644,6 +644,12 @@ Durable registered tools now accept bounded json_schema/grammar constrained-samp
 
 Registration/DTO/protocol-copy tests pass race count3 in1.146s; full root normal passes (durable79.622s/tools6.503s); static/logging/non-CGO pass. Production HTTP request/persisted-intent/reopen tests need expansion before metadata acceptance. Increment committed/pushed under ongoing authority; logs disposed after use. Parallel/output/final race/security/profile/crosswalk remain unfinished.
 
+## Constrained tool production request and contribution records
+
+Actual durable/OpenAI HTTP testing exposed rejection in system tool-contribution records. Contributions now persist bounded constrained-sampling metadata and compare grammar/strictness changes during prompt planning. Registry offers reach the production HTTP custom-tool grammar payload and persisted generation checkpoint; malformed empty grammar remains rejected. Request inspection follows the existing provider's top-level custom format shape.
+
+Native backend wire/intent race tests count3 pass2.534s; full root normal passes (durable84.310s/tools6.337s); static/logging/non-CGO pass. Initial fixture used nonexistent compatibility fields and an incorrect nested custom-payload shape, corrected before passing evidence. Constrained contribution copy/reopen/intent retry tests and grammar-backed codemode installation remain unfinished. Parallel/output/final race/security/profile/crosswalk remain incomplete. Increment committed/pushed; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

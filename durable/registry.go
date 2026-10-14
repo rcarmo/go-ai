@@ -357,9 +357,10 @@ func captureContentPresence(blocks []goai.ContentBlock) []ReceiptContentPresence
 // ContributionTool owns decoded strict schema data instead of a RawMessage
 // marshaler. Conversion to provider JSON happens only at request projection.
 type ContributionTool struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Parameters  JSON   `json:"parameters"`
+	ConstrainedSampling *goai.ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
+	Name                string                        `json:"name"`
+	Description         string                        `json:"description"`
+	Parameters          JSON                          `json:"parameters"`
 }
 
 type messageReceipt = MessageReceipt
@@ -394,7 +395,7 @@ func receiptMessage(r messageReceipt) goai.Message {
 	}
 	for _, tool := range r.ToolsAdded {
 		parameters, _ := json.Marshal(tool.Parameters)
-		m.ToolsAdded = append(m.ToolsAdded, goai.Tool{Name: tool.Name, Description: tool.Description, Parameters: parameters})
+		m.ToolsAdded = append(m.ToolsAdded, goai.Tool{Name: tool.Name, Description: tool.Description, Parameters: parameters, ConstrainedSampling: tool.ConstrainedSampling})
 	}
 	return m
 }
@@ -476,14 +477,18 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 		}
 	}
 	for _, tool := range m.ToolsAdded {
-		if !validKind(tool.Name) || tool.ConstrainedSampling != nil {
+		if !validKind(tool.Name) {
 			return messageReceipt{}, reject("unsupported tool contribution control")
 		}
 		var parameters JSON
 		if e := decodeStrict(tool.Parameters, l, l.MaxRecordBytes, &parameters); e != nil {
 			return messageReceipt{}, e
 		}
-		r.ToolsAdded = append(r.ToolsAdded, ContributionTool{Name: tool.Name, Description: tool.Description, Parameters: parameters})
+		constraint, err := copyToolConstraints(tool.ConstrainedSampling, l)
+		if err != nil {
+			return messageReceipt{}, err
+		}
+		r.ToolsAdded = append(r.ToolsAdded, ContributionTool{Name: tool.Name, Description: tool.Description, Parameters: parameters, ConstrainedSampling: constraint})
 	}
 	r.ToolsRemoved = append([]goai.ToolReference(nil), m.ToolsRemoved...)
 	for _, tool := range r.ToolsRemoved {
