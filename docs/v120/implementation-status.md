@@ -638,6 +638,12 @@ Snapshot declarations now include discovery signatures and opt-in model catalogu
 
 Focused snapshot/metadata/opt-out race count3 passes8.194s. Full root normal passes (durable74.066s/tools4.596s); static/logging/non-CGO pass. Raw codemode tool/prompt assembly, full model declaration shapes, parallel/output and final race/security/profile/crosswalk remain unfinished. Increment committed/pushed under ongoing authority; logs disposed after use.
 
+## Registered constrained tool metadata prerequisite
+
+Durable registered tools now accept bounded json_schema/grammar constrained-sampling metadata, persist it in offers and propagate detached copies into model protocol tools. Strictness/types/variant names/empty or oversized sources reject. Model contribution controls still reject constrained tool additions; this slice covers registry-owned tools only. The raw grammar-backed codemode registration is not installed yet.
+
+Registration/DTO/protocol-copy tests pass race count3 in1.146s; full root normal passes (durable79.622s/tools6.503s); static/logging/non-CGO pass. Production HTTP request/persisted-intent/reopen tests need expansion before metadata acceptance. Increment committed/pushed under ongoing authority; logs disposed after use. Parallel/output/final race/security/profile/crosswalk remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

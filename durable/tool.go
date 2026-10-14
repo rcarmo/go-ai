@@ -46,19 +46,20 @@ type ToolRegistration struct {
 	Execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
 }
 type toolOffer struct {
-	StructuredOutputSchema JSON              `json:"structuredOutputSchema,omitempty"`
-	Deferred               bool              `json:"deferred,omitempty"`
-	Callers                *[]string         `json:"callers,omitempty"`
-	Name                   string            `json:"name"`
-	Description            string            `json:"description"`
-	Schema                 JSON              `json:"schema"`
-	Implementation         string            `json:"implementation"`
-	Version                uint64            `json:"version"`
-	ReplaySafe             bool              `json:"replaySafe"`
-	HostValidation         bool              `json:"hostValidation,omitempty"`
-	ExecutionMode          string            `json:"executionMode,omitempty"`
-	ArgumentPreparation    bool              `json:"argumentPreparation,omitempty"`
-	OutputLimits           *ToolOutputLimits `json:"outputLimits,omitempty"`
+	ConstrainedSampling    *goai.ToolConstrainedSampling `json:"constrainedSampling,omitempty"`
+	StructuredOutputSchema JSON                          `json:"structuredOutputSchema,omitempty"`
+	Deferred               bool                          `json:"deferred,omitempty"`
+	Callers                *[]string                     `json:"callers,omitempty"`
+	Name                   string                        `json:"name"`
+	Description            string                        `json:"description"`
+	Schema                 JSON                          `json:"schema"`
+	Implementation         string                        `json:"implementation"`
+	Version                uint64                        `json:"version"`
+	ReplaySafe             bool                          `json:"replaySafe"`
+	HostValidation         bool                          `json:"hostValidation,omitempty"`
+	ExecutionMode          string                        `json:"executionMode,omitempty"`
+	ArgumentPreparation    bool                          `json:"argumentPreparation,omitempty"`
+	OutputLimits           *ToolOutputLimits             `json:"outputLimits,omitempty"`
 }
 type registeredTool struct {
 	paidModel bool
@@ -96,7 +97,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if reg.ExecutionMode != "" && reg.ExecutionMode != "parallel" && reg.ExecutionMode != "sequential" {
 		return reject("invalid tool execution mode")
 	}
-	if !validKind(reg.Definition.Name) || !validKind(reg.Implementation) || reg.Version < 1 || reg.Version > MaxID || reg.Execute == nil || reg.Definition.ConstrainedSampling != nil {
+	if !validKind(reg.Definition.Name) || !validKind(reg.Implementation) || reg.Version < 1 || reg.Version > MaxID || reg.Execute == nil {
 		return reject("invalid tool registration")
 	}
 	var schema JSON
@@ -123,6 +124,10 @@ func (r *Registry) Register(reg ToolRegistration) error {
 		output = &copy
 	}
 	offer := toolOffer{Name: reg.Definition.Name, Description: reg.Definition.Description, Schema: schema, Implementation: reg.Implementation, Version: reg.Version, ReplaySafe: reg.ReplaySafe, HostValidation: subsetErr != nil, ExecutionMode: reg.ExecutionMode, ArgumentPreparation: reg.PrepareArguments != nil, OutputLimits: output, Deferred: reg.Deferred}
+	offer.ConstrainedSampling, e = copyToolConstraints(reg.Definition.ConstrainedSampling, l)
+	if e != nil {
+		return e
+	}
 	if reg.Callers != nil {
 		callers := append([]string{}, reg.Callers...)
 		offer.Callers = &callers
@@ -198,7 +203,11 @@ func protocolTools(offers []toolOffer, l Limits) ([]goai.Tool, error) {
 		if e != nil {
 			return nil, e
 		}
-		tools = append(tools, goai.Tool{Name: v.Name, Description: v.Description, Parameters: json.RawMessage(p)})
+		constraints, e := copyToolConstraints(v.ConstrainedSampling, l)
+		if e != nil {
+			return nil, e
+		}
+		tools = append(tools, goai.Tool{Name: v.Name, Description: v.Description, Parameters: json.RawMessage(p), ConstrainedSampling: constraints})
 	}
 	return tools, nil
 }

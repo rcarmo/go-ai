@@ -7,6 +7,16 @@ func copyProtocolTools(tools []goai.Tool) []goai.Tool {
 	for i, tool := range tools {
 		out[i] = tool
 		out[i].Parameters = append([]byte(nil), tool.Parameters...)
+		if constraint := tool.ConstrainedSampling; constraint != nil {
+			copy := *constraint
+			if constraint.Variants != nil {
+				copy.Variants = map[string]string{}
+				for key, value := range constraint.Variants {
+					copy.Variants[key] = value
+				}
+			}
+			out[i].ConstrainedSampling = &copy
+		}
 	}
 	return out
 }
