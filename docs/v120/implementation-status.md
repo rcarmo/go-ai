@@ -632,6 +632,12 @@ Custom global configuration now carries optional description/signature/input/out
 
 Tests mutate caller schemas/config after Open and VM metadata after Start; later runs retain original descriptions/schema types. Metadata/custom replay/declaration race count3 passes11.952s. Full root normal passes (durable82.460s/tools6.006s); static/logging/non-CGO pass. Model prompt/raw codemode tool installation and full builtin-global declarations remain unfinished, along with parallel/output/final race/security/profile/crosswalk. Verified increment committed/pushed under Rui's ongoing authority; logs disposed after use.
 
+## Builtin global snapshot declarations
+
+Snapshot declarations now include discovery signatures and opt-in model catalogue/paid signatures alongside custom metadata. Opt-out excludes the models declaration namespace; internal paid-tool names remain hidden. Model DTO/context signatures intentionally use unknown for incompletely modelled structures and are not exact upstream model type declarations. Tests cover builtin presence, opt-out and custom namespace retention with actual paid-opt-out coverage.
+
+Focused snapshot/metadata/opt-out race count3 passes8.194s. Full root normal passes (durable74.066s/tools4.596s); static/logging/non-CGO pass. Raw codemode tool/prompt assembly, full model declaration shapes, parallel/output and final race/security/profile/crosswalk remain unfinished. Increment committed/pushed under ongoing authority; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

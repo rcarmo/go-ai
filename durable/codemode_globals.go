@@ -129,7 +129,7 @@ func cloneCodemodeGlobals(globals []CodemodeGlobal, l Limits) ([]CodemodeGlobal,
 
 // CodemodeDeclarations renders only the pinned run snapshot, never a live registry.
 func (start CodemodeStart) CodemodeDeclarations() string {
-	globals := make([]CodemodeGlobalDeclaration, 0, len(start.Globals))
+	globals := codemodeBuiltinDeclarations(start.PaidModels)
 	for _, global := range start.Globals {
 		globals = append(globals, CodemodeGlobalDeclaration{Name: global.Name, Description: global.Description, Signature: global.Signature, InputSchema: global.InputSchema, OutputSchema: global.OutputSchema})
 	}
