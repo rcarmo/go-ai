@@ -17,9 +17,26 @@ NEWLINE: /\r?\n/
 SOURCE: /[\s\S]+/
 `
 
+// CodemodeExtensionOptions controls model-facing declaration rendering.
+// Nil InlineBudget uses 3000 estimated tokens; explicit zero lists no tools.
+// Execution authority, namespaces and globals remain harness-scoped.
+type CodemodeExtensionOptions struct {
+	InlineBudget *int
+}
+
 // NewCodemodeExtension installs a model-only, replay-safe serial candidate.
 // The host owns sandbox lifetime. Parallel scripts still reject explicitly.
-func NewCodemodeExtension(sandbox CodemodeSandbox) (Extension, error) {
+func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionOptions) (Extension, error) {
+	if len(options) > 1 {
+		return Extension{}, reject("multiple codemode extension options")
+	}
+	budget := DefaultCodemodeInlineBudget
+	if len(options) == 1 && options[0].InlineBudget != nil {
+		budget = *options[0].InlineBudget
+	}
+	if budget < 0 {
+		return Extension{}, reject("negative codemode inline budget")
+	}
 	if sandbox == nil {
 		return Extension{}, reject("codemode requires sandbox")
 	}
@@ -67,7 +84,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox) (Extension, error) {
 				inline = append(inline, tool)
 			}
 		}
-		catalogue, err := CodemodeSection(inline, runtime.harness.options.CodemodeNamespaces, DefaultCodemodeInlineBudget)
+		catalogue, err := CodemodeSection(inline, runtime.harness.options.CodemodeNamespaces, budget)
 		if err != nil {
 			return nil, err
 		}

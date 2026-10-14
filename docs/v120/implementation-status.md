@@ -722,6 +722,12 @@ Reviewed all five pinned durable description declarations. Native tests cover st
 
 Prompt/grouping/catalogue race count 3 passes in 15.807s. Full normal root tests pass (durable 73.111s, tools 4.609s), with static/logging/non-CGO and diff checks. The initial helper fixture omitted identifiers; it was corrected before passing evidence. Diagnostic logs were removed after analysis. Final acceptance remains unfinished.
 
+## Extension inline budget
+
+`NewCodemodeExtension` accepts one optional `CodemodeExtensionOptions` value. A nil `InlineBudget` uses 3000 estimated tokens; explicit zero omits inline tool declarations. The constructor captures the integer, so later caller mutation cannot change prompt rendering. Negative budgets and multiple option sets fail. Namespaces, globals and paid-model authority remain harness-scoped.
+
+Concrete model/VM tests verify zero-budget prompt omission while `searchTools` still finds and executes a tool. Inline-budget/prompt/grouping race count 3 passes in 30.538s. Full normal root tests pass (durable 71.162s, tools 4.581s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Complete upstream extension configuration and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
