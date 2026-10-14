@@ -381,12 +381,20 @@
         {
           "line": 68,
           "name": "parse as JavaScript",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 79,
           "name": "returns the script's return value after a JSON round trip",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 91,
@@ -451,27 +459,47 @@
         {
           "line": 237,
           "name": "formats stacks like V8 without prelude frames",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 251,
           "name": "reports non-Error throws",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 257,
           "name": "reports a non-serializable return value as a script error",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 265,
           "name": "exposes tools as async functions and records calls",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 294,
           "name": "runs concurrent calls and lists tool names",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/output_crosswalk_120_test.go"
+          ],
+          "note": "Concrete VM return/await, retained prior output, source lines/stack without prelude, non-Error throw and BigInt failure cases tested. Native Error/Output API differs; larger output storage and exact full rendering remain incomplete."
         },
         {
           "line": 306,

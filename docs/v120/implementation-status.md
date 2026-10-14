@@ -766,6 +766,12 @@ Four pinned store declarations now have executable mappings. Concrete VM tests c
 
 Focused store race count 3 passes in 20.607s. Full normal root tests pass (durable 72.832s, tools 4.495s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 74/149, with 75 unreviewed; final acceptance is unfinished.
 
+## Return values and script error locations
+
+Seven pinned return/error declarations now have concrete VM coverage: JSON returns, top-level await, output retained before failure, source line preservation, stacks without prelude frames, non-Error throws and BigInt return errors. No production changes were needed. Native result types differ; this does not complete output storage or full tool-result rendering.
+
+Focused return/error race count 3 passes in 15.796s. Full normal root tests pass (durable 74.430s, tools 4.529s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 81/149, with 68 unreviewed; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
