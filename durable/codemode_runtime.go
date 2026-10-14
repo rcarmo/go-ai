@@ -276,6 +276,12 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 			// Validate and detach every persisted field before external writes.
 			// Text is projected separately because the full text may need spill.
 			fullText := event.Result.Output
+			if notice := codemodeUnshownImageNotice(journal.Deliveries, len(event.Result.Images)); notice != "" {
+				if fullText != "" {
+					fullText += "\n"
+				}
+				fullText += notice
+			}
 			if err := validateCodemodeFullText(fullText); err != nil {
 				return CodemodeResult{}, err
 			}

@@ -750,37 +750,67 @@
         {
           "line": 143,
           "name": "reads the model catalog without credentials in headers",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_model_catalog_120_test.go",
+            "durable/codemode_model_catalog_reopen_120_test.go"
+          ],
+          "note": "Credential-free scoped catalog descriptors and replay tested; native provider scope API differs."
         },
         {
           "line": 155,
           "name": "classifies through an internal tool: a nested call with its usage, hidden from tools and listings",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_models_120_test.go",
+            "durable/codemode_paid_fault_120_test.go"
+          ],
+          "note": "Hidden nested paid calls, classifier output/reuse, usage settlement and uncertainty covered. Exact upstream cost and listing combination not exhaustively matched."
         },
         {
           "line": 177,
           "name": "resolves a model call that failed with its result, as the coding agent does",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_tool_errors_120_test.go"
+          ],
+          "note": "Defined structured error/null resolves by pinned outcome contract. Dedicated classifier provider-error result integration needs expansion."
         },
         {
           "line": 195,
           "name": "rejects a bad classifier context with the expected shape, before any request",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_models_120_test.go"
+          ],
+          "note": "Invalid model reference rejected before paid request; exact classifier context.state diagnostic contract not directly covered."
         },
         {
           "line": 207,
           "name": "runs at most four model calls at once",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "durable/codemode_quickjs_parallel_120_test.go"
+          ],
+          "note": "Serial adapter rejects parallel overlap; upstream four-call paid-model capacity not implemented."
         },
         {
           "line": 222,
           "name": "does not start a model call that waited for a slot after the script ended",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "durable/codemode_paid_revoke_120_test.go"
+          ],
+          "note": "Revocation and uncertain settlement fences covered; upstream queued parallel call no-admission-after-finish protocol absent."
         },
         {
           "line": 253,
           "name": "notes generated images the script did not show",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_generated_images_120_test.go"
+          ],
+          "note": "Notice counts confirmed paid image deliveries, settled replay dispatches once; plural and any-shown suppression tested as helper. Full shown-image/writer integration needs dedicated counterpart."
         }
       ]
     },

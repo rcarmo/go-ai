@@ -728,6 +728,14 @@ Prompt/grouping/catalogue race count 3 passes in 15.807s. Full normal root tests
 
 Concrete model/VM tests verify zero-budget prompt omission while `searchTools` still finds and executes a tool. Inline-budget/prompt/grouping race count 3 passes in 30.538s. Full normal root tests pass (durable 71.162s, tools 4.581s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Complete upstream extension configuration and final acceptance are unfinished.
 
+## Generated-but-unshown images and paid-model review
+
+Codemode output now includes the pinned notice when confirmed `models.generateImages` deliveries contain images and the script displayed none. Counting persisted deliveries avoids redispatching paid calls on replay. Any displayed image suppresses the notice, matching upstream's rule; this is not a per-image omission count. Replay identity advances to host42.
+
+Concrete paid-image/VM tests verify the notice and settled reuse with one provider effect; helper tests cover plural wording and shown-image suppression. Paid-image/notice race count 3 passes in 27.484s. Full normal root tests pass (durable 88.614s, tools 6.057s), with static/logging/non-CGO and diff checks. Initial fixtures referenced the wrong image API; they were corrected to the repository's images provider/catalog before passing evidence. Diagnostic logs were disposed after analysis.
+
+All seven paid-model declarations now have explicit mappings or gaps: 57/149 declarations reviewed, 92 unreviewed. Four-call capacity and queued-call completion fencing require parallel execution; dedicated classifier-error/context and displayed-image writer counterparts need expansion. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
