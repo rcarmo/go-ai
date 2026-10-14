@@ -41,5 +41,35 @@ func NewCodemodeExtension(sandbox CodemodeSandbox) (Extension, error) {
 		}
 		return ToolResult{Blocks: blocks, IsError: result.Error != "", Details: JSON{"fullOutputPath": result.FullOutputPath}}, nil
 	}}
-	return Extension{Name: "codemode", Tools: []ToolRegistration{tool}}, nil
+	section := PromptSection{Key: "codemode", Render: func(ctx context.Context, input PromptInput) (*string, error) {
+		enabled := false
+		for _, tool := range input.Tools {
+			if tool.Name == "codemode" {
+				enabled = true
+				break
+			}
+		}
+		if !enabled {
+			return nil, nil
+		}
+		if input.Read == nil || input.Read.runtime == nil {
+			return nil, reject("codemode section requires invocation reader")
+		}
+		runtime := input.Read.runtime
+		tools, err := runtime.CodemodeTools(ctx)
+		if err != nil {
+			return nil, err
+		}
+		catalogue, err := CodemodeSection(tools, runtime.harness.options.CodemodeNamespaces, DefaultCodemodeInlineBudget)
+		if err != nil {
+			return nil, err
+		}
+		start := CodemodeStart{PaidModels: runtime.harness.options.PaidModels}
+		for _, global := range runtime.harness.options.CodemodeGlobals {
+			start.Globals = append(start.Globals, codemodeGlobalDescription(global))
+		}
+		text := "Use codemode to execute an async JavaScript function body. Await tool/global calls serially in this native candidate. Use text(), image(), console, store()/load(); no ambient filesystem, network or timers. Tool discovery does not grant additional authority.\n\n" + catalogue + "\n\n```typescript\n" + start.CodemodeDeclarations() + "\n```"
+		return &text, nil
+	}}
+	return Extension{Name: "codemode", Tools: []ToolRegistration{tool}, Sections: []PromptSection{section}}, nil
 }

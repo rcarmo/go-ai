@@ -662,6 +662,12 @@ Added opt-in NewCodemodeExtension with model-only replay-safe registration, pinn
 
 Native backend real-model/VM race count3 passes13.292s; full root normal passes (durable76.742s/tools5.657s); static/logging/non-CGO pass. This is a serial candidate: description warns overlapping calls reject; no prompt section yet. Default tool output cap remains50KiB rather than upstream4MiB/100000lines; expanded safe output-cap policy still needs implementation. Paid/global host configuration is not extension-scoped. Full raw grammar stream/provider/model retry/reopen, prompt/parallel/output and final race/security/profile/crosswalk remain unfinished. Increment committed/pushed; logs disposed after use.
 
+## Codemode prompt integration
+
+The extension now renders a persisted `codemode` prompt section from the execution runtime's callable tools, namespaces and global declarations. Model-only tools are excluded. Deselecting the model-facing codemode tool removes its section. Native memory/journal tests inspect real generation requests, reopen storage, verify unchanged prompts do not create another system entry, and verify deselection removes the persisted section.
+
+Combined model-tool and prompt race tests, count 3, pass in 32.525s. The full normal root suite passes (durable 86.427s, tools 6.192s); vet, staticcheck, logging checks, non-CGO build and diff checks pass. Diagnostic logs were removed after analysis. Raw-stream integration, output-limit parity, parallel replay, declaration audit and final security/profiling acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
