@@ -16,10 +16,13 @@ func TestCodemode120PromptPersistsReopensAndTracksSelection(t *testing.T) {
 	defer sandbox.Close(bg)
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
-		for _, name := range []string{"script_visible", "model_secret"} {
+		for _, name := range []string{"script_visible", "model_secret", "deferred_secret"} {
 			tool := wrapRegistration(name)
 			if name == "model_secret" {
 				tool.Callers = []string{"model"}
+			}
+			if name == "deferred_secret" {
+				tool.Deferred = true
 			}
 			if err := registry.Register(tool); err != nil {
 				t.Fatal(err)
@@ -38,6 +41,9 @@ func TestCodemode120PromptPersistsReopensAndTracksSelection(t *testing.T) {
 			if enabled {
 				if !strings.Contains(prompt, "script_visible") || !strings.Contains(prompt, "searchTools") || !strings.Contains(prompt, "serially") {
 					t.Error("codemode prompt missing", prompt)
+				}
+				if strings.Contains(prompt, "deferred_secret") {
+					t.Error("deferred tool leaked inline", prompt)
 				}
 				if strings.Contains(prompt, "model_secret") {
 					t.Error("model-only tool leaked", prompt)

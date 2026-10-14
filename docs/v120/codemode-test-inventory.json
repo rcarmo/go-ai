@@ -698,27 +698,48 @@
         {
           "line": 24,
           "name": "keeps the tool description the same for every conversation",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_extension_120_test.go"
+          ],
+          "note": "Native extension description is stable and documents serial limitation; exact upstream description and models-enabled toggle not implemented."
         },
         {
           "line": 33,
           "name": "lists callable tools as declarations, grouped by namespace, with namespace descriptions",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_describe_crosswalk_120_test.go"
+          ],
+          "note": "Standalone-first grouping, namespace description and longest-prefix selection verified; native namespace validation/sanitization differs."
         },
         {
           "line": 48,
           "name": "lists what fits the budget, every namespace before any is complete, and says what is left out",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_describe_crosswalk_120_test.go"
+          ],
+          "note": "Budget skips large tool and marks partially omitted namespace with tiny declaration retained."
         },
         {
           "line": 58,
           "name": "uses the longest matching namespace prefix",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_describe_crosswalk_120_test.go"
+          ],
+          "note": "Zero budget omitted marker and empty catalogue result verified; native empty string maps to upstream undefined."
         },
         {
           "line": 68,
           "name": "renders the section from the conversation's callable tools into the system prompt",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_prompt_120_test.go",
+            "durable/codemode_wire_120_test.go"
+          ],
+          "note": "Real model prompt persists/reopens, excludes model-only codemode and deferred tools inline; deferred tools remain in executable/discovery catalogue. Pinned grammar and both HTTP APIs covered; exact fixed description/options still incomplete."
         }
       ]
     },

@@ -60,7 +60,14 @@ func NewCodemodeExtension(sandbox CodemodeSandbox) (Extension, error) {
 		if err != nil {
 			return nil, err
 		}
-		catalogue, err := CodemodeSection(tools, runtime.harness.options.CodemodeNamespaces, DefaultCodemodeInlineBudget)
+		// Deferred tools remain callable/discoverable but are omitted inline.
+		inline := tools[:0]
+		for _, tool := range tools {
+			if !tool.Deferred {
+				inline = append(inline, tool)
+			}
+		}
+		catalogue, err := CodemodeSection(inline, runtime.harness.options.CodemodeNamespaces, DefaultCodemodeInlineBudget)
 		if err != nil {
 			return nil, err
 		}

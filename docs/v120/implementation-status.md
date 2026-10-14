@@ -716,6 +716,12 @@ Pinned `codemode.ts` intentionally resolves defined structured output even when 
 
 Concrete VM tests cover text precedence, diagnostics, empty failures, structured objects/null and settled reuse with one nested effect. Focused tool-error/nested race count 3 passes in 31.601s. Full normal root tests pass (durable 71.196s, tools 4.589s), with static/logging/non-CGO and diff checks. Initial fixtures used an unsupported diagnostic severity and omitted structured schemas; both were corrected before passing evidence. Diagnostic logs were removed after analysis. The prior full-race receipt predates this change; final acceptance is unfinished.
 
+## Description cases and deferred prompt tools
+
+Reviewed all five pinned durable description declarations. Native tests cover standalone-first namespace grouping, longest prefix, budget omission markers and empty catalogues. Prompt integration now omits deferred tools inline while retaining them in the executable/discovery catalogue. Deferred state is captured in tool-description snapshots. Exact upstream description and extension options remain partial; inventory review is now 50/149, with 99 unreviewed.
+
+Prompt/grouping/catalogue race count 3 passes in 15.807s. Full normal root tests pass (durable 73.111s, tools 4.609s), with static/logging/non-CGO and diff checks. The initial helper fixture omitted identifiers; it was corrected before passing evidence. Diagnostic logs were removed after analysis. Final acceptance remains unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

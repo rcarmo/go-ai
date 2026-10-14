@@ -17,6 +17,7 @@ type CodemodeNamespace struct {
 	Prefix       string
 }
 type CodemodeToolDescription struct {
+	Deferred     bool `json:"deferred,omitempty"`
 	Name         string
 	Identifier   string
 	Description  string
@@ -65,7 +66,7 @@ func (r *TaskRuntime) CodemodeTools(ctx context.Context) ([]CodemodeToolDescript
 		if output == nil {
 			output = JSON{"type": "string"}
 		}
-		out = append(out, CodemodeToolDescription{Name: offer.Name, Identifier: id, Description: offer.Description, InputSchema: input, OutputSchema: output})
+		out = append(out, CodemodeToolDescription{Name: offer.Name, Deferred: offer.Deferred, Identifier: id, Description: offer.Description, InputSchema: input, OutputSchema: output})
 	}
 	return out, nil
 }
