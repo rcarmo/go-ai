@@ -102,7 +102,7 @@ func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversa
 	if def == nil {
 		return Entry{}, false, reject("nil entry definition")
 	}
-	state, e := s.store.Snapshot(ctx)
+	state, e := s.guardedStorage().Snapshot(ctx)
 	if e != nil {
 		return Entry{}, false, e
 	}

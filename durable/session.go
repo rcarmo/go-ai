@@ -12,6 +12,8 @@ import (
 // reads. M1a has no execution/scheduling API and dispatches no external effects.
 type Session struct {
 	store                Storage
+	failureMu            sync.Mutex
+	failureCause         error
 	now                  func() int64 // line-owned wall clock for lifecycle stamps
 	core                 *storeCore
 	line                 chan struct{}
@@ -24,6 +26,8 @@ type Session struct {
 	contextExpiry        *time.Timer
 	definitionCache      map[definitionCacheKey]definitionCacheValue
 	definitionCacheBytes int64
+	documentRetentionMs  func() int64
+	documentExpiry       *time.Timer
 	observerMu           sync.Mutex
 	watches              map[*DocumentWatch]bool
 	subscriptions        map[*CommitSubscription]bool
@@ -38,9 +42,15 @@ func OpenSession(store Storage) (*Session, error) {
 
 // SessionOptions.Now supplies Unix milliseconds; omitted uses the wall clock.
 // It runs synchronously on the transaction line and must not reenter the Session.
-type SessionOptions struct{ Now func() int64 }
+type SessionOptions struct {
+	Now                 func() int64
+	DocumentRetentionMs *int64 // default600000; zero drops idle migrated values
+}
 
 func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, error) {
+	if options.DocumentRetentionMs != nil && *options.DocumentRetentionMs < 0 {
+		return nil, reject("negative document retention")
+	}
 	if store == nil {
 		return nil, reject("nil storage")
 	}
@@ -62,12 +72,20 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 		now = func() int64 { return time.Now().UnixMilli() }
 	}
 	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l}
+	retention := int64(600000)
+	if options.DocumentRetentionMs != nil {
+		retention = *options.DocumentRetentionMs
+	}
+	s.documentRetentionMs = func() int64 { return retention }
 	s.line <- struct{}{}
 	return s, nil
 }
 func (s *Session) enter(ctx context.Context) error {
 	if ctx == nil {
 		return reject("nil context")
+	}
+	if err := s.failure(); err != nil {
+		return err
 	}
 	if s.closing.Load() {
 		return ErrClosed
@@ -76,6 +94,10 @@ func (s *Session) enter(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-s.line:
+	}
+	if err := s.failure(); err != nil {
+		s.leave()
+		return err
 	}
 	if s.closing.Load() {
 		s.leave()
@@ -93,14 +115,15 @@ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, e
 	}
 	defer s.leave()
-	return s.store.Snapshot(ctx)
+	return s.guardedStorage().Snapshot(ctx)
 }
 func (s *Session) MintID(ctx context.Context) (ID, error) {
 	if e := s.enter(ctx); e != nil {
 		return 0, e
 	}
 	defer s.leave()
-	return s.core.mintID(ctx, true)
+	id, err := s.core.mintID(ctx, true)
+	return id, s.backendResult(ctx, err, true)
 }
 
 // Commit seals every escaped handle after callback return, including panic. A
@@ -146,7 +169,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 		}
 		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
 			s.taskScheduler.h.wakeAllSubmissionWaiters()
-			s.taskScheduler.notifyWaiters(ErrPoisoned)
+			s.taskScheduler.notifyWaiters(err)
 			for target := range s.taskScheduler.tickets {
 				s.taskScheduler.failTicket(target, ErrPoisoned)
 			}
@@ -166,6 +189,9 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external}
 	defer tx.seal()
 	if err = callback(tx); err != nil {
+		return 0, err
+	}
+	if err = s.failure(); err != nil {
 		return 0, err
 	}
 	if tx.creationError != nil {
@@ -188,6 +214,9 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	if err = ctx.Err(); err != nil {
 		return 0, err
 	}
+	if err = s.failure(); err != nil {
+		return 0, err
+	}
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
@@ -204,6 +233,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 		return 0, e
 	}
 	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
+	err = s.backendResult(ctx, err, true)
 	if err == nil {
 		<-s.core.line
 		s.invalidateContextRanges(s.core.state, tx.writes)
@@ -289,12 +319,12 @@ func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
 	switch s.store.(type) {
 	case *MemoryStorage, *JournalStorage:
 		if err := s.core.enter(ctx); err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, s.backendResult(ctx, err, false)
 		}
 		defer s.core.leave()
 		return s.core.state, nil
 	default:
-		return s.store.Snapshot(ctx)
+		return s.guardedStorage().Snapshot(ctx)
 	}
 }
 
@@ -311,6 +341,11 @@ func (s *Session) Close(ctx context.Context) error {
 				s.contextExpiry.Stop()
 			}
 			s.contextRanges = nil
+			if s.documentExpiry != nil {
+				s.documentExpiry.Stop()
+			}
+			s.definitionCache = nil
+			s.definitionCacheBytes = 0
 			s.closeErr = s.core.close(context.Background(), true)
 			close(s.done)
 			s.leave()

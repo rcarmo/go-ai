@@ -20,12 +20,16 @@ const (
 var readSchema = json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file to read (relative or absolute)"},"offset":{"type":"integer","description":"Line number to start reading from (1-indexed)","minimum":1},"limit":{"type":"integer","description":"Maximum number of lines to read","minimum":1}},"required":["path"],"additionalProperties":false}`)
 
 // Read returns a durable read tool registration.
-func Read(env durable.FileSystem) durable.ToolRegistration { return readTool(env, false) }
+func Read(env durable.FileSystem) durable.ToolRegistration { return readTool(env, false, nil) }
 
 // ReadWithImages is an explicit native extension; Read follows reference image rejection.
-func ReadWithImages(env durable.FileSystem) durable.ToolRegistration { return readTool(env, true) }
+func ReadWithImages(env durable.FileSystem) durable.ToolRegistration { return readTool(env, true, nil) }
 
-func readTool(env durable.FileSystem, inlineImages bool) durable.ToolRegistration {
+// ReadWithPreparedImages opts into native bounded image preparation.
+func ReadWithPreparedImages(env durable.FileSystem, limits ImageLimits) durable.ToolRegistration {
+	return readTool(env, true, &limits)
+}
+func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) durable.ToolRegistration {
 	return durable.ToolRegistration{
 		Definition: goai.Tool{
 			Name:        "read",
@@ -54,7 +58,21 @@ func readTool(env durable.FileSystem, inlineImages bool) durable.ToolRegistratio
 			// Inline images remain a local extension; no custom filesystem
 			// path is inspected with a host file operation.
 			if local, ok := env.(*Env); ok && inlineImages && isRasterImage(abs) {
-				block, details, err := local.LoadImage(ctx, abs)
+				var block goai.ContentBlock
+				var details durable.JSON
+				var err error
+				resolved, vision, e := invocationImageLimits(ctx, api)
+				if e != nil {
+					return durable.ToolResult{}, e
+				}
+				if !vision {
+					return durable.ToolResult{Content: "Image file", Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Code: "image_not_supported", Message: "Image not attached: conversation model does not accept image input"}}}, nil
+				}
+				if limits == nil {
+					block, details, err = local.LoadPreparedImage(ctx, abs, resolved)
+				} else {
+					block, details, err = local.LoadPreparedImage(ctx, abs, *limits)
+				}
 				if err != nil {
 					return durable.ToolResult{}, err
 				}

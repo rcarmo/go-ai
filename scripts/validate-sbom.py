@@ -58,6 +58,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("checksum", type=pathlib.Path)
     parser.add_argument("--expected-revision", dest="expected_version", required=True, help="expected root component version (legacy name retained for callers)")
     parser.add_argument("--expected-vcs-revision", required=True, help="expected full lowercase 40-character VCS revision stored as root component property")
+    parser.add_argument("--require-guests", action="store_true", help="validate embedded guest assets against checked-in inputs")
     args = parser.parse_args(argv[1:])
 
     sbom_path = args.sbom
@@ -132,6 +133,20 @@ def main(argv: list[str]) -> int:
     for required in sorted(REQUIRED_DEPENDENCIES):
         if not any(isinstance(ref, str) and required in ref for ref in depends_on):
             return fail(f"root dependency graph missing dependency ref for {required}")
+    if args.require_guests:
+        from sbom_guests import guest_components
+        for expected in guest_components():
+            matches = [c for c in components if c.get("bom-ref") == expected["bom-ref"]]
+            if len(matches) != 1:
+                return fail("missing or duplicate embedded guest " + expected["name"])
+            actual = matches[0]
+            for field in ("name", "version", "purl", "licenses", "hashes", "properties"):
+                if actual.get(field) != expected[field]:
+                    return fail("embedded guest mismatch: " + expected["name"] + " " + field)
+            if expected["bom-ref"] not in depends_on:
+                return fail("missing embedded guest root dependency " + expected["name"])
+            if not any(d.get("ref") == expected["bom-ref"] for d in deps):
+                return fail("missing embedded guest graph entry " + expected["name"])
     suffix = f", vcs {args.expected_vcs_revision}" if args.expected_vcs_revision else ""
     print(f"SBOM valid: {len(components)} components, sha256 {got_sha}, version {args.expected_version}{suffix}")
     return 0

@@ -11,10 +11,10 @@ mkdir -p "$tmp_root"
 cache_base="$GO_AI_MODEL_REGEN_CACHE"
 
 upstream_repo_url="${PI_AI_UPSTREAM_REPO_URL:-https://github.com/earendil-works/pi.git}"
-upstream_tag="v1.1.0"
-upstream_sha="${PI_AI_UPSTREAM_SHA:-abe508e1b89912adde45528136c3221eb69acdd7}"
-npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.1.0.tgz}"
-npm_sha256="6caab33cec57480ed02c57fe37428a030a77cc2a0662814b435a5cf8932ad829"
+upstream_tag="v1.2.0"
+upstream_sha="${PI_AI_UPSTREAM_SHA:-06a466935536f8c9bcacb2d5efc0fc021be1bdff}"
+npm_url="${PI_AI_NPM_TARBALL_URL:-https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.2.0.tgz}"
+npm_sha256="c3e69423bcab9712f31a7e5b6d3448ae356af84439ec6bc701f626f6ea164535"
 
 workdir="$(mktemp -d "${tmp_root%/}/run-XXXXXX")"
 export TMPDIR="$workdir" TMP="$workdir" TEMP="$workdir" GOTMPDIR="$workdir"
@@ -87,12 +87,12 @@ ensure_source_checkout() {
 }
 
 ensure_npm_package() {
-  local dir="$cache_base/pi-ai-1.1.0-package"
+  local dir="$cache_base/pi-ai-1.2.0-package"
   local marker="$dir/.sha256"
   if [[ ! -f "$dir/package/dist/models.generated.js" ]] || [[ "$(cat "$marker" 2>/dev/null || true)" != "$npm_sha256" ]]; then
     rm -rf "$dir"
     mkdir -p "$dir"
-    local tgz="$workdir/pi-ai-1.1.0.tgz"
+    local tgz="$workdir/pi-ai-1.2.0.tgz"
     fetch_file "$npm_url" "$tgz"
     local got
     got="$(sha256_file "$tgz")"
@@ -142,7 +142,7 @@ compare_generated() {
   local got="$2"
   local label="$3"
   diff -u "$want" "$got" >/dev/null || {
-    echo "$label does not match regeneration from exact v1.1.0 schema-v6 catalog" >&2
+    echo "$label does not match regeneration from exact v1.2.0 schema-v6 catalog" >&2
     echo "source: $source_models_js" >&2
     diff -u "$want" "$got" >&2 || true
     exit 1

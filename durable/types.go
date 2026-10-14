@@ -37,6 +37,33 @@ type StorageRejected struct{ Reason string }
 func (e *StorageRejected) Error() string { return "durable: rejected: " + e.Reason }
 func reject(reason string) error         { return &StorageRejected{Reason: reason} }
 
+// StorageRequestError identifies an invalid read with no durable effect. It
+// unwraps to the native rejection type for existing error inspection. A commit
+// or ID-reservation error is never made recoverable by this type alone.
+type StorageRequestError struct{ Reason string }
+
+func (e *StorageRequestError) Error() string { return "durable: invalid storage request: " + e.Reason }
+func (e *StorageRequestError) Unwrap() error { return &StorageRejected{Reason: e.Reason} }
+func storageRequest(reason string) error     { return &StorageRequestError{Reason: reason} }
+
+// requestValidation classifies caller argument validation at read boundaries.
+// Do not apply it to persisted-state materialisation or write validation.
+func requestValidation(err error) error {
+	var rejected *StorageRejected
+	if errors.As(err, &rejected) {
+		return storageRequest(rejected.Reason)
+	}
+	return err
+}
+func checkReadIDs(values ...ID) error {
+	for _, id := range values {
+		if uint64(id) > MaxID {
+			return storageRequest("read ID outside exact integer bounds")
+		}
+	}
+	return nil
+}
+
 // Limits are persisted at journal creation. Zero-valued options select defaults;
 // explicit options on reopen must exactly match the persisted policy.
 type Limits struct {
@@ -104,13 +131,15 @@ type Entry struct {
 // absent in old journals; those records are never guessed into generic tasks.
 // New readers accept old records. Old binaries reject new Execution fields.
 type Task struct {
-	ID           ID             `json:"id"`
-	Conversation ID             `json:"conversation"`
-	Owner        ID             `json:"owner,omitempty"`
-	Kind         string         `json:"kind"`
-	Status       string         `json:"status"`
-	Checkpoint   JSON           `json:"checkpoint"`
-	Execution    *TaskExecution `json:"execution,omitempty"`
+	ID               ID             `json:"id"`
+	Conversation     ID             `json:"conversation"`
+	Owner            ID             `json:"owner,omitempty"`
+	Kind             string         `json:"kind"`
+	Status           string         `json:"status"`
+	Checkpoint       JSON           `json:"checkpoint"`
+	Execution        *TaskExecution `json:"execution,omitempty"`
+	AbandonOnRestart bool           `json:"abandonOnRestart,omitempty"`
+	AbortReason      string         `json:"abortReason,omitempty"` // restart; ordinary cancellation omits it
 	// Optional Unix millisecond lifecycle times. Old records keep these absent.
 	StartedAt *int64 `json:"startedAt,omitempty"`
 	EndedAt   *int64 `json:"endedAt,omitempty"`
@@ -188,18 +217,20 @@ type TaskExecution struct {
 // TaskRecord is a detached canonical runtime view. Legacy raw records remain
 // available through Snapshot; their absent generic results are not invented.
 type TaskRecord struct {
-	StartedAt      *int64
-	EndedAt        *int64
-	ID             ID
-	Conversation   ID
-	Owner          ID
-	Kind           string
-	Version        uint64
-	Input          *TaskValue
-	Background     bool
-	AbortRequested bool
-	Memos          map[string]*TaskValue
-	State          TaskState
+	AbandonOnRestart bool
+	AbortReason      string
+	StartedAt        *int64
+	EndedAt          *int64
+	ID               ID
+	Conversation     ID
+	Owner            ID
+	Kind             string
+	Version          uint64
+	Input            *TaskValue
+	Background       bool
+	AbortRequested   bool
+	Memos            map[string]*TaskValue
+	State            TaskState
 }
 
 type TaskOwnership struct {
@@ -208,9 +239,10 @@ type TaskOwnership struct {
 }
 
 type TaskOptions struct {
-	Conversation ID
-	Ownership    TaskOwnership
-	Background   bool
+	AbandonOnRestart bool
+	Conversation     ID
+	Ownership        TaskOwnership
+	Background       bool
 }
 
 type TaskInspection struct {

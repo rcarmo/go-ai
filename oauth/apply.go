@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -79,14 +80,46 @@ func RuntimeForAPIKey(provider goai.Provider, apiKey string) (*RuntimeCredential
 	return &RuntimeCredentials{APIKey: apiKey, Models: goai.ListModels(provider), ClassifierModels: goai.ListClassifierModels(goai.ClassifierProvider(provider))}, nil
 }
 
+// RuntimeForAPIKeyContext discovers a detached, key-scoped OpenRouter catalog.
+// RuntimeForAPIKey remains offline; classifiers/images keep separate catalogs.
+func RuntimeForAPIKeyContext(ctx context.Context, id, key, baseURL string, client *http.Client) (*RuntimeCredentials, error) {
+	return RuntimeForAPIKeyWithCatalog(ctx, id, key, goai.OpenRouterCatalogOptions{BaseURL: baseURL, Client: client, AllowNetwork: true})
+}
+
+// RuntimeForAPIKeyWithCatalog supports caller-owned offline catalog persistence.
+func RuntimeForAPIKeyWithCatalog(ctx context.Context, id, key string, options goai.OpenRouterCatalogOptions) (*RuntimeCredentials, error) {
+	runtime, err := RuntimeForAPIKey(goai.Provider(id), key)
+	if err != nil {
+		return nil, err
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("nil runtime context")
+	}
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if id == "openrouter" {
+		runtime.Models, err = goai.ResolveOpenRouterCatalog(ctx, key, runtime.Models, options)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return runtime, nil
+}
+
 // RuntimeForProvider refreshes OAuth credentials if needed, extracts the API
-// key, registers built-in models, and returns provider-adjusted models. This is
-// the end-to-end bridge from oauth.Login/RefreshToken to goai.Stream/Complete.
+// key and returns provider-adjusted models for goai.Stream/Complete.
 func RuntimeForProvider(id string, creds *Credentials) (*RuntimeCredentials, error) {
 	return RuntimeForProviderContext(context.Background(), id, creds)
 }
 
 func RuntimeForProviderContext(ctx context.Context, id string, creds *Credentials) (*RuntimeCredentials, error) {
+	return RuntimeForProviderWithCatalog(ctx, id, creds, goai.OpenRouterCatalogOptions{AllowNetwork: true})
+}
+
+// RuntimeForProviderWithCatalog allows regional/offline OpenRouter discovery
+// after normal credential admission/refresh, with the same key-scoped store.
+func RuntimeForProviderWithCatalog(ctx context.Context, id string, creds *Credentials, options goai.OpenRouterCatalogOptions) (*RuntimeCredentials, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -125,6 +158,19 @@ func RuntimeForProviderContext(ctx context.Context, id string, creds *Credential
 		}
 	}
 	models := provider.ModifyModels(goai.ListModels(""), updated)
+	if id == "openrouter" {
+		var selected []*goai.Model
+		for _, model := range models {
+			if model != nil && model.Provider == goai.ProviderOpenRouter {
+				selected = append(selected, model)
+			}
+		}
+		personalized, err := goai.ResolveOpenRouterCatalog(ctx, apiKey, selected, options)
+		if err != nil {
+			return nil, err
+		}
+		models = personalized
+	}
 	goai.RegisterBuiltinClassifierModels()
 	classifiers := goai.ListClassifierModels(goai.ClassifierProvider(id))
 	// openai-chatgpt credentials modify the OpenAI chat catalog only; they

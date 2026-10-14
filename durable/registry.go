@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/images"
 )
 
 // ModelRef selects a process-local provider. Intent also persists a sanitized
@@ -14,14 +15,15 @@ type ModelRef struct {
 	ID       string        `json:"id"`
 }
 type RequestSettings struct {
-	ContextRetentionMs *int64           `json:"contextRetentionMs,omitempty"`
-	Temperature        *float64         `json:"temperature,omitempty"`
-	MaxTokens          *int             `json:"maxTokens,omitempty"`
-	ToolExecution      string           `json:"toolExecution,omitempty"`
-	SteeringMode       string           `json:"steeringMode,omitempty"`
-	FollowUpMode       string           `json:"followUpMode,omitempty"`
-	Retry              RetryPolicy      `json:"retry,omitempty"`
-	Compaction         CompactionPolicy `json:"compaction,omitempty"`
+	ContextRetentionMs  *int64           `json:"contextRetentionMs,omitempty"`
+	DocumentRetentionMs *int64           `json:"documentRetentionMs,omitempty"`
+	Temperature         *float64         `json:"temperature,omitempty"`
+	MaxTokens           *int             `json:"maxTokens,omitempty"`
+	ToolExecution       string           `json:"toolExecution,omitempty"`
+	SteeringMode        string           `json:"steeringMode,omitempty"`
+	FollowUpMode        string           `json:"followUpMode,omitempty"`
+	Retry               RetryPolicy      `json:"retry,omitempty"`
+	Compaction          CompactionPolicy `json:"compaction,omitempty"`
 	// Presence-aware native counterparts of reference per-field object merges.
 	// Whole policies above retain their existing replacement semantics.
 	RetryOverrides      *RetrySettings        `json:"retryOverrides,omitempty"`
@@ -39,9 +41,10 @@ type RequestSettings struct {
 	CacheRetention  goai.CacheRetention `json:"cacheRetention,omitempty"`
 }
 type AgentChange struct {
-	Name  string
-	Cwd   string
-	Model ModelRef
+	ModelTools *ExtensionFilter `json:"modelTools,omitempty"`
+	Name       string
+	Cwd        string
+	Model      ModelRef
 	// Empty or off disables reasoning; other values map to pi-ai Reasoning.
 	ThinkingLevel goai.ModelThinkingLevel
 	SystemPrompt  string  // Native raw prompt prefix; reference instructions use a section.
@@ -60,8 +63,11 @@ type ExtensionFilter struct {
 	Remove []string `json:"remove,omitempty"`
 }
 type Options struct {
-	Settings *HarnessSettings
-	Now      func() int64
+	CodemodeGlobals []CodemodeGlobal
+	// CodemodeNamespaces is copied and validated at Open, then pinned per run.
+	CodemodeNamespaces []CodemodeNamespace
+	Settings           *HarnessSettings
+	Now                func() int64
 	// Env resolves process-local capabilities for each tool use, off the Session
 	// line. Only agent cwd is persisted; environments and credentials are not.
 	Env func(context.Context, EnvTarget) (ExecutionEnvironment, error)
@@ -82,7 +88,10 @@ type Options struct {
 	Sections []PromptSection
 	Models   func(goai.Provider, string) *goai.Model
 	// Catalog shares credential-scoped discovery/refresh with tools and hooks.
-	Catalog ModelCatalog
+	PaidModels               bool // install internal durable classifier/image tools
+	ClassifierRequestOptions func(context.Context, goai.TypedModelRef) (*goai.ClassifierOptions, error)
+	ImageRequestOptions      func(context.Context, goai.TypedModelRef) (*images.ImagesOptions, error)
+	Catalog                  ModelCatalog
 	// RequestOptions resolves process-local credentials and hooks once per
 	// dispatched attempt. M1b behavior options are limited to persisted Settings;
 	// other behavior fields reject rather than silently changing after recovery.
@@ -221,7 +230,7 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	var n RequestSettings
 	e = decodeStrict(p, l, l.MaxRecordBytes, &n)
-	if e == nil && ((n.ContextRetentionMs != nil && *n.ContextRetentionMs < 0) || (n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
+	if e == nil && ((n.DocumentRetentionMs != nil && *n.DocumentRetentionMs < 0) || (n.ContextRetentionMs != nil && *n.ContextRetentionMs < 0) || (n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
 		return n, reject("invalid request settings")
 	}
 	if e != nil {

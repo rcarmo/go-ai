@@ -53,7 +53,7 @@ func validScanOrder(order ScanOrder) bool { return order == Ascending || order =
 // no order and therefore retain their original descending default.
 func resolveScan[Q any](query Q, requested, fallback ScanOrder, cursor Cursor, l Limits) (ScanOrder, ID, error) {
 	if requested != "" && !validScanOrder(requested) {
-		return "", 0, reject("invalid scan order")
+		return "", 0, storageRequest("invalid scan order")
 	}
 	if cursor == "" {
 		if requested != "" {
@@ -62,28 +62,28 @@ func resolveScan[Q any](query Q, requested, fallback ScanOrder, cursor Cursor, l
 		return fallback, 0, nil
 	}
 	if len(cursor) > 1024 {
-		return "", 0, reject("invalid storage cursor")
+		return "", 0, storageRequest("invalid storage cursor")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(string(cursor))
 	if err != nil {
-		return "", 0, reject("invalid storage cursor")
+		return "", 0, storageRequest("invalid storage cursor")
 	}
 	var continuation scanCursor[Q]
 	if err = decodeStrict(data, l, 1024, &continuation); err != nil {
-		return "", 0, err
+		return "", 0, storageRequest("invalid storage cursor encoding")
 	}
 	if continuation.After < 1 || uint64(continuation.After) > MaxID || !reflect.DeepEqual(continuation.Query, query) {
-		return "", 0, reject("storage cursor query mismatch")
+		return "", 0, storageRequest("storage cursor query mismatch")
 	}
 	order := continuation.Order
 	if order == "" {
 		order = fallback
 	}
 	if !validScanOrder(order) {
-		return "", 0, reject("invalid storage cursor order")
+		return "", 0, storageRequest("invalid storage cursor order")
 	}
 	if requested != "" && requested != order {
-		return "", 0, reject("storage cursor order mismatch")
+		return "", 0, storageRequest("storage cursor order mismatch")
 	}
 	return order, continuation.After, nil
 }
@@ -122,6 +122,9 @@ func scanPage[V any, Q any](values map[ID]V, query Q, order ScanOrder, after ID,
 	return page, nil
 }
 func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cursor, l Limits) (Page[Conversation], error) {
+	if err := checkReadIDs(q.OwnerTask, q.OwnerConversation); err != nil {
+		return Page[Conversation]{}, err
+	}
 	requested := q.Order
 	q.Order = ""
 	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
@@ -142,6 +145,9 @@ func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cu
 	}, func(v Conversation) (Conversation, error) { return v, nil })
 }
 func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) (Page[Task], error) {
+	if err := checkReadIDs(q.Conversation); err != nil {
+		return Page[Task]{}, err
+	}
 	requested := q.Order
 	q.Order = ""
 	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
@@ -153,6 +159,9 @@ func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) 
 	}, func(v Task) (Task, error) { return copyTask(v, l) })
 }
 func scanSubmissions(state Snapshot, q SubmissionQuery, limit int, cursor Cursor, l Limits) (Page[Submission], error) {
+	if err := checkReadIDs(q.Conversation); err != nil {
+		return Page[Submission]{}, err
+	}
 	requested := q.Order
 	q.Order = ""
 	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
@@ -263,28 +272,28 @@ func (s *Session) ScanConversations(ctx context.Context, q ConversationQuery, li
 		return Page[Conversation]{}, e
 	}
 	defer s.leave()
-	return s.store.ScanConversations(ctx, q, limit, cursor)
+	return s.guardedStorage().ScanConversations(ctx, q, limit, cursor)
 }
 func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Entry]{}, e
 	}
 	defer s.leave()
-	return s.store.ScanEntries(ctx, q, limit, cursor)
+	return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
 }
 func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (Page[Task], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Task]{}, e
 	}
 	defer s.leave()
-	return s.store.ScanTasks(ctx, q, limit, cursor)
+	return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
 }
 func (s *Session) ScanSubmissions(ctx context.Context, q SubmissionQuery, limit int, cursor Cursor) (Page[Submission], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Submission]{}, e
 	}
 	defer s.leave()
-	return s.store.ScanSubmissions(ctx, q, limit, cursor)
+	return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
 }
 
 var _ OrderedStorage = (*MemoryStorage)(nil)

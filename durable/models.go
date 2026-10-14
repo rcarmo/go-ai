@@ -13,6 +13,23 @@ type ModelCatalog interface {
 	GetModels(goai.Provider) []*goai.Model
 	RefreshWithOptions(context.Context, goai.ModelRuntimeRefreshOptions) goai.ModelRuntimeRefreshResult
 }
+
+// TypedModelCatalog optionally supplies credential-scoped image/classifier
+// catalogues. A scoped chat-only catalogue never falls back to global typed
+// registries, which could silently widen the host's permitted model set.
+type TypedModelCatalog interface {
+	GetTypedModel(goai.TypedModelRef) any
+	GetTypedModels(goai.ModelType, goai.Provider) []any
+}
+
+// ModelAuthCatalog resolves auth and account-specific availability without
+// exposing credentials. It is an optional capability of the scoped catalogue.
+// Unconfigured capability returns ErrUnsupported, never guessed auth.
+type ModelAuthCatalog interface {
+	HasModelAuth(context.Context, goai.TypedModelRef) (bool, error)
+	GetAvailableModels(context.Context, goai.ModelType, goai.Provider) ([]any, error)
+}
+
 type ModelAccess struct{ runtime *TaskRuntime }
 
 func (r *TaskRuntime) Models() (*ModelAccess, error) {

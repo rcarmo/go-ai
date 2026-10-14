@@ -103,13 +103,15 @@ license-check: ## Review dependency licenses; unknown/forbidden fail unless docu
 sbom: ## Generate normalized CycloneDX JSON SBOM and SHA-256 checksum under artifacts/
 	@mkdir -p $(SBOM_DIR)
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@$(CYCLONEDX_GOMOD_VERSION) mod -json -licenses -assert-licenses -output-version 1.6 -type library -output $(SBOM_FILE) .
+	python3 scripts/sbom_guests.py $(SBOM_FILE)
 	python3 scripts/normalize-sbom.py $(SBOM_FILE) $(SBOM_REVISION) --vcs-revision $(SBOM_VCS_REVISION)
 	@sha256sum $(SBOM_FILE) > $(SBOM_SHA_FILE)
 
 sbom-check: sbom ## Validate SBOM schema/required fields/checksum/dependency output
-	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION) --expected-vcs-revision $(SBOM_VCS_REVISION)
+	python3 scripts/validate-sbom.py $(SBOM_FILE) $(SBOM_SHA_FILE) --expected-revision $(SBOM_REVISION) --expected-vcs-revision $(SBOM_VCS_REVISION) --require-guests
 
 sbom-self-test: ## Run negative SBOM normalizer and validator self-tests
+	python3 scripts/test-sbom-guests.py
 	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-normalize-sbom.py
 	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-validate-sbom.py
 

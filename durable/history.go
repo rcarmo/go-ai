@@ -152,8 +152,8 @@ func (c *storeCore) ScanEntries(ctx context.Context, q EntryQuery, limit int, cu
 }
 
 func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limits) (Page[Entry], error) {
-	if uint64(q.MinEntryID) > MaxID || uint64(q.MaxEntryID) > MaxID {
-		return Page[Entry]{}, reject("entry query outside ID bounds")
+	if uint64(q.Conversation) > MaxID || uint64(q.MinEntryID) > MaxID || uint64(q.MaxEntryID) > MaxID {
+		return Page[Entry]{}, storageRequest("entry query outside ID bounds")
 	}
 	original := q
 	original.Order = ""
@@ -164,7 +164,7 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 	q.Order = order
 	if after != 0 {
 		if _, ok := state.Conversations[q.Conversation]; !ok {
-			return Page[Entry]{}, reject("unknown conversation")
+			return Page[Entry]{}, storageRequest("unknown conversation")
 		}
 		if order == Descending {
 			if after == 1 {
@@ -181,6 +181,9 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 				q.MinEntryID = after + 1
 			}
 		}
+	}
+	if _, ok := state.Conversations[q.Conversation]; !ok {
+		return Page[Entry]{}, storageRequest("unknown conversation")
 	}
 	entries, err := visibleHistory(state, q)
 	if err != nil {
@@ -213,10 +216,10 @@ func (c *storeCore) VisibleEntry(ctx context.Context, conversation, id ID) (Entr
 	}
 	defer c.leave()
 	if _, ok := c.state.Conversations[conversation]; !ok {
-		return Entry{}, false, reject("unknown conversation")
+		return Entry{}, false, storageRequest("unknown conversation")
 	}
 	if id == 0 || uint64(id) > MaxID {
-		return Entry{}, false, reject("invalid entry ID")
+		return Entry{}, false, storageRequest("invalid entry ID")
 	}
 	if !entryVisible(c.state, conversation, id) {
 		return Entry{}, false, nil

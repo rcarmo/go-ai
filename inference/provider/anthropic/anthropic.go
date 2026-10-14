@@ -421,6 +421,42 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			}
 			return
 		}
+		var fallbackDiagnostic *goai.AssistantMessageDiagnostic
+		if resp.StatusCode == http.StatusBadRequest && ctx.Err() == nil {
+			fallbackContext, hasPreferred := withoutPreferredStrictTools(convCtx, compat.supportsStrictTools)
+			if hasPreferred {
+				original, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+				resp.Body.Close()
+				if strictLimitError(original) {
+					body = buildRequest(model, fallbackContext, opts)
+					payload, err = goai.InvokeOnPayload(opts, body, model)
+					if err == nil {
+						bodyJSON, err = json.Marshal(payload)
+					}
+					if err != nil {
+						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+						return
+					}
+					retryReq := req.Clone(ctx)
+					retryReq.Body = io.NopCloser(bytes.NewReader(bodyJSON))
+					retryReq.ContentLength = int64(len(bodyJSON))
+					retryReq.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(bodyJSON)), nil }
+					resp, err = goai.DoProviderRequestWithRetry(ctx, client, retryReq, retryCfg)
+					if err != nil {
+						reason := goai.StopReasonError
+						if ctx.Err() != nil {
+							reason = goai.StopReasonAborted
+							err = ctx.Err()
+						}
+						send(&goai.ErrorEvent{Reason: reason, Err: err})
+						return
+					}
+					fallbackDiagnostic = &goai.AssistantMessageDiagnostic{Type: "anthropic_strict_tools_fallback", Timestamp: time.Now().UnixMilli(), Error: goai.DiagnosticError{Message: string(original)}, Details: map[string]any{"reason": "strict_tool_limits_exceeded"}}
+				} else {
+					resp.Body = io.NopCloser(bytes.NewReader(original))
+				}
+			}
+		}
 		defer resp.Body.Close()
 
 		goai.InvokeOnResponse(opts, resp, model)
@@ -438,6 +474,18 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		providerThinkingLevel := ""
 		if compat.supportsMidConvoEffort {
 			providerThinkingLevel = anthropicEffortForOptions(model, opts)
+		}
+		if fallbackDiagnostic != nil {
+			originalSend := send
+			send = func(event goai.Event) {
+				switch e := event.(type) {
+				case *goai.StartEvent:
+					if e.Partial != nil {
+						e.Partial.Diagnostics = append(e.Partial.Diagnostics, *fallbackDiagnostic)
+					}
+				}
+				originalSend(event)
+			}
 		}
 		processAnthropicStream(resp.Body, model, goai.ResolveContext(convCtx, false).Tools, providerThinkingLevel, send, anthropicOAuthNames(model, opts))
 	}()

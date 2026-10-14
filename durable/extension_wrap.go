@@ -26,7 +26,14 @@ func applyToolWrap(wrap ExtensionWrap, tool registeredTool, limits Limits) (next
 	if err != nil {
 		return next, err
 	}
-	reg := ToolRegistration{Definition: goai.Tool{Name: tool.offer.Name, Description: tool.offer.Description, Parameters: parameters}, Implementation: tool.offer.Implementation, Version: tool.offer.Version, ReplaySafe: tool.offer.ReplaySafe, ExecutionMode: tool.offer.ExecutionMode, PrepareArguments: tool.prepare, Validator: tool.validator, Execute: tool.execute}
+	outputSchema, err := copyObjectNullable(tool.offer.StructuredOutputSchema, limits)
+	if err != nil {
+		return next, err
+	}
+	reg := ToolRegistration{StructuredOutputSchema: outputSchema, Deferred: tool.offer.Deferred, Definition: goai.Tool{Name: tool.offer.Name, Description: tool.offer.Description, Parameters: parameters}, Implementation: tool.offer.Implementation, Version: tool.offer.Version, ReplaySafe: tool.offer.ReplaySafe, ExecutionMode: tool.offer.ExecutionMode, PrepareArguments: tool.prepare, Validator: tool.validator, Execute: tool.execute}
+	if tool.offer.Callers != nil {
+		reg.Callers = append([]string{}, (*tool.offer.Callers)...)
+	}
 	if tool.offer.OutputLimits != nil {
 		output := *tool.offer.OutputLimits
 		reg.OutputLimits = &output

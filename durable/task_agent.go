@@ -9,6 +9,8 @@ import (
 // wrappers remain process-local; stored instructions/settings are copied.
 // Every Agent call returns an independent copy, unlike upstream object identity.
 type TaskAgent struct {
+	Deferred      []goai.Tool // enabled model-callable tools omitted from this phase's model offers
+	Callable      []goai.Tool // enabled tools permitting nested tool invocation
 	Configuration AgentChange
 	Extensions    []string
 	Tools         []goai.Tool
@@ -168,11 +170,50 @@ func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapsh
 	if registry == nil {
 		registry = NewRegistry()
 	}
-	offers, _, sections, _, err := registry.selectedGeneration(selected, h.session.limits, h.scheduler.report)
+	enabled, _, sections, _, err := registry.selectedTools(selected, h.session.limits, false, h.scheduler.report)
+	if err != nil {
+		return TaskAgent{}, nil, err
+	}
+	offers, deferred, callable := []toolOffer{}, []toolOffer{}, []toolOffer{}
+	for _, offer := range enabled {
+		if toolCallerAllowed(offer, "tools") {
+			callable = append(callable, offer)
+		}
+		if modelToolOffered(offer, agent.ModelTools) {
+			offers = append(offers, offer)
+		} else if offer.Deferred && toolCallerAllowed(offer, "model") {
+			deferred = append(deferred, offer)
+		}
+	}
+	deferredTools, err := protocolTools(deferred, h.session.limits)
+	if err != nil {
+		return TaskAgent{}, nil, err
+	}
+	callableTools, err := protocolTools(callable, h.session.limits)
 	if err != nil {
 		return TaskAgent{}, nil, err
 	}
 	sections = withInstructionSection(sections, agent.Instructions)
+	if agent.ModelTools != nil {
+		added := map[string]bool{}
+		for _, name := range agent.ModelTools.Add {
+			added[name] = true
+		}
+		base := []toolOffer{}
+		byName := map[string]toolOffer{}
+		for _, offer := range offers {
+			byName[offer.Name] = offer
+			if !added[offer.Name] {
+				base = append(base, offer)
+			}
+		}
+		for _, name := range agent.ModelTools.Add {
+			if offer, ok := byName[name]; ok {
+				base = append(base, offer)
+			}
+		}
+		offers = base
+	}
 	tools, err := protocolTools(offers, h.session.limits)
 	if err != nil {
 		return TaskAgent{}, nil, err
@@ -188,7 +229,7 @@ func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapsh
 	if agent.ThinkingLevel == "" {
 		agent.ThinkingLevel = "off"
 	}
-	value := TaskAgent{Configuration: AgentChange{Model: agent.Model, ThinkingLevel: agent.ThinkingLevel, Name: agent.Name, Cwd: agent.Cwd, SystemPrompt: agent.SystemPrompt, Instructions: agent.Instructions, Settings: agent.Settings, Extensions: agent.Extensions, Tools: agent.Tools, ExtensionFilter: agent.ExtensionFilter, ToolsRemoved: agent.ToolsRemoved}, Extensions: extensions, Tools: tools, Sections: sections}
+	value := TaskAgent{Deferred: deferredTools, Callable: callableTools, Configuration: AgentChange{ModelTools: agent.ModelTools, Model: agent.Model, ThinkingLevel: agent.ThinkingLevel, Name: agent.Name, Cwd: agent.Cwd, SystemPrompt: agent.SystemPrompt, Instructions: agent.Instructions, Settings: agent.Settings, Extensions: agent.Extensions, Tools: agent.Tools, ExtensionFilter: agent.ExtensionFilter, ToolsRemoved: agent.ToolsRemoved}, Extensions: extensions, Tools: tools, Sections: sections}
 	return value, hooks, nil
 }
 func copyTaskAgent(agent TaskAgent, limits Limits) (TaskAgent, error) {
@@ -200,7 +241,7 @@ func copyTaskAgent(agent TaskAgent, limits Limits) (TaskAgent, error) {
 	if err := fromObject(value, &config, limits); err != nil {
 		return TaskAgent{}, err
 	}
-	result := TaskAgent{Configuration: config, Extensions: append([]string{}, agent.Extensions...), Tools: make([]goai.Tool, len(agent.Tools)), Sections: append([]PromptSection{}, agent.Sections...)}
+	result := TaskAgent{Deferred: copyProtocolTools(agent.Deferred), Callable: copyProtocolTools(agent.Callable), Configuration: config, Extensions: append([]string{}, agent.Extensions...), Tools: make([]goai.Tool, len(agent.Tools)), Sections: append([]PromptSection{}, agent.Sections...)}
 	for i, tool := range agent.Tools {
 		result.Tools[i] = tool
 		result.Tools[i].Parameters = append([]byte(nil), tool.Parameters...)

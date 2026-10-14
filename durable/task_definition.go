@@ -155,7 +155,7 @@ func (tx *Tx) CreateTask(definition *TaskDefinition, input any, options TaskOpti
 		return 0, err
 	}
 	tx.state.HighWater = uint64(id)
-	task := Task{ID: id, Conversation: conversation, Owner: owner, Kind: definition.options.Kind, Status: "pending", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: nativeTaskTag, Native: native}}
+	task := Task{AbandonOnRestart: options.AbandonOnRestart, ID: id, Conversation: conversation, Owner: owner, Kind: definition.options.Kind, Status: "pending", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: nativeTaskTag, Native: native}}
 	if err = tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 		return 0, err
 	}
@@ -229,7 +229,7 @@ func (r *Registry) RegisterTask(definition *TaskDefinition) (func(), error) {
 	if r == nil || definition == nil || !definition.constructed {
 		return nil, reject("nil task registration")
 	}
-	if definition.options.Kind == "task.pi.compaction" {
+	if definition.options.Kind == "task.pi.compaction" || definition.options.Kind == nestedToolKind && definition != nestedToolDefinition() {
 		return nil, reject("builtin task cannot be replaced")
 	}
 	r.mu.Lock()
@@ -324,6 +324,15 @@ func (r *Registry) taskSnapshot(l Limits) (TaskRegistrySnapshot, error) {
 			return TaskRegistrySnapshot{}, err
 		}
 		tool.offer.Schema = schema
+		outputSchema, err := copyObjectNullable(tool.offer.StructuredOutputSchema, l)
+		if err != nil {
+			return TaskRegistrySnapshot{}, err
+		}
+		tool.offer.StructuredOutputSchema = outputSchema
+		if tool.offer.Callers != nil {
+			callers := append([]string{}, (*tool.offer.Callers)...)
+			tool.offer.Callers = &callers
+		}
 		result.offers = append(result.offers, tool.offer)
 		result.pins[name] = tool
 	}
@@ -345,7 +354,7 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 	if err != nil {
 		return TaskRecord{}, err
 	}
-	view := TaskRecord{StartedAt: owned.StartedAt, EndedAt: owned.EndedAt, ID: owned.ID, Conversation: owned.Conversation, Owner: owned.Owner, Kind: owned.Kind, Background: taskBackground(owned)}
+	view := TaskRecord{AbandonOnRestart: owned.AbandonOnRestart, AbortReason: owned.AbortReason, StartedAt: owned.StartedAt, EndedAt: owned.EndedAt, ID: owned.ID, Conversation: owned.Conversation, Owner: owned.Owner, Kind: owned.Kind, Background: taskBackground(owned)}
 	if owned.Execution != nil && owned.Execution.Native != nil {
 		native := owned.Execution.Native
 		view.Version = native.Version

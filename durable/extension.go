@@ -109,7 +109,7 @@ func (r *Registry) Install(extension *Extension) error {
 		if task == nil || !task.constructed {
 			return reject("invalid extension task")
 		}
-		if task.options.Kind == "task.pi.compaction" {
+		if task.options.Kind == "task.pi.compaction" || task.options.Kind == nestedToolKind {
 			return reject("builtin task cannot be replaced")
 		}
 		if _, exists := prepared.tasks[task.Kind()]; exists {

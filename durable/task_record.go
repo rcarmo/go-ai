@@ -237,6 +237,9 @@ func outcomeRawStatus(outcome *TaskOutcome) string {
 }
 
 func validateTaskRecord(task Task, l Limits) error {
+	if task.AbortReason != "" && (task.AbortReason != "restart" || !taskAborted(task)) {
+		return reject("invalid task abort reason")
+	}
 	if task.Checkpoint == nil || !validKind(task.Kind) || !validStatus(task.Status) || uint64(task.Conversation) > MaxID || uint64(task.Owner) > MaxID || task.Owner == task.ID && task.ID != 0 {
 		return reject("invalid task record")
 	}
@@ -406,6 +409,14 @@ func validateTaskReplacement(old, next Task, l Limits) error {
 	if old.StartedAt != nil && (next.StartedAt == nil || *old.StartedAt != *next.StartedAt) || old.EndedAt != nil && (next.EndedAt == nil || *old.EndedAt != *next.EndedAt) {
 		return reject("task lifecycle time replacement")
 	}
+	if old.AbandonOnRestart != next.AbandonOnRestart {
+		return reject("task restart policy changed")
+	}
+	if old.Kind == nestedToolKind && old.Execution != nil && next.Execution != nil && old.Execution.Native != nil && next.Execution.Native != nil {
+		if old.Execution.Native.Version != next.Execution.Native.Version || !equalTaskValue(old.Execution.Native.Input, next.Execution.Native.Input, l) {
+			return reject("nested task input changed")
+		}
+	}
 	if old.Conversation != next.Conversation || old.Kind != next.Kind {
 		return reject("task identity changed")
 	}
@@ -541,6 +552,11 @@ func taskHasDecidedOutcome(task Task) bool {
 // Cross-record validation runs on the FINAL candidate. Staging may contain
 // forward task/conversation/entry references; those are not resolved early.
 func validateTaskReferences(s Snapshot, task Task, l Limits) error {
+	if task.Kind == nestedToolKind {
+		if err := validateNestedReferences(s, task, l); err != nil {
+			return err
+		}
+	}
 	if task.Execution == nil {
 		return nil
 	}

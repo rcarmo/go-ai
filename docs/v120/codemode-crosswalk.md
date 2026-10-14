@@ -1,0 +1,24 @@
+# Codemode crosswalk: serial candidate
+
+Target: `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. Declaration inventory: [codemode-test-inventory.json](codemode-test-inventory.json). It lists 149 single-line test declarations in eight files; this is source enumeration, not executed tests or parity acceptance. Five source-parser declarations have native case coverage with documented API/error adaptations. The other 144 declarations still require review.
+
+| Upstream test file | Native implementation/tests | Remaining acceptance work |
+|---|---|---|
+| durable/test/codemode.test.ts (40 declarations) | `durable/codemode_runtime.go`, `codemode_integrity.go`, `codemode_quickjs.go`; restart, fault, global, store, output and paid tests beside them | Full parallel idle/issued-count/ack protocol; divergence before releasing fresh effects; provider/model tool registration and raw grammar; environment writer default; transcript/status/full upstream rendering |
+| durable/test/codemode-models.test.ts (7) | `codemode_models.go`, `codemode_model_catalog.go`; real-VM paid image/classifier, revocation, uncertainty and catalogue reopen tests | Four-call model capacity under parallel execution; no post-finish queued model admission; generated-but-unshown image notice; exact model-reference/context/global contracts |
+| durable/test/codemode-describe.test.ts (5) | `codemode_catalog.go`, `codemode_schema.go`; catalogue tests and discovery globals | Fixed model-tool description and system-prompt installation; complete declarations renderer and exact budget/grouping crosswalk |
+| codemode/test/deterministic.test.ts (16) | `internal/quickjs`: persisted clocks/seed, job cancellation, native PRNG vector; durable journal/reopen tests | Upstream event seq/issued/ack protocol, exact runtime fingerprint equivalence, monotonic delivery clocks, rejection property propagation, duplicate-result handling |
+| codemode/test/source.test.ts (5) | Pinned cases transcribed in `codemode_source_crosswalk_120_test.go`; race count3 passes1.148s with existing option tests. Misplaced directives now include the source line. | Native resolved-default API, rejection type/error wording, duplicate-field policy and literal/exponent bounds differ; exhaustive JS numeric acceptance unclaimed |
+| codemode/test/declarations.test.ts (17) | `codemode_schema.go` | Const/unions/intersections/tuples, constraints/comments, refs/recursive refs and declaration size budgets lack complete equivalent coverage |
+| codemode/test/sandbox.test.ts (52) | `internal/quickjs` WASM engine with official prelude; CPU/heap/cancellation, global, store and isolation tests | Per-case prototype/escape matrix, output ceiling acceptance, worker-host error surfaces and precise memory-limit semantics |
+| codemode/test/portable.test.ts (7) | Embedded WASM, wazero interpreter/JIT portability not yet separately verified | Execute portable corpus and decide Go-host equivalents for JavaScript inline/worker entrypoints |
+
+## Native policies requiring explicit treatment
+
+- Serial overlapping calls reject; upstream supports parallel execution. This is an implementation gap.
+- Versioned custom callbacks and current-host paid/global revocation are native admission policies. Unconfirmed custom effects are at least once.
+- Native byte/count budgets, strict result unions, namespace ambiguity rejection and reserved host-global roots require explicit case-by-case comparison.
+- Output projection is strict-budget Unicode head/tail; upstream warning/line-margin/status formatting differs.
+- Runtime identity hashes embedded assets plus the native host protocol. It is not the upstream deterministic runtime fingerprint.
+
+No item above grants release acceptance. Go1.27.1 security findings, refreshed full race, whole-port profiling and the complete AI/durable path crosswalk remain open.

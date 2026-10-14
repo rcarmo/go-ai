@@ -108,6 +108,14 @@ func (w *DocumentWatch) terminate(end WatchEnd) {
 	w.session.observerMu.Lock()
 	delete(w.session.watches, w)
 	w.session.observerMu.Unlock()
+	if !w.session.closing.Load() {
+		go w.session.taskBookkeeping(func() {
+			if !w.session.closing.Load() {
+				w.session.sweepDocumentCache()
+				w.session.scheduleDocumentExpiry()
+			}
+		})
+	}
 }
 func (w *DocumentWatch) kick() {
 	w.mu.Lock()
@@ -315,11 +323,15 @@ func (s *Session) closeWatches() {
 		subs = append(subs, p)
 	}
 	s.observerMu.Unlock()
+	end := WatchEnd{Reason: "session_closed"}
+	if err := s.failure(); err != nil {
+		end = WatchEnd{Reason: "session_failed", Error: err}
+	}
 	for _, w := range watchers {
-		w.terminate(WatchEnd{Reason: "session_closed"})
+		w.terminate(end)
 	}
 	for _, p := range subs {
-		p.stop(WatchEnd{Reason: "session_closed"})
+		p.stop(end)
 	}
 }
 
@@ -574,7 +586,7 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 		return Snapshot{}, nil, e
 	}
 	defer s.leave()
-	snapshot, e := s.store.Snapshot(ctx)
+	snapshot, e := s.guardedStorage().Snapshot(ctx)
 	if e != nil {
 		return Snapshot{}, nil, e
 	}
@@ -740,7 +752,7 @@ func (d *DocumentState) Value(ctx context.Context) (JSON, error) {
 		return nil, e
 	}
 	defer d.session.leave()
-	snapshot, e := d.session.store.Snapshot(ctx)
+	snapshot, e := d.session.guardedStorage().Snapshot(ctx)
 	if e != nil {
 		return nil, e
 	}

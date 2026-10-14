@@ -167,6 +167,9 @@ func (t *Tx) MintID() (ID, error) {
 	}
 	defer t.leave()
 	id, e := t.store.mintID(t.ctx, true)
+	if t.session != nil {
+		e = t.session.backendResult(t.ctx, e, true)
+	}
 	if e == nil {
 		t.state.HighWater = uint64(id)
 	}

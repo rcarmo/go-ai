@@ -161,7 +161,7 @@ func TestV0842MistralRawByteSplitUTF8Stream(t *testing.T) {
 	}
 }
 
-func TestV0842MistralAbortAndTimeoutWhileAwaitingChunks(t *testing.T) {
+func TestMistralCallerAbortWhileAwaitingChunks(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		if flusher, ok := w.(http.Flusher); ok {
@@ -189,15 +189,8 @@ func TestV0842MistralAbortAndTimeoutWhileAwaitingChunks(t *testing.T) {
 		t.Fatal("expected aborted/error event after cancelling while awaiting chunks")
 	}
 
-	var sawTimeout bool
-	for ev := range streamMistral(context.Background(), model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: "secret", TimeoutMs: intPtrForMistralTest(25)}) {
-		if e, ok := ev.(*goai.ErrorEvent); ok && e.Reason == goai.StopReasonError {
-			sawTimeout = true
-		}
-	}
-	if !sawTimeout {
-		t.Fatal("expected timeout error while awaiting chunks")
-	}
+	// Official1.2.0 makes TimeoutMs header-only. Slow-body completion and
+	// header-timeout assertions now live in TestMistral120TimeoutOnlyBoundsHeaders.
 }
 
 func TestV0842MistralBounded403JSONBodyAndReplayableRetry(t *testing.T) {
@@ -245,5 +238,3 @@ func (r *bytewiseReaderForMistralTest) Read(p []byte) (int, error) {
 	r.pos++
 	return 1, nil
 }
-
-func intPtrForMistralTest(v int) *int { return &v }

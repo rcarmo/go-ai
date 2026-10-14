@@ -2,6 +2,12 @@
 
 This file is the root release-audit source of truth for `github.com/rcarmo/go-ai` parity with upstream `@earendil-works/pi-ai` / `github.com/earendil-works/pi`.
 
+## Active native target1.2.0 -- 2026-10-14
+
+Rui authorised committing and pushing the current implementation checkpoint. This is not a release or parity acceptance. Current results and limitations are in [implementation-status.md](docs/v120/implementation-status.md) and [codemode-crosswalk.md](docs/v120/codemode-crosswalk.md). Parallel codemode and remaining output/prompt contracts are incomplete; the latest full race refresh was interrupted. The pinned Go1.27.1 security gate fails on13 reachable findings with no approved exceptions. No release/tag publication is authorised by this checkpoint.
+
+Rui requested both port updates to official1.2.0, pinned `06a466935536f8c9bcacb2d5efc0fc021be1bdff` against official1.1.0 `abe508e1b89912adde45528136c3221eb69acdd7`. Published native1.1.0 runtime `f44bf375763046ebef6f4eb49fea70ea046fc3ed` is the preserved working base. Both npm archives match SHA512 integrity; attestation subject/signature verification is unfinished. Exact Git audit: AI21paths/200sources/171suites; durable117paths/82sources/64suites. Full catalog targets:1554chat/61image/34classifier. [Implementation status](docs/v120/implementation-status.md), [provenance](docs/v120/provenance.json), [AI inventory](docs/v120/ai-inventory.json), [durable inventory](docs/v120/durable-inventory.json) and [catalog delta](docs/v120/catalog-delta.json). First transient-upstream retry fix passes focused race count3; the port is incomplete. Commit/push checkpoint authorised; release/tag authority absent.
+
 ## Native 1.1.0 release -- 2026-10-08
 
 Rui authorised commit and release on 8 October at09:55UTC. This supersedes the earlier no-publication instruction for1.1.0. The validated runtime will be committed once, with an immutable Rui-authored annotated `v1.1.0` tag. Hosted CI and exact-runtime release/SBOM receipts are recorded after publication; the local validation below predates that authorisation.

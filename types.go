@@ -398,10 +398,15 @@ type ModelCostTier struct {
 }
 
 type ModelImageResizeOptions struct {
-	MaxWidth    int `json:"maxWidth,omitempty"`
-	MaxHeight   int `json:"maxHeight,omitempty"`
-	MaxBytes    int `json:"maxBytes,omitempty"`
-	JPEGQuality int `json:"jpegQuality,omitempty"`
+	// Native presence flags preserve explicit zero through bounded model DTOs.
+	// JSON decoding also infers them from non-null upstream fields.
+	MaxWidthSet  bool `json:"maxWidthSet,omitempty"`
+	MaxHeightSet bool `json:"maxHeightSet,omitempty"`
+	MaxBytesSet  bool `json:"maxBytesSet,omitempty"`
+	MaxWidth     int  `json:"maxWidth,omitempty"`
+	MaxHeight    int  `json:"maxHeight,omitempty"`
+	MaxBytes     int  `json:"maxBytes,omitempty"`
+	JPEGQuality  int  `json:"jpegQuality,omitempty"`
 }
 
 type ModelImageInputLimits struct {

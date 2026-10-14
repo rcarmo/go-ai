@@ -83,8 +83,9 @@ type definitionCacheKey struct {
 	id    ID
 }
 type definitionCacheValue struct {
-	value JSON
-	bytes int64
+	value    JSON
+	bytes    int64
+	lastUsed int64
 }
 
 // definitionValue runs at most once per token/incarnation until that document
@@ -94,8 +95,12 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	if err := checkDefinition(def, d); err != nil {
 		return nil, err
 	}
+	s.sweepDocumentCache()
 	key := definitionCacheKey{def, d.ID}
 	if cached, ok := s.definitionCache[key]; ok {
+		cached.lastUsed = s.now()
+		s.definitionCache[key] = cached
+		s.scheduleDocumentExpiry()
 		return copyObject(cached.value, s.limits)
 	}
 	value, err := copyObject(d.Value, s.limits)
@@ -129,8 +134,10 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	if s.definitionCache == nil {
 		s.definitionCache = map[definitionCacheKey]definitionCacheValue{}
 	}
-	s.definitionCache[key] = definitionCacheValue{value, int64(len(encoded))}
+	s.definitionCache[key] = definitionCacheValue{value: value, bytes: int64(len(encoded)), lastUsed: s.now()}
 	s.definitionCacheBytes += int64(len(encoded))
+	s.sweepDocumentCache()
+	s.scheduleDocumentExpiry()
 	return copyObject(value, s.limits)
 }
 
@@ -141,11 +148,15 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 	}
 	defer s.leave()
 	// Poisoned storage must not appear usable even for a cache operation.
-	if _, err := s.store.Limits(); err != nil {
+	if _, err := s.guardedStorage().Limits(); err != nil {
 		return err
 	}
 	s.definitionCache = nil
 	s.definitionCacheBytes = 0
+	if s.documentExpiry != nil {
+		s.documentExpiry.Stop()
+		s.documentExpiry = nil
+	}
 	return nil
 }
 
@@ -156,7 +167,7 @@ func (s *Session) watchDefinitionValue(ctx context.Context, def *DocumentDefinit
 	if e != nil {
 		return Document{}, nil, false, e
 	}
-	state, e := s.store.Snapshot(ctx)
+	state, e := s.guardedStorage().Snapshot(ctx)
 	if e != nil {
 		return Document{}, nil, false, e
 	}
@@ -185,7 +196,7 @@ func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinitio
 	if err != nil {
 		return nil, false, err
 	}
-	state, err := s.store.Snapshot(ctx)
+	state, err := s.guardedStorage().Snapshot(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -217,7 +228,7 @@ func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 	if address.Scope != "conversation" || documentHistory(Document{Scope: def.options.Scope, History: def.options.History}) != "rewindable" {
 		return nil, false, reject("historical definition requires rewindable conversation scope")
 	}
-	state, err := s.store.Snapshot(ctx)
+	state, err := s.guardedStorage().Snapshot(ctx)
 	if err != nil {
 		return nil, false, err
 	}

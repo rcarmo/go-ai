@@ -66,7 +66,32 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 		if err := fromObject(value, &state, tx.limits); err != nil {
 			return false, err
 		}
-		// Nil already selects all, matching upstream undefined selection.
+		if len(added) > 0 {
+			if state.ModelTools == nil {
+				state.ModelTools = &ExtensionFilter{}
+			}
+			seen := map[string]bool{}
+			for _, name := range state.ModelTools.Add {
+				seen[name] = true
+			}
+			for _, name := range added {
+				if !seen[name] {
+					state.ModelTools.Add = append(state.ModelTools.Add, name)
+					seen[name] = true
+				}
+			}
+			removed := []string{}
+			for _, name := range state.ModelTools.Remove {
+				if !seen[name] {
+					removed = append(removed, name)
+				}
+			}
+			state.ModelTools.Remove = removed
+			if len(state.ModelTools.Add) > tx.limits.MaxPage {
+				return false, reject("model tool selection limit")
+			}
+		}
+		// Nil already enables all registrations; ModelTools controls deferred offers.
 		if state.Tools != nil {
 			selected := append([]string{}, (*state.Tools)...)
 			seen := map[string]bool{}
@@ -83,13 +108,6 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 				return false, reject("agent tool selection limit")
 			}
 			state.Tools = &selected
-			owned, err := dtoObject(state, tx.limits)
-			if err != nil {
-				return false, err
-			}
-			if err := agent.Set(owned); err != nil {
-				return false, err
-			}
 		} else if state.ToolsRemoved != nil {
 			allowed := map[string]bool{}
 			for _, name := range added {
@@ -103,14 +121,14 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 			}
 			if len(kept) != len(*state.ToolsRemoved) {
 				state.ToolsRemoved = &kept
-				owned, err := dtoObject(state, tx.limits)
-				if err != nil {
-					return false, err
-				}
-				if err := agent.Set(owned); err != nil {
-					return false, err
-				}
 			}
+		}
+		owned, err := dtoObject(state, tx.limits)
+		if err != nil {
+			return false, err
+		}
+		if err = agent.Set(owned); err != nil {
+			return false, err
 		}
 	}
 	if !terminate && handoff == nil {

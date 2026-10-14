@@ -31,7 +31,7 @@ A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-w
 
 ## Installation
 
-Requires Go 1.25 or later.
+Requires Go 1.26 or later.
 
 ```bash
 go get github.com/rcarmo/go-ai

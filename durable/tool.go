@@ -25,11 +25,15 @@ const MaxToolOutputBytes = 50 << 10
 // code selected for an intent. ReplaySafe defaults false; external idempotency
 // remains the host's responsibility even when both replay policies permit it.
 type ToolRegistration struct {
-	Definition     goai.Tool
-	Implementation string
-	Version        uint64
-	ReplaySafe     bool
-	ExecutionMode  string
+	paidModel              bool // private reserved adapter registration authority
+	StructuredOutputSchema JSON // optional native schema for nested structured results
+	Deferred               bool
+	Callers                []string // nil permits model and tools; explicit empty permits neither
+	Definition             goai.Tool
+	Implementation         string
+	Version                uint64
+	ReplaySafe             bool
+	ExecutionMode          string
 	// PrepareArguments repairs detached model arguments before validation. Its
 	// result is persisted as intent; it never reruns for a started recovery.
 	PrepareArguments func(context.Context, JSON) (JSON, error)
@@ -42,18 +46,22 @@ type ToolRegistration struct {
 	Execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
 }
 type toolOffer struct {
-	Name                string            `json:"name"`
-	Description         string            `json:"description"`
-	Schema              JSON              `json:"schema"`
-	Implementation      string            `json:"implementation"`
-	Version             uint64            `json:"version"`
-	ReplaySafe          bool              `json:"replaySafe"`
-	HostValidation      bool              `json:"hostValidation,omitempty"`
-	ExecutionMode       string            `json:"executionMode,omitempty"`
-	ArgumentPreparation bool              `json:"argumentPreparation,omitempty"`
-	OutputLimits        *ToolOutputLimits `json:"outputLimits,omitempty"`
+	StructuredOutputSchema JSON              `json:"structuredOutputSchema,omitempty"`
+	Deferred               bool              `json:"deferred,omitempty"`
+	Callers                *[]string         `json:"callers,omitempty"`
+	Name                   string            `json:"name"`
+	Description            string            `json:"description"`
+	Schema                 JSON              `json:"schema"`
+	Implementation         string            `json:"implementation"`
+	Version                uint64            `json:"version"`
+	ReplaySafe             bool              `json:"replaySafe"`
+	HostValidation         bool              `json:"hostValidation,omitempty"`
+	ExecutionMode          string            `json:"executionMode,omitempty"`
+	ArgumentPreparation    bool              `json:"argumentPreparation,omitempty"`
+	OutputLimits           *ToolOutputLimits `json:"outputLimits,omitempty"`
 }
 type registeredTool struct {
+	paidModel bool
 	offer     toolOffer
 	execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
 	validator func(context.Context, JSON) (JSON, error)
@@ -73,6 +81,14 @@ type Registry struct {
 
 func NewRegistry() *Registry { return &Registry{tools: map[string]registeredTool{}} }
 func (r *Registry) Register(reg ToolRegistration) error {
+	if (reg.Definition.Name == classifierToolName || reg.Definition.Name == imagesToolName) && !reg.paidModel {
+		return reject("reserved paid model tool")
+	}
+	for _, caller := range reg.Callers {
+		if caller != "model" && caller != "tools" {
+			return reject("invalid tool caller")
+		}
+	}
 	if r == nil {
 		return reject("nil registry")
 	}
@@ -106,7 +122,21 @@ func (r *Registry) Register(reg ToolRegistration) error {
 		}
 		output = &copy
 	}
-	offer := toolOffer{reg.Definition.Name, reg.Definition.Description, schema, reg.Implementation, reg.Version, reg.ReplaySafe, subsetErr != nil, reg.ExecutionMode, reg.PrepareArguments != nil, output}
+	offer := toolOffer{Name: reg.Definition.Name, Description: reg.Definition.Description, Schema: schema, Implementation: reg.Implementation, Version: reg.Version, ReplaySafe: reg.ReplaySafe, HostValidation: subsetErr != nil, ExecutionMode: reg.ExecutionMode, ArgumentPreparation: reg.PrepareArguments != nil, OutputLimits: output, Deferred: reg.Deferred}
+	if reg.Callers != nil {
+		callers := append([]string{}, reg.Callers...)
+		offer.Callers = &callers
+	}
+	if reg.StructuredOutputSchema != nil {
+		outputSchema, err := copyObject(reg.StructuredOutputSchema, l)
+		if err != nil {
+			return err
+		}
+		if err = validateSchema(outputSchema, 0); err != nil {
+			return err
+		}
+		offer.StructuredOutputSchema = outputSchema
+	}
 	if _, e = dtoObject(offer, l); e != nil {
 		return e
 	}
@@ -121,7 +151,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if _, exists := r.tools[offer.Name]; !exists {
 		r.toolOrder = append(r.toolOrder, offer.Name)
 	}
-	r.tools[offer.Name] = registeredTool{offer, reg.Execute, reg.Validator, reg.PrepareArguments}
+	r.tools[offer.Name] = registeredTool{paidModel: reg.paidModel, offer: offer, execute: reg.Execute, validator: reg.Validator, prepare: reg.PrepareArguments}
 	wake := r.taskListenersLocked()
 	r.mu.Unlock()
 	for _, notify := range wake {
@@ -462,7 +492,9 @@ func checkSchema(s JSON, v any, depth int) error {
 // ToolResult application updates and usage are adopted with the tool outcome.
 // Commit callbacks do not escape invocation scope. Error text is a fixed code.
 type ToolResult struct {
-	Content string
+	StructuredOutput    any
+	HasStructuredOutput bool // distinguishes explicit JSON null from absence
+	Content             string
 	// Blocks adds strict text/image content to the tool receipt. Content remains
 	// the backwards-compatible text field; streamed prefixes precede Blocks.
 	Blocks       []goai.ContentBlock
@@ -509,6 +541,7 @@ type toolCheckpoint struct {
 // ToolAPI publishes only bounded committed prefixes while the invocation lives.
 // Output is fenced after return/abort; application mutation belongs to Commit.
 type ToolAPI struct {
+	nested              bool
 	mu                  sync.Mutex
 	h                   *Harness
 	task                Task
@@ -681,6 +714,9 @@ func (a *ToolAPI) updateProgressMode(change func(*toolCheckpoint, Limits) error,
 	return a.updateProgressSync(change)
 }
 func (a *ToolAPI) updateProgressSync(change func(*toolCheckpoint, Limits) error) error {
+	if a.nested {
+		return a.updateNestedProgress(change)
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.active {
@@ -804,7 +840,7 @@ func (a *ToolAPI) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 }
 
 func sameImplementation(a, b toolOffer) bool {
-	return a.Name == b.Name && a.Implementation == b.Implementation && a.Version == b.Version && reflect.DeepEqual(a.Schema, b.Schema) && a.HostValidation == b.HostValidation && a.ExecutionMode == b.ExecutionMode && a.ArgumentPreparation == b.ArgumentPreparation && reflect.DeepEqual(a.OutputLimits, b.OutputLimits)
+	return reflect.DeepEqual(a.StructuredOutputSchema, b.StructuredOutputSchema) && a.Deferred == b.Deferred && reflect.DeepEqual(a.Callers, b.Callers) && a.Name == b.Name && a.Implementation == b.Implementation && a.Version == b.Version && reflect.DeepEqual(a.Schema, b.Schema) && a.HostValidation == b.HostValidation && a.ExecutionMode == b.ExecutionMode && a.ArgumentPreparation == b.ArgumentPreparation && reflect.DeepEqual(a.OutputLimits, b.OutputLimits)
 }
 
 // Recover only application validation code; argument detachment, schema checks
@@ -1214,6 +1250,10 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		return err
 	}
 	reg, current := selectedPins[cp.Offer.Name]
+	// Model-issued durable intents retain their original caller authority.
+	if current && !toolCallerAllowed(cp.Offer, "model") {
+		current = false
+	}
 	code := cp.ErrorCode
 	if cp.Abort {
 		code = "aborted"
@@ -1653,6 +1693,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		diagnostics = nil
 		content = []goai.ContentBlock{{Type: "text", Text: code}}
 	}
+	result = h.validateModelStructuredResult(result, cp.Offer)
 	if err := validateToolControl(result.Control, h.session.limits); err != nil {
 		code = "invalid_control"
 		result.Control = nil

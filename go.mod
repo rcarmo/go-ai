@@ -1,6 +1,6 @@
 module github.com/rcarmo/go-ai
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.6
@@ -10,7 +10,9 @@ require (
 	github.com/aws/smithy-go v1.25.0
 	github.com/coder/websocket v1.8.14
 	github.com/klauspost/compress v1.19.0
-	golang.org/x/text v0.41.0
+	github.com/tetratelabs/wazero v1.12.0
+	golang.org/x/image v0.47.0
+	golang.org/x/text v0.43.0
 )
 
 require (
@@ -25,4 +27,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.20 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )

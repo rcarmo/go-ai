@@ -13,6 +13,16 @@ type EnvTarget struct {
 }
 
 // Environment returns the capability constructed once before tool execution.
+// Agent returns a detached invocation-local selection for tool capabilities.
+func (a *ToolAPI) Agent(ctx context.Context) (TaskAgent, error) {
+	a.mu.Lock()
+	active := a.active
+	a.mu.Unlock()
+	if !active {
+		return TaskAgent{}, ErrSealed
+	}
+	return a.runtime.Agent(ctx)
+}
 func (a *ToolAPI) Environment(ctx context.Context) (ExecutionEnvironment, error) {
 	if ctx == nil {
 		return nil, reject("nil context")

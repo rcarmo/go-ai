@@ -493,6 +493,20 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			if !ok {
 				return Snapshot{}, reject("delta document root must be object")
 			}
+			if v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind {
+				next := v
+				next.Value = JSON(object)
+				if err := validateCodemodeReplacement(v, next, l); err != nil {
+					return Snapshot{}, err
+				}
+			}
+			if v.Kind == nestedCallDocument {
+				next := v
+				next.Value = JSON(object)
+				if err := validateNestedDocumentReplacement(v, next, l); err != nil {
+					return Snapshot{}, err
+				}
+			}
 			v.Value = JSON(object)
 			if v.DeltasSinceBase >= MaxID {
 				return Snapshot{}, reject("delta count exhausted")
@@ -523,6 +537,16 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 				return Snapshot{}, err
 			}
 			if old, ok := n.Documents[id]; ok {
+				if old.Kind == codemodeRunKind || old.Kind == codemodeJournalKind {
+					if err := validateCodemodeReplacement(old, v, l); err != nil {
+						return Snapshot{}, err
+					}
+				}
+				if old.Kind == nestedCallDocument {
+					if err := validateNestedDocumentReplacement(old, v, l); err != nil {
+						return Snapshot{}, err
+					}
+				}
 				if old.Retired || !sameAddress(old, v) || documentHistory(old) != documentHistory(v) || documentFork(old) != documentFork(v) || (v.CreatedAt != 0 && v.CreatedAt != old.CreatedAt) || v.RetiredAt != 0 {
 					return Snapshot{}, reject("document identity changed or retired")
 				}
@@ -752,6 +776,11 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		default:
 			return reject("invalid scope")
 		}
+		if final && (v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind) {
+			if err := validateCodemodeDocuments(s, v, l); err != nil {
+				return err
+			}
+		}
 		if prior.retained == nil || changedDocuments[v.ID] {
 			if _, err := encodeBounded(v.Value, l, l.MaxDocumentBytes); err != nil {
 				return err
@@ -903,7 +932,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 }
 func checkPage(l Limits, n int) error {
 	if n < 1 || n > l.MaxPage {
-		return reject("page limit outside persisted bounds")
+		return storageRequest("page limit outside persisted bounds")
 	}
 	return nil
 }
@@ -916,6 +945,9 @@ func ids[V any](m map[ID]V) []ID {
 	return r
 }
 func (c *storeCore) Conversations(ctx context.Context, q Query) ([]Conversation, error) {
+	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
+		return nil, e
+	}
 	s, e := c.Snapshot(ctx)
 	if e != nil {
 		return nil, e
@@ -945,10 +977,10 @@ func (c *storeCore) Entries(ctx context.Context, conversation ID, after EntryCur
 		return nil, e
 	}
 	if _, ok := s.Conversations[conversation]; !ok {
-		return nil, reject("unknown conversation")
+		return nil, storageRequest("unknown conversation")
 	}
 	if (after.Conversation != 0 && after.Conversation != conversation) || after.Seq > MaxID || after.Position > MaxID {
-		return nil, reject("entry cursor mismatch")
+		return nil, storageRequest("entry cursor mismatch")
 	}
 	r := []Entry{}
 	for _, v := range s.Entries {
@@ -968,6 +1000,9 @@ func (c *storeCore) Entries(ctx context.Context, conversation ID, after EntryCur
 	return r, nil
 }
 func (c *storeCore) Tasks(ctx context.Context, q Query) ([]Task, error) {
+	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
+		return nil, e
+	}
 	s, e := c.Snapshot(ctx)
 	if e != nil {
 		return nil, e
@@ -989,6 +1024,9 @@ func (c *storeCore) Tasks(ctx context.Context, q Query) ([]Task, error) {
 	return r, nil
 }
 func (c *storeCore) Submissions(ctx context.Context, q Query) ([]Submission, error) {
+	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
+		return nil, e
+	}
 	s, e := c.Snapshot(ctx)
 	if e != nil {
 		return nil, e
@@ -1010,6 +1048,9 @@ func (c *storeCore) Submissions(ctx context.Context, q Query) ([]Submission, err
 	return r, nil
 }
 func (c *storeCore) Documents(ctx context.Context, q Query) ([]Document, error) {
+	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
+		return nil, e
+	}
 	s, e := c.Snapshot(ctx)
 	if e != nil {
 		return nil, e
@@ -1031,12 +1072,15 @@ func (c *storeCore) Documents(ctx context.Context, q Query) ([]Document, error) 
 	return r, nil
 }
 func (c *storeCore) Request(ctx context.Context, conversation ID, request string) (Submission, bool, error) {
+	if e := checkReadIDs(conversation); e != nil {
+		return Submission{}, false, e
+	}
 	s, e := c.Snapshot(ctx)
 	if e != nil {
 		return Submission{}, false, e
 	}
 	if request == "" || len(request) > c.limits.MaxRequestIDBytes {
-		return Submission{}, false, reject("invalid request ID")
+		return Submission{}, false, storageRequest("invalid request ID")
 	}
 	for _, v := range s.Submissions {
 		if v.Conversation == conversation && v.RequestID == request {

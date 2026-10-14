@@ -14,6 +14,9 @@ type InvocationWaitRequiresYield struct{ Task ID }
 func (*InvocationWaitRequiresYield) Error() string { return "durable: invocation_wait_requires_yield" }
 
 type TaskRuntime struct {
+	codemodeMu           sync.Mutex
+	codemodeActive       map[string]bool // one driver per durable run key within an invocation
+	nestedSequence       atomic.Uint64   // invocation-local default call order, reset on replay
 	harness              *Harness
 	taskID, conversation ID
 	kind                 string

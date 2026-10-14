@@ -59,26 +59,25 @@ func TestTaskOwnershipPinnedRejectedFinalizationRetriesOnNextCommit(t *testing.T
 		})
 		releaseTaskGate(release)
 		awaitTaskSignal(t, reported)
-		record, ok, err := h.Task(bg, parentID)
-		if err != nil || !ok || record.State.Status != "completing" || record.State.Outcome.Result.Value != held.State.Outcome.Result.Value {
-			t.Fatal("rejection lost hold", record, err)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
 		}
-		// Passive reads do not rescue the rejected finalization; one unrelated
-		// public commit is the genuine wake required by the no-spin scheduler.
-		_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
-		})
+		reopened := reopenStoreAfterHarnessClose(t, b.store)
+		state, err := reopened.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		final := observeTaskState(t, h, parentID, "terminal")
+		record, err := CanonicalTask(state.Tasks[parentID], h.session.limits)
+		if err != nil || record.State.Status != "completing" || record.State.Outcome.Result.Value != held.State.Outcome.Result.Value {
+			t.Fatal("rejection lost hold", record, err)
+		}
+		//1.2.0: settle the adopted hold only through a fresh Session.
+		next := taskTestHarness(t, reopened, parent, child)
+		waitPublicTask(t, next, parentID)
+		final := observeTaskState(t, next, parentID, "terminal")
 		if final.State.Outcome.Status != "completed" || final.State.Outcome.Result.Value != "held" || parentRuns.Load() != 1 || rejects.Load() != 1 {
 			t.Fatal(final, parentRuns.Load(), rejects.Load())
 		}
-		waitPublicTask(t, h, childID)
+		waitPublicTask(t, next, childID)
 	})
 }

@@ -34,6 +34,7 @@ type ConversationHandle struct {
 	id ID
 }
 type agentState struct {
+	ModelTools      *ExtensionFilter        `json:"modelTools,omitempty"`
 	Model           ModelRef                `json:"model"`
 	Name            string                  `json:"name"`
 	Cwd             string                  `json:"cwd,omitempty"`
@@ -64,6 +65,14 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}
+	if err := validateCodemodeGlobals(options.CodemodeGlobals, DefaultLimits()); err != nil {
+		return nil, err
+	}
+	options.CodemodeGlobals = append([]CodemodeGlobal(nil), options.CodemodeGlobals...)
+	if err := validateCodemodeNamespaces(options.CodemodeNamespaces, DefaultLimits()); err != nil {
+		return nil, err
+	}
+	options.CodemodeNamespaces = append([]CodemodeNamespace(nil), options.CodemodeNamespaces...)
 	if options.Settings != nil {
 		resolved := (&Harness{options: options}).resolvedSettings(RequestSettings{})
 		value, err := cloneSettings(resolved, DefaultLimits())
@@ -79,7 +88,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			}
 			extensions = &names
 		}
-		options.Settings = &HarnessSettings{ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+		options.Settings = &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 	}
 	if options.Extensions != nil {
 		names, err := agentSelectionNames(*options.Extensions)
@@ -104,6 +113,13 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		options.Settings.Extensions = options.Extensions
 	}
 	h.hostSettings.Store(options.Settings)
+	s.documentRetentionMs = func() int64 {
+		settings := h.resolvedSettings(RequestSettings{})
+		if settings.DocumentRetentionMs == nil {
+			return 600000
+		}
+		return *settings.DocumentRetentionMs
+	}
 	failOpen := func(primary error) (*Harness, error) {
 		cancel()
 		s.taskScheduler = nil
@@ -146,6 +162,12 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 	}
 	h.scheduler = newTaskScheduler(h)
+	h.scheduler.abandoned = map[ID]bool{}
+	for id, task := range state.Tasks {
+		if task.AbandonOnRestart && !terminalStatus(task.Status) {
+			h.scheduler.abandoned[id] = true
+		}
+	}
 	s.taskScheduler = h.scheduler
 	if options.Registry == nil {
 		h.options.Registry = NewRegistry()
@@ -170,6 +192,14 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	}
 	if _, err = h.options.Registry.RegisterTask(reporter); err != nil {
 		return failOpen(err)
+	}
+	if _, err := h.options.Registry.RegisterTask(nestedToolDefinition()); err != nil {
+		return failOpen(err)
+	}
+	if h.options.PaidModels {
+		if err := installPaidModelTools(h.options.Registry); err != nil {
+			return failOpen(err)
+		}
 	}
 	h.scheduler.unsubscribe, e = h.options.Registry.subscribeTasks(h.scheduler.externalKick)
 	if e != nil {
@@ -287,7 +317,7 @@ func (h *Harness) agent(c AgentChange) (agentState, error) {
 	if e == nil && (len(c.Model.ID) > h.session.limits.MaxStringBytes || len(c.SystemPrompt) > h.session.limits.MaxStringBytes || len(c.Cwd) > h.session.limits.MaxStringBytes) {
 		return agentState{}, reject("agent string limit")
 	}
-	state := agentState{Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
+	state := agentState{ModelTools: c.ModelTools, Model: c.Model, Name: c.Name, Cwd: c.Cwd, SystemPrompt: c.SystemPrompt, Settings: settings, ThinkingLevel: c.ThinkingLevel}
 	if c.Instructions != nil {
 		if len(*c.Instructions) > h.session.limits.MaxStringBytes {
 			return agentState{}, reject("agent string limit")
@@ -330,6 +360,17 @@ func (h *Harness) agent(c AgentChange) (agentState, error) {
 			return agentState{}, err
 		}
 		state.ToolsRemoved = &names
+	}
+	if c.ModelTools != nil {
+		add, e := agentSelectionNames(c.ModelTools.Add)
+		if e != nil {
+			return agentState{}, e
+		}
+		remove, e := agentSelectionNames(c.ModelTools.Remove)
+		if e != nil {
+			return agentState{}, e
+		}
+		state.ModelTools = &ExtensionFilter{Add: add, Remove: remove}
 	}
 	return state, e
 }
@@ -495,7 +536,7 @@ func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, li
 	if c.h.closing.Load() {
 		return nil, ErrClosed
 	}
-	return c.h.session.store.Entries(ctx, c.id, cursor, limit)
+	return c.h.session.guardedStorage().Entries(ctx, c.id, cursor, limit)
 }
 
 // Commit binds task/document creation to this conversation without enabling

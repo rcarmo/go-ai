@@ -319,7 +319,19 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 		t.Fatal("rejected publication")
 	default:
 	}
-	store.appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
+	if e = s.Close(bg); e != nil {
+		t.Fatal(e)
+	}
+	reopened := reopenStoreAfterHarnessClose(t, store)
+	s, e = OpenSession(reopened)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close(bg)
+	w = watchAcquire(t, s, def)
+	defer w.Stop()
+	w.Start(func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
+	reopened.(*MemoryStorage).appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
 	if _, e = s.Commit(bg, func(tx *Tx) error {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {

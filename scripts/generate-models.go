@@ -894,8 +894,8 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return nil, err
 	}
-	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "080cfcf6bdd13064ce2362f26e4902c31503b675fd06a8c4685c04a0333bc465" {
-		return nil, fmt.Errorf("invalid v1.1.0 catalog manifest")
+	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "2c88c6b129a59cef02b34f4d964d3df80a9bbd79dec2459b5311a3f299a229d2" {
+		return nil, fmt.Errorf("invalid v1.2.0 catalog manifest")
 	}
 	if _, err := time.Parse(time.RFC3339Nano, manifest.GeneratedAt); err != nil {
 		return nil, fmt.Errorf("invalid catalog generation timestamp")

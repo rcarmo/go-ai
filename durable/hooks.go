@@ -100,6 +100,12 @@ func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt,
 	return copy.Messages, err
 }
 func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
+	return r.selectedTools(agent, limits, true, reports...)
+}
+
+// selectedTools composes enabled registrations before optional model-offer
+// filtering. Wrappers run once per selection, outside registry locks.
+func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
 	r.mu.RLock()
 	extensions := append([]installedExtension(nil), r.selectedExtensionsLocked(agent)...)
 	selected := func(names *[]string, name string) bool {
@@ -188,9 +194,29 @@ func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports .
 	}
 	offers := []toolOffer{}
 	pins := map[string]registeredTool{}
-	names := ordered
+	names := append([]string{}, ordered...)
 	if agent.Tools != nil {
 		names = append([]string{}, (*agent.Tools)...)
+	}
+	if modelOnly && agent.ModelTools != nil {
+		// Default offers retain registry order; explicitly loaded tools follow
+		// in branch-local load order, including nondeferred removed/re-added tools.
+		added := map[string]bool{}
+		for _, name := range agent.ModelTools.Add {
+			added[name] = true
+		}
+		base := []string{}
+		for _, name := range names {
+			if !added[name] {
+				base = append(base, name)
+			}
+		}
+		for _, name := range agent.ModelTools.Add {
+			if selected(agent.Tools, name) {
+				base = append(base, name)
+			}
+		}
+		names = base
 	}
 	for _, name := range names {
 		if !selected(agent.Tools, name) {
@@ -210,6 +236,9 @@ func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports .
 		}
 		tool, exists := tools[name]
 		if !exists {
+			continue
+		}
+		if modelOnly && !modelToolOffered(tool.offer, agent.ModelTools) {
 			continue
 		}
 		schema, err := copyObject(tool.offer.Schema, limits)
@@ -267,34 +296,38 @@ func callAfterTools(ctx context.Context, hook func(context.Context, []MessageRec
 }
 func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 	value, err := dtoObject(struct {
-		Content      string              `json:"content"`
-		Blocks       []goai.ContentBlock `json:"blocks"`
-		Details      JSON                `json:"details"`
-		DetailsValue any                 `json:"detailsValue"`
-		HasDetails   bool                `json:"hasDetails"`
-		Usage        *goai.Usage         `json:"usage"`
-		Diagnostics  []ToolDiagnostic    `json:"diagnostics"`
-		IsError      bool                `json:"isError"`
-		Control      *ToolControl        `json:"control"`
-	}{result.Content, result.Blocks, result.Details, result.DetailsValue, result.HasDetails, result.Usage, result.Diagnostics, result.IsError, result.Control}, limits)
+		StructuredOutput    any                 `json:"structuredOutput"`
+		HasStructuredOutput bool                `json:"hasStructuredOutput"`
+		Content             string              `json:"content"`
+		Blocks              []goai.ContentBlock `json:"blocks"`
+		Details             JSON                `json:"details"`
+		DetailsValue        any                 `json:"detailsValue"`
+		HasDetails          bool                `json:"hasDetails"`
+		Usage               *goai.Usage         `json:"usage"`
+		Diagnostics         []ToolDiagnostic    `json:"diagnostics"`
+		IsError             bool                `json:"isError"`
+		Control             *ToolControl        `json:"control"`
+	}{result.StructuredOutput, result.HasStructuredOutput || result.StructuredOutput != nil, result.Content, result.Blocks, result.Details, result.DetailsValue, result.HasDetails, result.Usage, result.Diagnostics, result.IsError, result.Control}, limits)
 	if err != nil {
 		return ToolResult{}, err
 	}
 	var copy struct {
-		Content      string              `json:"content"`
-		Blocks       []goai.ContentBlock `json:"blocks"`
-		Details      JSON                `json:"details"`
-		DetailsValue any                 `json:"detailsValue"`
-		HasDetails   bool                `json:"hasDetails"`
-		Usage        *goai.Usage         `json:"usage"`
-		Diagnostics  []ToolDiagnostic    `json:"diagnostics"`
-		IsError      bool                `json:"isError"`
-		Control      *ToolControl        `json:"control"`
+		StructuredOutput    any                 `json:"structuredOutput"`
+		HasStructuredOutput bool                `json:"hasStructuredOutput"`
+		Content             string              `json:"content"`
+		Blocks              []goai.ContentBlock `json:"blocks"`
+		Details             JSON                `json:"details"`
+		DetailsValue        any                 `json:"detailsValue"`
+		HasDetails          bool                `json:"hasDetails"`
+		Usage               *goai.Usage         `json:"usage"`
+		Diagnostics         []ToolDiagnostic    `json:"diagnostics"`
+		IsError             bool                `json:"isError"`
+		Control             *ToolControl        `json:"control"`
 	}
 	if err = fromObject(value, &copy, limits); err != nil {
 		return ToolResult{}, err
 	}
-	return ToolResult{Content: copy.Content, Blocks: copy.Blocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
+	return ToolResult{StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: copy.Blocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
 }
 
 func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt, *HookAPI) (*Input, error), message MessageReceipt, r *TaskRuntime) (input *Input, err error) {

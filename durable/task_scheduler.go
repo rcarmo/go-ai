@@ -19,6 +19,7 @@ type taskScheduler struct {
 	wake           chan struct{}
 	done           chan struct{}
 	invocations    map[ID]*TaskRuntime
+	abandoned      map[ID]bool // live restart-disposable tasks captured once at Open
 	failed         map[ID]*TaskDefinition
 	failures       map[ID]error
 	retryAfter     map[ID]uint64 // failed host admission requires a newer external epoch
@@ -316,7 +317,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				definition = snapshot.Task(task.Kind)
 				if definition == nil || definition.Version() < task.Execution.Native.Version {
 					s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
-					if taskAborted(task) {
+					if taskAborted(task) && task.AbortReason != "restart" {
 						reason := "missing_task"
 						if definition != nil {
 							reason = "task_too_old"
@@ -329,7 +330,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				}
 				if s.failed[id] == definition {
 					s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
-					if taskAborted(task) {
+					if taskAborted(task) && task.AbortReason != "restart" {
 						if err := s.orphan(tx, task, "migration_failed"); err != nil {
 							return false, err
 						}
@@ -342,7 +343,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 						s.failures[id] = reject("missing task migration")
 						s.reports = append(s.reports, s.failures[id])
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
-						if taskAborted(task) {
+						if taskAborted(task) && task.AbortReason != "restart" {
 							if err := s.orphan(tx, task, "migration_failed"); err != nil {
 								return false, err
 							}
@@ -380,7 +381,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 						s.failures[id] = err
 						s.reports = append(s.reports, err)
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
-						if taskAborted(task) {
+						if taskAborted(task) && task.AbortReason != "restart" {
 							if err := s.orphan(tx, task, "migration_failed"); err != nil {
 								return false, err
 							}
@@ -1168,6 +1169,21 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 			return nil
 		}
 		state := tx.state
+		// Restart abandonment is durably marked before reservation/effects. Newly
+		// created disposable tasks are not in this Open-time set.
+		for _, id := range ids(s.abandoned) {
+			task, ok := state.Tasks[id]
+			if !ok || terminalStatus(task.Status) || taskHasDecidedOutcome(task) {
+				delete(s.abandoned, id)
+				continue
+			}
+			if !taskAborted(task) {
+				task = markTask(task)
+				task.AbortReason = "restart"
+				return tx.stage(Write{Op: "put-task", Task: &task})
+			}
+			delete(s.abandoned, id)
+		}
 		// Withdraw one indivisible queued-input unit before cascading marks:
 		// generation+submission+inbox must never be partially admitted. A unit
 		// larger than configured budgets rejects explicitly, not split apart.
@@ -1182,8 +1198,10 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 			if terminalStatus(task.Status) {
 				continue
 			}
-			if taskBelowCancelled(state, task) && !taskAborted(task) {
+			if taskBelowCancelled(state, task) && (!taskAborted(task) || task.AbortReason == "restart" && restartCascadeReason(state, task) == "") {
+				reason := restartCascadeReason(state, task)
 				task = markTask(task)
+				task.AbortReason = reason
 				if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 					return err
 				}
@@ -1268,6 +1286,7 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 	return err
 }
 func markTask(task Task) Task {
+	task.AbortReason = "" // explicit cancellation supersedes restart-only intent
 	if task.Execution != nil && task.Execution.Native != nil {
 		native := *task.Execution.Native
 		native.AbortRequested = true

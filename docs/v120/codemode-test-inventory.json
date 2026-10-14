@@ -1,0 +1,820 @@
+{
+  "upstream": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
+  "method": "single-line anchored double-quoted it/test declarations; includes source line; not executed test counts or parity acceptance",
+  "totalDeclarations": 149,
+  "files": [
+    {
+      "path": "packages/codemode/test/declarations.test.ts",
+      "declarations": 17,
+      "tests": [
+        {
+          "line": 7,
+          "name": "renders primitives, literals, and unions",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 23,
+          "name": "renders objects on one line with sorted properties",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 39,
+          "name": "puts property descriptions on comment lines",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 68,
+          "name": "puts constraints the type cannot express on property comment lines",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 102,
+          "name": "reads constraints of optional fields from the non-null branch",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 132,
+          "name": "reads draft-04 boolean exclusive bounds",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 153,
+          "name": "leaves out long tags and escapes line terminators",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 179,
+          "name": "drops constraint tags before rendering a type over the budget as unknown",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 186,
+          "name": "resolves local references and stops at recursive ones",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 209,
+          "name": "renders arrays and tuples",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 217,
+          "name": "renders types over the budget as unknown",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 226,
+          "name": "renders signatures with normalized identifiers",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 242,
+          "name": "renders output schemas shaped like an MCP CallToolResult as plain types",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 259,
+          "name": "renders the per-tool sample",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 267,
+          "name": "renders tools and globals",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 298,
+          "name": "renders namespaced globals and explicit signatures",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 324,
+          "name": "escapes comment terminators in descriptions",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/codemode/test/deterministic.test.ts",
+      "declarations": 16,
+      "tests": [
+        {
+          "line": 108,
+          "name": "makes the same calls and output for the same start, seed, and results",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 148,
+          "name": "runs in UTC whatever the host's timezone, and without WeakRef or FinalizationRegistry",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 159,
+          "name": "applies results in seq order, whatever order they are delivered in",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 180,
+          "name": "reports the fingerprint before any call and the calls issued after each result",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 209,
+          "name": "numbers calls to globals with tools, and answers errors as rejections",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 236,
+          "name": "keeps the clock monotonic and rejects a clock value that is not finite",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 249,
+          "name": "reports the result the VM was processing when the script ended",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 263,
+          "name": "leaves a call waiting when its answer cannot be serialized",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 275,
+          "name": "rejects with an Error carrying the answer's properties",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 291,
+          "name": "rejects rejection properties that are not an object, and tools sharing a script name",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 312,
+          "name": "uses the script names the run passes",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 327,
+          "name": "ends with an error the script cannot catch when the caller aborts",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 343,
+          "name": "is finished once it has its outcome",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 353,
+          "name": "rejects a call that is not waiting and a result number used twice",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 369,
+          "name": "applies results in seq order when the transport reorders replies sent in order",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 386,
+          "name": "reads the real clock and real randomness",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/codemode/test/portable.test.ts",
+      "declarations": 7,
+      "tests": [
+        {
+          "line": 37,
+          "name": "fails a script that computes past its interrupt budget as a timeout",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 48,
+          "name": "counts the budget across waits on tools",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 61,
+          "name": "runs tools in the caller and the script on the remote",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 83,
+          "name": "batches output instead of making one exchange per line",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 93,
+          "name": "caps the interrupt budget and memory at the remote's limits",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 107,
+          "name": "tells the remote to stop when the caller aborts",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 134,
+          "name": "reports a failing or vanishing remote as a sandbox error",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/codemode/test/sandbox.test.ts",
+      "declarations": 52,
+      "tests": [
+        {
+          "line": 68,
+          "name": "parse as JavaScript",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 79,
+          "name": "returns the script's return value after a JSON round trip",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 91,
+          "name": "supports top-level await",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 97,
+          "name": "collects text(), image(), and console output in order",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 132,
+          "name": "rejects invalid text() and image() arguments",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 180,
+          "name": "accepts wrapped and large base64 image data",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 194,
+          "name": "ends the script successfully on exit(), keeping output and store writes",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 212,
+          "name": "keeps output produced before a failure",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 218,
+          "name": "reports syntax errors with the script's line number",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 228,
+          "name": "reports thrown errors with the script's line number",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 237,
+          "name": "formats stacks like V8 without prelude frames",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 251,
+          "name": "reports non-Error throws",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 257,
+          "name": "reports a non-serializable return value as a script error",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 265,
+          "name": "exposes tools as async functions and records calls",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 294,
+          "name": "runs concurrent calls and lists tool names",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 306,
+          "name": "exposes tools under normalized identifiers and lists them in ALL_TOOLS",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 331,
+          "name": "passes undefined arguments and results through",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 337,
+          "name": "turns tool errors into catchable Errors in the script",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 358,
+          "name": "rejects calls to unknown tools",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 364,
+          "name": "aborts unawaited calls when the script returns",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 384,
+          "name": "names close matches when a script reads a tool that does not exist",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 400,
+          "name": "supports register and unregister between executions",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 412,
+          "name": "reads the snapshot and reports writes",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 432,
+          "name": "returns copies, so mutating a loaded value does not change the store",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 442,
+          "name": "rejects invalid keys, values, and oversized writes inside the script",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 460,
+          "name": "explains oversized writes",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 469,
+          "name": "reserves the store and load names",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 477,
+          "name": "exposes globals as top-level functions without recording them as calls",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 494,
+          "name": "groups namespaced globals and spreads arguments on request",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 513,
+          "name": "names the members of a namespace when a script reads one that does not exist",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 529,
+          "name": "rejects invalid and reserved global names",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 549,
+          "name": "terminates a synchronous infinite loop on timeout",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 557,
+          "name": "runs without a deadline when timeoutMs is Infinity",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 565,
+          "name": "fails a script that waits on a promise nothing can settle",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 581,
+          "name": "terminates a microtask-spinning loop on timeout",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 587,
+          "name": "aborts via signal and cancels in-flight calls",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 629,
+          "name": "fails a script whose output passes the limits, even if it catches the error",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 658,
+          "name": "rejects execute after close",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 664,
+          "name": "runs executions in parallel without sharing state",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 674,
+          "name": "turns deep recursion into a catchable RangeError",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 686,
+          "name": "has no host globals",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 710,
+          "name": "keeps eval and Function inside the VM",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 724,
+          "name": "rejects dynamic import",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 736,
+          "name": "ignores patches to built-ins and built-in globals",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 750,
+          "name": "freezes intrinsics that are only reachable from instances",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 766,
+          "name": "still lets instances override properties of frozen prototypes",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 792,
+          "name": "reports errors whose name or message is not a string",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 798,
+          "name": "keeps tools and console frozen",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 816,
+          "name": "accepts a worker path string",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 823,
+          "name": "reports a missing worker file as a sandbox error",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 829,
+          "name": "reports a failing wasm module as a sandbox error",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 839,
+          "name": "ignores Node --watch notifications from the worker",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/codemode/test/source.test.ts",
+      "declarations": 5,
+      "tests": [
+        {
+          "line": 5,
+          "name": "returns plain code unchanged",
+          "disposition": "native cases verified; API/default/error-type adaptation",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go:TestCodemode120PinnedSourceCases"
+          ],
+          "limitations": "Native parser returns resolved defaults rather than sparse options; generic durable rejection type and most error wording differ. Duplicate fields and numeric literal/exponent budgets are stricter; complete JS-number acceptance not claimed."
+        },
+        {
+          "line": 13,
+          "name": "parses the options line and keeps line numbers",
+          "disposition": "native cases verified; API/default/error-type adaptation",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go:TestCodemode120PinnedSourceCases"
+          ],
+          "limitations": "Native parser returns resolved defaults rather than sparse options; generic durable rejection type and most error wording differ. Duplicate fields and numeric literal/exponent budgets are stricter; complete JS-number acceptance not claimed."
+        },
+        {
+          "line": 27,
+          "name": "only treats the first line as an options line",
+          "disposition": "native cases verified; API/default/error-type adaptation",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go:TestCodemode120PinnedSourceCases"
+          ],
+          "limitations": "Native parser returns resolved defaults rather than sparse options; generic durable rejection type and most error wording differ. Duplicate fields and numeric literal/exponent budgets are stricter; complete JS-number acceptance not claimed."
+        },
+        {
+          "line": 33,
+          "name": "rejects an options line that is not the first line",
+          "disposition": "native cases verified; API/default/error-type adaptation",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go:TestCodemode120PinnedSourceCases"
+          ],
+          "limitations": "Native parser returns resolved defaults rather than sparse options; generic durable rejection type and most error wording differ. Duplicate fields and numeric literal/exponent budgets are stricter; complete JS-number acceptance not claimed."
+        },
+        {
+          "line": 48,
+          "name": "rejects empty input and invalid options",
+          "disposition": "native cases verified; API/default/error-type adaptation",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go:TestCodemode120PinnedSourceCases"
+          ],
+          "limitations": "Native parser returns resolved defaults rather than sparse options; generic durable rejection type and most error wording differ. Duplicate fields and numeric literal/exponent budgets are stricter; complete JS-number acceptance not claimed."
+        }
+      ]
+    },
+    {
+      "path": "packages/durable/test/codemode-describe.test.ts",
+      "declarations": 5,
+      "tests": [
+        {
+          "line": 24,
+          "name": "keeps the tool description the same for every conversation",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 33,
+          "name": "lists callable tools as declarations, grouped by namespace, with namespace descriptions",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 48,
+          "name": "lists what fits the budget, every namespace before any is complete, and says what is left out",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 58,
+          "name": "uses the longest matching namespace prefix",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 68,
+          "name": "renders the section from the conversation's callable tools into the system prompt",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/durable/test/codemode-models.test.ts",
+      "declarations": 7,
+      "tests": [
+        {
+          "line": 143,
+          "name": "reads the model catalog without credentials in headers",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 155,
+          "name": "classifies through an internal tool: a nested call with its usage, hidden from tools and listings",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 177,
+          "name": "resolves a model call that failed with its result, as the coding agent does",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 195,
+          "name": "rejects a bad classifier context with the expected shape, before any request",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 207,
+          "name": "runs at most four model calls at once",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 222,
+          "name": "does not start a model call that waited for a slot after the script ended",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 253,
+          "name": "notes generated images the script did not show",
+          "disposition": "unreviewed"
+        }
+      ]
+    },
+    {
+      "path": "packages/durable/test/codemode.test.ts",
+      "declarations": 40,
+      "tests": [
+        {
+          "line": 193,
+          "name": "runs a script that calls tools as nested calls, and journals each result before delivering it",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 207,
+          "name": "resumes a script after a restart without running its finished calls again",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 224,
+          "name": "replays results in the order they arrived, not the order the calls were made",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 240,
+          "name": "journals globals with their results and hands a replay the recorded ones",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 254,
+          "name": "keeps the script's clock and randomness across a restart",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 269,
+          "name": "ends the call when a resumed script made a different number of calls than before",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 286,
+          "name": "ends the call at once when a resumed script waits without making a call it made before",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 305,
+          "name": "ends the call when a resumed script calls a global with other arguments",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 318,
+          "name": "admits no call of a diverging replay, even one the script never made before",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 347,
+          "name": "ends the call when a resumed script ends where it went on before",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 370,
+          "name": "ends the call when a resumed script ends before calls the live run made, even without a recorded count",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 390,
+          "name": "ends the call when a resumed script makes a call an earlier attempt admitted with other arguments",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 412,
+          "name": "records a count the live run never recorded as soon as a replay acknowledges it",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 441,
+          "name": "lists the script's tool calls in its result's details",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 467,
+          "name": "stores no outcome when the host closes the sandbox, and replays the script after a restart",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 497,
+          "name": "aborts a call still running when the script ends",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 515,
+          "name": "admits no call once the script has ended, even one it made before ending",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 533,
+          "name": "checks a rerun's calls against an earlier attempt's before admitting any later call",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 559,
+          "name": "ends the call when a rerun makes a global call where an earlier attempt made a tool call",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 577,
+          "name": "ends the call when a rerun's first run makes fewer calls than an earlier attempt admitted",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 605,
+          "name": "ends the call when a rerun without journal entries ends in its first run, where it went on before",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 625,
+          "name": "checks every call a rerun holds before launching any of them",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 656,
+          "name": "keeps a global's undefined result undefined, live and replayed",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 666,
+          "name": "rejects a failed tool call with its error text and structured output",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 686,
+          "name": "resolves a schema tool's error result that carries its value, and rejects one without with its text",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 732,
+          "name": "resolves a schema-less tool with its text, as its declaration says, also when it returned images",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 760,
+          "name": "delivers a result only after its journal commit",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 791,
+          "name": "refuses to resume when the sandbox's fingerprint or the code mode version changed",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 812,
+          "name": "times a script out across a restart, without admitting new calls",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 827,
+          "name": "returns a decided outcome after a restart without running the script again",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 857,
+          "name": "keeps store() values per conversation, as of a fork's entry",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 882,
+          "name": "journals results that finish together in one commit",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 936,
+          "name": "lays out text items, console lines, and the returned value under a header",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 943,
+          "name": "cuts text past the token budget to its start and end, with the full text in a file",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 956,
+          "name": "keeps a result inside the tool's output limits whatever max_output_tokens says, spilling the rest",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 975,
+          "name": "writes the result's files to the same paths when it reruns after a crash",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 1009,
+          "name": "saves images to files and names them next to the image",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 1018,
+          "name": "calls a deferred tool the model is not offered, and finds it in ALL_TOOLS",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 1037,
+          "name": "reports a failed script with its error and the calls already made",
+          "disposition": "unreviewed"
+        },
+        {
+          "line": 1045,
+          "name": "finds tools with searchTools(), describeTool(), and describeNamespace(), and lists them in ALL_TOOLS",
+          "disposition": "unreviewed"
+        }
+      ]
+    }
+  ]
+}

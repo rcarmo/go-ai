@@ -216,14 +216,23 @@ func TestTaskRecoveryRejectedReservationDoesNotSpinAndPoisonCloseJoins(t *testin
 			if runs.Load() != 0 || attempts.Load() != 1 {
 				t.Fatal("failed reservation dispatched/retried", runs.Load(), attempts.Load())
 			}
+			//1.2.0: even a definite backend rejection closes this Session.
+			// Recovery starts only after its actual shutdown and a fresh Open.
+			deadline, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			end, e := h.session.Closed(deadline)
+			if e != nil || end.Reason != "failed" {
+				t.Fatal(end, e)
+			}
+			if e = h.Close(deadline); e != nil {
+				t.Fatal(e)
+			}
 			if uncertain {
-				if err := h.Close(bg); err != nil {
-					t.Fatal(err)
-				}
 				return
 			}
-			installTaskAppend(t, h, store.storeCore, nil)
-			record := waitPublicTask(t, h, id)
+			reopened := reopenStoreAfterHarnessClose(t, store)
+			next := taskTestHarness(t, reopened, def)
+			record := waitPublicTask(t, next, id)
 			if record.State.Outcome.Status != "completed" || runs.Load() != 1 {
 				t.Fatal(record, runs.Load())
 			}
@@ -613,16 +622,6 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				if !injected.Load() {
 					t.Fatal("did not witness held final append")
 				}
-				if failure == "rejected" {
-					rejectedState, err := h.Snapshot(bg)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if rejectedState.Tasks[toolID].Status != "completing" || rejectedState.Documents[taskDocID].Retired || terminalStatus(rejectedState.Submissions[sub.ID()].Status) {
-						t.Fatal("rejected Final partially adopted", rejectedState.Tasks[toolID])
-					}
-					assertTaskToolSpend(t, rejectedState, conv.ID(), "hold-recovery", 3)
-				}
 				if err := h.Close(bg); err != nil {
 					t.Fatal(err)
 				}
@@ -630,6 +629,13 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				opened, err := second.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if failure == "rejected" {
+					rejectedState := opened
+					if rejectedState.Tasks[toolID].Status != "completing" || rejectedState.Documents[taskDocID].Retired || terminalStatus(rejectedState.Submissions[sub.ID()].Status) {
+						t.Fatal("rejected Final partially adopted", rejectedState.Tasks[toolID])
+					}
+					assertTaskToolSpend(t, rejectedState, conv.ID(), "hold-recovery", 3)
 				}
 				assertTaskToolSpend(t, opened, conv.ID(), "hold-recovery", 3)
 				if callbacks.Load() != 1 || effects.Load() != 1 {
@@ -1393,123 +1399,66 @@ func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				var firstWitness, fallbackWitness admissionWitness
+				var firstWitness admissionWitness
 				select {
 				case firstWitness = <-first:
 				case <-time.After(3 * time.Second):
 					t.Fatal("first preparation admission missing")
 				}
-				if firstWitness.runtime == nil {
-					t.Fatal("first admission has no actual invocation")
+				if firstWitness.runtime == nil || firstWitness.epoch == 0 {
+					t.Fatal("missing invocation admission witness")
 				}
-				if timing == "during-first" {
+				if timing == "during-first" || timing == "during-fallback" {
 					publishWake()
 				}
 				releaseTaskGate(firstRelease)
-				select {
-				case fallbackWitness = <-fallback:
-				case <-time.After(3 * time.Second):
-					t.Fatal("fallback admission missing")
-				}
-				if fallbackWitness.runtime != firstWitness.runtime || fallbackWitness.epoch != firstWitness.epoch {
-					t.Fatal("fallback lost first failed attempt epoch", firstWitness.epoch, fallbackWitness.epoch)
-				}
-				if timing == "during-fallback" {
-					publishWake()
-				}
 				releaseTaskGate(fallbackRelease)
-				var reported error
 				select {
-				case reported = <-reports:
+				case err := <-reports:
+					if !errors.Is(err, preparationFailure) {
+						t.Fatal("first backend cause lost", err)
+					}
 				case <-time.After(3 * time.Second):
-					t.Fatal("fallback error not reported")
+					t.Fatal("preparation failure missing")
 				}
 				awaitTaskSignal(t, firstWitness.runtime.done)
-				if timing == "poison-fallback" {
-					if !errors.Is(reported, ErrPoisoned) || errors.Is(reported, preparationFailure) {
-						t.Fatal("fallback poison replaced by preparation cause", reported)
-					}
-					if _, err := h.Snapshot(bg); !errors.Is(err, ErrPoisoned) {
-						t.Fatal("fallback did not poison", err)
-					}
-					if requests.Load() != 0 || firstAttempts.Load() != 1 || fallbackAttempts.Load() != 1 {
-						t.Fatal("poison dispatched/retried")
-					}
-					return
+				if fallbackAttempts.Load() != 0 || firstAttempts.Load() != 1 || requests.Load() != 0 {
+					t.Fatal("failed Session attempted fallback/effect")
 				}
-				if !errors.Is(reported, fallbackFailure) || errors.Is(reported, preparationFailure) {
-					t.Fatal("actual fallback error lost", reported)
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
 				}
-				state, err := h.Snapshot(bg)
+				reopened := reopenStoreAfterHarnessClose(t, b.store)
+				state, err := reopened.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}
 				task := state.Tasks[firstWitness.runtime.taskID]
-				if task.Status != "running" || taskHasDecidedOutcome(task) || len(state.Entries) != 1 || submissionEntryID(state.Submissions[sub.ID()].Value["placedEntry"]) == 0 || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
-					t.Fatal("rejected sequence leaked effects/outcome", task, state.Submissions[sub.ID()])
+				if task.Status != "running" || taskHasDecidedOutcome(task) || len(state.Entries) != 1 || submissionEntryID(state.Submissions[sub.ID()].Value["placedEntry"]) == 0 || state.Submissions[sub.ID()].Status != "pending" {
+					t.Fatal("rejected preparation leaked outcome", task)
 				}
 				for _, doc := range state.Documents {
 					if doc.Kind == "pi.usage" {
 						models, ok := doc.Value["models"].(map[string]any)
 						if !ok || len(models) != 0 {
-							t.Fatal("rejected preparation charged usage", doc.Value)
+							t.Fatal("rejected preparation charged usage")
 						}
 					}
 				}
-				wantRetry := timing == "during-first" || timing == "during-fallback"
-				h.session.taskBookkeeping(func() {
-					if h.scheduler.retryAfter[task.ID] != firstWitness.epoch {
-						t.Error("host return overwrote failed sequence epoch")
-					}
-					if h.scheduler.runnable(state, task) != wantRetry {
-						t.Error("failed sequence wake permission", timing, h.scheduler.epoch.Load(), firstWitness.epoch)
-					}
-					// No Resume: this releases selection without granting a new wake.
-					h.scheduler.enabled.Store(true)
-				})
-				if !wantRetry {
-					for k := 0; k < 3; k++ {
-						reservations, err := h.scheduler.reserve()
+				next := openHarness(t, reopened, h.options)
+				settled := waitSubmission(t, &SubmissionHandle{h: next, id: sub.ID()})
+				if settled.Submission.Status != "done" {
+					t.Fatal(settled)
+				}
+				state, err = next.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertTaskModelSpend(t, state, conv.ID(), model.Provider, model.ID, 5)
+				if requests.Load() != 1 || firstAttempts.Load() != 1 || fallbackAttempts.Load() != 0 {
+					t.Fatal("reopened preparation counts", requests.Load(), firstAttempts.Load(), fallbackAttempts.Load())
+				}
 
-						discardUnstartedTaskReservations(t, h, reservations)
-						if err != nil || len(reservations) != 0 {
-							t.Fatal("self/preexisting wake retried rejected sequence", reservations, err)
-						}
-					}
-					// A genuine public passive write (not an extra Resume) permits
-					// retry after the witnessed rejected passes.
-					if _, err := conv.Submit(bg, Input{Type: "write", Content: "later external progress"}); err != nil {
-						t.Fatal(err)
-					}
-				} else {
-					h.scheduler.kick()
-				}
-				// Ordinary Submission.Wait would add an epoch through Resume. Read
-				// the adopted submission until terminal without granting permission.
-				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-				defer cancel()
-				for {
-					current, err := h.Snapshot(ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if terminalStatus(current.Submissions[sub.ID()].Status) {
-						if current.Submissions[sub.ID()].Status != "done" {
-							t.Fatal("retry failed", current.Submissions[sub.ID()])
-						}
-						assertTaskModelSpend(t, current, conv.ID(), model.Provider, model.ID, 5)
-						break
-					}
-					select {
-					case <-ctx.Done():
-						t.Fatal("retained wake did not permit retry", timing)
-					default:
-						runtime.Gosched()
-					}
-				}
-				if requests.Load() != 1 || firstAttempts.Load() != 2 || fallbackAttempts.Load() != 2 {
-					t.Fatal("bounded failure/retry effects", requests.Load(), firstAttempts.Load(), fallbackAttempts.Load())
-				}
 			})
 		})
 	}
@@ -1610,53 +1559,30 @@ func TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry(t *testing.T) {
 				}
 				releaseTaskGate(releaseAppend)
 				awaitTaskSignal(t, detached)
-				state, err := h.Snapshot(bg)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if state.Tasks[targetID].Status != "pending" || effects.Load() != 0 || attempts.Load() != 1 {
-					t.Fatal("rejected reservation started/retried target")
-				}
 				h.session.taskBookkeeping(func() {
 					if len(h.scheduler.invocations) != 1 || len(h.scheduler.tickets) != 0 || len(h.scheduler.waiters) != 0 {
-						t.Error("reservation rollback/wait cleanup incomplete")
+						t.Error("failed bound wait leaked permit/registration")
 					}
-					if h.scheduler.runnable(state, state.Tasks[targetID]) != duringFailure {
-						t.Error("failed reservation wake provenance", duringFailure)
-					}
-					h.scheduler.enabled.Store(true)
 				})
-				if !duringFailure {
-					for k := 0; k < 3; k++ {
-						reservations, err := h.scheduler.reserve()
-
-						discardUnstartedTaskReservations(t, h, reservations)
-						if err != nil || len(reservations) != 0 {
-							t.Fatal("bound cleanup token retried failed target", reservations, err)
-						}
-					}
-					if effects.Load() != 0 || attempts.Load() != 1 {
-						t.Fatal("private selection bypassed barrier")
-					}
-					if _, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
-						id, err := tx.MintID()
-						if err != nil {
-							return err
-						}
-						return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.genuine-wake", Value: JSON{}})
-					}); err != nil {
-						t.Fatal(err)
-					}
-				} else {
-					h.scheduler.kick()
-				}
-				awaitTaskSignal(t, targetEntered)
 				releaseTaskGate(releaseCaller)
-				waitPublicTask(t, h, callerID)
-				waitPublicTask(t, h, targetID)
-				if effects.Load() != 1 || attempts.Load() != 2 {
-					t.Fatal("reservation retry count", effects.Load(), attempts.Load())
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
 				}
+				reopened := reopenStoreAfterHarnessClose(t, store)
+				state, err := reopened.Snapshot(bg)
+				if err != nil || state.Tasks[targetID].Status != "pending" || effects.Load() != 0 || attempts.Load() != 1 {
+					t.Fatal("failed target reservation adopted/dispatched", err)
+				}
+				recoveredCaller := taskDefinition(t, caller.Kind(), func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("caller recovered"), nil })
+				})
+				next := taskTestHarness(t, reopened, recoveredCaller, target)
+				waitPublicTask(t, next, targetID)
+				waitPublicTask(t, next, callerID)
+				if effects.Load() != 1 || attempts.Load() != 1 {
+					t.Fatal("target recovery repeated failed writer/effects", effects.Load(), attempts.Load())
+				}
+
 			})
 		})
 	}
@@ -1754,33 +1680,24 @@ func TestTaskRecoveryRejectedReconcileIgnoresStaleWakeAndRetainsNewWake(t *testi
 				case <-time.After(3 * time.Second):
 					t.Fatal("reconcile failure not reported")
 				}
-				state, err := h.Snapshot(bg)
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
+				}
+				reopened := reopenStoreAfterHarnessClose(t, b.store)
+				state, err := reopened.Snapshot(bg)
 				if err != nil || state.Tasks[parentID].Status != "completing" {
 					t.Fatal("rejected reconcile adopted subset", err, state.Tasks[parentID])
 				}
-				if !duringFailure {
-					for k := 0; k < 3; k++ {
-						if err := h.scheduler.reconcile(); !errors.Is(err, errTaskPassAwaitingWake) {
-							t.Fatal("self/stale token retried failed reconcile", err)
-						}
-					}
-					if finalAttempts.Load() != 1 {
-						t.Fatal("reconcile appended before genuine wake")
-					}
-					if _, err := h.options.Registry.RegisterTask(parent); err != nil {
-						t.Fatal(err)
-					}
+				if finalAttempts.Load() != 1 {
+					t.Fatal("fatal reconcile self retried")
 				}
-				// Same private pass used by scheduler; no Resume/host invocation can
-				// donate an unobserved epoch to this retained deterministic Final.
-				if err := h.scheduler.reconcile(); err != nil {
-					t.Fatal("genuine wake lost", err)
-				}
-				final, err := h.Snapshot(bg)
+				next := taskTestHarness(t, reopened, parent, child)
+				waitPublicTask(t, next, parentID)
+				final, err := next.Snapshot(bg)
 				if err != nil || final.Tasks[parentID].Status != "done" {
 					t.Fatal("retained final not adopted", err)
 				}
-				if parentCalls.Load() != 1 || childCalls.Load() != 1 || finalAttempts.Load() != 2 {
+				if parentCalls.Load() != 1 || childCalls.Load() != 1 || finalAttempts.Load() != 1 {
 					t.Fatal("reconcile effects/count", parentCalls.Load(), childCalls.Load(), finalAttempts.Load())
 				}
 			})
@@ -1925,55 +1842,28 @@ func TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence(t *testing
 				if !errors.Is(reported, failure) {
 					t.Fatal("offline preparation error hid fallback", reported)
 				}
-				state, err := h.Snapshot(bg)
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
+				}
+				reopened := reopenStoreAfterHarnessClose(t, b.store)
+				state, err := reopened.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if len(state.Entries) != 1 || submissionEntryID(state.Submissions[sub.ID()].Value["placedEntry"]) == 0 || taskHasDecidedOutcome(state.Tasks[first.runtime.taskID]) || state.Submissions[sub.ID()].Status != "pending" || requests.Load() != 0 {
 					t.Fatal("offline rejected fallback leaked effects")
 				}
-				wantRetry := timing == "during-offline"
-				h.session.taskBookkeeping(func() {
-					if h.scheduler.retryAfter[first.runtime.taskID] != first.epoch || h.scheduler.runnable(state, state.Tasks[first.runtime.taskID]) != wantRetry {
-						t.Error("offline wake provenance", timing)
-					}
-					h.scheduler.enabled.Store(true)
-				})
-				if !wantRetry {
-					for k := 0; k < 3; k++ {
-						reservations, err := h.scheduler.reserve()
-
-						discardUnstartedTaskReservations(t, h, reservations)
-						if err != nil || len(reservations) != 0 {
-							t.Fatal("offline failed attempt retried on old token", reservations, err)
-						}
-					}
-					publishWake()
-				} else {
-					h.scheduler.kick()
+				next := openHarness(t, reopened, h.options)
+				result := waitSubmission(t, &SubmissionHandle{h: next, id: sub.ID()})
+				if result.Submission.Status != "done" {
+					t.Fatal(result)
 				}
-				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-				defer cancel()
-				for {
-					current, err := h.Snapshot(ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if terminalStatus(current.Submissions[sub.ID()].Status) {
-						if current.Submissions[sub.ID()].Status != "done" {
-							t.Fatal(current.Submissions[sub.ID()])
-						}
-						assertTaskModelSpend(t, current, conv.ID(), model.Provider, model.ID, 5)
-						break
-					}
-					select {
-					case <-ctx.Done():
-						t.Fatal("offline wake lost")
-					default:
-						runtime.Gosched()
-					}
+				state, err = next.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if requests.Load() != 1 || fallbackAttempts.Load() != 2 || preparations.Load() != 3 {
+				assertTaskModelSpend(t, state, conv.ID(), model.Provider, model.ID, 5)
+				if requests.Load() != 1 || fallbackAttempts.Load() != 1 || preparations.Load() != 3 {
 					t.Fatal("offline retry counts", requests.Load(), fallbackAttempts.Load(), preparations.Load())
 				}
 			})
@@ -2122,8 +2012,8 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		}
 		select {
 		case result := <-frontierResult:
-			var yield *InvocationWaitRequiresYield
-			if result.provisional || result.claims != 0 || result.waiters != 0 || !errors.As(result.err, &yield) {
+			var failed *SessionFailed
+			if result.provisional || result.claims != 0 || result.waiters != 0 || !errors.As(result.err, &failed) || !errors.Is(result.err, failure) {
 				t.Fatal("frontier saw rejected provisional join", result)
 			}
 		case <-time.After(3 * time.Second):
@@ -2132,7 +2022,21 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 		if attempts.Load() != 1 || effects.Load() != 0 {
 			t.Fatal("rejected frontier work dispatched")
 		}
+		h.session.taskBookkeeping(func() {
+			if h.scheduler.invocations[childID] != nil || len(h.scheduler.tickets) != 0 || len(h.scheduler.waiters) != 0 {
+				t.Error("fatal reservation leaked provisional authority")
+			}
+		})
 		releaseTaskGate(releaseCaller)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		reopened := reopenStoreAfterHarnessClose(t, store)
+		defer reopened.Close(bg)
+		state, err := reopened.Snapshot(bg)
+		if err != nil || state.Tasks[childID].Status != "pending" || state.Tasks[parentID].Status != "completing" {
+			t.Fatal("rejected provisional reservation adopted", err)
+		}
 	})
 }
 
@@ -2374,44 +2278,19 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 				if callbacks.Load() != 1 || effects.Load() != 1 || requests.Load() != 1 {
 					t.Fatal("deciding callback/effect/retry count", callbacks.Load(), effects.Load(), requests.Load())
 				}
-				fallbackAdopted := failure == "rejected-fallback-adopts"
-				if strings.HasPrefix(failure, "rejected") {
-					state, err := h.Snapshot(bg)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if !equalJSONValue(state.Documents[docID].Value["sum"], 0) || taskHasDecidedOutcome(state.Tasks[toolID]) != fallbackAdopted {
-						t.Fatal("rejected deciding leaked successful callback/Hold")
-					}
-					assertTaskToolSpendOrAbsent(t, state, conv.ID(), "deciding-hold", map[bool]int{true: 3, false: 0}[fallbackAdopted])
-					var receipts int
-					for _, entry := range state.Entries {
-						if entry.ByTask == toolID {
-							receipts++
+				fallbackAdopted := false //1.2.0: the first backend failure prohibits a fallback commit.
+				select {
+				case err := <-reports:
+					if strings.HasPrefix(failure, "rejected") {
+						var rejected *StorageRejected
+						if !errors.As(err, &rejected) || rejected.Reason != "tool deciding Hold rejected" {
+							t.Fatal("first rejection cause", err)
 						}
+					} else if !errors.Is(err, ErrPoisoned) {
+						t.Fatal("uncertain deciding cause", err)
 					}
-					if receipts != map[bool]int{true: 1, false: 0}[fallbackAdopted] {
-						t.Fatal("rejected deciding receipt placement", receipts)
-					}
-					if !fallbackAdopted {
-						select {
-						case err := <-reports:
-							if err.Error() != reject("tool bounded fallback rejected").Error() {
-								t.Fatal(err)
-							}
-						default:
-							t.Fatal("fallback rejection cause missing")
-						}
-					}
-				} else {
-					select {
-					case err := <-reports:
-						if !errors.Is(err, ErrPoisoned) {
-							t.Fatal("uncertain deciding cause", err)
-						}
-					default:
-						t.Fatal("uncertain deciding poison missing")
-					}
+				default:
+					t.Fatal("deciding backend failure not reported")
 				}
 				if err := h.Close(bg); err != nil {
 					t.Fatal(err)
@@ -2420,6 +2299,17 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 				opened, err := second.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if strings.HasPrefix(failure, "rejected") {
+					if !equalJSONValue(opened.Documents[docID].Value["sum"], 0) || taskHasDecidedOutcome(opened.Tasks[toolID]) {
+						t.Fatal("rejected deciding leaked callback/Hold")
+					}
+					assertTaskToolSpendOrAbsent(t, opened, conv.ID(), "deciding-hold", 0)
+					for _, entry := range opened.Entries {
+						if entry.ByTask == toolID {
+							t.Fatal("rejected deciding receipt leaked")
+						}
+					}
 				}
 				confirmedSuccess := backendName == "journal" && failure == "uncertain-after"
 				confirmedHold := confirmedSuccess || fallbackAdopted
@@ -2698,7 +2588,7 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 					var original func(byte, uint64, uint64, []byte) error
 					h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
 					var failedRuntime *TaskRuntime
-					var faultEpoch uint64
+
 					installTaskAppend(t, h, core, func(kind byte, ordinal, high uint64, payload []byte) error {
 						if kind == 2 {
 							var record commitRecord
@@ -2709,7 +2599,9 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 								if write.Task != nil && write.Task.ID == id && taskHasDecidedOutcome(*write.Task) && write.Task.Execution.Native.State.Outcome.Status == "faulted" && attempts.Add(1) == 1 {
 									h.scheduler.enabled.Store(false)
 									failedRuntime = h.scheduler.invocations[id]
-									faultEpoch = failedRuntime.admissionEpoch
+									if failedRuntime.admissionEpoch == 0 {
+										t.Error("missing fault admission epoch")
+									}
 									close(entered)
 									<-release
 									return failure
@@ -2740,69 +2632,30 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 						t.Fatal("fault rejection not reported")
 					}
 					awaitTaskSignal(t, failedRuntime.done)
-					state, err := h.Snapshot(bg)
-					if err != nil {
+					if err := h.Close(bg); err != nil {
 						t.Fatal(err)
 					}
-					if state.Tasks[id].Status != "running" || taskHasDecidedOutcome(state.Tasks[id]) || state.Documents[docID].Retired || len(state.Entries) != 0 {
-						t.Fatal("rejected scheduler fault leaked terminal/retirement", state.Tasks[id])
+					reopened := reopenStoreAfterHarnessClose(t, b.store)
+					state, err := reopened.Snapshot(bg)
+					if err != nil || state.Tasks[id].Status != "running" || taskHasDecidedOutcome(state.Tasks[id]) || state.Documents[docID].Retired || len(state.Entries) != 0 {
+						t.Fatal("rejected scheduler fault partially adopted", state.Tasks[id], err)
 					}
-					h.session.taskBookkeeping(func() {
-						if h.scheduler.retryAfter[id] != faultEpoch || h.scheduler.runnable(state, state.Tasks[id]) != duringFailure {
-							t.Error("fault retry epoch", mode, duringFailure)
-						}
-						h.scheduler.enabled.Store(true)
-					})
-					if !duringFailure {
-						for k := 0; k < 3; k++ {
-							reservations, err := h.scheduler.reserve()
-							discardUnstartedTaskReservations(t, h, reservations)
-							if err != nil || len(reservations) != 0 {
-								t.Fatal("fault cleanup self-retry", reservations, err)
-							}
-						}
-						if attempts.Load() != 1 || runs.Load()+aborts.Load() != 1 {
-							t.Fatal("rejected fault repeated handler before new wake")
-						}
-						if _, err := h.CommitTasks(bg, 1, func(tx *Tx) error {
-							id, err := tx.MintID()
-							if err != nil {
-								return err
-							}
-							return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.fault-wake", Value: JSON{}})
-						}); err != nil {
-							t.Fatal(err)
-						}
-					} else {
-						h.scheduler.kick()
+					if attempts.Load() != 1 {
+						t.Fatal("fatal fault repeated backend call")
 					}
-					// Snapshot-only completion avoids a Wait/Resume-created epoch.
-					ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-					defer cancel()
-					for {
-						current, err := h.Snapshot(ctx)
-						if err != nil {
-							t.Fatal(err)
-						}
-						if terminalStatus(current.Tasks[id].Status) {
-							task, err := CanonicalTask(current.Tasks[id], h.session.limits)
-							if err != nil || task.State.Outcome.Status != "faulted" || !current.Documents[docID].Retired {
-								t.Fatal("retried scheduler fault outcome", task, err)
-							}
-							break
-						}
-						select {
-						case <-ctx.Done():
-							t.Fatal("fault new wake lost")
-						default:
-							runtime.Gosched()
-						}
+					next := taskTestHarness(t, reopened, def)
+					record := waitPublicTask(t, next, id)
+					state, err = next.Snapshot(bg)
+					if err != nil || record.State.Outcome.Status != "faulted" || !state.Documents[docID].Retired {
+						t.Fatal("fault cleanup/reopen", record, err)
 					}
 					wantRuns, wantAborts := int64(2), int64(0)
 					if strings.HasPrefix(mode, "abort") {
 						wantRuns, wantAborts = 0, 2
 					}
-					if runs.Load() != wantRuns || aborts.Load() != wantAborts || attempts.Load() != 2 {
+					// Attempts counts the failed writer only; the reopened backend owns
+					// a fresh writer. Handler replay counts remain independently checked.
+					if runs.Load() != wantRuns || aborts.Load() != wantAborts || attempts.Load() != 1 {
 						t.Fatal("fault retry handler counts", runs.Load(), aborts.Load(), attempts.Load())
 					}
 				})
@@ -4006,7 +3859,8 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					select {
 					case err := <-reports:
 						if failure == "rejected" {
-							if err.Error() != reject("generation "+stage+" rejected").Error() {
+							var rejected *StorageRejected
+							if !errors.As(err, &rejected) || rejected.Reason != "generation "+stage+" rejected" {
 								t.Fatal("generation rejection cause", err)
 							}
 						} else if !errors.Is(err, ErrPoisoned) {
@@ -4019,11 +3873,16 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					if injected.Load() != 1 || requests.Load() != 1 {
 						t.Fatal("generation failure self retry/effects", injected.Load(), requests.Load())
 					}
+					if err := h.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+					second := openHarness(t, open(), options)
+					opened, err := second.Snapshot(bg)
+					if err != nil {
+						t.Fatal(err)
+					}
 					if failure == "rejected" {
-						rejected, err := h.Snapshot(bg)
-						if err != nil {
-							t.Fatal(err)
-						}
+						rejected := opened
 						wantStatus := "pending"
 						if stage == "final" {
 							wantStatus = "done"
@@ -4032,14 +3891,6 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 							t.Fatal("rejected generation outcome subset adopted")
 						}
 						assertTaskModelSpendOrAbsent(t, rejected, 1, model.Provider, model.ID, map[bool]int{true: 5, false: 0}[stage == "final"])
-					}
-					if err := h.Close(bg); err != nil {
-						t.Fatal(err)
-					}
-					second := openHarness(t, open(), options)
-					opened, err := second.Snapshot(bg)
-					if err != nil {
-						t.Fatal(err)
 					}
 					confirmedAfter := backendName == "journal" && failure == "uncertain-after"
 					confirmedReceipt := stage == "final" || confirmedAfter
@@ -4589,57 +4440,25 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatal("lateedge rejection not reported")
 		}
-		state, err := second.Snapshot(bg)
+		if err := second.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		reopened := reopenStoreAfterHarnessClose(t, store)
+		state, err := reopened.Snapshot(bg)
 		if err != nil || state.Tasks[ownerID].Status != "completing" || taskAborted(state.Tasks[childID]) || runs.Load() != 0 || aborts.Load() != 0 {
 			t.Fatal("rejected cascade partially adopted/dispatched", err)
 		}
-		for k := 0; k < 3; k++ {
-			if err := second.scheduler.reconcile(); !errors.Is(err, errTaskPassAwaitingWake) {
-				t.Fatal("cascade stale token retried", err)
-			}
-		}
-		reservations, err := second.scheduler.reservePass(false)
-		discardUnstartedTaskReservations(t, second, reservations)
-		if err != nil || len(reservations) != 0 {
-			t.Fatal("unmarked descendant escaped confirmed failure", err)
-		}
 		if markAttempts.Load() != 1 {
-			t.Fatal("cascade selfretry")
+			t.Fatal("failed cascade repeated writer")
 		}
-		second.session.taskBookkeeping(func() { second.scheduler.enabled.Store(true) })
-		_, err = second.CommitTasks(bg, 1, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.cascade-retry", Value: JSON{}})
-		})
-		if err != nil {
-			t.Fatal(err)
+		second = taskTestHarness(t, reopened, owner, child)
+		record := waitPublicTask(t, second, ownerID)
+		if record.State.Outcome.Status != "failed" {
+			t.Fatal(record)
 		}
-		// Public read-only Task polling cannot supply a Resume rescue epoch.
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		defer cancel()
-		for {
-			record, _, err := second.Task(ctx, ownerID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if record.State.Status == "terminal" {
-				if record.State.Outcome.Status != "failed" {
-					t.Fatal(record)
-				}
-				break
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatal("later adopted progress did not retry cascade")
-			default:
-				runtime.Gosched()
-			}
-		}
+
 		childRecord, _, err := second.Task(bg, childID)
-		if err != nil || childRecord.State.Outcome == nil || childRecord.State.Outcome.Status != "aborted" || runs.Load() != 0 || aborts.Load() != 1 || markAttempts.Load() != 2 {
+		if err != nil || childRecord.State.Outcome == nil || childRecord.State.Outcome.Status != "aborted" || runs.Load() != 0 || aborts.Load() != 1 || markAttempts.Load() != 1 {
 			t.Fatal("cascade retry effects", childRecord, err, runs.Load(), aborts.Load(), markAttempts.Load())
 		}
 	})
@@ -5173,52 +4992,24 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 						t.Fatal("live held-failure cascade rejection missing", err)
 					}
 				}
-				state, err := h.Snapshot(bg)
+				// Fatal shutdown must join the existing child without inventing settlement.
+				releaseTaskGate(releaseChild)
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
+				}
+				reopened := reopenStoreAfterHarnessClose(t, store)
+				state, err := reopened.Snapshot(bg)
 				if err != nil || taskAborted(state.Tasks[childID]) || terminalStatus(state.Tasks[childID].Status) {
 					t.Fatal("rejected cascade adopted subset", err)
 				}
 				if scenario == "live-heldfailed-preexisting-child" && state.Tasks[ownerID].Status != "completing" {
 					t.Fatal("live failure not held")
 				}
-				for k := 0; k < 3; k++ {
-					if err := h.scheduler.reconcile(); !errors.Is(err, errTaskPassAwaitingWake) {
-						t.Fatal("stale cascade retry", err)
-					}
-				}
 				if attempts.Load() != 1 {
-					t.Fatal("cascade selfretry")
+					t.Fatal("fatal cascade repeated writer")
 				}
-				h.session.taskBookkeeping(func() { h.scheduler.enabled.Store(true) })
-				_, err = h.CommitTasks(bg, 1, func(tx *Tx) error {
-					id, err := tx.MintID()
-					if err != nil {
-						return err
-					}
-					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "app.exact-retry", Value: JSON{}})
-				})
-				if err != nil {
-					t.Fatal(err)
-				}
-				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-				defer cancel()
-				for {
-					record, _, err := h.Task(ctx, childID)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if record.AbortRequested {
-						break
-					}
-					select {
-					case <-ctx.Done():
-						t.Fatal("genuine latercommit did not retry exactcascade")
-					default:
-						runtime.Gosched()
-					}
-				}
-				if scenario == "live-heldfailed-preexisting-child" {
-					releaseTaskGate(releaseChild)
-				}
+				h = taskTestHarnessOptions(t, reopened, options, owner, child, finished)
+				cleanupTaskGates(t, releaseOwner, releaseChild, releaseAbort, decideFailure)
 				if record := waitPublicTask(t, h, childID); record.State.Outcome.Status != "aborted" {
 					t.Fatal(record)
 				}
@@ -5233,7 +5024,7 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					want = "aborted"
 					wantRuns = 0
 				}
-				if record.State.Outcome.Status != want || ordinaryRuns.Load() != wantRuns || childAborts.Load() != 1 || attempts.Load() != 2 {
+				if record.State.Outcome.Status != want || ordinaryRuns.Load() != wantRuns || childAborts.Load() != 1 || attempts.Load() != 1 {
 					t.Fatal("exact cascade result/effect counts", record, ordinaryRuns.Load(), childAborts.Load(), attempts.Load())
 				}
 			})
@@ -5504,22 +5295,6 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 						if deciding.Load() != 1 || requests.Load() != 0 {
 							t.Fatal("unbounded callback fallback/effect", deciding.Load(), requests.Load())
 						}
-						if failure == "rejected" {
-							state, err := h.Snapshot(bg)
-							if err != nil || taskHasDecidedOutcome(state.Tasks[picked.taskID]) || !equalJSONValue(state.Documents[doc].Value["sum"], 0) {
-								t.Fatal("definite reject adopted callback receipt", err)
-							}
-							h.session.taskBookkeeping(func() {
-								if h.scheduler.retryAfter[picked.taskID] != picked.admissionEpoch {
-									t.Error("callback fallback changed failed epoch")
-								}
-							})
-							for _, entry := range state.Entries {
-								if entry.ByTask == picked.taskID {
-									t.Fatal("rejected deciding receipt leaked")
-								}
-							}
-						}
 						if err := h.Close(bg); err != nil {
 							t.Fatal(err)
 						}
@@ -5529,6 +5304,18 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 						opened, err := second.Snapshot(bg)
 						if err != nil {
 							t.Fatal(err)
+						}
+						if failure == "rejected" {
+							state := opened
+							var err error
+							if err != nil || taskHasDecidedOutcome(state.Tasks[picked.taskID]) || !equalJSONValue(state.Documents[doc].Value["sum"], 0) {
+								t.Fatal("definite reject adopted callback receipt", err)
+							}
+							for _, entry := range state.Entries {
+								if entry.ByTask == picked.taskID {
+									t.Fatal("rejected deciding receipt leaked")
+								}
+							}
 						}
 						if modelCalls.Load() != beforeModelCalls || optionsCalls.Load() != beforeOptionCalls {
 							t.Fatal("paused Open called host resolver")
@@ -5792,7 +5579,7 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 							t.Fatal("repair deciding report missing")
 						}
 					}
-					if storageFailure == "none" || storageFailure == "rejected" {
+					if storageFailure == "none" {
 						state, err := h.Snapshot(bg)
 						if err != nil {
 							t.Fatal(err)
@@ -5818,6 +5605,22 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 					if err != nil {
 						t.Fatal(err)
 					}
+					if storageFailure == "rejected" {
+						state := opened
+						if taskHasDecidedOutcome(state.Tasks[toolID]) != (storageFailure == "none") || !equalJSONValue(state.Documents[doc].Value["sum"], 0) {
+							t.Fatal("invalid repair deciding prefix")
+						}
+						for _, d := range state.Documents {
+							if d.Kind == "pi.usage" {
+								models := d.Value["models"].(map[string]any)
+								var usage goai.Usage
+								if err := fromObject(JSON(models[string(model.Provider)+"/"+model.ID].(map[string]any)), &usage, h.session.limits); err != nil || usage.TotalTokens != 5 || len(d.Value["tools"].(map[string]any)) != 0 {
+									t.Fatal("known model usage / no tool bill", usage, err)
+								}
+							}
+						}
+					}
+
 					_, journal := b.store.(*JournalStorage)
 					confirmed := storageFailure == "none" || journal && storageFailure == "uncertain-after"
 					if taskHasDecidedOutcome(opened.Tasks[toolID]) != confirmed || effects.Load() != 0 || repairs.Load() != 1 || requests.Load() != 1 {
@@ -6401,27 +6204,23 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				if admissions.Load() != 1 || repairs.Load() != 2 || requests.Load() != 1 || executions.Load() != 0 || appCommits.Load() != 0 || proposedTool == 0 {
 					t.Fatal("pre-confirmation host/attempt effects", admissions.Load(), repairs.Load(), requests.Load(), executions.Load())
 				}
-				if failure == "rejected" {
-					state, err := first.Snapshot(bg)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if state.Seq != before.Seq || len(state.Entries) != len(before.Entries) || len(state.Tasks) != len(before.Tasks) || !equalJSONValue(state.Documents[document].Value["sum"], 0) {
-						t.Fatal("definite rejection adopted acceptance subset")
-					}
-					first.session.taskBookkeeping(func() {
-						if first.scheduler.retryAfter[r.taskID] != r.admissionEpoch {
-							t.Error("accepting-intent failure epoch changed")
-						}
-					})
-				}
 				if err := first.Close(bg); err != nil {
 					t.Fatal(err)
 				}
 				_, journal := b.store.(*JournalStorage)
 				confirmed := journal && failure == "uncertain-after"
 				repeatRound.Store(false)
-				second := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
+				reopened := reopenStoreAfterHarnessClose(t, b.store)
+				if failure == "rejected" {
+					state, e := reopened.Snapshot(bg)
+					if e != nil {
+						t.Fatal(e)
+					}
+					if state.Seq != before.Seq || len(state.Entries) != len(before.Entries) || len(state.Tasks) != len(before.Tasks) || !equalJSONValue(state.Documents[document].Value["sum"], 0) {
+						t.Fatal("definite rejection adopted acceptance subset", state.Seq, before.Seq)
+					}
+				}
+				second := openHarness(t, reopened, options)
 				cleanupTaskGates(t, releaseExecutor) // LIFO: reopened harness never joins a gated executor first.
 				opened, err := second.Snapshot(bg)
 				if err != nil {

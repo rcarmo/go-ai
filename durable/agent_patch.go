@@ -9,6 +9,7 @@ import (
 // nil fields are unchanged. Configure remains the native full replacement API.
 // Clearing model leaves the conversation unconfigured until a later patch.
 type AgentPatch struct {
+	ModelTools      *ExtensionFilter
 	Model           *ModelRef
 	ThinkingLevel   *goai.ModelThinkingLevel
 	Name            *string
@@ -44,7 +45,7 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 				return err
 			}
 		}
-		supplied := map[string]bool{"model": patch.Model != nil, "thinkingLevel": patch.ThinkingLevel != nil, "name": patch.Name != nil, "cwd": patch.Cwd != nil, "systemPrompt": patch.SystemPrompt != nil, "instructions": patch.Instructions != nil, "settings": patch.Settings != nil, "extensions": patch.Extensions != nil || patch.ExtensionFilter != nil, "tools": patch.Tools != nil || patch.ToolsRemoved != nil}
+		supplied := map[string]bool{"modelTools": patch.ModelTools != nil, "model": patch.Model != nil, "thinkingLevel": patch.ThinkingLevel != nil, "name": patch.Name != nil, "cwd": patch.Cwd != nil, "systemPrompt": patch.SystemPrompt != nil, "instructions": patch.Instructions != nil, "settings": patch.Settings != nil, "extensions": patch.Extensions != nil || patch.ExtensionFilter != nil, "tools": patch.Tools != nil || patch.ToolsRemoved != nil}
 		seen := map[string]bool{}
 		for _, field := range patch.Clear {
 			if seen[field] || supplied[field] {
@@ -69,6 +70,8 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			case "extensions":
 				state.Extensions = nil
 				state.ExtensionFilter = nil
+			case "modelTools":
+				state.ModelTools = nil
 			case "tools":
 				state.Tools = nil
 				state.ToolsRemoved = nil
@@ -112,11 +115,14 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 			state.Tools = patch.Tools
 			state.ToolsRemoved = nil
 		}
+		if patch.ModelTools != nil {
+			state.ModelTools = patch.ModelTools
+		}
 		if patch.ToolsRemoved != nil {
 			state.ToolsRemoved = patch.ToolsRemoved
 			state.Tools = nil
 		}
-		validated, err := h.agent(AgentChange{Name: state.Name, Cwd: state.Cwd, Model: state.Model, ThinkingLevel: state.ThinkingLevel, SystemPrompt: state.SystemPrompt, Instructions: state.Instructions, Settings: state.Settings, Extensions: state.Extensions, Tools: state.Tools, ExtensionFilter: state.ExtensionFilter, ToolsRemoved: state.ToolsRemoved})
+		validated, err := h.agent(AgentChange{ModelTools: state.ModelTools, Name: state.Name, Cwd: state.Cwd, Model: state.Model, ThinkingLevel: state.ThinkingLevel, SystemPrompt: state.SystemPrompt, Instructions: state.Instructions, Settings: state.Settings, Extensions: state.Extensions, Tools: state.Tools, ExtensionFilter: state.ExtensionFilter, ToolsRemoved: state.ToolsRemoved})
 		if err != nil {
 			return err
 		}

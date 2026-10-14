@@ -72,7 +72,7 @@ func validDocumentPolicy(d Document) error {
 }
 func validateDocumentPoint(at DocumentPoint) error {
 	if at.Seq > MaxID || (at.Current && at.Seq != 0) {
-		return reject("invalid document point")
+		return storageRequest("invalid document point")
 	}
 	return nil
 }
@@ -94,7 +94,7 @@ func materializeDocument(s Snapshot, id ID, at DocumentPoint, l Limits) (Documen
 		return Document{}, false, nil
 	}
 	if !at.Current && documentHistory(d) != "rewindable" {
-		return Document{}, false, reject("document does not retain historical content")
+		return Document{}, false, storageRequest("document does not retain historical content")
 	}
 	if !aliveDocument(d, at) {
 		return Document{}, false, nil
@@ -162,7 +162,7 @@ func (c *storeCore) DocumentAt(ctx context.Context, id ID, at DocumentPoint) (Do
 	}
 	defer c.leave()
 	if id == 0 || uint64(id) > MaxID {
-		return Document{}, false, reject("invalid document ID")
+		return Document{}, false, storageRequest("invalid document ID")
 	}
 	d, ok, err := materializeDocument(c.state, id, at, c.limits)
 	if err != nil || !ok {
@@ -177,14 +177,14 @@ func (c *storeCore) FindDocument(ctx context.Context, address DocumentAddress, a
 		return Document{}, false, err
 	}
 	defer c.leave()
-	if err := validateDocumentScope(DocumentScope{address.Scope, address.Owner}); err != nil {
+	if err := requestValidation(validateDocumentScope(DocumentScope{address.Scope, address.Owner})); err != nil {
 		return Document{}, false, err
 	}
-	if err := validateDocumentPoint(at); err != nil {
+	if err := requestValidation(validateDocumentPoint(at)); err != nil {
 		return Document{}, false, err
 	}
 	if !validKind(address.Kind) || (!address.Family && address.Key != "") {
-		return Document{}, false, reject("invalid document address")
+		return Document{}, false, storageRequest("invalid document address")
 	}
 	for _, id := range ids(c.state.Documents) {
 		d := c.state.Documents[id]
@@ -203,14 +203,14 @@ func (c *storeCore) ScanDocuments(ctx context.Context, q DocumentQuery, limit in
 		return Page[Document]{}, err
 	}
 	defer c.leave()
-	if err := validateDocumentScope(DocumentScope{q.Scope, q.Owner}); err != nil {
+	if err := requestValidation(validateDocumentScope(DocumentScope{q.Scope, q.Owner})); err != nil {
 		return Page[Document]{}, err
 	}
 	if err := validateDocumentPoint(q.At); err != nil {
 		return Page[Document]{}, err
 	}
 	if q.Kind != "" && !validKind(q.Kind) {
-		return Page[Document]{}, reject("invalid document kind")
+		return Page[Document]{}, storageRequest("invalid document kind")
 	}
 	if err := checkPage(c.limits, limit); err != nil {
 		return Page[Document]{}, err
@@ -245,18 +245,18 @@ func decodeDocumentCursor(cursor Cursor, query DocumentQuery, limits Limits) (ID
 		return 0, nil
 	}
 	if len(cursor) > 1024 {
-		return 0, reject("invalid document cursor")
+		return 0, storageRequest("invalid document cursor")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(string(cursor))
 	if err != nil {
-		return 0, reject("invalid document cursor")
+		return 0, storageRequest("invalid document cursor")
 	}
 	var v documentCursor
 	if err = decodeStrict(data, limits, 1024, &v); err != nil {
-		return 0, err
+		return 0, storageRequest("invalid document cursor encoding")
 	}
 	if v.Query != query || v.After == 0 || uint64(v.After) > MaxID {
-		return 0, reject("document cursor query mismatch")
+		return 0, storageRequest("document cursor query mismatch")
 	}
 	return v.After, nil
 }

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
@@ -68,11 +69,13 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			baseURL = defaultBaseURL
 		}
 
-		requestCtx := ctx
-		var cancel context.CancelFunc
-		if opts != nil && opts.TimeoutMs != nil && *opts.TimeoutMs > 0 {
-			requestCtx, cancel = context.WithTimeout(ctx, time.Duration(*opts.TimeoutMs)*time.Millisecond)
-			defer cancel()
+		// Timeout bounds header admission only. Keep caller cancellation on the
+		// request for the entire body, but disarm this timer before streaming.
+		requestCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		timeoutMs := 60000
+		if opts != nil && opts.TimeoutMs != nil {
+			timeoutMs = *opts.TimeoutMs
 		}
 
 		req, err := http.NewRequestWithContext(requestCtx, "POST", baseURL+"/chat/completions", bytes.NewReader(bodyJSON))
@@ -99,9 +102,34 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
+		client.Timeout = 0 // http.Client.Timeout would also cancel the SSE body
+		var timerMu sync.Mutex
+		headerDone, timedOut := false, false
+		var timer *time.Timer
+		if timeoutMs > 0 {
+			timer = time.AfterFunc(time.Duration(timeoutMs)*time.Millisecond, func() {
+				timerMu.Lock()
+				defer timerMu.Unlock()
+				if !headerDone {
+					timedOut = true
+					cancel()
+				}
+			})
+		}
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
 		resp, err := goai.DoWithRetry(requestCtx, client, req, retryCfg)
+		timerMu.Lock()
+		headerDone = true
+		if timer != nil {
+			timer.Stop()
+		}
+		wasTimeout := timedOut
+		timerMu.Unlock()
 		if err != nil {
+			if wasTimeout && ctx.Err() == nil {
+				//lint:ignore ST1005 Preserve official1.2.0 timeout diagnostic.
+				err = fmt.Errorf("Mistral response headers timed out after %dms", timeoutMs)
+			}
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})

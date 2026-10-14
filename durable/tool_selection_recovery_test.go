@@ -12,7 +12,7 @@ type recoveryEnvironment string
 func (e recoveryEnvironment) Cwd() string { return string(e) }
 
 func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
-	for _, change := range []string{"cwd", "deselect", "clear"} {
+	for _, change := range []string{"cwd", "deselect", "clear", "caller-revoked", "model-offer-removed", "newly-deferred"} {
 		t.Run(change, func(t *testing.T) {
 			registry := NewRegistry()
 			var runs atomic.Int64
@@ -74,6 +74,18 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 				patch.Extensions = &names
 			case "clear":
 				patch.Clear = []string{"cwd", "extensions"}
+			case "caller-revoked":
+				reg.Callers = []string{"tools"}
+				if err := registry.Install(&Extension{Name: "coding", Tools: []ToolRegistration{reg}}); err != nil {
+					t.Fatal(err)
+				}
+			case "model-offer-removed":
+				patch.ModelTools = &ExtensionFilter{Remove: []string{"work"}}
+			case "newly-deferred":
+				reg.Deferred = true
+				if err := registry.Install(&Extension{Name: "coding", Tools: []ToolRegistration{reg}}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := conversation.ConfigurePatch(bg, patch); err != nil {
 				t.Fatal(err)
@@ -99,7 +111,7 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			}
 			waitSubmission(t, resumed)
 			want := int64(2)
-			if change == "deselect" {
+			if change == "deselect" || change == "caller-revoked" || change == "model-offer-removed" || change == "newly-deferred" {
 				want = 1
 			}
 			if runs.Load() != want {
@@ -121,7 +133,7 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
 						t.Fatal(err)
 					}
-					if change == "deselect" && cp.ErrorCode != "interrupted" {
+					if want == 1 && cp.ErrorCode != "interrupted" {
 						t.Fatal(cp.ErrorCode)
 					}
 				}
