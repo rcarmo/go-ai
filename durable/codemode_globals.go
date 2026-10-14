@@ -11,15 +11,22 @@ import (
 // run again when its delivery commit is unconfirmed, so callbacks must be pure
 // or externally idempotent. Use nested tools for durably settled effects.
 type CodemodeGlobal struct {
-	Name    string
-	Version int
-	Spread  bool
-	Execute func(context.Context, any) (any, error)
+	Description               string
+	Signature                 string
+	InputSchema, OutputSchema JSON
+	Name                      string
+	Version                   int
+	Spread                    bool
+	Execute                   func(context.Context, any) (any, error)
 }
 type CodemodeGlobalDescription struct {
-	Name    string `json:"name"`
-	Version int    `json:"version"`
-	Spread  bool   `json:"spread"`
+	Description  string `json:"description,omitempty"`
+	Signature    string `json:"signature,omitempty"`
+	InputSchema  JSON   `json:"inputSchema,omitempty"`
+	OutputSchema JSON   `json:"outputSchema,omitempty"`
+	Name         string `json:"name"`
+	Version      int    `json:"version"`
+	Spread       bool   `json:"spread"`
 }
 
 func validateCodemodeGlobals(globals []CodemodeGlobal, l Limits) error {
@@ -28,7 +35,7 @@ func validateCodemodeGlobals(globals []CodemodeGlobal, l Limits) error {
 		if global.Execute == nil {
 			return reject("nil codemode global callback")
 		}
-		descriptions = append(descriptions, CodemodeGlobalDescription{Name: global.Name, Version: global.Version, Spread: global.Spread})
+		descriptions = append(descriptions, codemodeGlobalDescription(global))
 	}
 	return validateCodemodeGlobalDescriptions(descriptions, l)
 }
@@ -40,7 +47,7 @@ func validateCodemodeGlobalDescriptions(globals []CodemodeGlobalDescription, l L
 	reserved := map[string]bool{"tools": true, "ALL_TOOLS": true, "console": true, "text": true, "image": true, "exit": true, "store": true, "load": true, "models": true, "searchTools": true, "describeTool": true, "describeNamespace": true}
 	for _, global := range globals {
 		parts := strings.Split(global.Name, ".")
-		if len(parts) > 2 || global.Name == "" || len(global.Name) > l.MaxStringBytes || global.Version < 1 || uint64(global.Version) > MaxID || reserved[parts[0]] || quickjs.ReservedGlobalRoot(global.Name) || names[global.Name] {
+		if len(parts) > 2 || global.Name == "" || len(global.Name) > l.MaxStringBytes || len(global.Description) > l.MaxStringBytes || len(global.Signature) > l.MaxStringBytes || global.Version < 1 || uint64(global.Version) > MaxID || reserved[parts[0]] || quickjs.ReservedGlobalRoot(global.Name) || names[global.Name] {
 			return reject("invalid codemode global")
 		}
 		for _, part := range parts {
@@ -96,4 +103,35 @@ func (r *TaskRuntime) callCodemodeGlobal(ctx context.Context, start CodemodeStar
 		return nil, copyErr
 	}
 	return callback.Execute(ctx, arguments["args"])
+}
+
+func codemodeGlobalDescription(global CodemodeGlobal) CodemodeGlobalDescription {
+	return CodemodeGlobalDescription{Name: global.Name, Version: global.Version, Spread: global.Spread, Description: global.Description, Signature: global.Signature, InputSchema: global.InputSchema, OutputSchema: global.OutputSchema}
+}
+func cloneCodemodeGlobals(globals []CodemodeGlobal, l Limits) ([]CodemodeGlobal, error) {
+	if err := validateCodemodeGlobals(globals, l); err != nil {
+		return nil, err
+	}
+	out := append([]CodemodeGlobal(nil), globals...)
+	for i := range out {
+		var err error
+		out[i].InputSchema, err = copyObjectNullable(out[i].InputSchema, l)
+		if err != nil {
+			return nil, err
+		}
+		out[i].OutputSchema, err = copyObjectNullable(out[i].OutputSchema, l)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// CodemodeDeclarations renders only the pinned run snapshot, never a live registry.
+func (start CodemodeStart) CodemodeDeclarations() string {
+	globals := make([]CodemodeGlobalDeclaration, 0, len(start.Globals))
+	for _, global := range start.Globals {
+		globals = append(globals, CodemodeGlobalDeclaration{Name: global.Name, Description: global.Description, Signature: global.Signature, InputSchema: global.InputSchema, OutputSchema: global.OutputSchema})
+	}
+	return RenderCodemodeDeclarations(start.Tools, globals)
 }

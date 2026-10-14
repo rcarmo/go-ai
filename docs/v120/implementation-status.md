@@ -626,6 +626,12 @@ Added RenderCodemodeDeclarations and descriptive global metadata for ordered too
 
 All17declaration test cases plus5source cases now have native coverage/adaptations;127other declarations remain unreviewed. These helper APIs are not yet integrated with executable custom-global metadata or model prompt assembly. Full parallel/output/final race/security/profile/crosswalk remain incomplete. Changes uncommitted; logs disposed after use.
 
+## Executable global declaration metadata
+
+Custom global configuration now carries optional description/signature/input/output schema metadata. Open validates and deeply copies schemas; immutable run starts persist detached metadata with callback identity. CodemodeStart.CodemodeDeclarations renders that snapshot without live-registry access. Metadata does not validate arguments or grant additional capability; explicit signatures remain descriptive.
+
+Tests mutate caller schemas/config after Open and VM metadata after Start; later runs retain original descriptions/schema types. Metadata/custom replay/declaration race count3 passes11.952s. Full root normal passes (durable82.460s/tools6.006s); static/logging/non-CGO pass. Model prompt/raw codemode tool installation and full builtin-global declarations remain unfinished, along with parallel/output/final race/security/profile/crosswalk. Verified increment committed/pushed under Rui's ongoing authority; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

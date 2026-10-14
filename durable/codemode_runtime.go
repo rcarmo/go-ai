@@ -137,7 +137,7 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 	}
 	start := CodemodeStart{PaidModels: r.harness.options.PaidModels, Namespaces: append([]CodemodeNamespace(nil), r.harness.options.CodemodeNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	for _, global := range r.harness.options.CodemodeGlobals {
-		start.Globals = append(start.Globals, CodemodeGlobalDescription{Name: global.Name, Version: global.Version, Spread: global.Spread})
+		start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 	}
 	var runID, journalID ID
 	var run codemodeRunState

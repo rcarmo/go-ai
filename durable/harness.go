@@ -65,10 +65,11 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}
-	if err := validateCodemodeGlobals(options.CodemodeGlobals, DefaultLimits()); err != nil {
+	globals, err := cloneCodemodeGlobals(options.CodemodeGlobals, DefaultLimits())
+	if err != nil {
 		return nil, err
 	}
-	options.CodemodeGlobals = append([]CodemodeGlobal(nil), options.CodemodeGlobals...)
+	options.CodemodeGlobals = globals
 	if err := validateCodemodeNamespaces(options.CodemodeNamespaces, DefaultLimits()); err != nil {
 		return nil, err
 	}
