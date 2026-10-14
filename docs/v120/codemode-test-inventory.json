@@ -810,7 +810,7 @@
           "nativeTests": [
             "durable/codemode_generated_images_120_test.go"
           ],
-          "note": "Notice counts confirmed paid image deliveries, settled replay dispatches once; plural and any-shown suppression tested as helper. Full shown-image/writer integration needs dedicated counterpart."
+          "note": "Concrete paid generation/VM verifies unshown notice and shown suppression, PNG persistence through confined writer and settled replay with one paid effect per distinct run and one image write. Plural helper coverage; upstream full result rendering remains partial."
         }
       ]
     },

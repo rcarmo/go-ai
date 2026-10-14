@@ -736,6 +736,12 @@ Concrete paid-image/VM tests verify the notice and settled reuse with one provid
 
 All seven paid-model declarations now have explicit mappings or gaps: 57/149 declarations reviewed, 92 unreviewed. Four-call capacity and queued-call completion fencing require parallel execution; dedicated classifier-error/context and displayed-image writer counterparts need expansion. Final acceptance is unfinished.
 
+## Shown paid-image writer integration
+
+Expanded the paid-image test to use a valid generated PNG and a confined environment writer. The concrete VM passes the provider's output to `image(block)`, suppresses the unshown notice, preserves one image and its saved path, and reuses the settled run without another provider call or image write. Saved bytes decode as a one-pixel PNG. Initial fixtures used nonexistent writer/helper fields; they were corrected to `Options.Env` and the existing writer API.
+
+Generated-image race count 3 passes in 13.484s. Full normal root tests pass (durable 84.163s, tools 5.957s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Declaration review remains 57/149; this expands an existing partial mapping. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
