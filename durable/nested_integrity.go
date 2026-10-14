@@ -56,7 +56,11 @@ func validateNestedReferences(s Snapshot, task Task, l Limits) error {
 			}
 			if result.Code == "" {
 				if input.Offer.StructuredOutputSchema == nil {
-					if !result.HasStructuredOutput || result.StructuredOutput != result.Content {
+					if result.IsError {
+						if result.HasStructuredOutput || result.StructuredOutput != nil {
+							return reject("invalid nested text error union")
+						}
+					} else if !result.HasStructuredOutput || result.StructuredOutput != result.Content {
 						return reject("invalid nested text structured result")
 					}
 				} else if result.HasStructuredOutput {

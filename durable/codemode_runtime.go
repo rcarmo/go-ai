@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"strings"
 	"time"
 )
 
@@ -430,6 +431,18 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 						delivery.HasValue = true
 					} else if result.IsError {
 						delivery.Error = result.Content
+						if delivery.Error == "" {
+							messages := []string{}
+							for _, diagnostic := range result.Diagnostics {
+								if diagnostic.Severity == "error" {
+									messages = append(messages, diagnostic.Message)
+								}
+							}
+							delivery.Error = strings.Join(messages, "\n")
+						}
+						if delivery.Error == "" {
+							delivery.Error = "Tool " + call.Name + " failed"
+						}
 					} else {
 						delivery.Value = result.Content
 						delivery.HasValue = true

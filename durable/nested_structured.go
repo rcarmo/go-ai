@@ -17,6 +17,10 @@ func validateNestedStructuredResult(result ToolResult, offer toolOffer, limits L
 		if present {
 			return invalid("Structured output returned without a declared schema")
 		}
+		// Schema-less failures have no structured value: codemode rejects them.
+		if result.IsError {
+			return result, false
+		}
 		result.StructuredOutput = result.Content
 		result.HasStructuredOutput = true
 		return result, false

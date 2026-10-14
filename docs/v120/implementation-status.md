@@ -710,6 +710,12 @@ Reviewed all seven pinned portable declarations: native wall deadlines, heap lim
 
 At revision `6b4422f`, the initial full root race run reached the 300s package-wide timeout during a test that had run for three seconds. A durable-only rerun at the same seed passed in 465.782s. The complete root race suite then passed with `-shuffle=1792017546493000040 -count=1 -timeout=900s` (durable 461.621s, tools 29.249s, QuickJS 31.043s). The first timeout is not a passing receipt; the final complete invocation supplies the fresh root race result. Raw diagnostic logs were removed after analysis. Nested-module consumer gates, whole-port profiling, security approval, output storage, parallel replay and remaining declaration review are unfinished.
 
+## Nested tool error outcomes
+
+Pinned `codemode.ts` intentionally resolves defined structured output even when `isError` is true. Native tests now preserve that rule for objects and explicit null. Schema-less failures previously acquired an implicit structured text value, causing codemode to resolve them. They now retain the error union; nested integrity validation checks that union. Error text falls back to error-severity diagnostics, then `Tool <name> failed`, matching the pinned outcome conversion. Replay identity advances to host41.
+
+Concrete VM tests cover text precedence, diagnostics, empty failures, structured objects/null and settled reuse with one nested effect. Focused tool-error/nested race count 3 passes in 31.601s. Full normal root tests pass (durable 71.196s, tools 4.589s), with static/logging/non-CGO and diff checks. Initial fixtures used an unsupported diagnostic severity and omitted structured schemas; both were corrected before passing evidence. Diagnostic logs were removed after analysis. The prior full-race receipt predates this change; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
