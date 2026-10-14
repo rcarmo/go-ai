@@ -754,6 +754,12 @@ Reviewed five pinned timeout/lifetime declarations. New VM tests verify that ret
 
 Focused lifetime race count 3 passes in 14.479s. Full normal root tests pass (durable 74.358s, tools 4.653s), with static/logging/non-CGO and diff checks. The initial test reassigned a callback-captured release channel and triggered a fixture race; a once-only close corrected it before passing evidence. No production lifetime changes were needed. Diagnostic logs were removed after analysis. Final acceptance is unfinished.
 
+## Executable isolation cases
+
+Eight pinned sandbox isolation declarations now run against concrete QuickJS-WASI: absent host globals, eval/Function containment, denied dynamic import, builtin patch resistance, instance-only frozen intrinsics, instance overrides, non-string error coercion and frozen tools/console. Native callbacks use object arguments. No production changes were needed; these cases do not complete security acceptance.
+
+Focused isolation race count 3 passes in 10.519s. Full normal root tests pass (durable 74.041s, tools 4.748s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Inventory review is 70/149, with 79 unreviewed. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

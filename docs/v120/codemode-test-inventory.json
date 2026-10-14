@@ -601,42 +601,74 @@
         {
           "line": 686,
           "name": "has no host globals",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 710,
           "name": "keeps eval and Function inside the VM",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 724,
           "name": "rejects dynamic import",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 736,
           "name": "ignores patches to built-ins and built-in globals",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 750,
           "name": "freezes intrinsics that are only reachable from instances",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 766,
           "name": "still lets instances override properties of frozen prototypes",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 792,
           "name": "reports errors whose name or message is not a string",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 798,
           "name": "keeps tools and console frozen",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/isolation_crosswalk_120_test.go"
+          ],
+          "note": "Pinned VM isolation case executed against concrete QuickJS-WASI. Native tool callbacks use object arguments; native API/output representation differs. This case evidence is not whole-sandbox security acceptance."
         },
         {
           "line": 816,
