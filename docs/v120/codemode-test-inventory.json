@@ -314,37 +314,63 @@
         {
           "line": 37,
           "name": "fails a script that computes past its interrupt budget as a timeout",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go",
+            "internal/quickjs/global_timeout_120_test.go"
+          ],
+          "note": "Native wall deadline interrupts synchronous/async loops. Deterministic compute interrupt budget is absent; wall-time enforcement is not compute-budget parity."
         },
         {
           "line": 48,
           "name": "counts the budget across waits on tools",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "internal/quickjs/global_timeout_120_test.go"
+          ],
+          "note": "Native deadline remains across callback waits, but upstream persistent compute interrupt budget accounting is not implemented."
         },
         {
           "line": 61,
           "name": "runs tools in the caller and the script on the remote",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native WASI executes locally with host callbacks. Remote exchange/client/service API and separately hosted execution are absent."
         },
         {
           "line": 83,
           "name": "batches output instead of making one exchange per line",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native output is bounded by bridge item/byte budgets; remote output exchange batching/count contract has no implementation."
         },
         {
           "line": 93,
           "name": "caps the interrupt budget and memory at the remote's limits",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go"
+          ],
+          "note": "Local heap/deadline limits enforced. Remote server override ceilings and interrupt budget caps are absent."
         },
         {
           "line": 107,
           "name": "tells the remote to stop when the caller aborts",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_global_cancel_120_test.go",
+            "internal/quickjs/engine_120_test.go"
+          ],
+          "note": "Native cancellation joins host callback/VM; remote stop exchange and execution join protocol absent."
         },
         {
           "line": 134,
           "name": "reports a failing or vanishing remote as a sandbox error",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "durable/codemode_panic_120_test.go"
+          ],
+          "note": "Native sandbox panic containment covered, but remote exchange failure/premature finish/factory error contract is absent."
         }
       ]
     },

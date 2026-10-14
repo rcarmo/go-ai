@@ -704,6 +704,12 @@ WASI monotonic time now reports elapsed delivery-clock time from `StartedAt`, so
 
 The full shuffled run exposed a reservation-rejection waiter timeout, reproduced in a focused race run. Provisional reservation removes tickets; rollback previously depended on mutable claims when notifying bound waiters. Reservation now captures original ticket owners and signals them on rollback. The existing test retains the strict barrier and adds effect/attempt diagnostics. Focused reservation race count 100 passes in 13.271s; reservation/reconcile/clock/model-recovery race count 3 passes in 24.381s. The previously failing full-suite seed `1792016869742943826` passes (durable 72.252s, tools 4.592s). Static/logging/non-CGO and diff checks pass. These are focused race receipts, not a fresh full race pass. Diagnostic logs were disposed after analysis.
 
+## Portable review and full root race refresh
+
+Reviewed all seven pinned portable declarations: native wall deadlines, heap limits and cancellation joining have partial mappings; deterministic compute budgets, remote execution/exchange batching and server override contracts are missing. The inventory now has 45/149 reviewed declarations and 104 unreviewed. No implementation parity follows from this review.
+
+At revision `6b4422f`, the initial full root race run reached the 300s package-wide timeout during a test that had run for three seconds. A durable-only rerun at the same seed passed in 465.782s. The complete root race suite then passed with `-shuffle=1792017546493000040 -count=1 -timeout=900s` (durable 461.621s, tools 29.249s, QuickJS 31.043s). The first timeout is not a passing receipt; the final complete invocation supplies the fresh root race result. Raw diagnostic logs were removed after analysis. Nested-module consumer gates, whole-port profiling, security approval, output storage, parallel replay and remaining declaration review are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
