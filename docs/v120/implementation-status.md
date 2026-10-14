@@ -698,6 +698,12 @@ Reviewed all 16 pinned `deterministic.test.ts` declarations and recorded partial
 
 New concrete VM tests check pinned seed 1/seed 0 random values with 1e-15 absolute tolerance, independence from start time, UTC offset and absent GC intrinsics. The delivery-clock test exposed backward time assignment in the direct sandbox adapter. Deliveries now clamp to the previous clock; replay-visible identity advances to host39. Focused deterministic/clock/recovery/identity race count 3 passes in 34.914s. Full normal root tests pass (durable 85.681s, tools 5.773s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis.
 
+## Elapsed clock and reservation rollback
+
+WASI monotonic time now reports elapsed delivery-clock time from `StartedAt`, so `performance.now()` advances with `Date.now()`. Nanosecond overflow saturates instead of wrapping. Clock semantics advance replay identity to host40. Engine clock race count 3 passes in 18.350s; deterministic/clock/recovery/identity race count 3 passes in 35.995s.
+
+The full shuffled run exposed a reservation-rejection waiter timeout, reproduced in a focused race run. Provisional reservation removes tickets; rollback previously depended on mutable claims when notifying bound waiters. Reservation now captures original ticket owners and signals them on rollback. The existing test retains the strict barrier and adds effect/attempt diagnostics. Focused reservation race count 100 passes in 13.271s; reservation/reconcile/clock/model-recovery race count 3 passes in 24.381s. The previously failing full-suite seed `1792016869742943826` passes (durable 72.252s, tools 4.592s). Static/logging/non-CGO and diff checks pass. These are focused race receipts, not a fresh full race pass. Diagnostic logs were disposed after analysis.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

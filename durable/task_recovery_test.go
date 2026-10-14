@@ -1558,7 +1558,11 @@ func TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry(t *testing.T) {
 					}
 				}
 				releaseTaskGate(releaseAppend)
-				awaitTaskSignal(t, detached)
+				select {
+				case <-detached:
+				case <-time.After(3 * time.Second):
+					t.Fatalf("detach timeout effects=%d attempts=%d", effects.Load(), attempts.Load())
+				}
 				h.session.taskBookkeeping(func() {
 					if len(h.scheduler.invocations) != 1 || len(h.scheduler.tickets) != 0 || len(h.scheduler.waiters) != 0 {
 						t.Error("failed bound wait leaked permit/registration")

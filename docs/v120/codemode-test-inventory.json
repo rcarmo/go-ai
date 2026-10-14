@@ -177,9 +177,10 @@
           "disposition": "native-partial",
           "nativeTests": [
             "durable/codemode_deterministic_crosswalk_120_test.go",
-            "durable/codemode_quickjs_clock_120_test.go"
+            "durable/codemode_quickjs_clock_120_test.go",
+            "internal/quickjs/clock_120_test.go"
           ],
-          "note": "Pinned seed1/seed0 values, time-independent random, Date clock and serial delivered clock tested. Upstream performance.now and complete call/output equivalence not covered."
+          "note": "Pinned seed1/seed0, time-independent randomness, absolute Date clock and elapsed performance clock tested with serial deliveries. Full upstream call/output equivalence remains partial."
         },
         {
           "line": 148,
@@ -236,7 +237,7 @@
           "nativeTests": [
             "durable/codemode_quickjs_clock_120_test.go"
           ],
-          "note": "Serial delivery clock advances and backward deliveries clamp at previous clock, with replay identity host39. int64 transport excludes nonfinite values; upstream performance.now and generic JSON rejection contract still not covered."
+          "note": "Serial deliveries advance Date/performance clocks and backward deliveries clamp. Elapsed nanosecond overflow saturates; replay identity host40. int64 transport excludes nonfinite inputs; generic JSON rejection semantics not covered."
         },
         {
           "line": 275,

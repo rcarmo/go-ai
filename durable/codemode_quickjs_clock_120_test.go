@@ -14,7 +14,7 @@ func TestCodemode120QuickJSClockAdvancesOnlyOnDelivery(t *testing.T) {
 	defer sandbox.Close(bg)
 	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 	defer cancel()
-	vm, err := sandbox.Start(ctx, `const before=Date.now();await tools.leaf({});const middle=Date.now();await tools.leaf({});return [before,middle,Date.now()];`, CodemodeStart{StartedAt: 1000, Seed: 42, Tools: []CodemodeToolDescription{{Name: "leaf", Identifier: "leaf"}}})
+	vm, err := sandbox.Start(ctx, `const before=[Date.now(),performance.now()];await tools.leaf({});const middle=[Date.now(),performance.now()];await tools.leaf({});return [...before,...middle,Date.now(),performance.now()];`, CodemodeStart{StartedAt: 1000, Seed: 42, Tools: []CodemodeToolDescription{{Name: "leaf", Identifier: "leaf"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestCodemode120QuickJSClockAdvancesOnlyOnDelivery(t *testing.T) {
 		t.Fatal(event, err)
 	}
 	values, ok := event.Result.Value.([]any)
-	if !ok || len(values) != 3 || !equalJSONValue(values[0], 1000) || !equalJSONValue(values[1], 2000) || !equalJSONValue(values[2], 2000) {
+	if !ok || len(values) != 6 || !equalJSONValue(values[0], 1000) || !equalJSONValue(values[1], 0) || !equalJSONValue(values[2], 2000) || !equalJSONValue(values[3], 1000) || !equalJSONValue(values[4], 2000) || !equalJSONValue(values[5], 1000) {
 		t.Fatal(event.Result)
 	}
 }

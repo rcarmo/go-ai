@@ -306,7 +306,25 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 			now = opts.Clock()
 		}
 		return now / 1000, int32(now%1000) * 1000000
-	}, 1).WithNanotime(func() int64 { return 0 }, 1)
+	}, 1).WithNanotime(func() int64 {
+		if !v.clockReady {
+			return 0
+		}
+		now := opts.StartedAt
+		if opts.Clock != nil {
+			now = opts.Clock()
+		}
+		if now <= opts.StartedAt {
+			return 0
+		}
+		// Unsigned subtraction avoids overflow across signed endpoints.
+		elapsed := uint64(now) - uint64(opts.StartedAt)
+		const maxMillis = uint64((1<<63 - 1) / 1_000_000)
+		if elapsed > maxMillis {
+			return 1<<63 - 1
+		}
+		return int64(elapsed) * 1_000_000
+	}, 1)
 	mod, err := e.runtime.InstantiateModule(wasmCtx, e.compiled, modCfg)
 	if err != nil {
 		return finish(v.contextError(runCtx, ctx, fmt.Sprintf("Failed to start QuickJS: %v", err)))

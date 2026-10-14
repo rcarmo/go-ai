@@ -236,6 +236,8 @@ func (s *taskScheduler) reserve() ([]*TaskRuntime, error) { return s.reservePass
 func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error) {
 	reservations := []*TaskRuntime{}
 	attempted := map[ID]bool{}
+	// Preserve ticket owners across provisional reservation and adoption.
+	attemptWaits := map[*taskWait]bool{}
 	var attemptEpoch uint64
 	_, err := s.h.session.taskCommit(context.Background(), func(tx *Tx) error {
 		attemptEpoch = s.epoch.Load()
@@ -244,6 +246,9 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			// can observe a rejected provisional runtime before its removal.
 			for id := range attempted {
 				s.retryAfter[id] = attemptEpoch
+			}
+			for wait := range attemptWaits {
+				s.signalWait(wait, failure)
 			}
 			for _, r := range reservations {
 				if s.invocations[r.taskID] == r {
@@ -299,6 +304,9 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				return false, nil
 			}
 			attempted[id] = true
+			for wait := range s.tickets[id] {
+				attemptWaits[wait] = true
+			}
 			var definition *TaskDefinition
 			if task.Kind == "pi.generation" {
 				var cp generationCheckpoint
