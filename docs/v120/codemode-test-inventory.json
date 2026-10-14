@@ -411,22 +411,42 @@
         {
           "line": 194,
           "name": "ends the script successfully on exit(), keeping output and store writes",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go",
+            "durable/codemode_store_120_test.go"
+          ],
+          "note": "Concrete VM covers detached load/input snapshots, set/delete, JSON serialization errors, key/value/total limits and recovery. Native host byte/item budgets are additional limits."
         },
         {
           "line": 212,
           "name": "keeps output produced before a failure",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go",
+            "durable/codemode_store_120_test.go"
+          ],
+          "note": "Upstream reports pending writes on failed scripts; native engine intentionally discards failed writes and durable adopts only successful patches. Adaptation explicitly tested, not exact parity."
         },
         {
           "line": 218,
           "name": "reports syntax errors with the script's line number",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go",
+            "durable/codemode_store_120_test.go"
+          ],
+          "note": "Concrete VM covers detached load/input snapshots, set/delete, JSON serialization errors, key/value/total limits and recovery. Native host byte/item budgets are additional limits."
         },
         {
           "line": 228,
           "name": "reports thrown errors with the script's line number",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go",
+            "durable/codemode_store_120_test.go"
+          ],
+          "note": "Concrete VM covers detached load/input snapshots, set/delete, JSON serialization errors, key/value/total limits and recovery. Native host byte/item budgets are additional limits."
         },
         {
           "line": 237,

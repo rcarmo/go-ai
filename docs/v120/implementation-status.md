@@ -760,6 +760,12 @@ Eight pinned sandbox isolation declarations now run against concrete QuickJS-WAS
 
 Focused isolation race count 3 passes in 10.519s. Full normal root tests pass (durable 74.041s, tools 4.748s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Inventory review is 70/149, with 79 unreviewed. Final acceptance is unfinished.
 
+## Store mutation and limits review
+
+Four pinned store declarations now have executable mappings. Concrete VM tests cover detached loaded values and initial snapshots, set/delete, invalid keys, cyclic JSON, per-value/total limits and recovery. Upstream reports pending writes on failed scripts; the native engine intentionally discards them, and durable applies only successful patches. The first test expected upstream write reporting and failed; it was corrected to test and record the native adaptation. No production store changes were made.
+
+Focused store race count 3 passes in 20.607s. Full normal root tests pass (durable 72.832s, tools 4.495s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 74/149, with 75 unreviewed; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
