@@ -10,6 +10,7 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 	backends(t, func(t *testing.T, b backend) {
 		started := make(chan ID, 3)
 		releaseBackground := make(chan struct{})
+		parentAbortStarted := make(chan struct{})
 		var parentID, backgroundID, childID ID
 		live := taskDefinition(t, "task.reference.marked.background", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			started <- r.TaskID()
@@ -18,6 +19,7 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 		})
 		options := live.options
 		options.Abort = func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+			if task.ID == parentID { close(parentAbortStarted) }
 			if task.ID == backgroundID {
 				<-releaseBackground
 			}
@@ -76,6 +78,10 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 		if child := waitPublicTask(t, h, childID); child.State.Outcome.Status != "aborted" {
 			t.Fatal(child)
 		}
+		// The child's independent background cascade can settle before the
+		// ancestor goroutine even commits its mark. Wait for actual ancestor
+		// abort admission before asserting that mark.
+		awaitTaskSignal(t, parentAbortStarted)
 		state, err := h.Snapshot(bg)
 		if err != nil || !taskAborted(state.Tasks[parentID]) || !taskAborted(state.Tasks[backgroundID]) {
 			t.Fatal("marks missing", err)

@@ -2202,6 +2202,12 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					if err := api.Output("known-prefix"); err != nil {
 						return ToolResult{}, err
 					}
+					// Output is coalesced asynchronously. Commit the prefix that
+					// recovery asserts before injecting settlement failure;
+					// CreateTask is not a progress-flush barrier.
+					if err := api.Details(nil); err != nil {
+						return ToolResult{}, err
+					}
 					if _, err := api.CreateTask(ctx, child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: toolID}}); err != nil {
 						return ToolResult{}, err
 					}
