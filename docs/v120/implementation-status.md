@@ -574,6 +574,58 @@ Focused declaration/reference/discovery race tests count3 pass7.333s. Static/log
 
 Rui authorised committing/pushing this checkpoint and explicitly pausing work. Remaining parity/security/profiling/race/crosswalk items are unfinished; resume only on a new user instruction. Diagnostic logs are disposed after use.
 
+## Resumed nullable constraints and recovery-test limitation
+
+Resumed at Rui's instruction after checkpoint89fe371. Constraint annotations now combine a sole non-null anyOf/oneOf branch with property constraints, choose tighter numeric bounds, recognise integer type arrays and normalise draft-04 boolean exclusive bounds. Runtime schema validation is unchanged; discovery host identity is33. Focused nullable/declaration/discovery race tests count3 pass9.062s; vet/staticcheck/logging and non-CGO build pass.
+
+The full shuffled root suite failed `TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen/memory/rejected-fallback-adopts`: confirmed receipt expected known-prefix, but recovered interrupted receipt. Seed1792007779664605178. Focused lifecycle race count5 passes40.309s; rerunning the entire durable package with that seed passes80.179s. The failure is not reproduced or fixed and remains an acceptance limitation; assertions/effect counts were not weakened. Latest batch therefore has no passing full-root receipt. Diagnostic logs are disposed after recording the failure/seed. Parallel/output and refreshed full race/security/profiling/crosswalk remain incomplete. Current changes are uncommitted; no new publication authority.
+
+## Recovery fixture synchronisation
+
+The deciding-hold fixture asserted known-prefix recovery without waiting for coalesced Output to commit. Added the existing Details(nil) progress-flush barrier before settlement fault injection; receipt/effect/usage assertions remain intact. Focused race count10 passes88.059s.
+
+The next same-seed full run exposed an independent background-cascade fixture race: waiting for the child (already cancelled by its background owner) did not establish that the newly launched ancestor abort had committed. Added an actual parent-abort-handler admission signal before mark inspection; ownership/background joins and outcome assertions are unchanged. Focused race count20 passes4.219s. Full root normal suite with original failure seed1792007779664605178 now passes (durable88.159s/tools6.390s). Vet/staticcheck/logging pass. These are test synchronisation fixes, not runtime weakening; long-running full race refresh remains incomplete. Current declaration changes and fixtures remain uncommitted.
+
+## Schema-driven annotation fallback
+
+Oversized declaration fallback now rerenders the expanded schema with constraint annotations disabled. It no longer deletes lines from rendered text or compacts literal/prose whitespace. Descriptions beginning with @ and strings containing repeated spaces remain intact; output still becomes unknown if descriptions/types cannot fit. Host identity is34.
+
+Declaration/nullable/discovery race tests count3 pass8.339s. Fresh shuffled full root normal suite passes (durable88.812s/tools6.416s); static/logging and non-CGO build pass. Constraint tag grouping/line-separator spelling and full per-declaration crosswalk still need work. Parallel/output/final refreshed race/security/profile remain incomplete. Changes are uncommitted; diagnostic logs disposed after use.
+
+## Pinned constraint-tag projection
+
+Constraint tags now group on one comment line, and CR/LF/U+2028/U+2029 use upstream-style Unicode escape spellings. Tags longer than80UTF16characters are dropped before escaping; descriptions remain. Pinned grouping/separator/long-tag tests and nullable/ref/fallback/discovery race count3 pass8.160s. Full root normal suite passes (durable75.269s/tools6.064s); static/logging and non-CGO build pass. Host identity is35. Complete declaration test dispositions, parallel/output and final refreshed race/security/profile remain unfinished. Changes are uncommitted; logs disposed after use.
+
+## Exact primitive/object/description declarations crosswalk
+
+Transcribed all expectations from the first three pinned declaration tests. This exposed union rendering with an unknown branch; it now collapses to unknown as upstream does. Exact cases include primitives/literals/unions/intersections, sorted required/quoted properties, open/closed objects and nested descriptive comments. Host identity is36.
+
+Focused renderer/discovery race tests count3 pass9.134s; full root normal suite passes (durable83.169s/tools6.060s); static/logging and non-CGO build pass. Inventory now records8reviewed source/declaration tests and141unreviewed declarations, with native bounded/API differences explicit. Complete remaining declaration/prompt/global/test crosswalk, parallel/output and final race/security/profile remain unfinished. Changes uncommitted; logs disposed after use.
+
+## Exact pinned annotation crosswalk
+
+Transcribed complete expected strings for five upstream annotation/fallback declarations: direct constraints/defaults, nullable tighter bounds, draft-04 exclusivity, long-tag omission/line separators and budget fallback. This fixed bound-tag ordering to minimum/exclusiveMinimum/maximum/exclusiveMaximum. Host identity is37. Annotation/fallback/discovery race count3 passes8.981s; full root normal passes (durable67.355s/tools4.541s); static/logging/non-CGO pass.
+
+Inventory now records13reviewed source/declaration tests and136unreviewed. API/resource differences remain explicit; complete declaration APIs, parallel/output and final refreshed race/security/profiling/crosswalk are unfinished. Changes uncommitted; logs disposed after use.
+
+## Schema declaration test dispositions
+
+All eleven pinned schemaToType test declarations now have native exact cases, including the recursive Item/local legacy enum/remote ref fixture. Reference/tuple/character budget race count3 passes1.205s; static/logging checks pass. Runtime code is unchanged in this batch.
+
+Inventory records16covered source/schema declarations,6explicit declaration-API gaps and127unreviewed. The six gaps are tool signatures, MCP-shaped output signatures, per-tool samples, tool/global blocks, namespaced/explicit globals and description comment escaping. Native tool sections are not equivalent to those APIs. No full renderer/parity acceptance. Parallel/output/final refreshed race/security/profile/crosswalk remain incomplete; changes uncommitted and logs disposed after use.
+
+## Tool signature/sample APIs
+
+Added RenderCodemodeToolSignature/RenderCodemodeToolSample with pinned normalised identifiers, unknown absent schemas, plain MCP-shaped output types and exact per-tool sample framing. describeTool now calls the sample renderer; catalogue section formatting is unchanged. Host identity is38.
+
+Pinned API/discovery race tests count3 pass7.804s. Full root normal passes (durable80.059s/tools5.833s); static/logging/non-CGO pass. Inventory now has19covered tests,3explicit global declaration-block gaps and127unreviewed. Global descriptions/signatures/block rendering, parallel/output and final race/security/profile/crosswalk remain unfinished. Changes uncommitted; logs disposed after use.
+
+## Tool/global declaration blocks
+
+Added RenderCodemodeDeclarations and descriptive global metadata for ordered tools, standalone globals, namespace groups and explicit signatures. Description comments escape terminators; schemas use native bounds. Exact pinned tool/global/namespaced/signature/comment cases pass race count3 in1.178s. Full root normal passes (durable81.497s/tools5.478s); static/logging/non-CGO pass. Runtime guest semantics unchanged.
+
+All17declaration test cases plus5source cases now have native coverage/adaptations;127other declarations remain unreviewed. These helper APIs are not yet integrated with executable custom-global metadata or model prompt assembly. Full parallel/output/final race/security/profile/crosswalk remain incomplete. Changes uncommitted; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

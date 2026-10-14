@@ -31,7 +31,7 @@ func quickjsDiscoveryGlobals(start CodemodeStart) []quickjs.Global {
 				}
 				for _, tool := range start.Tools {
 					if tool.Name == query || tool.Identifier == query {
-						return json.Marshal(codemodeToolSection(tool))
+						return json.Marshal(RenderCodemodeToolSample(tool))
 					}
 				}
 				return nil, fmt.Errorf("unknown tool %s", query)

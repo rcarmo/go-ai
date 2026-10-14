@@ -8,7 +8,7 @@ import (
 
 // Render the already-validated native tool schema subset. Unsupported schema
 // syntax stays unknown; declarations never grant execution or validation rights.
-func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
+func codemodeSchemaTypeExpanded(schema JSON, depth int, tags bool) string {
 	if depth > 16 {
 		return "unknown"
 	}
@@ -23,7 +23,14 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 		if branches, ok := schema[keyword].([]any); ok && len(branches) > 0 {
 			parts := []string{}
 			for _, branch := range branches {
-				parts = append(parts, codemodeSchemaValue(branch, depth+1))
+				parts = append(parts, codemodeSchemaValueMode(branch, depth+1, tags))
+			}
+			if keyword != "allOf" {
+				for _, part := range parts {
+					if part == "unknown" {
+						return "unknown"
+					}
+				}
 			}
 			separator := " | "
 			if keyword == "allOf" {
@@ -45,7 +52,7 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 				copy[key] = value
 			}
 			copy["type"] = kind
-			parts = append(parts, codemodeSchemaTypeExpanded(copy, depth+1))
+			parts = append(parts, codemodeSchemaTypeExpanded(copy, depth+1, tags))
 		}
 		return strings.Join(parts, " | ")
 	}
@@ -84,7 +91,7 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 	case "array":
 		if item, exists := schema["items"]; exists {
 			if _, tuple := item.([]any); !tuple {
-				return "Array<" + codemodeSchemaValue(item, depth+1) + ">"
+				return "Array<" + codemodeSchemaValueMode(item, depth+1, tags) + ">"
 			}
 		}
 		tuple, ok := schema["prefixItems"].([]any)
@@ -96,7 +103,7 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 		}
 		parts := make([]string, 0, len(tuple))
 		for _, item := range tuple {
-			parts = append(parts, codemodeSchemaValue(item, depth+1))
+			parts = append(parts, codemodeSchemaValueMode(item, depth+1, tags))
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
 	case "object":
@@ -127,8 +134,8 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 			if required[key] {
 				optional = ""
 			}
-			property := name + optional + ": " + codemodeSchemaValue(child, depth+1) + ";"
-			comments := codemodeCommentLines(child)
+			property := name + optional + ": " + codemodeSchemaValueMode(child, depth+1, tags) + ";"
+			comments := codemodeCommentLinesMode(child, tags)
 			if len(comments) > 0 {
 				property = strings.Join(comments, "\n") + "\n" + property
 			}
@@ -139,9 +146,9 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 		}
 		switch extra := schema["additionalProperties"].(type) {
 		case map[string]any:
-			parts = append(parts, "[key: string]: "+codemodeSchemaValue(extra, depth+1)+";")
+			parts = append(parts, "[key: string]: "+codemodeSchemaValueMode(extra, depth+1, tags)+";")
 		case JSON:
-			parts = append(parts, "[key: string]: "+codemodeSchemaValue(extra, depth+1)+";")
+			parts = append(parts, "[key: string]: "+codemodeSchemaValueMode(extra, depth+1, tags)+";")
 		case bool:
 			if extra {
 				parts = append(parts, "[key: string]: unknown;")
@@ -166,7 +173,7 @@ func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 	}
 }
 
-func codemodeSchemaValue(value any, depth int) string {
+func codemodeSchemaValueMode(value any, depth int, tags bool) string {
 	if depth > 16 {
 		return "unknown"
 	}
@@ -177,9 +184,13 @@ func codemodeSchemaValue(value any, depth int) string {
 		}
 		return "never"
 	case map[string]any:
-		return codemodeSchemaTypeExpanded(JSON(schema), depth)
+		return codemodeSchemaTypeExpanded(JSON(schema), depth, tags)
 	case JSON:
-		return codemodeSchemaTypeExpanded(schema, depth)
+		return codemodeSchemaTypeExpanded(schema, depth, tags)
 	}
 	return "unknown"
+}
+
+func codemodeSchemaValue(value any, depth int) string {
+	return codemodeSchemaValueMode(value, depth, true)
 }

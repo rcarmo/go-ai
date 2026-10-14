@@ -29,15 +29,7 @@ func codemodeSchemaTypeBudget(schema JSON, depth, maxChars int) string {
 	}
 	rendered := codemodeSchemaValue(expanded, depth)
 	if codemodeTextUnits(rendered) > maxChars {
-		rendered = codemodeDropConstraintLines(rendered)
-		// Compact an unannotated object after dropping tags.
-		if !strings.Contains(rendered, "//") {
-			lines := strings.Split(rendered, "\n")
-			for i := range lines {
-				lines[i] = strings.TrimSpace(lines[i])
-			}
-			rendered = strings.Join(lines, " ")
-		}
+		rendered = codemodeSchemaValueMode(expanded, depth, false)
 		if codemodeTextUnits(rendered) > maxChars {
 			return "unknown"
 		}

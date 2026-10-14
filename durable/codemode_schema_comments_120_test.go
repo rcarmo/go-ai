@@ -8,7 +8,7 @@ import (
 func TestCodemode120DeclarationCommentsAndFallback(t *testing.T) {
 	schema := JSON{"type": "object", "properties": map[string]any{"n": JSON{"type": "integer", "minimum": 1, "maximum": 10, "description": "count\nsecond line"}, "pattern": JSON{"type": "string", "pattern": "a\nb"}}}
 	got := codemodeSchemaType(schema, 0)
-	for _, part := range []string{"// count\n  // second line", "// @integer", "// @minimum 1", "// @maximum 10", "// @pattern a\\nb"} {
+	for _, part := range []string{"// count\n  // second line", "// @integer @minimum 1 @maximum 10", "// @pattern a\\u000ab"} {
 		if !strings.Contains(got, part) {
 			t.Fatal(part, got)
 		}

@@ -10,87 +10,160 @@
         {
           "line": 7,
           "name": "renders primitives, literals, and unions",
-          "disposition": "unreviewed"
+          "disposition": "pinned expectations verified in native renderer; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_crosswalk_120_test.go:TestCodemode120PinnedTypeObjectAndDescriptionCases"
+          ],
+          "limitations": "Native JSON schema API and input/depth/node/character safeguards remain stricter; declarations descriptive only."
         },
         {
           "line": 23,
           "name": "renders objects on one line with sorted properties",
-          "disposition": "unreviewed"
+          "disposition": "pinned expectations verified in native renderer; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_crosswalk_120_test.go:TestCodemode120PinnedTypeObjectAndDescriptionCases"
+          ],
+          "limitations": "Native JSON schema API and input/depth/node/character safeguards remain stricter; declarations descriptive only."
         },
         {
           "line": 39,
           "name": "puts property descriptions on comment lines",
-          "disposition": "unreviewed"
+          "disposition": "pinned expectations verified in native renderer; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_crosswalk_120_test.go:TestCodemode120PinnedTypeObjectAndDescriptionCases"
+          ],
+          "limitations": "Native JSON schema API and input/depth/node/character safeguards remain stricter; declarations descriptive only."
         },
         {
           "line": 68,
           "name": "puts constraints the type cannot express on property comment lines",
-          "disposition": "unreviewed"
+          "disposition": "pinned annotation/fallback cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_annotation_crosswalk_120_test.go:TestCodemode120PinnedAnnotationCases",
+            "durable/codemode_schema_comments_120_test.go:TestCodemode120DeclarationCommentsAndFallback"
+          ],
+          "limitations": "Native schema input/depth/node/character safeguards; broader schemas and complete renderer API still require audit."
         },
         {
           "line": 102,
           "name": "reads constraints of optional fields from the non-null branch",
-          "disposition": "unreviewed"
+          "disposition": "pinned annotation/fallback cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_annotation_crosswalk_120_test.go:TestCodemode120PinnedAnnotationCases",
+            "durable/codemode_schema_comments_120_test.go:TestCodemode120DeclarationCommentsAndFallback"
+          ],
+          "limitations": "Native schema input/depth/node/character safeguards; broader schemas and complete renderer API still require audit."
         },
         {
           "line": 132,
           "name": "reads draft-04 boolean exclusive bounds",
-          "disposition": "unreviewed"
+          "disposition": "pinned annotation/fallback cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_annotation_crosswalk_120_test.go:TestCodemode120PinnedAnnotationCases",
+            "durable/codemode_schema_comments_120_test.go:TestCodemode120DeclarationCommentsAndFallback"
+          ],
+          "limitations": "Native schema input/depth/node/character safeguards; broader schemas and complete renderer API still require audit."
         },
         {
           "line": 153,
           "name": "leaves out long tags and escapes line terminators",
-          "disposition": "unreviewed"
+          "disposition": "pinned annotation/fallback cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_annotation_crosswalk_120_test.go:TestCodemode120PinnedAnnotationCases",
+            "durable/codemode_schema_comments_120_test.go:TestCodemode120DeclarationCommentsAndFallback"
+          ],
+          "limitations": "Native schema input/depth/node/character safeguards; broader schemas and complete renderer API still require audit."
         },
         {
           "line": 179,
           "name": "drops constraint tags before rendering a type over the budget as unknown",
-          "disposition": "unreviewed"
+          "disposition": "pinned annotation/fallback cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_annotation_crosswalk_120_test.go:TestCodemode120PinnedAnnotationCases",
+            "durable/codemode_schema_comments_120_test.go:TestCodemode120DeclarationCommentsAndFallback"
+          ],
+          "limitations": "Native schema input/depth/node/character safeguards; broader schemas and complete renderer API still require audit."
         },
         {
           "line": 186,
           "name": "resolves local references and stops at recursive ones",
-          "disposition": "unreviewed"
+          "disposition": "pinned reference/array/budget cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_reference_crosswalk_120_test.go:TestCodemode120PinnedRecursiveReferenceCase"
+          ],
+          "limitations": "Native local expansion and default/input budgets remain stricter; remote refs not fetched."
         },
         {
           "line": 209,
           "name": "renders arrays and tuples",
-          "disposition": "unreviewed"
+          "disposition": "pinned reference/array/budget cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_tuple_120_test.go:TestCodemode120PinnedArrayTupleDeclarations"
+          ],
+          "limitations": "Native local expansion and default/input budgets remain stricter; remote refs not fetched."
         },
         {
           "line": 217,
           "name": "renders types over the budget as unknown",
-          "disposition": "unreviewed"
+          "disposition": "pinned reference/array/budget cases verified; bounded native API adaptation",
+          "nativeTests": [
+            "durable/codemode_schema_budget_120_test.go:TestCodemode120DeclarationCharacterBudget"
+          ],
+          "limitations": "Native local expansion and default/input budgets remain stricter; remote refs not fetched."
         },
         {
           "line": 226,
           "name": "renders signatures with normalized identifiers",
-          "disposition": "unreviewed"
+          "disposition": "pinned native tool signature/sample cases verified",
+          "limitations": "Native bounded schemas; describeTool wired to sample renderer. Complete global declaration blocks not yet implemented.",
+          "nativeTests": [
+            "durable/codemode_declarations_120_test.go:TestCodemode120PinnedToolSignatureAndSample"
+          ]
         },
         {
           "line": 242,
           "name": "renders output schemas shaped like an MCP CallToolResult as plain types",
-          "disposition": "unreviewed"
+          "disposition": "pinned native tool signature/sample cases verified",
+          "limitations": "Native bounded schemas; describeTool wired to sample renderer. Complete global declaration blocks not yet implemented.",
+          "nativeTests": [
+            "durable/codemode_declarations_120_test.go:TestCodemode120PinnedToolSignatureAndSample"
+          ]
         },
         {
           "line": 259,
           "name": "renders the per-tool sample",
-          "disposition": "unreviewed"
+          "disposition": "pinned native tool signature/sample cases verified",
+          "limitations": "Native bounded schemas; describeTool wired to sample renderer. Complete global declaration blocks not yet implemented.",
+          "nativeTests": [
+            "durable/codemode_declarations_120_test.go:TestCodemode120PinnedToolSignatureAndSample"
+          ]
         },
         {
           "line": 267,
           "name": "renders tools and globals",
-          "disposition": "unreviewed"
+          "disposition": "pinned native declaration-block API cases verified; prompt integration incomplete",
+          "limitations": "Descriptive metadata API; executable custom globals do not yet carry these descriptions/signatures and model prompt assembly is unfinished. Native schema budgets apply.",
+          "nativeTests": [
+            "durable/codemode_declaration_blocks_120_test.go:TestCodemode120PinnedToolAndGlobalDeclarationBlocks"
+          ]
         },
         {
           "line": 298,
           "name": "renders namespaced globals and explicit signatures",
-          "disposition": "unreviewed"
+          "disposition": "pinned native declaration-block API cases verified; prompt integration incomplete",
+          "limitations": "Descriptive metadata API; executable custom globals do not yet carry these descriptions/signatures and model prompt assembly is unfinished. Native schema budgets apply.",
+          "nativeTests": [
+            "durable/codemode_declaration_blocks_120_test.go:TestCodemode120PinnedToolAndGlobalDeclarationBlocks"
+          ]
         },
         {
           "line": 324,
           "name": "escapes comment terminators in descriptions",
-          "disposition": "unreviewed"
+          "disposition": "pinned native declaration-block API cases verified; prompt integration incomplete",
+          "limitations": "Descriptive metadata API; executable custom globals do not yet carry these descriptions/signatures and model prompt assembly is unfinished. Native schema budgets apply.",
+          "nativeTests": [
+            "durable/codemode_declaration_blocks_120_test.go:TestCodemode120PinnedToolAndGlobalDeclarationBlocks"
+          ]
         }
       ]
     },
