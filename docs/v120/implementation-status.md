@@ -684,6 +684,14 @@ The native HTTP/QuickJS/reopen integration now runs both Completions and Respons
 
 Responses package race count 3 passes in 3.170s; combined two-API durable integration race count 3 passes in 68.196s. Full normal root tests pass (durable 92.141s, tools 6.074s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Interrupted recovery, output limits, parallel replay, remaining declarations and final acceptance are unfinished.
 
+## Interrupted model-facing codemode settlement
+
+A new memory/journal test pauses the concrete VM after its final result, with one confirmed nested delivery and before codemode settlement. It closes the harness, reopens the same persisted submission and resumes. The script runs twice, the nested external effect runs once, and the recovered conversation contains one codemode call and one result. This tests the model-facing tool and submission lifecycle; interrupted HTTP transport recovery still needs separate coverage.
+
+Focused race count 3 passes in 19.476s. Full normal root tests pass (durable 89.908s, tools 5.983s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis.
+
+Output-limit parity requires a storage design change: default journal strings are capped at 256 KiB, the configurable string ceiling is 512 KiB, and records are capped at 1 MiB. Enabling a 4 MiB outer tool limit alone would conflict with those bounds. Ordinary tool limits and persisted storage ceilings remain unchanged. Parallel replay, declaration review and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
