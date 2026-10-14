@@ -676,6 +676,14 @@ Memory/journal HTTP tests split raw JavaScript across SSE chunks, execute concre
 
 OpenAI package race count 3 passes in 3.583s; durable HTTP/VM/reopen race count 3 passes in 32.939s. Full normal root tests pass (durable 88.529s, tools 6.292s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Parallel execution, output-limit parity, remaining declarations and final acceptance are unfinished.
 
+## Responses raw grammar stream integration
+
+Responses streaming now uses the existing grammar tool view to map custom input to the schema's required string property. Custom-tool deltas form JSON argument fragments, including final closure and empty input, with monotonic-input validation. Tests cover split, done-only, item-only and empty inputs plus non-monotonic rejection.
+
+The native HTTP/QuickJS/reopen integration now runs both Completions and Responses across memory and journal storage, inspecting custom-call/output replay and nested effect counts. The Responses fixture initially lacked the provider registration import; adding it resolved `missing_terminal_message` without changing generation settlement.
+
+Responses package race count 3 passes in 3.170s; combined two-API durable integration race count 3 passes in 68.196s. Full normal root tests pass (durable 92.141s, tools 6.074s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Interrupted recovery, output limits, parallel replay, remaining declarations and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

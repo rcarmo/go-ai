@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	_ "github.com/rcarmo/go-ai/inference/provider/openairesponses"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,11 @@ import (
 )
 
 func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
+	for _, api := range []goai.Api{goai.ApiOpenAICompletions, goai.ApiOpenAIResponses} {
+		t.Run(string(api), func(t *testing.T) { testCodemodeRawGrammarHTTP(t, api) })
+	}
+}
+func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
 	sandbox, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +50,16 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 				if !found {
 					t.Error("codemode missing")
 				}
+				if api == goai.ApiOpenAIResponses {
+					emitResponseEvent(w, map[string]any{"type": "response.output_item.added", "item": map[string]any{"type": "custom_tool_call", "id": "ctc_raw", "call_id": "raw-call", "name": "codemode"}})
+					for _, chunk := range []string{code[:12], code[12:]} {
+						emitResponseEvent(w, map[string]any{"type": "response.custom_tool_call_input.delta", "delta": chunk})
+					}
+					emitResponseEvent(w, map[string]any{"type": "response.custom_tool_call_input.done", "input": code})
+					emitResponseEvent(w, map[string]any{"type": "response.output_item.done", "item": map[string]any{"type": "custom_tool_call", "id": "ctc_raw", "call_id": "raw-call", "name": "codemode", "input": code}})
+					emitResponseEvent(w, map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}})
+					return
+				}
 				for i, chunk := range []string{code[:12], code[12:]} {
 					custom := map[string]any{"input": chunk}
 					call := map[string]any{"index": 0, "type": "custom", "custom": custom}
@@ -58,8 +74,21 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 				fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n")
 			} else {
 				foundCall, foundResult := false, false
-				for _, raw := range body["messages"].([]any) {
+				key := "messages"
+				if api == goai.ApiOpenAIResponses {
+					key = "input"
+				}
+				for _, raw := range body[key].([]any) {
 					message := raw.(map[string]any)
+					if message["type"] == "custom_tool_call" {
+						foundCall = true
+						if message["input"] != code {
+							t.Error("responses raw replay", message)
+						}
+					}
+					if message["type"] == "custom_tool_call_output" && message["output"] == "wire-leaf" {
+						foundResult = true
+					}
 					if calls, ok := message["tool_calls"].([]any); ok {
 						for _, rawCall := range calls {
 							call := rawCall.(map[string]any)
@@ -80,6 +109,10 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 				}
 				if !foundCall || !foundResult {
 					t.Error("custom transcript missing", body)
+				}
+				if api == goai.ApiOpenAIResponses {
+					emitResponseEvent(w, map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}})
+					return
 				}
 				fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 			}
@@ -102,9 +135,10 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 			t.Fatal(err)
 		}
 		yes := true
-		model := fakeModel(goai.ApiOpenAICompletions)
+		model := fakeModel(api)
 		model.BaseURL = server.URL + "/v1"
 		model.CompletionsCompat = &goai.OpenAICompletionsCompat{SupportsOpenAIGrammarTools: &yes}
+		model.ResponsesCompat = &goai.OpenAIResponsesCompat{SupportsOpenAIGrammarTools: &yes}
 		options := Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 			return &goai.StreamOptions{APIKey: "fixture"}, nil
 		}}
@@ -159,4 +193,9 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 			t.Fatal("reopened prompt", err)
 		}
 	})
+}
+
+func emitResponseEvent(w http.ResponseWriter, event map[string]any) {
+	data, _ := json.Marshal(event)
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event["type"], data)
 }

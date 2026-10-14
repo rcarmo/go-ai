@@ -173,7 +173,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		processStreamWithOptions(resp.Body, model, opts, send)
+		processStreamWithOptions(resp.Body, model, opts, send, buildResponsesToolView(convCtx, getResponsesCompat(model).supportsGrammarTools))
 	}()
 
 	return ch
@@ -929,7 +929,11 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 	processStreamWithOptions(body, model, nil, send)
 }
 
-func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event)) {
+func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), views ...responsesToolView) {
+	toolView := responsesToolView{}
+	if len(views) > 0 {
+		toolView = views[0]
+	}
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -946,8 +950,37 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		contentIdx    int
 		partialJSON   string
 		customPayload string
+		inputProperty string
+		inputStarted  bool
+		inputClosed   bool
 	}
 	var current *activeItem
+	appendCustom := func(input string, close bool) error {
+		if current.inputClosed {
+			return nil
+		}
+		if !strings.HasPrefix(input, current.customPayload) {
+			return fmt.Errorf("grammar tool input changed non-monotonically")
+		}
+		delta := input[len(current.customPayload):]
+		current.customPayload = input
+		partial.Content[current.contentIdx].Arguments = map[string]interface{}{current.inputProperty: input}
+		if delta == "" && !close {
+			return nil
+		}
+		encoded := strconv.Quote(delta)
+		encoded = encoded[1 : len(encoded)-1]
+		if !current.inputStarted {
+			encoded = "{" + strconv.Quote(current.inputProperty) + ":\"" + encoded
+			current.inputStarted = true
+		}
+		if close {
+			encoded += "\"}"
+			current.inputClosed = true
+		}
+		send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: encoded, Partial: partial})
+		return nil
+	}
 	terminalResponseSeen := false
 
 	events := sse.Parse(body)
@@ -1033,7 +1066,11 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					Namespace: item.Namespace,
 				})
 				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: item.Type, contentIdx: idx}
+				property, ok := toolView.grammarToolInputProperty(item.Name)
+				if !ok {
+					property = "input"
+				}
+				current = &activeItem{itemType: item.Type, contentIdx: idx, inputProperty: property}
 				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 			}
 
@@ -1082,21 +1119,28 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 		case "response.custom_tool_call_input.delta":
 			if current != nil && current.itemType == "custom_tool_call" {
-				current.customPayload += raw.Delta
-				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
+				if err := appendCustom(current.customPayload+raw.Delta, false); err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
 			}
 
 		case "response.custom_tool_call_input.done":
 			if current != nil && current.itemType == "custom_tool_call" {
-				current.customPayload = raw.Input
-				if current.customPayload == "" {
-					current.customPayload = raw.Arguments
+				input := raw.Input
+				if input == "" {
+					input = raw.Arguments
 				}
-				if current.customPayload == "" {
-					current.customPayload = raw.Delta
+				if input == "" {
+					input = raw.Delta
 				}
-				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
+				if input == "" {
+					input = current.customPayload
+				}
+				if err := appendCustom(input, false); err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
 			}
 
 		case "response.function_call_arguments.done":
@@ -1156,7 +1200,11 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				if input == "" {
 					input = doneItem.Arguments
 				}
-				args := map[string]interface{}{"input": input}
+				if err := appendCustom(input, true); err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
+				args := map[string]interface{}{current.inputProperty: input}
 				partial.Content[idx].Arguments = args
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
