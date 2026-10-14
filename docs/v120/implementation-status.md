@@ -668,6 +668,14 @@ The extension now renders a persisted `codemode` prompt section from the executi
 
 Combined model-tool and prompt race tests, count 3, pass in 32.525s. The full normal root suite passes (durable 86.427s, tools 6.192s); vet, staticcheck, logging checks, non-CGO build and diff checks pass. Diagnostic logs were removed after analysis. Raw-stream integration, output-limit parity, parallel replay, declaration audit and final security/profiling acceptance are unfinished.
 
+## OpenAI completions raw grammar execution and reopen
+
+Streamed custom input now maps to the grammar schema's sole required string property (`code` for codemode). Assistant replay emits custom calls with raw input when grammar support is enabled. Invalid grammar schemas and non-string replay inputs fail before HTTP; empty custom input produces valid JSON deltas. The earlier fixed `input` mapping and function-call replay prevented real codemode execution.
+
+Memory/journal HTTP tests split raw JavaScript across SSE chunks, execute concrete QuickJS and one nested effect per submission, inspect the outgoing custom-call/result transcript, verify persisted source, reopen storage and run a second submission. This covers settled reopen; interrupted HTTP retry/recovery and other provider APIs need separate verification. The grammar wire fixture now declares its required string property; the HTTP assertion accounts for provider trimming of grammar whitespace.
+
+OpenAI package race count 3 passes in 3.583s; durable HTTP/VM/reopen race count 3 passes in 32.939s. Full normal root tests pass (durable 88.529s, tools 6.292s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Parallel execution, output-limit parity, remaining declarations and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -25,7 +25,7 @@ func TestTool120GrammarConstraintDurableHTTPAndIntent(t *testing.T) {
 		}))
 		defer server.Close()
 		registry := NewRegistry()
-		reg := ToolRegistration{Definition: goai.Tool{Name: "grammar_wire", Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}}, Implementation: "wire", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+		reg := ToolRegistration{Definition: goai.Tool{Name: "grammar_wire", Parameters: json.RawMessage(`{"type":"object","required":["code"],"properties":{"code":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}}, Implementation: "wire", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 			t.Error("unexpected execution")
 			return ToolResult{}, nil
 		}}

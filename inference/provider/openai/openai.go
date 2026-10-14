@@ -73,6 +73,31 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		// Deployment is a wire override; callbacks/response attribution retain
 		// the catalog identity and callers can still replace the payload.
+		compat := goai.DetectCompatForModel(model)
+		if compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
+			for _, tool := range convCtx.Tools {
+				if tool.ConstrainedSampling != nil && tool.ConstrainedSampling.Type == "grammar" {
+					if _, err := openAIGrammarToolDef(tool, nil); err != nil {
+						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+						return
+					}
+					property, _ := grammarInputProperty(tool)
+					for _, message := range convCtx.Messages {
+						if message.Role != goai.RoleAssistant {
+							continue
+						}
+						for _, block := range message.Content {
+							if block.Type == "toolCall" && block.Name == tool.Name {
+								if _, ok := block.Arguments[property].(string); !ok {
+									send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("grammar tool call %q requires string argument %q", tool.Name, property)})
+									return
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 		body := buildRequestBody(model, convCtx, opts)
 		body.Model = deployment
 		payload, err := goai.InvokeOnPayload(opts, body, model)
@@ -108,7 +133,6 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		req.Header.Set("Accept", "text/event-stream")
 
 		// Session affinity headers for prompt caching
-		compat := goai.DetectCompatForModel(model)
 		cacheRetentionForHeaders := goai.CacheRetentionShort
 		if opts != nil {
 			cacheRetentionForHeaders = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
@@ -164,7 +188,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		processSSEStreamWithOptions(resp.Body, model, opts, send)
+		processSSEStreamWithOptions(resp.Body, model, opts, send, convCtx.Tools)
 	}()
 
 	return ch
@@ -292,6 +316,9 @@ type toolFunction struct {
 }
 
 func openAIGrammarToolDef(t goai.Tool, cacheMarker *cacheControl) (toolDef, error) {
+	if _, err := grammarInputProperty(t); err != nil {
+		return toolDef{}, err
+	}
 	definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
 	syntax := "lark"
 	if definition == "" {
@@ -342,9 +369,10 @@ func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cac
 }
 
 type toolCallPart struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function toolCallFunction `json:"function"`
+	ID       string            `json:"id"`
+	Type     string            `json:"type"`
+	Function toolCallFunction  `json:"function,omitzero"`
+	Custom   map[string]string `json:"custom,omitempty"`
 }
 
 type toolCallFunction struct {
@@ -497,7 +525,7 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 
 	// Convert messages with compat awareness
-	req.Messages = convertMessages(model, convCtx, &compat)
+	req.Messages = convertMessages(model, convCtx, &compat, convCtx.Tools)
 	if useAnthropicCacheControl {
 		applyAnthropicCacheControl(req.Messages, cacheMarker)
 	}
@@ -692,7 +720,7 @@ func resolveChatTemplateKwargValue(model *goai.Model, opts *goai.StreamOptions, 
 	}
 }
 
-func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.OpenAICompletionsCompat) []chatMessage {
+func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.OpenAICompletionsCompat, toolSets ...[]goai.Tool) []chatMessage {
 	var msgs []chatMessage
 
 	// System prompt — use developer role for reasoning models if supported
@@ -797,6 +825,14 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					toolCallID := normalizeOpenAIToolCallID(c.ID)
 					if details := validReplayReasoningDetails(c.ThoughtSignature); len(details) > 0 {
 						msg.ReasoningDetails = append(msg.ReasoningDetails, details...)
+					}
+					property := grammarInputPropertyFor(c.Name, toolSets)
+					if property != "" && compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
+						input, ok := c.Arguments[property].(string)
+						if ok {
+							msg.ToolCalls = append(msg.ToolCalls, toolCallPart{ID: toolCallID, Type: "custom", Custom: map[string]string{"name": c.Name, "input": goai.SanitizeSurrogates(input)}})
+							continue
+						}
 					}
 					msg.ToolCalls = append(msg.ToolCalls, toolCallPart{
 						ID:   toolCallID,
@@ -939,7 +975,11 @@ func joinStrings(parts []string) string {
 	return result
 }
 
-func appendGrammarInputDelta(previous, next string, close bool) (string, error) {
+func appendGrammarInputDelta(previous, next string, close bool, properties ...string) (string, error) {
+	property := "input"
+	if len(properties) > 0 && properties[0] != "" {
+		property = properties[0]
+	}
 	if !strings.HasPrefix(next, previous) {
 		return "", fmt.Errorf("grammar tool input changed non-monotonically")
 	}
@@ -949,10 +989,13 @@ func appendGrammarInputDelta(previous, next string, close bool) (string, error) 
 	}
 	encoded := strings.TrimSuffix(strings.TrimPrefix(strconv.Quote(delta), "\""), "\"")
 	if close {
+		if previous == "" {
+			return "{" + strconv.Quote(property) + ":\"" + encoded + "\"}", nil
+		}
 		return encoded + "\"}", nil
 	}
 	if previous == "" {
-		return "{\"input\":\"" + encoded, nil
+		return "{" + strconv.Quote(property) + ":\"" + encoded, nil
 	}
 	return encoded, nil
 }
@@ -1096,7 +1139,7 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	processSSEStreamWithOptions(body, model, nil, send)
 }
 
-func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event)) {
+func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), toolSets ...[]goai.Tool) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -1266,13 +1309,17 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 			if tc.Custom.Input != "" {
 				next := at.customInput + tc.Custom.Input
-				deltaJSON, err := appendGrammarInputDelta(at.customInput, next, false)
+				property := grammarInputPropertyFor(at.name, toolSets)
+				if property == "" {
+					property = "input"
+				}
+				deltaJSON, err := appendGrammarInputDelta(at.customInput, next, false, property)
 				if err != nil {
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 					return
 				}
 				at.customInput = next
-				partial.Content[at.contentIdx].Arguments = map[string]interface{}{"input": next}
+				partial.Content[at.contentIdx].Arguments = map[string]interface{}{property: next}
 				if deltaJSON != "" {
 					send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 				}
@@ -1324,7 +1371,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	for _, at := range activeTools {
 		var args map[string]interface{}
 		if at.custom {
-			deltaJSON, err := appendGrammarInputDelta(at.customInput, at.customInput, true)
+			property := grammarInputPropertyFor(at.name, toolSets)
+			if property == "" {
+				property = "input"
+			}
+			deltaJSON, err := appendGrammarInputDelta(at.customInput, at.customInput, true, property)
 			if err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
@@ -1332,7 +1383,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if deltaJSON != "" {
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 			}
-			args = map[string]interface{}{"input": at.customInput}
+			args = map[string]interface{}{property: at.customInput}
 		} else {
 			args, _ = jsonparse.ParsePartialJSON(at.argsBuf)
 			if args == nil {
