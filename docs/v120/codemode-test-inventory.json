@@ -772,18 +772,20 @@
           "name": "resolves a model call that failed with its result, as the coding agent does",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_tool_errors_120_test.go"
+            "durable/codemode_tool_errors_120_test.go",
+            "durable/codemode_classifier_errors_120_test.go"
           ],
-          "note": "Defined structured error/null resolves by pinned outcome contract. Dedicated classifier provider-error result integration needs expansion."
+          "note": "Concrete classifier provider error resolves structured stopReason/errorMessage; settled reuse executes provider once. General structured error/null contract also tested."
         },
         {
           "line": 195,
           "name": "rejects a bad classifier context with the expected shape, before any request",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_models_120_test.go"
+            "durable/codemode_models_120_test.go",
+            "durable/codemode_classifier_errors_120_test.go"
           ],
-          "note": "Invalid model reference rejected before paid request; exact classifier context.state diagnostic contract not directly covered."
+          "note": "Concrete VM array state/empty questions/unknown question type reject with zero classifier requests. Exact upstream context.state/Expected context diagnostic wording is not matched."
         },
         {
           "line": 207,

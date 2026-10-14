@@ -742,6 +742,12 @@ Expanded the paid-image test to use a valid generated PNG and a confined environ
 
 Generated-image race count 3 passes in 13.484s. Full normal root tests pass (durable 84.163s, tools 5.957s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis. Declaration review remains 57/149; this expands an existing partial mapping. Final acceptance is unfinished.
 
+## Classifier failures and malformed contexts
+
+Concrete VM tests now cover a classifier provider returning `stopReason: error` and `errorMessage: quota exceeded`: the script receives the structured result, and settled reuse makes one provider request. Array state, empty questions and unknown question types reject with zero classifier requests. Native diagnostic wording differs from upstream's `context.state`/`Expected context` text.
+
+Focused classifier race count 3 passes in 18.979s. Full normal root tests pass (durable 79.474s, tools 6.008s), with static/logging/non-CGO and diff checks. Fixtures were corrected to the existing typed catalogue and classifier registration API before passing evidence. Diagnostic logs were disposed after analysis. Declaration review remains 57/149; two existing partial mappings gained integration evidence. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
