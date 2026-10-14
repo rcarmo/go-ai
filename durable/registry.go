@@ -395,7 +395,19 @@ func receiptMessage(r messageReceipt) goai.Message {
 	}
 	for _, tool := range r.ToolsAdded {
 		parameters, _ := json.Marshal(tool.Parameters)
-		m.ToolsAdded = append(m.ToolsAdded, goai.Tool{Name: tool.Name, Description: tool.Description, Parameters: parameters, ConstrainedSampling: tool.ConstrainedSampling})
+		// Projection must not expose the persisted constraint map to callers.
+		constraint := tool.ConstrainedSampling
+		if constraint != nil {
+			copy := *constraint
+			if constraint.Variants != nil {
+				copy.Variants = map[string]string{}
+				for key, value := range constraint.Variants {
+					copy.Variants[key] = value
+				}
+			}
+			constraint = &copy
+		}
+		m.ToolsAdded = append(m.ToolsAdded, goai.Tool{Name: tool.Name, Description: tool.Description, Parameters: parameters, ConstrainedSampling: constraint})
 	}
 	return m
 }

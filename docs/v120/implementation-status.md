@@ -650,6 +650,12 @@ Actual durable/OpenAI HTTP testing exposed rejection in system tool-contribution
 
 Native backend wire/intent race tests count3 pass2.534s; full root normal passes (durable84.310s/tools6.337s); static/logging/non-CGO pass. Initial fixture used nonexistent compatibility fields and an incorrect nested custom-payload shape, corrected before passing evidence. Constrained contribution copy/reopen/intent retry tests and grammar-backed codemode installation remain unfinished. Parallel/output/final race/security/profile/crosswalk remain incomplete. Increment committed/pushed; logs disposed after use.
 
+## Constraint contribution reopen/projection isolation
+
+Receipt-to-model projection now deeply copies constrained grammar maps. Native backend tests persist a typed system contribution, mutate caller input, reopen and mutate the projected tool; persisted metadata stays unchanged. Prompt planning emits remove/add declarations for grammar changes. Combined reopen/planning/HTTP race count3 passes2.381s; full root normal passes (durable77.679s/tools6.011s); static/logging/non-CGO pass. Fixture API/root/storage-field mistakes were corrected before passing evidence.
+
+Raw codemode tool/prompt installation, intent retry and parallel/output/final race/security/profile/crosswalk remain unfinished. Increment committed/pushed; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
