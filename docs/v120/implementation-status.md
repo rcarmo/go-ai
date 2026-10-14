@@ -554,6 +554,26 @@ Native declarations now match pinned array renderer precedence: non-array items 
 
 Pinned tuple/structural/discovery race tests count3 pass8.167s. Full root normal suite passes (durable79.381s/tools6.627s); static/logging and non-CGO build pass. Refs, constraint comments and declaration budgets remain incomplete; helper slices do not grant full upstream-test acceptance. Parallel/output and final refreshed race/security/profiling/crosswalk are unfinished. Logs are disposed after use.
 
+## Local declaration references candidate
+
+Local JSON-pointer declaration refs now resolve against the supplied root schema, including $defs/definitions and escaped pointer keys. Recursive/unresolved/remote refs stay unknown; no asset fetch occurs. Expansion uses deterministic sorted traversal, depth16 and2048node budgets. Runtime schema validation remains unchanged. Host identity is30.
+
+Reference/structural/tuple/discovery race tests count3 pass7.299s before the final sorted-traversal adjustment. Full root normal suite passes after it (durable64.915s/tools4.629s); static/logging and non-CGO build pass before that adjustment. Constraint comments/character budgets and full per-test declaration acceptance remain incomplete. Changes after checkpoint b0002f2 are uncommitted; no automatic publication. Parallel/output/final refreshed race/security/profiling/crosswalk remain unfinished. Logs are disposed after use.
+
+## Declaration character and input budgets
+
+Declaration rendering now defaults to16000UTF16characters, with a lower-only internal budget. Oversized output becomes unknown; pre-render checks bound schema nodes4096, literal/key bytes65536 and host depth32, while reference expansion retains depth16/node2048 limits. Tests exercise the pinned50property/100character case, oversize constants and cyclic host schema inputs. These native input budgets are stricter than upstream; constraint-tag drop/retry is not implemented yet. Runtime schema validation is unchanged. Host identity is31.
+
+Budget/ref/structural/discovery race tests count3 pass7.227s. Full root normal suite passes (durable65.017s/tools4.514s); static/logging and non-CGO build pass. Comments/constraint fallback/per-declaration acceptance/full parallel/output and final refreshed race/security/profiling/crosswalk remain unfinished. Post-checkpoint changes are uncommitted; logs are disposed after use.
+
+## Declaration comments checkpoint and user pause
+
+Property descriptions and direct constraint annotations now render as line comments, including integer, bounds, string/array/object constraints, default and deprecated tags. Line separators are escaped in tags; tags above80UTF16characters are omitted. Named objects no longer receive an implicit additional-property index signature unless requested. Oversized annotated declarations retry after dropping constraint lines. Nullable-branch constraint merging, draft-04 exclusive-bound normalisation and exact fallback rendering still need work. Host identity is32.
+
+Focused declaration/reference/discovery race tests count3 pass7.333s. Static/logging checks and non-CGO build pass. The initial full suite exposed stale integer-annotation expectations in the tuple fixture; corrected full root suite passes (durable67.927s/tools4.590s, Go1.27.1/GOMAXPROCS2). No tests or numerical contracts were removed.
+
+Rui authorised committing/pushing this checkpoint and explicitly pausing work. Remaining parity/security/profiling/race/crosswalk items are unfinished; resume only on a new user instruction. Diagnostic logs are disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

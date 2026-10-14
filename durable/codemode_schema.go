@@ -8,7 +8,7 @@ import (
 
 // Render the already-validated native tool schema subset. Unsupported schema
 // syntax stays unknown; declarations never grant execution or validation rights.
-func codemodeSchemaType(schema JSON, depth int) string {
+func codemodeSchemaTypeExpanded(schema JSON, depth int) string {
 	if depth > 16 {
 		return "unknown"
 	}
@@ -45,7 +45,7 @@ func codemodeSchemaType(schema JSON, depth int) string {
 				copy[key] = value
 			}
 			copy["type"] = kind
-			parts = append(parts, codemodeSchemaType(copy, depth+1))
+			parts = append(parts, codemodeSchemaTypeExpanded(copy, depth+1))
 		}
 		return strings.Join(parts, " | ")
 	}
@@ -115,6 +115,7 @@ func codemodeSchemaType(schema JSON, depth int) string {
 		}
 		sort.Strings(keys)
 		parts := []string{}
+		multiline := false
 		for _, key := range keys {
 			child := properties[key]
 			name := key
@@ -126,7 +127,15 @@ func codemodeSchemaType(schema JSON, depth int) string {
 			if required[key] {
 				optional = ""
 			}
-			parts = append(parts, name+optional+": "+codemodeSchemaValue(child, depth+1)+";")
+			property := name + optional + ": " + codemodeSchemaValue(child, depth+1) + ";"
+			comments := codemodeCommentLines(child)
+			if len(comments) > 0 {
+				property = strings.Join(comments, "\n") + "\n" + property
+			}
+			if strings.Contains(property, "\n") {
+				multiline = true
+			}
+			parts = append(parts, property)
 		}
 		switch extra := schema["additionalProperties"].(type) {
 		case map[string]any:
@@ -138,10 +147,18 @@ func codemodeSchemaType(schema JSON, depth int) string {
 				parts = append(parts, "[key: string]: unknown;")
 			}
 		default:
-			parts = append(parts, "[key: string]: unknown;")
+			if len(keys) == 0 {
+				parts = append(parts, "[key: string]: unknown;")
+			}
 		}
 		if len(parts) == 0 {
 			return "{}"
+		}
+		if multiline {
+			for i := range parts {
+				parts[i] = codemodeIndent(parts[i])
+			}
+			return "{\n" + strings.Join(parts, "\n") + "\n}"
 		}
 		return "{ " + strings.Join(parts, " ") + " }"
 	default:
@@ -160,9 +177,9 @@ func codemodeSchemaValue(value any, depth int) string {
 		}
 		return "never"
 	case map[string]any:
-		return codemodeSchemaType(JSON(schema), depth)
+		return codemodeSchemaTypeExpanded(JSON(schema), depth)
 	case JSON:
-		return codemodeSchemaType(schema, depth)
+		return codemodeSchemaTypeExpanded(schema, depth)
 	}
 	return "unknown"
 }
