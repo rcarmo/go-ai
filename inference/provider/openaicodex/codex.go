@@ -445,6 +445,11 @@ func recordCodexWebSocketStats(sessionID string, reused bool, useCachedContext b
 	}
 }
 
+// Codex events can contain complete output snapshots, exceeding websocket's
+// default 32 KiB. Match the SSE parser's 4 MiB line budget while retaining a
+// bounded per-message allocation on both fresh and cached connections.
+const codexWebSocketMessageLimit = 4 * 1024 * 1024
+
 func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, retryCfg goai.RetryConfig, model *goai.Model) (*websocket.Conn, error) {
 	var (
 		conn  *websocket.Conn
@@ -459,6 +464,7 @@ func dialCodexWebSocket(ctx context.Context, wsURL string, headers http.Header, 
 		conn, _, wsErr = websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
 		cancel()
 		if wsErr == nil {
+			conn.SetReadLimit(codexWebSocketMessageLimit)
 			return conn, nil
 		}
 		if ctx.Err() != nil {

@@ -2,31 +2,32 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
-[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json)
+[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![go-ai](docs/icon-256.png)
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-> **Experimental.** This module is still at `v0` and tracks upstream closely enough that release audits can move public details. The accepted v0.87.1 audit embeds 1495 text/chat models across 41 providers, 10 text/chat API protocols, and 55 image models.
+The current upstream baseline is **v1.1.0** of pi-ai and pi-durable. The generated catalogues contain 1563 chat models, 61 image models and 26 classifiers. Native release [v1.1.0](https://github.com/rcarmo/go-ai/releases/tag/v1.1.0) is published; subsequent fixes on `main` are recorded in [RELEASE.md](RELEASE.md).
 
 ## Documentation
 
 * [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) has the published API surface.
 * [Basic usage](docs/basic-usage.md), [model selection](docs/model-selection.md), [prompt/context handling](docs/prompts-and-context.md), [tool calling](docs/tool-calling.md), and [image handling](docs/image-handling.md) cover the common paths.
-* [Harness helpers](docs/HARNESS.md) describe the higher-level agent/session utilities.
-* [RELEASE.md](RELEASE.md) and [docs/v0851-release-ledger.md](docs/v0851-release-ledger.md) record the current upstream baseline, audit scope, and validation results.
+* [Harness helpers](docs/HARNESS.md) describe the in-memory agent/session utilities; [native durable harness](docs/durable/README.md) covers persisted conversations, tasks, tools and recovery.
+* [RELEASE.md](RELEASE.md), the [v1.1.0 crosswalk](docs/v110/changed-paths-crosswalk.md) and [validation record](docs/v110/local-validation.md) record audit scope, adaptations and verification limits.
 
 ## Features
 
 * One `Stream`/`Complete` entry point over the registered provider implementation, with channel-based text, thinking, and tool-call events.
-* A generated model registry for text/chat and image models, checked against the upstream v0.87.1 records rather than copied by hand.
+* A generated model registry for text/chat and image models, checked against the upstream v1.1.0 records rather than copied by hand.
 * JSON-compatible message, context, tool, usage, diagnostic, and stream-option types for cross-language transcript hand-off.
 * Tool calling with JSON Schema parameters, strict/constrained sampling helpers where providers expose them, and partial JSON parsing for streamed arguments.
 * Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
 * OAuth helpers for GitHub Copilot, OpenAI Codex, Anthropic, Google Gemini CLI, Google Antigravity, Radius, Kimi Coding, and xAI.
 * Image generation support through the `images` package and OpenRouter image provider registration.
+* A native durable harness with memory, append-journal and SQLite stores, owned tasks/tools, subscriptions, compaction and recovery.
 * Local release gates for regenerated catalog drift, SBOM/security/license checks, logging quality, race tests, and reproducible test runs.
 
 ## Installation
@@ -89,6 +90,12 @@ Set API keys in the environment, or pass them through `StreamOptions`/provider-s
 
 More complete examples live under `examples/basic`, `examples/streaming`, `examples/tools`, and `examples/copilot`.
 
+## Codex transports
+
+Set `StreamOptions.Transport` to `TransportSSE`, `TransportWebSocket`, `TransportWebSocketCached` or `TransportAuto`. Codex defaults to auto: it attempts WebSocket and can fall back to SSE on a transport failure before streaming starts. Explicit WebSocket modes can also fall back; provider errors are not treated as transport failures.
+
+A stable `StreamOptions.SessionID` enables connection reuse; auto and cached modes also reuse provider context. Each Codex connection accepts incoming messages up to **4 MiB**, matching the SSE parser's single-line budget. Larger messages remain rejected. This provider-specific limit does not change the general-purpose WebSocket transport's default.
+
 ## Package/source layout
 
 ```text
@@ -113,6 +120,7 @@ go-ai/
 │       └── faux/
 ├── images/                      # image generation API and generated image model registry
 │   └── openrouter/
+├── durable/                     # persisted sessions, harness, tasks, tools and stores
 ├── oauth/                       # OAuth flows and runtime helpers
 ├── transports/                  # SSE and WebSocket primitives
 ├── internal/                    # private parsers/helpers
@@ -145,13 +153,13 @@ The generated catalog also includes provider metadata for OpenRouter, xAI, Groq,
 
 * This is a Go library, so JavaScript-only surfaces such as a Workers `env.AI.fetch` binding are adapted as Go interfaces and helpers rather than copied as runtime globals.
 * Provider SDK behaviour is not always byte-for-byte identical. Where Go uses its own HTTP transport or an official Go SDK, the request/stream semantics are tested against deterministic fixtures and recorded in the release ledger.
-* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with live-only gaps called out in `docs/v0851-142-test-manifest.md`.
+* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with verification limits recorded in the [v1.1.0 validation record](docs/v110/local-validation.md#verification-limits).
 * `CompactContext` is deliberately simple tail truncation. If you need semantic summaries or specialised transcript retention, add that in your agent layer.
-* The module is still pre-`v1`; compatibility is best read against the release ledger for the upstream version being tracked.
+* The durable API targets pi-durable 1.1.0 directly. Earlier native durable APIs and journal formats are not compatibility guarantees; consult the durable documentation before upgrading.
 
 ## Compatibility/versioning
 
-The current accepted runtime tracks upstream `@earendil-works/pi-ai` v0.87.1. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
+The current baseline tracks upstream `@earendil-works/pi-ai` and `@earendil-works/pi-durable` v1.1.0. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
 
 Release audits update `RELEASE.md`, the generated catalogs, and the per-release manifests in `docs/`. Tags should be treated as upstream-aligned checkpoints rather than a promise that every upstream runtime surface exists unchanged in Go.
 
@@ -161,12 +169,12 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 ## Supply-chain metadata
 
-The accepted v0.87.1 runtime (`c2d0231d8bef63a920e1663143e6c1c39ef0679d`) has a validated CycloneDX SBOM published as durable, version-pinned release assets:
+Native v1.1.0 has version-pinned CycloneDX release assets:
 
-* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json)
-* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/upstream-v0.87.1/sbom.cdx.json.sha256)
+* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json)
+* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json.sha256)
 
-The SBOM is generated and checked by `make sbom-check`, then can be republished through the manual `publish-sbom-release.yml` workflow against that accepted runtime ref. Historical v0.85.1 and v0.87.0 SBOM assets remain available under their `upstream-v0.85.1` and `upstream-v0.87.0` release tags.
+These describe the immutable release, not later changes on `main`. `make sbom-check` generates and checks an SBOM; `publish-sbom-release.yml` publishes assets for the selected release ref. Earlier version-pinned assets remain available under their original tags.
 
 ## License
 
