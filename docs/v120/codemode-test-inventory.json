@@ -174,82 +174,135 @@
         {
           "line": 108,
           "name": "makes the same calls and output for the same start, seed, and results",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_deterministic_crosswalk_120_test.go",
+            "durable/codemode_quickjs_clock_120_test.go"
+          ],
+          "note": "Pinned seed1/seed0 values, time-independent random, Date clock and serial delivered clock tested. Upstream performance.now and complete call/output equivalence not covered."
         },
         {
           "line": 148,
           "name": "runs in UTC whatever the host's timezone, and without WeakRef or FinalizationRegistry",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_deterministic_crosswalk_120_test.go"
+          ],
+          "note": "Deterministic UTC offset and absent GC intrinsics verified. Ordinary execute host-timezone/GC mode is not exposed by native durable sandbox."
         },
         {
           "line": 159,
           "name": "applies results in seq order, whatever order they are delivered in",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "durable/codemode_quickjs_parallel_120_test.go"
+          ],
+          "note": "Upstream out-of-order parallel delivery requires ordered results and idle/issued protocol. Native serial adapter rejects overlap; rejection is not parity."
         },
         {
           "line": 180,
           "name": "reports the fingerprint before any call and the calls issued after each result",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_identity_120_test.go"
+          ],
+          "note": "Persisted host/guest identity and mismatch rejection covered. Started/fingerprint/idle events, budget/heap fingerprint and exact upstream format are absent."
         },
         {
           "line": 209,
           "name": "numbers calls to globals with tools, and answers errors as rejections",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native Go structured delivery types replace generic JSON wire answers; no equivalent pending-run unserializable answer rejection test."
         },
         {
           "line": 236,
           "name": "keeps the clock monotonic and rejects a clock value that is not finite",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Error-plus-result union is rejected natively; generic reject.properties plain-object validation has no direct native counterpart/test."
         },
         {
           "line": 249,
           "name": "reports the result the VM was processing when the script ended",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Upstream rejection properties preserve Error instances and custom structuredOutput. Native script bridge does not establish that property contract."
         },
         {
           "line": 263,
           "name": "leaves a call waiting when its answer cannot be serialized",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_clock_120_test.go"
+          ],
+          "note": "Serial delivery clock advances and backward deliveries clamp at previous clock, with replay identity host39. int64 transport excludes nonfinite values; upstream performance.now and generic JSON rejection contract still not covered."
         },
         {
           "line": 275,
           "name": "rejects with an Error carrying the answer's properties",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Finish during.seq/issued watermark and finish-event clock freezing protocol not implemented."
         },
         {
           "line": 291,
           "name": "rejects rejection properties that are not an object, and tools sharing a script name",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go",
+            "durable/codemode_global_cancel_120_test.go"
+          ],
+          "note": "Context cancellation termination covered. Upstream caller abort reason, cleared output and idempotent post-abort delivery contract not fully matched."
         },
         {
           "line": 312,
           "name": "uses the script names the run passes",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Completion watermark field during is absent; ordinary execute mode is not exposed by native durable sandbox."
         },
         {
           "line": 327,
           "name": "ends with an error the script cannot catch when the caller aborts",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Go deliveries are typed. Direct execute rejection of stale/double delivery and during protocol has no pinned equivalent coverage."
         },
         {
           "line": 343,
           "name": "is finished once it has its outcome",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_declarations_120_test.go"
+          ],
+          "note": "Sanitized identifier collisions rejected; upstream duplicate start/builtins target set not exhaustively matched."
         },
         {
           "line": 353,
           "name": "rejects a call that is not waiting and a result number used twice",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_declarations_120_test.go",
+            "durable/codemode_catalog_reopen_120_test.go"
+          ],
+          "note": "Sanitized aliases and original tool dispatch covered; upstream arbitrary jsName including explicit undefined has no direct native API counterpart."
         },
         {
           "line": 369,
           "name": "applies results in seq order when the transport reorders replies sent in order",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go"
+          ],
+          "note": "Cancellation terminates bounded VM. Upstream ordinary execute cleared-output abort result contract not exposed."
         },
         {
           "line": 386,
           "name": "reads the real clock and real randomness",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native engine supplies seeded/clock-driven environment for every invocation. Upstream ordinary execute real clock/random mode is missing."
         }
       ]
     },
@@ -889,5 +942,6 @@
         }
       ]
     }
-  ]
+  ],
+  "countSemantics": "Single-line anchored double-quoted it/test declarations; not executed test counts. Reviewed dispositions include partial mappings and implementation gaps, not parity acceptance."
 }

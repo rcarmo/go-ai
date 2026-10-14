@@ -1,6 +1,6 @@
 # Codemode crosswalk: serial candidate
 
-Target: `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. Declaration inventory: [codemode-test-inventory.json](codemode-test-inventory.json). It lists 149 single-line test declarations in eight files; this is source enumeration, not executed tests or parity acceptance. Five source-parser and all seventeen declaration-renderer tests have pinned native case coverage with documented API/resource adaptations. Global declaration metadata is descriptive and not yet integrated into executable global configuration or model prompts. The other 127 declarations still require review.
+Target: `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. Declaration inventory: [codemode-test-inventory.json](codemode-test-inventory.json). It lists 149 single-line test declarations in eight files; this is source enumeration, not executed tests or parity acceptance. Five source-parser and all seventeen declaration-renderer tests have pinned native case coverage with documented API/resource adaptations. Sixteen deterministic declarations now have explicit partial mappings or implementation gaps. The opt-in model-facing extension integrates callable tools and global declarations into persisted prompts; Completions and Responses raw grammar execution and settled reopen have native HTTP coverage. Extension-scoped configuration and remaining upstream contracts are unfinished. The other 111 declarations still require review.
 
 | Upstream test file | Native implementation/tests | Remaining acceptance work |
 |---|---|---|

@@ -94,7 +94,10 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			if delivery.Call.ID != int(id) {
 				return nil, errors.New("QuickJS delivery identity mismatch")
 			}
-			clock.Store(delivery.Now)
+			// Replayed deliveries cannot rewind the deterministic clock.
+			if delivery.Now > clock.Load() {
+				clock.Store(delivery.Now)
+			}
 			if delivery.Error != "" {
 				return nil, errors.New(delivery.Error)
 			}

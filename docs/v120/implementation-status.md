@@ -692,6 +692,12 @@ Focused race count 3 passes in 19.476s. Full normal root tests pass (durable 89.
 
 Output-limit parity requires a storage design change: default journal strings are capped at 256 KiB, the configurable string ceiling is 512 KiB, and records are capped at 1 MiB. Enabling a 4 MiB outer tool limit alone would conflict with those bounds. Ordinary tool limits and persisted storage ceilings remain unchanged. Parallel replay, declaration review and final acceptance are unfinished.
 
+## Deterministic declaration review
+
+Reviewed all 16 pinned `deterministic.test.ts` declarations and recorded partial native mappings or explicit gaps in the inventory. Together with 22 source/renderer declarations, 38 of 149 declarations are reviewed; 111 remain unreviewed. Reviewed cases include missing parallel ordering/idle/watermark, rejection properties and ordinary real-clock execution semantics; review does not establish parity.
+
+New concrete VM tests check pinned seed 1/seed 0 random values with 1e-15 absolute tolerance, independence from start time, UTC offset and absent GC intrinsics. The delivery-clock test exposed backward time assignment in the direct sandbox adapter. Deliveries now clamp to the previous clock; replay-visible identity advances to host39. Focused deterministic/clock/recovery/identity race count 3 passes in 34.914s. Full normal root tests pass (durable 85.681s, tools 5.773s), with static/logging/non-CGO and diff checks. Diagnostic logs were disposed after analysis.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
