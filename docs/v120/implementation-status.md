@@ -656,6 +656,12 @@ Receipt-to-model projection now deeply copies constrained grammar maps. Native b
 
 Raw codemode tool/prompt installation, intent retry and parallel/output/final race/security/profile/crosswalk remain unfinished. Increment committed/pushed; logs disposed after use.
 
+## Model-facing codemode extension candidate
+
+Added opt-in NewCodemodeExtension with model-only replay-safe registration, pinned1.2.0 Lark source grammar and code-string schema. Host supplies/owns the sandbox. Execute uses the native run journal and projects text/image blocks into a standard tool result. Real model-generation tests offer the grammar tool, call concrete QuickJS, execute one nested tool and return one script transcript result. Initial duplicate Content+Blocks projection was corrected; tests require exactly leaf text.
+
+Native backend real-model/VM race count3 passes13.292s; full root normal passes (durable76.742s/tools5.657s); static/logging/non-CGO pass. This is a serial candidate: description warns overlapping calls reject; no prompt section yet. Default tool output cap remains50KiB rather than upstream4MiB/100000lines; expanded safe output-cap policy still needs implementation. Paid/global host configuration is not extension-scoped. Full raw grammar stream/provider/model retry/reopen, prompt/parallel/output and final race/security/profile/crosswalk remain unfinished. Increment committed/pushed; logs disposed after use.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
