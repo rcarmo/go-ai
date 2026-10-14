@@ -772,6 +772,12 @@ Seven pinned return/error declarations now have concrete VM coverage: JSON retur
 
 Focused return/error race count 3 passes in 15.796s. Full normal root tests pass (durable 74.430s, tools 4.529s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 81/149, with 68 unreviewed; final acceptance is unfinished.
 
+## Tool dispatch review
+
+Eight pinned tool declarations now have explicit mappings or gaps. Concrete VM tests verify async alias dispatch, immutable `ALL_TOOLS` names/descriptions, catchable callback Errors, safe membership checks and hidden prototype/JSON access. Parallel dispatch, exact missing-name suggestions and mutable sandbox registration remain incomplete. Native alias collisions reject instead of upstream's first-wins behaviour.
+
+Focused tool-dispatch race count 3 passes in 9.147s. Full normal root tests pass (durable 73.043s, tools 4.642s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Review total is 89/149, with 60 unreviewed; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

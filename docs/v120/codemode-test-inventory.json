@@ -504,42 +504,75 @@
         {
           "line": 306,
           "name": "exposes tools under normalized identifiers and lists them in ALL_TOOLS",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/tools_crosswalk_120_test.go"
+          ],
+          "note": "Concrete async tool dispatch tested; native callback timing/status rendering differs from upstream duration assertions."
         },
         {
           "line": 331,
           "name": "passes undefined arguments and results through",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "internal/quickjs/serial_120_test.go"
+          ],
+          "note": "Upstream parallel tool callbacks unsupported by serial adapter; native rejects overlap before second effect."
         },
         {
           "line": 337,
           "name": "turns tool errors into catchable Errors in the script",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/tools_crosswalk_120_test.go",
+            "internal/quickjs/admission_120_test.go"
+          ],
+          "note": "Explicit sanitized alias dispatch works; duplicate/normalized collisions reject natively rather than upstream first-wins."
         },
         {
           "line": 358,
           "name": "rejects calls to unknown tools",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/tools_crosswalk_120_test.go"
+          ],
+          "note": "Frozen ALL_TOOLS mutation rejection and name/description list verified with native aliases."
         },
         {
           "line": 364,
           "name": "aborts unawaited calls when the script returns",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/tools_crosswalk_120_test.go"
+          ],
+          "note": "Rejected callback is catchable Error with message boom; native call status API differs."
         },
         {
           "line": 384,
           "name": "names close matches when a script reads a tool that does not exist",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/tools_crosswalk_120_test.go"
+          ],
+          "note": "Missing lookup throws, membership/hidden toString/JSON stringify tested. Exact spelling suggestions/messages not pinned."
         },
         {
           "line": 400,
           "name": "supports register and unregister between executions",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/lifetime_crosswalk_120_test.go"
+          ],
+          "note": "Unawaited callback canceled and joined after successful script finish; native engine API differs."
         },
         {
           "line": 412,
           "name": "reads the snapshot and reports writes",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_catalog_reopen_120_test.go"
+          ],
+          "note": "Durable registrations/selectors captured and replayed; mutable sandbox register/unregister API is absent."
         },
         {
           "line": 432,
