@@ -906,6 +906,12 @@ Ownership/stale-delivery/model-recovery race count 3 passes in 29.272s. Full nor
 
 Real generation/VM tests verify extension namespaces override a conflicting harness list and remain detached from caller mutation. Existing namespace restart coverage is included in the focused run; extension replacement during interrupted replay needs its own counterpart. Namespace/prompt/restart race count 3 passes in 41.232s. Full normal root tests pass (durable 78.968s, tools 4.547s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance remain unfinished.
 
+## Extension replacement during interrupted namespace replay
+
+Expanded model-facing recovery to replace the extension namespace description after shutdown. Both VM starts receive the original persisted namespace snapshot; the discovery delivery replays and the nested effect runs once. The following model request renders the replacement namespace description in its new prompt. This distinguishes existing-run execution metadata from current prompt configuration. The test now locates the latest tool result rather than assuming it is the final message, since a legitimate prompt update follows it.
+
+Focused interrupted replacement race count 3 passes in 16.231s. Full normal root tests pass (durable 82.647s, tools 4.538s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Parallel/output-storage/global-model scope and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

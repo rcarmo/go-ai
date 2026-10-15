@@ -11,6 +11,18 @@ import (
 
 // Pause after VM completion but before codemode settlement. The nested delivery
 // is confirmed; reopening must replay it without another external effect.
+type namespaceRestartSandbox120 struct {
+	*restartQuickJS120
+	t *testing.T
+}
+
+func (s *namespaceRestartSandbox120) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
+	if len(start.Namespaces) != 1 || start.Namespaces[0].Description != "original" {
+		s.t.Errorf("execution namespace snapshot drift: %+v", start.Namespaces)
+	}
+	return s.restartQuickJS120.Start(ctx, code, start)
+}
+
 func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 	engine, err := NewQuickJSSandbox(bg)
 	if err != nil {
@@ -18,7 +30,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 	}
 	defer engine.Close(bg)
 	backends(t, func(t *testing.T, b backend) {
-		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}
+		sandbox := &namespaceRestartSandbox120{restartQuickJS120: &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}, t: t}
 		registry := NewRegistry()
 		var effects, requests atomic.Int64
 		leaf := wrapRegistration("recovery_leaf")
@@ -29,7 +41,8 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 		if err = registry.Register(leaf); err != nil {
 			t.Fatal(err)
 		}
-		extension, err := NewCodemodeExtension(sandbox)
+		namespaces := []CodemodeNamespace{{Name: "recovery", Prefix: "recovery_", Description: "original"}}
+		extension, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,10 +52,19 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
 			if requests.Add(1) == 1 {
-				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "recovery-call", Name: "codemode", Arguments: map[string]any{"code": `text(await tools.recovery_leaf({}));`}}}}
+				message := &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, Content: []goai.ContentBlock{{Type: "toolCall", ID: "recovery-call", Name: "codemode", Arguments: map[string]any{"code": `const ns=await describeNamespace("recovery");if(ns.description!=="original")throw Error("namespace changed");text(await tools.recovery_leaf({}));`}}}}
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
-				last := input.Messages[len(input.Messages)-1]
+				if !strings.Contains(input.SystemPrompt, "## recovery\nchanged") {
+					t.Error("new prompt did not use replacement namespace", input.SystemPrompt)
+				}
+				var last goai.Message
+				for i := len(input.Messages) - 1; i >= 0; i-- {
+					if input.Messages[i].Role == goai.RoleToolResult {
+						last = input.Messages[i]
+						break
+					}
+				}
 				if last.Role != goai.RoleToolResult || !strings.HasPrefix(goai.ContentText(last.Content), "Script completed\nWall time ") || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nrecovered-leaf") {
 					t.Error("recovered transcript", last)
 				}
@@ -70,7 +92,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 				if err = fromObject(doc.Value, &journal, h.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if len(journal.Issued) != 1 || len(journal.Deliveries) != 1 {
+				if len(journal.Issued) != 2 || len(journal.Deliveries) != 2 {
 					t.Fatal("nested delivery not confirmed", journal)
 				}
 				found = true
@@ -80,6 +102,14 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 			t.Fatal("wrong interruption boundary", found, effects.Load(), requests.Load())
 		}
 		if err = h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		namespaces[0].Description = "changed"
+		replacement, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = registry.Install(&replacement); err != nil {
 			t.Fatal(err)
 		}
 		next := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
