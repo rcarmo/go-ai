@@ -51,6 +51,12 @@ func currentTranscriptTools(messages []Message) []Tool {
 		}
 		for _, ref := range msg.ToolsRemoved {
 			delete(byName, ref.Name)
+			for i, name := range order {
+				if name == ref.Name {
+					order = append(order[:i], order[i+1:]...)
+					break
+				}
+			}
 		}
 		for _, tool := range msg.ToolsAdded {
 			if _, ok := byName[tool.Name]; !ok {
@@ -82,6 +88,12 @@ func currentTranscriptSystemText(messages []Message) string {
 		for name, value := range msg.Sections {
 			if value == nil {
 				delete(sections, name)
+				for i, key := range sectionOrder {
+					if key == name {
+						sectionOrder = append(sectionOrder[:i], sectionOrder[i+1:]...)
+						break
+					}
+				}
 				continue
 			}
 			if _, ok := sections[name]; !ok {

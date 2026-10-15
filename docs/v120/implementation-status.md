@@ -876,6 +876,12 @@ Completions now derives grammar input properties from system tool declarations, 
 
 Provider race count 3 passes in 2.960s; both-API HTTP/reopen/interruption race passes in 30.412s. Full normal root tests pass (durable 77.048s, tools 4.566s), with static/logging/non-CGO and diff checks. Fixtures were corrected to typed tool references and assistant-call selection before passing evidence. Diagnostic logs were removed after analysis. Broader AI audit and final acceptance remain unfinished.
 
+## Transcript removal and re-add ordering
+
+Tool and prompt-section removals now remove their old ordering slots. Re-adding appends one new slot, matching upstream Map ordering. Previously a removed/re-added name could appear twice in the active tool loadout or rendered system prompt. Tests cover replacement in place, re-add ordering, one section rendering and both provider-context resolution modes.
+
+Root-package race count 3 passes in 1.017s; prompt/two-API HTTP/recovery race passes in 38.181s. Full normal root tests pass (durable 78.224s, tools 4.492s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader transcript ordering/AI audit and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
