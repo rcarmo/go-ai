@@ -300,7 +300,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			tc := &geminiThinkingConfig{}
 			t := true
 			tc.IncludeThoughts = &t
-			if isGemini3ProModel(model) || isGemini3FlashModel(model) || isGemma4Model(model) {
+			if isGemini3ProModel(model) || isGemini3FlashModel(model) || isGemma4Model(model) || isGemini4PlusModel(model) {
 				tc.ThinkingLevel = getGoogleThinkingLevel(level, model)
 			} else {
 				budget := getGoogleBudget(model, level)
@@ -826,6 +826,10 @@ var (
 	gemini3FlashRe = regexp.MustCompile(`(?i)gemini-3(?:\.\d+)?-flash`)
 	gemma4Re       = regexp.MustCompile(`(?i)gemma-?4`)
 )
+
+var gemini4PlusPattern = regexp.MustCompile(`gemini-(?:[4-9]|[1-9][0-9])`)
+
+func isGemini4PlusModel(model *goai.Model) bool { return gemini4PlusPattern.MatchString(model.ID) }
 
 func isGemini3ProModel(model *goai.Model) bool {
 	return gemini3ProRe.MatchString(model.ID)

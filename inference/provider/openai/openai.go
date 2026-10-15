@@ -1224,24 +1224,6 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			partial.RawStopReason = *choice.FinishReason
 		}
 
-		// Text content
-		if delta.Content != nil && *delta.Content != "" {
-			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				send(goai.SnapshotEvent(&goai.TextStartEvent{
-					ContentIndex: len(partial.Content) - 1,
-					Partial:      partial,
-				}))
-			}
-			idx := len(partial.Content) - 1
-			partial.Content[idx].Text += *delta.Content
-			send(goai.SnapshotEvent(&goai.TextDeltaEvent{
-				ContentIndex: idx,
-				Delta:        *delta.Content,
-				Partial:      partial,
-			}))
-		}
-
 		// Thinking/reasoning content — check fields in priority order
 		// (reasoning_content for llama.cpp, reasoning for other endpoints, reasoning_text)
 		var reasoningDelta, reasoningField string
@@ -1359,6 +1341,24 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				send(&goai.ThinkingStartEvent{ContentIndex: thinkingBlockIdx, Partial: partial})
 			}
 		}
+		// Text content
+		if delta.Content != nil && *delta.Content != "" {
+			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
+				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
+				send(goai.SnapshotEvent(&goai.TextStartEvent{
+					ContentIndex: len(partial.Content) - 1,
+					Partial:      partial,
+				}))
+			}
+			idx := len(partial.Content) - 1
+			partial.Content[idx].Text += *delta.Content
+			send(goai.SnapshotEvent(&goai.TextDeltaEvent{
+				ContentIndex: idx,
+				Delta:        *delta.Content,
+				Partial:      partial,
+			}))
+		}
+
 	}
 
 	if len(streamedReasoningDetails) > 0 && thinkingBlockIdx >= 0 && thinkingBlockIdx < len(partial.Content) && partial.Content[thinkingBlockIdx].Type == "thinking" {
