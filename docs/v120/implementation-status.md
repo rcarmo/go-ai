@@ -882,6 +882,12 @@ Tool and prompt-section removals now remove their old ordering slots. Re-adding 
 
 Root-package race count 3 passes in 1.017s; prompt/two-API HTTP/recovery race passes in 38.181s. Full normal root tests pass (durable 78.224s, tools 4.492s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader transcript ordering/AI audit and final acceptance remain unfinished.
 
+## Collapsed transcript timestamp and section stability
+
+Collapsed transcripts preserve the first system timestamp, including an otherwise empty system message, matching pinned collapse behaviour. Native map-backed section patches are sorted before rendering/replay to make repeated provider projections stable; cross-message replacement/re-add order remains intact. Sorting is an explicit native adaptation because maps do not preserve JavaScript object insertion order.
+
+Root-package race count 3 passes in 1.021s. Full normal root tests pass (durable 77.653s, tools 4.517s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit and final parity acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -1,6 +1,9 @@
 package goai
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // TranscriptContext is the v0.87 normalized context shape: system prompts and
 // tool declarations are represented as system messages in the transcript.
@@ -85,7 +88,8 @@ func currentTranscriptSystemText(messages []Message) string {
 		if text := extractContentText(msg.Content); strings.TrimSpace(text) != "" {
 			base = append(base, text)
 		}
-		for name, value := range msg.Sections {
+		for _, name := range sortedTranscriptSectionKeys(msg.Sections) {
+			value := msg.Sections[name]
 			if value == nil {
 				delete(sections, name)
 				for i, key := range sectionOrder {
@@ -134,8 +138,20 @@ func ResolveTranscript(ctx *Context, supportsMidConvoSystemMessages bool) Transc
 	systemText := currentTranscriptSystemText(messages)
 	tools := currentTranscriptTools(messages)
 	out := make([]Message, 0, len(messages))
+	var first *Message
+	for i := range messages {
+		if messages[i].Role == RoleSystem {
+			first = &messages[i]
+			break
+		}
+	}
 	if initial := CreateInitialSystemMessage(systemText, tools); initial != nil {
+		if first != nil {
+			initial.Timestamp = first.Timestamp
+		}
 		out = append(out, *initial)
+	} else if first != nil {
+		out = append(out, Message{Role: RoleSystem, Content: []ContentBlock{}, Timestamp: first.Timestamp})
 	}
 	out = append(out, withoutInitialSystemMessage(filterNonSystemMessages(messages))...)
 	return TranscriptContext{Messages: out}
@@ -184,7 +200,8 @@ func RenderSystemMessageText(msg Message) string {
 	if text := extractContentText(msg.Content); strings.TrimSpace(text) != "" {
 		parts = append(parts, text)
 	}
-	for name, value := range msg.Sections {
+	for _, name := range sortedTranscriptSectionKeys(msg.Sections) {
+		value := msg.Sections[name]
 		if value == nil {
 			parts = append(parts, `Removed system prompt section "`+name+`".`)
 			continue
@@ -192,4 +209,15 @@ func RenderSystemMessageText(msg Message) string {
 		parts = append(parts, "Updated system prompt section \""+name+"\":\n\n"+*value)
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// Native section maps have no insertion order. Sort each patch so repeated
+// provider projections are stable; cross-message replacement order is retained.
+func sortedTranscriptSectionKeys(sections map[string]*string) []string {
+	keys := make([]string, 0, len(sections))
+	for key := range sections {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

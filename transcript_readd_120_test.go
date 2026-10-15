@@ -30,3 +30,34 @@ func TestTranscript120SectionRemovalReaddRendersOnce(t *testing.T) {
 		t.Fatal(context.SystemPrompt, text)
 	}
 }
+
+func TestTranscript120CollapsePreservesInitialTimestampAndEmptySystem(t *testing.T) {
+	for _, empty := range []bool{false, true} {
+		messages := []Message{{Role: RoleUser, Content: []ContentBlock{{Type: "text", Text: "hello"}}}, {Role: RoleSystem, Timestamp: 123}, {Role: RoleSystem, Timestamp: 456}}
+		if !empty {
+			messages[1].Content = []ContentBlock{{Type: "text", Text: "first"}}
+			messages[2].Content = []ContentBlock{{Type: "text", Text: "later"}}
+		}
+		collapsed := ResolveTranscript(&Context{Messages: messages}, false)
+		if len(collapsed.Messages) != 2 || collapsed.Messages[0].Role != RoleSystem || collapsed.Messages[0].Timestamp != 123 || collapsed.Messages[1].Role != RoleUser {
+			t.Fatal(empty, collapsed)
+		}
+		if !empty && ContentText(collapsed.Messages[0].Content) != "first\n\nlater" {
+			t.Fatal(collapsed)
+		}
+	}
+}
+func TestTranscript120SectionPatchRenderingStable(t *testing.T) {
+	a, b := "one", "two"
+	message := Message{Role: RoleSystem, Sections: map[string]*string{"z": nil, "b": &b, "a": &a}}
+	for i := 0; i < 100; i++ {
+		rendered := RenderSystemMessageText(message)
+		if strings.Index(rendered, `section "a"`) > strings.Index(rendered, `section "b"`) || strings.Index(rendered, `section "b"`) > strings.Index(rendered, `section "z"`) {
+			t.Fatal(rendered)
+		}
+		prompt := currentTranscriptSystemText([]Message{message})
+		if strings.Index(prompt, "<a>") > strings.Index(prompt, "<b>") {
+			t.Fatal(prompt)
+		}
+	}
+}
