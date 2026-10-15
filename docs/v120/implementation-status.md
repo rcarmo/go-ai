@@ -1088,6 +1088,14 @@ Go 1.27.1 focused integrity/divergence race tests passed three times in 49.756s.
 
 The pinned upstream parallel protocol records `firstIssued` after initial VM drain and `issuedAfter` after each delivered result. It admits effects only after the corresponding issued count is committed, then checks those counts on replay. The current Go execution interface exposes individual call events without drain acknowledgements. Parallel durable execution needs that acknowledgement boundary and delivery-order replay before it can safely use concurrent callbacks; engine issue-ordered settlement alone does not implement the upstream protocol.
 
+## Engine drain acknowledgements
+
+The opt-in `OnDrain` engine hook reports the cumulative issued-call count after initial execution (delivery ID zero) and after each delivery's promise jobs. It runs on the VM thread and can wait for a host acknowledgement using the supplied cancellation context. Host callbacks start before the hook; the durable adapter must gate their effects until it commits the count. The adapter does not use the hook yet.
+
+Tests cover initial count two, a continuation raising the count to three, final acknowledgement, callback joining on acknowledgement failure, and cancellation after script completion without adopting store writes. An initial test found acknowledgement cancellation was hidden by the script's successful result; acknowledgement errors now override that result.
+
+Go 1.27.1 drain/ordered race tests passed three times in 43.324s; the final cancellation/store-write test passed three times in 7.323s. Full normal root tests passed (durable 83.160s, tools 4.486s); vet, staticcheck, logging checks, non-CGO build and diff checks passed before the final test-only assertion. Diagnostic logs were deleted after analysis. Durable drain events, committed watermarks, effect gating and delivery-order replay still need implementation.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -78,16 +78,21 @@ type Global struct {
 type Options struct {
 	MaxCalls           int  // zero uses 4096; positive values may lower that ceiling
 	OrderedSettlements bool // apply callback results in issue order, not completion order
-	InterruptBudget    int  // zero is deadline-only; positive bounds compute polls
-	SerialCalls        bool // reject overlapping calls on the VM thread before dispatch
-	StartedAt          int64
-	Clock              func() int64 // persisted delivery clock, when supplied
-	Seed               uint64
-	Tools              []Tool
-	Globals            []Global
-	Store              map[string]json.RawMessage // values store()d by earlier runs
-	Timeout            time.Duration              // 0: DefaultTimeout
-	MemoryLimitBytes   int                        // QuickJS heap limit; 0: none
+	// OnDrain runs on the VM thread after initial execution (deliveryID 0)
+	// and after each settled delivery. issued is the cumulative call count.
+	// It may block for host acknowledgement; it must honour ctx cancellation.
+	// Callback execution has already started: hosts must gate effects themselves.
+	OnDrain          func(ctx context.Context, deliveryID, issued int) error
+	InterruptBudget  int  // zero is deadline-only; positive bounds compute polls
+	SerialCalls      bool // reject overlapping calls on the VM thread before dispatch
+	StartedAt        int64
+	Clock            func() int64 // persisted delivery clock, when supplied
+	Seed             uint64
+	Tools            []Tool
+	Globals          []Global
+	Store            map[string]json.RawMessage // values store()d by earlier runs
+	Timeout          time.Duration              // 0: DefaultTimeout
+	MemoryLimitBytes int                        // QuickJS heap limit; 0: none
 }
 
 // OutputItem is one text or image item a script produced.
@@ -371,6 +376,15 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	if err := v.drain(wasmCtx); err != nil {
 		return failed(err)
 	}
+	acknowledge := func(deliveryID int) error {
+		if opts.OnDrain != nil {
+			return opts.OnDrain(runCtx, deliveryID, v.issuedCalls)
+		}
+		return nil
+	}
+	if err := acknowledge(0); err != nil {
+		return finish(v.contextError(runCtx, ctx, err.Error()))
+	}
 	nextSettlement := 1
 	ready := map[int]callResult{}
 	for !v.done {
@@ -380,6 +394,9 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 				v.recordCall(r)
 				if err := v.settle(wasmCtx, r); err != nil {
 					return failed(err)
+				}
+				if err := acknowledge(r.id); err != nil {
+					return finish(v.contextError(runCtx, ctx, err.Error()))
 				}
 				continue
 			}
@@ -394,6 +411,9 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 				v.recordCall(result)
 				if err := v.settle(wasmCtx, result); err != nil {
 					return failed(err)
+				}
+				if err := acknowledge(result.id); err != nil {
+					return finish(v.contextError(runCtx, ctx, err.Error()))
 				}
 			}
 		case <-runCtx.Done():
