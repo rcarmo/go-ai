@@ -77,6 +77,7 @@ type Global struct {
 // Options for one execution.
 type Options struct {
 	MaxCalls         int  // zero uses 4096; positive values may lower that ceiling
+	InterruptBudget  int  // zero is deadline-only; positive bounds compute polls
 	SerialCalls      bool // reject overlapping calls on the VM thread before dispatch
 	StartedAt        int64
 	Clock            func() int64 // persisted delivery clock, when supplied
@@ -184,14 +185,17 @@ type vm struct {
 
 	undefined, trueV, falseV uint32
 
-	serialCalls bool
-	clockReady  bool
-	maxCalls    int
-	issuedCalls int
-	outputBytes int
-	output      []OutputItem
-	calls       []Call
-	events      chan callResult
+	serialCalls     bool
+	clockReady      bool
+	interruptBudget int
+	interruptPolls  int
+	budgetExceeded  bool
+	maxCalls        int
+	issuedCalls     int
+	outputBytes     int
+	output          []OutputItem
+	calls           []Call
+	events          chan callResult
 
 	apiHandles     apiHandles
 	timeout        time.Duration
@@ -223,7 +227,7 @@ func hostModule(r wazero.Runtime) wazero.HostModuleBuilder {
 	}).Export("host_call")
 	b.NewFunctionBuilder().WithFunc(func(ctx context.Context) uint32 {
 		v, _ := ctx.Value(ctxKey{}).(*vm)
-		if v != nil && (v.interrupt || ctx.Err() != nil) {
+		if v != nil && (v.interrupt || ctx.Err() != nil || v.computeInterrupted()) {
 			return 1
 		}
 		return 0
@@ -252,6 +256,9 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	}
 	if opts.Seed > 0xffffffff {
 		return Result{Error: &Error{Kind: ErrorSandbox, Message: "QuickJS seed outside uint32 range"}}
+	}
+	if opts.InterruptBudget < 0 {
+		return Result{Error: &Error{Kind: ErrorSandbox, Message: "invalid QuickJS interrupt budget"}}
 	}
 	if opts.MaxCalls < 0 || opts.MaxCalls > maxBridgeOutputItems {
 		return Result{Error: &Error{Kind: ErrorSandbox, Message: "invalid QuickJS call budget"}}
@@ -345,6 +352,7 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	}
 	// failed is a run that stopped with err: the script's own result once it
 	// reported one (done interrupts the script), else err classified.
+	v.interruptBudget = opts.InterruptBudget
 	failed := func(err error) Result {
 		if v.done {
 			return finish(v.result.Error)
@@ -381,6 +389,8 @@ func (v *vm) contextError(runCtx, parent context.Context, detail string) *Error 
 	switch {
 	case parent.Err() != nil:
 		return &Error{Kind: ErrorAborted, Message: "Execution aborted"}
+	case v.budgetExceeded:
+		return &Error{Kind: ErrorTimeout, Message: fmt.Sprintf("Execution exceeded its interrupt budget of %d polls", v.interruptBudget)}
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 		return &Error{Kind: ErrorTimeout, Message: fmt.Sprintf("Execution timed out after %d ms", v.timeout.Milliseconds())}
 	}
@@ -603,6 +613,7 @@ func (v *vm) callFn(ctx context.Context, fn, this uint32, args ...uint32) (uint3
 // drain runs queued jobs, then lets the prelude fail a script that waits on
 // nothing that can resume it.
 func (v *vm) drain(ctx context.Context) error {
+	jobs := 0
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -626,6 +637,10 @@ func (v *vm) drain(ctx context.Context) error {
 		if int32(r) < 0 {
 			e := v.exception(ctx)
 			return fmt.Errorf("job execution error: %s", e.Stack)
+		}
+		jobs++
+		if jobs%50 == 0 && !v.done && v.computeInterrupted() {
+			return errors.New("execution interrupted")
 		}
 	}
 	h, err := v.callFn(ctx, v.apiHandles.stalled, v.apiHandles.obj)
@@ -942,4 +957,17 @@ func Identifier(name string) string {
 		return "_"
 	}
 	return b.String()
+}
+
+// Only called on the VM thread; callback wait time consumes no compute polls.
+func (v *vm) computeInterrupted() bool {
+	if v.interruptBudget == 0 {
+		return false
+	}
+	if v.interruptPolls >= v.interruptBudget {
+		v.budgetExceeded = true
+		return true
+	}
+	v.interruptPolls++
+	return false
 }

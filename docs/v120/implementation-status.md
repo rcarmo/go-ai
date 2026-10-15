@@ -978,6 +978,12 @@ Profiled the complete durable suite at `cc5fe71`, Go1.27.1/GOMAXPROCS2, seed `17
 
 Equivalent before/after suite profiles pass in 84.093s/79.803s. Sampled CPU is 63.45s/59.05s; marshal-authority cumulative CPU is 5.32s/1.53s. Allocation totals are effectively unchanged (12.405/12.461 GB, 148.795/149.538 million objects); no allocation improvement is established. These are single-run comparisons with scheduling/profile sampling variation. Raw captures, matching test binaries and disposable logs were deleted immediately after analysis. Focused authority regression race count 3 passes in 1.088s; static/logging/non-CGO and diff checks pass. Root/nested consumer profiling and final acceptance remain unfinished.
 
+## Engine compute-interrupt budget
+
+QuickJS engine options now accept a positive compute-poll budget, shared across tool waits and polled every 50 promise jobs as well as native interrupts. Exhaustion reports timeout independently of wall deadlines. Zero preserves deadline-only mode; negative budgets reject. Engine reuse after budget failure is tested. Replay identity advances to host51, but durable start snapshots/configuration do not yet expose or pin this option.
+
+Compute/hard-loop/microtask/global-timeout race count 3 passes in 23.063s. Full normal root tests pass (durable 80.251s, tools 4.369s), with static/logging/non-CGO and diff checks. The initial 1000-poll microtask test hit its 5s wall deadline under race before exhaustion; the final 10-poll test verifies deterministic exhaustion with unchanged wall limits. This is not a measured 1000-poll latency result. Diagnostic logs were removed after analysis. Durable budget identity/configuration, large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
