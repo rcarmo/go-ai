@@ -1230,6 +1230,12 @@ Tests cover forged call/drain events, delivery mutation and duplication, plus ze
 
 Remote wire interoperability, cross-process transport, output batching, complete malicious-peer state-machine checks and explicit server memory configuration are unfinished. The server currently uses the sandbox's fixed memory limit. Large-image storage and whole-port acceptance are also incomplete.
 
+## Remote event state transitions
+
+Remote admission now records a pending drain before publishing it, rejects duplicate drains and calls outside the issuance window, and requires acknowledged drains before successful terminal results. Terminal state rejects subsequent events and deliveries. Protocol rejection is retained even if a transport ignores the callback error and returns a later result. Event mutation cannot rewrite the private pending drain.
+
+Tests exercise invalid transitions and a peer that suppresses protocol errors, alongside the existing real QuickJS remote ordering/reopen/cancellation cases. Go 1.27.1 remote race tests passed three times in 44.022s. Full normal tests passed (durable 103.438s, tools 4.305s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remote cross-process/wire/batching and large-image storage remain incomplete; no release acceptance or hosted CI run occurred.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

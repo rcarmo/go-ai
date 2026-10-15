@@ -51,9 +51,18 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 		defer close(e.done)
 		terminal := false
 		var exchangeMu sync.Mutex
-		err := callCodemodeRemote(linked, s.Remote, code, owned, func(ctx context.Context, event CodemodeEvent) (CodemodeRemoteReply, error) {
+		var protocolErr error
+		err := callCodemodeRemote(linked, s.Remote, code, owned, func(ctx context.Context, event CodemodeEvent) (reply CodemodeRemoteReply, exchangeErr error) {
 			exchangeMu.Lock()
 			defer exchangeMu.Unlock()
+			defer func() {
+				if exchangeErr != nil && protocolErr == nil {
+					protocolErr = exchangeErr
+				}
+			}()
+			if protocolErr != nil {
+				return CodemodeRemoteReply{Stop: true}, protocolErr
+			}
 			if terminal {
 				return CodemodeRemoteReply{}, reject("remote event after terminal result")
 			}
@@ -116,6 +125,11 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 				return CodemodeDelivery{}, linked.Err()
 			}
 		})
+		exchangeMu.Lock()
+		if protocolErr != nil {
+			err = protocolErr
+		}
+		exchangeMu.Unlock()
 		if err == nil && !terminal {
 			err = reject("remote execution ended without result")
 		}
@@ -155,6 +169,7 @@ type remoteCodemodeExecution struct {
 	lastDelivery int
 	waiting      map[int]CodemodeCall
 	acknowledged bool
+	terminal     bool
 }
 
 func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, error) {
@@ -163,12 +178,6 @@ func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, erro
 	}
 	select {
 	case received := <-e.events:
-		if received.event.Drain != nil {
-			e.mu.Lock()
-			copy := *received.event.Drain
-			e.drain = &copy
-			e.mu.Unlock()
-		}
 		return received.event, received.err
 	case <-ctx.Done():
 		return CodemodeEvent{}, ctx.Err()
@@ -182,7 +191,10 @@ func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain Co
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.drain == nil || *e.drain != drain {
+	if e.ctx.Err() != nil {
+		return e.ctx.Err()
+	}
+	if e.terminal || e.drain == nil || *e.drain != drain {
 		return reject("invalid remote drain acknowledgement")
 	}
 	select {
@@ -211,7 +223,7 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	call, ok := e.waiting[owned.Call.ID]
-	if !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < 0 || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
+	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < 0 || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
 		return reject("invalid remote delivery")
 	}
 	select {
@@ -232,7 +244,13 @@ func (e *remoteCodemodeExecution) Close() error { e.cancel(); <-e.done; return n
 func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start CodemodeStart) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.terminal {
+		return reject("remote event after terminal result")
+	}
 	if event.Call != nil {
+		if e.acknowledged || e.drain != nil {
+			return reject("remote call outside drain window")
+		}
 		call := *event.Call
 		if call.ID != e.issued+1 || call.ID > DefaultLimits().MaxPage || call.Arguments == nil {
 			return reject("invalid remote call sequence")
@@ -263,9 +281,17 @@ func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start Codemode
 		e.issued++
 	}
 	if event.Drain != nil {
-		if e.drain != nil || event.Drain.Issued != e.issued || event.Drain.DeliveryID != e.lastDelivery {
+		if e.acknowledged || e.drain != nil || event.Drain.Issued != e.issued || event.Drain.DeliveryID != e.lastDelivery {
 			return reject("invalid remote drain sequence")
 		}
+		copy := *event.Drain
+		e.drain = &copy
+	}
+	if event.Result != nil {
+		if event.Result.Error == "" && (!e.acknowledged || e.drain != nil) {
+			return reject("remote success before drain acknowledgement")
+		}
+		e.terminal = true
 	}
 	return nil
 }

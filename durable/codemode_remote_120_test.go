@@ -136,3 +136,61 @@ func TestCodemode120RemoteServerCapsCompute(t *testing.T) {
 		}
 	}
 }
+
+func TestCodemode120RemoteEventStateMachine(t *testing.T) {
+	start := CodemodeStart{Tools: []CodemodeToolDescription{{Name: "leaf"}}}
+	for _, mode := range []string{"duplicate-drain", "call-before-ack", "success-before-ack", "call-after-ack", "event-after-terminal"} {
+		t.Run(mode, func(t *testing.T) {
+			e := &remoteCodemodeExecution{ctx: bg}
+			drain := CodemodeDrain{}
+			if err := e.admitEvent(CodemodeEvent{Drain: &drain}, start); err != nil {
+				t.Fatal(err)
+			}
+			var event CodemodeEvent
+			switch mode {
+			case "duplicate-drain":
+				event.Drain = &drain
+			case "call-before-ack":
+				event.Call = &CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{}}
+			case "success-before-ack":
+				event.Result = &CodemodeResult{}
+			case "call-after-ack":
+				e.drain = nil
+				e.acknowledged = true
+				event.Call = &CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{}}
+			case "event-after-terminal":
+				e.drain = nil
+				e.acknowledged = true
+				if err := e.admitEvent(CodemodeEvent{Result: &CodemodeResult{}}, start); err != nil {
+					t.Fatal(err)
+				}
+				event.Drain = &drain
+			}
+			if err := e.admitEvent(event, start); err == nil {
+				t.Fatal("invalid transition accepted", mode)
+			}
+		})
+	}
+}
+
+type ignoringRemote120 struct{}
+
+func (ignoringRemote120) Execute(ctx context.Context, _ string, _ CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), _ func(context.Context) (CodemodeDelivery, error)) error {
+	_, _ = exchange(ctx, CodemodeEvent{})
+	_, _ = exchange(ctx, CodemodeEvent{Result: &CodemodeResult{Error: "pretend terminal"}})
+	return nil
+}
+func TestCodemode120RemoteCannotIgnoreProtocolRejection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	sandbox := &RemoteCodemodeSandbox{Remote: ignoringRemote120{}, Identity: "fixture"}
+	vm, err := sandbox.Start(ctx, "", CodemodeStart{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	event, err := vm.Next(ctx)
+	if err == nil || event.Result != nil {
+		t.Fatal("peer hid protocol rejection", event, err)
+	}
+}
