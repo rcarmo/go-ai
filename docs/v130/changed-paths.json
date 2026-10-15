@@ -1,0 +1,319 @@
+{
+  "base": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
+  "head": "71023aec1546d6d677a65669c5665c0927ce0dd0",
+  "method": "GitHub compare API,226 files total below300 cap",
+  "files": [
+    {
+      "path": "packages/ai/CHANGELOG.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/README.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/package.json",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/scripts/generate-models.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/anthropic-messages.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/bedrock-converse-stream.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/google-shared.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/mistral-conversations.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/openai-completions.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/openai-responses-shared.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/openai-responses.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/api/transform-messages.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/index.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/providers/compat-schema.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/providers/kimi-coding.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/providers/opencode-go.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/types.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/utils/assistant-message-frame.ts",
+      "status": "removed"
+    },
+    {
+      "path": "packages/ai/src/utils/json-parse.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/utils/retry.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/src/utils/validation.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/anthropic-adaptive-thinking-models.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/anthropic-empty-thinking-signature-compat.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/anthropic-error-tool-result-images.test.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/ai/test/anthropic-force-adaptive-thinking.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/anthropic-mid-conversation-effort.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/assistant-message-frame.test.ts",
+      "status": "removed"
+    },
+    {
+      "path": "packages/ai/test/bedrock-convert-messages.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/classifier-models.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/context-overflow.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/google-thinking-level-map.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/json-parse.test.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/ai/test/openai-completions-reasoning-details.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/openai-completions-tool-choice.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/openai-responses-message-id.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/openai-responses-mid-convo-effort.test.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/ai/test/openai-responses-partial-json-cleanup.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/openai-responses-reasoning-replay-e2e.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/retry.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/stream.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/supports-xhigh.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/total-tokens.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/transcript-tool-changes.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/transform-messages-copilot-openai-to-anthropic.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/transform-messages-cross-model-thinking.test.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/ai/test/validation.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/ai/test/xiaomi-models.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/CHANGELOG.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/README.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/package.json",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/src/runtime/execution.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/src/runtime/host.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/src/types.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/codemode/test/fixtures/worker-process-exit.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/codemode/test/worker-lifetime.test.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/durable/CHANGELOG.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/README.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/docs/spec.md",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/package.json",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/env/index.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/harness/context.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/harness/tool.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/cloudflare.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/index.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/migrations.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/node.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/schema.ts",
+      "status": "added"
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/storage.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/tools/image-processor.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/tools/read.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/src/truncate.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/env-truncate.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/harness-compaction.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/harness-context.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/sqlite-cloudflare.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/sqlite-storage.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/tools-images.test.ts",
+      "status": "modified"
+    },
+    {
+      "path": "packages/durable/test/tools-read-differential.test.ts",
+      "status": "modified"
+    }
+  ]
+}

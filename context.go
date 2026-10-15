@@ -120,6 +120,9 @@ func ValidateToolCall(tools []Tool, tc ToolCall) (map[string]interface{}, error)
 
 // ValidateToolArguments validates tool call arguments against the tool's JSON Schema.
 func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, error) {
+	if tc.ArgumentsError != "" {
+		return nil, fmt.Errorf("invalid tool call arguments for tool %q: %s", tc.Name, tc.ArgumentsError)
+	}
 	if len(tool.Parameters) == 0 {
 		return tc.Arguments, nil
 	}

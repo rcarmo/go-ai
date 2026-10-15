@@ -354,11 +354,12 @@ func GetToolCalls(msg *Message) []ToolCall {
 	for _, b := range msg.Content {
 		if b.Type == "toolCall" {
 			calls = append(calls, ToolCall{
-				Type:      "toolCall",
-				ID:        b.ID,
-				Name:      b.Name,
-				Arguments: deepCopyStringAnyMap(b.Arguments),
-				Namespace: b.Namespace,
+				Type:           "toolCall",
+				ID:             b.ID,
+				Name:           b.Name,
+				Arguments:      deepCopyStringAnyMap(b.Arguments),
+				ArgumentsError: b.ArgumentsError,
+				Namespace:      b.Namespace,
 			})
 		}
 	}

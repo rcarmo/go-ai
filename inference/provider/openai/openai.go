@@ -1380,6 +1380,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 	// Close tool calls and parse arguments
 	for _, at := range activeTools {
 		var args map[string]interface{}
+		var argumentsError string
 		if at.custom {
 			property := grammarInputPropertyFor(at.name, toolSets)
 			if property == "" {
@@ -1395,19 +1396,21 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 			args = map[string]interface{}{property: at.customInput}
 		} else {
-			args, _ = jsonparse.ParsePartialJSON(at.argsBuf)
+			args, argumentsError = jsonparse.ParseToolCallArguments(at.argsBuf)
 			if args == nil {
 				args = map[string]interface{}{}
 			}
 		}
 		partial.Content[at.contentIdx].Arguments = args
+		partial.Content[at.contentIdx].ArgumentsError = argumentsError
 		send(goai.SnapshotEvent(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall: goai.ToolCall{
-				Type:      "toolCall",
-				ID:        at.id,
-				Name:      at.name,
-				Arguments: args,
+				Type:           "toolCall",
+				ID:             at.id,
+				Name:           at.name,
+				Arguments:      args,
+				ArgumentsError: argumentsError,
 			},
 			Partial: partial,
 		}))

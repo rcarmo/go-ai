@@ -175,6 +175,7 @@ type ToolCall struct {
 	ID                      string                 `json:"id"`
 	Name                    string                 `json:"name"`
 	Arguments               map[string]interface{} `json:"arguments"`
+	ArgumentsError          string                 `json:"argumentsError,omitempty"`
 	ThoughtSignature        string                 `json:"thoughtSignature,omitempty"`
 	ThoughtSignaturePresent bool                   `json:"-"`
 	Namespace               string                 `json:"namespace,omitempty"`
@@ -207,6 +208,7 @@ type ContentBlock struct {
 	ID                      string                 `json:"id,omitempty"`
 	Name                    string                 `json:"name,omitempty"`
 	Arguments               map[string]interface{} `json:"arguments,omitempty"`
+	ArgumentsError          string                 `json:"argumentsError,omitempty"`
 	ThoughtSignature        string                 `json:"thoughtSignature,omitempty"`
 	ThoughtSignaturePresent bool                   `json:"-"`
 	Namespace               string                 `json:"namespace,omitempty"`
