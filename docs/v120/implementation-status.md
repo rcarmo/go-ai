@@ -1314,6 +1314,12 @@ Go 1.27.1 ordered/drain/global race tests passed three times in 55.180s. Full no
 
 Tests verify zero/small/excessive server requests and run a real QuickJS allocation loop under a 4MiB heap ceiling, requiring a terminal script error. Go 1.27.1 memory/compute-cap race tests passed three times in 9.289s. Full normal tests passed (durable 106.316s, tools 4.407s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Native defaults are unchanged; upstream remote wire/batching, large-image representation and whole-port acceptance remain incomplete.
 
+## Model-facing parallel capability guidance
+
+The codemode tool description and persisted prompt section still instructed serial-only calls after parallel execution became the constructor default. They now snapshot the sandbox's advertised parallel capability: parallel sandboxes describe `Promise.all` and awaiting required results before return; explicit serial/custom sandboxes retain serial guidance. Backend tests cover prompt persistence, reopen and deselection for both modes.
+
+Go 1.27.1 prompt race tests passed three times in 28.520s. Full normal tests passed (durable 104.182s, tools 4.374s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Large-image review found no existing blob/reference storage to reuse: image base64 remains inline in results and transcripts, so a complete solution must cover both, not just output-file writing. That storage gap and remote wire/batching remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

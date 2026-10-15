@@ -9,11 +9,21 @@ import (
 )
 
 func TestCodemode120PromptPersistsReopensAndTracksSelection(t *testing.T) {
+	for _, parallel := range []bool{false, true} {
+		t.Run(map[bool]string{false: "serial", true: "parallel"}[parallel], func(t *testing.T) { testCodemodePrompt120(t, parallel) })
+	}
+}
+func testCodemodePrompt120(t *testing.T, parallel bool) {
 	sandbox, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
+	sandbox.ParallelCalls = parallel
+	guidance := "serially"
+	if parallel {
+		guidance = "Promise.all"
+	}
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		for _, name := range []string{"script_visible", "model_secret", "deferred_secret"} {
@@ -39,7 +49,7 @@ func TestCodemode120PromptPersistsReopensAndTracksSelection(t *testing.T) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			prompt := input.SystemPrompt
 			if enabled {
-				if !strings.Contains(prompt, "script_visible") || !strings.Contains(prompt, "searchTools") || !strings.Contains(prompt, "serially") {
+				if !strings.Contains(prompt, "script_visible") || !strings.Contains(prompt, "searchTools") || !strings.Contains(prompt, guidance) {
 					t.Error("codemode prompt missing", prompt)
 				}
 				if strings.Contains(prompt, "deferred_secret") {
@@ -48,7 +58,7 @@ func TestCodemode120PromptPersistsReopensAndTracksSelection(t *testing.T) {
 				if strings.Contains(prompt, "model_secret") {
 					t.Error("model-only tool leaked", prompt)
 				}
-			} else if strings.Contains(prompt, "serially") {
+			} else if strings.Contains(prompt, guidance) {
 				t.Error("deselected codemode prompt retained", prompt)
 			}
 			ch := make(chan goai.Event, 1)

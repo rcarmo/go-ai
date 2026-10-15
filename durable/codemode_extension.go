@@ -78,7 +78,15 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	if sandbox == nil {
 		return Extension{}, reject("codemode requires sandbox")
 	}
-	tool := ToolRegistration{Definition: goai.Tool{Name: "codemode", Description: "Run an async JavaScript function body in an isolated QuickJS sandbox. Use tools, text, image, console, store/load and discovery globals. No ambient filesystem, network or timers. This native candidate currently supports serial calls only.", Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+	parallel := false
+	if capability, ok := sandbox.(CodemodeSandboxParallel); ok {
+		parallel = capability.SupportsParallelCalls()
+	}
+	callGuidance := "Await tool/global calls serially."
+	if parallel {
+		callGuidance = "Independent tool/global calls may run concurrently with Promise.all; await required results before returning."
+	}
+	tool := ToolRegistration{Definition: goai.Tool{Name: "codemode", Description: "Run an async JavaScript function body in an isolated QuickJS sandbox. Use tools, text, image, console, store/load and discovery globals. No ambient filesystem, network or timers. " + callGuidance, Parameters: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": CodemodeSourceGrammar}}}, Implementation: "pi.codemode", Version: 1, ReplaySafe: true, Callers: []string{"model"}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
 		code, ok := args["code"].(string)
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")
@@ -144,7 +152,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		for _, global := range selectedGlobals {
 			start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 		}
-		text := "Use codemode to execute an async JavaScript function body. Await tool/global calls serially in this native candidate. Use text(), image(), console, store()/load(); no ambient filesystem, network or timers. Tool discovery does not grant additional authority.\n\n" + catalogue + "\n\n```typescript\n" + start.CodemodeDeclarations() + "\n```"
+		text := "Use codemode to execute an async JavaScript function body. " + callGuidance + " Use text(), image(), console, store()/load(); no ambient filesystem, network or timers. Tool discovery does not grant additional authority.\n\n" + catalogue + "\n\n```typescript\n" + start.CodemodeDeclarations() + "\n```"
 		return &text, nil
 	}}
 	return Extension{Name: "codemode", Tools: []ToolRegistration{tool}, Sections: []PromptSection{section}}, nil
