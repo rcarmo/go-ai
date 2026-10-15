@@ -9,6 +9,8 @@ type CodemodeRemoteServer struct {
 	Sandbox CodemodeSandbox
 	// MaxInterruptBudget defaults to the upstream 100000-poll server ceiling.
 	MaxInterruptBudget int
+	// MaxMemoryLimitBytes defaults to the native 32MiB heap ceiling.
+	MaxMemoryLimitBytes int
 }
 
 func (s *CodemodeRemoteServer) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
@@ -24,6 +26,16 @@ func (s *CodemodeRemoteServer) Execute(ctx context.Context, code string, start C
 	}
 	if start.InterruptBudget == 0 || start.InterruptBudget > maximum {
 		start.InterruptBudget = maximum
+	}
+	memoryMaximum := s.MaxMemoryLimitBytes
+	if memoryMaximum == 0 {
+		memoryMaximum = DefaultCodemodeMemoryLimitBytes
+	}
+	if memoryMaximum < 1 || memoryMaximum > 256<<20 || start.MemoryLimitBytes < 0 {
+		return reject("invalid remote memory ceiling")
+	}
+	if start.MemoryLimitBytes == 0 || start.MemoryLimitBytes > memoryMaximum {
+		start.MemoryLimitBytes = memoryMaximum
 	}
 	linked, cancel := context.WithCancel(ctx)
 	defer cancel()

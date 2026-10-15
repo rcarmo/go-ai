@@ -99,10 +99,11 @@ func TestCodemode120RemoteRejectsForgedEventsAndDeliveries(t *testing.T) {
 	}
 }
 
-type remoteBudgetSandbox120 struct{ budget int }
+type remoteBudgetSandbox120 struct{ budget, memory int }
 
 func (s *remoteBudgetSandbox120) Start(_ context.Context, _ string, start CodemodeStart) (CodemodeExecution, error) {
 	s.budget = start.InterruptBudget
+	s.memory = start.MemoryLimitBytes
 	return remoteBudgetExecution120{}, nil
 }
 
@@ -192,5 +193,43 @@ func TestCodemode120RemoteCannotIgnoreProtocolRejection(t *testing.T) {
 	event, err := vm.Next(ctx)
 	if err == nil || event.Result != nil {
 		t.Fatal("peer hid protocol rejection", event, err)
+	}
+}
+
+func TestCodemode120RemoteServerCapsMemory(t *testing.T) {
+	for _, requested := range []int{0, 8 << 20, 128 << 20} {
+		sandbox := &remoteBudgetSandbox120{}
+		server := &CodemodeRemoteServer{Sandbox: sandbox, MaxMemoryLimitBytes: 16 << 20}
+		err := server.Execute(bg, "", CodemodeStart{MemoryLimitBytes: requested}, func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error) {
+			return CodemodeRemoteReply{Stop: true}, nil
+		}, func(ctx context.Context) (CodemodeDelivery, error) {
+			<-ctx.Done()
+			return CodemodeDelivery{}, ctx.Err()
+		})
+		want := requested
+		if want == 0 || want > 16<<20 {
+			want = 16 << 20
+		}
+		if err != nil || sandbox.memory != want {
+			t.Fatal("remote memory cap", requested, sandbox.memory, err)
+		}
+	}
+}
+func TestCodemode120QuickJSMemoryCeilingTerminates(t *testing.T) {
+	sandbox, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sandbox.Close(bg)
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	vm, err := sandbox.Start(ctx, `const retained=[];for(let i=0;i<100000;i++)retained.push(new Array(1000).fill(i));return retained.length;`, CodemodeStart{MemoryLimitBytes: 4 << 20, InterruptBudget: 100000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	event, err := vm.Next(ctx)
+	if err != nil || event.Result == nil || event.Result.Error == "" {
+		t.Fatal("heap ceiling did not terminate", event, err)
 	}
 }

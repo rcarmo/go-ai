@@ -32,7 +32,11 @@ type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 // DefaultCodemodeInterruptBudget matches pi-codemode 1.2.0 inline execution.
 const DefaultCodemodeInterruptBudget = 100000
 
+// DefaultCodemodeMemoryLimitBytes preserves the native QuickJS heap ceiling.
+const DefaultCodemodeMemoryLimitBytes = 32 << 20
+
 type CodemodeStart struct {
+	MemoryLimitBytes      int                         `json:"memoryLimitBytes,omitempty"`
 	ParallelCalls         bool                        `json:"parallelCalls,omitempty"`
 	DrainAcknowledgements bool                        `json:"drainAcknowledgements,omitempty"`
 	InterruptBudget       int                         `json:"interruptBudget,omitempty"`

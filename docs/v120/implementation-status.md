@@ -1308,6 +1308,12 @@ CPU, alloc_space and alloc_objects were inspected for both runs. Whole-process p
 
 Go 1.27.1 ordered/drain/global race tests passed three times in 55.180s. Full normal tests passed (durable 102.595s, tools 4.348s), plus vet, staticcheck, logging, non-CGO and diff checks. The prior full-root race receipt predates this parser change; final acceptance still requires refresh. Remaining parity gaps and security findings are unresolved.
 
+## Remote heap-memory ceiling
+
+`CodemodeStart.MemoryLimitBytes` now configures the QuickJS heap ceiling; zero retains the native 32MiB default. Starts reject negative values or values above the WASM 256MiB linear-memory cap. The remote server clamps zero/excessive requests to its configured maximum, which defaults to 32MiB; a smaller caller request is preserved. Persisted starts validate and freeze this field with existing start identity checks.
+
+Tests verify zero/small/excessive server requests and run a real QuickJS allocation loop under a 4MiB heap ceiling, requiring a terminal script error. Go 1.27.1 memory/compute-cap race tests passed three times in 9.289s. Full normal tests passed (durable 106.316s, tools 4.407s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Native defaults are unchanged; upstream remote wire/batching, large-image representation and whole-port acceptance remain incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
