@@ -79,7 +79,7 @@ type Global struct {
 
 // Options for one execution.
 type Options struct {
-	MaxCalls           int  // zero uses 4096; positive values may lower that ceiling
+	MaxCalls           int  // zero uses 100000; positive values may lower that ceiling
 	OrderedSettlements bool // apply callback results in issue order, not completion order
 	// OnDrain runs on the VM thread after initial execution (deliveryID 0)
 	// and after each settled delivery. issued is the cumulative call count.
@@ -299,7 +299,7 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	}
 	maxCalls := opts.MaxCalls
 	if maxCalls == 0 {
-		maxCalls = maxBridgeSetupItems
+		maxCalls = maxBridgeOutputItems
 	}
 	timeout := opts.Timeout
 	if timeout <= 0 {
