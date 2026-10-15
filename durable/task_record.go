@@ -243,6 +243,22 @@ func validateTaskRecord(task Task, l Limits) error {
 	if task.Checkpoint == nil || !validKind(task.Kind) || !validStatus(task.Status) || uint64(task.Conversation) > MaxID || uint64(task.Owner) > MaxID || task.Owner == task.ID && task.ID != 0 {
 		return reject("invalid task record")
 	}
+	if task.Kind == "pi.generation" {
+		var checkpoint generationCheckpoint
+		if err := fromObject(task.Checkpoint, &checkpoint, l); err != nil {
+			return err
+		}
+		if checkpoint.InputMetadata != nil {
+			metadata := *checkpoint.InputMetadata
+			metadata.Value = nil
+			if err := validateInputMetadata(&metadata); err != nil {
+				return err
+			}
+			if len(checkpoint.InputMetadata.Value) != 0 {
+				return reject("invalid input metadata value")
+			}
+		}
+	}
 	if task.Execution == nil {
 		return nil // exact legacy object-checkpoint contract, no inferred envelope
 	}
@@ -266,6 +282,7 @@ func validateTaskRecord(task Task, l Limits) error {
 			return reject("decided task has memos")
 		}
 	case builtinTaskTag:
+
 		builtin := task.Execution.Builtin
 		if builtin == nil || task.Execution.Native != nil || task.Kind != "pi.generation" && task.Kind != "pi.tool" || builtin.Background && task.Owner != 0 {
 			return reject("invalid builtin task execution")

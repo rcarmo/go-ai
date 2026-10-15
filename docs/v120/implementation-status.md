@@ -1374,6 +1374,12 @@ Steering and follow-up tests now carry application kind/data through queued plac
 
 Go 1.27.1 inbox/metadata/display-write race tests passed three times in 10.242s. Full normal tests passed (durable 105.619s, tools 4.294s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The reopen test recovers settled queued submissions; interruption before queued metadata placement and checkpoint-forgery validation still need targeted verification. Full parity is incomplete.
 
+## Interrupted queued-input recovery and metadata validation
+
+A backend test now closes the caller while generation is active and a custom input remains unplaced. Reopen places exactly one application entry with its original data and user-message contribution. Generation task-record validation applies the input-metadata restrictions before execution-envelope dispatch, including generation records without an execution envelope. A forged reserved `pi.*` metadata kind is rejected on that path.
+
+Go 1.27.1 queued-reopen/metadata/inbox race tests passed three times in 13.290s. Full normal tests passed (durable 113.041s, tools 4.896s), plus vet, staticcheck, logging, non-CGO and diff checks. An initial validation placement covered only builtin envelopes; the forgery test exposed the missing envelope-free generation path and validation was moved before dispatch. Diagnostic logs were deleted after analysis. Remaining durable source crosswalk, image/remote gaps and final acceptance are incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
