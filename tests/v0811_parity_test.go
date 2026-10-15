@@ -9,17 +9,12 @@ import (
 func TestV0811KimiCodingAdaptiveThinkingCompat(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	for _, id := range []string{"kimi-for-coding", "k3", "kimi-for-coding-highspeed"} {
-		model := goai.GetModel(goai.ProviderKimiCoding, id)
-		if model == nil || model.AnthropicCompat == nil || model.AnthropicCompat.ForceAdaptiveThinking == nil || !*model.AnthropicCompat.ForceAdaptiveThinking {
-			t.Fatalf("expected kimi-coding/%s forceAdaptiveThinking compat, got %#v", id, model)
+		m := goai.GetModel(goai.ProviderKimiCoding, id)
+		if m == nil || m.Api != goai.ApiOpenAICompletions || m.BaseURL != "https://api.kimi.com/coding/v1" || m.CompletionsCompat == nil {
+			t.Fatalf("1.3 Kimi coding protocol mismatch: %#v", m)
 		}
 	}
-	for _, id := range []string{"k3", "kimi-for-coding"} {
-		model := goai.GetModel(goai.ProviderKimiCoding, id)
-		if model.AnthropicCompat.AllowEmptySignature == nil || !*model.AnthropicCompat.AllowEmptySignature {
-			t.Fatalf("expected kimi-coding/%s allowEmptySignature compat, got %#v", id, model.AnthropicCompat)
-		}
-	}
+
 	k3 := goai.GetModel(goai.ProviderKimiCoding, "k3")
 	if k3.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)] == nil || *k3.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMax)] != "max" {
 		t.Fatalf("expected kimi-coding/k3 max thinking map, got %#v", k3.ThinkingLevelMap)

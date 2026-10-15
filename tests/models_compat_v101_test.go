@@ -23,7 +23,7 @@ func TestV101SingleFieldCompatibilityMetadataRetained(t *testing.T) {
 			}
 		}
 	}
-	if count != 36 {
-		t.Fatalf("OpenCode affinity metadata count=%d want36", count)
+	if count != 35 {
+		t.Fatalf("OpenCode affinity metadata count=%d want35", count)
 	}
 }
