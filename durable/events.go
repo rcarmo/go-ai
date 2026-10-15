@@ -40,6 +40,7 @@ type AgentEvent struct {
 	DroppedBytes     uint64
 	DroppedLines     uint64
 	Diagnostics      []ToolDiagnostic
+	NestedResult     *ToolResult
 }
 type QueuedItem struct {
 	ID   ID
@@ -210,6 +211,13 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 		next := candidateTables(s.current)
 		next.Seq = frame.Publication.Seq
 		events := []AgentEvent{}
+		// Nested outcomes reference same-commit result documents. Resolve them
+		// against the full adopted publication, independent of table order.
+		for _, change := range frame.Publication.Documents {
+			doc := change.Record
+			doc.Value = change.Value
+			next.Documents[doc.ID] = doc
+		}
 		for _, write := range frame.Publication.Tables {
 			switch {
 			case write.Task != nil:
@@ -218,6 +226,13 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 				next.Tasks[task.ID] = task
 				if task.Conversation != s.conversation {
 					continue
+				}
+				if task.Kind == nestedToolKind {
+					nestedEvents, err := nestedLifecycleEvents(next, old, task, next.Seq, s.limits)
+					if err != nil {
+						return err
+					}
+					events = append(events, nestedEvents...)
 				}
 				if task.Kind == "pi.tool" {
 					var before, after toolCheckpoint

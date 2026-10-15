@@ -1404,6 +1404,12 @@ Conversation snapshots now expose `NestedTools`, derived from adopted active nes
 
 The active-restart test checks both levels of nested work, attribution, snapshot alias isolation and removal after settlement. Go 1.27.1 nested snapshot/existing event race tests passed three times in 12.247s. Full normal tests passed (durable 113.622s, tools 4.797s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Per-call nested lifecycle/progress events and compaction-failure projection still need implementation; full event/live parity is incomplete.
 
+## Committed nested-tool lifecycle events
+
+Event subscribers now receive nested `tool_execution_start`, `tool_execution_update` and `tool_execution_end`, with composite call IDs and parent task/call attribution. Updates derive from adopted native checkpoints, including retained output, details, dropped counters and diagnostic deltas. End events carry a detached `NestedResult` from the keyed result document. Document changes are applied to the event projection before resolving same-commit task outcomes, independent of publication table order.
+
+Backend subscription tests verify one start, persisted progress and one end with the final result, alongside existing event tests. Initial probes incorrectly read the legacy checkpoint and treated the task outcome's key reference as the receipt; the implementation now reads native state and the adopted result document. Go 1.27.1 event race tests passed three times in 11.241s. Full normal tests passed (durable 106.760s, tools 4.864s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Blocked-before-start, rejected-progress publication and compaction-failure projection still need targeted coverage; full parity is incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
