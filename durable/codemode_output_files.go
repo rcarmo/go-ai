@@ -39,6 +39,14 @@ func (r *TaskRuntime) prepareCodemodeOutput(ctx context.Context, key string, res
 		return result, err
 	}
 	writer, _ := environment.(CodemodeOutputWriter)
+	if writer == nil {
+		if filesystem, ok := environment.(FileSystem); ok {
+			writer, err = r.codemodeFilesystemWriter(ctx, key, filesystem)
+			if err != nil {
+				return result, err
+			}
+		}
+	}
 	write := func(name string, data []byte) (string, error) {
 		if err := ctx.Err(); err != nil {
 			return "", err

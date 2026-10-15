@@ -76,9 +76,11 @@ type CodemodeDelivery struct {
 	Error    string       `json:"error,omitempty"`
 }
 type codemodeRunState struct {
-	Source string          `json:"source"`
-	Start  CodemodeStart   `json:"start"`
-	Result *CodemodeResult `json:"result,omitempty"`
+	OutputDir string          `json:"outputDir,omitempty"`
+	OutputFS  string          `json:"outputFS,omitempty"`
+	Source    string          `json:"source"`
+	Start     CodemodeStart   `json:"start"`
+	Result    *CodemodeResult `json:"result,omitempty"`
 }
 type codemodeJournalState struct {
 	Issued     []CodemodeCall     `json:"issued"`
@@ -365,6 +367,15 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 						return nil, err
 					}
 				}
+				latest, err := doc.Get()
+				if err != nil {
+					return nil, err
+				}
+				var currentRun codemodeRunState
+				if err = fromObject(latest, &currentRun, l); err != nil {
+					return nil, err
+				}
+				run.OutputDir, run.OutputFS = currentRun.OutputDir, currentRun.OutputFS
 				run.Result = &result
 				object, err := dtoObject(run, l)
 				if err != nil {

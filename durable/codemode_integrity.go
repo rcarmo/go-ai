@@ -56,6 +56,9 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 			return reject("invalid codemode delivery sequence/union")
 		}
 	}
+	if (run.OutputDir == "") != (run.OutputFS == "") || len(run.OutputDir) > l.MaxStringBytes || len(run.OutputFS) > l.MaxStringBytes {
+		return reject("invalid codemode output address")
+	}
 	if run.Result != nil {
 		if err := validateCodemodeResult(*run.Result, l); err != nil {
 			return err
@@ -85,6 +88,9 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 		}
 		if a.Source != b.Source || !equalJSONValue(aStart, bStart) {
 			return reject("codemode start identity changed")
+		}
+		if a.OutputDir != "" && (a.OutputDir != b.OutputDir || a.OutputFS != b.OutputFS) {
+			return reject("codemode output address changed")
 		}
 		if a.Result != nil {
 			av, err := dtoObject(a.Result, l)

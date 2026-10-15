@@ -936,6 +936,12 @@ A model-facing memory/journal test replaces extension globals with an explicit e
 
 Extension-global/revocation race count 3 passes in 28.723s. Full normal root tests pass (durable 81.893s, tools 4.576s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Callback idempotency requirements, parallel/output-storage and final acceptance gaps remain.
 
+## Filesystem-capability output fallback
+
+When an environment provides `FileSystem` but no specialised output writer, codemode now creates an owned temporary directory through that capability, persists its directory and filesystem identity before writes, and writes fixed spill/image filenames. Settled reuse makes no further directory or file writes. Existing specialised writers retain precedence; no ambient filesystem access is granted. Stored addresses cannot change once assigned, and final result settlement preserves the separately committed address.
+
+Filesystem/spill/image race count 3 passes in 25.158s. Full normal root tests pass (durable 82.231s, tools 4.633s), with static/logging/non-CGO and diff checks. Initial implementation mistakes in the writer signature/document update and stale local address at final settlement were corrected before passing evidence. Diagnostic logs were removed after analysis. Directory lifetime remains environment-owned; uncertain directory-address commits must not trigger deletion. Dedicated filesystem reopen/fault/identity-change coverage and orphan-directory handling remain unfinished, as do larger output storage and parallel execution.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
