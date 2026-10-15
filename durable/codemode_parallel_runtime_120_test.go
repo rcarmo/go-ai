@@ -8,9 +8,13 @@ import (
 	"time"
 )
 
-func TestCodemode120ParallelRuntimeCompletionOrder(t *testing.T) { testParallelRuntime120(t, false) }
-func TestCodemode120ParallelRuntimeReopen(t *testing.T)          { testParallelRuntime120(t, true) }
-func testParallelRuntime120(t *testing.T, reopen bool) {
+func TestCodemode120ParallelRuntimeCompletionOrder(t *testing.T) {
+	testParallelRuntime120(t, false, false)
+}
+func TestCodemode120ParallelRuntimeReopen(t *testing.T) { testParallelRuntime120(t, true, false) }
+func TestCodemode120RemoteParallelRuntime(t *testing.T) { testParallelRuntime120(t, false, true) }
+func TestCodemode120RemoteParallelReopen(t *testing.T)  { testParallelRuntime120(t, true, true) }
+func testParallelRuntime120(t *testing.T, reopen, remote bool) {
 	backends(t, func(t *testing.T, b backend) {
 		sandbox, err := NewQuickJSSandbox(bg)
 		if err != nil {
@@ -20,8 +24,14 @@ func testParallelRuntime120(t *testing.T, reopen bool) {
 		sandbox.ParallelCalls = true
 		wrapped := &restartQuickJS120{sandbox: sandbox, ready: make(chan struct{})}
 		var runner CodemodeSandbox = sandbox
+		if remote {
+			runner = &RemoteCodemodeSandbox{Remote: &CodemodeRemoteServer{Sandbox: sandbox}, Identity: sandbox.RuntimeIdentity()}
+		}
 		if reopen {
 			runner = wrapped
+			if remote {
+				runner = &RemoteCodemodeSandbox{Remote: &CodemodeRemoteServer{Sandbox: wrapped}, Identity: sandbox.RuntimeIdentity()}
+			}
 		}
 		registry := NewRegistry()
 		second := make(chan struct{})

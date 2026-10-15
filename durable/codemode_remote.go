@@ -1,0 +1,208 @@
+package durable
+
+import (
+	"context"
+	"sync"
+)
+
+// CodemodeRemote transports one execution with a bidirectional exchange. The
+// transport must authenticate its peer, preserve ordering, honour cancellation
+// and join remote work before Execute returns. Tool executors stay on the caller.
+// This is the native Go protocol, not the TypeScript worker wire format.
+type CodemodeRemote interface {
+	Execute(context.Context, string, CodemodeStart, func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), func(context.Context) (CodemodeDelivery, error)) error
+}
+type CodemodeRemoteReply struct {
+	Acknowledged *CodemodeDrain
+	Stop         bool
+}
+
+// RemoteCodemodeSandbox runs only the VM remotely. Identity must identify the
+// server's actual runtime/assets; it is persisted and checked on replay.
+type RemoteCodemodeSandbox struct {
+	Remote   CodemodeRemote
+	Identity string
+}
+
+func (s *RemoteCodemodeSandbox) RuntimeIdentity() string           { return s.Identity }
+func (*RemoteCodemodeSandbox) SupportsParallelCalls() bool         { return true }
+func (*RemoteCodemodeSandbox) SupportsDrainAcknowledgements() bool { return true }
+func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
+	if ctx == nil || s == nil || s.Remote == nil || s.Identity == "" || start.RuntimeIdentity != "" && start.RuntimeIdentity != s.Identity {
+		return nil, reject("invalid remote codemode runtime")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	linked, cancel := context.WithCancel(ctx)
+	e := &remoteCodemodeExecution{ctx: linked, cancel: cancel, events: make(chan remoteCodemodeEvent, 1), replies: make(chan CodemodeRemoteReply), done: make(chan struct{}), deliveries: make(chan CodemodeDelivery)}
+	// Detach all configuration before handing it to a transport implementation.
+	object, err := dtoObject(start, DefaultLimits())
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	var owned CodemodeStart
+	if err := fromObject(object, &owned, DefaultLimits()); err != nil {
+		cancel()
+		return nil, err
+	}
+	go func() {
+		defer close(e.done)
+		terminal := false
+		err := callCodemodeRemote(linked, s.Remote, code, owned, func(ctx context.Context, event CodemodeEvent) (CodemodeRemoteReply, error) {
+			if terminal {
+				return CodemodeRemoteReply{}, reject("remote event after terminal result")
+			}
+			fields := 0
+			if event.Call != nil {
+				fields++
+			}
+			if event.Drain != nil {
+				fields++
+			}
+			if event.Result != nil {
+				fields++
+			}
+			if fields != 1 {
+				return CodemodeRemoteReply{}, reject("invalid remote codemode event")
+			}
+			// Copy transport-owned maps before publication. Full output is projected by
+			// the caller runtime, so it uses the existing codemode output ceiling here.
+			limits := DefaultLimits()
+			limits.MaxStringBytes = MaxCodemodeFullOutputBytes
+			limits.MaxRecordBytes = MaxCodemodeFullOutputBytes + 65536
+			value, err := dtoObject(event, limits)
+			if err != nil {
+				return CodemodeRemoteReply{}, err
+			}
+			var detached CodemodeEvent
+			if err := fromObject(value, &detached, limits); err != nil {
+				return CodemodeRemoteReply{}, err
+			}
+			select {
+			case e.events <- remoteCodemodeEvent{event: detached}:
+			case <-linked.Done():
+				return CodemodeRemoteReply{Stop: true}, linked.Err()
+			}
+			if event.Result != nil {
+				terminal = true
+				return CodemodeRemoteReply{Stop: true}, nil
+			}
+			// Call publication must never wait for its result: the following drain
+			// is what authorises the host to admit effects.
+			if event.Call != nil {
+				return CodemodeRemoteReply{}, nil
+			}
+			select {
+			case reply := <-e.replies:
+				return reply, nil
+			case <-linked.Done():
+				return CodemodeRemoteReply{Stop: true}, linked.Err()
+			}
+		}, func(ctx context.Context) (CodemodeDelivery, error) {
+			select {
+			case delivery := <-e.deliveries:
+				return delivery, nil
+			case <-ctx.Done():
+				return CodemodeDelivery{}, ctx.Err()
+			case <-linked.Done():
+				return CodemodeDelivery{}, linked.Err()
+			}
+		})
+		if err == nil && !terminal {
+			err = reject("remote execution ended without result")
+		}
+		if err != nil {
+			select {
+			case e.events <- remoteCodemodeEvent{err: err}:
+			case <-linked.Done():
+			}
+		}
+	}()
+	return e, nil
+}
+func callCodemodeRemote(ctx context.Context, remote CodemodeRemote, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = reject("remote codemode transport panicked")
+		}
+	}()
+	return remote.Execute(ctx, code, start, exchange, receive)
+}
+
+type remoteCodemodeEvent struct {
+	event CodemodeEvent
+	err   error
+}
+type remoteCodemodeExecution struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	events     chan remoteCodemodeEvent
+	replies    chan CodemodeRemoteReply
+	done       chan struct{}
+	deliveries chan CodemodeDelivery
+	mu         sync.Mutex
+	drain      *CodemodeDrain
+}
+
+func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, error) {
+	if ctx == nil {
+		return CodemodeEvent{}, reject("nil context")
+	}
+	select {
+	case received := <-e.events:
+		if received.event.Drain != nil {
+			e.mu.Lock()
+			copy := *received.event.Drain
+			e.drain = &copy
+			e.mu.Unlock()
+		}
+		return received.event, received.err
+	case <-ctx.Done():
+		return CodemodeEvent{}, ctx.Err()
+	case <-e.ctx.Done():
+		return CodemodeEvent{}, e.ctx.Err()
+	}
+}
+func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain CodemodeDrain) error {
+	if ctx == nil {
+		return reject("nil context")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.drain == nil || *e.drain != drain {
+		return reject("invalid remote drain acknowledgement")
+	}
+	select {
+	case e.replies <- CodemodeRemoteReply{Acknowledged: &drain}:
+		e.drain = nil
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.ctx.Done():
+		return e.ctx.Err()
+	}
+}
+func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery CodemodeDelivery) error {
+	if ctx == nil {
+		return reject("nil context")
+	}
+	object, err := dtoObject(delivery, DefaultLimits())
+	if err != nil {
+		return err
+	}
+	var owned CodemodeDelivery
+	if err := fromObject(object, &owned, DefaultLimits()); err != nil {
+		return err
+	}
+	select {
+	case e.deliveries <- owned:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.ctx.Done():
+		return e.ctx.Err()
+	}
+}
+func (e *remoteCodemodeExecution) Close() error { e.cancel(); <-e.done; return nil }

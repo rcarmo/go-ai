@@ -1214,6 +1214,14 @@ The zero-latency async-global timeout test could hit the independent 4,096-call 
 
 Go 1.27.1 timeout/admission normal tests passed ten times in 8.260s; final race tests passed three times in 16.048s. Full normal tests passed (durable 101.184s, tools 4.283s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Hosted CI was not dispatched; the known 13 security findings still prevent release acceptance.
 
+## Native remote VM transport
+
+`RemoteCodemodeSandbox` and `CodemodeRemoteServer` now move VM execution behind a transport-neutral Go interface. Tool implementations, journal commits and effect admission stay on the caller. Calls publish without waiting for results; drain acknowledgements and deliveries use separate paths, allowing concurrent pending calls. The server waits for local drain acknowledgement before delivering a result. Configuration, events and deliveries are detached at the boundary; transport panics and execution without a terminal result return errors. Close cancels and joins transport/server work.
+
+Real QuickJS loopback tests exercise completion-order calls and caller reopen through the remote server on both storage backends, plus transport rejection/panic and close while waiting for drain acknowledgement. Go 1.27.1 remote race tests passed three times in 42.111s. Full normal tests passed (durable 107.331s, tools 4.262s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis.
+
+This is a native Go transport contract, not the TypeScript remote wire format. No network transport/authentication or cross-process failure test is supplied. The transport must authenticate peers, preserve ordering, honour cancellation and join work. Server-side budget/memory caps, malicious peer admission and output-batch streaming need further implementation/verification before remote parity can be accepted.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
