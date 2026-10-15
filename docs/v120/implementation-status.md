@@ -1118,6 +1118,14 @@ The integration test exposed a scheduling race: the adapter could publish a drai
 
 The coordinator is tested with a commit callback; `RunCodemode` does not call it yet. Runtime event-loop integration, concurrent calls and persisted-backend fault/reopen verification still need implementation.
 
+## Serial runtime drain integration
+
+`RunCodemode` now uses drain admission when the sandbox advertises `CodemodeSandboxDrains`. It commits issued calls, then commits or verifies their drain count before executing the tool. Final drains are acknowledged before the result transaction. `QuickJSSandbox.AcknowledgeDrains` enables this mode when configured before use. Custom sandboxes retain the existing serial protocol unless they advertise support.
+
+Memory and journal backend tests verify a real QuickJS run persists `firstIssued` and final `issuedAfter`. Go 1.27.1 focused runtime/drain/unsupported-parallel race tests passed three times in 30.984s. Full normal root tests passed (durable 83.591s, tools 4.351s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
+
+Drain admission remains opt-in. An initial default-enabled run exposed a deadlock when the serial engine rejects overlapping calls: its issued count can include a rejected call with no published adapter event. The default remains unchanged until that fatal-boundary case is handled. Persisted-backend fault/reopen count verification and parallel execution still need tests and implementation.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

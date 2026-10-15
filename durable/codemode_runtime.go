@@ -25,6 +25,9 @@ type CodemodeSandbox interface {
 // CodemodeSandboxIdentity optionally pins a host VM's replay semantics. Hosts
 // without an identity must themselves preserve semantics across reopen.
 type CodemodeSandboxIdentity interface{ RuntimeIdentity() string }
+
+// CodemodeSandboxDrains advertises drain-count acknowledgement support.
+type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 type CodemodeStart struct {
 	DrainAcknowledgements bool                        `json:"drainAcknowledgements,omitempty"`
 	InterruptBudget       int                         `json:"interruptBudget,omitempty"`
@@ -176,6 +179,9 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		return CodemodeResult{}, reject("invalid codemode interrupt budget")
 	}
 	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
+		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()
+	}
 	selectedGlobals := r.harness.options.CodemodeGlobals
 	if globals != nil {
 		selectedGlobals = *globals
@@ -295,7 +301,17 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	for _, tool := range run.Start.Tools {
 		allowed[tool.Name] = true
 	}
-	for index := 0; index <= l.MaxPage; index++ {
+	index := 0
+	ackDrain := func(drain CodemodeDrain, observed int) error {
+		ack, ok := vm.(CodemodeDrainExecution)
+		if !run.Start.DrainAcknowledgements || !ok {
+			return reject("unexpected codemode drain")
+		}
+		return acknowledgeCodemodeDrain(linked, ack, &journal, drain, observed, index, func(ctx context.Context, next codemodeJournalState) error {
+			return commitCodemodeJournal(ctx, r, journalID, next)
+		})
+	}
+	for index <= l.MaxPage {
 		if err = r.check(); err != nil {
 			return CodemodeResult{}, err
 		}
@@ -308,6 +324,15 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		}
 		if err = linked.Err(); err != nil {
 			return CodemodeResult{}, err
+		}
+		if event.Drain != nil {
+			if event.Call != nil || event.Result != nil {
+				return CodemodeResult{}, reject("invalid sandbox event union")
+			}
+			if err := ackDrain(*event.Drain, index); err != nil {
+				return CodemodeResult{}, err
+			}
+			continue
 		}
 		if (event.Call == nil) == (event.Result == nil) {
 			return CodemodeResult{}, reject("invalid sandbox event union")
@@ -430,6 +455,18 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				return CodemodeResult{}, err
 			}
 		}
+		if run.Start.DrainAcknowledgements {
+			drainEvent, err := nextCodemodeEvent(linked, vm)
+			if err != nil {
+				return CodemodeResult{}, err
+			}
+			if drainEvent.Drain == nil || drainEvent.Call != nil || drainEvent.Result != nil {
+				return CodemodeResult{}, reject("missing serial codemode drain")
+			}
+			if err := ackDrain(*drainEvent.Drain, index+1); err != nil {
+				return CodemodeResult{}, err
+			}
+		}
 		var delivery CodemodeDelivery
 		if index < len(journal.Deliveries) {
 			delivery = journal.Deliveries[index]
@@ -549,6 +586,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		if err = deliverCodemodeEvent(linked, vm, vmDelivery); err != nil {
 			return CodemodeResult{}, err
 		}
+		index++
 	}
 	return CodemodeResult{}, errors.New("codemode serial call budget exhausted")
 }
