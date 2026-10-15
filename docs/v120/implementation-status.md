@@ -1236,6 +1236,12 @@ Remote admission now records a pending drain before publishing it, rejects dupli
 
 Tests exercise invalid transitions and a peer that suppresses protocol errors, alongside the existing real QuickJS remote ordering/reopen/cancellation cases. Go 1.27.1 remote race tests passed three times in 44.022s. Full normal tests passed (durable 103.438s, tools 4.305s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remote cross-process/wire/batching and large-image storage remain incomplete; no release acceptance or hosted CI run occurred.
 
+## Remote process-boundary verification
+
+Native remote execution now has process-boundary tests using the test executable as a QuickJS server and JSON frames over pipes. Two pending calls receive results in order `[2, 1]`, with initial and per-delivery drain acknowledgements checked across serialisation. Closing while the child waits for acknowledgement cancels and joins the process. The framing is test-only; no production network transport, authentication layer or TypeScript wire interoperability is added.
+
+Go 1.27.1 cross-process race tests passed three times in 26.192s. Full normal tests passed (durable 103.651s, tools 4.348s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Output batching, upstream wire adaptation, large-image persistence, broader AI audit and final whole-port acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
