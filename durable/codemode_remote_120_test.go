@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -231,5 +232,25 @@ func TestCodemode120QuickJSMemoryCeilingTerminates(t *testing.T) {
 	event, err := vm.Next(ctx)
 	if err != nil || event.Result == nil || event.Result.Error == "" {
 		t.Fatal("heap ceiling did not terminate", event, err)
+	}
+}
+
+type oversizedRemote120 struct{}
+
+func (oversizedRemote120) Execute(ctx context.Context, _ string, _ CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), _ func(context.Context) (CodemodeDelivery, error)) error {
+	_, err := exchange(ctx, CodemodeEvent{Result: &CodemodeResult{Output: strings.Repeat("x", MaxCodemodeFullOutputBytes+1)}})
+	return err
+}
+func TestCodemode120RemoteLargeOutputCeilingUnchanged(t *testing.T) {
+	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	sandbox := &RemoteCodemodeSandbox{Remote: oversizedRemote120{}, Identity: "fixture"}
+	vm, err := sandbox.Start(ctx, "", CodemodeStart{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	if event, err := vm.Next(ctx); err == nil || event.Result != nil {
+		t.Fatal("oversized peer result accepted", err)
 	}
 }

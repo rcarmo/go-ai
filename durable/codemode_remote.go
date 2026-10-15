@@ -79,11 +79,19 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			if fields != 1 {
 				return CodemodeRemoteReply{}, reject("invalid remote codemode event")
 			}
+			if event.Result != nil {
+				if err := validateCodemodeFullText(event.Result.Output); err != nil {
+					return CodemodeRemoteReply{}, err
+				}
+			}
 			// Copy transport-owned maps before publication. Full output is projected by
 			// the caller runtime, so it uses the existing codemode output ceiling here.
 			limits := DefaultLimits()
 			limits.MaxStringBytes = MaxCodemodeFullOutputBytes
-			limits.MaxRecordBytes = MaxCodemodeFullOutputBytes + 65536
+			// Full text is transient here; durable persistence still applies its
+			// normal document limit after projection/spill on the caller.
+			limits.MaxDocumentBytes = 6*MaxCodemodeFullOutputBytes + 65536
+			limits.MaxRecordBytes = limits.MaxDocumentBytes
 			value, err := dtoObject(event, limits)
 			if err != nil {
 				return CodemodeRemoteReply{}, err

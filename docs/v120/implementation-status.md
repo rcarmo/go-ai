@@ -1326,6 +1326,12 @@ Truncated text now reports when saving the full output fails, matching the pinne
 
 Go 1.27.1 spill/large-output race tests passed three times in 10.228s. Full normal tests passed (durable 109.283s, tools 4.336s), plus vet, staticcheck, logging, non-CGO and diff checks. The fixture measures UTF-16 output units rather than UTF-8 byte length, matching the documented projection contract. Diagnostic logs were deleted after analysis. Large-image representation, remote wire/batching and whole-port acceptance remain incomplete.
 
+## Remote large-text copy boundary
+
+The remote result copier had increased string/record limits but still used the ordinary document budget, rejecting multi-megabyte text before caller projection and spill. Its transient event budget now accounts for the existing 4MiB full-text ceiling plus worst-case JSON escaping. The full-text ceiling is checked before copying; persistent documents and ordinary tools retain their limits.
+
+A real child-process QuickJS test sends two complete 700,000-character text chunks and verifies neither is lost. An adversarial peer result above the 4MiB ceiling is rejected. Go 1.27.1 cross-process/large-output race tests passed three times in 43.121s. Full normal tests passed (durable 107.518s, tools 4.348s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Image payload references, remote wire/batching and final acceptance are still unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

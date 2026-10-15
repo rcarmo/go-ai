@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -251,5 +252,35 @@ func TestCodemode120RemoteCrossProcessCancellationJoins(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("child process did not join", ctx.Err())
+	}
+}
+
+func TestCodemode120RemoteCrossProcessLargeOutput(t *testing.T) {
+	engine, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(bg)
+	ctx, cancel := context.WithTimeout(bg, 15*time.Second)
+	defer cancel()
+	remote := &RemoteCodemodeSandbox{Remote: pipeRemote120{}, Identity: engine.RuntimeIdentity()}
+	vm, err := remote.Start(ctx, `text("x".repeat(700000));text("y".repeat(700000));`, CodemodeStart{RuntimeIdentity: engine.RuntimeIdentity(), ParallelCalls: true, DrainAcknowledgements: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	event, err := vm.Next(ctx)
+	if err != nil || event.Drain == nil {
+		t.Fatal(event, err)
+	}
+	if err := vm.(CodemodeDrainExecution).AcknowledgeDrain(ctx, *event.Drain); err != nil {
+		t.Fatal(err)
+	}
+	event, err = vm.Next(ctx)
+	if err != nil || event.Result == nil {
+		t.Fatal("large remote result rejected", err)
+	}
+	if event.Result.Error != "" || !strings.Contains(event.Result.Output, strings.Repeat("x", 700000)) || !strings.Contains(event.Result.Output, strings.Repeat("y", 700000)) {
+		t.Fatal("large remote result lost", event.Result.Error, len(event.Result.Output))
 	}
 }
