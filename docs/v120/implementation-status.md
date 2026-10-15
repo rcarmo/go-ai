@@ -990,6 +990,12 @@ Extension `InterruptBudget` is now validated/captured and stored in `CodemodeSta
 
 Real model/VM tests verify a captured 10-poll budget produces an error transcript, while recovery checks retain 1000 polls after replacement with 2000. Focused budget/recovery race count 3 passes in 27.776s. Full normal root tests pass (durable 83.450s, tools 4.452s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
 
+## Compute budget across short callback batches
+
+New tests verify caught synchronous/microtask exhaustion releases no tool effect or return/store value. Repeated awaited callbacks exposed a polling reset: each drain pass restarted the 50-job interval, so short batches reached the wall deadline instead of the compute limit. Promise-job accounting now accumulates across drain passes, with host52 replay identity. The callback test exhausts the compute budget after multiple callbacks before the wall deadline.
+
+Engine compute race count 3 passes in 25.433s; durable budget/recovery race count 3 passes in 29.033s. Full normal root tests pass (durable 81.311s, tools 4.402s), with static/logging/non-CGO and diff checks. The initial repeated-callback failure is not passing budget evidence. Diagnostic logs were removed after analysis. Default/remote budget semantics, large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

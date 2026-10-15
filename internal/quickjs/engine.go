@@ -189,6 +189,7 @@ type vm struct {
 	clockReady      bool
 	interruptBudget int
 	interruptPolls  int
+	computeJobs     int
 	budgetExceeded  bool
 	maxCalls        int
 	issuedCalls     int
@@ -613,7 +614,6 @@ func (v *vm) callFn(ctx context.Context, fn, this uint32, args ...uint32) (uint3
 // drain runs queued jobs, then lets the prelude fail a script that waits on
 // nothing that can resume it.
 func (v *vm) drain(ctx context.Context) error {
-	jobs := 0
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -638,8 +638,8 @@ func (v *vm) drain(ctx context.Context) error {
 			e := v.exception(ctx)
 			return fmt.Errorf("job execution error: %s", e.Stack)
 		}
-		jobs++
-		if jobs%50 == 0 && !v.done && v.computeInterrupted() {
+		v.computeJobs++
+		if v.computeJobs%50 == 0 && !v.done && v.computeInterrupted() {
 			return errors.New("execution interrupted")
 		}
 	}
