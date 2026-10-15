@@ -1338,6 +1338,12 @@ Remote event validation now applies the transient large-text allowance only to `
 
 Go 1.27.1 remote race tests passed three times in 86.395s. Full normal tests passed (durable 107.363s, tools 4.317s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No ordinary limits were widened. Large-image representation, remote wire/batching and final parity acceptance remain incomplete.
 
+## Remote terminal transport settlement
+
+Remote terminal events are now held until `Execute` returns successfully. Previously the caller could persist a result before a later transport error or post-terminal event was reported. Either failure now wins before a terminal result reaches `RunCodemode`. Tests cover transport rejection after a terminal event and a peer emitting another event after terminal while ignoring its rejection.
+
+Go 1.27.1 remote race tests passed three times in 84.545s. Full normal tests passed (durable 105.950s, tools 4.402s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remote wire/batching, large-image representation and whole-port acceptance remain incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

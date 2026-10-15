@@ -50,6 +50,7 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 	go func() {
 		defer close(e.done)
 		terminal := false
+		var terminalEvent *CodemodeEvent
 		var exchangeMu sync.Mutex
 		var protocolErr error
 		err := callCodemodeRemote(linked, s.Remote, code, owned, func(ctx context.Context, event CodemodeEvent) (reply CodemodeRemoteReply, exchangeErr error) {
@@ -101,14 +102,17 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			if err := e.admitEvent(detached, owned); err != nil {
 				return CodemodeRemoteReply{}, err
 			}
+			if event.Result != nil {
+				// Transport completion is part of terminal settlement. A peer
+				// cannot publish success then hide a trailing protocol failure.
+				terminal = true
+				terminalEvent = &detached
+				return CodemodeRemoteReply{Stop: true}, nil
+			}
 			select {
 			case e.events <- remoteCodemodeEvent{event: detached}:
 			case <-linked.Done():
 				return CodemodeRemoteReply{Stop: true}, linked.Err()
-			}
-			if event.Result != nil {
-				terminal = true
-				return CodemodeRemoteReply{Stop: true}, nil
 			}
 			// Call publication must never wait for its result: the following drain
 			// is what authorises the host to admit effects.
@@ -142,6 +146,11 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 		if err != nil {
 			select {
 			case e.events <- remoteCodemodeEvent{err: err}:
+			case <-linked.Done():
+			}
+		} else if terminalEvent != nil {
+			select {
+			case e.events <- remoteCodemodeEvent{event: *terminalEvent}:
 			case <-linked.Done():
 			}
 		}

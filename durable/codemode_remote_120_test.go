@@ -274,3 +274,35 @@ func TestCodemode120RemoteLargeTextDoesNotWidenOtherPayloads(t *testing.T) {
 		t.Fatal("large output text rejected", err)
 	}
 }
+
+type terminalFailureRemote120 struct{ afterEvent bool }
+
+func (r terminalFailureRemote120) Execute(ctx context.Context, _ string, _ CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), _ func(context.Context) (CodemodeDelivery, error)) error {
+	_, err := exchange(ctx, CodemodeEvent{Result: &CodemodeResult{Error: "script terminal"}})
+	if err != nil {
+		return err
+	}
+	if r.afterEvent {
+		_, _ = exchange(ctx, CodemodeEvent{Drain: &CodemodeDrain{}})
+		return nil
+	}
+	return errors.New("transport failed after terminal")
+}
+func TestCodemode120RemoteTerminalWaitsForTransportSettlement(t *testing.T) {
+	for _, afterEvent := range []bool{false, true} {
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		sandbox := &RemoteCodemodeSandbox{Remote: terminalFailureRemote120{afterEvent: afterEvent}, Identity: "fixture"}
+		vm, err := sandbox.Start(ctx, "", CodemodeStart{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		event, err := vm.Next(ctx)
+		if err == nil || event.Result != nil {
+			t.Fatal("terminal escaped failed transport", event, err)
+		}
+		if err := vm.Close(); err != nil {
+			t.Fatal(err)
+		}
+		cancel()
+	}
+}
