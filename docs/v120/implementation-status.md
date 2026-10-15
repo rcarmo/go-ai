@@ -1186,6 +1186,14 @@ Default replay detects fewer-call and early-end drift at the acknowledged issued
 
 Parallel execution is now the constructor default. Current-HEAD full race, profiling and whole-port acceptance are still required. Larger-output storage, remaining AI/default/remote parity and security blockers are unresolved.
 
+## Storage-safe large-text projection
+
+Codemode inline text now has a session-derived ceiling in addition to the requested token budget. The ceiling reserves string, document and record space for JSON escaping and transcript envelopes; ordinary-tool and general storage limits are unchanged. Full text up to the existing 4MiB output ceiling still reaches the confined output writer. This follows upstream's separate inline/storage budget, adapted to the smaller native document limits.
+
+A near-4MiB text result with a million-token request now spills completely and persists a bounded inline projection on both backends. Settled reuse does not write the file twice. Go 1.27.1 focused output race tests passed three times in 17.969s. Full normal tests passed (durable 101.089s, tools 4.578s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis.
+
+This test injects the sandbox result at the runtime boundary. Full-size QuickJS formatting, image payload storage and the public transcript path still need large-output verification; the numerical inline cap is a conservative native adaptation, not upstream's exact byte allowance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

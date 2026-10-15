@@ -391,7 +391,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				projection.WallMs = finished - run.Start.StartedAt
 			}
 			projection.FullOutputPath = "" // only the environment writer grants paths
-			projection.Output = projectCodemodeOutput(fullText, run.Start.MaxOutputTokens)
+			projection.Output = projectCodemodeOutput(fullText, codemodeInlineTokens(run.Start.MaxOutputTokens, l))
 			bounded, err := ownCodemodeResult(projection, l)
 			if err != nil {
 				return CodemodeResult{}, err

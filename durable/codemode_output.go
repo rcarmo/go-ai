@@ -6,6 +6,23 @@ import (
 
 const MaxCodemodeFullOutputBytes = 4 << 20
 
+// Bound only the inline codemode projection. Reserve JSON escaping and
+// transcript/document envelope space; the spill writer still receives full text.
+func codemodeInlineTokens(tokens int, l Limits) int {
+	bytes := l.MaxStringBytes / 4
+	if n := l.MaxDocumentBytes / 16; n < bytes {
+		bytes = n
+	}
+	if n := l.MaxRecordBytes / 16; n < bytes {
+		bytes = n
+	}
+	ceiling := bytes / 4
+	if tokens > ceiling {
+		return ceiling
+	}
+	return tokens
+}
+
 func validateCodemodeFullText(text string) error {
 	if len(text) > MaxCodemodeFullOutputBytes || !utf8.ValidString(text) {
 		return reject("invalid or oversized codemode full output")

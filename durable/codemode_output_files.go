@@ -29,6 +29,7 @@ func (r *TaskRuntime) prepareCodemodeOutput(ctx context.Context, key string, res
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
+	tokens = codemodeInlineTokens(tokens, r.harness.session.limits)
 	text := result.Output
 	truncated := projectCodemodeOutput(text, tokens) != text
 	if !truncated && len(result.Images) == 0 {
