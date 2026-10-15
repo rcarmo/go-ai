@@ -11,14 +11,18 @@ import (
 )
 
 func TestAnthropic120PreferredStrictLimitFallbackOnce(t *testing.T) {
-	for _, mode := range []string{"fallback", "second-reject", "unrelated", "required-only"} {
+	for _, mode := range []string{"fallback", "tool-count", "union-count", "second-reject", "unrelated", "required-only"} {
 		t.Run(mode, func(t *testing.T) {
 			requests := 0
+			payloadHooks, responseHooks := 0, 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requests++
 				var body map[string]any
 				if e := json.NewDecoder(r.Body).Decode(&body); e != nil {
 					t.Error(e)
+				}
+				if body["max_tokens"] != float64(123) {
+					t.Error("payload override lost", body["max_tokens"])
 				}
 				tools := body["tools"].([]any)
 				required := tools[len(tools)-1].(map[string]any)
@@ -38,6 +42,12 @@ func TestAnthropic120PreferredStrictLimitFallbackOnce(t *testing.T) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(400)
 					message := "The compiled grammar is too large"
+					if mode == "tool-count" {
+						message = "Too many strict tools (21), the limit is 20"
+					}
+					if mode == "union-count" {
+						message = "Schemas contains too many parameters with union types (17), the limit is 16"
+					}
 					if mode == "unrelated" {
 						message = "invalid model"
 					}
@@ -59,7 +69,19 @@ func TestAnthropic120PreferredStrictLimitFallbackOnce(t *testing.T) {
 			defer cancel()
 			done := false
 			var message *goai.Message
-			for event := range streamAnthropic(ctx, model, input, &goai.StreamOptions{APIKey: "test"}) {
+			for event := range streamAnthropic(ctx, model, input, &goai.StreamOptions{APIKey: "test", OnPayload: func(payload interface{}, _ *goai.Model) (interface{}, error) {
+				payloadHooks++
+				raw, err := json.Marshal(payload)
+				if err != nil {
+					return nil, err
+				}
+				var body map[string]any
+				if err := json.Unmarshal(raw, &body); err != nil {
+					return nil, err
+				}
+				body["max_tokens"] = 123
+				return body, nil
+			}, OnResponse: func(int, map[string]string, *goai.Model) { responseHooks++ }}) {
 				if e, ok := event.(*goai.DoneEvent); ok {
 					done = true
 					message = e.Message
@@ -69,7 +91,11 @@ func TestAnthropic120PreferredStrictLimitFallbackOnce(t *testing.T) {
 			if mode == "unrelated" || mode == "required-only" {
 				want = 1
 			}
-			if requests != want || done != (mode == "fallback") {
+			success := mode == "fallback" || mode == "tool-count" || mode == "union-count"
+			if payloadHooks != want || responseHooks != 1 {
+				t.Error("fallback hook counts", payloadHooks, responseHooks, want)
+			}
+			if requests != want || done != success {
 				t.Fatal(mode, requests, done)
 			}
 			if done && (message == nil || len(message.Diagnostics) != 1 || message.Diagnostics[0].Type != "anthropic_strict_tools_fallback") {
