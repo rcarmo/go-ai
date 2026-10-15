@@ -1074,6 +1074,12 @@ An opt-in engine `OrderedSettlements` mode buffers completed callback results an
 
 Ordered/serial engine race count 3 passes in 22.258s. Full normal root tests pass (durable 80.667s, tools 4.367s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. This is engine groundwork only: durable issued-prefix/watermark journalling, cancellation, four-call model capacity and replay admission remain implementation gaps.
 
+## Ordered engine cancellation and completion
+
+New tests verify cancellation with an out-of-order completed callback still joins an earlier active callback, releases no later continuation effect and adopts no store writes. Successful script completion also cancels unawaited calls and suppresses later buffered continuations. No production changes were needed; the durable adapter remains serial.
+
+Ordered engine race count 3 passes in 23.120s. Full normal root tests pass (durable 81.850s, tools 4.365s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Durable parallel journal/watermark/capacity semantics, larger output and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
