@@ -12,7 +12,7 @@
       "sha256": "c3e69423bcab9712f31a7e5b6d3448ae356af84439ec6bc701f626f6ea164535",
       "integrity": "sha512-U5/1zXqfV1on7/9sbez03tT4Ru49Lvfb4+zXSDK3DBKF5cRk6KxvAOTOY3HJ4jimlZth+rs7vbJqN6iBQAoNuQ==",
       "gitHead": null,
-      "signaturesVerified": false,
+      "signaturesVerified": true,
       "attestations": {
         "url": "https://registry.npmjs.org/-/npm/v1/attestations/@earendil-works%2fpi-ai@1.2.0",
         "provenance": {
@@ -85,7 +85,21 @@
           }
         }
       ],
-      "subjectsMatch": true
+      "subjectsMatch": true,
+      "cryptographicVerification": {
+        "date": "2026-10-15",
+        "verifier": "sigstore 3.1.0 bundled with npm 10.9.8, Node 22.23.1",
+        "registrySignaturesVerified": 2,
+        "attestationTypesVerified": [
+          "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+          "https://slsa.dev/provenance/v1"
+        ],
+        "trust": "TUF-authenticated registry.npmjs.org/keys.json and Sigstore trusted_root.json",
+        "certificateIssuer": "https://token.actions.githubusercontent.com",
+        "certificateIdentityURI": "https://github.com/earendil-works/pi/.github/workflows/build-binaries.yml@refs/tags/v1.2.0",
+        "sourceRevision": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
+        "tamperedDSSEPayloadRejected": true
+      }
     },
     {
       "name": "@earendil-works/pi-durable",
@@ -94,7 +108,7 @@
       "sha256": "ad33e04506d51b0386456d2bf749855bd72ff8b2c8db22e96682d9f6718cac58",
       "integrity": "sha512-2kDyK7HVCTcxf3CTHkDR0rRGCUfIpoZr76fC6n/KZDu7hkDWR62anEujIkJ+8sKjtNpEM+zyKW3bi2NIEUyiCw==",
       "gitHead": null,
-      "signaturesVerified": false,
+      "signaturesVerified": true,
       "attestations": {
         "url": "https://registry.npmjs.org/-/npm/v1/attestations/@earendil-works%2fpi-durable@1.2.0",
         "provenance": {
@@ -167,8 +181,22 @@
           }
         }
       ],
-      "subjectsMatch": true
+      "subjectsMatch": true,
+      "cryptographicVerification": {
+        "date": "2026-10-15",
+        "verifier": "sigstore 3.1.0 bundled with npm 10.9.8, Node 22.23.1",
+        "registrySignaturesVerified": 2,
+        "attestationTypesVerified": [
+          "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+          "https://slsa.dev/provenance/v1"
+        ],
+        "trust": "TUF-authenticated registry.npmjs.org/keys.json and Sigstore trusted_root.json",
+        "certificateIssuer": "https://token.actions.githubusercontent.com",
+        "certificateIdentityURI": "https://github.com/earendil-works/pi/.github/workflows/build-binaries.yml@refs/tags/v1.2.0",
+        "sourceRevision": "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
+        "tamperedDSSEPayloadRejected": true
+      }
     }
   ],
-  "notes": "Published npm SHA512 and all decoded attestation subject hashes match. DSSE signatures/certificates have not been cryptographically verified."
+  "notes": "Published archive SHA512, registry signatures, publish attestations and SLSA provenance verified on 2026-10-15. Sigstore trust loaded through TUF; provenance certificate constrained to pinned GitHub workflow/tag identity and source commit. Tampered DSSE payloads rejected for both attestation types. No native release was signed or published."
 }

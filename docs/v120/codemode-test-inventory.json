@@ -176,11 +176,13 @@
           "name": "makes the same calls and output for the same start, seed, and results",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_deterministic_crosswalk_120_test.go",
-            "durable/codemode_quickjs_clock_120_test.go",
-            "internal/quickjs/clock_120_test.go"
+            "internal/quickjs/deterministic_environment_120_test.go",
+            "internal/quickjs/engine_120_test.go",
+            "internal/quickjs/random_120_test.go"
           ],
-          "note": "Pinned seed1/seed0, time-independent randomness, absolute Date clock and elapsed performance clock tested with serial deliveries. Full upstream call/output equivalence remains partial."
+          "note": "Pinned seed1/seed0, time-independent randomness, absolute Date clock and elapsed performance clock tested with serial deliveries. Full upstream call/output equivalence remains partial.",
+          "status": "native-partial",
+          "notes": "UTC/weak-reference absence, seed repeatability and fresh VM globals now have explicit execution fixtures. Exact native host PRNG and runtime identity remain documented adaptations."
         },
         {
           "line": 148,
@@ -220,8 +222,13 @@
           "line": 236,
           "name": "keeps the clock monotonic and rejects a clock value that is not finite",
           "disposition": "reviewed-gap",
-          "nativeTests": [],
-          "note": "Error-plus-result union is rejected natively; generic reject.properties plain-object validation has no direct native counterpart/test."
+          "nativeTests": [
+            "durable/codemode_delivery_clock_120_test.go",
+            "durable/codemode_quickjs_clock_120_test.go"
+          ],
+          "note": "Error-plus-result union is rejected natively; generic reject.properties plain-object validation has no direct native counterpart/test.",
+          "status": "native-partial",
+          "notes": "Local serial/parallel and remote clocks reject backward/unsafe times without consuming pending call. Integer native timestamp API excludes NaN/Infinity."
         },
         {
           "line": 249,
@@ -235,9 +242,13 @@
           "name": "leaves a call waiting when its answer cannot be serialized",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_quickjs_clock_120_test.go"
+            "durable/codemode_delivery_clock_120_test.go",
+            "durable/codemode_worker_properties_process_120_test.go",
+            "internal/quickjs/error_properties_120_test.go"
           ],
-          "note": "Serial deliveries advance Date/performance clocks and backward deliveries clamp. Elapsed nanosecond overflow saturates; replay identity host40. int64 transport excludes nonfinite inputs; generic JSON rejection semantics not covered."
+          "note": "Serial deliveries advance Date/performance clocks and backward deliveries clamp. Elapsed nanosecond overflow saturates; replay identity host40. int64 transport excludes nonfinite inputs; generic JSON rejection semantics not covered.",
+          "status": "native-partial",
+          "notes": "Local serial/parallel and remote reject cyclic answers and success-with-rejection-properties without consuming call; corrected answer settles. Rejection properties verified against official VM."
         },
         {
           "line": 275,
@@ -302,8 +313,12 @@
           "line": 386,
           "name": "reads the real clock and real randomness",
           "disposition": "reviewed-gap",
-          "nativeTests": [],
-          "note": "Native engine supplies seeded/clock-driven environment for every invocation. Upstream ordinary execute real clock/random mode is missing."
+          "nativeTests": [
+            "internal/quickjs/ordinary_execution_120_test.go"
+          ],
+          "note": "Native engine supplies seeded/clock-driven environment for every invocation. Upstream ordinary execute real clock/random mode is missing.",
+          "status": "native-partial",
+          "notes": "Ordinary native execution uses real wall/monotonic clocks and crypto WASI randomness. Explicit deterministic zero start/seed and durable persisted clocks remain supported."
         }
       ]
     },
@@ -316,10 +331,12 @@
           "name": "fails a script that computes past its interrupt budget as a timeout",
           "disposition": "native-partial",
           "nativeTests": [
-            "internal/quickjs/engine_120_test.go",
-            "internal/quickjs/global_timeout_120_test.go"
+            "internal/quickjs/portable_modes_120_test.go",
+            "internal/quickjs/interrupt_budget_120_test.go"
           ],
-          "note": "Native wall deadline interrupts synchronous/async loops. Deterministic compute interrupt budget is absent; wall-time enforcement is not compute-budget parity."
+          "note": "Native wall deadline interrupts synchronous/async loops. Deterministic compute interrupt budget is absent; wall-time enforcement is not compute-budget parity.",
+          "status": "native-partial",
+          "notes": "Interpreter/compiler compute exhaustion executes natively; full portable corpus still incomplete."
         },
         {
           "line": 48,
@@ -368,9 +385,12 @@
           "name": "reports a failing or vanishing remote as a sandbox error",
           "disposition": "reviewed-gap",
           "nativeTests": [
-            "durable/codemode_panic_120_test.go"
+            "durable/codemode_remote_120_test.go",
+            "durable/codemode_worker_remote_120_test.go"
           ],
-          "note": "Native sandbox panic containment covered, but remote exchange failure/premature finish/factory error contract is absent."
+          "note": "Native sandbox panic containment covered, but remote exchange failure/premature finish/factory error contract is absent.",
+          "status": "native-partial",
+          "notes": "Transport failure, missing terminal, forged protocol and post-terminal transport failure reject; real official script-error integration passes."
         }
       ]
     },
