@@ -472,7 +472,7 @@ func streamAnthropic(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		providerThinkingLevel := ""
-		if compat.supportsMidConvoEffort {
+		if compat.supportsMidConvoEffort && !anthropicThinkingDisabled(model, opts) {
 			providerThinkingLevel = anthropicEffortForOptions(model, opts)
 		}
 		if fallbackDiagnostic != nil {
@@ -614,7 +614,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Temperature: gate on supportsTemperature and not-thinking (upstream parity)
-	thinkingEnabled := opts != nil && opts.Reasoning != nil && *opts.Reasoning != ""
+	thinkingEnabled := opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" && *opts.Reasoning != "off"
+	thinkingDisabled := anthropicThinkingDisabled(model, opts)
+	useEffortMessages := compat.supportsMidConvoEffort && !thinkingDisabled
 	supportsTemp := true
 	if model.AnthropicCompat != nil && model.AnthropicCompat.SupportsTemperature != nil {
 		supportsTemp = *model.AnthropicCompat.SupportsTemperature
@@ -624,7 +626,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil && opts.Temperature != nil && !thinkingEnabled && !compat.supportsMidConvoEffort && supportsTemp {
 		req.Temperature = opts.Temperature
 	}
-	if compat.supportsMidConvoEffort {
+	if thinkingDisabled {
+		req.Thinking = &anthropicThinking{Type: "disabled"}
+	} else if useEffortMessages {
 		req.Thinking = &anthropicThinking{
 			Type:         "adaptive",
 			Display:      "summarized",
@@ -787,7 +791,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					})
 				}
 			}
-			if compat.supportsMidConvoEffort && m.Api == goai.ApiAnthropicMessages && m.Provider == model.Provider && isAnthropicEffort(m.ProviderThinkingLevel) && len(blocks) > 0 {
+			if useEffortMessages && m.Api == goai.ApiAnthropicMessages && m.Provider == model.Provider && isAnthropicEffort(m.ProviderThinkingLevel) && len(blocks) > 0 {
 				req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: m.ProviderThinkingLevel}})
 			}
 			req.Messages = append(req.Messages, anthropicMessage{Role: "assistant", Content: blocks})
@@ -863,7 +867,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		}
 	}
 
-	if compat.supportsMidConvoEffort {
+	if useEffortMessages {
 		req.Messages = append(req.Messages, anthropicMessage{Role: "system", Content: []anthropicContentBlock{}, OutputConfig: &anthropicOutput{Effort: anthropicEffortForOptions(model, opts)}})
 	}
 
@@ -922,6 +926,22 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	return req
+}
+
+// A nil reasoning option retains managed-effort defaults. An explicit off
+// request disables thinking unless the model advertises off as unsupported.
+func anthropicThinkingDisabled(model *goai.Model, opts *goai.StreamOptions) bool {
+	if !model.Reasoning || opts == nil || opts.Reasoning == nil {
+		return false
+	}
+	level := string(*opts.Reasoning)
+	if level != "" && level != "off" {
+		return false
+	}
+	if mapped, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && mapped == nil {
+		return false
+	}
+	return true
 }
 
 func anthropicEffortForOptions(model *goai.Model, opts *goai.StreamOptions) string {

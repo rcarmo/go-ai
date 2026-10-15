@@ -17,3 +17,7 @@ TransformMessages now drops all thinking when provider/API/model identity differ
 ## Anthropic tool-result images
 
 Anthropic now retains image blocks inside successful ordinary results; errored results keep text/placeholder blocks only and move images with a call-ID caption after every tool_result in the adjacent result group. Deferred-reference sibling text/images remain intact after grouped results. Tests assert successful/error image preservation and ordering, one placeholder per consecutive image run, error flag, caller isolation and updated sibling expectations. Full Anthropic race count3 passes6.922s plus vet/diff. Other Anthropic1.3 thinking-off/effort and Bedrock image conversion deltas remain separate audit work.
+
+## Anthropic explicit thinking off
+
+Managed-effort requests now honour explicit native Reasoning pointer off/empty when the model supports off: disabled thinking without block_binding/output effort or historical/final effort markers; terminal providerThinkingLevel omitted. Omitted reasoning keeps managed adaptive defaults; explicit off=null model mapping remains unsupported and preserves adaptive mode. Request regressions and full Anthropic race count3 pass7.095s, vet/diff pass. No full1.3 acceptance.
