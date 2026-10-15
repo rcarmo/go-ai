@@ -12,8 +12,10 @@ import (
 )
 
 func TestAnthropic120StrictFallbackBoundaries(t *testing.T) {
-	for _, mode := range []string{"wrong-type", "hook-error", "sse-error", "later-request"} {
+	for _, mode := range []string{"wrong-type", "wrong-status", "cancel-before-retry", "hook-error", "sse-error", "later-request"} {
 		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
 			requests := 0
 			strictFlags := []bool{}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +33,14 @@ func TestAnthropic120StrictFallbackBoundaries(t *testing.T) {
 				}
 				if mode == "wrong-type" || requests == 1 {
 					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(400)
+					status := 400
+					if mode == "wrong-status" {
+						status = 500
+					}
+					w.WriteHeader(status)
+					if mode == "cancel-before-retry" {
+						cancel()
+					}
 					kind := "invalid_request_error"
 					if mode == "wrong-type" {
 						kind = "authentication_error"
@@ -46,14 +55,12 @@ func TestAnthropic120StrictFallbackBoundaries(t *testing.T) {
 			model := strictAnthropicModel()
 			model.BaseURL = server.URL
 			input := &goai.Context{Tools: []goai.Tool{{Name: "preferred", Parameters: json.RawMessage(`{"type":"object","properties":{"x":{"type":"string"}},"required":["x"]}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "json_schema", Strict: "prefer"}}}}
-			options := &goai.StreamOptions{APIKey: "fixture"}
+			options := &goai.StreamOptions{APIKey: "fixture", RetryConfig: &goai.RetryConfig{MaxRetries: 0}}
 			if mode == "hook-error" {
 				options.OnPayload = func(any, *goai.Model) (any, error) {
 					return nil, errors.New("400 invalid_request_error: The compiled grammar is too large")
 				}
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
 			runs := 1
 			if mode == "later-request" {
 				runs = 2

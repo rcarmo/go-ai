@@ -1350,6 +1350,12 @@ Go 1.27.1 remote race tests passed three times in 84.545s. Full normal tests pas
 
 Go 1.27.1 Anthropic race tests passed three times in 1.087s. Full normal tests passed (durable 106.742s, tools 4.382s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Explicit cancellation/wrong-status fallback crosswalk, reproducible catalogue generation and final AI acceptance still need verification. Durable image/remote gaps and security findings continue to prevent full parity acceptance.
 
+## AI remaining boundary and catalogue regeneration checks
+
+Anthropic fallback tests now explicitly cover cancellation before retry and wrong HTTP status. The wrong-status fixture disables general transient retries, isolating strict-downgrade behaviour. Both make a single request and return an error. Exact catalogue regeneration from the pinned published 1.2.0 schema-v6 inputs passes for chat, image and classifier catalogues without source differences.
+
+Go 1.27.1 Anthropic boundary race tests passed three times in 1.037s. Full normal tests passed (durable 105.293s, tools 4.318s), plus vet, staticcheck, logging, non-CGO and diff checks. Regeneration scratch and disposable logs were removed after use; the completed reproducible catalogue cache was cleared. `ai-crosswalk.md` records these checks. Signature/provenance, paid live-provider evidence, current full-race acceptance and the 13 security findings remain unresolved; durable large-image and remote-wire gaps still prevent complete parity.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
