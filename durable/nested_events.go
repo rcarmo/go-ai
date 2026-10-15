@@ -1,5 +1,7 @@
 package durable
 
+import "sort"
+
 func nestedLifecycleEvents(state Snapshot, old, task Task, seq uint64, l Limits) ([]AgentEvent, error) {
 	record, err := CanonicalTask(task, l)
 	if err != nil {
@@ -144,4 +146,17 @@ func eventTaskDepth(state Snapshot, id ID) int {
 		id = task.Owner
 	}
 	return depth
+}
+
+func sortAgentEvents(events []AgentEvent, state Snapshot) {
+	sort.SliceStable(events, func(i, j int) bool {
+		left, right := eventOrder(events[i].Type), eventOrder(events[j].Type)
+		if left != right {
+			return left < right
+		}
+		if events[i].Type == "tool_execution_end" && events[j].Type == "tool_execution_end" {
+			return eventTaskDepth(state, events[i].Task) > eventTaskDepth(state, events[j].Task)
+		}
+		return false
+	})
 }

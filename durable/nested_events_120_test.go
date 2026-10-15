@@ -132,3 +132,39 @@ func TestNestedTool120EventDepthUsesOwnership(t *testing.T) {
 		t.Fatal("incorrect event ownership depth")
 	}
 }
+
+func TestNestedTool120PublicationEndOrderingSurvivesEntryArrangement(t *testing.T) {
+	// Feed a single publication's parent-first table order through the same sort
+	// and entry arrangement as WatchEvents. Model results must stay adjacent to
+	// their transcript entry without moving ahead of nested child completion.
+	limits := DefaultLimits()
+	state := Snapshot{Tasks: map[ID]Task{1: {ID: 1, Kind: "pi.tool"}, 2: {ID: 2, Owner: 1, Kind: nestedToolKind}, 3: {ID: 3, Owner: 2, Kind: nestedToolKind}}}
+	message := &MessageReceipt{Role: goai.RoleToolResult, ToolCallID: "model", ToolName: "outer", Content: []goai.ContentBlock{{Type: "text", Text: "done"}}}
+	wire, err := dtoObject(message, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := &Entry{ID: 10, Conversation: 9, Kind: "message", Value: wire}
+	events := []AgentEvent{{Type: "tool_execution_end", Task: 1, ToolCallID: "model", Message: message}, {Type: "tool_execution_end", Task: 2, ToolCallID: "model/middle", NestedResult: &ToolResult{Content: "middle"}}, {Type: "tool_execution_end", Task: 3, ToolCallID: "model/middle/leaf", NestedResult: &ToolResult{Content: "leaf"}}, {Type: "entry_appended", Entry: entry}, {Type: "message_end", Entry: entry}}
+	sortAgentEvents(events, state)
+	arranged, err := arrangeEntryEvents(events, Snapshot{}, 9, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ends []string
+	parentPosition, entryPosition := -1, -1
+	for i, event := range arranged {
+		if event.Type == "tool_execution_end" {
+			ends = append(ends, event.ToolCallID)
+			if event.ToolCallID == "model" {
+				parentPosition = i
+			}
+		}
+		if event.Type == "entry_appended" {
+			entryPosition = i
+		}
+	}
+	if len(ends) != 3 || ends[0] != "model/middle/leaf" || ends[1] != "model/middle" || ends[2] != "model" || parentPosition >= entryPosition {
+		t.Fatal("nested publication ordering", ends, parentPosition, entryPosition)
+	}
+}

@@ -1440,6 +1440,12 @@ Active nested snapshots now include committed retained output, details/presence,
 
 The active restart fixture emits progress/details before blocking and verifies the snapshot plus detail-alias isolation. Go 1.27.1 nested snapshot/existing event race tests passed three times in 12.807s. Full normal tests passed (durable 109.893s, tools 4.702s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Same-publication nested end ordering and remaining durable/image/remote acceptance gaps are unfinished.
 
+## Nested end ordering through entry arrangement
+
+A publication-order fixture now feeds parent-first task events through the same stable sort and transcript-entry arrangement used by `WatchEvents`. Leaf and middle nested ends precede the model-tool parent end; the parent's result remains before its transcript entry. The sort helper is shared with production event delivery. Existing committed lifecycle/subscription tests remain in the focused selection. This fixture exercises the projection pipeline directly; it does not manufacture simultaneous parent/child settlement in storage.
+
+Go 1.27.1 ordering/lifecycle/event race tests passed three times in 11.948s. Full normal tests passed (durable 110.318s, tools 4.716s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remaining durable source crosswalk, large-image persistence, remote wire/batching and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
