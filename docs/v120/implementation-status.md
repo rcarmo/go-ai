@@ -1280,6 +1280,12 @@ The changed upstream model-runtime test exposed a missing refresh endpoint field
 
 Go 1.27.1 schema/runtime race tests passed three times in 1.436s. Full normal tests passed (durable 104.814s, tools 4.290s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. This completes review of the seven changed AI test files at the contract level; full AI source-delta acceptance, remote batching/wire adaptation, large-image storage, profiling and final verification remain incomplete.
 
+## OpenRouter source-delta pricing correction
+
+Source comparison found the OpenRouter pricing test and parser used a nested `condition` object absent from the pinned API type. Overrides now read flat `min_prompt_tokens`; any present `utc_start`, `utc_end` or `utc_days` field excludes the override from prompt-length tiers, including empty/null time conditions. The corrected HTTP fixture checks one retained length tier and three excluded time-conditioned tiers. Existing six-decimal price rounding already matched upstream and was unchanged.
+
+Codex's changed compressed-buffer ownership annotation is TypeScript-specific: the Go implementation writes each request into a fresh local buffer and already has decompression round-trip coverage. The changed retry phrase is covered by existing positive/quota/terminal tests. Go 1.27.1 OpenRouter/retry race tests passed three times in 1.065s. Full normal tests passed (durable 104.462s, tools 4.390s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Whole-source acceptance, durable remaining gaps and release verification are incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

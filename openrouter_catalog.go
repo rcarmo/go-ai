@@ -120,11 +120,10 @@ type openRouterRates struct {
 type openRouterPricing struct {
 	openRouterRates
 	Overrides []struct {
-		Condition struct {
-			Min   *int `json:"min_prompt_tokens"`
-			Start *int `json:"utc_hour_start"`
-			End   *int `json:"utc_hour_end"`
-		} `json:"condition"`
+		Min   *int            `json:"min_prompt_tokens"`
+		Start json.RawMessage `json:"utc_start"`
+		End   json.RawMessage `json:"utc_end"`
+		Days  json.RawMessage `json:"utc_days"`
 		openRouterRates
 	} `json:"pricing_overrides"`
 }
@@ -142,10 +141,10 @@ func openRouterRate(value string, fallback float64) float64 {
 func openRouterCatalogCost(p *openRouterPricing) ModelCost {
 	cost := ModelCost{Input: openRouterRate(p.Prompt, 0), Output: openRouterRate(p.Completion, 0), CacheRead: openRouterRate(p.CacheRead, 0), CacheWrite: openRouterRate(p.CacheWrite, 0)}
 	for _, o := range p.Overrides {
-		if o.Condition.Min == nil || *o.Condition.Min <= 0 || o.Condition.Start != nil || o.Condition.End != nil {
+		if o.Min == nil || *o.Min <= 0 || o.Start != nil || o.End != nil || o.Days != nil {
 			continue
 		}
-		cost.Tiers = append(cost.Tiers, ModelCostTier{InputTokensAbove: *o.Condition.Min, Input: openRouterRate(o.Prompt, cost.Input), Output: openRouterRate(o.Completion, cost.Output), CacheRead: openRouterRate(o.CacheRead, cost.CacheRead), CacheWrite: openRouterRate(o.CacheWrite, cost.CacheWrite)})
+		cost.Tiers = append(cost.Tiers, ModelCostTier{InputTokensAbove: *o.Min, Input: openRouterRate(o.Prompt, cost.Input), Output: openRouterRate(o.Completion, cost.Output), CacheRead: openRouterRate(o.CacheRead, cost.CacheRead), CacheWrite: openRouterRate(o.CacheWrite, cost.CacheWrite)})
 	}
 	return cost
 }
