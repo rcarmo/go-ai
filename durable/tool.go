@@ -506,6 +506,7 @@ type ToolResult struct {
 	Content             string
 	// Blocks adds strict text/image content to the tool receipt. Content remains
 	// the backwards-compatible text field; streamed prefixes precede Blocks.
+	imageChunks  []receiptImageChunks
 	Blocks       []goai.ContentBlock
 	Details      JSON // Object-valued convenience form.
 	DetailsValue any
@@ -1547,6 +1548,12 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		result.thrownError = fmt.Sprintf("Tool %s threw", cp.Offer.Name)
 		return h.finishTool(task, cp, result, "tool_error")
 	}
+	if len(result.imageChunks) == 0 {
+		result.Blocks, result.imageChunks, e = runtime.chunkTranscriptImages(runtime.context, result.Blocks)
+		if e != nil {
+			return e
+		}
+	}
 	return h.finishTool(task, cp, result, "")
 }
 
@@ -1716,6 +1723,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		content = append(content, goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(diagnostics)})
 	}
 	receipt := messageReceipt{Role: goai.RoleToolResult, DurationMs: copyTaskTime(cp.DurationMs), Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
+	receipt.ImageChunks = result.imageChunks
 	value, e := dtoObject(receipt, h.session.limits)
 	if e != nil {
 		return &invalidToolResult{reason: "invalid_tool_result"}

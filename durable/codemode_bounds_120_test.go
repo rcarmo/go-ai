@@ -7,16 +7,25 @@ import (
 	"testing"
 )
 
-func TestCodemode120ExactOptionNumbersAndInvalidOutputBudget(t *testing.T) {
+func TestCodemode120JavaScriptOptionNumbersAndInvalidOutputBudget(t *testing.T) {
 	for _, raw := range []string{"1.0", "1e0", "1E+0", "10e-1"} {
 		source, err := ParseCodemodeSource("// @options: {\"timeout_ms\":" + raw + "}\ncode")
 		if err != nil || source.TimeoutMs != 1 {
 			t.Fatal(raw, source, err)
 		}
 	}
-	for _, raw := range []string{"9007199254740991.1", "1e999999999", "true", "\"1\"", "0.0000000000000000001", "1e-401"} {
+	for _, raw := range []string{"9007199254740992", "1e999999999", "true", "\"1\"", "0.0000000000000000001"} {
 		if _, err := ParseCodemodeSource("// @options: {\"max_output_tokens\":" + raw + "}\ncode"); err == nil {
 			t.Fatal("unsafe number accepted", raw)
+		}
+	}
+	for _, tc := range []struct {
+		raw  string
+		want int
+	}{{"1.0000000000000001", 1}, {"1e-9999", 0}, {"9007199254740991.1", int(MaxID)}, {"-0", 0}} {
+		parsed, err := ParseCodemodeSource("// @options: {\"max_output_tokens\":" + tc.raw + "}\ncode")
+		if err != nil || parsed.MaxOutputTokens != tc.want {
+			t.Fatal(tc, parsed, err)
 		}
 	}
 	for _, tc := range []struct {

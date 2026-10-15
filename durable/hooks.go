@@ -87,9 +87,35 @@ func callAfterResponse(ctx context.Context, hook func(context.Context, MessageRe
 func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt, error) {
 	// Strict JSON envelope supplies aggregate node/depth/byte limits and copies
 	// all nested content, sections and tool schemas without sharing host slices.
+	// Large image strings have their own per-image/aggregate bounds. Copy the
+	// remaining envelope under ordinary limits without repeatedly encoding them.
+	stripped := append([]MessageReceipt(nil), messages...)
+	type imageSlot struct {
+		message, block int
+		data           string
+	}
+	var images []imageSlot
+	total := 0
+	for i := range stripped {
+		stripped[i].Content = append([]goai.ContentBlock(nil), messages[i].Content...)
+		for j, block := range stripped[i].Content {
+			if block.Type != "image" || len(block.Data) <= limits.MaxStringBytes/2 {
+				continue
+			}
+			if err := validateCodemodeImages([]goai.ImageContent{{Type: "image", Data: block.Data, MimeType: block.MimeType}}, limits); err != nil {
+				return nil, err
+			}
+			if total > MaxCodemodeImagesBytes-len(block.Data) {
+				return nil, reject("hook images exceed aggregate limit")
+			}
+			total += len(block.Data)
+			images = append(images, imageSlot{i, j, block.Data})
+			stripped[i].Content[j].Data = ""
+		}
+	}
 	value, err := dtoObject(struct {
 		Messages []MessageReceipt `json:"messages"`
-	}{messages}, limits)
+	}{stripped}, limits)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +123,13 @@ func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt,
 		Messages []MessageReceipt `json:"messages"`
 	}
 	err = fromObject(value, &copy, limits)
-	return copy.Messages, err
+	if err != nil {
+		return nil, err
+	}
+	for _, image := range images {
+		copy.Messages[image.message].Content[image.block].Data = image.data
+	}
+	return copy.Messages, nil
 }
 func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
 	return r.selectedTools(agent, limits, true, reports...)
@@ -295,6 +327,12 @@ func callAfterTools(ctx context.Context, hook func(context.Context, []MessageRec
 	return hook(ctx, results, &HookAPI{r})
 }
 func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
+	blocks, err := detachReceipts([]MessageReceipt{{Role: goai.RoleToolResult, Content: result.Blocks}}, limits)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	originalBlocks := blocks[0].Content
+	result.Blocks = nil
 	value, err := dtoObject(struct {
 		StructuredOutput    any                 `json:"structuredOutput"`
 		HasStructuredOutput bool                `json:"hasStructuredOutput"`
@@ -327,7 +365,7 @@ func detachToolResult(result ToolResult, limits Limits) (ToolResult, error) {
 	if err = fromObject(value, &copy, limits); err != nil {
 		return ToolResult{}, err
 	}
-	return ToolResult{StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: copy.Blocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
+	return ToolResult{imageChunks: result.imageChunks, StructuredOutput: copy.StructuredOutput, HasStructuredOutput: copy.HasStructuredOutput, Content: copy.Content, Blocks: originalBlocks, Details: copy.Details, DetailsValue: copy.DetailsValue, HasDetails: copy.HasDetails, Usage: copy.Usage, Diagnostics: copy.Diagnostics, IsError: copy.IsError, Control: copy.Control, Commit: result.Commit, usesRetainedOutput: result.usesRetainedOutput, usesReportedDiagnostics: result.usesReportedDiagnostics}, nil
 }
 
 func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt, *HookAPI) (*Input, error), message MessageReceipt, r *TaskRuntime) (input *Input, err error) {

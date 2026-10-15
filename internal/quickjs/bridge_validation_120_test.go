@@ -16,7 +16,7 @@ func TestQuickJS120MalformedBridgeReturnAndUnknownOperation(t *testing.T) {
 			t.Fatal(operation, err)
 		}
 	}
-	for _, payload := range []string{"", "{", "[1,", strings.Repeat(" ", int(maxBridgeStringBytes)+1) + "null"} {
+	for _, payload := range []string{"", "{", "[1,", strings.Repeat(" ", int(maxBridgeOutputBytes)+1) + "null"} {
 		value, err := parseBridgeReturn(payload, true)
 		if err == nil || value != nil {
 			t.Fatal("invalid return accepted", len(payload), value)

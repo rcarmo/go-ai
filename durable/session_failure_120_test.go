@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -263,4 +264,58 @@ func TestSession120InvalidReadAndCallerCancellationAreRecoverable(t *testing.T) 
 	if _, e = s.MintID(bg); e != nil {
 		t.Fatal("cancelled read failed session", e)
 	}
+}
+
+func TestSession120HarnessFatalCauseReportedOnceOutsideLine(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		cause := errors.New("first fatal read")
+		var reports atomic.Int64
+		reported := make(chan error, 1)
+		var h *Harness
+		h = openHarness(t, b.store, Options{OnReport: func(err error) {
+			reports.Add(1)
+			_, _ = h.Snapshot(bg)
+			// A reporting callback may synchronously wait for shutdown. Its
+			// delivery must not be a prerequisite of that same shutdown.
+			ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			if _, closeErr := h.session.Closed(ctx); closeErr != nil {
+				reported <- closeErr
+				return
+			}
+			reported <- err
+			panic("reporter panic must be isolated")
+		}})
+		h.session.store = &failingSnapshotGeneric120{h.session.store, cause}
+		if _, err := h.Snapshot(bg); !errors.Is(err, cause) {
+			t.Fatal(err)
+		}
+		h.scheduler.report(&SessionFailed{Cause: cause})
+		if _, err := h.Snapshot(bg); !errors.Is(err, cause) {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-reported:
+			if !errors.Is(err, cause) {
+				t.Fatal(err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("fatal cause not reported/reentrant callback blocked")
+		}
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		defer cancel()
+		if end, err := h.session.Closed(ctx); err != nil || end.Reason != "failed" {
+			t.Fatal(end, err)
+		}
+		if reports.Load() != 1 {
+			t.Fatal("fatal cause reported repeatedly", reports.Load())
+		}
+		// Do not hide an unrelated error merely because a host wrapped it in
+		// SessionFailed; only this Session's latched backend cause is deduped.
+		other := errors.New("unrelated host failure")
+		h.scheduler.report(&SessionFailed{Cause: other})
+		if err := <-reported; !errors.Is(err, other) || reports.Load() != 2 {
+			t.Fatal("unrelated error suppressed", err, reports.Load())
+		}
+	})
 }

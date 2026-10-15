@@ -54,3 +54,23 @@ func TestQuickJS120PinnedErrorSourceAndStack(t *testing.T) {
 		t.Fatal(result.Error)
 	}
 }
+
+func TestQuickJS120PortableOutputCountAndStackRecovery(t *testing.T) {
+	engine, err := NewEngine(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(context.Background())
+	result := engine.Execute(context.Background(), `for(let i=0;i<5000;i++)text(i);return "ok";`, Options{MemoryLimitBytes: 32 << 20, InterruptBudget: 100000})
+	if result.Error != nil || len(result.Output) != 5000 || result.Output[4999].Text != "4999" {
+		t.Fatal("portable output lost", len(result.Output), result.Error)
+	}
+	result = engine.Execute(context.Background(), `try{(function recurse(){return 1+recurse()})()}catch(e){if(!(e instanceof RangeError))throw e;return "caught"}`, Options{MemoryLimitBytes: 32 << 20, InterruptBudget: 100000})
+	if result.Error != nil || string(result.Value) != `"caught"` {
+		t.Fatal("stack overflow not catchable", result.Error, string(result.Value))
+	}
+	result = engine.Execute(context.Background(), `return 7`, Options{})
+	if result.Error != nil || string(result.Value) != "7" {
+		t.Fatal("stack failure contaminated engine", result.Error)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +24,9 @@ func TestRead120InvocationModelLimitsAndNonvision(t *testing.T) {
 		wantImage     bool
 		width, height int
 	}{
-		{"text", false, &goai.ModelImageResizeOptions{MaxWidth: 4, MaxHeight: 4, MaxBytes: 1024}, false, 0, 0},
+		// Raw provider requests retain images; TransformMessages supplies the
+		// text-only model placeholder without altering transcript history.
+		{"text", false, &goai.ModelImageResizeOptions{MaxWidth: 4, MaxHeight: 4, MaxBytes: 1024}, true, 4, 2},
 		{"vision", true, &goai.ModelImageResizeOptions{MaxWidth: 4, MaxHeight: 4, MaxBytes: 1024}, true, 4, 2},
 		{"omitted", true, &goai.ModelImageResizeOptions{}, true, 20, 10},
 		{"zero-width", true, &goai.ModelImageResizeOptions{MaxWidthSet: true}, false, 0, 0},
@@ -70,7 +73,24 @@ func TestRead120InvocationModelLimitsAndNonvision(t *testing.T) {
 						}
 					}
 					if found != tc.wantImage {
-						t.Error("vision policy", found, tc.wantImage)
+						t.Error("image retention policy", found, tc.wantImage)
+					}
+					if !vision {
+						transformed := goai.TransformMessages(input.Messages, &goai.Model{Input: []string{"text"}})
+						placeholder := false
+						for _, m := range transformed {
+							for _, block := range m.Content {
+								if block.Type == "image" {
+									t.Error("image survived nonvision transformation")
+								}
+								if block.Type == "text" && strings.Contains(block.Text, "image omitted") {
+									placeholder = true
+								}
+							}
+						}
+						if !placeholder {
+							t.Error("missing nonvision placeholder")
+						}
 					}
 				}
 				ch <- &goai.DoneEvent{Reason: message.StopReason, Message: message}

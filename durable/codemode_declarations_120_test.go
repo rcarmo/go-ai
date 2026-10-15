@@ -2,6 +2,14 @@ package durable
 
 import "testing"
 
+func TestCodemode120MCPShapedOutputIsPlainDeclaration(t *testing.T) {
+	schema := JSON{"type": "object", "properties": JSON{"content": JSON{"type": "array", "items": JSON{"type": "object", "properties": JSON{"text": JSON{"type": "string"}, "type": JSON{"const": "text"}}, "required": []any{"text", "type"}, "additionalProperties": false}}}, "required": []any{"content"}, "additionalProperties": false}
+	want := `mcp_like_tool(args: unknown): Promise<{ content: Array<{ text: string; type: "text"; }>; }>;`
+	if got := RenderCodemodeToolSignature(CodemodeToolDescription{Name: "mcp_like_tool", OutputSchema: schema}); got != want {
+		t.Fatal(got, want)
+	}
+}
+
 func TestCodemode120PinnedToolSignatureAndSample(t *testing.T) {
 	tool := CodemodeToolDescription{Name: "hidden-dynamic-tool", InputSchema: JSON{"type": "object", "properties": map[string]any{"city": JSON{"type": "string"}}, "required": []any{"city"}, "additionalProperties": false}, OutputSchema: JSON{"type": "object", "properties": map[string]any{"ok": JSON{"type": "boolean"}}, "required": []any{"ok"}}}
 	if got := RenderCodemodeToolSignature(tool); got != "hidden_dynamic_tool(args: { city: string; }): Promise<{ ok: boolean; }>;" {

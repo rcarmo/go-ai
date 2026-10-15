@@ -19,10 +19,10 @@ const (
 
 var readSchema = json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file to read (relative or absolute)"},"offset":{"type":"integer","description":"Line number to start reading from (1-indexed)","minimum":1},"limit":{"type":"integer","description":"Maximum number of lines to read","minimum":1}},"required":["path"],"additionalProperties":false}`)
 
-// Read returns a durable read tool registration.
+// Read returns the reference read tool, including supported inline images.
 func Read(env durable.FileSystem) durable.ToolRegistration { return readTool(env, false, nil) }
 
-// ReadWithImages is an explicit native extension; Read follows reference image rejection.
+// ReadWithImages additionally enables native image resizing/conversion.
 func ReadWithImages(env durable.FileSystem) durable.ToolRegistration { return readTool(env, true, nil) }
 
 // ReadWithPreparedImages opts into native bounded image preparation.
@@ -55,9 +55,8 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
-			// Inline images remain a local extension; no custom filesystem
-			// path is inspected with a host file operation.
-			if local, ok := env.(*Env); ok && inlineImages && isRasterImage(abs) {
+			// No custom filesystem path is inspected with a host file operation.
+			if local, ok := env.(*Env); ok && isRasterImage(abs) {
 				var block goai.ContentBlock
 				var details durable.JSON
 				var err error
@@ -65,28 +64,30 @@ func readTool(env durable.FileSystem, inlineImages bool, limits *ImageLimits) du
 				if e != nil {
 					return durable.ToolResult{}, e
 				}
-				if !vision {
-					return durable.ToolResult{Content: "Image file", Diagnostics: []durable.ToolDiagnostic{{Severity: "info", Code: "image_not_supported", Message: "Image not attached: conversation model does not accept image input"}}}, nil
-				}
-				if limits == nil {
+				if !inlineImages {
+					block, details, err = local.LoadInlineImage(ctx, abs, resolved)
+				} else if limits == nil {
 					block, details, err = local.LoadPreparedImage(ctx, abs, resolved)
 				} else {
 					block, details, err = local.LoadPreparedImage(ctx, abs, *limits)
 				}
 				if err != nil {
-					return durable.ToolResult{}, err
+					if ctx.Err() != nil {
+						return durable.ToolResult{}, ctx.Err()
+					}
+					return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: err.Error()}}}, nil
 				}
-				return durable.ToolResult{Blocks: []goai.ContentBlock{block}, Details: details}, nil
+				return imageReadResult(block, details, vision), nil
 			}
 			if positional, ok := env.(durable.ExtendedFileSystem); ok {
-				return readPositional(ctx, positional, abs, path, args)
+				return readPositional(ctx, positional, abs, path, args, api)
 			}
 			data, err := env.ReadBinaryFile(ctx, abs)
 			if err != nil {
 				return durable.ToolResult{}, err
 			}
 			if mime := detectImageMime(data); mime != "" {
-				return durable.ToolResult{Blocks: []goai.ContentBlock{}, IsError: true, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: fmt.Sprintf("%s is an image (%s); reading images is not supported", path, mime)}}}, nil
+				return inlineReadResult(ctx, data, api)
 			}
 			text, err := unicode.UTF8BOM.NewDecoder().String(string(data))
 			if err != nil {

@@ -262,7 +262,6 @@ func TestCodemode120RemoteLargeTextDoesNotWidenOtherPayloads(t *testing.T) {
 	for _, event := range []CodemodeEvent{
 		{Call: &CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{"large": large}}},
 		{Result: &CodemodeResult{StoreWrites: JSON{"large": large}}},
-		{Result: &CodemodeResult{HasValue: true, Value: large}},
 		{Result: &CodemodeResult{Error: large}},
 		{Result: &CodemodeResult{Images: []goai.ImageContent{{Type: "image", MimeType: "image/png", Data: large}}}},
 	} {
@@ -270,8 +269,10 @@ func TestCodemode120RemoteLargeTextDoesNotWidenOtherPayloads(t *testing.T) {
 			t.Fatal("large text allowance escaped to another field")
 		}
 	}
-	if err := validateRemoteEventPayload(CodemodeEvent{Result: &CodemodeResult{Output: large}}); err != nil {
-		t.Fatal("large output text rejected", err)
+	for _, result := range []CodemodeResult{{Output: large}, {HasValue: true, Value: large}} {
+		if err := validateRemoteEventPayload(CodemodeEvent{Result: &result}); err != nil {
+			t.Fatal("large output/return string rejected", err)
+		}
 	}
 }
 

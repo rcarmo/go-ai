@@ -24,6 +24,7 @@ func TestCodemode120ToolErrorOutcomeAndSettledReplay(t *testing.T) {
 		{"empty", ToolResult{IsError: true}, `try{await tools.leaf({});throw Error("resolved")}catch(e){if(e.message!=="Tool leaf failed")throw Error("empty failure resolved")};return "ok";`},
 		{"structured", ToolResult{IsError: true, HasStructuredOutput: true, StructuredOutput: JSON{"code": 7}}, `const v=await tools.leaf({});if(v.code!==7)throw Error("structured error rejected");return "ok";`},
 		{"null", ToolResult{IsError: true, HasStructuredOutput: true, StructuredOutput: nil}, `if(await tools.leaf({})!==null)throw Error("null lost");return "ok";`},
+		{"schemaless-properties", ToolResult{Content: "failed", StructuredOutput: JSON{"reason": "detail"}, HasStructuredOutput: true, IsError: true}, `try{await tools.leaf({});throw Error("resolved")}catch(e){if(e.message!=="failed"||e.structuredOutput.reason!=="detail")throw Error("properties lost")};return "ok";`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

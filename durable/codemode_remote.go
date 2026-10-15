@@ -35,7 +35,7 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 		return nil, err
 	}
 	linked, cancel := context.WithCancel(ctx)
-	e := &remoteCodemodeExecution{ctx: linked, cancel: cancel, events: make(chan remoteCodemodeEvent, 1), replies: make(chan CodemodeRemoteReply), done: make(chan struct{}), deliveries: make(chan CodemodeDelivery)}
+	e := &remoteCodemodeExecution{ctx: linked, cancel: cancel, events: make(chan remoteCodemodeEvent, 1), replies: make(chan CodemodeRemoteReply), done: make(chan struct{}), deliveries: make(chan CodemodeDelivery), lastNow: start.StartedAt}
 	// Detach all configuration before handing it to a transport implementation.
 	object, err := dtoObject(start, DefaultLimits())
 	if err != nil {
@@ -89,7 +89,7 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			limits.MaxStringBytes = MaxCodemodeFullOutputBytes
 			// Full text is transient here; durable persistence still applies its
 			// normal document limit after projection/spill on the caller.
-			limits.MaxDocumentBytes = 6*MaxCodemodeFullOutputBytes + 65536
+			limits.MaxDocumentBytes = 6*MaxCodemodeFullOutputBytes + MaxCodemodeImagesBytes + 65536
 			limits.MaxRecordBytes = limits.MaxDocumentBytes
 			value, err := dtoObject(event, limits)
 			if err != nil {
@@ -181,6 +181,7 @@ type remoteCodemodeExecution struct {
 	drain        *CodemodeDrain
 	issued       int
 	delivered    int
+	lastNow      int64
 	lastDelivery int
 	waiting      map[int]CodemodeCall
 	acknowledged bool
@@ -238,13 +239,14 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	call, ok := e.waiting[owned.Call.ID]
-	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < 0 || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
+	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < e.lastNow || uint64(owned.Now) > MaxID || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.Properties != nil && owned.Error == "" || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
 		return reject("invalid remote delivery")
 	}
 	select {
 	case e.deliveries <- owned:
 		delete(e.waiting, call.ID)
 		e.delivered++
+		e.lastNow = owned.Now
 		e.lastDelivery = call.ID
 		e.acknowledged = false
 		return nil
@@ -311,8 +313,8 @@ func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start Codemode
 	return nil
 }
 
-// Only the output text gets a transient large-output allowance. All other
-// fields retain the caller's ordinary JSON/result constraints.
+// Text and image payloads have explicit transient bounds. Other result fields
+// retain ordinary JSON constraints; persisted images use bounded chunks.
 func validateRemoteEventPayload(event CodemodeEvent) error {
 	limits := DefaultLimits()
 	if event.Call != nil {
@@ -328,7 +330,7 @@ func validateRemoteEventPayload(event CodemodeEvent) error {
 		if err := validateCodemodeResult(bounded, limits); err != nil {
 			return err
 		}
-		_, err := dtoObject(bounded, limits)
+		_, err := ownCodemodeResult(bounded, limits)
 		return err
 	}
 	return nil

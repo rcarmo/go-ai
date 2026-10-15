@@ -63,8 +63,12 @@ func TestCodemode120ConcurrentKeyRejectsSecondDriver(t *testing.T) {
 		}
 	})
 }
-func TestCodemode120OptionsDuplicateAndTrailingReject(t *testing.T) {
-	for _, source := range []string{"// @options: {\"timeout_ms\":1,\"timeout_ms\":2}\ncode", "// @options: {} {}\ncode", "// @options: null\ncode", "// @options: []\ncode"} {
+func TestCodemode120OptionsDuplicateLastWinsAndTrailingReject(t *testing.T) {
+	parsed, err := ParseCodemodeSource("// @options: {\"timeout_ms\":1,\"timeout_ms\":2}\ncode")
+	if err != nil || parsed.TimeoutMs != 2 {
+		t.Fatal(parsed, err)
+	}
+	for _, source := range []string{"// @options: {} {}\ncode", "// @options: null\ncode", "// @options: []\ncode"} {
 		if _, e := ParseCodemodeSource(source); e == nil {
 			t.Fatal("bad options accepted", source)
 		}

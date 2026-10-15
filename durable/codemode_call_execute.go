@@ -57,6 +57,7 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 		} else {
 			// Confirmed deliveries replay above; fresh calls retain current authority.
 			allowed := call.Global
+			structured := call.Global
 			if !allowed {
 				tools, err := r.CodemodeTools(linked)
 				if err != nil {
@@ -65,6 +66,7 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 				for _, tool := range tools {
 					if tool.Name == name {
 						allowed = true
+						structured = tool.StructuredOutput
 						break
 					}
 				}
@@ -82,10 +84,13 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 				return CodemodeDelivery{}, err
 			}
 			delivery = CodemodeDelivery{Seq: 0, Now: clock, Call: call}
-			if result.HasStructuredOutput {
+			if result.HasStructuredOutput && (structured || !result.IsError) {
 				delivery.Value = result.StructuredOutput
 				delivery.HasValue = true
 			} else if result.IsError {
+				if result.HasStructuredOutput {
+					delivery.Properties = JSON{"structuredOutput": result.StructuredOutput}
+				}
 				delivery.Error = result.Content
 				if delivery.Error == "" {
 					messages := []string{}

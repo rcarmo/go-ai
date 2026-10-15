@@ -493,7 +493,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			if !ok {
 				return Snapshot{}, reject("delta document root must be object")
 			}
-			if v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind {
+			if v.Kind == codemodeRunKind || v.Kind == codemodeJournalKind || v.Kind == codemodeImageChunkKind {
 				next := v
 				next.Value = JSON(object)
 				if err := validateCodemodeReplacement(v, next, l); err != nil {
@@ -537,7 +537,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 				return Snapshot{}, err
 			}
 			if old, ok := n.Documents[id]; ok {
-				if old.Kind == codemodeRunKind || old.Kind == codemodeJournalKind {
+				if old.Kind == codemodeRunKind || old.Kind == codemodeJournalKind || old.Kind == codemodeImageChunkKind {
 					if err := validateCodemodeReplacement(old, v, l); err != nil {
 						return Snapshot{}, err
 					}

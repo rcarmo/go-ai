@@ -38,7 +38,7 @@ func (r *readerSection) Read(data []byte) (int, error) {
 	return len(chunk), nil
 }
 
-func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, path string, args durable.JSON) (durable.ToolResult, error) {
+func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, path string, args durable.JSON, api *durable.ToolAPI) (durable.ToolResult, error) {
 	reader, err := env.OpenBinaryReader(ctx, abs, false)
 	if err != nil {
 		return durable.ToolResult{}, err
@@ -49,7 +49,27 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 		if err != nil {
 			return durable.ToolResult{}, err
 		}
-		result, err := readPositionalText(ctx, reader, before.Size, path, args)
+		header, err := reader.Read(ctx, 0, 512)
+		if err != nil {
+			return durable.ToolResult{}, err
+		}
+		mime, err := detectImageMimeOf(ctx, reader, before.Size, header)
+		if err != nil {
+			return durable.ToolResult{}, err
+		}
+		var result durable.ToolResult
+		if mime != "" {
+			if before.Size > MaxImageBytes {
+				return durable.ToolResult{IsError: true, Blocks: []goai.ContentBlock{}, Diagnostics: []durable.ToolDiagnostic{{Severity: "error", Code: "unsupported_image", Message: "image exceeds input byte limit"}}}, nil
+			}
+			data, readErr := io.ReadAll(&readerSection{ctx: ctx, reader: reader, end: before.Size})
+			if readErr != nil {
+				return durable.ToolResult{}, readErr
+			}
+			result, err = inlineReadResult(ctx, data, api)
+		} else {
+			result, err = readPositionalText(ctx, reader, before.Size, path, args)
+		}
 		if err != nil {
 			return durable.ToolResult{}, err
 		}
@@ -57,7 +77,7 @@ func readPositional(ctx context.Context, env durable.ExtendedFileSystem, abs, pa
 		if err != nil {
 			return durable.ToolResult{}, err
 		}
-		if after.Size > before.Size || after.Size == before.Size && after.MtimeMs == before.MtimeMs {
+		if mime == "" && after.Size > before.Size || after.Size == before.Size && after.MtimeMs == before.MtimeMs {
 			return result, nil
 		}
 	}

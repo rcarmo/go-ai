@@ -13,7 +13,7 @@ func validateInputs(code string, opts Options) error {
 	if !utf8.ValidString(code) || len(code) > int(maxBridgeStringBytes) || opts.MemoryLimitBytes < 0 || opts.StartedAt < 0 {
 		return invalid()
 	}
-	if len(opts.Tools)+len(opts.Globals) > maxBridgeOutputItems || len(opts.Store) > maxBridgeOutputItems {
+	if len(opts.Tools)+len(opts.Globals) > maxBridgeSetupItems || len(opts.Store) > maxBridgeSetupItems {
 		return invalid()
 	}
 	total := 0

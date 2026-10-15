@@ -58,7 +58,12 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 		}
 	}
 	seenDeliveries := map[int]bool{}
+	lastNow := run.Start.StartedAt
 	for i, delivery := range journal.Deliveries {
+		if delivery.Now < lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" {
+			return reject("invalid codemode delivery clock/properties")
+		}
+		lastNow = delivery.Now
 		id := delivery.Call.ID
 		if id < 1 || id > len(journal.Issued) || seenDeliveries[id] || !run.Start.ParallelCalls && id != i+1 {
 			return reject("invalid codemode delivery identity")
@@ -73,7 +78,23 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if (run.OutputDir == "") != (run.OutputFS == "") || len(run.OutputDir) > l.MaxStringBytes || len(run.OutputFS) > l.MaxStringBytes {
 		return reject("invalid codemode output address")
 	}
+	if len(run.ImageRefs) != 0 && !doc.Retired {
+		if run.Result == nil || len(run.Result.Images) != 0 {
+			return reject("codemode image references lack exclusive result")
+		}
+		if _, err := readCodemodeImages(s, doc.Owner, doc.Key, run.ImageRefs, l); err != nil {
+			return err
+		}
+	}
 	if run.Result != nil {
+		if len(run.ValueChunks) > 0 && !doc.Retired {
+			if !run.Result.HasValue || run.Result.Value != "" {
+				return reject("invalid chunked result placeholder")
+			}
+			if _, err := readCodemodeStringValue(s, doc.Owner, doc.Key, run.ValueChunks, l); err != nil {
+				return err
+			}
+		}
 		if err := validateCodemodeResult(*run.Result, l); err != nil {
 			return err
 		}
@@ -84,6 +105,12 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	return nil
 }
 func validateCodemodeReplacement(old, next Document, l Limits) error {
+	if old.Kind == codemodeImageChunkKind {
+		if !equalJSONValue(old.Value, next.Value) {
+			return reject("codemode image chunk changed")
+		}
+		return nil
+	}
 	if old.Kind == codemodeRunKind {
 		var a, b codemodeRunState
 		if err := fromObject(old.Value, &a, l); err != nil {
@@ -115,7 +142,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 			if err != nil {
 				return err
 			}
-			if !equalJSONValue(av, bv) {
+			if !equalJSONValue(av, bv) || !equalJSONValue(a.ImageRefs, b.ImageRefs) || !equalJSONValue(a.ValueChunks, b.ValueChunks) {
 				return reject("settled codemode result changed")
 			}
 		}

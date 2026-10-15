@@ -64,6 +64,9 @@ func (s *Session) backendResult(ctx context.Context, err error, mutation bool) e
 	if scheduler := s.taskScheduler; scheduler != nil {
 		scheduler.h.closing.Store(true)
 		scheduler.sealed.Store(true)
+		// Notification is caller-owned: it may reenter Close or wait for Closed.
+		// Do not let a blocked reporter delay cancellation or storage settlement.
+		go reportTaskError(scheduler.h.options.OnReport, cause)
 		go func() { _ = scheduler.h.Close(context.Background()) }()
 	} else {
 		go func() { _ = s.Close(context.Background()) }()

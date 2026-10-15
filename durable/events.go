@@ -46,6 +46,9 @@ type QueuedItem struct {
 	Mode string
 }
 type ConversationSnapshot struct {
+	// Messages materialises the model-visible transcript, including images.
+	// Entries retain bounded journal records and structural metadata.
+	Messages          []MessageReceipt
 	Conversation      ID
 	Entries           []Entry
 	Tasks             []TaskRecord
@@ -90,6 +93,17 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 	view, err := buildConversationView(state, id, limits)
 	if err != nil {
 		return result, err
+	}
+	messages, err := contextReceipts(state, id, limits)
+	if err != nil {
+		return result, err
+	}
+	for _, message := range messages {
+		message, err = hydrateReceiptImages(message, state, id, limits)
+		if err != nil {
+			return result, err
+		}
+		result.Messages = append(result.Messages, message)
 	}
 	result.Entries = view.Entries
 	result.Documents = view.Docs
@@ -174,6 +188,11 @@ func (s *AgentEventStream) Snapshot() (ConversationSnapshot, error) {
 }
 func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (ConversationSnapshot, error) {
 	result := ConversationSnapshot{Conversation: value.Conversation, Documents: map[string]JSON{}}
+	var err error
+	result.Messages, err = detachReceipts(value.Messages, limits)
+	if err != nil {
+		return result, err
+	}
 	if value.CompactionFailure != nil {
 		copy := *value.CompactionFailure
 		result.CompactionFailure = &copy
@@ -535,6 +554,15 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 		events, err := arrangeEntryEvents(events, before, s.conversation, s.limits)
 		if err != nil {
 			return err
+		}
+		for i := range events {
+			if events[i].Message != nil {
+				message, err := hydrateReceiptImages(*events[i].Message, next, s.conversation, s.limits)
+				if err != nil {
+					return err
+				}
+				events[i].Message = &message
+			}
 		}
 		return listener(ctx, events)
 	})

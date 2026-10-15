@@ -60,7 +60,15 @@ func reportTaskError(report func(error), err error) {
 		func() { defer func() { _ = recover() }(); report(err) }()
 	}
 }
-func (s *taskScheduler) report(err error) { reportTaskError(s.h.options.OnReport, err) }
+func (s *taskScheduler) report(err error) {
+	var failed *SessionFailed
+	if errors.As(err, &failed) {
+		if failure := s.h.session.failure(); failure != nil && errors.Is(err, failure.(*SessionFailed).Cause) {
+			return // this backend cause is reported by failure shutdown
+		}
+	}
+	reportTaskError(s.h.options.OnReport, err)
+}
 func (s *taskScheduler) loop() {
 	defer close(s.done)
 	for {

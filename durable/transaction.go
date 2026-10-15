@@ -58,6 +58,13 @@ func (t *Tx) seal() error {
 	return nil
 }
 func (t *Tx) stage(w Write) error {
+	// Retirement names an incarnation; its payload is already durable. Do not
+	// duplicate chunk/checkpoint data into an aggregate terminal commit.
+	if w.Op == "retire-document" && w.Document != nil {
+		address := *w.Document
+		address.Value = nil
+		w.Document = &address
+	}
 	// Every method detaches before returning, independently of final seal.
 	// Trusted DTO encoding cannot grant nested task JSON marshaler authority.
 	if w.Entry != nil && t.byTask != 0 {

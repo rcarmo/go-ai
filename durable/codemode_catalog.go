@@ -17,12 +17,13 @@ type CodemodeNamespace struct {
 	Prefix       string
 }
 type CodemodeToolDescription struct {
-	Deferred     bool `json:"deferred,omitempty"`
-	Name         string
-	Identifier   string
-	Description  string
-	InputSchema  JSON
-	OutputSchema JSON
+	Deferred         bool `json:"deferred,omitempty"`
+	Name             string
+	Identifier       string
+	Description      string
+	InputSchema      JSON
+	OutputSchema     JSON
+	StructuredOutput bool `json:"structuredOutput,omitempty"`
 }
 
 // CodemodeTools returns detached program-callable declarations from the same
@@ -66,7 +67,7 @@ func (r *TaskRuntime) CodemodeTools(ctx context.Context) ([]CodemodeToolDescript
 		if output == nil {
 			output = JSON{"type": "string"}
 		}
-		out = append(out, CodemodeToolDescription{Name: offer.Name, Deferred: offer.Deferred, Identifier: id, Description: offer.Description, InputSchema: input, OutputSchema: output})
+		out = append(out, CodemodeToolDescription{Name: offer.Name, Deferred: offer.Deferred, Identifier: id, Description: offer.Description, InputSchema: input, OutputSchema: output, StructuredOutput: offer.StructuredOutputSchema != nil})
 	}
 	return out, nil
 }

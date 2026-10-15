@@ -37,7 +37,8 @@ func TestReadImageOwnsValidInlinePNGAndRejectsBroken(t *testing.T) {
 	if err := os.WriteFile(path, data[:16], 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ReadWithImages(env).Execute(context.Background(), durable.JSON{"path": "image.png"}, nil); err == nil {
-		t.Fatal("invalid image accepted")
+	result, err = ReadWithImages(env).Execute(context.Background(), durable.JSON{"path": "image.png"}, nil)
+	if err != nil || !result.IsError || len(result.Blocks) != 0 || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "unsupported_image" {
+		t.Fatal("invalid image accepted", result, err)
 	}
 }

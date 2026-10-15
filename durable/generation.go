@@ -245,8 +245,24 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	if e != nil {
 		return e
 	}
-	requestMessages := cp.Messages
+	requestMessages := append([]MessageReceipt(nil), cp.Messages...)
 	hooks := runtime.phaseSelection().selectedHooks(h.selectionAgent(cp.Agent))
+	var imageState Snapshot
+	for _, m := range requestMessages {
+		if len(m.ImageChunks) != 0 {
+			imageState, e = h.Snapshot(runtime.context)
+			if e != nil {
+				return e
+			}
+			break
+		}
+	}
+	for i, m := range requestMessages {
+		requestMessages[i], e = hydrateReceiptImages(m, imageState, task.Conversation, h.session.limits)
+		if e != nil {
+			return e
+		}
+	}
 	for _, hook := range hooks {
 		if hook.BeforeRequest == nil || cp.Phase == "poll" {
 			continue

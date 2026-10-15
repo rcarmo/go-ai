@@ -64,11 +64,16 @@ func validateNestedReferences(s Snapshot, task Task, l Limits) error {
 			if result.Code == "" {
 				if input.Offer.StructuredOutputSchema == nil {
 					if result.IsError {
-						if result.HasStructuredOutput || result.StructuredOutput != nil {
+						if !result.HasStructuredOutput && result.StructuredOutput != nil {
 							return reject("invalid nested text error union")
 						}
-					} else if !result.HasStructuredOutput || result.StructuredOutput != result.Content {
-						return reject("invalid nested text structured result")
+						if result.HasStructuredOutput {
+							if _, err := ownJSONValue(result.StructuredOutput, l); err != nil {
+								return err
+							}
+						}
+					} else if !result.HasStructuredOutput || !equalJSONValue(result.StructuredOutput, nestedOutputValue(ToolResult{Content: result.Content, Blocks: result.Blocks})) {
+						return reject("invalid nested output structured result")
 					}
 				} else if result.HasStructuredOutput {
 					if err := checkSchema(input.Offer.StructuredOutputSchema, result.StructuredOutput, 0); err != nil {

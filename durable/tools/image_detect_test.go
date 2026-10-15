@@ -45,7 +45,7 @@ func TestPinnedImageDetectionBMPWebPAPNGAndNativeReadBoundary(t *testing.T) {
 	}
 	fs := &memoryToolFS{files: map[string][]byte{"/virtual/image": []byte("RIFF1234WEBP")}, id: "images"}
 	result, err = Read(fs).Execute(context.Background(), durable.JSON{"path": "image"}, nil)
-	if err != nil || !result.IsError || result.Diagnostics[0].Message != "image is an image (image/webp); reading images is not supported" {
+	if err != nil || !result.IsError || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "unsupported_image" {
 		t.Fatal(result, err)
 	}
 }

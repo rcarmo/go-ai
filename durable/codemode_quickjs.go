@@ -46,6 +46,7 @@ type quickjsExecution struct {
 	awaiting   *CodemodeCall
 	drain      *CodemodeDrain
 	delivered  int
+	lastNow    int64
 	waiting    map[int]CodemodeCall
 	responses  map[int]chan CodemodeDelivery
 	drainAck   chan struct{}
@@ -65,7 +66,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 		return nil, reject("QuickJS runtime identity mismatch")
 	}
 	linked, cancel := context.WithCancel(ctx)
-	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{})}
+	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{}), lastNow: start.StartedAt}
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
 	memoryLimit := start.MemoryLimitBytes
@@ -186,7 +187,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				clock.Store(delivery.Now)
 			}
 			if delivery.Error != "" {
-				return nil, errors.New(delivery.Error)
+				return nil, codemodeRejectedDelivery(delivery)
 			}
 			return json.Marshal(delivery.Value)
 		}
@@ -242,7 +243,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 						clock.Store(delivery.Now)
 					}
 					if delivery.Error != "" {
-						return nil, errors.New(delivery.Error)
+						return nil, codemodeRejectedDelivery(delivery)
 					}
 					return json.Marshal(delivery.Value)
 				case <-ctx.Done():
@@ -352,22 +353,24 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	}
 	if e.responses != nil {
 		call, ok := e.waiting[delivery.Call.ID]
-		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
 			return reject("invalid QuickJS parallel delivery")
 		}
 		e.responses[call.ID] <- delivery
 		delete(e.responses, call.ID)
 		delete(e.waiting, call.ID)
 		e.delivered++
+		e.lastNow = delivery.Now
 		e.drainAck = make(chan struct{})
 		return nil
 	}
 	call := e.awaiting
-	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
+	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
 		return reject("invalid QuickJS delivery")
 	}
 	select {
 	case e.deliveries <- delivery:
+		e.lastNow = delivery.Now
 		e.awaiting = nil
 		if e.drainAck != nil {
 			e.drainAck = make(chan struct{})

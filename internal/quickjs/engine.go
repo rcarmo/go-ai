@@ -14,6 +14,7 @@ package quickjs
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -38,13 +39,14 @@ var preludeSource string
 
 const (
 	maxBridgeStringBytes uint32 = 1 << 20
-	maxBridgeOutputBytes        = 4 << 20
-	maxBridgeOutputItems        = 4096
+	maxBridgeOutputBytes        = 16 << 20
+	maxBridgeOutputItems        = 100000
+	maxBridgeSetupItems         = 4096
 	// DefaultTimeout is Pi's default execution deadline.
 	DefaultTimeout = 300 * time.Second
 	// maxStackSize is quickjs-wasi's MAX_STACK_SIZE: deep recursion throws a
 	// catchable RangeError instead of trapping.
-	maxStackSize = 512 * 1024
+	maxStackSize = 256 * 1024
 	// memoryLimitPages caps a VM's linear memory (64 KiB pages: 256 MiB).
 	memoryLimitPages = 4096
 )
@@ -86,9 +88,15 @@ type Options struct {
 	OnDrain func(ctx context.Context, deliveryID, issued int) error
 	// PrepareCall publishes calls synchronously in guest issue order. The
 	// returned callback waits asynchronously for host delivery.
-	PrepareCall      func(context.Context, int, bool, string, json.RawMessage) (func(context.Context) (json.RawMessage, error), error)
-	InterruptBudget  int  // zero is deadline-only; positive bounds compute polls
-	SerialCalls      bool // reject overlapping calls on the VM thread before dispatch
+	PrepareCall     func(context.Context, int, bool, string, json.RawMessage) (func(context.Context) (json.RawMessage, error), error)
+	InterruptBudget int  // zero is deadline-only; positive bounds compute polls
+	SerialCalls     bool // reject overlapping calls on the VM thread before dispatch
+	// Deterministic selects virtual time/seed even when both are zero.
+	// Clock, nonzero StartedAt or Seed also select deterministic execution.
+	Deterministic bool
+	// NoDeadline disables the default wall deadline, not parent cancellation
+	// or an explicitly configured interrupt budget.
+	NoDeadline       bool
 	StartedAt        int64
 	Clock            func() int64 // persisted delivery clock, when supplied
 	Seed             uint64
@@ -162,7 +170,11 @@ func Default() (*Engine, error) {
 
 // NewEngine compiles the QuickJS module.
 func NewEngine(ctx context.Context) (*Engine, error) {
-	cfg := wazero.NewRuntimeConfig().WithCloseOnContextDone(true).WithMemoryLimitPages(memoryLimitPages)
+	return newEngineWithConfig(ctx, wazero.NewRuntimeConfig())
+}
+
+func newEngineWithConfig(ctx context.Context, config wazero.RuntimeConfig) (*Engine, error) {
+	cfg := config.WithCloseOnContextDone(true).WithMemoryLimitPages(memoryLimitPages)
 	r := wazero.NewRuntimeWithConfig(ctx, cfg)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		r.Close(ctx)
@@ -221,11 +233,12 @@ type vm struct {
 }
 
 type callResult struct {
-	id      int
-	ok      bool
-	payload *string
-	tool    bool
-	elapsed time.Duration
+	id         int
+	ok         bool
+	payload    *string
+	properties *string
+	tool       bool
+	elapsed    time.Duration
 }
 
 func hostModule(r wazero.Runtime) wazero.HostModuleBuilder {
@@ -277,13 +290,19 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	}
 	maxCalls := opts.MaxCalls
 	if maxCalls == 0 {
-		maxCalls = maxBridgeOutputItems
+		maxCalls = maxBridgeSetupItems
 	}
 	timeout := opts.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	var runCtx context.Context
+	var cancel context.CancelFunc
+	if opts.NoDeadline {
+		runCtx, cancel = context.WithCancel(ctx)
+	} else {
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
 	defer cancel()
 	v := &vm{maxCalls: maxCalls, serialCalls: opts.SerialCalls, prepareCall: opts.PrepareCall, tools: map[string]Tool{}, globals: map[string]Global{}, events: make(chan callResult, 64), pendingGlobals: map[int]bool{}, pendingIDs: map[int]int{}, timeout: timeout}
 	callCtx, cancelCalls := context.WithCancel(runCtx)
@@ -314,8 +333,18 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 		}
 		return res
 	}
+	deterministic := opts.Deterministic || opts.Clock != nil || opts.StartedAt != 0 || opts.Seed != 0
+	var random io.Reader = rand.Reader
+	if deterministic {
+		random = &quickjsRandom{state: uint32(opts.Seed) ^ 0x9e3779b9}
+	}
+	wallStart := time.Now()
 	modCfg := wazero.NewModuleConfig().WithName("").WithStartFunctions().
-		WithStdout(io.Discard).WithStderr(io.Discard).WithRandSource(&quickjsRandom{state: uint32(opts.Seed) ^ 0x9e3779b9}).WithWalltime(func() (int64, int32) {
+		WithStdout(io.Discard).WithStderr(io.Discard).WithRandSource(random).WithWalltime(func() (int64, int32) {
+		if !deterministic {
+			now := time.Now()
+			return now.Unix(), int32(now.Nanosecond())
+		}
 		if !v.clockReady {
 			nanos := (int64(uint32(opts.Seed)) + 1) * 1000
 			return nanos / 1000000000, int32(nanos % 1000000000)
@@ -326,6 +355,9 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 		}
 		return now / 1000, int32(now%1000) * 1000000
 	}, 1).WithNanotime(func() int64 {
+		if !deterministic {
+			return time.Since(wallStart).Nanoseconds()
+		}
 		if !v.clockReady {
 			return 0
 		}
@@ -529,6 +561,10 @@ func (v *vm) newString(ctx context.Context, s string) (uint32, error) {
 }
 
 func (v *vm) toString(ctx context.Context, h uint32) (string, error) {
+	return v.toStringLimit(ctx, h, maxBridgeStringBytes)
+}
+
+func (v *vm) toStringLimit(ctx context.Context, h uint32, limit uint32) (string, error) {
 	lenPtr64, err := v.call(ctx, "wasm_malloc", 4)
 	lenPtr := uint32(lenPtr64)
 	if err != nil || lenPtr == 0 {
@@ -545,7 +581,7 @@ func (v *vm) toString(ctx context.Context, h uint32) (string, error) {
 	}
 	defer v.call(ctx, "qjs_free_cstring", uint64(cstr))
 	n, _ := v.mem.ReadUint32Le(lenPtr)
-	if n > maxBridgeStringBytes {
+	if n > limit {
 		return "", fmt.Errorf("QuickJS bridge string exceeds byte limit")
 	}
 	b, ok := v.mem.Read(cstr, n)
@@ -717,7 +753,16 @@ func (v *vm) settle(ctx context.Context, r callResult) error {
 		defer v.free(p)
 		payload = p
 	}
-	h, err := v.callFn(ctx, v.apiHandles.settle, v.apiHandles.obj, id, okV, payload)
+	properties := v.undefined
+	if r.properties != nil {
+		p, err := v.newString(ctx, *r.properties)
+		if err != nil {
+			return err
+		}
+		defer v.free(p)
+		properties = p
+	}
+	h, err := v.callFn(ctx, v.apiHandles.settle, v.apiHandles.obj, id, okV, payload, properties)
 	if err != nil {
 		return err
 	}
@@ -851,11 +896,16 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 		}
 		return uint32(v.mustCall(ctx, "qjs_dup_value", uint64(v.undefined)))
 	}
+	var bridgeKind string
 	arg := func(i int) (string, bool) {
 		if args[i] == 0 || v.isUndefined(ctx, args[i]) {
 			return "", false
 		}
-		s, err := v.toString(ctx, args[i])
+		limit := maxBridgeStringBytes
+		if i > 0 && (bridgeKind == "output" || bridgeKind == "done" || bridgeKind == "error") {
+			limit = maxBridgeOutputBytes
+		}
+		s, err := v.toStringLimit(ctx, args[i], limit)
 		if err != nil {
 			bridgeErr = err
 			return "", false
@@ -863,6 +913,7 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 		return s, true
 	}
 	kind, _ := arg(0)
+	bridgeKind = kind
 	if bridgeErr != nil {
 		return fail()
 	}
@@ -889,10 +940,9 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 		typ, _ := arg(1)
 		b, _ := arg(2)
 		c, _ := arg(3)
-		if bridgeErr != nil || len(v.output) >= maxBridgeOutputItems || len(b)+len(c) > maxBridgeOutputBytes-v.outputBytes {
+		if bridgeErr != nil || !v.admitOutput(len(b)+len(c)) {
 			return fail()
 		}
-		v.outputBytes += len(b) + len(c)
 		if typ == "image" {
 			v.output = append(v.output, OutputItem{Type: "image", Data: b, MimeType: c})
 		} else {
@@ -990,6 +1040,14 @@ func (v *vm) startCall(isTool bool, id int, name, argsJSON string, hasArgs bool)
 		} else if out, err := boundedQuickJSCallback(v.callCtx, exec, args); err != nil {
 			msg := err.Error()
 			r.payload = &msg
+			var propertyError interface{ ErrorPropertiesJSON() json.RawMessage }
+			if errors.As(err, &propertyError) {
+				raw := propertyError.ErrorPropertiesJSON()
+				if len(raw) <= int(maxBridgeStringBytes) && json.Valid(raw) {
+					text := string(raw)
+					r.properties = &text
+				}
+			}
 		} else {
 			r.ok = true
 			if out != nil {
@@ -1024,6 +1082,14 @@ func Identifier(name string) string {
 }
 
 // Only called on the VM thread; callback wait time consumes no compute polls.
+func (v *vm) admitOutput(bytes int) bool {
+	if len(v.output) >= maxBridgeOutputItems || bytes < 0 || bytes > maxBridgeOutputBytes-v.outputBytes {
+		return false
+	}
+	v.outputBytes += bytes
+	return true
+}
+
 func (v *vm) computeInterrupted() bool {
 	if v.interruptBudget == 0 {
 		return false

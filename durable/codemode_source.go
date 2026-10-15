@@ -1,9 +1,9 @@
 package durable
 
 import (
+	"encoding/json"
 	"fmt"
-	"math/big"
-	"strconv"
+	"math"
 	"strings"
 )
 
@@ -35,23 +35,17 @@ func ParseCodemodeSource(input string) (CodemodeSource, error) {
 			return result, err
 		}
 		for key, value := range opts {
-			// JSON numbers with a decimal point/exponent may still be integers.
-			// Keep exact bounds rather than rounding an unsafe float into range.
-			rawNumber := strings.TrimSpace(string(value))
-			if len(rawNumber) > 128 {
-				return result, reject("codemode option number too long")
-			}
-			if at := strings.IndexAny(rawNumber, "eE"); at >= 0 {
-				exponent, e := strconv.ParseInt(rawNumber[at+1:], 10, 32)
-				if e != nil || exponent < -400 || exponent > 400 {
-					return result, reject("codemode option exponent out of range")
-				}
-			}
-			number, ok := new(big.Rat).SetString(rawNumber)
-			if !ok || !number.IsInt() || !number.Num().IsInt64() {
+			// JSON.parse rounds to a JavaScript Number before isSafeInteger.
+			// Match that contract, including underflow and rounded decimals.
+			var decoded any
+			if err := json.Unmarshal(value, &decoded); err != nil {
 				return result, reject("codemode option must be a safe integer")
 			}
-			integer := number.Num().Int64()
+			number, ok := decoded.(float64)
+			if !ok || math.IsNaN(number) || math.IsInf(number, 0) || math.Trunc(number) != number || math.Abs(number) > float64(MaxID) {
+				return result, reject("codemode option must be a safe integer")
+			}
+			integer := int64(number)
 			switch key {
 			case "max_output_tokens":
 				if integer < 0 || uint64(integer) > MaxID {

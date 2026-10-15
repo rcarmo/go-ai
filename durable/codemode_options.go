@@ -22,9 +22,7 @@ func parseCodemodeOptions(raw string) (map[string]json.RawMessage, error) {
 		if !ok {
 			return nil, reject("invalid codemode option key")
 		}
-		if _, exists := out[key]; exists {
-			return nil, reject("duplicate codemode option")
-		}
+		// JSON.parse keeps the final value of a duplicate option name.
 		var value json.RawMessage
 		if err = decoder.Decode(&value); err != nil {
 			return nil, reject("invalid codemode option value")

@@ -329,7 +329,8 @@ type MessageReceipt struct {
 	// EmptyArguments witnesses validated empty tool-call objects which the
 	// legacy ContentBlock omitempty envelope cannot otherwise preserve.
 	// Indices must be unique, in bounds and point only to empty toolCall args.
-	EmptyArguments []int `json:"emptyArguments,omitempty"`
+	EmptyArguments []int                `json:"emptyArguments,omitempty"`
+	ImageChunks    []receiptImageChunks `json:"imageChunks,omitempty"`
 }
 
 // ReceiptContentPresence preserves explicit empty protocol fields hidden by

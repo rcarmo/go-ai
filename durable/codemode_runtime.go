@@ -101,13 +101,16 @@ type CodemodeDelivery struct {
 	Value       any          `json:"value,omitempty"`
 	HasValue    bool         `json:"hasValue"`
 	Error       string       `json:"error,omitempty"`
+	Properties  JSON         `json:"properties,omitempty"`
 }
 type codemodeRunState struct {
-	OutputDir string          `json:"outputDir,omitempty"`
-	OutputFS  string          `json:"outputFS,omitempty"`
-	Source    string          `json:"source"`
-	Start     CodemodeStart   `json:"start"`
-	Result    *CodemodeResult `json:"result,omitempty"`
+	OutputDir   string             `json:"outputDir,omitempty"`
+	OutputFS    string             `json:"outputFS,omitempty"`
+	Source      string             `json:"source"`
+	Start       CodemodeStart      `json:"start"`
+	Result      *CodemodeResult    `json:"result,omitempty"`
+	ImageRefs   []codemodeImageRef `json:"imageRefs,omitempty"`
+	ValueChunks []ID               `json:"valueChunks,omitempty"`
 }
 type codemodeJournalState struct {
 	FirstIssued *int               `json:"firstIssued,omitempty"`
@@ -276,7 +279,29 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		return CodemodeResult{}, err
 	}
 	if run.Result != nil {
-		return ownCodemodeResult(*run.Result, l)
+		result := *run.Result
+		if len(run.ImageRefs) != 0 {
+			if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+				var err error
+				result.Images, err = readCodemodeImages(tx.state, r.taskID, key, run.ImageRefs, l)
+				return nil, err
+			}); err != nil {
+				return CodemodeResult{}, err
+			}
+		}
+		if len(run.ValueChunks) > 0 {
+			if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+				value, err := readCodemodeStringValue(tx.state, r.taskID, key, run.ValueChunks, l)
+				if err != nil {
+					return nil, err
+				}
+				result.Value = value
+				return nil, nil
+			}); err != nil {
+				return CodemodeResult{}, err
+			}
+		}
+		return ownCodemodeResult(result, l)
 	}
 	current, err := r.Now()
 	if err != nil {
@@ -413,6 +438,14 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			if err != nil {
 				return CodemodeResult{}, err
 			}
+			valueChunks, valueErr := r.persistCodemodeStringValue(linked, key, result.Value, l)
+			if valueErr != nil {
+				return CodemodeResult{}, valueErr
+			}
+			imageRefs, imageErr := r.persistCodemodeImages(linked, key, result.Images, l)
+			if imageErr != nil {
+				return CodemodeResult{}, imageErr
+			}
 			err = r.Commit(linked, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 				if err := linked.Err(); err != nil {
 					return nil, err
@@ -460,7 +493,14 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 					return nil, err
 				}
 				run.OutputDir, run.OutputFS = currentRun.OutputDir, currentRun.OutputFS
-				run.Result = &result
+				stored := result
+				stored.Images = nil
+				if len(valueChunks) > 0 {
+					stored.Value = ""
+				}
+				run.ValueChunks = valueChunks
+				run.Result = &stored
+				run.ImageRefs = imageRefs
 				object, err := dtoObject(run, l)
 				if err != nil {
 					return nil, err
@@ -522,6 +562,13 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				return CodemodeResult{}, err
 			}
 			delivery.Seq = index + 1
+			minimumNow := run.Start.StartedAt
+			if len(journal.Deliveries) > 0 {
+				minimumNow = journal.Deliveries[len(journal.Deliveries)-1].Now
+			}
+			if delivery.Now < minimumNow {
+				delivery.Now = minimumNow
+			}
 			journal.Deliveries = append(journal.Deliveries, delivery)
 			if err = commitCodemodeJournal(linked, r, journalID, journal); err != nil {
 				return CodemodeResult{}, err
@@ -556,6 +603,24 @@ func commitCodemodeJournal(ctx context.Context, r *TaskRuntime, id ID, journal c
 	})
 }
 func ownCodemodeResult(result CodemodeResult, l Limits) (CodemodeResult, error) {
+	if err := validateCodemodeImages(result.Images, l); err != nil {
+		return CodemodeResult{}, err
+	}
+	images := append([]goai.ImageContent(nil), result.Images...)
+	result.Images = nil
+	fullOutput := result.Output
+	if err := validateCodemodeFullText(fullOutput); err != nil {
+		return CodemodeResult{}, err
+	}
+	result.Output = ""
+	largeValue, large := result.Value.(string)
+	large = large && len(largeValue) > l.MaxStringBytes/2
+	if large {
+		if len(largeValue) > MaxCodemodeFullOutputBytes {
+			return CodemodeResult{}, reject("codemode result string limit")
+		}
+		result.Value = ""
+	}
 	object, err := dtoObject(result, l)
 	if err != nil {
 		return CodemodeResult{}, err
@@ -567,6 +632,11 @@ func ownCodemodeResult(result CodemodeResult, l Limits) (CodemodeResult, error) 
 	}
 	if err = validateCodemodeResult(owned, l); err != nil {
 		return CodemodeResult{}, err
+	}
+	owned.Images = images
+	owned.Output = fullOutput
+	if large {
+		owned.Value = largeValue
 	}
 	return owned, nil
 }

@@ -2299,7 +2299,7 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					} else if !errors.Is(err, ErrPoisoned) {
 						t.Fatal("uncertain deciding cause", err)
 					}
-				default:
+				case <-time.After(3 * time.Second):
 					t.Fatal("deciding backend failure not reported")
 				}
 				if err := h.Close(bg); err != nil {

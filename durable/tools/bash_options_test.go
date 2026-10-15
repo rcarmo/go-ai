@@ -94,8 +94,16 @@ func TestBashNativeCwdOptionPrecedesPrepareAndPreparedCwdWins(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	physicalSelected, pathErr := filepath.EvalSymlinks(selected)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	physicalPrepared, pathErr := filepath.EvalSymlinks(prepared)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
 	result, err := Bash(LocalEnv(base)).Execute(context.Background(), durable.JSON{"command": "pwd", "cwd": "selected"}, nil)
-	if err != nil || strings.TrimSpace(result.Content) != selected {
+	if err != nil || strings.TrimSpace(result.Content) != physicalSelected {
 		t.Fatal("explicit cwd ignored", result, err)
 	}
 	tool := Bash(LocalEnv(base), BashOptions{Prepare: func(_ context.Context, execution *BashExecution, _ *durable.ToolAPI) error {
@@ -106,7 +114,7 @@ func TestBashNativeCwdOptionPrecedesPrepareAndPreparedCwdWins(t *testing.T) {
 		return nil
 	}})
 	result, err = tool.Execute(context.Background(), durable.JSON{"command": "pwd", "cwd": "selected"}, nil)
-	if err != nil || strings.TrimSpace(result.Content) != prepared {
+	if err != nil || strings.TrimSpace(result.Content) != physicalPrepared {
 		t.Fatal("prepare cwd ignored", result, err)
 	}
 }

@@ -19,7 +19,11 @@ func TestPortableShellReferenceCwdRawSpillAndFailureOwnership(t *testing.T) {
 	ctx := context.Background()
 	var output strings.Builder
 	_, err := env.Exec(ctx, "pwd", durable.ShellExecOptions{OnOutput: func(_ context.Context, text string) error { output.WriteString(text); return nil }})
-	if err != nil || strings.TrimSpace(output.String()) != env.Cwd() {
+	physicalCwd, pathErr := filepath.EvalSymlinks(env.Cwd())
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if err != nil || strings.TrimSpace(output.String()) != physicalCwd {
 		t.Fatal("shell cwd", output.String(), env.Cwd(), err)
 	}
 	// Invalid UTF-8 must stay byte-exact in the host spill; callbacks expose
@@ -60,7 +64,7 @@ func TestPortableShellReferenceCwdRawSpillAndFailureOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			bytes, err := os.ReadFile(result.SpillPath)
-			wantBytes := string([]byte{0xff, 0}) + env.Cwd() + "\n"
+			wantBytes := string([]byte{0xff, 0}) + physicalCwd + "\n"
 			if err != nil || string(bytes) != wantBytes {
 				t.Fatal("failure lost caller-owned spill", string(bytes), err)
 			}

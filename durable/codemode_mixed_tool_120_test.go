@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
+	"reflect"
 	"sync/atomic"
 	"testing"
 )
@@ -43,8 +44,11 @@ func TestCodemode120MixedToolTextProjectionAndReplay(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if result.Error != "" || !result.HasValue || result.Value != tc.want || len(result.Images) != 0 {
-							t.Errorf("text projection %+v want %q", result, tc.want)
+						limits := resolvedToolOutputLimits(tc.limits)
+						blocks := boundToolBlocksJoined(tc.blocks, limits, "\n")
+						want, _ := ownJSONValue(nestedOutputValue(ToolResult{Blocks: blocks, Content: tc.want}), DefaultLimits())
+						if result.Error != "" || !result.HasValue || !reflect.DeepEqual(result.Value, want) || len(result.Images) != 0 {
+							t.Errorf("schema-less block projection %+v want %#v", result, want)
 						}
 					}
 					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })

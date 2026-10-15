@@ -4,7 +4,9 @@ import (
 	"unicode/utf8"
 )
 
-const MaxCodemodeFullOutputBytes = 4 << 20
+// Full spill text is separate from upstream's 4MiB inline projection ceiling.
+// Preserve the upstream 6MiB spill fixture without increasing journal limits.
+const MaxCodemodeFullOutputBytes = 16 << 20
 
 // Bound only the inline codemode projection. Reserve JSON escaping and
 // transcript/document envelope space; the spill writer still receives full text.
