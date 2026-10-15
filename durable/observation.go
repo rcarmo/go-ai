@@ -373,6 +373,10 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 		s.observerMu.Unlock()
 		return nil, false, reject("watch process count limit")
 	}
+	if quota > s.limits.MaxRetainedBytes-s.observerReservedBytesLocked() {
+		s.observerMu.Unlock()
+		return nil, false, reject("watch baseline exceeds process quota")
+	}
 	if s.watches == nil {
 		s.watches = map[*DocumentWatch]bool{}
 	}
@@ -597,8 +601,9 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 	if e != nil {
 		return Snapshot{}, nil, e
 	}
+	// Large baselines reserve more of the shared budget, not a fixed slot.
 	if baselineBytes > quota {
-		return Snapshot{}, nil, reject("publication baseline exceeds process quota")
+		quota = baselineBytes
 	}
 	p := &CommitSubscription{session: s, quota: quota, closed: make(chan struct{})}
 	s.observerMu.Lock()
@@ -609,6 +614,10 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 	if len(s.watches)+len(s.subscriptions) >= capacity {
 		s.observerMu.Unlock()
 		return Snapshot{}, nil, reject("observer process count limit")
+	}
+	if quota > s.limits.MaxRetainedBytes-s.observerReservedBytesLocked() {
+		s.observerMu.Unlock()
+		return Snapshot{}, nil, reject("publication baseline exceeds process quota")
 	}
 	if s.subscriptions == nil {
 		s.subscriptions = map[*CommitSubscription]bool{}
@@ -626,6 +635,19 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 	}
 	return snapshot, p, nil
 }
+
+// Caller holds observerMu; reservations stay fixed until observer removal.
+func (s *Session) observerReservedBytesLocked() int64 {
+	var total int64
+	for w := range s.watches {
+		total += w.byteLimit
+	}
+	for p := range s.subscriptions {
+		total += p.quota
+	}
+	return total
+}
+
 func (s *Session) observerCapacity() int {
 	capacity := s.limits.MaxPage
 	if capacity > 64 {

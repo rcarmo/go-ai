@@ -175,8 +175,9 @@
 // Callbacks run off-line, serially, with producer context values but no producer
 // cancellation. Queues retain at most 100 frames and a fixed byte quota; overflow
 // produces one root replacement/resnapshot, preserving in-flight delivery.
-// Process capacity is min(MaxPage,64); watch/subscription byte quota is
-// MaxRetainedBytes/capacity. Oversized baselines reject; oversized later resets
+// Process capacity is min(MaxPage,64). Watches reserve MaxRetainedBytes/capacity;
+// subscriptions reserve at least that share or their larger baseline demand.
+// Aggregate reservations cannot exceed MaxRetainedBytes. Oversized later resets
 // end only that observer with budget_exceeded. Memory accounting uses encoded
 // data and bounded copies, not a hard heap/RSS promise. Detached Value reads,
 // callbacks and publications cannot mutate storage or another observer.

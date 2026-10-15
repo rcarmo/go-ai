@@ -6,6 +6,12 @@ Active target: official `v1.2.0` at `06a466935536f8c9bcacb2d5efc0fc021be1bdff`, 
 
 Fresh raw govulncheck1.7.0 scan and authoritative advisory review refine the13-ID blocker:9 symbol-level,2 package-level,2 module-only (previous blanket 'reachable13' wording was imprecise). The enforced policy rejects all13 unchanged. All13 stdlib advisories list Go1.27.2 as fixed; HTTP/2 x/net updates alone do not replace the pinned stdlib. [Security disposition](security-disposition.md) records affected contracts, conservative interface paths, deployment caveats and remediation requiring approval. No source/toolchain/dependency/security-policy change. Local app guards cannot comprehensively repair arbitrary supplied HTTP/TLS clients without changing supported behaviour. Raw scan/advisory data removed after analysis; concise conclusions retained. User approval is still required for toolchain remediation; no waiver or scanner-level weakening.
 
+## Observer and timezone alignment — 2026-10-15
+
+Ordinary QuickJS now mirrors host timezone/DST using the pinned quickjs-wasi3.6.2 ABI (signed64 epoch seconds, seconds-east offset); deterministic runs remain UTC. Fixed east2h ordinary/UTC regression race count3 passes8.613s, combined deterministic/environment race15.677s. Host identity64.
+
+Commit subscriptions now reserve max(default share, actual baseline demand) from the unchanged shared MaxRetainedBytes budget. Document-watch reservations count against the same total; observer count, queue/reset and data limits remain intact. Default-limit public WatchEvents reconnect now exercised directly by large-image transcript/reopen test, race count3 passes40.083s. Dedicated64KiB budget fixture admits two24KiB baselines, rejects the third, and verifies Stop releases capacity (race count3 1.067s). Full observation/image selection passed21.299s before final test refinements. Vet/staticcheck/logging/security pass; final integrated race/profile refresh required. Temporary ABI source and logs removed. No unlimited resource grant; setup/call/schema admission review remains explicit.
+
 ## Image result budget and allocation follow-up — 2026-10-15
 
 Raised the separate displayed-image ceiling to16MiB (aggregate remains16MiB), admitting upstream read4.5MiB base64 results previously rejected at4MiB. Independent read-sized result validation/ownership race count3 passes1.690s. Root race on that candidate passed durable762.525s/tools33.344s/QuickJS112.142s/consumers29.232s; security/vet/staticcheck/logging/non-CGO pass.

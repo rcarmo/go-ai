@@ -209,6 +209,7 @@ type vm struct {
 
 	prepareCall     func(context.Context, int, bool, string, json.RawMessage) (func(context.Context) (json.RawMessage, error), error)
 	serialCalls     bool
+	deterministic   bool
 	clockReady      bool
 	interruptBudget int
 	interruptPolls  int
@@ -265,7 +266,15 @@ func hostModule(r wazero.Runtime) wazero.HostModuleBuilder {
 	}).Export("host_promise_rejection")
 	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, base, name uint32) uint32 { return 0 }).Export("host_module_normalize")
 	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, name, outLen uint32) uint32 { return 0 }).Export("host_module_load")
-	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, hi, lo uint32) uint32 { return 0 }).Export("host_get_timezone_offset")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, hi, lo uint32) uint32 {
+		v, _ := ctx.Value(ctxKey{}).(*vm)
+		if v == nil || v.deterministic {
+			return 0
+		}
+		seconds := int64(int32(hi))<<32 | int64(lo)
+		_, offset := time.Unix(seconds, 0).In(time.Local).Zone()
+		return uint32(int32(offset))
+	}).Export("host_get_timezone_offset")
 	return b
 }
 
@@ -334,6 +343,7 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 		return res
 	}
 	deterministic := opts.Deterministic || opts.Clock != nil || opts.StartedAt != 0 || opts.Seed != 0
+	v.deterministic = deterministic
 	var random io.Reader = rand.Reader
 	if deterministic {
 		random = &quickjsRandom{state: uint32(opts.Seed) ^ 0x9e3779b9}

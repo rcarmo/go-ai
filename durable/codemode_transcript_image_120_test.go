@@ -130,13 +130,15 @@ func TestCodemode120LargeImageTranscriptProviderAndReopen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		initial, err := conversationSnapshot(reopenedState, conv.ID(), h2.session.limits)
-		if err != nil {
+		if _, err := conversationSnapshot(reopenedState, conv.ID(), h2.session.limits); err != nil {
 			t.Fatal(err)
 		}
-		// Exercise public snapshot copying independently of the existing root
-		// subscription quota (large baselines may legitimately reject admission).
-		reconnect := &AgentEventStream{initial: initial, limits: h2.session.limits}
+		// The public reconnect reserves baseline demand from the shared budget.
+		reconnect, err := h2.WatchEvents(bg, conv.ID())
+		if err != nil {
+			t.Fatal("default-limit public reconnect", err)
+		}
+		defer reconnect.Stop()
 		snapshot, err := reconnect.Snapshot()
 		if err != nil {
 			t.Fatal(err)
