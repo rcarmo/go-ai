@@ -1142,6 +1142,18 @@ Go 1.27.1 fault/reopen/divergence race tests passed three times in 56.076s; earl
 
 Concurrent adapter calls and delivery-order replay still need implementation. Drain admission remains opt-in, and fatal error runs are not durably settled.
 
+## Integrated parallel execution and replay
+
+`QuickJSSandbox.ParallelCalls` now enables concurrent drain-admitted calls through `RunCodemode`. The engine publishes prepared calls synchronously in guest issue order; callback waits run asynchronously. The adapter routes deliveries by call ID and checks independent delivery sequence numbers. Host completion order determines live delivery order, which the journal preserves for replay. Engine `OrderedSettlements` is not enabled for this path.
+
+The runtime commits issued calls and their drain watermark together before launching effects. It replays all confirmed deliveries and verifies their counts before admitting unsettled effects, using existing nested-call keys to reattach. Continuations can issue more calls while earlier calls remain active. Paid classifier/image calls share a four-job capacity bound. Ordinary tool output limits are unchanged.
+
+On script completion the runtime cancels and joins host jobs, then aborts unfinished nested calls whose keys belong to this codemode run. Successful completion may leave issued calls undelivered. Terminal errors are persisted without store writes; settled reruns return that result without another effect. Storage failure and caller shutdown preserve resumability instead of aborting recoverable children.
+
+Real QuickJS memory/journal tests cover out-of-order completion, continuation-created calls, caller reopen with completion-order replay and no duplicate effects, rejected initial/final watermark commits, early completion and successful/error completion with unfinished nested calls. Go 1.27.1 focused durable race tests passed three times in 161.053s; engine drain/ordered race tests passed three times in 40.691s. Full normal root tests passed (durable 92.847s, tools 4.603s), with vet, staticcheck, logging, non-CGO and diff checks. Runtime identity is host59. Diagnostic logs were deleted after analysis.
+
+Parallel execution remains opt-in. Mid-flight reopen with an unsettled delivery suffix, mixed concurrent paid/global calls, measured model-capacity enforcement and broader cancellation/divergence fault coverage still need acceptance tests. Fatal errors before initial drain acknowledgement also need verification. Larger-output storage, broader AI parity and final release verification are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

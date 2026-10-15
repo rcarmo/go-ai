@@ -149,3 +149,5 @@ func testQuickJSUnsettledReopen120(t *testing.T, drains, drift bool) {
 		}
 	})
 }
+
+func (s *restartQuickJS120) SupportsParallelCalls() bool { return s.sandbox.SupportsParallelCalls() }

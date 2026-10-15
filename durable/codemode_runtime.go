@@ -5,9 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	goai "github.com/rcarmo/go-ai"
-	"strings"
 	"time"
 )
 
@@ -27,8 +25,11 @@ type CodemodeSandbox interface {
 type CodemodeSandboxIdentity interface{ RuntimeIdentity() string }
 
 // CodemodeSandboxDrains advertises drain-count acknowledgement support.
+type CodemodeSandboxParallel interface{ SupportsParallelCalls() bool }
+
 type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
 type CodemodeStart struct {
+	ParallelCalls         bool                        `json:"parallelCalls,omitempty"`
 	DrainAcknowledgements bool                        `json:"drainAcknowledgements,omitempty"`
 	InterruptBudget       int                         `json:"interruptBudget,omitempty"`
 	Globals               []CodemodeGlobalDescription `json:"globals,omitempty"`
@@ -182,6 +183,12 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if drains, ok := sandbox.(CodemodeSandboxDrains); ok {
 		start.DrainAcknowledgements = drains.SupportsDrainAcknowledgements()
 	}
+	if parallel, ok := sandbox.(CodemodeSandboxParallel); ok {
+		start.ParallelCalls = parallel.SupportsParallelCalls()
+		if start.ParallelCalls {
+			start.DrainAcknowledgements = true
+		}
+	}
 	selectedGlobals := r.harness.options.CodemodeGlobals
 	if globals != nil {
 		selectedGlobals = *globals
@@ -301,7 +308,18 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	for _, tool := range run.Start.Tools {
 		allowed[tool.Name] = true
 	}
+	var parallelResult *CodemodeResult
+	if run.Start.ParallelCalls {
+		result, err := r.runParallelCodemode(linked, vm, key, run.Start, journalID, &journal, selectedGlobals, allowed, paid)
+		if err != nil {
+			return CodemodeResult{}, err
+		}
+		parallelResult = &result
+	}
 	index := 0
+	if parallelResult != nil {
+		index = len(journal.Issued)
+	}
 	ackDrain := func(drain CodemodeDrain, observed int) error {
 		ack, ok := vm.(CodemodeDrainExecution)
 		if !run.Start.DrainAcknowledgements || !ok {
@@ -318,7 +336,12 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		if err = linked.Err(); err != nil {
 			return CodemodeResult{}, err
 		}
-		event, err := nextCodemodeEvent(linked, vm)
+		var event CodemodeEvent
+		if parallelResult != nil {
+			event.Result = parallelResult
+		} else {
+			event, err = nextCodemodeEvent(linked, vm)
+		}
 		if err != nil {
 			return CodemodeResult{}, err
 		}
@@ -338,7 +361,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			return CodemodeResult{}, reject("invalid sandbox event union")
 		}
 		if event.Result != nil {
-			if run.Start.DrainAcknowledgements && event.Result.Error != "" && (journal.FirstIssued == nil || index > 0 && journal.Deliveries[index-1].IssuedAfter == nil) {
+			if !run.Start.ParallelCalls && run.Start.DrainAcknowledgements && event.Result.Error != "" && (journal.FirstIssued == nil || index > 0 && journal.Deliveries[index-1].IssuedAfter == nil) {
 				result := *event.Result
 				result.StoreWrites, result.StoreDeletes = nil, nil
 				return ownCodemodeResult(result, l)
@@ -486,102 +509,11 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				return CodemodeResult{}, reject("codemode delivery sequence gap")
 			}
 		} else {
-			if call.Global && (codemodeDiscoveryName(call.Name) || codemodeModelCatalogName(call.Name) || codemodeCustomGlobal(run.Start, call.Name) != nil) {
-				var value any
-				var globalErr error
-				if codemodeCustomGlobal(run.Start, call.Name) != nil {
-					value, globalErr = r.callCodemodeGlobal(linked, run.Start, call, selectedGlobals)
-				} else if codemodeModelCatalogName(call.Name) {
-					value, globalErr = r.codemodeModelCatalog(linked, call)
-				} else {
-					value, globalErr = codemodeDiscoveryOutcome(run.Start, call)
-				}
-				if value != nil && globalErr == nil {
-					object, e := dtoObject(JSON{"value": value}, l)
-					if e != nil {
-						return CodemodeResult{}, e
-					}
-					value = object["value"]
-				}
-				now, err := r.Now()
-				if err != nil {
-					return CodemodeResult{}, err
-				}
-				delivery = CodemodeDelivery{Seq: index + 1, Now: now, Call: call}
-				if globalErr != nil {
-					delivery.Error = globalErr.Error()
-				} else {
-					delivery.Value = value
-					delivery.HasValue = true
-				}
-			} else {
-				name, arguments := call.Name, call.Arguments
-				var argumentErr error
-				if call.Global {
-					name, arguments, argumentErr = codemodePaidArguments(call)
-					// Persisted opt-in permits replay, never fresh paid effects after
-					// current host revocation. A retained registry is not authority.
-					if !paid {
-						argumentErr = reject("paid model globals revoked")
-					}
-				}
-				if argumentErr != nil {
-					now, err := r.Now()
-					if err != nil {
-						return CodemodeResult{}, err
-					}
-					delivery = CodemodeDelivery{Seq: index + 1, Now: now, Call: call, Error: argumentErr.Error()}
-				} else {
-					// Confirmed deliveries replay above; fresh calls retain current authority.
-					allowed := call.Global
-					if !allowed {
-						tools, err := r.CodemodeTools(linked)
-						if err != nil {
-							return CodemodeResult{}, err
-						}
-						for _, tool := range tools {
-							if tool.Name == name {
-								allowed = true
-								break
-							}
-						}
-					}
-					result := ToolResult{IsError: true, Content: "Tool " + name + " is no longer callable"}
-					if allowed {
-						var err error
-						result, err = r.CallTool(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, arguments)
-						if err != nil {
-							return CodemodeResult{}, err
-						}
-					}
-					clock, err := r.Now()
-					if err != nil {
-						return CodemodeResult{}, err
-					}
-					delivery = CodemodeDelivery{Seq: index + 1, Now: clock, Call: call}
-					if result.HasStructuredOutput {
-						delivery.Value = result.StructuredOutput
-						delivery.HasValue = true
-					} else if result.IsError {
-						delivery.Error = result.Content
-						if delivery.Error == "" {
-							messages := []string{}
-							for _, diagnostic := range result.Diagnostics {
-								if diagnostic.Severity == "error" {
-									messages = append(messages, diagnostic.Message)
-								}
-							}
-							delivery.Error = strings.Join(messages, "\n")
-						}
-						if delivery.Error == "" {
-							delivery.Error = "Tool " + call.Name + " failed"
-						}
-					} else {
-						delivery.Value = result.Content
-						delivery.HasValue = true
-					}
-				}
+			delivery, err = r.executeCodemodeCall(linked, key, run.Start, call, selectedGlobals, paid)
+			if err != nil {
+				return CodemodeResult{}, err
 			}
+			delivery.Seq = index + 1
 			journal.Deliveries = append(journal.Deliveries, delivery)
 			if err = commitCodemodeJournal(linked, r, journalID, journal); err != nil {
 				return CodemodeResult{}, err

@@ -12,13 +12,15 @@ import (
 	"github.com/rcarmo/go-ai/internal/quickjs"
 )
 
-// QuickJSSandbox implements the serial codemode protocol in WASM. Close the
-// sandbox after all executions finish. Parallel scripts are not supported yet.
+// QuickJSSandbox implements codemode in WASM. Close the sandbox after all
+// executions finish. ParallelCalls opts into concurrent drain-admitted calls.
 type QuickJSSandbox struct {
 	engine *quickjs.Engine
 	// AcknowledgeDrains enables persisted drain admission in RunCodemode.
 	// Set before use; concurrent configuration changes are unsupported.
 	AcknowledgeDrains bool
+	// ParallelCalls implies drain admission. Set before use.
+	ParallelCalls     bool
 }
 
 func (*QuickJSSandbox) RuntimeIdentity() string { return quickjs.Identity() }
@@ -42,6 +44,9 @@ type quickjsExecution struct {
 	deliveryMu sync.Mutex
 	awaiting   *CodemodeCall
 	drain      *CodemodeDrain
+	delivered  int
+	waiting    map[int]CodemodeCall
+	responses  map[int]chan CodemodeDelivery
 	drainAck   chan struct{}
 }
 
@@ -62,14 +67,14 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{})}
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
-	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
+	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: !start.ParallelCalls, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
 	var published chan struct{}
 	if start.DrainAcknowledgements {
 		published = make(chan struct{}, 1)
 		observed := 0
 		execution.drainAck = make(chan struct{})
 		opts.OnDrain = func(ctx context.Context, id, issued int) error {
-			for observed < issued {
+			for !start.ParallelCalls && observed < issued {
 				select {
 				case <-published:
 					observed++
@@ -151,7 +156,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}
-			if published != nil {
+			if published != nil && !start.ParallelCalls {
 				select {
 				case published <- struct{}{}:
 				case <-ctx.Done():
@@ -175,6 +180,66 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				return nil, errors.New(delivery.Error)
 			}
 			return json.Marshal(delivery.Value)
+		}
+	}
+	if start.ParallelCalls {
+		opts.PrepareCall = func(ctx context.Context, id int, global bool, name string, args json.RawMessage) (func(context.Context) (json.RawMessage, error), error) {
+			var value any
+			if err := decodeQuickJSValue(args, &value); err != nil {
+				return nil, err
+			}
+			var arguments JSON
+			if global {
+				arguments = JSON{"args": value}
+			} else {
+				object, ok := value.(map[string]any)
+				if !ok {
+					return nil, errors.New("tool arguments must be an object")
+				}
+				arguments = JSON(object)
+			}
+			call := CodemodeCall{ID: id, Global: global, Name: name, Arguments: arguments}
+			owned, err := copyObject(arguments, DefaultLimits())
+			if err != nil {
+				return nil, err
+			}
+			expected := call
+			expected.Arguments = owned
+			response := make(chan CodemodeDelivery, 1)
+			execution.deliveryMu.Lock()
+			if execution.waiting == nil {
+				execution.waiting = map[int]CodemodeCall{}
+				execution.responses = map[int]chan CodemodeDelivery{}
+			}
+			execution.waiting[id] = expected
+			execution.responses[id] = response
+			execution.deliveryMu.Unlock()
+			select {
+			case execution.events <- CodemodeEvent{Call: &call}:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			if published != nil && !start.ParallelCalls {
+				select {
+				case published <- struct{}{}:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			}
+			return func(ctx context.Context) (json.RawMessage, error) {
+				select {
+				case delivery := <-response:
+					if delivery.Now > clock.Load() {
+						clock.Store(delivery.Now)
+					}
+					if delivery.Error != "" {
+						return nil, errors.New(delivery.Error)
+					}
+					return json.Marshal(delivery.Value)
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			}, nil
 		}
 	}
 	for _, tool := range start.Tools {
@@ -276,6 +341,18 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 			return reject("codemode drain not acknowledged")
 		}
 	}
+	if e.responses != nil {
+		call, ok := e.waiting[delivery.Call.ID]
+		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+			return reject("invalid QuickJS parallel delivery")
+		}
+		e.responses[call.ID] <- delivery
+		delete(e.responses, call.ID)
+		delete(e.waiting, call.ID)
+		e.delivered++
+		e.drainAck = make(chan struct{})
+		return nil
+	}
 	call := e.awaiting
 	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
 		return reject("invalid QuickJS delivery")
@@ -325,4 +402,8 @@ func (e *quickjsExecution) AcknowledgeDrain(ctx context.Context, drain CodemodeD
 	return nil
 }
 
-func (s *QuickJSSandbox) SupportsDrainAcknowledgements() bool { return s.AcknowledgeDrains }
+func (s *QuickJSSandbox) SupportsDrainAcknowledgements() bool {
+	return s.AcknowledgeDrains || s.ParallelCalls
+}
+
+func (s *QuickJSSandbox) SupportsParallelCalls() bool { return s.ParallelCalls }

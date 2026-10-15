@@ -10,10 +10,15 @@ import (
 
 func TestCodemode120RejectedDrainCommitReopensWithoutDuplicateEffects(t *testing.T) {
 	for _, initial := range []bool{true, false} {
-		t.Run(map[bool]string{true: "initial", false: "final"}[initial], func(t *testing.T) { testRejectedDrainCommit120(t, initial) })
+		t.Run(map[bool]string{true: "initial", false: "final"}[initial], func(t *testing.T) { testRejectedDrainCommit120(t, initial, false) })
 	}
 }
-func testRejectedDrainCommit120(t *testing.T, initial bool) {
+func TestCodemode120ParallelRejectedDrainCommitReopen(t *testing.T) {
+	for _, initial := range []bool{true, false} {
+		t.Run(map[bool]string{true: "initial", false: "final"}[initial], func(t *testing.T) { testRejectedDrainCommit120(t, initial, true) })
+	}
+}
+func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		var effects atomic.Int64
@@ -31,6 +36,7 @@ func testRejectedDrainCommit120(t *testing.T, initial bool) {
 		}
 		defer sandbox.Close(bg)
 		sandbox.AcknowledgeDrains = true
+		sandbox.ParallelCalls = parallel
 		rejectCount := func(journal codemodeJournalState) bool {
 			if initial {
 				return journal.FirstIssued != nil
@@ -114,7 +120,11 @@ func testRejectedDrainCommit120(t *testing.T, initial bool) {
 		for _, doc := range state.Documents {
 			if doc.Kind == codemodeJournalKind {
 				var journal codemodeJournalState
-				if e = fromObject(doc.Value, &journal, h.session.limits); e != nil || len(journal.Issued) != 1 {
+				wantIssued := 1
+				if parallel && initial {
+					wantIssued = 0
+				}
+				if e = fromObject(doc.Value, &journal, h.session.limits); e != nil || len(journal.Issued) != wantIssued {
 					t.Fatal("rejected drain prefix", journal, e)
 				}
 				if initial {

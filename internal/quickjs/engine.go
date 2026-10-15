@@ -82,7 +82,10 @@ type Options struct {
 	// and after each settled delivery. issued is the cumulative call count.
 	// It may block for host acknowledgement; it must honour ctx cancellation.
 	// Callback execution has already started: hosts must gate effects themselves.
-	OnDrain          func(ctx context.Context, deliveryID, issued int) error
+	OnDrain func(ctx context.Context, deliveryID, issued int) error
+	// PrepareCall publishes calls synchronously in guest issue order. The
+	// returned callback waits asynchronously for host delivery.
+	PrepareCall      func(context.Context, int, bool, string, json.RawMessage) (func(context.Context) (json.RawMessage, error), error)
 	InterruptBudget  int  // zero is deadline-only; positive bounds compute polls
 	SerialCalls      bool // reject overlapping calls on the VM thread before dispatch
 	StartedAt        int64
@@ -191,6 +194,7 @@ type vm struct {
 
 	undefined, trueV, falseV uint32
 
+	prepareCall     func(context.Context, int, bool, string, json.RawMessage) (func(context.Context) (json.RawMessage, error), error)
 	serialCalls     bool
 	clockReady      bool
 	interruptBudget int
@@ -280,7 +284,7 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	v := &vm{maxCalls: maxCalls, serialCalls: opts.SerialCalls, tools: map[string]Tool{}, globals: map[string]Global{}, events: make(chan callResult, 64), pendingGlobals: map[int]bool{}, pendingIDs: map[int]int{}, timeout: timeout}
+	v := &vm{maxCalls: maxCalls, serialCalls: opts.SerialCalls, prepareCall: opts.PrepareCall, tools: map[string]Tool{}, globals: map[string]Global{}, events: make(chan callResult, 64), pendingGlobals: map[int]bool{}, pendingIDs: map[int]int{}, timeout: timeout}
 	callCtx, cancelCalls := context.WithCancel(runCtx)
 	v.callCtx = callCtx
 	defer func() {
@@ -954,6 +958,16 @@ func (v *vm) startCall(isTool bool, id int, name, argsJSON string, hasArgs bool)
 	var args json.RawMessage
 	if hasArgs {
 		args = json.RawMessage(argsJSON)
+	}
+	if v.prepareCall != nil {
+		wait, err := v.prepareCall(v.callCtx, id, !isTool, name, args)
+		if err != nil || wait == nil {
+			v.done, v.interrupt = true, true
+			message:="host returned nil prepared callback";if err!=nil{message=err.Error()}
+			v.result = Result{Error: &Error{Kind: ErrorSandbox, Message: message}}
+			return
+		}
+		exec = func(ctx context.Context, _ json.RawMessage) (json.RawMessage, error) { return wait(ctx) }
 	}
 	v.running.Add(1)
 	go func() {

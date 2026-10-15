@@ -33,7 +33,10 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if run.Start.InterruptBudget < 0 || run.Start.InterruptBudget > 1000000 || run.Start.Version != 2 || run.Start.Deadline <= run.Start.StartedAt || run.Start.Deadline-run.Start.StartedAt > 2147483647 || run.Start.MaxOutputTokens < 0 || uint64(run.Start.MaxOutputTokens) > MaxID || run.Start.Seed > 0xffffffff || len(run.Source) > l.MaxStringBytes || len(journal.Issued) > l.MaxPage || len(journal.Deliveries) > len(journal.Issued) {
 		return reject("invalid codemode start/journal limits")
 	}
-	if err := validateCodemodeWatermarks(run.Start, journal, run.Result != nil); err != nil {
+	if run.Start.ParallelCalls && !run.Start.DrainAcknowledgements {
+		return reject("parallel codemode requires drain admission")
+	}
+	if err := validateCodemodeWatermarks(run.Start, journal, run.Result != nil && (!run.Start.ParallelCalls || run.Result.Error == "")); err != nil {
 		return err
 	}
 	if err := validateCodemodeGlobalDescriptions(run.Start.Globals, l); err != nil {
@@ -54,11 +57,19 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 			return reject("invalid codemode issued sequence/authority")
 		}
 	}
+	seenDeliveries := map[int]bool{}
 	for i, delivery := range journal.Deliveries {
-		if delivery.Seq != i+1 || delivery.Call.ID != i+1 || delivery.Call.Name != journal.Issued[i].Name || delivery.Call.Global != journal.Issued[i].Global || !equalJSONValue(delivery.Call.Arguments, journal.Issued[i].Arguments) || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+		id := delivery.Call.ID
+		if id < 1 || id > len(journal.Issued) || seenDeliveries[id] || !run.Start.ParallelCalls && id != i+1 {
+			return reject("invalid codemode delivery identity")
+		}
+		seenDeliveries[id] = true
+		call := journal.Issued[id-1]
+		if delivery.Seq != i+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
 			return reject("invalid codemode delivery sequence/union")
 		}
 	}
+
 	if (run.OutputDir == "") != (run.OutputFS == "") || len(run.OutputDir) > l.MaxStringBytes || len(run.OutputFS) > l.MaxStringBytes {
 		return reject("invalid codemode output address")
 	}
@@ -67,7 +78,7 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 			return err
 		}
 	}
-	if run.Result != nil && len(journal.Issued) != len(journal.Deliveries) {
+	if run.Result != nil && !run.Start.ParallelCalls && len(journal.Issued) != len(journal.Deliveries) {
 		return reject("codemode result before delivered calls")
 	}
 	return nil
