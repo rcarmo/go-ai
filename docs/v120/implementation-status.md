@@ -1194,6 +1194,12 @@ A near-4MiB text result with a million-token request now spills completely and p
 
 This test injects the sandbox result at the runtime boundary. Full-size QuickJS formatting, image payload storage and the public transcript path still need large-output verification; the numerical inline cap is a conservative native adaptation, not upstream's exact byte allowance.
 
+## Large output through the public generation path
+
+The exported consumer test now runs real QuickJS producing four 700,000-character text chunks with a million-token request. Generation, the codemode extension, durable result storage and the next model request complete with a bounded transcript and `/owned/output.txt` hint. The output writer receives all four chunks (2.8 million payload characters plus formatting) exactly once. Ordinary storage and tool limits are unchanged.
+
+Go 1.27.1 ordinary/large public consumer race tests passed three times in 24.999s. Full normal tests passed (durable 100.017s, tools 4.370s), plus vet, staticcheck, logging, non-CGO and diff checks. An initial test counted the letter x in formatting labels as payload; the corrected assertion checks the four complete payload runs. Diagnostic logs were deleted after analysis. Large image storage, remaining AI/default/remote semantics and final whole-port verification are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
