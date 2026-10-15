@@ -577,42 +577,75 @@
         {
           "line": 432,
           "name": "returns copies, so mutating a loaded value does not change the store",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go"
+          ],
+          "note": "Concrete store/load set/delete covered; failed-write native discard adaptation separate."
         },
         {
           "line": 442,
           "name": "rejects invalid keys, values, and oversized writes inside the script",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/store_crosswalk_120_test.go"
+          ],
+          "note": "Invalid key/cyclic/oversized store errors tested, but all function-value/load-key and exact TypeError/RangeError diagnostics not pinned."
         },
         {
           "line": 460,
           "name": "explains oversized writes",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/globals_crosswalk_120_test.go"
+          ],
+          "note": "store/load global shadow attempts rejected by concrete engine."
         },
         {
           "line": 469,
           "name": "reserves the store and load names",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/globals_crosswalk_120_test.go"
+          ],
+          "note": "Top-level global result and exclusion from tool calls tested. Unawaited result count and registration mutator API remain different."
         },
         {
           "line": 477,
           "name": "exposes globals as top-level functions without recording them as calls",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/globals_crosswalk_120_test.go",
+            "durable/codemode_globals_boundary_120_test.go"
+          ],
+          "note": "Spread args include undefined as null; namespaced globals frozen; safe membership and suggestion diagnostics tested."
         },
         {
           "line": 494,
           "name": "groups namespaced globals and spreads arguments on request",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/globals_crosswalk_120_test.go"
+          ],
+          "note": "Missing namespace member error and close-match suggestion tested; exact pinned message not required."
         },
         {
           "line": 513,
           "name": "names the members of a namespace when a script reads one that does not exist",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/global_serial_120_test.go"
+          ],
+          "note": "Globals/tools share bridge and admission budget; serial mode rejects overlap. Upstream parallel tool waits incomplete."
         },
         {
           "line": 529,
           "name": "rejects invalid and reserved global names",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_globals_boundary_120_test.go"
+          ],
+          "note": "Global panic/error containment tested; native explicit registration/spread API differs from array-first constructor shorthand."
         },
         {
           "line": 549,

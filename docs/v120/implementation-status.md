@@ -778,6 +778,12 @@ Eight pinned tool declarations now have explicit mappings or gaps. Concrete VM t
 
 Focused tool-dispatch race count 3 passes in 9.147s. Full normal root tests pass (durable 73.043s, tools 4.642s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Review total is 89/149, with 60 unreviewed; final acceptance is unfinished.
 
+## Custom-global namespace review
+
+Concrete VM tests cover top-level callbacks excluded from tool-call records, spread arguments with undefined encoded as null, frozen namespaces, safe membership, missing-member suggestions and rejected store/load shadowing. Eight helper/global declarations now have mappings. Exact diagnostics, constructor shorthands and parallel callback semantics retain explicit partial mappings; no production changes were needed.
+
+Focused globals race count 3 passes in 8.232s. Full normal root tests pass (durable 73.044s, tools 4.547s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 97/149, with 52 unreviewed; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
