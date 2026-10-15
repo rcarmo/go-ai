@@ -942,6 +942,12 @@ When an environment provides `FileSystem` but no specialised output writer, code
 
 Filesystem/spill/image race count 3 passes in 25.158s. Full normal root tests pass (durable 82.231s, tools 4.633s), with static/logging/non-CGO and diff checks. Initial implementation mistakes in the writer signature/document update and stale local address at final settlement were corrected before passing evidence. Diagnostic logs were removed after analysis. Directory lifetime remains environment-owned; uncertain directory-address commits must not trigger deletion. Dedicated filesystem reopen/fault/identity-change coverage and orphan-directory handling remain unfinished, as do larger output storage and parallel execution.
 
+## Filesystem output reopen and identity fences
+
+New memory/journal tests reject final result persistence after the spill file is written, then reopen. The output directory/filesystem address is already durable, so retry uses one created directory and overwrites the same file twice. Failed result/store changes are not adopted. A different filesystem ID rejects before creating a directory or writing. These tests use an in-memory capability fixture, not ambient disk paths.
+
+Filesystem race count 3 passes in 17.746s. Full normal root tests pass (durable 81.800s, tools 4.626s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Directory-address commit rejection/uncertainty and orphan cleanup still need coverage; large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
