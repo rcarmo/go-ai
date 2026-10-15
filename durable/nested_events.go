@@ -28,7 +28,11 @@ func nestedLifecycleEvents(state Snapshot, old, task Task, seq uint64, l Limits)
 	if started && !wasStarted {
 		event := base
 		event.Type = "tool_execution_start"
-		event.Args, err = copyObject(input.Arguments, l)
+		arguments := input.Arguments
+		if rewritten, ok := currentCheckpoint["arguments"].(map[string]any); ok {
+			arguments = JSON(rewritten)
+		}
+		event.Args, err = copyObject(arguments, l)
 		if err != nil {
 			return nil, err
 		}

@@ -7,17 +7,28 @@ import (
 	"time"
 )
 
-func TestNestedTool120CommittedLifecycleEvents(t *testing.T) { testNestedLifecycle120(t, false) }
-func TestNestedTool120BlockedLifecycleEvents(t *testing.T)   { testNestedLifecycle120(t, true) }
-func testNestedLifecycle120(t *testing.T, blocked bool) {
+func TestNestedTool120CommittedLifecycleEvents(t *testing.T) { testNestedLifecycle120(t, false, false) }
+func TestNestedTool120BlockedLifecycleEvents(t *testing.T)   { testNestedLifecycle120(t, true, false) }
+func TestNestedTool120RewrittenArgumentEvents(t *testing.T)  { testNestedLifecycle120(t, false, true) }
+func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("event_leaf")
-		leaf.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, arguments JSON, api *ToolAPI) (ToolResult, error) {
+			if rewrite && !equalJSONValue(arguments, JSON{"n": 2}) {
+				t.Error("executor rewrite missing", arguments)
+			}
 			if err := api.Output("progress"); err != nil {
 				return ToolResult{}, err
 			}
 			return ToolResult{Content: "finished"}, nil
+		}
+		if rewrite {
+			if err := registry.Install(&Extension{Name: "rewrite-nested", ToolHooks: ToolHooks{BeforeTool: func(context.Context, goai.ToolCall, *HookAPI) (*BeforeToolResult, error) {
+				return &BeforeToolResult{Arguments: JSON{"n": 2}}, nil
+			}}}); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if blocked {
 			leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
@@ -76,7 +87,11 @@ func testNestedLifecycle120(t *testing.T, blocked bool) {
 					switch event.Type {
 					case "tool_execution_start":
 						starts++
-						if !equalJSONValue(event.Args, JSON{"n": 1}) {
+						want := 1
+						if rewrite {
+							want = 2
+						}
+						if !equalJSONValue(event.Args, JSON{"n": want}) {
 							t.Error(event.Args)
 						}
 					case "tool_execution_update":

@@ -1422,6 +1422,12 @@ Backend tests now verify compaction failure survives reopen, a no-cut completion
 
 Go 1.27.1 compaction/rejected-progress race tests passed three times in 2.403s. Full normal tests passed (durable 111.811s, tools 4.702s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No production changes were needed. Remaining event/live source crosswalk, large-image persistence, remote wire/batching, current full-race and security disposition still prevent complete acceptance.
 
+## Nested event executed-argument fidelity
+
+Nested start events and active snapshots now prefer committed executor arguments after before-tool hook rewriting, falling back to admission arguments before intent exists. Previously these projections always exposed original admission arguments. Backend lifecycle tests verify a rewrite from n=1 to n=2 reaches both the executor and its start event; blocked and ordinary lifecycle cases remain covered.
+
+Go 1.27.1 nested/existing event race tests passed three times in 13.094s. Full normal tests passed (durable 111.815s, tools 4.839s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remaining event/live source crosswalk and larger image/remote/acceptance gaps are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

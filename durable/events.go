@@ -104,7 +104,11 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if err != nil {
 				return result, err
 			}
-			args, err := copyObject(input.Arguments, limits)
+			arguments := input.Arguments
+			if rewritten, ok := record.State.Checkpoint["arguments"].(map[string]any); ok {
+				arguments = JSON(rewritten)
+			}
+			args, err := copyObject(arguments, limits)
 			if err != nil {
 				return result, err
 			}
