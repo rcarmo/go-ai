@@ -834,6 +834,12 @@ Pinned `vm.ts` consumes one mulberry32 word per four bytes, emits little-endian 
 
 Generator/clock race count 3 passes in 8.125s; deterministic/reopen/identity/divergence race count 3 passes in 48.257s. Full normal root tests pass (durable 76.937s, tools 4.469s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. The earlier chunk-independence test encoded the wrong contract and was replaced with request-boundary vectors. Final acceptance is unfinished.
 
+## Protected global roots
+
+Custom-global admission now rejects `performance`, `InternalError`, `module` and `WebAssembly` roots, including `performance.now`. These names were missing from the explicit intrinsic/ambient denylist. Checks run both in durable configuration validation and before native VM setup, preventing host injection from replacing deterministic clock intrinsics or introducing ambient-looking APIs. Replay identity advances to host46.
+
+Engine admission/global/clock race count 3 passes in 17.187s; durable reserved/clock/identity race count 3 passes in 15.812s. Full normal root tests pass (durable 76.044s, tools 4.593s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Final parity and security acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

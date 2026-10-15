@@ -55,7 +55,7 @@ func TestCodemode120CustomGlobalJournalReopenAndRevocation(t *testing.T) {
 }
 func TestCodemode120CustomGlobalReservedAdmission(t *testing.T) {
 	callback := func(context.Context, any) (any, error) { return nil, nil }
-	for _, name := range []string{"models.custom", "tools.custom", "text", "bad-name", "a.b.c", "Date", "Math.random", "Promise", "globalThis.lookup", "fetch", "__proto__.x"} {
+	for _, name := range []string{"performance", "performance.now", "module", "WebAssembly", "InternalError", "models.custom", "tools.custom", "text", "bad-name", "a.b.c", "Date", "Math.random", "Promise", "globalThis.lookup", "fetch", "__proto__.x"} {
 		if err := validateCodemodeGlobals([]CodemodeGlobal{{Name: name, Version: 1, Execute: callback}}, DefaultLimits()); err == nil {
 			t.Fatal("reserved global admitted", name)
 		}

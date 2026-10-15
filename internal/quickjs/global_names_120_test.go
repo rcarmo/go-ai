@@ -11,7 +11,7 @@ func TestQuickJS120GlobalCannotReplaceIntrinsicOrAmbientRoot(t *testing.T) {
 		t.Error("reserved callback dispatched")
 		return nil, nil
 	}
-	for _, name := range []string{"Date", "Math.random", "Object", "Promise", "globalThis.x", "process", "fetch", "WeakRef", "__proto__.x"} {
+	for _, name := range []string{"performance", "performance.now", "module", "WebAssembly", "InternalError", "Date", "Math.random", "Object", "Promise", "globalThis.x", "process", "fetch", "WeakRef", "__proto__.x"} {
 		if err := validateInputs("return 1", Options{Globals: []Global{{Name: name, Execute: callback}}}); err == nil {
 			t.Fatal("reserved global admitted", name)
 		}
