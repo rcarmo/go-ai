@@ -930,6 +930,12 @@ Extension revocation/opt-out race count 3 passes in 34.299s. Full normal root te
 
 Real generation/VM tests verify extension-only callbacks execute and caller mutation cannot change callbacks or schema declarations. Extension/global-metadata/replay/spread race count 3 passes in 21.611s. Full normal root tests pass (durable 80.285s, tools 4.598s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Interrupted extension-global revocation needs a direct counterpart; parallel/output-storage and final acceptance remain unfinished.
 
+## Interrupted extension-global revocation
+
+A model-facing memory/journal test replaces extension globals with an explicit empty list after one confirmed callback delivery. Reopening replays that result, rejects a second fresh callback catchably and keeps callback executions at one. The following model prompt omits the removed global declaration. No production changes were needed.
+
+Extension-global/revocation race count 3 passes in 28.723s. Full normal root tests pass (durable 81.893s, tools 4.576s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Callback idempotency requirements, parallel/output-storage and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
