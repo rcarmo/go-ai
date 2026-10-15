@@ -20,9 +20,11 @@ SOURCE: /[\s\S]+/
 
 // CodemodeExtensionOptions controls model-facing declaration rendering.
 // Nil InlineBudget uses 3000 estimated tokens; explicit zero lists no tools.
-// Execution authority, namespaces and globals remain harness-scoped.
+// Nil Namespaces inherits the harness list; an explicit empty list disables grouping.
+// Execution authority and globals remain harness-scoped.
 type CodemodeExtensionOptions struct {
 	InlineBudget *int
+	Namespaces   *[]CodemodeNamespace
 }
 
 // NewCodemodeExtension installs a model-only, replay-safe serial candidate.
@@ -35,6 +37,14 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	if len(options) == 1 && options[0].InlineBudget != nil {
 		budget = *options[0].InlineBudget
 	}
+	var namespaces *[]CodemodeNamespace
+	if len(options) == 1 && options[0].Namespaces != nil {
+		copy := append([]CodemodeNamespace{}, (*options[0].Namespaces)...)
+		if err := validateCodemodeNamespaces(copy, DefaultLimits()); err != nil {
+			return Extension{}, err
+		}
+		namespaces = &copy
+	}
 	if budget < 0 {
 		return Extension{}, reject("negative codemode inline budget")
 	}
@@ -46,7 +56,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")
 		}
-		result, err := api.runtime.RunCodemode(ctx, "script", code, sandbox)
+		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces)
 		if err != nil {
 			return ToolResult{}, err
 		}
@@ -87,7 +97,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 				inline = append(inline, tool)
 			}
 		}
-		catalogue, err := CodemodeSection(inline, runtime.harness.options.CodemodeNamespaces, budget)
+		selectedNamespaces := runtime.harness.options.CodemodeNamespaces
+		if namespaces != nil {
+			selectedNamespaces = *namespaces
+		}
+		catalogue, err := CodemodeSection(inline, selectedNamespaces, budget)
 		if err != nil {
 			return nil, err
 		}

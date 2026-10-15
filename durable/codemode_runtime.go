@@ -90,6 +90,11 @@ type codemodeJournalState struct {
 // commits before VM resolution. A replayed call must match ID/name/arguments.
 // Source is a durable JSON string, never evaluated by the host Go process.
 func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox) (CodemodeResult, error) {
+	return r.runCodemode(ctx, key, source, sandbox, nil)
+}
+
+// Namespace overrides apply to new runs; replay uses persisted metadata.
+func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace) (CodemodeResult, error) {
 	if err := r.check(); err != nil {
 		return CodemodeResult{}, err
 	}
@@ -137,7 +142,11 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 	if now > int64(^uint64(0)>>1)-parsed.TimeoutMs {
 		return CodemodeResult{}, reject("codemode deadline overflow")
 	}
-	start := CodemodeStart{PaidModels: r.harness.options.PaidModels, Namespaces: append([]CodemodeNamespace(nil), r.harness.options.CodemodeNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	selectedNamespaces := r.harness.options.CodemodeNamespaces
+	if namespaces != nil {
+		selectedNamespaces = *namespaces
+	}
+	start := CodemodeStart{PaidModels: r.harness.options.PaidModels, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	for _, global := range r.harness.options.CodemodeGlobals {
 		start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 	}

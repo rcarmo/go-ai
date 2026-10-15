@@ -900,6 +900,12 @@ The adapter now retains a detached expected call instead of sharing its argument
 
 Ownership/stale-delivery/model-recovery race count 3 passes in 29.272s. Full normal root tests pass (durable 77.224s, tools 4.527s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance remain unfinished.
 
+## Extension-scoped namespaces
+
+`CodemodeExtensionOptions.Namespaces` now captures a validated namespace list for both prompt grouping and new-run discovery metadata. Nil inherits harness namespaces; an explicit empty list disables grouping. Existing runs still use their persisted namespace snapshot. Global callbacks and paid-model authority remain harness-scoped.
+
+Real generation/VM tests verify extension namespaces override a conflicting harness list and remain detached from caller mutation. Existing namespace restart coverage is included in the focused run; extension replacement during interrupted replay needs its own counterpart. Namespace/prompt/restart race count 3 passes in 41.232s. Full normal root tests pass (durable 78.968s, tools 4.547s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
