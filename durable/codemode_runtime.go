@@ -26,6 +26,7 @@ type CodemodeSandbox interface {
 // without an identity must themselves preserve semantics across reopen.
 type CodemodeSandboxIdentity interface{ RuntimeIdentity() string }
 type CodemodeStart struct {
+	InterruptBudget int                         `json:"interruptBudget,omitempty"`
 	Globals         []CodemodeGlobalDescription `json:"globals,omitempty"`
 	PaidModels      bool                        `json:"paidModels,omitempty"`
 	Namespaces      []CodemodeNamespace         `json:"namespaces,omitempty"`
@@ -92,11 +93,11 @@ type codemodeJournalState struct {
 // commits before VM resolution. A replayed call must match ID/name/arguments.
 // Source is a durable JSON string, never evaluated by the host Go process.
 func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox) (CodemodeResult, error) {
-	return r.runCodemode(ctx, key, source, sandbox, nil, nil, nil)
+	return r.runCodemode(ctx, key, source, sandbox, nil, nil, nil, nil)
 }
 
 // Namespace overrides apply to new runs; replay uses persisted metadata.
-func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool, globals *[]CodemodeGlobal) (CodemodeResult, error) {
+func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool, globals *[]CodemodeGlobal, interruptBudget *int) (CodemodeResult, error) {
 	if err := r.check(); err != nil {
 		return CodemodeResult{}, err
 	}
@@ -152,7 +153,14 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if namespaces != nil {
 		selectedNamespaces = *namespaces
 	}
-	start := CodemodeStart{PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	budget := 0
+	if interruptBudget != nil {
+		budget = *interruptBudget
+	}
+	if budget < 0 || budget > 1000000 {
+		return CodemodeResult{}, reject("invalid codemode interrupt budget")
+	}
+	start := CodemodeStart{InterruptBudget: budget, PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	selectedGlobals := r.harness.options.CodemodeGlobals
 	if globals != nil {
 		selectedGlobals = *globals

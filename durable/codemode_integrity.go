@@ -30,7 +30,7 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if err := fromObject(journalDoc.Value, &journal, l); err != nil {
 		return err
 	}
-	if run.Start.Version != 2 || run.Start.Deadline <= run.Start.StartedAt || run.Start.Deadline-run.Start.StartedAt > 2147483647 || run.Start.MaxOutputTokens < 0 || uint64(run.Start.MaxOutputTokens) > MaxID || run.Start.Seed > 0xffffffff || len(run.Source) > l.MaxStringBytes || len(journal.Issued) > l.MaxPage || len(journal.Deliveries) > len(journal.Issued) {
+	if run.Start.InterruptBudget < 0 || run.Start.InterruptBudget > 1000000 || run.Start.Version != 2 || run.Start.Deadline <= run.Start.StartedAt || run.Start.Deadline-run.Start.StartedAt > 2147483647 || run.Start.MaxOutputTokens < 0 || uint64(run.Start.MaxOutputTokens) > MaxID || run.Start.Seed > 0xffffffff || len(run.Source) > l.MaxStringBytes || len(journal.Issued) > l.MaxPage || len(journal.Deliveries) > len(journal.Issued) {
 		return reject("invalid codemode start/journal limits")
 	}
 	if err := validateCodemodeGlobalDescriptions(run.Start.Globals, l); err != nil {

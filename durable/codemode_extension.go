@@ -29,6 +29,8 @@ type CodemodeExtensionOptions struct {
 	Models *bool
 	// Nil inherits host callbacks; explicit empty revokes all custom globals.
 	Globals *[]CodemodeGlobal
+	// Nil/zero keeps deadline-only execution; positive values cap compute polls.
+	InterruptBudget *int
 }
 
 // NewCodemodeExtension installs a model-only, replay-safe serial candidate.
@@ -40,6 +42,14 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	budget := DefaultCodemodeInlineBudget
 	if len(options) == 1 && options[0].InlineBudget != nil {
 		budget = *options[0].InlineBudget
+	}
+	var interruptBudget *int
+	if len(options) == 1 && options[0].InterruptBudget != nil {
+		copy := *options[0].InterruptBudget
+		if copy < 0 || copy > 1000000 {
+			return Extension{}, reject("invalid codemode interrupt budget")
+		}
+		interruptBudget = &copy
 	}
 	var globals *[]CodemodeGlobal
 	if len(options) == 1 && options[0].Globals != nil {
@@ -73,7 +83,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")
 		}
-		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models, globals)
+		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models, globals, interruptBudget)
 		if err != nil {
 			return ToolResult{}, err
 		}

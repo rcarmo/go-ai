@@ -984,6 +984,12 @@ QuickJS engine options now accept a positive compute-poll budget, shared across 
 
 Compute/hard-loop/microtask/global-timeout race count 3 passes in 23.063s. Full normal root tests pass (durable 80.251s, tools 4.369s), with static/logging/non-CGO and diff checks. The initial 1000-poll microtask test hit its 5s wall deadline under race before exhaustion; the final 10-poll test verifies deterministic exhaustion with unchanged wall limits. This is not a measured 1000-poll latency result. Diagnostic logs were removed after analysis. Durable budget identity/configuration, large output/parallel and final acceptance remain unfinished.
 
+## Persisted optional compute budgets
+
+Extension `InterruptBudget` is now validated/captured and stored in `CodemodeStart`; the adapter passes the pinned value to QuickJS. Nil/zero retains deadline-only mode, positive values up to one million bound compute polls. Replacing the extension during interrupted replay does not change the existing run's budget. The engine budget mechanism does not implement upstream remote override or default-inline API semantics.
+
+Real model/VM tests verify a captured 10-poll budget produces an error transcript, while recovery checks retain 1000 polls after replacement with 2000. Focused budget/recovery race count 3 passes in 27.776s. Full normal root tests pass (durable 83.450s, tools 4.452s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

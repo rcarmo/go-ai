@@ -17,6 +17,9 @@ type namespaceRestartSandbox120 struct {
 }
 
 func (s *namespaceRestartSandbox120) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
+	if start.InterruptBudget != 1000 {
+		s.t.Errorf("compute budget replay drift: %d", start.InterruptBudget)
+	}
 	if len(start.Namespaces) != 1 || start.Namespaces[0].Description != "original" {
 		s.t.Errorf("execution namespace snapshot drift: %+v", start.Namespaces)
 	}
@@ -42,7 +45,8 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 			t.Fatal(err)
 		}
 		namespaces := []CodemodeNamespace{{Name: "recovery", Prefix: "recovery_", Description: "original"}}
-		extension, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces})
+		budget := 1000
+		extension, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces, InterruptBudget: &budget})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +109,8 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 			t.Fatal(err)
 		}
 		namespaces[0].Description = "changed"
-		replacement, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces})
+		budget = 2000
+		replacement, err := NewCodemodeExtension(sandbox, CodemodeExtensionOptions{Namespaces: &namespaces, InterruptBudget: &budget})
 		if err != nil {
 			t.Fatal(err)
 		}

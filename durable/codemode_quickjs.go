@@ -49,7 +49,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{})}
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
-	opts := quickjs.Options{SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
+	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
 	for key, value := range start.Store {
 		raw, err := json.Marshal(value)
 		if err != nil {
