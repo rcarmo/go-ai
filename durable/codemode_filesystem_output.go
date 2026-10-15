@@ -7,7 +7,23 @@ import (
 
 // Filesystem output uses only the environment capability. The directory is
 // persisted before writes so retries/reopen reuse fixed output filenames.
-func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, fs FileSystem) (CodemodeOutputWriter, error) {
+func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, fs FileSystem) (writer CodemodeOutputWriter, err error) {
+	defer func() {
+		if recover() != nil {
+			writer = nil
+			err = reject("codemode filesystem output callback panic")
+		}
+	}()
+	if ctx == nil {
+		return nil, reject("nil codemode output context")
+	}
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	id := fs.ID()
+	if id == "" || len(id) > r.harness.session.limits.MaxStringBytes || strings.ContainsAny(id, "\r\n") {
+		return nil, reject("invalid codemode output filesystem identity")
+	}
 	var directory, filesystemID string
 	if err := r.harness.session.readTasks(ctx, func(state Snapshot) error {
 		for _, doc := range state.Documents {
@@ -25,7 +41,7 @@ func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, 
 		return nil, err
 	}
 	if directory != "" {
-		if filesystemID != fs.ID() {
+		if filesystemID != id {
 			return nil, reject("codemode output filesystem changed")
 		}
 		return &codemodeFSWriter{FileSystem: fs, directory: directory}, nil
@@ -37,9 +53,8 @@ func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, 
 	if created == "" || len(created) > r.harness.session.limits.MaxStringBytes || strings.ContainsAny(created, "\r\n") {
 		return nil, reject("invalid codemode output directory")
 	}
-	id := fs.ID()
-	if id == "" {
-		return nil, reject("empty codemode output filesystem identity")
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
 	err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		for _, doc := range tx.state.Documents {

@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -73,4 +74,68 @@ func TestCodemode120FilesystemDefaultWriterPersistsAddress(t *testing.T) {
 			t.Fatal(fs.creates, fs.writes, fs.files)
 		}
 	})
+}
+
+type brokenCodemodeFS120 struct {
+	*codemodeFS120
+	panicID, panicCreate bool
+}
+
+func (f *brokenCodemodeFS120) ID() string {
+	if f.panicID {
+		panic("private filesystem details")
+	}
+	return f.id
+}
+func (f *brokenCodemodeFS120) CreateTempDir(ctx context.Context, prefix string) (string, error) {
+	if f.panicCreate {
+		panic("private filesystem details")
+	}
+	return f.codemodeFS120.CreateTempDir(ctx, prefix)
+}
+func TestCodemode120FilesystemAdmissionRejectsBeforeAllocationAndContainsPanic(t *testing.T) {
+	engine, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close(bg)
+	for _, mode := range []string{"empty-id", "oversized-id", "newline-id", "panic-id", "panic-create"} {
+		t.Run(mode, func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				fs := &brokenCodemodeFS120{codemodeFS120: &codemodeFS120{id: "valid"}}
+				switch mode {
+				case "empty-id":
+					fs.id = ""
+				case "oversized-id":
+					fs.id = strings.Repeat("x", DefaultLimits().MaxStringBytes+1)
+				case "newline-id":
+					fs.id = "invalid\n"
+				case "panic-id":
+					fs.panicID = true
+				case "panic-create":
+					fs.panicCreate = true
+				}
+				registry := NewRegistry()
+				def := taskDefinition(t, "fs-admission", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					if _, err := r.RunCodemode(ctx, "script", "return 1", engine); err != nil {
+						return err
+					}
+					writer, err := r.codemodeFilesystemWriter(ctx, "script", fs)
+					if err == nil || writer != nil || strings.Contains(err.Error(), "private") {
+						t.Errorf("invalid filesystem accepted/panic leaked writer=%v err=%v", writer, err)
+					}
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+				})
+				if _, err := registry.RegisterTask(def); err != nil {
+					t.Fatal(err)
+				}
+				h := openHarness(t, b.store, Options{Registry: registry})
+				id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				record := waitPublicTask(t, h, id)
+				if record.State.Outcome.Status != "completed" || fs.creates != 0 || fs.writes != 0 {
+					t.Fatal(record.State.Outcome, fs.creates, fs.writes)
+				}
+			})
+		})
+	}
 }

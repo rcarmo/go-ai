@@ -954,6 +954,12 @@ Memory/journal tests now inject rejected, uncertain-before and uncertain-after d
 
 Directory fault race count 3 passes in 12.327s. Full normal root tests pass (durable 82.650s, tools 4.540s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
 
+## Filesystem output callback admission
+
+Filesystem identity is now validated before temporary-directory creation, including empty, oversized and newline-containing IDs. Callback panics during identity/directory setup become sanitised rejection errors; cancellation is checked before persistence. Tests initialise a real codemode run and verify invalid identities allocate/write nothing, and private panic details do not escape.
+
+All filesystem-output/fault/reopen/admission race tests, count 3, pass in 39.516s. Full normal root tests pass (durable 83.566s, tools 4.659s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Environment-owned orphan lifetime, large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
