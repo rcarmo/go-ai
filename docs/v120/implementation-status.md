@@ -1038,6 +1038,12 @@ Full normal root tests pass (durable 81.152s, tools 4.323s), with static/logging
 
 Root race count 3 passes in 1.019s. Full normal root tests pass (durable 80.462s, tools 4.441s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Exact mixed tool-result integration, larger output/parallel and final acceptance remain unfinished.
 
+## Mixed nested tool result integration
+
+Concrete VM/reuse tests verify mixed empty-text/image/text results resolve to text with separators, image-only results resolve to an empty string and no tool image is implicitly displayed. Nested bounding now includes the newlines inserted by its text projection, preventing a two-byte limit from returning three bytes. Ordinary tool chunk concatenation retains its established contract through a separate join parameter. Replay identity advances to host56.
+
+Mixed/nested/ordinary-output race count 3 passes in 43.712s; final identity/mixed race count 3 passes in 11.818s. Full normal root tests pass (durable 84.398s, tools 4.324s), with static/logging/non-CGO and diff checks before the identity-only bump. The first global join change failed ordinary output tests; limiting newline joins to nested projection corrected it without weakening those assertions. Diagnostic logs were removed after analysis. Larger output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

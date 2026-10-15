@@ -142,13 +142,11 @@ func retainToolOutput(cp *toolCheckpoint, text string, l ToolOutputLimits, repla
 	return nil
 }
 func boundToolBlocks(blocks []goai.ContentBlock, l ToolOutputLimits) []goai.ContentBlock {
-	var text strings.Builder
-	for _, b := range blocks {
-		if b.Type == "text" {
-			text.WriteString(b.Text)
-		}
-	}
-	joined := text.String()
+	return boundToolBlocksJoined(blocks, l, "")
+}
+
+func boundToolBlocksJoined(blocks []goai.ContentBlock, l ToolOutputLimits, separator string) []goai.ContentBlock {
+	joined := goai.ContentText(blocks, separator)
 	bounded := boundToolText(joined, l)
 	if len(bounded) == len(joined) {
 		return blocks

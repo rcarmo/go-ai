@@ -471,7 +471,7 @@ func settleNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime, re
 	}
 	limits := resolvedToolOutputLimits(input.Offer.OutputLimits)
 	if len(detached.Blocks) > 0 {
-		detached.Blocks = boundToolBlocks(detached.Blocks, limits)
+		detached.Blocks = boundToolBlocksJoined(detached.Blocks, limits, "\n")
 		detached.Content = goai.ContentText(detached.Blocks)
 	} else {
 		detached.Content = boundToolText(detached.Content, limits)
