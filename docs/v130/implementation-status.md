@@ -13,3 +13,7 @@ Anthropic, Bedrock, Mistral, Responses and both Codex completion loops now use c
 ## Cross-model thinking
 
 TransformMessages now drops all thinking when provider/API/model identity differs, instead of exposing readable reasoning as text. Same-model signed/redacted blocks survive; unsigned whitespace-only thinking drops. New identity matrix checks caller isolation; model-selection expectation updated to1.3 contract. Root-wide Thinking/Transform race selection passes (consumer2.056s, affected providers pass); no full-suite acceptance claim. Anthropic error-result image extraction/order is the next observed gap: current native path flattens results to text and can lose image content.
+
+## Anthropic tool-result images
+
+Anthropic now retains image blocks inside successful ordinary results; errored results keep text/placeholder blocks only and move images with a call-ID caption after every tool_result in the adjacent result group. Deferred-reference sibling text/images remain intact after grouped results. Tests assert successful/error image preservation and ordering, one placeholder per consecutive image run, error flag, caller isolation and updated sibling expectations. Full Anthropic race count3 passes6.922s plus vet/diff. Other Anthropic1.3 thinking-off/effort and Bedrock image conversion deltas remain separate audit work.

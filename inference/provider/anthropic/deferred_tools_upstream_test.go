@@ -37,7 +37,7 @@ func TestUpstreamDeferredToolsAnthropicReferencesAndFallbacks(t *testing.T) {
 	}
 
 	missing := buildRequest(opusDeferredModel(), deferredContext([]goai.Tool{deferredTool("base_tool")}, []string{"late_tool"}), &goai.StreamOptions{})
-	if len(missing.Tools) != 1 || missing.Tools[0].DeferLoading || missing.Messages[2].Content.([]anthropicContentBlock)[0].Content != "done" {
+	if len(missing.Tools) != 1 || missing.Tools[0].DeferLoading || missing.Messages[2].Content.([]anthropicContentBlock)[0].Content.([]anthropicContentBlock)[0].Text != "done" {
 		t.Fatalf("missing-tool fallback req=%#v", missing)
 	}
 
@@ -61,7 +61,7 @@ func TestUpstreamDeferredToolsAnthropicPreservesSiblingOutputAndOAuthCanonicaliz
 	ctx.Messages = append(ctx.Messages[:3], append([]goai.Message{{Role: goai.RoleToolResult, ToolCallID: "call_2", ToolName: "base_tool", Content: []goai.ContentBlock{{Type: "text", Text: "second result"}}}}, ctx.Messages[3:]...)...)
 	req := buildRequest(opusDeferredModel(), ctx, &goai.StreamOptions{})
 	content := req.Messages[2].Content.([]anthropicContentBlock)
-	if len(content) != 3 || content[0].Type != "tool_result" || content[1].Text != "work completed" || content[2].Source == nil || content[2].Source.Data != "aW1hZ2U=" {
+	if len(content) != 4 || content[0].Type != "tool_result" || content[1].Type != "tool_result" || content[2].Text != "work completed" || content[3].Source == nil || content[3].Source.Data != "aW1hZ2U=" {
 		t.Fatalf("sibling-preserving content=%#v", content)
 	}
 

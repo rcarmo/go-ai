@@ -553,6 +553,10 @@ type anthropicContentBlock struct {
 	Source *anthropicImageSource `json:"source,omitempty"`
 }
 
+func anthropicImageBlock(block goai.ContentBlock) anthropicContentBlock {
+	return anthropicContentBlock{Type: "image", Source: &anthropicImageSource{Type: "base64", MediaType: block.MimeType, Data: block.Data}}
+}
+
 type anthropicImageSource struct {
 	Type      string `json:"type"`
 	MediaType string `json:"media_type"`
@@ -677,7 +681,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 	deferredPlan := goai.PlanDeferredTools(convCtx, compatForDeferred.supportsToolReferences, canonicalizeOAuthTools)
 	toolCallIDMap := make(map[string]string) // original → normalized
+	toolResultGroup := -1
 	for _, m := range transformed {
+		if m.Role != goai.RoleToolResult {
+			toolResultGroup = -1
+		}
 		switch m.Role {
 		case goai.RoleSystem:
 			var blocks []anthropicContentBlock
@@ -789,28 +797,69 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				toolUseID = mapped
 			}
 			refs := goai.DeferredToolsForMarker(deferredPlan, m.AddedToolNames, canonicalizeOAuthTools)
-			resultContent := interface{}(extractText(m.Content))
+			var resultContent interface{}
+			var trailing []anthropicContentBlock
 			if len(refs) > 0 {
 				var refBlocks []map[string]string
 				for _, t := range refs {
 					refBlocks = append(refBlocks, map[string]string{"type": "tool_reference", "tool_name": toClaudeCodeToolName(t.Name, namingModel)})
 				}
 				resultContent = refBlocks
-			}
-			blocks := []anthropicContentBlock{{Type: "tool_result", ToolUseID: toolUseID, Content: resultContent, IsError: m.IsError}}
-			if len(refs) > 0 {
-				for _, b := range m.Content {
-					switch b.Type {
+				for _, block := range m.Content {
+					switch block.Type {
 					case "text":
-						if strings.TrimSpace(b.Text) != "" {
-							blocks = append(blocks, anthropicContentBlock{Type: "text", Text: b.Text})
+						if strings.TrimSpace(block.Text) != "" {
+							trailing = append(trailing, anthropicContentBlock{Type: "text", Text: block.Text})
 						}
 					case "image":
-						blocks = append(blocks, anthropicContentBlock{Type: "image", Source: &anthropicImageSource{Type: "base64", MediaType: b.MimeType, Data: b.Data}})
+						trailing = append(trailing, anthropicImageBlock(block))
 					}
 				}
+			} else {
+				var content []anthropicContentBlock
+				imageRun := false
+				for _, block := range m.Content {
+					switch block.Type {
+					case "text":
+						content = append(content, anthropicContentBlock{Type: "text", Text: block.Text})
+						imageRun = false
+					case "image":
+						if m.IsError {
+							if !imageRun {
+								content = append(content, anthropicContentBlock{Type: "text", Text: "(image attached after the tool results)"})
+							}
+							imageRun = true
+							trailing = append(trailing, anthropicImageBlock(block))
+						} else {
+							content = append(content, anthropicImageBlock(block))
+						}
+					}
+				}
+				if len(trailing) > 0 {
+					trailing = append([]anthropicContentBlock{{Type: "text", Text: fmt.Sprintf("Images from tool result %s:", m.ToolCallID)}}, trailing...)
+				}
+				if len(content) == 0 {
+					resultContent = ""
+				} else {
+					resultContent = content
+				}
 			}
-			req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: blocks})
+			resultBlock := anthropicContentBlock{Type: "tool_result", ToolUseID: toolUseID, Content: resultContent, IsError: m.IsError}
+			if toolResultGroup < 0 {
+				req.Messages = append(req.Messages, anthropicMessage{Role: "user", Content: []anthropicContentBlock{resultBlock}})
+				toolResultGroup = len(req.Messages) - 1
+			} else {
+				existing := req.Messages[toolResultGroup].Content.([]anthropicContentBlock)
+				index := 0
+				for index < len(existing) && existing[index].Type == "tool_result" {
+					index++
+				}
+				existing = append(existing, anthropicContentBlock{})
+				copy(existing[index+1:], existing[index:])
+				existing[index] = resultBlock
+				req.Messages[toolResultGroup].Content = existing
+			}
+			req.Messages[toolResultGroup].Content = append(req.Messages[toolResultGroup].Content.([]anthropicContentBlock), trailing...)
 		}
 	}
 
