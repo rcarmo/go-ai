@@ -1344,6 +1344,12 @@ Remote terminal events are now held until `Execute` returns successfully. Previo
 
 Go 1.27.1 remote race tests passed three times in 84.545s. Full normal tests passed (durable 105.950s, tools 4.402s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remote wire/batching, large-image representation and whole-port acceptance remain incomplete.
 
+## Consolidated AI source crosswalk
+
+`ai-crosswalk.md` maps the changed upstream source files to native implementation, verification and limitations. Anthropic HTTP tests now explicitly cover wrong error type, payload-hook error, SSE error after headers and request-local fallback state; a later request returns to strict sampling. Existing production code passes without changes.
+
+Go 1.27.1 Anthropic race tests passed three times in 1.087s. Full normal tests passed (durable 106.742s, tools 4.382s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Explicit cancellation/wrong-status fallback crosswalk, reproducible catalogue generation and final AI acceptance still need verification. Durable image/remote gaps and security findings continue to prevent full parity acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
