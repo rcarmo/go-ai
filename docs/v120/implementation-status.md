@@ -1162,6 +1162,14 @@ A six-classifier-call workload holds the first four provider calls at a barrier.
 
 Go 1.27.1 combined mid-flight/capacity race tests passed three times in 67.644s. Before adding the second crash boundary, full normal root tests passed (durable 95.218s, tools 4.352s), with vet, staticcheck, logging, non-CGO and diff checks; the final change is test-only. Diagnostic logs were deleted after analysis. Mixed classifier/image/global capacity, cancellation/divergence and fatal-initial-drain acceptance still need tests before default parallel enablement.
 
+## Parallel paid mix and terminal admission gates
+
+A six-call classifier/image workload now verifies the two paid operations share the same four-job capacity, followed by a custom-global continuation. The maximum observed provider concurrency is four and all six paid calls complete. Fatal script errors before the initial drain settle with zero tool effects and no store writes; a settled rerun returns the same error.
+
+Mid-flight replay call-stream divergence exposed an active-child cleanup gap. Rejection prevented new effects but left the previously admitted slow nested call active, preventing caller completion. That divergence path now aborts this run's admitted nested children. Storage failures still leave recoverable children resumable. Both backend tests retain one confirmed fast effect and zero slow completion effects after divergence.
+
+Go 1.27.1 mixed-capacity/divergence/initial-error/finish race tests passed three times in 103.315s. Full normal root tests passed (durable 98.037s, tools 4.374s), with vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Parallel remains opt-in: caller abort, other divergence variants and default enablement still need verification. Larger-output storage and final whole-port acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

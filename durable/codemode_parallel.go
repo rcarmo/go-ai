@@ -111,6 +111,9 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !equalJSONValue(call.Arguments, old.Arguments) {
+						if err := r.abortCodemodeChildren(linked, key, journal); err != nil {
+							return CodemodeResult{}, err
+						}
 						return CodemodeResult{}, reject("sandbox call replay divergence")
 					}
 				} else {
