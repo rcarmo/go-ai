@@ -535,15 +535,16 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 
 	// Close tool calls
 	for _, at := range activeTools {
-		args, _ := jsonparse.ParsePartialJSON(at.argsBuf)
+		args, argumentsError := jsonparse.ParseToolCallArguments(at.argsBuf)
 		if args == nil {
 			args = map[string]interface{}{}
 		}
 		partial.Content[at.contentIdx].Arguments = args
+		partial.Content[at.contentIdx].ArgumentsError = argumentsError
 		send(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall: goai.ToolCall{
-				Type: "toolCall", ID: at.id, Name: at.name, Arguments: args,
+				Type: "toolCall", ID: at.id, Name: at.name, Arguments: args, ArgumentsError: argumentsError,
 			},
 			Partial: partial,
 		})

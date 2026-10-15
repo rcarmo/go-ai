@@ -1023,15 +1023,14 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			case "thinking":
 				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: c.Thinking, Partial: partial})
 			case "toolCall":
-				if partial.Content[idx].Arguments == nil && toolJSON[idx] != "" {
-					if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
-						partial.Content[idx].Arguments = args
-					}
+				if raw, ok := toolJSON[idx]; ok {
+					partial.Content[idx].Arguments, partial.Content[idx].ArgumentsError = jsonparse.ParseToolCallArguments(raw)
 				}
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
 						Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: partial.Content[idx].Arguments,
+						ArgumentsError: partial.Content[idx].ArgumentsError,
 					},
 					Partial: partial,
 				})

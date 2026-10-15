@@ -945,15 +945,16 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 				finalizeBedrockThinkingBlock(&partial.Content[ci], bs.redacted)
 				send(&goai.ThinkingEndEvent{ContentIndex: ci, Content: partial.Content[ci].Thinking, Partial: partial})
 			case "toolCall":
-				args, _ := jsonparse.ParsePartialJSON(bs.partialJSON)
+				args, argumentsError := jsonparse.ParseToolCallArguments(bs.partialJSON)
 				if args == nil {
 					args = map[string]interface{}{}
 				}
 				partial.Content[ci].Arguments = args
+				partial.Content[ci].ArgumentsError = argumentsError
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: ci,
 					ToolCall: goai.ToolCall{
-						Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: args,
+						Type: "toolCall", ID: block.ID, Name: block.Name, Arguments: args, ArgumentsError: argumentsError,
 					},
 					Partial: partial,
 				})

@@ -522,14 +522,15 @@ type ToolResult struct {
 	thrownError             string
 }
 type toolCheckpoint struct {
-	DurationMs    *int64    `json:"durationMs,omitempty"`
-	Offer         toolOffer `json:"offer"`
-	CallID        string    `json:"callId"`
-	Arguments     JSON      `json:"arguments"`
-	Started       bool      `json:"started"`
-	Abort         bool      `json:"abort,omitempty"`
-	ErrorCode     string    `json:"errorCode,omitempty"`
-	ReportedError bool      `json:"reportedError,omitempty"`
+	DurationMs     *int64    `json:"durationMs,omitempty"`
+	Offer          toolOffer `json:"offer"`
+	CallID         string    `json:"callId"`
+	Arguments      JSON      `json:"arguments"`
+	ArgumentsError string    `json:"argumentsError,omitempty"`
+	Started        bool      `json:"started"`
+	Abort          bool      `json:"abort,omitempty"`
+	ErrorCode      string    `json:"errorCode,omitempty"`
+	ReportedError  bool      `json:"reportedError,omitempty"`
 	// Present for final results that have passed afterTool. Older receipts
 	// derive their error flag from ErrorCode/ReportedError.
 	FinalIsError     *bool            `json:"finalIsError,omitempty"`
@@ -935,7 +936,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 				break
 			}
 		}
-		tc := toolCheckpoint{Offer: offer, CallID: call.ID, Arguments: JSON(call.Arguments)}
+		tc := toolCheckpoint{Offer: offer, CallID: call.ID, Arguments: JSON(call.Arguments), ArgumentsError: call.ArgumentsError}
 		// ContentBlock omits empty arguments on JSON round-trip; the validated
 		// empty object remains an object, never an absent argument authority.
 		if tc.Arguments == nil {
@@ -1278,6 +1279,9 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		return h.finishTool(task, cp, ToolResult{}, code)
 	}
 	if !cp.Started {
+		if cp.ArgumentsError != "" {
+			return h.finishTool(task, cp, ToolResult{Content: cp.ArgumentsError, IsError: true}, "invalid_arguments")
+		}
 		cp.Arguments, err = validateArguments(runtime.context, reg, cp.Arguments, h.session.limits)
 		if err != nil {
 			return h.finishTool(task, cp, ToolResult{}, "invalid_arguments")

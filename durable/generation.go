@@ -892,7 +892,7 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 				if len(arguments) == 0 {
 					r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
 				}
-				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
+				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments, ArgumentsError: c.ArgumentsError, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
 			default:
 				ok = false
 				r.ErrorCode = "content_unsupported"

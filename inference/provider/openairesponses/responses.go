@@ -1228,18 +1228,16 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				if doneItem.Arguments != "" {
 					current.partialJSON = doneItem.Arguments
 				}
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args == nil {
-					args = map[string]interface{}{}
-				}
+				args, argumentsError := jsonparse.ParseToolCallArguments(current.partialJSON)
 				partial.Content[idx].Arguments = args
+				partial.Content[idx].ArgumentsError = argumentsError
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
 					ToolCall: goai.ToolCall{
 						Type:      "toolCall",
 						ID:        partial.Content[idx].ID,
 						Name:      partial.Content[idx].Name,
-						Arguments: args,
+						Arguments: args, ArgumentsError: argumentsError,
 						Namespace: partial.Content[idx].Namespace,
 					},
 					Partial: partial,

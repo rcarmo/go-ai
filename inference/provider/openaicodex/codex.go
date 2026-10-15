@@ -927,24 +927,21 @@ readLoop:
 			case "custom_tool_call":
 				args := map[string]interface{}{"input": current.customPayload}
 				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
 			case "function_call":
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args == nil {
-					var item struct {
-						Arguments string `json:"arguments"`
-					}
-					if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
-						args, _ = jsonparse.ParsePartialJSON(item.Arguments)
-					}
+				rawArgs := current.partialJSON
+				var item struct {
+					Arguments string `json:"arguments"`
 				}
-				if args == nil {
-					args = map[string]interface{}{}
+				if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
+					rawArgs = item.Arguments
 				}
+				args, argumentsError := jsonparse.ParseToolCallArguments(rawArgs)
+				partial.Content[idx].ArgumentsError = argumentsError
 				partial.Content[idx].Arguments = args
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
-					ToolCall:     goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args},
+					ToolCall:     goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError},
 					Partial:      partial,
 				})
 			}
@@ -1298,22 +1295,19 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			case "custom_tool_call":
 				args := map[string]interface{}{"input": current.customPayload}
 				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
 			case "function_call":
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args == nil {
-					var item struct {
-						Arguments string `json:"arguments"`
-					}
-					if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
-						args, _ = jsonparse.ParsePartialJSON(item.Arguments)
-					}
+				rawArgs := current.partialJSON
+				var item struct {
+					Arguments string `json:"arguments"`
 				}
-				if args == nil {
-					args = map[string]interface{}{}
+				if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
+					rawArgs = item.Arguments
 				}
+				args, argumentsError := jsonparse.ParseToolCallArguments(rawArgs)
+				partial.Content[idx].ArgumentsError = argumentsError
 				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args}, Partial: partial})
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
 			}
 			current = nil
 		case "error":
