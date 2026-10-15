@@ -38,3 +38,23 @@ func FuzzCodemode120OutputProjection(f *testing.F) {
 		}
 	})
 }
+
+func TestCodemode120TokenUnitEstimateSaturatesWithoutOverflow(t *testing.T) {
+	max := int(^uint(0) >> 1)
+	for _, tokens := range []int{0, 1, 10, max / 4, max/4 + 1, max} {
+		units := codemodeTokenUnits(tokens)
+		if units < 0 || tokens > 0 && units < tokens {
+			t.Fatal(tokens, units)
+		}
+	}
+	text := "START 😀 FINISH"
+	if got := boundCodemodeOutput(text, max); got != text {
+		t.Fatal(got)
+	}
+	if got := projectCodemodeOutput(text, max); got != text {
+		t.Fatal(got)
+	}
+	if got := codemodeOutputWithPath(text, "/owned/output.txt", max); !strings.Contains(got, text) || !strings.Contains(got, "/owned/output.txt") {
+		t.Fatal(got)
+	}
+}

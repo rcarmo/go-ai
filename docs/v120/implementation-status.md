@@ -1044,6 +1044,12 @@ Concrete VM/reuse tests verify mixed empty-text/image/text results resolve to te
 
 Mixed/nested/ordinary-output race count 3 passes in 43.712s; final identity/mixed race count 3 passes in 11.818s. Full normal root tests pass (durable 84.398s, tools 4.324s), with static/logging/non-CGO and diff checks before the identity-only bump. The first global join change failed ordinary output tests; limiting newline joins to nested projection corrected it without weakening those assertions. Diagnostic logs were removed after analysis. Larger output/parallel and final acceptance remain unfinished.
 
+## Overflow-safe token estimate
+
+All output projections now share a saturating four-unit token estimate based on platform int capacity. Direct callers with very large budgets no longer overflow path-hint arithmetic; parser-safe values and narrower-host estimates retain output without multiplying beyond capacity. Tests cover zero, ordinary budgets and platform maximum values. Runtime identity advances to host57.
+
+Focused token/head-tail/line race count 3 passes in 1.135s. Full normal root tests pass (durable 85.405s, tools 4.277s), with static/logging/non-CGO and diff checks before the identity-only bump. Diagnostic logs were removed after analysis. This does not widen storage limits or complete large-output/parallel acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

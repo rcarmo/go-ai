@@ -13,6 +13,19 @@ func validateCodemodeFullText(text string) error {
 	return nil
 }
 
+// Saturate at platform int capacity; parser-safe token values can still
+// overflow a four-unit estimate on narrower hosts.
+func codemodeTokenUnits(tokens int) int {
+	if tokens <= 0 {
+		return 0
+	}
+	max := int(^uint(0) >> 1)
+	if tokens > max/4 {
+		return max
+	}
+	return tokens * 4
+}
+
 // Native serial candidate uses the pinned four-character/token estimate. It
 // retains a UTF8-safe prefix; full head/tail/spill rendering is separate.
 func boundCodemodeOutput(text string, tokens int) string {
@@ -22,10 +35,7 @@ func boundCodemodeOutput(text string, tokens int) string {
 	if tokens <= 0 {
 		return ""
 	}
-	if uint64(tokens) > MaxID/4 {
-		return text
-	}
-	budget := tokens * 4
+	budget := codemodeTokenUnits(tokens)
 	units := 0
 	for pos, r := range text {
 		count := 1

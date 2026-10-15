@@ -41,7 +41,7 @@ func projectCodemodeOutput(text string, tokens int) string {
 		return prefix
 	}
 	const marker = "\n… truncated …\n"
-	budget := tokens * 4
+	budget := codemodeTokenUnits(tokens)
 	markerUnits := codemodeTextUnits(marker)
 	if budget < markerUnits+8 {
 		return prefix
@@ -100,10 +100,10 @@ func codemodeOutputWithPath(text, path string, tokens int) string {
 		return projectCodemodeOutput(text, tokens)
 	}
 	hint := "\n[Full output: " + path + "]"
-	if tokens <= 0 || codemodeTextUnits(hint)+8 > tokens*4 {
+	if tokens <= 0 || codemodeTextUnits(hint)+8 > codemodeTokenUnits(tokens) {
 		return projectCodemodeOutput(text, tokens)
 	}
-	bodyUnits := tokens*4 - codemodeTextUnits(hint)
+	bodyUnits := codemodeTokenUnits(tokens) - codemodeTextUnits(hint)
 	body := projectCodemodeOutput(text, bodyUnits/4)
 	return strings.TrimRight(body, "\n") + hint
 }
