@@ -47,12 +47,19 @@ type QueuedItem struct {
 	Mode string
 }
 type ConversationSnapshot struct {
-	Conversation ID
-	Entries      []Entry
-	Tasks        []TaskRecord
-	Documents    map[string]JSON
-	Submissions  []Submission
-	NestedTools  []NestedToolSnapshot
+	Conversation      ID
+	Entries           []Entry
+	Tasks             []TaskRecord
+	Documents         map[string]JSON
+	Submissions       []Submission
+	NestedTools       []NestedToolSnapshot
+	CompactionFailure *CompactionFailure
+}
+
+type CompactionFailure struct {
+	Task   ID
+	Reason string
+	Error  string
 }
 
 // NestedToolSnapshot is committed active nested work, ordered by task ID.
@@ -81,6 +88,7 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 	}
 	result.Entries = view.Entries
 	result.Documents = view.Docs
+	result.CompactionFailure = compactionFailureFromLive(view.Docs["pi.live"])
 	for _, tid := range ids(state.Tasks) {
 		task := state.Tasks[tid]
 		if task.Conversation != id || terminalStatus(task.Status) {
@@ -149,6 +157,10 @@ func (s *AgentEventStream) Snapshot() (ConversationSnapshot, error) {
 }
 func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (ConversationSnapshot, error) {
 	result := ConversationSnapshot{Conversation: value.Conversation, Documents: map[string]JSON{}}
+	if value.CompactionFailure != nil {
+		copy := *value.CompactionFailure
+		result.CompactionFailure = &copy
+	}
 	for _, entry := range value.Entries {
 		copy, err := copyEntry(entry, limits)
 		if err != nil {
@@ -435,7 +447,11 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 				previous, current := eventCompactionStatuses(old.Value), eventCompactionStatuses(doc.Value)
 				for _, id := range ids(previous) {
 					if _, ok := current[id]; !ok {
-						events = append(events, AgentEvent{Type: "compaction_end", Seq: next.Seq, Task: id, Reason: previous[id].Reason})
+						event := AgentEvent{Type: "compaction_end", Seq: next.Seq, Task: id, Reason: previous[id].Reason}
+						if failure := compactionFailureFromLive(doc.Value); failure != nil && failure.Task == id {
+							event.Error = failure.Error
+						}
+						events = append(events, event)
 					}
 				}
 				for _, id := range ids(current) {

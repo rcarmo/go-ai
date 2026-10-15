@@ -2,11 +2,14 @@ package durable
 
 import (
 	"context"
+	goai "github.com/rcarmo/go-ai"
 	"testing"
 	"time"
 )
 
-func TestNestedTool120CommittedLifecycleEvents(t *testing.T) {
+func TestNestedTool120CommittedLifecycleEvents(t *testing.T) { testNestedLifecycle120(t, false) }
+func TestNestedTool120BlockedLifecycleEvents(t *testing.T)   { testNestedLifecycle120(t, true) }
+func testNestedLifecycle120(t *testing.T, blocked bool) {
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("event_leaf")
@@ -15,6 +18,17 @@ func TestNestedTool120CommittedLifecycleEvents(t *testing.T) {
 				return ToolResult{}, err
 			}
 			return ToolResult{Content: "finished"}, nil
+		}
+		if blocked {
+			leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+				t.Error("blocked executor ran")
+				return ToolResult{}, nil
+			}
+			if err := registry.Install(&Extension{Name: "block-nested", ToolHooks: ToolHooks{BeforeTool: func(context.Context, goai.ToolCall, *HookAPI) (*BeforeToolResult, error) {
+				return &BeforeToolResult{Block: "blocked"}, nil
+			}}}); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if err := registry.Register(leaf); err != nil {
 			t.Fatal(err)
@@ -69,7 +83,11 @@ func TestNestedTool120CommittedLifecycleEvents(t *testing.T) {
 						updates++
 					case "tool_execution_end":
 						ends++
-						if event.NestedResult == nil || event.NestedResult.Content != "finished" {
+						want := "finished"
+						if blocked {
+							want = "Tool blocked"
+						}
+						if event.NestedResult == nil || event.NestedResult.Content != want || event.NestedResult.IsError != blocked {
 							t.Error("nested result absent", event.NestedResult)
 						}
 					}
@@ -79,7 +97,11 @@ func TestNestedTool120CommittedLifecycleEvents(t *testing.T) {
 				t.Fatal("missing nested lifecycle", starts, updates, ends, end, ended)
 			}
 		}
-		if starts != 1 || updates < 1 || ends != 1 {
+		wantStarts := 1
+		if blocked {
+			wantStarts = 0
+		}
+		if starts != wantStarts || !blocked && updates < 1 || ends != 1 {
 			t.Fatal("nested lifecycle counts", starts, updates, ends)
 		}
 	})

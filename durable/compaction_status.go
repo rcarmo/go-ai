@@ -75,6 +75,36 @@ func (t *Tx) syncCompactionStatuses() error {
 			}
 			next = append(next, status)
 		}
+		if terminalStatus(task.Status) || taskHasDecidedOutcome(task) {
+			record, err := CanonicalTask(task, t.limits)
+			if err != nil {
+				return err
+			}
+			if outcome := record.State.Outcome; outcome != nil {
+				if outcome.Status == "failed" || outcome.Status == "faulted" || outcome.Status == "orphaned" {
+					message := "Compaction failed"
+					if outcome.Error != nil {
+						message = outcome.Error.Message
+					}
+					reason, _ := task.Checkpoint["reason"].(string)
+					if record.Input != nil {
+						if input, ok := record.Input.Value.(map[string]any); ok {
+							if captured, ok := input["reason"].(string); ok {
+								reason = captured
+							}
+						}
+					}
+					if reason == "" {
+						reason = "threshold"
+					}
+					value["compactionFailure"] = map[string]any{"taskId": task.ID, "reason": reason, "error": message}
+				} else if outcome.Result != nil && outcome.Result.Present {
+					if result, ok := outcome.Result.Value.(map[string]any); ok && result["compacted"] == true {
+						delete(value, "compactionFailure")
+					}
+				}
+			}
+		}
 		if len(next) == 0 {
 			delete(value, "compactions")
 		} else {
@@ -90,4 +120,18 @@ func (t *Tx) syncCompactionStatuses() error {
 		}
 	}
 	return nil
+}
+
+func compactionFailureFromLive(live JSON) *CompactionFailure {
+	raw, ok := live["compactionFailure"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	number, ok := exactNumber(raw["taskId"])
+	if !ok || !number.IsInt() || !number.Num().IsUint64() || number.Num().Uint64() == 0 || number.Num().Uint64() > MaxID {
+		return nil
+	}
+	reason, _ := raw["reason"].(string)
+	message, _ := raw["error"].(string)
+	return &CompactionFailure{Task: ID(number.Num().Uint64()), Reason: reason, Error: message}
 }

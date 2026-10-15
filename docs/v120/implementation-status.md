@@ -1410,6 +1410,12 @@ Event subscribers now receive nested `tool_execution_start`, `tool_execution_upd
 
 Backend subscription tests verify one start, persisted progress and one end with the final result, alongside existing event tests. Initial probes incorrectly read the legacy checkpoint and treated the task outcome's key reference as the receipt; the implementation now reads native state and the adopted result document. Go 1.27.1 event race tests passed three times in 11.241s. Full normal tests passed (durable 106.760s, tools 4.864s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Blocked-before-start, rejected-progress publication and compaction-failure projection still need targeted coverage; full parity is incomplete.
 
+## Compaction failure projection and blocked nested events
+
+Compaction status finalisation now retains the newest failed/faulted/orphaned outcome in `pi.live.compactionFailure`, including task ID, captured reason and error. Successful summary outcomes clear it; no-cut completions preserve it. Conversation snapshots expose a detached `CompactionFailure`, and `compaction_end` carries its matching error. Early failures resolve reason from task input because no prepared checkpoint may exist.
+
+Missing-model backend tests verify failure projection. Nested lifecycle tests now verify hook-blocked calls emit an error end result without a start or executor invocation. Go 1.27.1 combined focused race tests passed three times in 3.355s. Full normal tests passed (durable 110.655s, tools 4.679s), with vet, staticcheck, logging, non-CGO and diff checks before the final blocked-call test-only addition. Diagnostic logs were deleted after analysis. Failure clearing/reopen, rejected-progress publication and remaining durable event/live gaps still need targeted verification; full parity is incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

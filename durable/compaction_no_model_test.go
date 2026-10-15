@@ -30,6 +30,17 @@ func TestCompactionMissingModelFailsBeforeNoCutOrHooks(t *testing.T) {
 			t.Fatal(err)
 		}
 		record := waitPublicTask(t, h, id)
+		state, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view, err := conversationSnapshot(state, conversation.ID(), h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if view.CompactionFailure == nil || view.CompactionFailure.Task != id || view.CompactionFailure.Error != "Model openai/durable-test is not available" || view.CompactionFailure.Reason != "manual" {
+			t.Fatal("compaction failure snapshot absent", view.CompactionFailure)
+		}
 		if record.State.Outcome.Status != "failed" || record.State.Outcome.Error.Message != "Model openai/durable-test is not available" || record.State.Outcome.Error.Detail.Value.(map[string]any)["reason"] != "no_model" || hooks != 0 {
 			t.Fatal(record, hooks)
 		}
