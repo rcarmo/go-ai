@@ -1266,6 +1266,12 @@ The AI audit found a missing Mistral 1.2.0 transport contract: SDK-style fields 
 
 An HTTP test verifies the added fields and preserves a schema property named `maxTokens`. Existing affinity, replay, reasoning and header-timeout tests are retained. OpenRouter's credential-specific catalogue and 401/403/404 fallback cases already have local coverage; no duplicate was added. Go 1.27.1 focused Mistral race tests passed three times in 1.596s. Full normal tests passed (durable 105.694s, tools 4.409s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remaining AI audit and whole-port acceptance are incomplete.
 
+## Pi-messages provider thinking replay marker
+
+The AI audit found pi-messages terminal conversion dropped `providerThinkingLevel`, which the pinned provider copies on both done and error events. Conversion now retains a supplied marker alongside the opaque thinking signature. Missing metadata remains missing; no effort value is guessed. Tests cover both terminal types, supplied/absent markers and message serialisation for replay.
+
+Go 1.27.1 pi-messages race tests passed three times in 1.023s. Full normal tests passed (durable 102.964s, tools 4.384s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The upstream Radius/Anthropic paid token-count experiment was not run: credentials and paid execution approval were not used. This fixes metadata preservation when sent by the server; it cannot repair Radius omitting it upstream. Remaining compatibility/model-runtime audit and whole-port acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

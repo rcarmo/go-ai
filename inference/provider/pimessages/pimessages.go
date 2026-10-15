@@ -292,6 +292,9 @@ func ensure(c *[]goai.ContentBlock, idx int) {
 }
 func num(v any) float64 { n, _ := v.(float64); return n }
 func finish(m *goai.Message, e map[string]any) {
+	if level, ok := e["providerThinkingLevel"].(string); ok {
+		m.ProviderThinkingLevel = level
+	}
 	if r, _ := e["reason"].(string); r != "" {
 		m.StopReason = goai.StopReason(r)
 	}
