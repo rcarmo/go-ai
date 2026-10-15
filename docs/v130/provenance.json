@@ -15,7 +15,11 @@
         "provenance": {
           "predicateType": "https://slsa.dev/provenance/v1"
         }
-      }
+      },
+      "signaturesVerified": true,
+      "registrySignatureCount": 2,
+      "attestationCount": 2,
+      "tamperedPayloadRejected": true
     },
     {
       "name": "@earendil-works/pi-durable",
@@ -28,7 +32,11 @@
         "provenance": {
           "predicateType": "https://slsa.dev/provenance/v1"
         }
-      }
+      },
+      "signaturesVerified": true,
+      "registrySignatureCount": 2,
+      "attestationCount": 2,
+      "tamperedPayloadRejected": true
     },
     {
       "name": "@earendil-works/pi-codemode",
@@ -41,8 +49,18 @@
         "provenance": {
           "predicateType": "https://slsa.dev/provenance/v1"
         }
-      }
+      },
+      "signaturesVerified": true,
+      "registrySignatureCount": 2,
+      "attestationCount": 2,
+      "tamperedPayloadRejected": true
     }
   ],
-  "signaturesVerified": false
+  "signaturesVerified": true,
+  "verifier": {
+    "library": "npm-bundled sigstore3.1.0",
+    "trust": "TUF-authenticated npm keys and Sigstore root",
+    "workflow": "build-binaries.yml@refs/tags/v1.3.0",
+    "issuer": "https://token.actions.githubusercontent.com"
+  }
 }

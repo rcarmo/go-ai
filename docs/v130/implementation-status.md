@@ -57,3 +57,7 @@ Official pi-codemode1.3.0 Node VM integration/order/drains, console/script error
 ## Removed compact frame API / Pi wire assertion
 
 Removed isolated AssistantMessageFrame/Encoder/ReduceAssistantMessageFrames implementation and its dedicated legacy conformance suite, matching explicit1.3 breaking removal; regular SSE/provider message events are independent and retained. Repository search showed no production callers outside that isolated file. Added PiMessages raw toolcall_end argumentsError fixture; full Pi provider race count3 passes1.031s/vet, consumer race35.751s after removal. Public migration noted for release. No full1.3 acceptance until integrated gates/audit/signatures.
+
+## Final integrated race/provenance/profile checkpoint
+
+Production root race seed1792082342786540542 passes755.637s durable/34.944s tools/132.136s QuickJS/29.387s consumers. Normal/static/security/licence pass. All3npm1.3registry signatures/publish+SLSA attestations verify through TUF/Sigstore exact workflow/tag/source with negative tamper tests. Changed-path dispositions consolidated in acceptance.md. Responses terminal effective-effort metadata now has explicit regression, race count3 passes1.019s. Profiled changed contracts;0sample tiny captures repeated2000times for real CPU evidence; concise conclusions in acceptance.md, raw data removed. Release source/SBOM/reproducibility and publication verification remain.

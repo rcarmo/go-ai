@@ -3,10 +3,24 @@ package openairesponses
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+func TestResponses130StreamRetainsEffectiveEffort(t *testing.T) {
+	model := &goai.Model{Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, ID: "gpt-6"}
+	var message *goai.Message
+	processStreamWithOptions(strings.NewReader("event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n"), model, &goai.StreamOptions{}, func(event goai.Event) {
+		if done, ok := event.(*goai.DoneEvent); ok {
+			message = done.Message
+		}
+	}, responsesToolView{providerThinkingLevel: "high"})
+	if message == nil || message.ProviderThinkingLevel != "high" {
+		t.Fatal(message)
+	}
+}
 
 func TestResponses130ConfigurationEffortReplayAndGates(t *testing.T) {
 	yes := true
