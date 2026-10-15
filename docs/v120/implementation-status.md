@@ -1132,6 +1132,16 @@ The engine no longer requests admission acknowledgement after a fatal or script-
 
 Unsupported-parallel tests now run with drain admission enabled and disabled on both backends. The enabled mode rejects overlap with zero tool effects. Runtime identity advances to host58. Go 1.27.1 focused durable race tests passed three times in 30.526s (31.824s after the identity bump); engine drain/ordered race tests passed three times in 43.992s. Full normal root tests passed (durable 83.927s, tools 4.358s); vet, staticcheck, logging checks, non-CGO build and diff checks passed before the identity-only bump. Diagnostic logs were deleted after analysis. Drain admission remains opt-in; backend fault/reopen verification and parallel execution are unfinished.
 
+## Drain storage faults and caller reopen
+
+Real QuickJS restart tests now exercise drain admission on both memory and journal backends. Reopen preserves initial and per-delivery issued counts, captured namespace metadata and the single tool effect. A changed initial VM count fails replay before any new effect.
+
+Storage-fault tests reject initial and final watermark commits. Initial rejection leaves zero effects and no initial count; final rejection retains the confirmed delivery and its single effect without adopting the rejected count. Reopen finishes both cases with exactly one total tool effect and one injected rejection.
+
+Go 1.27.1 fault/reopen/divergence race tests passed three times in 56.076s; earlier legacy/drain reopen race tests passed three times in 34.727s. Full normal root tests passed with shuffle seed 1792043201952549639 (durable 86.103s, tools 4.340s), alongside vet, staticcheck, logging and non-CGO checks. An earlier full run with that seed failed task-recovery detach waiting in `TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry`; ten focused repetitions and a same-seed durable run (94.453s) did not reproduce it. The intermittent failure is unresolved; no timeout was changed. Diagnostic logs were deleted after analysis.
+
+Concurrent adapter calls and delivery-order replay still need implementation. Drain admission remains opt-in, and fatal error runs are not durably settled.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

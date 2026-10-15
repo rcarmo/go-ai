@@ -3,33 +3,42 @@ package durable
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
 
 type restartQuickJS120 struct {
-	sandbox *QuickJSSandbox
-	starts  atomic.Int64
-	ready   chan struct{}
+	sandbox    *QuickJSSandbox
+	starts     atomic.Int64
+	ready      chan struct{}
+	driftCount bool
 }
 
 func (s *restartQuickJS120) RuntimeIdentity() string { return s.sandbox.RuntimeIdentity() }
+func (s *restartQuickJS120) SupportsDrainAcknowledgements() bool {
+	return s.sandbox.SupportsDrainAcknowledgements()
+}
 func (s *restartQuickJS120) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
 	vm, err := s.sandbox.Start(ctx, code, start)
 	if err != nil {
 		return nil, err
 	}
-	return &restartQuickJSExecution120{CodemodeExecution: vm, first: s.starts.Add(1) == 1, ready: s.ready}, nil
+	return &restartQuickJSExecution120{CodemodeExecution: vm, first: s.starts.Add(1) == 1, ready: s.ready, driftCount: s.driftCount}, nil
 }
 
 type restartQuickJSExecution120 struct {
 	CodemodeExecution
-	first bool
-	ready chan struct{}
+	first      bool
+	ready      chan struct{}
+	driftCount bool
 }
 
 func (e *restartQuickJSExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 	event, err := e.CodemodeExecution.Next(ctx)
+	if err == nil && event.Drain != nil && !e.first && e.driftCount && event.Drain.DeliveryID == 0 {
+		event.Drain.Issued++
+	}
 	if err == nil && event.Result != nil && e.first {
 		close(e.ready)
 		<-ctx.Done()
@@ -37,14 +46,28 @@ func (e *restartQuickJSExecution120) Next(ctx context.Context) (CodemodeEvent, e
 	}
 	return event, err
 }
+func (e *restartQuickJSExecution120) AcknowledgeDrain(ctx context.Context, drain CodemodeDrain) error {
+	return e.CodemodeExecution.(CodemodeDrainExecution).AcknowledgeDrain(ctx, drain)
+}
+
 func TestCodemode120QuickJSUnsettledCallerReopen(t *testing.T) {
+	testQuickJSUnsettledReopen120(t, false, false)
+}
+func TestCodemode120QuickJSDrainCallerReopen(t *testing.T) {
+	testQuickJSUnsettledReopen120(t, true, false)
+}
+func TestCodemode120QuickJSDrainReopenDivergence(t *testing.T) {
+	testQuickJSUnsettledReopen120(t, true, true)
+}
+func testQuickJSUnsettledReopen120(t *testing.T, drains, drift bool) {
 	engine, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
+	engine.AcknowledgeDrains = drains
 	backends(t, func(t *testing.T, b backend) {
-		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}
+		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{}), driftCount: drift}
 		registry := NewRegistry()
 		var effects atomic.Int64
 		leaf := wrapRegistration("codemode_leaf")
@@ -58,7 +81,13 @@ func TestCodemode120QuickJSUnsettledCallerReopen(t *testing.T) {
 		def := taskDefinition(t, "wasm-reopen-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			result, err := r.RunCodemode(ctx, "run", `const before=Math.random();const ns=await describeNamespace("leaf_tools");if(ns.description!=="original")throw Error("namespace drift");const matches=await searchTools("leaf");if(matches[0].name!=="codemode_leaf")throw Error("discovery");const v=await tools.codemode_leaf({n:before});text(v);store("clock",Date.now());return before;`, sandbox)
 			if err != nil {
+				if drift && sandbox.starts.Load() == 2 && strings.Contains(err.Error(), "drain issued count divergence") {
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+				}
 				return err
+			}
+			if drift && sandbox.starts.Load() == 2 {
+				t.Error("replay count divergence accepted")
 			}
 			if result.Error != "" || result.Output != "==> text 1/2 <==\nleaf\n==> text 2/2 <==\n"+fmt.Sprint(result.Value) || !result.HasValue {
 				t.Errorf("reopen result %+v", result)
@@ -87,6 +116,20 @@ func TestCodemode120QuickJSUnsettledCallerReopen(t *testing.T) {
 				}
 				if len(journal.Issued) != 3 || len(journal.Deliveries) != 3 || !journal.Issued[0].Global || !journal.Issued[1].Global || journal.Issued[2].Global {
 					t.Fatal("mixed journal missing", journal)
+				}
+				if drains {
+					if journal.FirstIssued == nil || *journal.FirstIssued != 1 {
+						t.Fatal("initial drain missing", journal)
+					}
+					for i, delivery := range journal.Deliveries {
+						want := i + 2
+						if want > 3 {
+							want = 3
+						}
+						if delivery.IssuedAfter == nil || *delivery.IssuedAfter != want {
+							t.Fatal("delivery drain missing", i, delivery)
+						}
+					}
 				}
 				found = true
 			}
