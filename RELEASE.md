@@ -1,5 +1,15 @@
 # Release acceptance
 
+## Native 1.3.0 release
+
+Native pi-ai/durable1.3.0 port accepted for publication. Official target `71023aec1546d6d677a65669c5665c0927ce0dd0`, relative to1.2.0 `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. Catalogues:1614chat/60image/40classifier. [Acceptance and adaptations](docs/v130/acceptance.md), [changed paths](docs/v130/changed-paths.json), [cryptographic provenance](docs/v130/provenance.json).
+
+Changes include completed-tool argument errors/JSON repair with zero-effect validation, cross-model thinking removal, Anthropic/Bedrock image-result preservation, explicit thinking-off and Responses cache-preserving effort changes, combined reasoning-first streaming, Gemini4+ thinking levels, Kimi/OpenCode catalogue/protocol updates and retry phrases. Durable baseline ordering, validated SQLite table prefixes and actual-worker-exit capacity hooks are ported. Breaking: removed AssistantMessageFrame/Encoder/ReduceAssistantMessageFrames, matching upstream; normal provider/SSE APIs remain.
+
+Go1.27.2/Staticcheck0.8.2 validation; module minimum remains1.26.0. Full-root race seed1792082342786540542: durable755.637s/tools34.944s/QuickJS132.136s/consumers29.387s. Normal115.239s/4.900s/17.382s/6.905s; vet/staticcheck/logging/security/licence/local supply-chain tests pass. CPU/alloc_space/alloc_objects inspected; raw captures removed. Official1.3VM integration passes; all3npm packages' signatures/provenance verify with negative tamper checks. Native storage/schema bounds/file ownership remain; no live paid-provider or Cloudflare deployment claim.
+
+User authorised commit/push/tag/publication. Release tag and SBOM assets are create-only; prior refs/assets are preserved.
+
 ## Native 1.2.0 release
 
 Native [v1.2.0](https://github.com/rcarmo/go-ai/releases/tag/v1.2.0) is published at `a927454af26e172462b0ed0d0acc3be9978dde38`, including codemode. Annotated tag verified locally and remotely; [native publication workflow38812314885](https://github.com/rcarmo/go-ai/actions/runs/38812314885) succeeded. Public SBOM/checksum validated:24components, version1.2.0, exact VCS revision; SHA256 `48c0934ba247c7326b3106f6068a7b921350b5388b5e9e1383d0fbde505f38bf`. Go module proxy download succeeds with the tagged revision.
