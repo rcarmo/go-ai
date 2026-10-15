@@ -9,14 +9,14 @@
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-The current upstream baseline is **v1.1.0** of pi-ai and pi-durable. The generated catalogues contain 1563 chat models, 61 image models and 26 classifiers. Native release [v1.1.0](https://github.com/rcarmo/go-ai/releases/tag/v1.1.0) is published; subsequent fixes on `main` are recorded in [RELEASE.md](RELEASE.md).
+The current upstream baseline is **v1.2.0** of pi-ai and pi-durable, including durable codemode support. The generated catalogues contain 1554 chat models, 61 image models and 34 classifiers. Native v1.2.0 release preparation is recorded in [RELEASE.md](RELEASE.md).
 
 ## Documentation
 
 * [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) has the published API surface.
 * [Basic usage](docs/basic-usage.md), [model selection](docs/model-selection.md), [prompt/context handling](docs/prompts-and-context.md), [tool calling](docs/tool-calling.md), and [image handling](docs/image-handling.md) cover the common paths.
 * [Harness helpers](docs/HARNESS.md) describe the in-memory agent/session utilities; [native durable harness](docs/durable/README.md) covers persisted conversations, tasks, tools and recovery.
-* [RELEASE.md](RELEASE.md), the [v1.1.0 crosswalk](docs/v110/changed-paths-crosswalk.md) and [validation record](docs/v110/local-validation.md) record audit scope, adaptations and verification limits.
+* [RELEASE.md](RELEASE.md), the [v1.2.0 durable crosswalk](docs/v120/durable-crosswalk.md) and [acceptance record](docs/v120/acceptance.md) record audit scope, adaptations and verification limits.
 
 ## Features
 
