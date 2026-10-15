@@ -90,11 +90,11 @@ type codemodeJournalState struct {
 // commits before VM resolution. A replayed call must match ID/name/arguments.
 // Source is a durable JSON string, never evaluated by the host Go process.
 func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox) (CodemodeResult, error) {
-	return r.runCodemode(ctx, key, source, sandbox, nil, nil)
+	return r.runCodemode(ctx, key, source, sandbox, nil, nil, nil)
 }
 
 // Namespace overrides apply to new runs; replay uses persisted metadata.
-func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool) (CodemodeResult, error) {
+func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool, globals *[]CodemodeGlobal) (CodemodeResult, error) {
 	if err := r.check(); err != nil {
 		return CodemodeResult{}, err
 	}
@@ -151,7 +151,11 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		selectedNamespaces = *namespaces
 	}
 	start := CodemodeStart{PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
-	for _, global := range r.harness.options.CodemodeGlobals {
+	selectedGlobals := r.harness.options.CodemodeGlobals
+	if globals != nil {
+		selectedGlobals = *globals
+	}
+	for _, global := range selectedGlobals {
 		start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 	}
 	var runID, journalID ID
@@ -403,7 +407,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 				var value any
 				var globalErr error
 				if codemodeCustomGlobal(run.Start, call.Name) != nil {
-					value, globalErr = r.callCodemodeGlobal(linked, run.Start, call)
+					value, globalErr = r.callCodemodeGlobal(linked, run.Start, call, selectedGlobals)
 				} else if codemodeModelCatalogName(call.Name) {
 					value, globalErr = r.codemodeModelCatalog(linked, call)
 				} else {

@@ -75,14 +75,18 @@ func codemodeCustomGlobal(start CodemodeStart, name string) *CodemodeGlobalDescr
 	}
 	return nil
 }
-func (r *TaskRuntime) callCodemodeGlobal(ctx context.Context, start CodemodeStart, call CodemodeCall) (value any, err error) {
+func (r *TaskRuntime) callCodemodeGlobal(ctx context.Context, start CodemodeStart, call CodemodeCall, candidates ...[]CodemodeGlobal) (value any, err error) {
 	pinned := codemodeCustomGlobal(start, call.Name)
 	if pinned == nil {
 		return nil, reject("unknown codemode global")
 	}
 	var callback *CodemodeGlobal
-	for i := range r.harness.options.CodemodeGlobals {
-		global := &r.harness.options.CodemodeGlobals[i]
+	globals := r.harness.options.CodemodeGlobals
+	if len(candidates) > 0 {
+		globals = candidates[0]
+	}
+	for i := range globals {
+		global := &globals[i]
 		if global.Name == call.Name && global.Version == pinned.Version && global.Spread == pinned.Spread {
 			callback = global
 			break

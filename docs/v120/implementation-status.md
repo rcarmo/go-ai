@@ -924,6 +924,12 @@ A model-facing memory/journal test now pauses after one confirmed classifier del
 
 Extension revocation/opt-out race count 3 passes in 34.299s. Full normal root tests pass (durable 81.628s, tools 4.742s), with static/logging/non-CGO and diff checks. The initial typed fixture omitted its chat model catalogue entry, so generation failed before reaching the pause; adding the fixture chat entry resolved it. Diagnostic logs were removed after analysis. Parallel/output-storage/global scope and final acceptance remain unfinished.
 
+## Extension-scoped custom globals
+
+`CodemodeExtensionOptions.Globals` captures validated callback registrations and detached schema metadata. Nil inherits harness callbacks; explicit empty selects none. Prompt declarations and new-run snapshots use the same list; fresh custom calls resolve against the current extension candidates with pinned version/spread checks. Existing run metadata and confirmed deliveries remain persisted. Global callbacks retain the documented at-least-once/idempotency contract.
+
+Real generation/VM tests verify extension-only callbacks execute and caller mutation cannot change callbacks or schema declarations. Extension/global-metadata/replay/spread race count 3 passes in 21.611s. Full normal root tests pass (durable 80.285s, tools 4.598s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Interrupted extension-global revocation needs a direct counterpart; parallel/output-storage and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

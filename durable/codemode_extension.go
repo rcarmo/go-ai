@@ -27,6 +27,8 @@ type CodemodeExtensionOptions struct {
 	Namespaces   *[]CodemodeNamespace
 	// Models may restrict harness paid authority, never expand it.
 	Models *bool
+	// Nil inherits host callbacks; explicit empty revokes all custom globals.
+	Globals *[]CodemodeGlobal
 }
 
 // NewCodemodeExtension installs a model-only, replay-safe serial candidate.
@@ -38,6 +40,14 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	budget := DefaultCodemodeInlineBudget
 	if len(options) == 1 && options[0].InlineBudget != nil {
 		budget = *options[0].InlineBudget
+	}
+	var globals *[]CodemodeGlobal
+	if len(options) == 1 && options[0].Globals != nil {
+		copy, err := cloneCodemodeGlobals(*options[0].Globals, DefaultLimits())
+		if err != nil {
+			return Extension{}, err
+		}
+		globals = &copy
 	}
 	var models *bool
 	if len(options) == 1 && options[0].Models != nil {
@@ -63,7 +73,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")
 		}
-		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models)
+		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models, globals)
 		if err != nil {
 			return ToolResult{}, err
 		}
@@ -117,7 +127,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 			paid = paid && *models
 		}
 		start := CodemodeStart{PaidModels: paid}
-		for _, global := range runtime.harness.options.CodemodeGlobals {
+		selectedGlobals := runtime.harness.options.CodemodeGlobals
+		if globals != nil {
+			selectedGlobals = *globals
+		}
+		for _, global := range selectedGlobals {
 			start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 		}
 		text := "Use codemode to execute an async JavaScript function body. Await tool/global calls serially in this native candidate. Use text(), image(), console, store()/load(); no ambient filesystem, network or timers. Tool discovery does not grant additional authority.\n\n" + catalogue + "\n\n```typescript\n" + start.CodemodeDeclarations() + "\n```"
