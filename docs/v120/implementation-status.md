@@ -1428,6 +1428,12 @@ Nested start events and active snapshots now prefer committed executor arguments
 
 Go 1.27.1 nested/existing event race tests passed three times in 13.094s. Full normal tests passed (durable 111.815s, tools 4.839s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remaining event/live source crosswalk and larger image/remote/acceptance gaps are unfinished.
 
+## Nested final-update and end ordering
+
+Nested settlement now publishes a final retained-output/details/diagnostics update before its end event when the executor result differs from streamed progress. This includes hook-blocked results. Within a publication, tool end events sort children before parents by task ownership depth; updates retain their earlier event priority. Snapshot call IDs are not parsed for hierarchy.
+
+Lifecycle tests require the final text update as well as the end result; ownership-depth tests cover hierarchy lookup. Go 1.27.1 nested/existing event race tests passed three times in 12.531s. Full normal tests passed (durable 113.918s, tools 4.917s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Same-publication parent/child end ordering still needs an integrated fixture; remaining durable/image/remote and final acceptance gaps are unresolved.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

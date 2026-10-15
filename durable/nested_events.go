@@ -89,6 +89,31 @@ func nestedLifecycleEvents(state Snapshot, old, task Task, seq uint64, l Limits)
 				return nil, err
 			}
 			event.NestedResult = &owned
+			// Settlement may return text/details without streaming them. Publish
+			// that adopted final state before the end event as upstream does.
+			if after.Output != receipt.Content || after.HasDetails != receipt.HasDetails || !equalJSONValue(after.Details, receipt.Details) || !equalJSONValue(after.Diagnostics, receipt.Diagnostics) {
+				update := base
+				update.Type = "tool_execution_update"
+				if after.Output != receipt.Content {
+					update.Output = receipt.Content
+					update.OutputChange = outputChange(after.Output, receipt.Content)
+				}
+				if after.HasDetails != receipt.HasDetails || !equalJSONValue(after.Details, receipt.Details) {
+					update.HasDetails = true
+					update.Details, err = ownJSONValue(receipt.Details, l)
+					if err != nil {
+						return nil, err
+					}
+				}
+				if !equalJSONValue(after.Diagnostics, receipt.Diagnostics) {
+					from := 0
+					if len(after.Diagnostics) <= len(receipt.Diagnostics) && equalJSONValue(after.Diagnostics, receipt.Diagnostics[:len(after.Diagnostics)]) {
+						from = len(after.Diagnostics)
+					}
+					update.Diagnostics = append([]ToolDiagnostic{}, receipt.Diagnostics[from:]...)
+				}
+				events = append(events, update)
+			}
 			break
 		}
 
@@ -104,4 +129,19 @@ func nestedEventProgress(checkpoint JSON, l Limits) (toolCheckpoint, error) {
 		}
 	}
 	return progress, nil
+}
+
+func eventTaskDepth(state Snapshot, id ID) int {
+	depth := 0
+	seen := map[ID]bool{}
+	for id != 0 && !seen[id] {
+		seen[id] = true
+		task, ok := state.Tasks[id]
+		if !ok {
+			break
+		}
+		depth++
+		id = task.Owner
+	}
+	return depth
 }

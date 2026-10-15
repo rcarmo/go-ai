@@ -73,6 +73,7 @@ func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 			t.Fatal(record.State.Outcome)
 		}
 		starts, updates, ends := 0, 0, 0
+		finalUpdate := false
 		deadline := time.After(3 * time.Second)
 		for ends == 0 {
 			select {
@@ -96,6 +97,9 @@ func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 						}
 					case "tool_execution_update":
 						updates++
+						if event.Output == "finished" || blocked && event.Output == "Tool blocked" {
+							finalUpdate = true
+						}
 					case "tool_execution_end":
 						ends++
 						want := "finished"
@@ -116,8 +120,15 @@ func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
 		if blocked {
 			wantStarts = 0
 		}
-		if starts != wantStarts || !blocked && updates < 1 || ends != 1 {
+		if starts != wantStarts || !blocked && updates < 1 || ends != 1 || !finalUpdate {
 			t.Fatal("nested lifecycle counts", starts, updates, ends)
 		}
 	})
+}
+
+func TestNestedTool120EventDepthUsesOwnership(t *testing.T) {
+	state := Snapshot{Tasks: map[ID]Task{1: {ID: 1}, 2: {ID: 2, Owner: 1}, 3: {ID: 3, Owner: 2}}}
+	if eventTaskDepth(state, 3) != 3 || eventTaskDepth(state, 2) != 2 || eventTaskDepth(state, 99) != 0 {
+		t.Fatal("incorrect event ownership depth")
+	}
 }

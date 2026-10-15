@@ -513,7 +513,16 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 		}
 		// Progress first, then messages/ends, followed by committed state
 		// and starts. Stable ordering preserves entries and tool call order.
-		sort.SliceStable(events, func(i, j int) bool { return eventOrder(events[i].Type) < eventOrder(events[j].Type) })
+		sort.SliceStable(events, func(i, j int) bool {
+			left, right := eventOrder(events[i].Type), eventOrder(events[j].Type)
+			if left != right {
+				return left < right
+			}
+			if events[i].Type == "tool_execution_end" && events[j].Type == "tool_execution_end" {
+				return eventTaskDepth(next, events[i].Task) > eventTaskDepth(next, events[j].Task)
+			}
+			return false
+		})
 		events, err := arrangeEntryEvents(events, before, s.conversation, s.limits)
 		if err != nil {
 			return err
