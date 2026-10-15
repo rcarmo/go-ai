@@ -1,14 +1,33 @@
 package durable
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"image"
+	"image/png"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func TestCodemode120FilesystemRejectedResultReusesPersistedDirectory(t *testing.T) {
+	for _, images := range []bool{false, true} {
+		name := "text"
+		if images {
+			name = "images"
+		}
+		t.Run(name, func(t *testing.T) { testFilesystemRejectedResult120(t, images) })
+	}
+}
+func testFilesystemRejectedResult120(t *testing.T, images bool) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewNRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	data := base64.StdEncoding.EncodeToString(encoded.Bytes())
 	engine, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -17,8 +36,15 @@ func TestCodemode120FilesystemRejectedResultReusesPersistedDirectory(t *testing.
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		writer := &codemodeFS120{id: "owned-fs"}
+		code := "// @options: {\"max_output_tokens\":1}\nstore('valid',true);return 'long output';"
+		if images {
+			code = `store('valid',true);image({type:'image',mimeType:'image/png',data:'` + data + `'});image({type:'image',mimeType:'image/png',data:'` + data + `'});`
+		}
 		def := taskDefinition(t, "store-fault-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-			_, e := r.RunCodemode(ctx, "run", "// @options: {\"max_output_tokens\":1}\nstore('valid',true);return 'long output';", engine)
+			result, e := r.RunCodemode(ctx, "run", code, engine)
+			if e == nil && images && (len(result.Images) != 2 || strings.Count(result.Output, "/owned/tmp/codemode/image-1.png") != 2) {
+				t.Error("image paths/replay", result)
+			}
 			if e != nil {
 				return e
 			}
@@ -98,8 +124,19 @@ func TestCodemode120FilesystemRejectedResultReusesPersistedDirectory(t *testing.
 		record := waitPublicTask(t, next, id)
 		writer.mu.Lock()
 		defer writer.mu.Unlock()
-		if record.State.Outcome.Status != "completed" || failures.Load() != 1 || writer.creates != 1 || writer.writes != 2 || string(writer.files["/owned/tmp/codemode/output.txt"]) != "long output" {
+		if record.State.Outcome.Status != "completed" || failures.Load() != 1 || writer.creates != 1 || writer.writes != 2 {
 			t.Fatalf("outcome=%+v error=%+v dirs=%d writes=%d failures=%d", record.State.Outcome, record.State.Outcome.Error, writer.creates, writer.writes, failures.Load())
+		}
+		if images {
+			decoded, err := png.Decode(bytes.NewReader(writer.files["/owned/tmp/codemode/image-1.png"]))
+			if err != nil || decoded.Bounds().Dx() != 1 {
+				t.Fatal("PNG recovery", err)
+			}
+			if len(writer.files) != 1 {
+				t.Fatal("dedup files", writer.files)
+			}
+		} else if string(writer.files["/owned/tmp/codemode/output.txt"]) != "long output" {
+			t.Fatal(writer.files)
 		}
 	})
 }

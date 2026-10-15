@@ -966,6 +966,12 @@ The fallback writer now accepts only `output.txt` or numbered PNG/JPEG/GIF/WebP 
 
 All filesystem tests, race count 3, pass in 39.624s. Full normal root tests pass (durable 82.745s, tools 4.587s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
 
+## Filesystem image recovery
+
+Expanded rejected-result recovery to two identical PNG outputs. The default filesystem writer stores one deduplicated filename per attempt, persists its directory before the initial write and reuses it after reopen. Both displayed images retain labels pointing to that file; recovered bytes decode as a one-pixel PNG. Tests also preserve atomic failed-result/store behaviour. No production changes were needed.
+
+Filesystem text/image recovery race count 3 passes in 17.538s. Full normal root tests pass (durable 86.688s, tools 4.658s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
