@@ -28,6 +28,10 @@ type CodemodeSandboxIdentity interface{ RuntimeIdentity() string }
 type CodemodeSandboxParallel interface{ SupportsParallelCalls() bool }
 
 type CodemodeSandboxDrains interface{ SupportsDrainAcknowledgements() bool }
+
+// DefaultCodemodeInterruptBudget matches pi-codemode 1.2.0 inline execution.
+const DefaultCodemodeInterruptBudget = 100000
+
 type CodemodeStart struct {
 	ParallelCalls         bool                        `json:"parallelCalls,omitempty"`
 	DrainAcknowledgements bool                        `json:"drainAcknowledgements,omitempty"`
@@ -172,7 +176,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if namespaces != nil {
 		selectedNamespaces = *namespaces
 	}
-	budget := 0
+	budget := DefaultCodemodeInterruptBudget
 	if interruptBudget != nil {
 		budget = *interruptBudget
 	}

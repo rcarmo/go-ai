@@ -1200,6 +1200,14 @@ The exported consumer test now runs real QuickJS producing four 700,000-characte
 
 Go 1.27.1 ordinary/large public consumer race tests passed three times in 24.999s. Full normal tests passed (durable 100.017s, tools 4.370s), plus vet, staticcheck, logging, non-CGO and diff checks. An initial test counted the letter x in formatting labels as payload; the corrected assertion checks the four complete payload runs. Diagnostic logs were deleted after analysis. Large image storage, remaining AI/default/remote semantics and final whole-port verification are unfinished.
 
+## Default durable compute budget
+
+New durable runs now default to the pinned inline runtime's 100,000 interrupt polls. An explicit extension budget of zero still disables poll accounting, and replay retains the recorded budget. Backend tests inspect the sandbox start for default and explicit-zero values; existing model-facing tests verify an explicit small budget interrupts execution.
+
+Go 1.27.1 default/explicit/model-budget race tests passed three times in 12.688s. Full normal tests passed (durable 99.364s, tools 4.368s), plus vet, staticcheck, logging, non-CGO and diff checks. A trial model-facing infinite loop at the full 100,000-poll default outlasted its five-second test context under race instrumentation; that experiment did not establish exhaustion timing and was removed. No production deadline or poll threshold was widened. Diagnostic logs were deleted after analysis.
+
+Image review confirms displayed base64 data remains bounded by ordinary string/record storage. Upstream also returns image blocks after saving files; native large-image persistence needs a dedicated representation before those limits can change. Large-image parity and remote execution are unresolved.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
