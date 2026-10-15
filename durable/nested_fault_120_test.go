@@ -16,6 +16,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 		var h *Harness
 		var childID atomic.Uint64
 		var attempts atomic.Int64
+		var leaked atomic.Bool
 		reg := wrapRegistration("nested_progress_fault")
 		reg.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
 			id := api.TaskID()
@@ -58,7 +59,26 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 			default:
 			}
 		}})
-		createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		parent := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		baseline, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		watch, err := h.WatchEvents(bg, baseline.Tasks[parent].Conversation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer watch.Stop()
+		if err := watch.Start(func(_ context.Context, events []AgentEvent) error {
+			for _, event := range events {
+				if event.Output == "not-adopted" || event.Type == "tool_execution_end" && event.ToolName == "nested_progress_fault" {
+					leaked.Store(true)
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
 		if e := h.Resume(bg); e != nil {
 			t.Fatal(e)
 		}
@@ -70,6 +90,9 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 		}
 		if e = h.Close(ctx); e != nil {
 			t.Fatal(e)
+		}
+		if leaked.Load() {
+			t.Fatal("rejected progress/result leaked to subscribers")
 		}
 		reopened := reopenStoreAfterHarnessClose(t, b.store)
 		defer reopened.Close(bg)

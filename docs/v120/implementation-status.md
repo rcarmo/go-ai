@@ -1416,6 +1416,12 @@ Compaction status finalisation now retains the newest failed/faulted/orphaned ou
 
 Missing-model backend tests verify failure projection. Nested lifecycle tests now verify hook-blocked calls emit an error end result without a start or executor invocation. Go 1.27.1 combined focused race tests passed three times in 3.355s. Full normal tests passed (durable 110.655s, tools 4.679s), with vet, staticcheck, logging, non-CGO and diff checks before the final blocked-call test-only addition. Diagnostic logs were deleted after analysis. Failure clearing/reopen, rejected-progress publication and remaining durable event/live gaps still need targeted verification; full parity is incomplete.
 
+## Event/live failure acceptance boundaries
+
+Backend tests now verify compaction failure survives reopen, a no-cut completion preserves it, and an actual successful summary clears it. The rejected nested-progress storage test also subscribes to committed events and verifies the rejected output and a nonexistent terminal result never reach the listener. Existing storage assertions still require no adopted progress/result and one rejected attempt.
+
+Go 1.27.1 compaction/rejected-progress race tests passed three times in 2.403s. Full normal tests passed (durable 111.811s, tools 4.702s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No production changes were needed. Remaining event/live source crosswalk, large-image persistence, remote wire/batching, current full-race and security disposition still prevent complete acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
