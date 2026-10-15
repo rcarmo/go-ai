@@ -2,6 +2,8 @@
 
 ## Native 1.2.0 release
 
+Native [v1.2.0](https://github.com/rcarmo/go-ai/releases/tag/v1.2.0) is published at `a927454af26e172462b0ed0d0acc3be9978dde38`, including codemode. Annotated tag verified locally and remotely; [native publication workflow38812314885](https://github.com/rcarmo/go-ai/actions/runs/38812314885) succeeded. Public SBOM/checksum validated:24components, version1.2.0, exact VCS revision; SHA256 `48c0934ba247c7326b3106f6068a7b921350b5388b5e9e1383d0fbde505f38bf`. Go module proxy download succeeds with the tagged revision.
+
 Native pi-ai/durable1.2.0 port accepted for release, including codemode. Official target `06a466935536f8c9bcacb2d5efc0fc021be1bdff`, compared with1.1.0 `abe508e1b89912adde45528136c3221eb69acdd7`. Catalogue counts:1554chat/61image/34classifier.
 
 The port includes provider/schema updates, nested tool execution and replay, structured error properties, immutable image/string chunk persistence, large-output spilling, ordinary host timezone/deterministic UTC and demand-based observer reservations. Repository tooling lives in `cmd/generate-models`; normal public Go module imports remain available. Go1.27.2 and Staticcheck0.8.2 validation pins, refreshed dependencies; module minimum remains1.26.0.

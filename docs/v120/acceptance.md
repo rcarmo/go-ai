@@ -22,3 +22,5 @@ Published npm signatures and publish/SLSA attestations verified with TUF/Sigstor
 ## Publication
 
 User authorised commit/push/release. Native tag must be annotated by Rui Carmo and point to the accepted source commit. Publish SBOM/checksum through the native release workflow and verify public assets. Earlier archive/SBOM reproducibility checks apply to their recorded revisions; final release assets require commit-accurate regeneration. No previous release asset is overwritten.
+
+Release published: [v1.2.0](https://github.com/rcarmo/go-ai/releases/tag/v1.2.0), accepted source `a927454af26e172462b0ed0d0acc3be9978dde38`, annotated tag object `10e9c4389c743dc50de5cffcb0d108df8da47147`. Native workflow38812314885 succeeded. Public SBOM/checksum validate24components/version1.2.0/exact revision; SHA25648c0934ba247c7326b3106f6068a7b921350b5388b5e9e1383d0fbde505f38bf. Go proxy download resolves the same revision. Later documentation commits do not move the tag.

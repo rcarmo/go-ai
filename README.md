@@ -2,14 +2,14 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rcarmo/go-ai.svg)](https://pkg.go.dev/github.com/rcarmo/go-ai)
 [![CI](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/go-ai/actions/workflows/ci.yml)
-[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json)
+[![SBOM: CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX-6f42c1.svg)](https://github.com/rcarmo/go-ai/releases/download/v1.2.0/sbom.cdx.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![go-ai](docs/icon-256.png)
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-The current upstream baseline is **v1.2.0** of pi-ai and pi-durable, including durable codemode support. The generated catalogues contain 1554 chat models, 61 image models and 34 classifiers. Native v1.2.0 release preparation is recorded in [RELEASE.md](RELEASE.md).
+The current upstream baseline is **v1.2.0** of pi-ai and pi-durable, including durable codemode support. The generated catalogues contain 1554 chat models, 61 image models and 34 classifiers. Native [v1.2.0](https://github.com/rcarmo/go-ai/releases/tag/v1.2.0) is published; verification is recorded in [RELEASE.md](RELEASE.md).
 
 ## Documentation
 
@@ -171,8 +171,8 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 Native v1.1.0 has version-pinned CycloneDX release assets:
 
-* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json)
-* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/v1.1.0/sbom.cdx.json.sha256)
+* [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/v1.2.0/sbom.cdx.json)
+* [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/v1.2.0/sbom.cdx.json.sha256)
 
 These describe the immutable release, not later changes on `main`. `make sbom-check` generates and checks an SBOM; `publish-sbom-release.yml` publishes assets for the selected release ref. Earlier version-pinned assets remain available under their original tags.
 
