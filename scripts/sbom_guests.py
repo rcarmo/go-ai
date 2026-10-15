@@ -8,7 +8,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ASSETS = (
     ("quickjs-wasi", "3.6.2", "pkg:npm/quickjs-wasi@3.6.2", "quickjs.wasm", "LICENSE.quickjs-wasi"),
-    ("@earendil-works/pi-codemode", "1.2.0", "pkg:npm/%40earendil-works/pi-codemode@1.2.0", "prelude.js", "LICENSE.pi-codemode"),
+    ("@earendil-works/pi-codemode", "1.3.0", "pkg:npm/%40earendil-works/pi-codemode@1.3.0", "prelude.js", "LICENSE.pi-codemode"),
 )
 
 

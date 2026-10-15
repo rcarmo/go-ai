@@ -7,3 +7,5 @@
 On 2026-10-14, the published `quickjs-wasi@3.6.2` npm archive passed its SHA512 integrity check: `sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==`. Its `quickjs.wasm` SHA256 matches the embedded asset above. Registry repository: `https://github.com/vercel-labs/quickjs-wasi`. Package signatures and an independent rebuild have not been verified. The downloaded archive, metadata and extracted probe files were deleted after analysis.
 
 These hashes identify embedded assets; generated JS/image output acceptance does not use hashes. Guest assets are intentional installed source inputs, not disposable build output.
+
+On 2026-10-15, verified pi-codemode1.3.0 archive (official71023aec1546d6d677a65669c5665c0927ce0dd0) PRELUDE_SOURCE is byte-identical to the embedded1.2.0 source above. quickjs-wasi dependency remains3.6.2. Asset hashes/fingerprint therefore remain unchanged; SBOM prelude provenance now names1.3.0. This asset-integrity comparison does not gate generated-signal equivalence.

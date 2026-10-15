@@ -20,10 +20,6 @@ type contextRange struct {
 	idleSince *int64
 }
 
-func leadContextWithSystem(messages []MessageReceipt) []MessageReceipt {
-	return leadContextWithBaseline(messages, false)
-}
-
 func leadContextWithBaseline(messages []MessageReceipt, baseline bool) []MessageReceipt {
 	for i, m := range messages {
 		if baseline && m.Role != goai.RoleSystem {
