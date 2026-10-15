@@ -70,6 +70,12 @@ type NestedToolSnapshot struct {
 	ParentToolCallID string
 	ToolName         string
 	Arguments        JSON
+	Output           string
+	Details          any
+	HasDetails       bool
+	Diagnostics      []ToolDiagnostic
+	DroppedBytes     uint64
+	DroppedLines     uint64
 }
 
 type AgentEventStream struct {
@@ -116,7 +122,15 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if input.ParentCallID != "" {
 				callID = input.ParentCallID + "/" + input.Key
 			}
-			result.NestedTools = append(result.NestedTools, NestedToolSnapshot{Task: task.ID, ParentTask: task.Owner, ToolCallID: callID, ParentToolCallID: input.ParentCallID, ToolName: input.Name, Arguments: args})
+			progress, err := nestedEventProgress(record.State.Checkpoint, limits)
+			if err != nil {
+				return result, err
+			}
+			details, err := ownJSONValue(progress.Details, limits)
+			if err != nil {
+				return result, err
+			}
+			result.NestedTools = append(result.NestedTools, NestedToolSnapshot{Task: task.ID, ParentTask: task.Owner, ToolCallID: callID, ParentToolCallID: input.ParentCallID, ToolName: input.Name, Arguments: args, Output: progress.Output, Details: details, HasDetails: progress.HasDetails, Diagnostics: append([]ToolDiagnostic(nil), progress.Diagnostics...), DroppedBytes: progress.DroppedBytes, DroppedLines: progress.DroppedLines})
 		}
 	}
 	for _, sid := range ids(state.Submissions) {
@@ -189,6 +203,11 @@ func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (Conver
 			return result, err
 		}
 		nested.Arguments = args
+		nested.Details, err = ownJSONValue(nested.Details, limits)
+		if err != nil {
+			return result, err
+		}
+		nested.Diagnostics = append([]ToolDiagnostic(nil), nested.Diagnostics...)
 		result.NestedTools = append(result.NestedTools, nested)
 	}
 	for key, value := range value.Documents {

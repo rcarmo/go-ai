@@ -13,8 +13,14 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 		var leafRuns, outerRuns atomic.Int64
 		leaf := wrapRegistration("restart_leaf")
 		leaf.ReplaySafe = true
-		leaf.Execute = func(ctx context.Context, _ JSON, _ *ToolAPI) (ToolResult, error) {
+		leaf.Execute = func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
 			if leafRuns.Add(1) == 1 {
+				if err := api.Output("retained progress"); err != nil {
+					return ToolResult{}, err
+				}
+				if err := api.Details(JSON{"phase": "waiting"}); err != nil {
+					return ToolResult{}, err
+				}
 				close(entered)
 				<-ctx.Done()
 				return ToolResult{}, ctx.Err()
@@ -90,6 +96,9 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 		for _, nested := range view.NestedTools {
 			if nested.Task == childID {
 				foundChild = true
+				if nested.Output != "retained progress" || !nested.HasDetails || !equalJSONValue(nested.Details, JSON{"phase": "waiting"}) {
+					t.Fatal("snapshot progress missing", nested)
+				}
 				if nested.ToolCallID != "outer/child" || nested.ParentToolCallID != "outer" || nested.ToolName != "restart_leaf" {
 					t.Fatal("nested snapshot attribution", nested)
 				}
@@ -103,6 +112,16 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 		copy.NestedTools[0].Arguments["mutated"] = true
+		for _, nested := range copy.NestedTools {
+			if details, ok := nested.Details.(map[string]any); ok {
+				details["phase"] = "mutated"
+			}
+		}
+		for _, nested := range view.NestedTools {
+			if details, ok := nested.Details.(map[string]any); ok && details["phase"] != "waiting" {
+				t.Fatal("snapshot details aliased")
+			}
+		}
 		if view.NestedTools[0].Arguments["mutated"] != nil {
 			t.Fatal("nested snapshot alias")
 		}

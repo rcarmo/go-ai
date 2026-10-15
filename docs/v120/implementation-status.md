@@ -1434,6 +1434,12 @@ Nested settlement now publishes a final retained-output/details/diagnostics upda
 
 Lifecycle tests require the final text update as well as the end result; ownership-depth tests cover hierarchy lookup. Go 1.27.1 nested/existing event race tests passed three times in 12.531s. Full normal tests passed (durable 113.918s, tools 4.917s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Same-publication parent/child end ordering still needs an integrated fixture; remaining durable/image/remote and final acceptance gaps are unresolved.
 
+## Retained nested progress in snapshots
+
+Active nested snapshots now include committed retained output, details/presence, diagnostics and dropped counters, alongside attribution and executed arguments. Reconnecting subscribers no longer need a later update to recover current progress. Snapshot copying owns details and diagnostic slices independently.
+
+The active restart fixture emits progress/details before blocking and verifies the snapshot plus detail-alias isolation. Go 1.27.1 nested snapshot/existing event race tests passed three times in 12.807s. Full normal tests passed (durable 109.893s, tools 4.702s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Same-publication nested end ordering and remaining durable/image/remote acceptance gaps are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
