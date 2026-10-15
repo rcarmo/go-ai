@@ -1056,6 +1056,12 @@ Completions and Responses now preflight constrained tool declarations before con
 
 Focused strict HTTP race count 3 passes in 1.025s. Full normal root tests pass (durable 82.573s, tools 4.347s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Preferred-schema fallback and broader AI audit still need review; large-output/parallel and final acceptance remain unfinished.
 
+## Preferred strict-schema fallback
+
+Completions no longer inherits the provider's strict default after an explicit preferred JSON-schema constraint falls back. It sends the original schema without strict enforcement, matching Responses and the pinned resolver. Legacy tools without constrained-sampling configuration retain their existing strict default. Wire tests cover unsupported capability and unsupported schema on both APIs; required constraints still reject before HTTP.
+
+Strict required/preferred HTTP race count 3 passes in 1.038s. Full normal root tests pass (durable 82.585s, tools 4.509s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit, larger output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -353,6 +353,9 @@ func convertToolDefs(tools []goai.Tool, compat goai.OpenAICompletionsCompat, cac
 		}
 		parameters := t.Parameters
 		strictForTool := strictMode
+		if t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "json_schema" {
+			strictForTool = false
+		}
 		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, strictMode); err == nil && strict != nil {
 			strictForTool = *strict
 			if *strict {
