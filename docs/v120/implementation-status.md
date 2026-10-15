@@ -948,6 +948,12 @@ New memory/journal tests reject final result persistence after the spill file is
 
 Filesystem race count 3 passes in 17.746s. Full normal root tests pass (durable 81.800s, tools 4.626s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Directory-address commit rejection/uncertainty and orphan cleanup still need coverage; large output/parallel and final acceptance remain unfinished.
 
+## Directory-address commit fault coverage
+
+Memory/journal tests now inject rejected, uncertain-before and uncertain-after directory-address commits. No file is written before address confirmation. Reopen reuses a recovered committed address; when no address was recovered, it creates another directory and writes only there. The test capability intentionally has no removal implementation, so uncertain/rejected paths cannot trigger speculative deletion. Unconfirmed empty directories remain environment-owned orphan candidates; automatic cleanup is still absent.
+
+Directory fault race count 3 passes in 12.327s. Full normal root tests pass (durable 82.650s, tools 4.540s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
