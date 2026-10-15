@@ -15,6 +15,13 @@ func validateNestedReferences(s Snapshot, task Task, l Limits) error {
 	if input.Parent != task.Owner || (!input.Sequential && !validNestedKey(input.Key) || input.Sequential && !validSequentialKey(input.Key)) || len(input.Key) > l.MaxRequestIDBytes || input.Name != input.Offer.Name || !toolCallerAllowed(input.Offer, "tools") {
 		return reject("invalid nested task authority")
 	}
+	parentCallID, err := nestedParentCallID(s.Tasks[task.Owner], l)
+	if err != nil {
+		return err
+	}
+	if input.ParentCallID != parentCallID {
+		return reject("nested parent call attribution mismatch")
+	}
 	count := 0
 	for _, doc := range s.Documents {
 		if doc.Kind != nestedCallDocument || doc.Scope != "task" || doc.Owner != task.Owner || doc.Key != input.Key {

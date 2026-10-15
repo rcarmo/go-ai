@@ -1386,6 +1386,12 @@ Nested inputs now persist their parent's call ID. `HookAPI.ToolInvocation` expos
 
 A three-level backend test verifies the parent task and call path seen by nested before hooks. Go 1.27.1 parent-attribution/existing hook race tests passed three times in 2.896s. Full normal tests passed (durable 109.846s, tools 4.760s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Model-origin attribution and restart/forgery checks still need targeted verification; overall parity is incomplete.
 
+## Parent-call attribution authority
+
+Nested reference validation now derives the expected parent call ID from the actual owner task and rejects mismatched persisted attribution. Tests cover a model-originated outer tool whose nested hook receives the transcript call ID, the existing three-level ancestor path, and forged child input attribution. Hook signatures and local call IDs are unchanged.
+
+Go 1.27.1 parent-call race tests passed three times in 6.274s. Full normal tests passed (durable 111.808s, tools 4.901s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Mid-execution attribution recovery still needs a targeted test; remaining durable source gaps, large-image persistence, remote wire/batching and final acceptance are incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
