@@ -322,7 +322,7 @@ func deriveContextHistory(history []Entry, l Limits) (ContextView, error) {
 		view.Contributions = append(view.Contributions, filtered)
 		view.Messages = append(view.Messages, filtered...)
 	}
-	view.Messages = leadContextWithSystem(orderContextToolResults(view.Messages))
+	view.Messages = leadContextWithBaseline(orderContextToolResults(view.Messages), contextHasSystemBaseline(view))
 	return view, nil
 }
 func orderContextToolResults(messages []MessageReceipt) []MessageReceipt {

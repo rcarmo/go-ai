@@ -21,7 +21,14 @@ type contextRange struct {
 }
 
 func leadContextWithSystem(messages []MessageReceipt) []MessageReceipt {
+	return leadContextWithBaseline(messages, false)
+}
+
+func leadContextWithBaseline(messages []MessageReceipt, baseline bool) []MessageReceipt {
 	for i, m := range messages {
+		if baseline && m.Role != goai.RoleSystem {
+			continue
+		}
 		if m.Role == goai.RoleUser {
 			continue
 		}
@@ -333,6 +340,6 @@ func (s *Session) extendContextRange(previous *contextRange, added []Entry) (Con
 	// Reorder only the open suffix; old settled assistants/results do not need
 	// repeated pairing. Original contributions exclude synthetic placeholders.
 	settled, open := settleContext(previous.settled, open)
-	v.Messages = leadContextWithSystem(append(append([]MessageReceipt(nil), settled...), orderContextToolResults(open)...))
+	v.Messages = leadContextWithBaseline(append(append([]MessageReceipt(nil), settled...), orderContextToolResults(open)...), contextHasSystemBaseline(v))
 	return v, settled, open, nil
 }
