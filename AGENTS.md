@@ -27,6 +27,10 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 ## Source tree layout
 
+- Runnable repository tools live under `cmd/<name>/main.go` (`go run ./cmd/generate-models`). Shell/Python orchestration stays in `scripts/`; runnable user examples stay in `examples/<name>/`.
+- Keep public library packages/import paths intact; a `pkg/` wrapper is not required by Go. Private implementation packages belong under `internal/`.
+- Keep reorganisations mechanical and separate from runtime fixes. Regenerate catalogue headers with the command, never by editing generated files.
+
 - The repository root is the public `goai` package. Keep production `.go` files and generated `models_generated.go` at the root unless a package-neutral move is proven necessary.
 - Black-box tests that declare `package goai_test` live under `tests/` so the root public package stays focused on exported implementation files.
 - White-box tests that need unexported access remain beside their package code, including any root tests that declare `package goai`.
@@ -74,7 +78,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 ## Local gates and review
 
-- Rui's current validation instruction (6 October 2026): use one modern Go toolchain only, currently Go 1.27.1 (updated at Rui's request on 6 October), for remaining work. Do not repeat minimum-version or dual-toolchain runs. Existing historical receipts and the declared module minimum keep their original scope; this instruction changes ongoing validation, not compatibility metadata.
+- Rui's current validation instruction (15 October 2026): use one modern Go toolchain only, currently Go 1.27.2 (approved continuation of security remediation), for remaining work. Do not repeat minimum-version or dual-toolchain runs. Existing historical receipts and the declared module minimum keep their original scope; this instruction changes ongoing validation, not compatibility metadata.
 
 - Required local validation for upstream release parity includes:
   - focused tests for every changed behavior;

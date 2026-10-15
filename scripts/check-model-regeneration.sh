@@ -125,10 +125,10 @@ fi
 
 (
   cd "$repo_root"
-  generator=("$go_cmd" run ./scripts/generate-models.go)
+  generator=("$go_cmd" run ./cmd/generate-models)
   if [[ -n ${GO_AI_HELPER_PROFILE_ROOT:-} ]]; then
     binary=$(mktemp "$GO_AI_HELPER_PROFILE_ROOT/generator-bin-XXXXXX")
-    "$go_cmd" build -o "$binary" ./scripts/generate-models.go
+    "$go_cmd" build -o "$binary" ./cmd/generate-models
     generator=("$binary")
   fi
   "${generator[@]}" -input "$source_models_js" -data-dir "$(dirname "$source_models_js")/providers/data" -kind chat -output "$generated_chat" >/dev/null
