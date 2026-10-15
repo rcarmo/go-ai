@@ -828,6 +828,12 @@ Added memory/journal reopen tests using a concrete VM behind an identity-preserv
 
 Focused divergence race count 3 passes in 16.815s. Full normal root tests pass (durable 76.961s, tools 4.638s), with static/logging/non-CGO and diff checks. The initial expected error wording was corrected to the existing native error. Diagnostic logs were removed after analysis. Three partial crosswalk entries gained direct restart evidence; parallel watermark and final acceptance gaps remain.
 
+## WASI random byte packing
+
+Pinned `vm.ts` consumes one mulberry32 word per four bytes, emits little-endian bytes and discards unused bytes at each `random_get` boundary. Native code incorrectly consumed one word per byte and took its high byte. The generator now matches the pinned packing; independent TypeScript-derived vectors cover whole words, aligned reads, partial reads and empty requests. This changes replay-visible host semantics, advancing identity to host45. JavaScript Math.random pinned seed tests still pass.
+
+Generator/clock race count 3 passes in 8.125s; deterministic/reopen/identity/divergence race count 3 passes in 48.257s. Full normal root tests pass (durable 76.937s, tools 4.469s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. The earlier chunk-independence test encoded the wrong contract and was replaced with request-boundary vectors. Final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
