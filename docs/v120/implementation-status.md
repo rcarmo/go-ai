@@ -918,6 +918,12 @@ Focused interrupted replacement race count 3 passes in 16.231s. Full normal root
 
 Real generation/VM tests verify opt-out under an enabled host, no authority expansion under a disabled host, and detachment from caller option mutation. Extension-model/paid-replay/classifier race count 3 passes in 41.564s. Full normal root tests pass (durable 81.056s, tools 4.607s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Interrupted extension-model revocation needs its own counterpart; parallel/output-storage and final acceptance remain unfinished.
 
+## Interrupted extension paid-model revocation
+
+A model-facing memory/journal test now pauses after one confirmed classifier delivery, replaces the extension with `Models: false`, and reopens while harness paid authority remains enabled. The original delivery replays; the next paid call rejects catchably, provider effects remain one, and the subsequent prompt omits model declarations. No production changes were needed.
+
+Extension revocation/opt-out race count 3 passes in 34.299s. Full normal root tests pass (durable 81.628s, tools 4.742s), with static/logging/non-CGO and diff checks. The initial typed fixture omitted its chat model catalogue entry, so generation failed before reaching the pause; adding the fixture chat entry resolved it. Diagnostic logs were removed after analysis. Parallel/output-storage/global scope and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
