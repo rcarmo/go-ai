@@ -79,6 +79,12 @@ type Global struct {
 
 // Options for one execution.
 type Options struct {
+	// AcquireWorker reserves capacity immediately before VM construction.
+	// Release runs on construction failure or after the module actually closes.
+	AcquireWorker func() (func(), error)
+	// OnWorkerStarted receives actual module-exit notification, independent of
+	// script settlement. A callback error aborts startup.
+	OnWorkerStarted    func(<-chan struct{}) error
 	MaxCalls           int  // zero uses 100000; positive values may lower that ceiling
 	OrderedSettlements bool // apply callback results in issue order, not completion order
 	// OnDrain runs on the VM thread after initial execution (deliveryID 0)
@@ -386,11 +392,29 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 		}
 		return int64(elapsed) * 1_000_000
 	}, 1)
+	release := func() {}
+	if opts.AcquireWorker != nil {
+		var err error
+		release, err = acquireWorkerCapacity(opts.AcquireWorker)
+		if err != nil {
+			return finish(&Error{Kind: ErrorSandbox, Message: "QuickJS worker capacity unavailable"})
+		}
+		if release == nil {
+			return finish(&Error{Kind: ErrorSandbox, Message: "invalid QuickJS capacity release"})
+		}
+	}
+	exited := make(chan struct{})
+	defer func() { close(exited); release() }()
 	mod, err := e.runtime.InstantiateModule(wasmCtx, e.compiled, modCfg)
 	if err != nil {
 		return finish(v.contextError(runCtx, ctx, fmt.Sprintf("Failed to start QuickJS: %v", err)))
 	}
 	defer mod.Close(context.Background())
+	if opts.OnWorkerStarted != nil {
+		if err := notifyWorkerStarted(opts.OnWorkerStarted, exited); err != nil {
+			return finish(&Error{Kind: ErrorSandbox, Message: "QuickJS worker-start callback failed"})
+		}
+	}
 	v.mod, v.mem = mod, mod.Memory()
 	v.fn = map[string]api.Function{}
 	if err := v.setup(wasmCtx, opts); err != nil {

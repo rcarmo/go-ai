@@ -15,7 +15,10 @@ import (
 // QuickJSSandbox implements codemode in WASM. Close the sandbox after all
 // executions finish. NewQuickJSSandbox enables concurrent drain-admitted calls.
 type QuickJSSandbox struct {
-	engine *quickjs.Engine
+	// Lifecycle hooks reserve host VM capacity until actual module exit.
+	AcquireWorker   func() (func(), error)
+	OnWorkerStarted func(<-chan struct{}) error
+	engine          *quickjs.Engine
 	// AcknowledgeDrains enables persisted drain admission in RunCodemode.
 	// Set before use; concurrent configuration changes are unsupported.
 	AcknowledgeDrains bool
@@ -77,7 +80,7 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 		cancel()
 		return nil, reject("invalid codemode memory limit")
 	}
-	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: !start.ParallelCalls, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: memoryLimit, Store: map[string]json.RawMessage{}}
+	opts := quickjs.Options{AcquireWorker: s.AcquireWorker, OnWorkerStarted: s.OnWorkerStarted, InterruptBudget: start.InterruptBudget, SerialCalls: !start.ParallelCalls, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: memoryLimit, Store: map[string]json.RawMessage{}}
 	var published chan struct{}
 	if start.DrainAcknowledgements {
 		published = make(chan struct{}, 1)
