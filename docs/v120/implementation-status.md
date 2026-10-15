@@ -1062,6 +1062,12 @@ Completions no longer inherits the provider's strict default after an explicit p
 
 Strict required/preferred HTTP race count 3 passes in 1.038s. Full normal root tests pass (durable 82.585s, tools 4.509s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit, larger output/parallel and final acceptance remain unfinished.
 
+## Successful strict-schema HTTP conversion
+
+External wire tests now verify supported required constraints set strict mode, require every root property, widen optional values with null and disallow additional properties recursively on both APIs. Caller schema bytes remain unchanged. The initial test expected a type-array representation; it was corrected to the existing equivalent anyOf/null conversion. No production changes were needed.
+
+Strict success/fallback/rejection race count 3 passes in 1.045s. Full normal root tests pass (durable 82.154s, tools 4.494s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit, large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
