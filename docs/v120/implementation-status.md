@@ -1014,6 +1014,12 @@ At `6c442d2`, the complete root race suite passes with Go1.27.1, GOMAXPROCS2, `-
 
 The pinned vulnerability gate still fails on 13 reachable findings: GO-2026-6599, GO-2026-6600, GO-2026-6603, GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608, GO-2026-6609, GO-2026-6610, GO-2026-6611, GO-2026-6612, GO-2026-6613 and GO-2026-6617. No exceptions or toolchain changes were made. Disposable race/security/licence logs were removed after analysis. SBOM/consumer/whole-port profiling refresh, remaining implementation and final acceptance are unfinished.
 
+## Current SBOM refresh
+
+Regenerated and validated a disposable CycloneDX 1.6 SBOM at `91150d3` with Go1.27.1: 24 components, full root VCS revision and both embedded guest assets. QuickJS-WASI 3.6.2 and pi-codemode prelude 1.2.0 retain expected asset SHA-256 provenance; guest augmentation, normalizer and validator self-tests pass, including negative checks. Signatures and reproducible guest rebuilding remain unverified.
+
+The raw SBOM, checksum and helper logs were deleted immediately after analysis; intentional existing release artifacts were not changed. This refresh does not override the 13 reachable security findings or complete consumer/profiling/parity acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
