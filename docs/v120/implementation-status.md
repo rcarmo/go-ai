@@ -1020,6 +1020,12 @@ Regenerated and validated a disposable CycloneDX 1.6 SBOM at `91150d3` with Go1.
 
 The raw SBOM, checksum and helper logs were deleted immediately after analysis; intentional existing release artifacts were not changed. This refresh does not override the 13 reachable security findings or complete consumer/profiling/parity acceptance.
 
+## Start-store marshal authority
+
+Direct sandbox start now rejects caller marshal hooks while encoding initial store values, before VM setup, and explicitly rejects nil contexts/sandboxes without panicking. Successful start snapshots remain detached from later caller store mutations. Replay identity advances to host55. The nil-context negative test has a narrowly documented staticcheck suppression; production checks remain enabled.
+
+Start/delivery authority and model recovery race count 3 passes in 30.290s. Full normal root tests pass (durable 83.404s, tools 4.269s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Current full-race receipt predates this change; large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

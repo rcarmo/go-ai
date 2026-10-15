@@ -122,3 +122,37 @@ func TestCodemode120QuickJSDeliveryRejectsMarshalAuthority(t *testing.T) {
 		t.Fatal(done, err)
 	}
 }
+
+func TestCodemode120QuickJSStartRejectsStoreMarshalAuthority(t *testing.T) {
+	sandbox, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sandbox.Close(bg)
+	calls := 0
+	execution, err := sandbox.Start(bg, `return load("key")`, CodemodeStart{Store: JSON{"key": deliveryMarshaler120{&calls}}})
+	if err == nil || execution != nil || calls != 0 {
+		t.Fatal("start marshaler invoked", err, calls)
+	}
+	var missing *QuickJSSandbox
+	if execution, err = missing.Start(bg, `return 1`, CodemodeStart{RuntimeIdentity: "mismatch"}); err == nil || execution != nil {
+		t.Fatal("nil sandbox accepted")
+	}
+	//lint:ignore SA1012 Deliberate nil-context admission rejection test.
+	if execution, err = sandbox.Start(nil, `return 1`, CodemodeStart{}); err == nil || execution != nil {
+		t.Fatal("nil context accepted")
+	}
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	store := JSON{"key": JSON{"n": 1}}
+	execution, err = sandbox.Start(ctx, `return load("key").n`, CodemodeStart{Store: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer execution.Close()
+	store["key"].(JSON)["n"] = 99
+	result, err := execution.Next(ctx)
+	if err != nil || result.Result == nil || !equalJSONValue(result.Result.Value, 1) {
+		t.Fatal(result, err)
+	}
+}

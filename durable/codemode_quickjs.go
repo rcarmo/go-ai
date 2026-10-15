@@ -39,11 +39,17 @@ type quickjsExecution struct {
 }
 
 func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
-	if start.RuntimeIdentity != "" && start.RuntimeIdentity != s.RuntimeIdentity() {
-		return nil, reject("QuickJS runtime identity mismatch")
+	if ctx == nil {
+		return nil, reject("nil QuickJS context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if s == nil || s.engine == nil {
 		return nil, reject("nil QuickJS engine")
+	}
+	if start.RuntimeIdentity != "" && start.RuntimeIdentity != s.RuntimeIdentity() {
+		return nil, reject("QuickJS runtime identity mismatch")
 	}
 	linked, cancel := context.WithCancel(ctx)
 	execution := &quickjsExecution{ctx: linked, cancel: cancel, events: make(chan CodemodeEvent, 1), deliveries: make(chan CodemodeDelivery), done: make(chan struct{})}
@@ -51,7 +57,9 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	clock.Store(start.StartedAt)
 	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
 	for key, value := range start.Store {
-		raw, err := json.Marshal(value)
+		limits := DefaultLimits()
+		limits.MaxStringBytes = 1 << 20
+		raw, err := encodeBounded(value, limits, 1<<20)
 		if err != nil {
 			cancel()
 			return nil, err
