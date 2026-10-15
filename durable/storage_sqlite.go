@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"unsafe"
 )
 
@@ -22,12 +24,31 @@ import (
 // transactions. It uses native Go record semantics, not upstream file formats.
 type SQLiteStorage struct {
 	*storeCore
-	db   *C.sqlite3
-	path string
+	db     *C.sqlite3
+	prefix string
+	path   string
 }
-type SQLiteOptions struct{ Limits *Limits }
+type SQLiteOptions struct {
+	Limits *Limits
+	// Prefix namespaces all native tables. Empty preserves the original schema.
+	// Changing the prefix opens a separate store; it never migrates existing data.
+	Prefix string
+}
+
+var sqlitePrefixPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var sqliteTableToken = regexp.MustCompile(`\b(config|frames|checkpoint)\b`)
+
+func (s *SQLiteStorage) schemaSQL(sql string) string {
+	if s.prefix == "" {
+		return sql
+	}
+	return sqliteTableToken.ReplaceAllStringFunc(sql, func(table string) string { return `"` + s.prefix + table + `"` })
+}
 
 func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err error) {
+	if options.Prefix != "" && (!sqlitePrefixPattern.MatchString(options.Prefix) || strings.HasPrefix(strings.ToLower(options.Prefix), "sqlite_")) {
+		return nil, reject("invalid SQLite table prefix")
+	}
 	limits := DefaultLimits()
 	if options.Limits != nil {
 		limits = *options.Limits
@@ -76,7 +97,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 		}
 		return nil, fmt.Errorf("durable: SQLite open failed")
 	}
-	store = &SQLiteStorage{storeCore: newCore(limits), db: db, path: path}
+	store = &SQLiteStorage{storeCore: newCore(limits), db: db, path: path, prefix: options.Prefix}
 	defer func() {
 		if err != nil {
 			C.sqlite3_close(db)
@@ -226,7 +247,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	return store, nil
 }
 func (s *SQLiteStorage) statement(sql string) (*C.sqlite3_stmt, error) {
-	text := C.CString(sql)
+	text := C.CString(s.schemaSQL(sql))
 	defer C.free(unsafe.Pointer(text))
 	var stmt *C.sqlite3_stmt
 	if C.sqlite3_prepare_v2(s.db, text, -1, &stmt, nil) != C.SQLITE_OK {
@@ -235,7 +256,7 @@ func (s *SQLiteStorage) statement(sql string) (*C.sqlite3_stmt, error) {
 	return stmt, nil
 }
 func (s *SQLiteStorage) exec(sql string) error {
-	text := C.CString(sql)
+	text := C.CString(s.schemaSQL(sql))
 	defer C.free(unsafe.Pointer(text))
 	if C.sqlite3_exec(s.db, text, nil, nil, nil) != C.SQLITE_OK {
 		return fmt.Errorf("durable: SQLite operation failed")

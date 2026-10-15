@@ -33,3 +33,7 @@ Regenerated from verified npm schema-v6 JSON:1614chat/60image/40classifier (41/1
 ## Durable system baseline
 
 Native context derivation/cache extension now distinguish explicit pi.system/head baseline contributions from later system deltas: baseline can lead imported assistant/tool history, while an ordinary later delta does not leapfrog assistants. Effective edited contributions are inspected; cached extension uses the same decision. Memory/journal imported-history/head/incremental regression and existing context/tool-planning/entry-context race count3 pass; durable vet/diff checks pass. SQLite prefix/cloudflare coordination changes are not yet implemented or waved away.
+
+## Native SQLite prefix
+
+SQLiteOptions.Prefix now validates upstream identifier syntax/reserved sqlite_ rejection before filesystem effects and namespaces config/frames/checkpoint tables. Empty prefix preserves existing files. Sequential prefixed stores in one file retain independent data across reopen/Reclaim; invalid/injection prefixes leave filesystem untouched. Prefix/conformance/ownership/request focused race count3 passes1.596s, durable vet/diff pass. Native exclusive file ownership is preserved; concurrent multi-adapter Cloudflare coordination is not implemented by this option and remains an explicit platform disposition. No migration between prefixes.
