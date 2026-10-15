@@ -71,11 +71,11 @@ func TestSwitchModelTransformsProviderSpecificTranscriptState(t *testing.T) {
 	if switched == ctx {
 		t.Fatal("SwitchModel should return a copied context")
 	}
-	if len(switched.Messages) != 1 || len(switched.Messages[0].Content) != 2 {
+	if len(switched.Messages) != 1 || len(switched.Messages[0].Content) != 1 {
 		t.Fatalf("unexpected transformed messages: %#v", switched.Messages)
 	}
-	if switched.Messages[0].Content[0].Type != "text" || switched.Messages[0].Content[0].ThinkingSignature != "" {
-		t.Fatalf("thinking block was not normalized to unsigned text: %#v", switched.Messages[0].Content[0])
+	if switched.Messages[0].Content[0].Type != "text" || switched.Messages[0].Content[0].Text != "hello" {
+		t.Fatalf("cross-model thinking was not removed: %#v", switched.Messages[0].Content[0])
 	}
 	if len(ctx.Messages[0].Content) != 2 {
 		t.Fatalf("original context was mutated: %#v", ctx.Messages)

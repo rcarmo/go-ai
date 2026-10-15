@@ -1,8 +1,10 @@
 // Message transformation for cross-provider compatibility.
 package goai
 
+import "strings"
+
 // TransformMessages normalizes messages for the target model:
-//   - Strips thinking blocks when switching providers (keeps for same model)
+//   - Drops thinking from other models (keeps valid same-model thinking)
 //   - Replaces images with placeholders for non-vision models
 //   - Skips errored/aborted assistant messages
 //   - Inserts synthetic tool results for orphaned tool calls
@@ -44,6 +46,10 @@ func TransformMessages(messages []Message, model *Model) []Message {
 			for _, block := range msg.Content {
 				switch block.Type {
 				case "thinking":
+					if !isSameModel {
+						crossProviderThinking++
+						continue
+					}
 					if block.Redacted {
 						if isSameModel {
 							newContent = append(newContent, block)
@@ -54,15 +60,10 @@ func TransformMessages(messages []Message, model *Model) []Message {
 						newContent = append(newContent, block)
 						continue
 					}
-					if block.Thinking == "" {
+					if strings.TrimSpace(block.Thinking) == "" {
 						continue
 					}
-					if isSameModel {
-						newContent = append(newContent, block)
-					} else {
-						crossProviderThinking++
-						newContent = append(newContent, ContentBlock{Type: "text", Text: block.Thinking})
-					}
+					newContent = append(newContent, block)
 
 				case "text":
 					if isSameModel {
