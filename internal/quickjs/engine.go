@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -879,8 +880,10 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 			return fail()
 		}
 		v.issuedCalls++
-		var id int
-		fmt.Sscan(idText, &id)
+		id, err := strconv.Atoi(idText)
+		if err != nil || id != v.issuedCalls {
+			return fail()
+		}
 		v.startCall(kind == "call", id, name, argsJSON, hasArgs)
 	case "output":
 		typ, _ := arg(1)
@@ -963,7 +966,10 @@ func (v *vm) startCall(isTool bool, id int, name, argsJSON string, hasArgs bool)
 		wait, err := v.prepareCall(v.callCtx, id, !isTool, name, args)
 		if err != nil || wait == nil {
 			v.done, v.interrupt = true, true
-			message:="host returned nil prepared callback";if err!=nil{message=err.Error()}
+			message := "host returned nil prepared callback"
+			if err != nil {
+				message = err.Error()
+			}
 			v.result = Result{Error: &Error{Kind: ErrorSandbox, Message: message}}
 			return
 		}

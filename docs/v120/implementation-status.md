@@ -1300,6 +1300,14 @@ A CPU/allocation profile of five repetitions of `TestCodemode120ParallelRuntime(
 
 The workload repeatedly creates cold engines, so it cannot establish steady-state execution cost or an optimisation improvement. Production callers can reuse the sandbox engine; any tuning comparison must separate cold construction and reused-engine execution while preserving commit validation and isolation. No allocation optimisation was made at this checkpoint. Raw CPU/heap profiles, matching test binary and disposable logs were deleted immediately after analysis. Remaining whole-port profiling/tuning, security disposition and parity gaps still prevent final acceptance.
 
+## Reused-engine parallel profiling and call-ID allocation
+
+A reused-engine benchmark now executes eight parallel tool calls, checks sum/store value 56 and all eight call records. Engine compilation and a warm execution are outside the benchmark timer. Thirty equivalent iterations before/after replacing bridge call-ID `fmt.Sscan` with checked `strconv.Atoi` measured 4,120 to 4,093 allocations/op and 5,156,138 to 5,155,358 bytes/op. Timing changed from 37.466ms to 38.668ms/op in these single runs; there is no speedup claim. IDs must now parse completely and match cumulative guest issue order.
+
+CPU, alloc_space and alloc_objects were inspected for both runs. Whole-process profiles still include cold compilation despite benchmark timer exclusion. Before the change, sampled call-ID scanning accounted for 32,768 allocated objects. Afterward that scan hotspot disappeared; wazero memory growth/creation and cancellation machinery dominate remaining allocation samples. Cancellation and memory limits were unchanged. Raw profiles, matching binaries and run logs were deleted after each analysis.
+
+Go 1.27.1 ordered/drain/global race tests passed three times in 55.180s. Full normal tests passed (durable 102.595s, tools 4.348s), plus vet, staticcheck, logging, non-CGO and diff checks. The prior full-root race receipt predates this parser change; final acceptance still requires refresh. Remaining parity gaps and security findings are unresolved.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
