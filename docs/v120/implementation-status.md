@@ -790,6 +790,12 @@ Reviewed the twelve remaining sandbox declarations. New concrete tests verify co
 
 Focused execution race count 3 passes in 10.488s. Full normal root tests pass (durable 95.257s, tools 6.212s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Review total is 109/149, with the 40 durable-runtime declarations unreviewed. This inventory excludes parameterised declarations by its documented counting rule; complete security/parity acceptance is unfinished.
 
+## Durable journal/restart review
+
+Reviewed the first 23 durable-runtime declarations against pinned assertions and native serial journal, globals, identity, deadline and fault tests. Parallel issue/delivery prefixes, idle/waiting watermarks, interrupted-prefix flushing and legacy started-fingerprint transport are absent. Serial restart mappings remain partial where the exact upstream divergent-call fixture has no direct counterpart. Review total is 132/149, with 17 unreviewed.
+
+Focused serial journal/restart/deadline/identity/fault race count 3 passes in 16.786s. This increment changes only review documents; production and test source are unchanged from the preceding verified checkpoint. Diff checks pass; diagnostic logs were removed after analysis. The review does not resolve implementation or acceptance gaps.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

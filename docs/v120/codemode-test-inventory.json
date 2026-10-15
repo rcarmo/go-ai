@@ -1029,117 +1029,197 @@
         {
           "line": 193,
           "name": "runs a script that calls tools as nested calls, and journals each result before delivering it",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_runtime_120_test.go",
+            "durable/codemode_model_recovery_120_test.go"
+          ],
+          "note": "Serial issued/delivery journal and model-facing restart verified; upstream full rendering/status/parallel receipt incomplete."
         },
         {
           "line": 207,
           "name": "resumes a script after a restart without running its finished calls again",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_restart_120_test.go",
+            "durable/codemode_globals_120_test.go"
+          ],
+          "note": "Custom/discovery globals journal/replay; native unconfirmed callbacks at-least-once and purity/idempotency required."
         },
         {
           "line": 224,
           "name": "replays results in the order they arrived, not the order the calls were made",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_restart_120_test.go",
+            "durable/codemode_deterministic_crosswalk_120_test.go",
+            "durable/codemode_quickjs_clock_120_test.go"
+          ],
+          "note": "Persisted seed/clock/namespace replay and pinned random/performance tests; parallel prefix clock contract incomplete."
         },
         {
           "line": 240,
           "name": "journals globals with their results and hands a replay the recorded ones",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Idle.seq/issued watermark journal protocol absent in serial event model."
         },
         {
           "line": 254,
           "name": "keeps the script's clock and randomness across a restart",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Missing issued-count in idle ticks has no native equivalent; no idle tick transport."
         },
         {
           "line": 269,
           "name": "ends the call when a resumed script made a different number of calls than before",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Waiting primitive/protocol absent; generic store result atomic validation does not test waitingWithCalls semantics."
         },
         {
           "line": 286,
           "name": "ends the call at once when a resumed script waits without making a call it made before",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Parallel in-flight nested replay and no duplicate effects are unsupported; serial-only guard is not parity."
         },
         {
           "line": 305,
           "name": "ends the call when a resumed script calls a global with other arguments",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Parallel issue watermark divergence before effect admission not implemented."
         },
         {
           "line": 318,
           "name": "admits no call of a diverging replay, even one the script never made before",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Parallel global issued/delivered prefix restart protocol absent."
         },
         {
           "line": 347,
           "name": "ends the call when a resumed script ends where it went on before",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Interrupted parallel prefix flush absent."
         },
         {
           "line": 370,
           "name": "ends the call when a resumed script ends before calls the live run made, even without a recorded count",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Parallel prefix issue-order and watermark cursor validation absent."
         },
         {
           "line": 390,
           "name": "ends the call when a resumed script makes a call an earlier attempt admitted with other arguments",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_paid_revoke_120_test.go",
+            "durable/codemode_catalog_reopen_120_test.go"
+          ],
+          "note": "Persisted confirmed catalog/paid deliveries replay under current revocation fences; general removed selected-tool case needs direct counterpart."
         },
         {
           "line": 412,
           "name": "records a count the live run never recorded as soon as a replay acknowledges it",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Callable resolver revocation against interrupted parallel calls needs parallel protocol; native serial fences only."
         },
         {
           "line": 441,
           "name": "lists the script's tool calls in its result's details",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_runtime_120_test.go",
+            "durable/codemode_identity_120_test.go"
+          ],
+          "note": "Native call arguments/name and source/authority identity mismatches reject before replay effects; exact restart code-divergence fixture partial."
         },
         {
           "line": 467,
           "name": "stores no outcome when the host closes the sandbox, and replays the script after a restart",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_runtime_120_test.go"
+          ],
+          "note": "Native event call ordinal/authority replay checks; dedicated fewer-calls restart counterpart incomplete."
         },
         {
           "line": 497,
           "name": "aborts a call still running when the script ends",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_runtime_120_test.go"
+          ],
+          "note": "Completion before stored issued/delivery prefix rejects in implementation; early-end restart fixture not pinned."
         },
         {
           "line": 515,
           "name": "admits no call once the script has ended, even one it made before ending",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Completion watermark consistency API absent."
         },
         {
           "line": 533,
           "name": "checks a rerun's calls against an earlier attempt's before admitting any later call",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Legacy sandbox started fingerprint protocol absent; native RuntimeIdentity is constructor interface and start snapshot."
         },
         {
           "line": 559,
           "name": "ends the call when a rerun makes a global call where an earlier attempt made a tool call",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_identity_120_test.go"
+          ],
+          "note": "Changed persisted RuntimeIdentity rejects before VM reuse; exact upstream started fingerprint string unavailable."
         },
         {
           "line": 577,
           "name": "ends the call when a rerun's first run makes fewer calls than an earlier attempt admitted",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_fault_120_test.go",
+            "durable/codemode_fault_120_test.go"
+          ],
+          "note": "Rejected journal settlement never delivers VM result; reopen does not fabricate confirmed paid effect. No serial fault completes store writes."
         },
         {
           "line": 605,
           "name": "ends the call when a rerun without journal entries ends in its first run, where it went on before",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_identity_120_test.go",
+            "durable/codemode_integrity.go"
+          ],
+          "note": "Native start/version and identity validated; pinned version1 missing-started fixture has no direct native envelope equivalent."
         },
         {
           "line": 625,
           "name": "checks every call a rerun holds before launching any of them",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_fault_120_test.go",
+            "durable/codemode_bounds_120_test.go"
+          ],
+          "note": "Persisted deadline not reset and expired settlement discards writes; native context/deadline result formatting differs."
         },
         {
           "line": 656,
           "name": "keeps a global's undefined result undefined, live and replayed",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_quickjs_120_test.go",
+            "durable/codemode_identity_120_test.go"
+          ],
+          "note": "Settled result reuse does not rerun VM/effects; native result envelope differs."
         },
         {
           "line": 666,
