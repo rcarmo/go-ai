@@ -139,3 +139,38 @@ func TestCodemode120FilesystemAdmissionRejectsBeforeAllocationAndContainsPanic(t
 		})
 	}
 }
+
+type invalidJoinFS120 struct {
+	*codemodeFS120
+	path string
+}
+
+func (f *invalidJoinFS120) JoinPath(context.Context, ...string) (string, error) { return f.path, nil }
+func TestCodemode120FilesystemWriterValidatesBeforeWrite(t *testing.T) {
+	for _, name := range []string{"", "../output.txt", "image-0.png", "image-1.txt", "arbitrary.txt", "image-1.png\n"} {
+		fs := &codemodeFS120{id: "fs"}
+		writer := &codemodeFSWriter{FileSystem: fs, directory: "/owned/tmp"}
+		if _, err := writer.WriteCodemodeOutput(bg, 1, "script", name, []byte("data")); err == nil || fs.writes != 0 {
+			t.Fatal(name, err, fs.writes)
+		}
+	}
+	for _, path := range []string{"", "/owned/bad\npath", strings.Repeat("x", DefaultLimits().MaxStringBytes+1)} {
+		fs := &invalidJoinFS120{codemodeFS120: &codemodeFS120{id: "fs"}, path: path}
+		writer := &codemodeFSWriter{FileSystem: fs, directory: "/owned/tmp"}
+		if _, err := writer.WriteCodemodeOutput(bg, 1, "script", "output.txt", []byte("data")); err == nil || fs.writes != 0 {
+			t.Fatal(len(path), err, fs.writes)
+		}
+	}
+	fs := &codemodeFS120{id: "fs"}
+	writer := &codemodeFSWriter{FileSystem: fs, directory: "/owned/tmp"}
+	for _, name := range []string{"output.txt", "image-1.png", "image-2.jpg", "image-3.gif", "image-4.webp"} {
+		if _, err := writer.WriteCodemodeOutput(bg, 1, "script", name, []byte("data")); err != nil {
+			t.Fatal(name, err)
+		}
+	}
+	ctx, cancel := context.WithCancel(bg)
+	cancel()
+	if _, err := writer.WriteCodemodeOutput(ctx, 1, "script", "output.txt", nil); err == nil || fs.writes != 5 {
+		t.Fatal(err, fs.writes)
+	}
+}

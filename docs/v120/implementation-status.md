@@ -960,6 +960,12 @@ Filesystem identity is now validated before temporary-directory creation, includ
 
 All filesystem-output/fault/reopen/admission race tests, count 3, pass in 39.516s. Full normal root tests pass (durable 83.566s, tools 4.659s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Environment-owned orphan lifetime, large output/parallel and final acceptance remain unfinished.
 
+## Filesystem pre-write validation
+
+The fallback writer now accepts only `output.txt` or numbered PNG/JPEG/GIF/WebP output names, validates joined paths before invoking `WriteFile`, and checks cancellation before joining/writing. Empty, oversized and newline paths reject without writes. Tests cover invalid names/paths, each valid output extension and pre-cancelled contexts. Path confinement still belongs to the supplied filesystem capability; no host path-prefix assumptions were added.
+
+All filesystem tests, race count 3, pass in 39.624s. Full normal root tests pass (durable 82.745s, tools 4.587s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

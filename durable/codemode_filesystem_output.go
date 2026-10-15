@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"regexp"
 	"strings"
 )
 
@@ -104,17 +105,31 @@ func (r *TaskRuntime) codemodeFilesystemWriter(ctx context.Context, key string, 
 	return &codemodeFSWriter{FileSystem: fs, directory: directory}, nil
 }
 
+var codemodeOutputFilename = regexp.MustCompile(`^(output\.txt|image-[1-9][0-9]*\.(png|jpg|gif|webp))$`)
+
 type codemodeFSWriter struct {
 	FileSystem
 	directory string
 }
 
 func (w *codemodeFSWriter) WriteCodemodeOutput(ctx context.Context, _ ID, _ string, name string, data []byte) (string, error) {
-	if name == "" || strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
+	if ctx == nil {
+		return "", reject("nil codemode output context")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if !codemodeOutputFilename.MatchString(name) {
 		return "", reject("invalid codemode output filename")
 	}
 	path, err := w.JoinPath(ctx, w.directory, name)
 	if err != nil {
+		return "", err
+	}
+	if path == "" || len(path) > DefaultLimits().MaxStringBytes || strings.ContainsAny(path, "\r\n") {
+		return "", reject("invalid codemode output path")
+	}
+	if err = ctx.Err(); err != nil {
 		return "", err
 	}
 	if err = w.WriteFile(ctx, path, data); err != nil {
