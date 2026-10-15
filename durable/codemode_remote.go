@@ -50,7 +50,10 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 	go func() {
 		defer close(e.done)
 		terminal := false
+		var exchangeMu sync.Mutex
 		err := callCodemodeRemote(linked, s.Remote, code, owned, func(ctx context.Context, event CodemodeEvent) (CodemodeRemoteReply, error) {
+			exchangeMu.Lock()
+			defer exchangeMu.Unlock()
 			if terminal {
 				return CodemodeRemoteReply{}, reject("remote event after terminal result")
 			}
@@ -78,6 +81,9 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			}
 			var detached CodemodeEvent
 			if err := fromObject(value, &detached, limits); err != nil {
+				return CodemodeRemoteReply{}, err
+			}
+			if err := e.admitEvent(detached, owned); err != nil {
 				return CodemodeRemoteReply{}, err
 			}
 			select {
@@ -136,14 +142,19 @@ type remoteCodemodeEvent struct {
 	err   error
 }
 type remoteCodemodeExecution struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	events     chan remoteCodemodeEvent
-	replies    chan CodemodeRemoteReply
-	done       chan struct{}
-	deliveries chan CodemodeDelivery
-	mu         sync.Mutex
-	drain      *CodemodeDrain
+	ctx          context.Context
+	cancel       context.CancelFunc
+	events       chan remoteCodemodeEvent
+	replies      chan CodemodeRemoteReply
+	done         chan struct{}
+	deliveries   chan CodemodeDelivery
+	mu           sync.Mutex
+	drain        *CodemodeDrain
+	issued       int
+	delivered    int
+	lastDelivery int
+	waiting      map[int]CodemodeCall
+	acknowledged bool
 }
 
 func (e *remoteCodemodeExecution) Next(ctx context.Context) (CodemodeEvent, error) {
@@ -177,6 +188,7 @@ func (e *remoteCodemodeExecution) AcknowledgeDrain(ctx context.Context, drain Co
 	select {
 	case e.replies <- CodemodeRemoteReply{Acknowledged: &drain}:
 		e.drain = nil
+		e.acknowledged = true
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -196,8 +208,18 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	if err := fromObject(object, &owned, DefaultLimits()); err != nil {
 		return err
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	call, ok := e.waiting[owned.Call.ID]
+	if !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < 0 || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
+		return reject("invalid remote delivery")
+	}
 	select {
 	case e.deliveries <- owned:
+		delete(e.waiting, call.ID)
+		e.delivered++
+		e.lastDelivery = call.ID
+		e.acknowledged = false
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -206,3 +228,44 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	}
 }
 func (e *remoteCodemodeExecution) Close() error { e.cancel(); <-e.done; return nil }
+
+func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start CodemodeStart) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if event.Call != nil {
+		call := *event.Call
+		if call.ID != e.issued+1 || call.ID > DefaultLimits().MaxPage || call.Arguments == nil {
+			return reject("invalid remote call sequence")
+		}
+		allowed := false
+		if call.Global {
+			allowed = codemodeGlobalAllowed(start, call.Name)
+		} else {
+			for _, tool := range start.Tools {
+				if tool.Name == call.Name {
+					allowed = true
+					break
+				}
+			}
+		}
+		if !allowed {
+			return reject("remote call outside captured authority")
+		}
+		args, err := copyObject(call.Arguments, DefaultLimits())
+		if err != nil {
+			return err
+		}
+		call.Arguments = args
+		if e.waiting == nil {
+			e.waiting = map[int]CodemodeCall{}
+		}
+		e.waiting[call.ID] = call
+		e.issued++
+	}
+	if event.Drain != nil {
+		if e.drain != nil || event.Drain.Issued != e.issued || event.Drain.DeliveryID != e.lastDelivery {
+			return reject("invalid remote drain sequence")
+		}
+	}
+	return nil
+}

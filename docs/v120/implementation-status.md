@@ -1222,6 +1222,14 @@ Real QuickJS loopback tests exercise completion-order calls and caller reopen th
 
 This is a native Go transport contract, not the TypeScript remote wire format. No network transport/authentication or cross-process failure test is supplied. The transport must authenticate peers, preserve ordering, honour cancellation and join work. Server-side budget/memory caps, malicious peer admission and output-batch streaming need further implementation/verification before remote parity can be accepted.
 
+## Remote admission and compute ceiling
+
+The remote client now checks sequential call IDs, captured tool/global authority, detached arguments, drain counts and delivery IDs. Delivery admission rejects unacknowledged, forged and duplicate results before forwarding them. Exchanges are serialised. The native server caps requested compute budgets, including zero, at its configured ceiling (default 100,000 polls); callers cannot disable the server cap.
+
+Tests cover forged call/drain events, delivery mutation and duplication, plus zero/small/excessive compute requests. Existing real QuickJS remote ordering/reopen/close tests remain in the focused selection. Go 1.27.1 remote race tests passed three times in 39.916s. Full normal tests passed (durable 102.332s, tools 4.299s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis.
+
+Remote wire interoperability, cross-process transport, output batching, complete malicious-peer state-machine checks and explicit server memory configuration are unfinished. The server currently uses the sandbox's fixed memory limit. Large-image storage and whole-port acceptance are also incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

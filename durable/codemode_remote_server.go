@@ -5,11 +5,25 @@ import "context"
 // CodemodeRemoteServer adapts a sandbox to the native remote transport contract.
 // Network transports supply the authenticated exchange/receive functions. The
 // server never receives host tool implementations or ambient filesystem access.
-type CodemodeRemoteServer struct{ Sandbox CodemodeSandbox }
+type CodemodeRemoteServer struct {
+	Sandbox CodemodeSandbox
+	// MaxInterruptBudget defaults to the upstream 100000-poll server ceiling.
+	MaxInterruptBudget int
+}
 
 func (s *CodemodeRemoteServer) Execute(ctx context.Context, code string, start CodemodeStart, exchange func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error), receive func(context.Context) (CodemodeDelivery, error)) error {
 	if ctx == nil || s == nil || s.Sandbox == nil || exchange == nil || receive == nil {
 		return reject("invalid remote sandbox server")
+	}
+	maximum := s.MaxInterruptBudget
+	if maximum == 0 {
+		maximum = DefaultCodemodeInterruptBudget
+	}
+	if maximum < 1 || maximum > 1000000 || start.InterruptBudget < 0 {
+		return reject("invalid remote interrupt ceiling")
+	}
+	if start.InterruptBudget == 0 || start.InterruptBudget > maximum {
+		start.InterruptBudget = maximum
 	}
 	linked, cancel := context.WithCancel(ctx)
 	defer cancel()

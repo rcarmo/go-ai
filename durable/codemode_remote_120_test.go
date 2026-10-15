@@ -61,3 +61,78 @@ func TestCodemode120RemoteCloseDuringDrainJoins(t *testing.T) {
 		t.Fatal("remote close failed to join", ctx.Err())
 	}
 }
+
+func TestCodemode120RemoteRejectsForgedEventsAndDeliveries(t *testing.T) {
+	start := CodemodeStart{Tools: []CodemodeToolDescription{{Name: "leaf"}}}
+	for _, call := range []CodemodeCall{{ID: 2, Name: "leaf", Arguments: JSON{}}, {ID: 1, Name: "private", Arguments: JSON{}}, {ID: 1, Name: "leaf", Arguments: nil}} {
+		e := &remoteCodemodeExecution{}
+		if err := e.admitEvent(CodemodeEvent{Call: &call}, start); err == nil {
+			t.Fatal("forged call accepted", call)
+		}
+	}
+	e := &remoteCodemodeExecution{ctx: bg, deliveries: make(chan CodemodeDelivery, 1)}
+	call := CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{"n": 1}}
+	if err := e.admitEvent(CodemodeEvent{Call: &call}, start); err != nil {
+		t.Fatal(err)
+	}
+	call.Arguments["n"] = 99
+	for _, drain := range []CodemodeDrain{{Issued: 0}, {Issued: 1, DeliveryID: 1}} {
+		if err := e.admitEvent(CodemodeEvent{Drain: &drain}, start); err == nil {
+			t.Fatal("forged drain accepted", drain)
+		}
+	}
+	delivery := CodemodeDelivery{Seq: 1, Call: CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{"n": 1}}, HasValue: true, Value: "ok"}
+	if err := e.Deliver(bg, delivery); err == nil {
+		t.Fatal("unacknowledged delivery accepted")
+	}
+	e.acknowledged = true
+	bad := delivery
+	bad.Call.Name = "other"
+	if err := e.Deliver(bg, bad); err == nil {
+		t.Fatal("forged delivery accepted")
+	}
+	if err := e.Deliver(bg, delivery); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Deliver(bg, delivery); err == nil {
+		t.Fatal("duplicate delivery accepted")
+	}
+}
+
+type remoteBudgetSandbox120 struct{ budget int }
+
+func (s *remoteBudgetSandbox120) Start(_ context.Context, _ string, start CodemodeStart) (CodemodeExecution, error) {
+	s.budget = start.InterruptBudget
+	return remoteBudgetExecution120{}, nil
+}
+
+type remoteBudgetExecution120 struct{}
+
+func (remoteBudgetExecution120) Next(context.Context) (CodemodeEvent, error) {
+	return CodemodeEvent{Result: &CodemodeResult{}}, nil
+}
+func (remoteBudgetExecution120) Deliver(context.Context, CodemodeDelivery) error       { return nil }
+func (remoteBudgetExecution120) AcknowledgeDrain(context.Context, CodemodeDrain) error { return nil }
+func (remoteBudgetExecution120) Close() error                                          { return nil }
+func TestCodemode120RemoteServerCapsCompute(t *testing.T) {
+	for _, requested := range []int{0, 10, 1000000} {
+		sandbox := &remoteBudgetSandbox120{}
+		server := &CodemodeRemoteServer{Sandbox: sandbox, MaxInterruptBudget: 20}
+		err := server.Execute(bg, "", CodemodeStart{InterruptBudget: requested}, func(context.Context, CodemodeEvent) (CodemodeRemoteReply, error) {
+			return CodemodeRemoteReply{Stop: true}, nil
+		}, func(ctx context.Context) (CodemodeDelivery, error) {
+			<-ctx.Done()
+			return CodemodeDelivery{}, ctx.Err()
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := requested
+		if want == 0 || want > 20 {
+			want = 20
+		}
+		if sandbox.budget != want {
+			t.Fatal("server cap bypassed", requested, sandbox.budget)
+		}
+	}
+}
