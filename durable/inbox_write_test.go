@@ -29,7 +29,7 @@ func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		note := &Entry{Kind: "app.note", Value: JSON{"text": "passive"}}
+		note := &Entry{Kind: "app.note", Edits: []ContextEdit{}, Value: JSON{"text": "passive"}}
 		write, err := conversation.Submit(bg, Input{Type: "write", Entry: note, RequestID: "note"})
 		if err != nil {
 			t.Fatal(err)

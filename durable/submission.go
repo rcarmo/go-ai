@@ -198,6 +198,35 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			value["inputMessage"] = map[string]any(wire)
 		}
 		status := "pending"
+		if input.Type == "write" && input.Entry != nil && input.Entry.Model == nil && input.Entry.Head == 0 && input.Entry.Edits == nil {
+			queuedReset := false
+			inbox, err := builtin(tx, c.id, "pi.inbox")
+			if err != nil {
+				return err
+			}
+			inboxValue, err := inbox.Get()
+			if err != nil {
+				return err
+			}
+			items, ok := inboxValue["items"].([]any)
+			if !ok {
+				return reject("inbox shape")
+			}
+			for _, raw := range items {
+				item, ok := raw.(map[string]any)
+				if !ok {
+					return reject("inbox item")
+				}
+				if item["mode"] == "reset" {
+					queuedReset = true
+					break
+				}
+			}
+
+			if !queuedReset {
+				busy = false
+			}
+		}
 		if input.Type == "write" {
 			if !busy {
 				status = "done"

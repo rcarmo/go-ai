@@ -1356,6 +1356,12 @@ Anthropic fallback tests now explicitly cover cancellation before retry and wron
 
 Go 1.27.1 Anthropic boundary race tests passed three times in 1.037s. Full normal tests passed (durable 105.293s, tools 4.318s), plus vet, staticcheck, logging, non-CGO and diff checks. Regeneration scratch and disposable logs were removed after use; the completed reproducible catalogue cache was cleared. `ai-crosswalk.md` records these checks. Signature/provenance, paid live-provider evidence, current full-race acceptance and the 13 security findings remain unresolved; durable large-image and remote-wire gaps still prevent complete parity.
 
+## Display-only writes during a live generation
+
+The non-codemode durable audit found display-only passive entries queued behind a live generation. The pinned submission contract places them immediately unless a reset is queued. Native admission now distinguishes entries with no model, head or edits; present-but-empty edits still queue. Existing boundary-order tests explicitly select empty edits, preserving their context-changing write workload.
+
+Tests verify immediate placement/settlement while model execution is gated, queuing behind a reset, and existing queued/bound-wait behaviour on both backends. Go 1.27.1 focused race tests passed three times in 5.803s. Full normal tests passed (durable 106.021s, tools 4.347s), plus vet, staticcheck, logging, non-CGO and diff checks before the final reset test-only addition. Diagnostic logs were deleted after analysis. Custom input-entry semantics, remaining changed durable paths and whole-port acceptance need further audit.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
