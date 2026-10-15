@@ -45,3 +45,7 @@ QuickJSSandbox now exposes AcquireWorker (release/error) and OnWorkerStarted(act
 ## Combined streaming chunks and Gemini4+
 
 OpenAI Chat processes readable reasoning and reasoning_details before answer content in a combined proxy chunk; regression covers all3reasoning fields plus metadata-only details. Gemini4+ IDs now select thinkingLevel instead of thinkingBudget, matching pinned regex semantics; payload cases cover4/5/10/20. Full OpenAI/Google race count3 passes2.739s/1.036s, vet/diff pass. OpenCode Google requests already use shared session-header helper; Kimi/OpenCode protocol selection comes from regenerated catalogue. Remaining Bedrock error images/retry/plain wire and official worker refresh not yet accepted.
+
+## Bedrock image/retry/wire follow-up
+
+Bedrock tool groups retain successful images and extract Claude error-result images with caption after all result blocks. Full Bedrock race count3 passes5.093s, image/order regression and vet/diff pass. Retry classifier now accepts service-is-temporarily-unavailable and unable-to-forward-upstream; focused consumer race passes. Pi-messages applyTool/end events copy argumentsError supplied by the wire; raw buffered/nonterminal/error propagation still needs final integration audit. No full1.3 gate claim.

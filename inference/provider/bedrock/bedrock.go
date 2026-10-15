@@ -534,66 +534,49 @@ func convertMessages(convCtx *goai.Context, model *goai.Model, cacheRetention st
 			}
 
 		case goai.RoleToolResult:
-			// Collect consecutive tool results into one user message
-			var toolResults []types.ContentBlock
-
-			textResult := ""
-			for _, b := range msg.Content {
-				if b.Type == "text" {
-					textResult += b.Text
-				}
-			}
-			textResult = bedrockToolResultText(textResult)
-
-			status := types.ToolResultStatusSuccess
-			if msg.IsError {
-				status = types.ToolResultStatusError
-			}
-
-			toolResults = append(toolResults, &types.ContentBlockMemberToolResult{
-				Value: types.ToolResultBlock{
-					ToolUseId: aws.String(msg.ToolCallID),
-					Content: []types.ToolResultContentBlock{
-						&types.ToolResultContentBlockMemberText{
-							Value: goai.SanitizeSurrogates(textResult),
-						},
-					},
-					Status: status,
-				},
-			})
-
-			// Look ahead for consecutive tool results
-			for i+1 < len(transformed) && transformed[i+1].Role == goai.RoleToolResult {
-				i++
-				next := transformed[i]
-				nextText := ""
-				for _, b := range next.Content {
-					if b.Type == "text" {
-						nextText += b.Text
+			var results []types.ContentBlock
+			var trailing []types.ContentBlock
+			for ; i < len(transformed) && transformed[i].Role == goai.RoleToolResult; i++ {
+				result := transformed[i]
+				var content []types.ToolResultContentBlock
+				var images []types.ContentBlock
+				text := ""
+				for _, block := range result.Content {
+					if block.Type == "text" {
+						text += block.Text
 					}
 				}
-				nextText = bedrockToolResultText(nextText)
-				nextStatus := types.ToolResultStatusSuccess
-				if next.IsError {
-					nextStatus = types.ToolResultStatusError
+				text = bedrockToolResultText(text)
+				content = append(content, &types.ToolResultContentBlockMemberText{Value: text})
+				imageRun := false
+				for _, block := range result.Content {
+					if block.Type != "image" {
+						imageRun = false
+						continue
+					}
+					image := createImageBlock(block.MimeType, block.Data).(*types.ContentBlockMemberImage).Value
+					if result.IsError && strings.Contains(strings.ToLower(model.ID), "anthropic") {
+						if !imageRun {
+							content = append(content, &types.ToolResultContentBlockMemberText{Value: "(image attached after the tool results)"})
+						}
+						imageRun = true
+						images = append(images, &types.ContentBlockMemberImage{Value: image})
+					} else {
+						content = append(content, &types.ToolResultContentBlockMemberImage{Value: image})
+					}
 				}
-				toolResults = append(toolResults, &types.ContentBlockMemberToolResult{
-					Value: types.ToolResultBlock{
-						ToolUseId: aws.String(next.ToolCallID),
-						Content: []types.ToolResultContentBlock{
-							&types.ToolResultContentBlockMemberText{
-								Value: goai.SanitizeSurrogates(nextText),
-							},
-						},
-						Status: nextStatus,
-					},
-				})
+				status := types.ToolResultStatusSuccess
+				if result.IsError {
+					status = types.ToolResultStatusError
+				}
+				results = append(results, &types.ContentBlockMemberToolResult{Value: types.ToolResultBlock{ToolUseId: aws.String(result.ToolCallID), Content: content, Status: status}})
+				if len(images) > 0 {
+					trailing = append(trailing, &types.ContentBlockMemberText{Value: "Images from tool result " + result.ToolCallID + ":"})
+					trailing = append(trailing, images...)
+				}
 			}
-
-			result = append(result, types.Message{
-				Role:    types.ConversationRoleUser,
-				Content: toolResults,
-			})
+			i--
+			result = append(result, types.Message{Role: types.ConversationRoleUser, Content: append(results, trailing...)})
 		}
 	}
 

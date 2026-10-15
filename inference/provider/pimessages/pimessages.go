@@ -278,7 +278,7 @@ func newConverter(model *goai.Model) func([]byte) (goai.Event, bool, error) {
 				applyTool(&partial.Content[idx], tc)
 			}
 			delete(toolJSON, idx)
-			return &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: partial.Content[idx].Arguments}, Partial: partial}, false, nil
+			return &goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: partial.Content[idx].Arguments, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial}, false, nil
 		case "start":
 			return &goai.StartEvent{Partial: partial}, false, nil
 		}
@@ -311,6 +311,9 @@ func appendRewrite(m *goai.Message, v any) {
 	}
 }
 func applyTool(c *goai.ContentBlock, tc map[string]any) {
+	if value, ok := tc["argumentsError"].(string); ok {
+		c.ArgumentsError = value
+	}
 	if id, _ := tc["id"].(string); id != "" {
 		c.ID = id
 	}
