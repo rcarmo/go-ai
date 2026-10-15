@@ -1110,6 +1110,14 @@ Replacement permits a count to be added once and then freezes it. Delivery paylo
 
 The runtime does not populate these fields yet. Persisting and verifying drain counts, effect gating and concurrent delivery-order replay are the next integration steps.
 
+## Drain commit-or-verify coordinator
+
+The drain coordinator checks the current execution's observed call count against the VM count and the persisted initial or delivery watermark. New counts commit before VM acknowledgement; recorded counts replay without a write. Failed commits do not update the in-memory journal, and cancellation after commit keeps the VM blocked. Tests verify count and identity divergence release no acknowledgement, plus initial and final drains through the real QuickJS adapter.
+
+The integration test exposed a scheduling race: the adapter could publish a drain before its callback goroutine published the call event. Drain publication now waits for all issued call events, with cancellation on that wait. Go 1.27.1 coordinator/watermark/adapter race tests passed three times in 22.755s. Full normal root tests passed (durable 84.258s, tools 4.541s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
+
+The coordinator is tested with a commit callback; `RunCodemode` does not call it yet. Runtime event-loop integration, concurrent calls and persisted-backend fault/reopen verification still need implementation.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

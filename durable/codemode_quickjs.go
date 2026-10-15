@@ -58,9 +58,20 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
 	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
+	var published chan struct{}
 	if start.DrainAcknowledgements {
+		published = make(chan struct{}, 1)
+		observed := 0
 		execution.drainAck = make(chan struct{})
 		opts.OnDrain = func(ctx context.Context, id, issued int) error {
+			for observed < issued {
+				select {
+				case <-published:
+					observed++
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
 			drain := CodemodeDrain{DeliveryID: id, Issued: issued}
 			execution.deliveryMu.Lock()
 			execution.drain = &drain
@@ -134,6 +145,13 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			case execution.events <- CodemodeEvent{Call: &call}:
 			case <-ctx.Done():
 				return nil, ctx.Err()
+			}
+			if published != nil {
+				select {
+				case published <- struct{}{}:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
 			}
 			var delivery CodemodeDelivery
 			select {
