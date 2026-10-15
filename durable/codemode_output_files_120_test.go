@@ -79,3 +79,30 @@ func (*panicOutputWriter120) Cwd() string { return "" }
 func (*panicOutputWriter120) WriteCodemodeOutput(context.Context, ID, string, string, []byte) (string, error) {
 	panic("private")
 }
+
+func TestCodemode120TextSpillFailureIsVisibleAndBounded(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		writer := &outputWriter120{fail: true}
+		registry := NewRegistry()
+		def := taskDefinition(t, "spill-failure-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			full := strings.Repeat("payload ", 1000)
+			result, err := r.RunCodemode(ctx, "run", `// @options: {"max_output_tokens":100}
+return "ignored";`, largeOutputSandbox120{full: full})
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(result.Output, "full output could not be saved") || codemodeTextUnits(result.Output) > 400 || result.Error != "" || result.FullOutputPath != "" || strings.Contains(result.Output, "private writer") {
+				t.Error("spill failure contract", result)
+			}
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+		if _, err := registry.RegisterTask(def); err != nil {
+			t.Fatal(err)
+		}
+		h := openHarness(t, b.store, Options{Registry: registry, Env: func(context.Context, EnvTarget) (ExecutionEnvironment, error) { return writer, nil }})
+		record := waitPublicTask(t, h, createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+		if record.State.Outcome.Status != "completed" {
+			t.Fatal(record.State.Outcome)
+		}
+	})
+}

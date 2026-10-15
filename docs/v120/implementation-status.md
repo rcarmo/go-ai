@@ -1320,6 +1320,12 @@ The codemode tool description and persisted prompt section still instructed seri
 
 Go 1.27.1 prompt race tests passed three times in 28.520s. Full normal tests passed (durable 104.182s, tools 4.374s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Large-image review found no existing blob/reference storage to reuse: image base64 remains inline in results and transcripts, so a complete solution must cover both, not just output-file writing. That storage gap and remote wire/batching remain unfinished.
 
+## Failed text spill notice
+
+Truncated text now reports when saving the full output fails, matching the pinned output contract's save disposition. The generic notice does not expose writer errors, does not turn successful script execution into failure, and shares the existing UTF-16 token ceiling with the body. Tiny budgets retain useful body instead of exceeding the limit for a diagnostic. No ordinary storage/tool bounds changed.
+
+Go 1.27.1 spill/large-output race tests passed three times in 10.228s. Full normal tests passed (durable 109.283s, tools 4.336s), plus vet, staticcheck, logging, non-CGO and diff checks. The fixture measures UTF-16 output units rather than UTF-8 byte length, matching the documented projection contract. Diagnostic logs were deleted after analysis. Large-image representation, remote wire/batching and whole-port acceptance remain incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

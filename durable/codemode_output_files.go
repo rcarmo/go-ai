@@ -98,15 +98,27 @@ func (r *TaskRuntime) prepareCodemodeOutput(ctx context.Context, key string, res
 		return result, err
 	}
 	truncated = projectCodemodeOutput(text, tokens) != text
+	spillFailed := false
 	if truncated {
 		path, err := write("output.txt", []byte(text))
 		if err == nil {
 			result.FullOutputPath = path
+		} else {
+			spillFailed = true
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 	result.Output = codemodeOutputWithPath(text, result.FullOutputPath, tokens)
+	if spillFailed {
+		const notice = "\n[Output truncated; full output could not be saved]"
+		remaining := codemodeTokenUnits(tokens) - codemodeTextUnits(notice)
+		// Preserve useful body for tiny budgets; never exceed the same inline
+		// token ceiling merely to add a diagnostic.
+		if remaining >= 8 {
+			result.Output = strings.TrimRight(projectCodemodeOutput(text, remaining/4), "\n") + notice
+		}
+	}
 	return result, nil
 }
