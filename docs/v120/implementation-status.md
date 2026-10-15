@@ -1068,6 +1068,12 @@ External wire tests now verify supported required constraints set strict mode, r
 
 Strict success/fallback/rejection race count 3 passes in 1.045s. Full normal root tests pass (durable 82.154s, tools 4.494s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit, large output/parallel and final acceptance remain unfinished.
 
+## Engine ordered parallel settlement groundwork
+
+An opt-in engine `OrderedSettlements` mode buffers completed callback results and applies them by guest issue ID across tools and globals. Callbacks may finish concurrently, but later promise continuations wait for earlier settlement. A barrier test completes the second callback first and verifies script observation remains first/second. Existing serial overlap rejection remains unchanged; the durable adapter does not enable parallel calls or this option yet.
+
+Ordered/serial engine race count 3 passes in 22.258s. Full normal root tests pass (durable 80.667s, tools 4.367s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. This is engine groundwork only: durable issued-prefix/watermark journalling, cancellation, four-call model capacity and replay admission remain implementation gaps.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
