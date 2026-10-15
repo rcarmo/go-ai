@@ -6,11 +6,12 @@ import "context"
 // Nested ParentTask identifies its caller, and Key is stable across replay.
 // Model calls retain their transcript call ID and generation parent.
 type ToolInvocation struct {
-	Task       ID
-	ParentTask ID
-	CallID     string
-	Key        string
-	Caller     string
+	Task         ID
+	ParentTask   ID
+	ParentCallID string
+	CallID       string
+	Key          string
+	Caller       string
 }
 
 func (api *HookAPI) ToolInvocation(ctx context.Context) (ToolInvocation, error) {
@@ -39,6 +40,7 @@ func (api *HookAPI) ToolInvocation(ctx context.Context) (ToolInvocation, error) 
 			if err != nil {
 				return err
 			}
+			out.ParentCallID = input.ParentCallID
 			out.Caller = "tools"
 			out.Key = input.Key
 			out.CallID = input.Key
@@ -55,4 +57,29 @@ func (api *HookAPI) ToolInvocation(ctx context.Context) (ToolInvocation, error) 
 		return nil
 	})
 	return out, err
+}
+
+func nestedParentCallID(parent Task, l Limits) (string, error) {
+	switch parent.Kind {
+	case "pi.tool":
+		var cp toolCheckpoint
+		if err := fromObject(parent.Checkpoint, &cp, l); err != nil {
+			return "", err
+		}
+		return cp.CallID, nil
+	case nestedToolKind:
+		record, err := CanonicalTask(parent, l)
+		if err != nil {
+			return "", err
+		}
+		input, err := nestedInput(record, l)
+		if err != nil {
+			return "", err
+		}
+		if input.ParentCallID != "" {
+			return input.ParentCallID + "/" + input.Key, nil
+		}
+		return input.Key, nil
+	}
+	return "", nil
 }

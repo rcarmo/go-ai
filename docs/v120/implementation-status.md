@@ -1380,6 +1380,12 @@ A backend test now closes the caller while generation is active and a custom inp
 
 Go 1.27.1 queued-reopen/metadata/inbox race tests passed three times in 13.290s. Full normal tests passed (durable 113.041s, tools 4.896s), plus vet, staticcheck, logging, non-CGO and diff checks. An initial validation placement covered only builtin envelopes; the forgery test exposed the missing envelope-free generation path and validation was moved before dispatch. Diagnostic logs were deleted after analysis. Remaining durable source crosswalk, image/remote gaps and final acceptance are incomplete.
 
+## Nested hook parent-call attribution
+
+Nested inputs now persist their parent's call ID. `HookAPI.ToolInvocation` exposes it as `ParentCallID` alongside the existing parent task, local key and caller fields. Model-tool parents use the transcript call ID; deeper nested parents compose the ancestor call path with their local key. Arbitrary application-task parents have no transcript call ID. Existing hook signatures and local `CallID` semantics are unchanged.
+
+A three-level backend test verifies the parent task and call path seen by nested before hooks. Go 1.27.1 parent-attribution/existing hook race tests passed three times in 2.896s. Full normal tests passed (durable 109.846s, tools 4.760s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Model-origin attribution and restart/forgery checks still need targeted verification; overall parity is incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

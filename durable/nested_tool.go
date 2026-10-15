@@ -13,12 +13,13 @@ const nestedToolKind = "task.pi.nested-tool"
 const nestedCallDocument = "pi.tool.nested-call"
 
 type nestedToolInput struct {
-	Sequential bool      `json:"sequential,omitempty"`
-	Parent     ID        `json:"parent"`
-	Key        string    `json:"key"`
-	Name       string    `json:"name"`
-	Arguments  JSON      `json:"arguments"`
-	Offer      toolOffer `json:"offer"`
+	Sequential   bool      `json:"sequential,omitempty"`
+	ParentCallID string    `json:"parentCallId,omitempty"`
+	Parent       ID        `json:"parent"`
+	Key          string    `json:"key"`
+	Name         string    `json:"name"`
+	Arguments    JSON      `json:"arguments"`
+	Offer        toolOffer `json:"offer"`
 }
 type nestedCallState struct {
 	Task      ID                 `json:"task"`
@@ -193,7 +194,11 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 				return nil, nil
 			}
 		}
-		input := nestedToolInput{Sequential: sequential, Parent: r.taskID, Key: key, Name: name, Arguments: owned, Offer: reg.offer}
+		parentCallID, err := nestedParentCallID(tx.state.Tasks[r.taskID], tx.limits)
+		if err != nil {
+			return nil, err
+		}
+		input := nestedToolInput{ParentCallID: parentCallID, Sequential: sequential, Parent: r.taskID, Key: key, Name: name, Arguments: owned, Offer: reg.offer}
 		object, err := dtoObject(input, l)
 		if err != nil {
 			return nil, err
