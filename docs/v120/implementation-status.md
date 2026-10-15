@@ -1260,6 +1260,12 @@ Catalogue tests now verify the changed 1.2.0 provider variants: GPT-6.1 Sol on O
 
 Go 1.27.1 thinking tests passed with race detection three times in 1.342s. Full normal tests passed (durable 105.038s, tools 4.319s), plus vet, staticcheck, logging, non-CGO and diff checks. The fixture explicitly registers built-in models before lookup, matching existing catalogue tests. Diagnostic logs were deleted after analysis. Remaining AI audit, remote batching/wire adaptation, large-image storage and final acceptance are unfinished.
 
+## Mistral callback wire serialisation
+
+The AI audit found a missing Mistral 1.2.0 transport contract: SDK-style fields added by a payload hook were sent unchanged. Known request fields now map to API snake_case, including sampling, penalties, parallel calls and response format. The `jsonSchema.schemaDefinition` wrapper maps to `json_schema.schema`; arbitrary schema and argument keys remain untouched. Existing snake_case fields take precedence on alias collisions, and callback-owned objects are not mutated.
+
+An HTTP test verifies the added fields and preserves a schema property named `maxTokens`. Existing affinity, replay, reasoning and header-timeout tests are retained. OpenRouter's credential-specific catalogue and 401/403/404 fallback cases already have local coverage; no duplicate was added. Go 1.27.1 focused Mistral race tests passed three times in 1.596s. Full normal tests passed (durable 105.694s, tools 4.409s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Remaining AI audit and whole-port acceptance are incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

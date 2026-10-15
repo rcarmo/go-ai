@@ -58,7 +58,7 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
-		bodyJSON, err := json.Marshal(payload)
+		bodyJSON, err := marshalMistralPayload(payload)
 		if err != nil {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
