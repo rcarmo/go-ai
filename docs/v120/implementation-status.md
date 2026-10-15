@@ -822,6 +822,12 @@ Unknown host operation names now terminate the VM as sandbox errors instead of s
 
 Focused malformed/return/stack/isolation/bridge race count 3 passes in 44.075s. Full normal root tests pass (durable 79.586s, tools 4.598s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parameterised return/unknown-operation mappings now have direct validation evidence, with transport differences explicit. Final parity and security acceptance remain unfinished.
 
+## Concrete replay-divergence counterparts
+
+Added memory/journal reopen tests using a concrete VM behind an identity-preserving drift fixture. After two confirmed nested deliveries, the reopened VM changes call arguments, issues fewer calls or ends immediately. The external source and runtime identity remain unchanged, forcing call-stream validation to detect drift. All three cases reject without another effect. No production changes were needed.
+
+Focused divergence race count 3 passes in 16.815s. Full normal root tests pass (durable 76.961s, tools 4.638s), with static/logging/non-CGO and diff checks. The initial expected error wording was corrected to the existing native error. Diagnostic logs were removed after analysis. Three partial crosswalk entries gained direct restart evidence; parallel watermark and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

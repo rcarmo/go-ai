@@ -1136,27 +1136,30 @@
           "disposition": "native-partial",
           "nativeTests": [
             "durable/codemode_runtime_120_test.go",
-            "durable/codemode_identity_120_test.go"
+            "durable/codemode_identity_120_test.go",
+            "durable/codemode_divergence_reopen_120_test.go"
           ],
-          "note": "Native call arguments/name and source/authority identity mismatches reject before replay effects; exact restart code-divergence fixture partial."
+          "note": "Concrete VM behind identity-preserving drift fixture reopens after two confirmed deliveries; changed args/fewer calls/early end reject and release no further effects. Source is unchanged externally; native result envelope differs."
         },
         {
           "line": 467,
           "name": "stores no outcome when the host closes the sandbox, and replays the script after a restart",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_runtime_120_test.go"
+            "durable/codemode_runtime_120_test.go",
+            "durable/codemode_divergence_reopen_120_test.go"
           ],
-          "note": "Native event call ordinal/authority replay checks; dedicated fewer-calls restart counterpart incomplete."
+          "note": "Concrete VM behind identity-preserving drift fixture reopens after two confirmed deliveries; changed args/fewer calls/early end reject and release no further effects. Source is unchanged externally; native result envelope differs."
         },
         {
           "line": 497,
           "name": "aborts a call still running when the script ends",
           "disposition": "native-partial",
           "nativeTests": [
-            "durable/codemode_runtime_120_test.go"
+            "durable/codemode_runtime_120_test.go",
+            "durable/codemode_divergence_reopen_120_test.go"
           ],
-          "note": "Completion before stored issued/delivery prefix rejects in implementation; early-end restart fixture not pinned."
+          "note": "Concrete VM behind identity-preserving drift fixture reopens after two confirmed deliveries; changed args/fewer calls/early end reject and release no further effects. Source is unchanged externally; native result envelope differs."
         },
         {
           "line": 515,
