@@ -1119,9 +1119,10 @@
           "disposition": "native-partial",
           "nativeTests": [
             "durable/codemode_paid_revoke_120_test.go",
-            "durable/codemode_catalog_reopen_120_test.go"
+            "durable/codemode_catalog_reopen_120_test.go",
+            "durable/codemode_tool_revocation_120_test.go"
           ],
-          "note": "Persisted confirmed catalog/paid deliveries replay under current revocation fences; general removed selected-tool case needs direct counterpart."
+          "note": "Confirmed ordinary tool delivery replays after registration removal; fresh next call is journalled catchable revocation error/effect count remains1. Paid/global catalog counterparts also covered. Parallel version remains missing."
         },
         {
           "line": 412,

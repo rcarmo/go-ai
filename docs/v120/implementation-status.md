@@ -840,6 +840,12 @@ Custom-global admission now rejects `performance`, `InternalError`, `module` and
 
 Engine admission/global/clock race count 3 passes in 17.187s; durable reserved/clock/identity race count 3 passes in 15.812s. Full normal root tests pass (durable 76.044s, tools 4.593s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Final parity and security acceptance are unfinished.
 
+## Removed tool replay and fresh authority
+
+A concrete memory/journal test reopens after one confirmed tool delivery, removes the registration and resumes the script. The stored delivery replays; the next fresh call produces a catchable error without another effect. Previously the fresh-call admission rejection faulted the parent task. Codemode now checks current callable tools before fresh ordinary calls and journals revocation as an error delivery. Storage/admission errors from admitted calls still propagate; paid globals retain their separate authority fences. Replay identity advances to host47.
+
+Revocation/replay/divergence race count 3 passes in 44.893s. Full normal root tests pass (durable 76.438s, tools 4.620s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel authority/watermark and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

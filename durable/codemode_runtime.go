@@ -423,9 +423,27 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 					}
 					delivery = CodemodeDelivery{Seq: index + 1, Now: now, Call: call, Error: argumentErr.Error()}
 				} else {
-					result, err := r.CallTool(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, arguments)
-					if err != nil {
-						return CodemodeResult{}, err
+					// Confirmed deliveries replay above; fresh calls retain current authority.
+					allowed := call.Global
+					if !allowed {
+						tools, err := r.CodemodeTools(linked)
+						if err != nil {
+							return CodemodeResult{}, err
+						}
+						for _, tool := range tools {
+							if tool.Name == name {
+								allowed = true
+								break
+							}
+						}
+					}
+					result := ToolResult{IsError: true, Content: "Tool " + name + " is no longer callable"}
+					if allowed {
+						var err error
+						result, err = r.CallTool(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, arguments)
+						if err != nil {
+							return CodemodeResult{}, err
+						}
 					}
 					clock, err := r.Now()
 					if err != nil {
