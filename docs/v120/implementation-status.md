@@ -852,6 +852,12 @@ The codemode extension now prefixes text results with `Script completed` or `Scr
 
 Both HTTP API/reopen/interruption tests now inspect header-bearing transcripts (focused race 42.217s). Host-owned timing and model execution/recovery race count 3 pass in 28.460s. Full normal root tests pass (durable 76.757s, tools 4.684s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Outer output limits and full upstream failure rendering still need work; final acceptance is unfinished.
 
+## Model-facing failure transcript
+
+A concrete generation/VM test now verifies failed scripts produce one error tool result with the original call identity, `Script failed` header, retained prior text/console and script error. The model can consume the error and finish the submission. Store changes from the failed script are absent from the persisted store's values map. No production changes were needed.
+
+Focused failure race count 3 passes in 12.893s. Full normal root tests pass (durable 76.221s, tools 4.718s), with static/logging/non-CGO and diff checks; the final focused rerun also checks the correct nested store envelope. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
