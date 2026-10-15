@@ -810,6 +810,12 @@ Both OpenAI APIs now have a test that pauses the final follow-up HTTP stream aft
 
 The fixture exposed cancellation ErrorEvents with no message or pending partial messages being settled as terminal failures during shutdown. Generation now leaves those intents resumable when the harness lifecycle has ended. Received terminal responses still commit through the existing shutdown contract. Combined two-API interruption and received-terminal race count 3 passes in 33.293s. Full normal root tests pass (durable 75.700s, tools 4.640s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Final acceptance remains unfinished.
 
+## Parameterised bridge audit
+
+Audited the seven malformed-worker payload cases excluded from the 149-declaration enumeration. Native strict store-patch tests cover malformed entries and values; the worker-channel injection API is absent. Failed done messages now require an object with a string message and optional string name/stack. Scalars, empty objects and malformed fields become sandbox errors. Message-only objects remain valid for non-Error script throws. Replay identity advances to host43.
+
+Focused parser/return/stack/isolation/bridge race count 3 passes in 43.634s. Full normal root tests pass (durable 76.468s, tools 4.590s), with static/logging/non-CGO and diff checks. The first broader QuickJS race run failed: one bridge stress case hit its 3s deadline and the new parser initially rejected valid message-only errors. The parser was corrected; the bridge subset then passed unchanged. No timeout threshold was widened. Diagnostic logs were removed after analysis; a fresh full race remains required.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

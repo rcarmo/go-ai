@@ -1375,5 +1375,61 @@
       ]
     }
   ],
-  "countSemantics": "Single-line anchored double-quoted it/test declarations; not executed test counts. Reviewed dispositions include partial mappings and implementation gaps, not parity acceptance."
+  "countSemantics": "Single-line anchored double-quoted it/test declarations; not executed test counts. Reviewed dispositions include partial mappings and implementation gaps, not parity acceptance.",
+  "parameterisedAudit": {
+    "source": "packages/codemode/test/sandbox.test.ts:854",
+    "caseCount": 7,
+    "countedIn149": false,
+    "cases": [
+      {
+        "payload": "done writes null",
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/store_120_test.go"
+        ]
+      },
+      {
+        "payload": "done writes [1]",
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/store_120_test.go"
+        ]
+      },
+      {
+        "payload": "done invalid JSON store value",
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/store_120_test.go"
+        ]
+      },
+      {
+        "payload": "done invalid JSON return",
+        "disposition": "native-partial",
+        "nativeTests": [
+          "internal/quickjs/engine.go"
+        ],
+        "note": "Host validates return JSON; injected worker message API absent."
+      },
+      {
+        "payload": "failed error scalar",
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/script_error_120_test.go"
+        ]
+      },
+      {
+        "payload": "failed empty error object",
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/script_error_120_test.go"
+        ]
+      },
+      {
+        "payload": "unknown worker message",
+        "disposition": "reviewed-gap",
+        "nativeTests": [],
+        "note": "No worker-channel equivalent; native host operation validation needs separate injected-boundary case."
+      }
+    ]
+  }
 }

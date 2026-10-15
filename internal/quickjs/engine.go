@@ -855,12 +855,12 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 			if bridgeErr != nil {
 				return fail()
 			}
-			var e Error
-			if json.Unmarshal([]byte(payload), &e) != nil {
-				e.Message = payload
+			e, err := parseScriptError(payload)
+			if err != nil {
+				v.result.Error = &Error{Kind: ErrorSandbox, Message: err.Error()}
+			} else {
+				v.result.Error = e
 			}
-			e.Kind = ErrorScript
-			v.result.Error = &e
 		}
 	}
 	return uint32(v.mustCall(ctx, "qjs_dup_value", uint64(v.undefined)))
