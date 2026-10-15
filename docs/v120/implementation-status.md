@@ -1332,6 +1332,12 @@ The remote result copier had increased string/record limits but still used the o
 
 A real child-process QuickJS test sends two complete 700,000-character text chunks and verifies neither is lost. An adversarial peer result above the 4MiB ceiling is rejected. Go 1.27.1 cross-process/large-output race tests passed three times in 43.121s. Full normal tests passed (durable 107.518s, tools 4.348s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Image payload references, remote wire/batching and final acceptance are still unfinished.
 
+## Remote large-output allowance isolation
+
+Remote event validation now applies the transient large-text allowance only to `Output`. Call arguments, return values, errors, images and store patches pass ordinary bounded DTO/result validation before the enlarged event copy. Tests reject oversized non-output fields while retaining large text, alongside existing cross-process and replay checks.
+
+Go 1.27.1 remote race tests passed three times in 86.395s. Full normal tests passed (durable 107.363s, tools 4.317s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No ordinary limits were widened. Large-image representation, remote wire/batching and final parity acceptance remain incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

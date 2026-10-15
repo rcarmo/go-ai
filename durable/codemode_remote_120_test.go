@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	goai "github.com/rcarmo/go-ai"
 	"strings"
 	"testing"
 	"time"
@@ -252,5 +253,24 @@ func TestCodemode120RemoteLargeOutputCeilingUnchanged(t *testing.T) {
 	defer vm.Close()
 	if event, err := vm.Next(ctx); err == nil || event.Result != nil {
 		t.Fatal("oversized peer result accepted", err)
+	}
+}
+
+func TestCodemode120RemoteLargeTextDoesNotWidenOtherPayloads(t *testing.T) {
+	limits := DefaultLimits()
+	large := strings.Repeat("x", limits.MaxStringBytes+1)
+	for _, event := range []CodemodeEvent{
+		{Call: &CodemodeCall{ID: 1, Name: "leaf", Arguments: JSON{"large": large}}},
+		{Result: &CodemodeResult{StoreWrites: JSON{"large": large}}},
+		{Result: &CodemodeResult{HasValue: true, Value: large}},
+		{Result: &CodemodeResult{Error: large}},
+		{Result: &CodemodeResult{Images: []goai.ImageContent{{Type: "image", MimeType: "image/png", Data: large}}}},
+	} {
+		if err := validateRemoteEventPayload(event); err == nil {
+			t.Fatal("large text allowance escaped to another field")
+		}
+	}
+	if err := validateRemoteEventPayload(CodemodeEvent{Result: &CodemodeResult{Output: large}}); err != nil {
+		t.Fatal("large output text rejected", err)
 	}
 }

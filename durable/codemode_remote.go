@@ -79,10 +79,8 @@ func (s *RemoteCodemodeSandbox) Start(ctx context.Context, code string, start Co
 			if fields != 1 {
 				return CodemodeRemoteReply{}, reject("invalid remote codemode event")
 			}
-			if event.Result != nil {
-				if err := validateCodemodeFullText(event.Result.Output); err != nil {
-					return CodemodeRemoteReply{}, err
-				}
+			if err := validateRemoteEventPayload(event); err != nil {
+				return CodemodeRemoteReply{}, err
 			}
 			// Copy transport-owned maps before publication. Full output is projected by
 			// the caller runtime, so it uses the existing codemode output ceiling here.
@@ -300,6 +298,29 @@ func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start Codemode
 			return reject("remote success before drain acknowledgement")
 		}
 		e.terminal = true
+	}
+	return nil
+}
+
+// Only the output text gets a transient large-output allowance. All other
+// fields retain the caller's ordinary JSON/result constraints.
+func validateRemoteEventPayload(event CodemodeEvent) error {
+	limits := DefaultLimits()
+	if event.Call != nil {
+		_, err := dtoObject(*event.Call, limits)
+		return err
+	}
+	if event.Result != nil {
+		if err := validateCodemodeFullText(event.Result.Output); err != nil {
+			return err
+		}
+		bounded := *event.Result
+		bounded.Output = ""
+		if err := validateCodemodeResult(bounded, limits); err != nil {
+			return err
+		}
+		_, err := dtoObject(bounded, limits)
+		return err
 	}
 	return nil
 }
