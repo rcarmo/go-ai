@@ -91,7 +91,7 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 			if !run.Result.HasValue || run.Result.Value != "" {
 				return reject("invalid chunked result placeholder")
 			}
-			if _, err := readCodemodeStringValue(s, doc.Owner, doc.Key, run.ValueChunks, l); err != nil {
+			if _, err := inspectCodemodeStringValue(s, doc.Owner, doc.Key, run.ValueChunks, l, false); err != nil {
 				return err
 			}
 		}

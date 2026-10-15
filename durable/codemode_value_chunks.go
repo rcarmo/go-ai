@@ -58,10 +58,17 @@ func (r *TaskRuntime) persistCodemodeStringValue(ctx context.Context, key string
 }
 
 func readCodemodeStringValue(s Snapshot, owner ID, key string, ids []ID, l Limits) (string, error) {
+	return inspectCodemodeStringValue(s, owner, key, ids, l, true)
+}
+
+// Integrity validation checks all chunks without repeatedly materialising the
+// complete returned string on every unrelated commit.
+func inspectCodemodeStringValue(s Snapshot, owner ID, key string, ids []ID, l Limits, materialize bool) (string, error) {
 	if len(ids) == 0 || len(ids) > l.MaxPage {
 		return "", reject("codemode value chunk count")
 	}
 	var out strings.Builder
+	total := 0
 	seen := map[ID]bool{}
 	for i, id := range ids {
 		doc, ok := s.Documents[id]
@@ -70,10 +77,13 @@ func readCodemodeStringValue(s Snapshot, owner ID, key string, ids []ID, l Limit
 		}
 		seen[id] = true
 		text, ok := doc.Value["data"].(string)
-		if !ok || text == "" || !utf8.ValidString(text) || len(text) > l.MaxStringBytes/2 || out.Len() > MaxCodemodeFullOutputBytes-len(text) {
+		if !ok || text == "" || !utf8.ValidString(text) || len(text) > l.MaxStringBytes/2 || total > MaxCodemodeFullOutputBytes-len(text) {
 			return "", reject("invalid codemode value data")
 		}
-		out.WriteString(text)
+		total += len(text)
+		if materialize {
+			out.WriteString(text)
+		}
 	}
 	return out.String(), nil
 }

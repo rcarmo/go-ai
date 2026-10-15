@@ -9,7 +9,7 @@ import (
 )
 
 const codemodeImageChunkKind = "pi.codemode.image-chunk"
-const MaxCodemodeImageBytes = 4 << 20   // base64 text per displayed image
+const MaxCodemodeImageBytes = 16 << 20  // base64 text; includes upstream 4.5MiB read results
 const MaxCodemodeImagesBytes = 16 << 20 // aggregate per result
 
 type codemodeImageRef struct {
