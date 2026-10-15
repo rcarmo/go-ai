@@ -1208,6 +1208,12 @@ Go 1.27.1 default/explicit/model-budget race tests passed three times in 12.688s
 
 Image review confirms displayed base64 data remains bounded by ordinary string/record storage. Upstream also returns image blocks after saving files; native large-image persistence needs a dedicated representation before those limits can change. Large-image parity and remote execution are unresolved.
 
+## Async-global timeout test isolation
+
+The zero-latency async-global timeout test could hit the independent 4,096-call admission ceiling before its 200ms deadline on fast hosts. Its callback now waits 1ms cooperatively, and the test requires the observed count to remain below the admission ceiling. The separate 32-call test still verifies exact resource admission. Production limits and classification are unchanged.
+
+Go 1.27.1 timeout/admission normal tests passed ten times in 8.260s; final race tests passed three times in 16.048s. Full normal tests passed (durable 101.184s, tools 4.283s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Hosted CI was not dispatched; the known 13 security findings still prevent release acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
