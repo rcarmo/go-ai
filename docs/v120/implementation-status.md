@@ -1286,6 +1286,12 @@ Source comparison found the OpenRouter pricing test and parser used a nested `co
 
 Codex's changed compressed-buffer ownership annotation is TypeScript-specific: the Go implementation writes each request into a fresh local buffer and already has decompression round-trip coverage. The changed retry phrase is covered by existing positive/quota/terminal tests. Go 1.27.1 OpenRouter/retry race tests passed three times in 1.065s. Full normal tests passed (durable 104.462s, tools 4.390s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Whole-source acceptance, durable remaining gaps and release verification are incomplete.
 
+## OpenRouter pricing container wire correction
+
+The complete pinned pricing type uses `pricing.overrides`; the native parser and HTTP fixture still used `pricing_overrides` after the flat-condition correction. Both now use the pinned container name. A separate raw-JSON fixture verifies six-decimal conversion, negative-rate fallback, inherited tier rates and exclusion of time-conditioned/nonpositive tiers without building JSON from native field names.
+
+Go 1.27.1 OpenRouter race tests passed three times (root 1.015s, external tests 1.036s). Full normal tests passed (durable 104.655s, tools 4.300s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The earlier source-delta checkpoint had not completed this wire comparison; final parity remains unaccepted.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

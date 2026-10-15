@@ -125,7 +125,7 @@ type openRouterPricing struct {
 		End   json.RawMessage `json:"utc_end"`
 		Days  json.RawMessage `json:"utc_days"`
 		openRouterRates
-	} `json:"pricing_overrides"`
+	} `json:"overrides"`
 }
 
 func openRouterRate(value string, fallback float64) float64 {

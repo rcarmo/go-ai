@@ -16,7 +16,7 @@ func TestOpenRouter120CredentialCatalogRegionalLimitsPricesAndIsolation(t *testi
 		if r.URL.Path != "/regional/models/user" || r.Header.Get("Authorization") != "Bearer key-one" {
 			t.Error("regional/key boundary", r.URL, r.Header)
 		}
-		json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{"id": "allowed", "context_length": 200, "top_provider": map[string]any{"context_length": 300, "max_completion_tokens": 80}, "pricing": map[string]any{"prompt": "0.000001", "completion": "-1", "pricing_overrides": []any{map[string]any{"min_prompt_tokens": 500, "prompt": "0.000002"}, map[string]any{"min_prompt_tokens": 600, "utc_start": 1, "prompt": "0.000003"}, map[string]any{"min_prompt_tokens": 700, "utc_days": []string{}, "prompt": "0.000004"}, map[string]any{"min_prompt_tokens": 800, "utc_end": nil, "prompt": "0.000005"}}}}}})
+		json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{"id": "allowed", "context_length": 200, "top_provider": map[string]any{"context_length": 300, "max_completion_tokens": 80}, "pricing": map[string]any{"prompt": "0.000001", "completion": "-1", "overrides": []any{map[string]any{"min_prompt_tokens": 500, "prompt": "0.000002"}, map[string]any{"min_prompt_tokens": 600, "utc_start": 1, "prompt": "0.000003"}, map[string]any{"min_prompt_tokens": 700, "utc_days": []string{}, "prompt": "0.000004"}, map[string]any{"min_prompt_tokens": 800, "utc_end": nil, "prompt": "0.000005"}}}}}})
 	}))
 	defer server.Close()
 	models, e := goai.PersonalizeOpenRouterCatalog(context.Background(), server.Client(), server.URL+"/regional/", "key-one", baseline)
