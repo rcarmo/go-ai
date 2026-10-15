@@ -80,7 +80,7 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		if err != nil {
 			return err
 		}
-		if err = tx.AppendEntry(Entry{ID: entryID, Conversation: parent.Conversation, Kind: "message", Value: value, ByTask: parent.ID}); err != nil {
+		if err = tx.AppendEntry(inputMetadataEntry(queued.InputMetadata, entryID, parent.Conversation, value, input, parent.ID)); err != nil {
 			return err
 		}
 		queued.Phase = "terminal"

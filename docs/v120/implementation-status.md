@@ -1362,6 +1362,12 @@ The non-codemode durable audit found display-only passive entries queued behind 
 
 Tests verify immediate placement/settlement while model execution is gated, queuing behind a reset, and existing queued/bound-wait behaviour on both backends. Go 1.27.1 focused race tests passed three times in 5.803s. Full normal tests passed (durable 106.021s, tools 4.347s), plus vet, staticcheck, logging, non-CGO and diff checks before the final reset test-only addition. Diagnostic logs were deleted after analysis. Custom input-entry semantics, remaining changed durable paths and whole-port acceptance need further audit.
 
+## Custom user-input entry metadata
+
+`Input.Entry` now accepts application entry kind/data on user submissions as well as passive drafts on write submissions. User input rejects reserved `pi.*` or empty kinds and any placement, context-edit, model or legacy-value fields. Metadata is detached into the generation checkpoint; immediate placement, queued steering and generation fallback use the same entry builder with the user message as its model contribution.
+
+Backend tests verify application kind/data, model-visible user text and rejection of reserved/context-changing metadata. Go 1.27.1 metadata/display-write race tests passed three times in 3.827s. Full normal tests passed (durable 106.474s, tools 4.570s), plus vet, staticcheck, logging, non-CGO and diff checks before the final API-comment update. Diagnostic logs were deleted after analysis. Queued custom-input restart/steering coverage and remaining durable crosswalk paths still need verification; complete parity is not accepted.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

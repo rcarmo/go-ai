@@ -10,8 +10,9 @@ import (
 type Input struct {
 	Content string
 	Blocks  []goai.ContentBlock
-	// Entry is a passive draft for Type=write; ID/placement are assigned on the
-	// boundary. Nil retains the backwards-compatible user-text write.
+	// Entry is a passive draft for Type=write. For user input it accepts only
+	// an application Kind and optional Data/HasData; the user message remains
+	// its model contribution. ID/placement are assigned at admission.
 	Entry     *Entry
 	RequestID string
 	Type      string
@@ -32,6 +33,7 @@ type Settlement struct {
 type generationCheckpoint struct {
 	Phase                 string               `json:"phase"`
 	Submission            ID                   `json:"submission"`
+	InputMetadata         *Entry               `json:"inputMetadata,omitempty"`
 	InputEntry            ID                   `json:"inputEntry,omitempty"`
 	Input                 string               `json:"input"`
 	InputBlocks           []goai.ContentBlock  `json:"inputBlocks,omitempty"`
@@ -93,9 +95,11 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 		}
 	}
 	if input.Entry != nil && input.Type != "write" {
-		return nil, reject("entry requires write submission")
+		if err := validateInputMetadata(input.Entry); err != nil {
+			return nil, err
+		}
 	}
-	if input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
+	if input.Type == "write" && input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
 		return nil, reject("passive entry and content conflict")
 	}
 	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" {
@@ -295,6 +299,15 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			return err
 		}
 		cp := generationCheckpoint{Phase: "queued", Submission: subID, Input: input.Content, InputBlocks: input.Blocks}
+		if input.Entry != nil {
+			metadata := *input.Entry
+			metadata.Value = JSON{}
+			owned, err := copyEntry(metadata, tx.limits)
+			if err != nil {
+				return err
+			}
+			cp.InputMetadata = &owned
+		}
 		if !busy {
 			entryID, err := tx.MintID()
 			if err != nil {
@@ -312,7 +325,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			if binding != nil {
 				by = binding.taskID
 			}
-			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: c.id, Kind: "message", Value: wire, ByTask: by}); err != nil {
+			if err := tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, entryID, c.id, wire, message, by)); err != nil {
 				return err
 			}
 			cp.InputEntry = entryID

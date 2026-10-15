@@ -682,7 +682,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			if e != nil {
 				return e
 			}
-			if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: user}); e != nil {
+			if e = tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, id, task.Conversation, user, input, 0)); e != nil {
 				return e
 			}
 			cp.InputEntry = id
