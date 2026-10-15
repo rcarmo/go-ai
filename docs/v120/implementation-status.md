@@ -796,6 +796,14 @@ Reviewed the first 23 durable-runtime declarations against pinned assertions and
 
 Focused serial journal/restart/deadline/identity/fault race count 3 passes in 16.786s. This increment changes only review documents; production and test source are unchanged from the preceding verified checkpoint. Diff checks pass; diagnostic logs were removed after analysis. The review does not resolve implementation or acceptance gaps.
 
+## Enumerated declaration review complete
+
+The final 17 durable store/output/discovery declarations have coverage mappings or explicit gaps. All 149 enumerated declarations are reviewed; parameterised declarations are outside this inventory's counting rule. A stale catalogue-reopen file reference was corrected to the existing catalogue test, and every listed native file reference was checked.
+
+Native fork-store, bounded projections, writer replay, image/error preservation and discovery have partial or adapted coverage. Upstream parallel journal batching, 6 MiB spill retention, 4 MiB outer tool output and 100,000-line limits remain gaps. Exact model result headers/default filesystem and several full fixtures are incomplete. Review completion is not parity acceptance.
+
+Focused store/output/discovery/source/tool-error/failure race tests pass in 20.407s. This increment changes review documents only; diff checks pass and diagnostic logs were removed after analysis. Implementation, AI audit, profiling/security and final verification are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

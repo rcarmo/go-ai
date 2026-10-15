@@ -959,7 +959,7 @@
           "disposition": "native-adapted",
           "nativeTests": [
             "durable/codemode_model_catalog_120_test.go",
-            "durable/codemode_model_catalog_reopen_120_test.go"
+            "durable/codemode_model_catalog_120_test.go"
           ],
           "note": "Credential-free scoped catalog descriptors and replay tested; native provider scope API differs."
         },
@@ -1224,87 +1224,153 @@
         {
           "line": 666,
           "name": "rejects a failed tool call with its error text and structured output",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_store_120_test.go"
+          ],
+          "note": "Conversation/fork store snapshot native coverage; successful-only adoption adaptation."
         },
         {
           "line": 686,
           "name": "resolves a schema tool's error result that carries its value, and rejects one without with its text",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Parallel50-call journal batching absent."
         },
         {
           "line": 732,
           "name": "resolves a schema-less tool with its text, as its declaration says, also when it returned images",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_numeric_arguments_120_test.go"
+          ],
+          "note": "Native object-only JSON/numeric arguments tested."
         },
         {
           "line": 760,
           "name": "delivers a result only after its journal commit",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_tool_errors_120_test.go"
+          ],
+          "note": "Diagnostic fallback and structured null tested; exact upstream metadata fixture partial."
         },
         {
           "line": 791,
           "name": "refuses to resume when the sandbox's fingerprint or the code mode version changed",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/nested_structured_120_test.go"
+          ],
+          "note": "Text-only schema-less success covered; mixed image-only exact fixture missing."
         },
         {
           "line": 812,
           "name": "times a script out across a restart, without admitting new calls",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_output_120_test.go"
+          ],
+          "note": "Text/return/console covered; upstream wall/completion header absent."
         },
         {
           "line": 827,
           "name": "returns a decided outcome after a restart without running the script again",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_projection_120_test.go"
+          ],
+          "note": "UTF-safe head/tail projection covered; explicit writer and stricter budgets differ."
         },
         {
           "line": 857,
           "name": "keeps store() values per conversation, as of a fork's entry",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [
+            "durable/codemode_output_validation_120_test.go"
+          ],
+          "note": "6MiB spill/4MiB outer cap/100000line limit not supported by native storage ceilings."
         },
         {
           "line": 882,
           "name": "journals results that finish together in one commit",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_files_120_test.go"
+          ],
+          "note": "Zero tokens spill through owned writer; ambient default filesystem absent."
         },
         {
           "line": 936,
           "name": "lays out text items, console lines, and the returned value under a header",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_source_crosswalk_120_test.go"
+          ],
+          "note": "Pinned parser offsets/options covered; full invalid model input fixture partial."
         },
         {
           "line": 943,
           "name": "cuts text past the token budget to its start and end, with the full text in a file",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_generated_images_120_test.go"
+          ],
+          "note": "Generated valid PNG writer/replay tested; default filesystem/header absent."
         },
         {
           "line": 956,
           "name": "keeps a result inside the tool's output limits whatever max_output_tokens says, spilling the rest",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_reopen_120_test.go"
+          ],
+          "note": "Idempotent owned spill path reopen covered; explicit writer required."
         },
         {
           "line": 975,
           "name": "writes the result's files to the same paths when it reruns after a crash",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_files_120_test.go"
+          ],
+          "note": "Spill failures sanitized; exact truncation error note partial."
         },
         {
           "line": 1009,
           "name": "saves images to files and names them next to the image",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_images_120_test.go"
+          ],
+          "note": "Image writer failure notice/image retention covered; wording differs."
         },
         {
           "line": 1018,
           "name": "calls a deferred tool the model is not offered, and finds it in ALL_TOOLS",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_failure_output_120_test.go"
+          ],
+          "note": "Console/effect failure summary covered; exact model header partial."
         },
         {
           "line": 1037,
           "name": "reports a failed script with its error and the calls already made",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "durable/codemode_discovery_120_test.go"
+          ],
+          "note": "Reserved tool filtering and original aliases covered; namespace API differs."
         },
         {
           "line": 1045,
           "name": "finds tools with searchTools(), describeTool(), and describeNamespace(), and lists them in ALL_TOOLS",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_discovery_globals_120_test.go"
+          ],
+          "note": "Journalled discovery/schema/namespaces covered; exact complete fixture partial."
         }
       ]
     }
