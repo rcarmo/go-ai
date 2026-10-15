@@ -1254,6 +1254,12 @@ HTTP tests now cover preferred inline additions and same-name redefinitions. Bot
 
 Go 1.27.1 inline fallback race tests passed three times in 1.039s. Full normal tests passed (durable 101.151s, tools 4.547s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The remaining AI audit and whole-port acceptance are unfinished.
 
+## Pinned thinking-level provider variants
+
+Catalogue tests now verify the changed 1.2.0 provider variants: GPT-6.1 Sol on OpenAI/Azure/Codex, Kimi K3 on Moonshot global/China and Kimi Coding, and DeepSeek v4.1 Flash on OpenCode Go/OpenRouter. Exact supported levels match the pinned upstream tests, including Codex minimal effort and provider-specific off/max availability. Existing catalogue/helper implementations pass without production changes.
+
+Go 1.27.1 thinking tests passed with race detection three times in 1.342s. Full normal tests passed (durable 105.038s, tools 4.319s), plus vet, staticcheck, logging, non-CGO and diff checks. The fixture explicitly registers built-in models before lookup, matching existing catalogue tests. Diagnostic logs were deleted after analysis. Remaining AI audit, remote batching/wire adaptation, large-image storage and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
