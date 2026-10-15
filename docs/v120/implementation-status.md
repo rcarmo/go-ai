@@ -1248,6 +1248,12 @@ The pinned Responses partial-JSON cleanup regression already has a local test, s
 
 Go 1.27.1 Anthropic focused race tests passed three times in 1.062s. Full normal tests passed (durable 104.815s, tools 4.404s), plus vet, staticcheck, logging, non-CGO and diff checks. Initial fixture probes assumed a map hook payload and nonmatching error text; the fixture now serialises the typed request and uses the pinned error prefixes. Diagnostic logs were deleted after analysis. Inline declaration/redefinition fallback coverage and the remaining AI audit are unfinished.
 
+## Inline Anthropic strict fallback
+
+HTTP tests now cover preferred inline additions and same-name redefinitions. Both attempts retain required strict declarations; fallback restores the preferred tool's original optional number schema and removes strict enforcement. The serialised caller transcript remains unchanged. Existing production fallback passes these cases without changes.
+
+Go 1.27.1 inline fallback race tests passed three times in 1.039s. Full normal tests passed (durable 101.151s, tools 4.547s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The remaining AI audit and whole-port acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
