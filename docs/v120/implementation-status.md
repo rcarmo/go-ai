@@ -804,6 +804,12 @@ Native fork-store, bounded projections, writer replay, image/error preservation 
 
 Focused store/output/discovery/source/tool-error/failure race tests pass in 20.407s. This increment changes review documents only; diff checks pass and diagnostic logs were removed after analysis. Implementation, AI audit, profiling/security and final verification are unfinished.
 
+## Interrupted HTTP follow-up recovery
+
+Both OpenAI APIs now have a test that pauses the final follow-up HTTP stream after codemode and its nested effect settle, closes the harness, reopens the same submission and resumes. The recovered request carries the persisted custom call/result transcript; the nested effect remains single and the transcript has one call/result pair.
+
+The fixture exposed cancellation ErrorEvents with no message or pending partial messages being settled as terminal failures during shutdown. Generation now leaves those intents resumable when the harness lifecycle has ended. Received terminal responses still commit through the existing shutdown contract. Combined two-API interruption and received-terminal race count 3 passes in 33.293s. Full normal root tests pass (durable 75.700s, tools 4.640s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Final acceptance remains unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -19,7 +19,13 @@ func TestCodemode120RawGrammarHTTPAndReopen(t *testing.T) {
 		t.Run(string(api), func(t *testing.T) { testCodemodeRawGrammarHTTP(t, api) })
 	}
 }
-func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
+func TestCodemode120InterruptedHTTPFollowupReopen(t *testing.T) {
+	for _, api := range []goai.Api{goai.ApiOpenAICompletions, goai.ApiOpenAIResponses} {
+		t.Run(string(api), func(t *testing.T) { testCodemodeRawGrammarHTTP(t, api, true) })
+	}
+}
+func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool) {
+	interrupt := len(interrupted) > 0 && interrupted[0]
 	sandbox, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -27,6 +33,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
 	defer sandbox.Close(bg)
 	backends(t, func(t *testing.T, b backend) {
 		var requests, effects atomic.Int64
+		followup := make(chan struct{})
 		code := `text(await tools.wire_leaf({}));`
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
@@ -36,7 +43,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
 			}
 			n := requests.Add(1)
 			w.Header().Set("Content-Type", "text/event-stream")
-			if n%2 == 1 {
+			if n%2 == 1 && (!interrupt || n == 1) {
 				found := false
 				for _, raw := range body["tools"].([]any) {
 					tool := raw.(map[string]any)
@@ -110,6 +117,13 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
 				if !foundCall || !foundResult {
 					t.Error("custom transcript missing", body)
 				}
+				if interrupt && n == 2 {
+					w.WriteHeader(http.StatusOK)
+					w.(http.Flusher).Flush()
+					close(followup)
+					<-r.Context().Done()
+					return
+				}
 				if api == goai.ApiOpenAIResponses {
 					emitResponseEvent(w, map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}})
 					return
@@ -156,6 +170,56 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api) {
 			if err != nil || result.Submission.Status != "done" {
 				t.Fatal(result, err)
 			}
+		}
+		if interrupt {
+			sub, err := conv.Submit(bg, Input{Content: "script"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			awaitTaskSignal(t, followup)
+			if effects.Load() != 1 {
+				t.Fatal("nested effect not settled", effects.Load())
+			}
+			if err = h.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			next := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
+			if err = next.Resume(bg); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(bg, 10*time.Second)
+			defer cancel()
+			reopened, err := next.Submission(ctx, sub.ID())
+			if err != nil || reopened == nil {
+				t.Fatal("submission missing", err)
+			}
+			result, err := reopened.Wait(ctx)
+			if err != nil || result.Submission.Status != "done" || requests.Load() != 3 || effects.Load() != 1 {
+				t.Fatal(result, err, requests.Load(), effects.Load())
+			}
+			conversation, err := next.Conversation(ctx, conv.ID())
+			if err != nil {
+				t.Fatal(err)
+			}
+			view, err := conversation.ContextView(ctx, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			calls, results := 0, 0
+			for _, message := range view.Messages {
+				for _, block := range message.Content {
+					if block.Type == "toolCall" && block.Name == "codemode" {
+						calls++
+					}
+				}
+				if message.Role == goai.RoleToolResult && message.ToolName == "codemode" {
+					results++
+				}
+			}
+			if calls != 1 || results != 1 {
+				t.Fatal("duplicate script transcript", calls, results)
+			}
+			return
 		}
 		run(conv)
 		view, err := conv.ContextView(bg, 0)

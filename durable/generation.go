@@ -310,8 +310,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	}
 	// Close joins the full provider channel, including a noncooperative provider.
 	// Its cancellation never invents an aborted durable terminal outcome.
-	if h.life.Err() != nil && !received {
-		return e
+	if h.life.Err() != nil && (!received || receipt.ErrorCode == "missing_terminal_message" || receipt.ErrorCode == "invalid_deferred_handle" && receipt.providerStopReason == goai.StopReasonPending) {
+		// HTTP providers may emit a cancellation ErrorEvent with no message.
+		// That event is not a received response and cannot settle the intent.
+		return ErrSealed
 	}
 	if current, checkpoint, ok, err := h.nextTask(id); err != nil {
 		return err
