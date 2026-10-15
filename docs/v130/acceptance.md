@@ -35,3 +35,9 @@ All3npm packages pass registry signatures and publish/SLSA attestations using TU
 Sensible bounded native storage/schema/output/callback policies remain as accepted in1.2.0. SQLite prefixes do not relax cross-process file ownership or implement a Cloudflare adapter. Lifecycle hooks do not pretend script settlement is VM exit. These platform adaptations are documented, not silently classified as upstream deployment tests.
 
 Release1.3.0 is authorised, but tag/publication waits for final source/SBOM/reproducibility and release-record checks.
+
+## Published release receipt
+
+Native [v1.3.0](https://github.com/rcarmo/go-ai/releases/tag/v1.3.0) published at `d9449bf4b102eb4303b8c60e9b0649b4bf99d08f`; Rui annotated tag object `daf84804d0bdbdc48a875c742bf8b31522422f65` verified locally/remotely. [Native workflow38823285300](https://github.com/rcarmo/go-ai/actions/runs/38823285300) succeeded. Public SBOM/checksum validates24components/version1.3.0/exact VCS revision; SHA256 `5856ebf022a310f6be67cc391d0ad4c2e1ffeccb7d502f2bbd1e8ebc80e031a6`. Go proxy download resolves the same commit.
+
+Two local commit-accurate SBOM generations matched (`00b2e39850349d4579129680545d9c135fd9c62ad6ead912cfde1a480118a8d4`). CGO-disabled root archive matched forced trimpath rebuild (`31106b896c94aa9ef7ab44000400482642584aeb48ed097d7db5ff819e16ceb0`). Hosted SBOM differs only in generator executable hashes under metadata.tools; component records match. Public checksum validated independently; no cross-host byte-identical claim. Temporary builds/SBOMs/logs removed after use. Tag is immutable; later documentation commits do not change release source.

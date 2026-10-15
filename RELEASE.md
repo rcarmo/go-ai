@@ -2,6 +2,8 @@
 
 ## Native 1.3.0 release
 
+Native [v1.3.0](https://github.com/rcarmo/go-ai/releases/tag/v1.3.0) published at `d9449bf4b102eb4303b8c60e9b0649b4bf99d08f`; Rui annotated tag object `daf84804d0bdbdc48a875c742bf8b31522422f65` verified locally/remotely. [Native workflow38823285300](https://github.com/rcarmo/go-ai/actions/runs/38823285300) succeeded. Public SBOM/checksum validates24components/version1.3.0/exact VCS revision; SHA256 `5856ebf022a310f6be67cc391d0ad4c2e1ffeccb7d502f2bbd1e8ebc80e031a6`. Go proxy download resolves the same commit.
+
 Native pi-ai/durable1.3.0 port accepted for publication. Official target `71023aec1546d6d677a65669c5665c0927ce0dd0`, relative to1.2.0 `06a466935536f8c9bcacb2d5efc0fc021be1bdff`. Catalogues:1614chat/60image/40classifier. [Acceptance and adaptations](docs/v130/acceptance.md), [changed paths](docs/v130/changed-paths.json), [cryptographic provenance](docs/v130/provenance.json).
 
 Changes include completed-tool argument errors/JSON repair with zero-effect validation, cross-model thinking removal, Anthropic/Bedrock image-result preservation, explicit thinking-off and Responses cache-preserving effort changes, combined reasoning-first streaming, Gemini4+ thinking levels, Kimi/OpenCode catalogue/protocol updates and retry phrases. Durable baseline ordering, validated SQLite table prefixes and actual-worker-exit capacity hooks are ported. Breaking: removed AssistantMessageFrame/Encoder/ReduceAssistantMessageFrames, matching upstream; normal provider/SSE APIs remain.
