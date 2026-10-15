@@ -41,7 +41,7 @@ func TestCodemode120ExtensionInlineBudgetCapturedAndZeroDiscovery(t *testing.T) 
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
 				last := input.Messages[len(input.Messages)-1]
-				if goai.ContentText(last.Content) != "base" {
+				if !strings.HasPrefix(goai.ContentText(last.Content), "Script completed\nWall time ") || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nbase") {
 					t.Error(last)
 				}
 				ch <- terminal("done")

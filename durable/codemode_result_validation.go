@@ -1,6 +1,9 @@
 package durable
 
 func validateCodemodeResult(result CodemodeResult, l Limits) error {
+	if result.WallMs < 0 || uint64(result.WallMs) > MaxID {
+		return reject("invalid codemode wall time")
+	}
 	if !result.HasValue && result.Value != nil {
 		return reject("codemode value without presence")
 	}

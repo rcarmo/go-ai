@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -49,10 +50,12 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if err != nil {
 			return ToolResult{}, err
 		}
-		blocks := []goai.ContentBlock{}
-		if result.Output != "" {
-			blocks = append(blocks, goai.ContentBlock{Type: "text", Text: result.Output})
+		status := "completed"
+		if result.Error != "" {
+			status = "failed"
 		}
+		text := fmt.Sprintf("Script %s\nWall time %.1f seconds\nOutput:\n%s", status, float64(result.WallMs)/1000, result.Output)
+		blocks := []goai.ContentBlock{{Type: "text", Text: text}}
 		for _, image := range result.Images {
 			blocks = append(blocks, goai.ContentBlock{Type: "image", Data: image.Data, MimeType: image.MimeType})
 		}

@@ -57,6 +57,7 @@ type CodemodeCall struct {
 	Arguments JSON   `json:"arguments"`
 }
 type CodemodeResult struct {
+	WallMs         int64               `json:"wallMs"`
 	FullOutputPath string              `json:"fullOutputPath,omitempty"`
 	Images         []goai.ImageContent `json:"images,omitempty"`
 	StoreDeletes   []string            `json:"storeDeletes,omitempty"`
@@ -286,6 +287,14 @@ func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandb
 				return CodemodeResult{}, err
 			}
 			projection := *event.Result
+			finished, err := r.Now()
+			if err != nil {
+				return CodemodeResult{}, err
+			}
+			projection.WallMs = 0
+			if finished > run.Start.StartedAt {
+				projection.WallMs = finished - run.Start.StartedAt
+			}
 			projection.FullOutputPath = "" // only the environment writer grants paths
 			projection.Output = projectCodemodeOutput(fullText, run.Start.MaxOutputTokens)
 			bounded, err := ownCodemodeResult(projection, l)

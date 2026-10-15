@@ -846,6 +846,12 @@ A concrete memory/journal test reopens after one confirmed tool delivery, remove
 
 Revocation/replay/divergence race count 3 passes in 44.893s. Full normal root tests pass (durable 76.438s, tools 4.620s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel authority/watermark and final acceptance gaps remain.
 
+## Model-facing status and persisted wall time
+
+The codemode extension now prefixes text results with `Script completed` or `Script failed`, wall time rounded to one decimal second, and `Output:`, matching the pinned header structure. Runtime wall time is measured from persisted start to host result preparation, overwrites sandbox-provided timing and is stored in the settled result for reuse. Replay identity advances to host48.
+
+Both HTTP API/reopen/interruption tests now inspect header-bearing transcripts (focused race 42.217s). Host-owned timing and model execution/recovery race count 3 pass in 28.460s. Full normal root tests pass (durable 76.757s, tools 4.684s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Outer output limits and full upstream failure rendering still need work; final acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

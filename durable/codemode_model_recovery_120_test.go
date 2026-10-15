@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 				ch <- &goai.DoneEvent{Reason: goai.StopReasonToolUse, Message: message}
 			} else {
 				last := input.Messages[len(input.Messages)-1]
-				if last.Role != goai.RoleToolResult || goai.ContentText(last.Content) != "recovered-leaf" {
+				if last.Role != goai.RoleToolResult || !strings.HasPrefix(goai.ContentText(last.Content), "Script completed\nWall time ") || !strings.HasSuffix(goai.ContentText(last.Content), "Output:\nrecovered-leaf") {
 					t.Error("recovered transcript", last)
 				}
 				ch <- terminal("done")
