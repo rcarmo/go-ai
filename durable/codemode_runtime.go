@@ -26,18 +26,19 @@ type CodemodeSandbox interface {
 // without an identity must themselves preserve semantics across reopen.
 type CodemodeSandboxIdentity interface{ RuntimeIdentity() string }
 type CodemodeStart struct {
-	InterruptBudget int                         `json:"interruptBudget,omitempty"`
-	Globals         []CodemodeGlobalDescription `json:"globals,omitempty"`
-	PaidModels      bool                        `json:"paidModels,omitempty"`
-	Namespaces      []CodemodeNamespace         `json:"namespaces,omitempty"`
-	RuntimeIdentity string                      `json:"runtimeIdentity,omitempty"`
-	Deadline        int64                       `json:"deadline"`
-	MaxOutputTokens int                         `json:"maxOutputTokens"`
-	Store           JSON                        `json:"store"`
-	Version         int                         `json:"version"`
-	StartedAt       int64                       `json:"startedAt"`
-	Seed            uint64                      `json:"seed"`
-	Tools           []CodemodeToolDescription   `json:"tools"`
+	DrainAcknowledgements bool                        `json:"drainAcknowledgements,omitempty"`
+	InterruptBudget       int                         `json:"interruptBudget,omitempty"`
+	Globals               []CodemodeGlobalDescription `json:"globals,omitempty"`
+	PaidModels            bool                        `json:"paidModels,omitempty"`
+	Namespaces            []CodemodeNamespace         `json:"namespaces,omitempty"`
+	RuntimeIdentity       string                      `json:"runtimeIdentity,omitempty"`
+	Deadline              int64                       `json:"deadline"`
+	MaxOutputTokens       int                         `json:"maxOutputTokens"`
+	Store                 JSON                        `json:"store"`
+	Version               int                         `json:"version"`
+	StartedAt             int64                       `json:"startedAt"`
+	Seed                  uint64                      `json:"seed"`
+	Tools                 []CodemodeToolDescription   `json:"tools"`
 }
 type CodemodeExecution interface {
 	Next(context.Context) (CodemodeEvent, error)
@@ -45,9 +46,21 @@ type CodemodeExecution interface {
 	Close() error
 }
 
-// Exactly one Call or Result is emitted by Next. This native first boundary
-// supports serial host calls only; parallel idle/issued-count replay is separate.
+// CodemodeDrain identifies a completed VM drain. DeliveryID zero denotes
+// initial execution; Issued is the cumulative issued-call count.
+type CodemodeDrain struct {
+	DeliveryID int
+	Issued     int
+}
+
+// CodemodeDrainExecution acknowledges a count after the host persists or verifies it.
+type CodemodeDrainExecution interface {
+	AcknowledgeDrain(context.Context, CodemodeDrain) error
+}
+
+// Exactly one Call, Drain or Result is emitted by Next. Calls remain serial.
 type CodemodeEvent struct {
+	Drain  *CodemodeDrain
 	Call   *CodemodeCall
 	Result *CodemodeResult
 }

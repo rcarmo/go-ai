@@ -1096,6 +1096,12 @@ Tests cover initial count two, a continuation raising the count to three, final 
 
 Go 1.27.1 drain/ordered race tests passed three times in 43.324s; the final cancellation/store-write test passed three times in 7.323s. Full normal root tests passed (durable 83.160s, tools 4.486s); vet, staticcheck, logging checks, non-CGO build and diff checks passed before the final test-only assertion. Diagnostic logs were deleted after analysis. Durable drain events, committed watermarks, effect gating and delivery-order replay still need implementation.
 
+## QuickJS adapter drain events
+
+Direct sandbox callers can opt into `CodemodeStart.DrainAcknowledgements`. The adapter emits a `CodemodeDrain` event after initial execution and each delivery, then waits for `CodemodeDrainExecution.AcknowledgeDrain`. Delivery admission rejects results until the preceding drain is acknowledged. Acknowledgements must match the detached pending event; mutated, duplicate and closed-execution acknowledgements are rejected. Close cancels and joins an execution waiting on acknowledgement.
+
+The normal `RunCodemode` path does not enable this option. Calls remain serial; persisted watermarks, effect admission and delivery-order replay still need implementation. Go 1.27.1 adapter drain/admission race tests passed three times in 30.301s. Full normal root tests passed (durable 84.388s, tools 4.342s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -36,6 +36,8 @@ type quickjsExecution struct {
 	sequence   atomic.Uint64
 	deliveryMu sync.Mutex
 	awaiting   *CodemodeCall
+	drain      *CodemodeDrain
+	drainAck   chan struct{}
 }
 
 func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
@@ -56,6 +58,28 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	var clock atomic.Int64
 	clock.Store(start.StartedAt)
 	opts := quickjs.Options{InterruptBudget: start.InterruptBudget, SerialCalls: true, Clock: clock.Load, StartedAt: start.StartedAt, Seed: start.Seed, MemoryLimitBytes: 32 << 20, Store: map[string]json.RawMessage{}}
+	if start.DrainAcknowledgements {
+		execution.drainAck = make(chan struct{})
+		opts.OnDrain = func(ctx context.Context, id, issued int) error {
+			drain := CodemodeDrain{DeliveryID: id, Issued: issued}
+			execution.deliveryMu.Lock()
+			execution.drain = &drain
+			ack := execution.drainAck
+			execution.deliveryMu.Unlock()
+			eventDrain := drain
+			select {
+			case execution.events <- CodemodeEvent{Drain: &eventDrain}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			select {
+			case <-ack:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
 	for key, value := range start.Store {
 		limits := DefaultLimits()
 		limits.MaxStringBytes = 1 << 20
@@ -222,6 +246,13 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 		return nil
 	default:
 	}
+	if e.drainAck != nil {
+		select {
+		case <-e.drainAck:
+		default:
+			return reject("codemode drain not acknowledged")
+		}
+	}
 	call := e.awaiting
 	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
 		return reject("invalid QuickJS delivery")
@@ -229,6 +260,9 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	select {
 	case e.deliveries <- delivery:
 		e.awaiting = nil
+		if e.drainAck != nil {
+			e.drainAck = make(chan struct{})
+		}
 		return nil
 	case <-e.done:
 		// A fatal VM boundary may end before an admitted host call settles.
@@ -246,4 +280,24 @@ func decodeQuickJSValue(raw []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	return decoder.Decode(value)
+}
+
+func (e *quickjsExecution) AcknowledgeDrain(ctx context.Context, drain CodemodeDrain) error {
+	if ctx == nil {
+		return reject("nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.deliveryMu.Lock()
+	defer e.deliveryMu.Unlock()
+	if err := e.ctx.Err(); err != nil {
+		return err
+	}
+	if e.drain == nil || *e.drain != drain {
+		return reject("invalid QuickJS drain acknowledgement")
+	}
+	close(e.drainAck)
+	e.drain = nil
+	return nil
 }
