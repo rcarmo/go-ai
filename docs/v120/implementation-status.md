@@ -1080,6 +1080,14 @@ New tests verify cancellation with an out-of-order completed callback still join
 
 Ordered engine race count 3 passes in 23.120s. Full normal root tests pass (durable 81.850s, tools 4.365s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Durable parallel journal/watermark/capacity semantics, larger output and final acceptance remain unfinished.
 
+## Issued-call role integrity
+
+Journal replacement now freezes the issued call's `Global` flag as well as its ID, name and arguments. An issued-but-undelivered call has no delivery prefix to protect that flag. A regression test rejects role mutation and accepts an unchanged prefix.
+
+Go 1.27.1 focused integrity/divergence race tests passed three times in 49.756s. Full normal root tests passed (durable 80.666s, tools 4.497s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
+
+The pinned upstream parallel protocol records `firstIssued` after initial VM drain and `issuedAfter` after each delivered result. It admits effects only after the corresponding issued count is committed, then checks those counts on replay. The current Go execution interface exposes individual call events without drain acknowledgements. Parallel durable execution needs that acknowledgement boundary and delivery-order replay before it can safely use concurrent callbacks; engine issue-ordered settlement alone does not implement the upstream protocol.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -119,7 +119,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 	}
 	for i, call := range a.Issued {
 		other := b.Issued[i]
-		if call.ID != other.ID || call.Name != other.Name || !equalJSONValue(call.Arguments, other.Arguments) {
+		if call.ID != other.ID || call.Name != other.Name || call.Global != other.Global || !equalJSONValue(call.Arguments, other.Arguments) {
 			return reject("codemode issued prefix changed")
 		}
 	}
