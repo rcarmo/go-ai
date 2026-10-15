@@ -28,8 +28,8 @@ func TestCodemode120ReopenRejectsCallStreamDivergenceBeforeEffects(t *testing.T)
 	defer engine.Close(bg)
 	for _, tc := range []struct{ name, code, want string }{
 		{"arguments", `await tools.leaf({n:99});return "drift";`, "sandbox call replay divergence"},
-		{"fewer-calls", `await tools.leaf({n:1});return "drift";`, "sandbox ended before replay journal"},
-		{"early-end", `return "drift";`, "sandbox ended before replay journal"},
+		{"fewer-calls", `await tools.leaf({n:1});return "drift";`, "codemode drain replay count divergence"},
+		{"early-end", `return "drift";`, "codemode drain replay count divergence"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			backends(t, func(t *testing.T, b backend) {

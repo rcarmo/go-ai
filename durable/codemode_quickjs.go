@@ -13,14 +13,15 @@ import (
 )
 
 // QuickJSSandbox implements codemode in WASM. Close the sandbox after all
-// executions finish. ParallelCalls opts into concurrent drain-admitted calls.
+// executions finish. NewQuickJSSandbox enables concurrent drain-admitted calls.
 type QuickJSSandbox struct {
 	engine *quickjs.Engine
 	// AcknowledgeDrains enables persisted drain admission in RunCodemode.
 	// Set before use; concurrent configuration changes are unsupported.
 	AcknowledgeDrains bool
-	// ParallelCalls implies drain admission. Set before use.
-	ParallelCalls     bool
+	// ParallelCalls implies drain admission and defaults to true in the
+	// constructor. Set false before use to select the serial protocol.
+	ParallelCalls bool
 }
 
 func (*QuickJSSandbox) RuntimeIdentity() string { return quickjs.Identity() }
@@ -29,7 +30,7 @@ func NewQuickJSSandbox(ctx context.Context) (*QuickJSSandbox, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &QuickJSSandbox{engine: engine}, nil
+	return &QuickJSSandbox{engine: engine, ParallelCalls: true}, nil
 }
 func (s *QuickJSSandbox) Close(ctx context.Context) error { return s.engine.Close(ctx) }
 

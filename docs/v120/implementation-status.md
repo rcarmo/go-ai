@@ -1178,6 +1178,14 @@ Mid-flight replay tests now cover changed arguments, early script completion, fe
 
 Go 1.27.1 caller-abort/divergence race tests passed three times in 73.010s. Full normal root tests passed (durable 98.024s, tools 4.404s), with vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Default parallel enablement and current-HEAD whole-port acceptance still need verification; parallel remains opt-in.
 
+## Default parallel constructor and public consumer
+
+`NewQuickJSSandbox` now enables `ParallelCalls` by default. Callers can set it false before use for the explicit serial boundary; serial rejection and serial-drain tests select that mode. Direct `Start` callers still supply their own persisted start flags. The exported generation/extension consumer now invokes two tools with `Promise.all` through the standard constructor and verifies both results in the transcript.
+
+Default replay detects fewer-call and early-end drift at the acknowledged issued-count boundary; regression expectations now use that earlier error. Go 1.27.1 targeted default/replay/consumer race tests passed three times (durable 31.043s, consumer 11.182s). Full normal tests passed with seed 1792048054992322251 (durable 100.440s, tools 4.217s), plus vet, staticcheck, logging, non-CGO and diff checks. A broader QuickJS/replay race selection timed out at its aggregate 180-second limit while still running tests; it is incomplete verification, not a pass. Diagnostic logs were deleted after analysis.
+
+Parallel execution is now the constructor default. Current-HEAD full race, profiling and whole-port acceptance are still required. Larger-output storage, remaining AI/default/remote parity and security blockers are unresolved.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

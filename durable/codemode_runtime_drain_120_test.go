@@ -13,6 +13,7 @@ func TestCodemode120RuntimePersistsQuickJSDrains(t *testing.T) {
 		}
 		defer sandbox.Close(context.Background())
 		sandbox.AcknowledgeDrains = true
+		sandbox.ParallelCalls = false
 		registry := NewRegistry()
 		leaf := wrapRegistration("codemode_leaf")
 		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "ok"}, nil }
