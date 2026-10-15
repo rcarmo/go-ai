@@ -56,11 +56,13 @@ func TestInboxSteerAfterToolsSharesAnswerAndFollowUpStartsNextRun(t *testing.T) 
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, entered)
-		steer, err := conversation.Submit(bg, Input{Content: "steer", Type: "steer", RequestID: "s"})
+		metadata := JSON{"source": "original"}
+		steer, err := conversation.Submit(bg, Input{Content: "steer", Type: "steer", RequestID: "s", Entry: &Entry{Kind: "app.steer", Data: metadata, HasData: true}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		follow, err := conversation.Submit(bg, Input{Content: "follow"})
+		metadata["source"] = "mutated"
+		follow, err := conversation.Submit(bg, Input{Content: "follow", Entry: &Entry{Kind: "app.follow", Data: JSON{"source": "follow"}, HasData: true}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,6 +79,25 @@ func TestInboxSteerAfterToolsSharesAnswerAndFollowUpStartsNextRun(t *testing.T) 
 		}
 		if err := h.WaitForIdle(bg); err != nil {
 			t.Fatal(err)
+		}
+		snapshot, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for _, entry := range snapshot.Entries {
+			if entry.Kind == "app.steer" || entry.Kind == "app.follow" {
+				seen[entry.Kind] = true
+				if len(entry.Model) != 1 || !entry.HasData {
+					t.Error("queued metadata lost", entry)
+				}
+				if entry.Kind == "app.steer" && !equalJSONValue(entry.Data, JSON{"source": "original"}) {
+					t.Error("caller alias retained", entry)
+				}
+			}
+		}
+		if !seen["app.steer"] || !seen["app.follow"] {
+			t.Fatal("custom queued entries absent", seen)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)

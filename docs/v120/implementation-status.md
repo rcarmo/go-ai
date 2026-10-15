@@ -1368,6 +1368,12 @@ Tests verify immediate placement/settlement while model execution is gated, queu
 
 Backend tests verify application kind/data, model-visible user text and rejection of reserved/context-changing metadata. Go 1.27.1 metadata/display-write race tests passed three times in 3.827s. Full normal tests passed (durable 106.474s, tools 4.570s), plus vet, staticcheck, logging, non-CGO and diff checks before the final API-comment update. Diagnostic logs were deleted after analysis. Queued custom-input restart/steering coverage and remaining durable crosswalk paths still need verification; complete parity is not accepted.
 
+## Queued custom-input metadata propagation
+
+Steering and follow-up tests now carry application kind/data through queued placement and settled reopen. Mutating caller-owned steering data after admission does not change the entry. Generation handoff now retains input metadata, and the no-model fallback uses the custom-entry builder instead of silently reverting to a plain message.
+
+Go 1.27.1 inbox/metadata/display-write race tests passed three times in 10.242s. Full normal tests passed (durable 105.619s, tools 4.294s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The reopen test recovers settled queued submissions; interruption before queued metadata placement and checkpoint-forgery validation still need targeted verification. Full parity is incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

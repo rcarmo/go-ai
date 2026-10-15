@@ -26,7 +26,7 @@ func (h *Harness) handoffToolGeneration(tx *Tx, current Task, cp generationCheck
 	// preparation reads the committed agent/context anew. Do not carry old model,
 	// request transcript, offers, retries, compaction or tool counters forward.
 	next := generationCheckpoint{Phase: "prepare-next", Submission: cp.Submission,
-		Input: cp.Input, InputBlocks: cp.InputBlocks, InputEntry: cp.InputEntry, Steered: cp.Steered}
+		Input: cp.Input, InputBlocks: cp.InputBlocks, InputEntry: cp.InputEntry, InputMetadata: cp.InputMetadata, Steered: cp.Steered}
 	encoded, err := dtoObject(next, tx.limits)
 	if err != nil {
 		return Task{}, generationCheckpoint{}, err

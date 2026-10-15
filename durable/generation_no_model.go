@@ -39,7 +39,7 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: current.Conversation, Kind: "message", Value: value, ByTask: current.ID}); err != nil {
+			if err := tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, id, current.Conversation, value, input, current.ID)); err != nil {
 				return err
 			}
 			cp.InputEntry = id
