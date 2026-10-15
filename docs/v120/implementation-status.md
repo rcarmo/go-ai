@@ -1170,6 +1170,14 @@ Mid-flight replay call-stream divergence exposed an active-child cleanup gap. Re
 
 Go 1.27.1 mixed-capacity/divergence/initial-error/finish race tests passed three times in 103.315s. Full normal root tests passed (durable 98.037s, tools 4.374s), with vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Parallel remains opt-in: caller abort, other divergence variants and default enablement still need verification. Larger-output storage and final whole-port acceptance are unfinished.
 
+## Caller abort and replay-divergence cleanup
+
+A two-active-call test verifies explicit caller abort cancels both nested callbacks and keeps the parent nonterminal until both hosts return. The existing scheduler ownership propagation performs that join; codemode shutdown recovery remains resumable.
+
+Mid-flight replay tests now cover changed arguments, early script completion, fewer calls and changed initial drain counts. Rejected authority/count/early-end paths abort this run's admitted children, preventing active children from blocking caller completion after divergence. Both backends retain the single confirmed fast effect and zero slow completion effects.
+
+Go 1.27.1 caller-abort/divergence race tests passed three times in 73.010s. Full normal root tests passed (durable 98.024s, tools 4.404s), with vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Default parallel enablement and current-HEAD whole-port acceptance still need verification; parallel remains opt-in.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

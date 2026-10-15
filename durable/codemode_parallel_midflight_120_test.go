@@ -15,6 +15,7 @@ type midflightSandbox120 struct {
 	release           chan struct{}
 	acknowledgedCrash bool
 	diverge           bool
+	driftMode         string
 }
 
 func (s *midflightSandbox120) RuntimeIdentity() string             { return s.sandbox.RuntimeIdentity() }
@@ -22,7 +23,14 @@ func (s *midflightSandbox120) SupportsParallelCalls() bool         { return true
 func (s *midflightSandbox120) SupportsDrainAcknowledgements() bool { return true }
 func (s *midflightSandbox120) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
 	if s.diverge && s.starts.Load() > 0 {
-		code = `await tools.codemode_fast({changed:true});return "drift";`
+		switch s.driftMode {
+		case "early":
+			code = `return "early";`
+		case "fewer":
+			code = `await tools.codemode_slow({});return "fewer";`
+		default:
+			code = `await tools.codemode_fast({changed:true});return "drift";`
+		}
 	}
 	vm, err := s.sandbox.Start(ctx, code, start)
 	if err != nil {
@@ -39,6 +47,9 @@ type midflightExecution120 struct {
 
 func (e *midflightExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 	event, err := e.CodemodeExecution.Next(ctx)
+	if err == nil && !e.first && e.sandbox.driftMode == "count" && event.Drain != nil && event.Drain.DeliveryID == 0 {
+		event.Drain.Issued++
+	}
 	if err == nil && e.first && !e.sandbox.acknowledgedCrash && event.Drain != nil && event.Drain.DeliveryID == 2 {
 		close(e.sandbox.ready)
 		<-ctx.Done()
@@ -61,13 +72,16 @@ func (e *midflightExecution120) AcknowledgeDrain(ctx context.Context, drain Code
 
 func TestCodemode120ParallelMidflightReopen(t *testing.T) {
 	for _, acknowledged := range []bool{false, true} {
-		t.Run(map[bool]string{false: "before-count-commit", true: "after-count-commit"}[acknowledged], func(t *testing.T) { testParallelMidflight120(t, acknowledged, false) })
+		t.Run(map[bool]string{false: "before-count-commit", true: "after-count-commit"}[acknowledged], func(t *testing.T) { testParallelMidflight120(t, acknowledged, "") })
 	}
 }
 func TestCodemode120ParallelMidflightDivergence(t *testing.T) {
-	testParallelMidflight120(t, false, true)
+	for _, mode := range []string{"arguments", "early", "fewer", "count"} {
+		t.Run(mode, func(t *testing.T) { testParallelMidflight120(t, false, mode) })
+	}
 }
-func testParallelMidflight120(t *testing.T, acknowledged, diverge bool) {
+func testParallelMidflight120(t *testing.T, acknowledged bool, mode string) {
+	diverge := mode != ""
 	backends(t, func(t *testing.T, b backend) {
 		engine, err := NewQuickJSSandbox(bg)
 		if err != nil {
@@ -75,7 +89,7 @@ func testParallelMidflight120(t *testing.T, acknowledged, diverge bool) {
 		}
 		defer engine.Close(bg)
 		engine.ParallelCalls = true
-		sandbox := &midflightSandbox120{sandbox: engine, ready: make(chan struct{}), release: make(chan struct{}), acknowledgedCrash: acknowledged, diverge: diverge}
+		sandbox := &midflightSandbox120{sandbox: engine, ready: make(chan struct{}), release: make(chan struct{}), acknowledgedCrash: acknowledged, diverge: diverge && mode != "count", driftMode: mode}
 		registry := NewRegistry()
 		entered := make(chan struct{}, 1)
 		var slowEffects, fastEffects atomic.Int64
@@ -111,7 +125,7 @@ func testParallelMidflight120(t *testing.T, acknowledged, diverge bool) {
 		def := taskDefinition(t, "midflight-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			result, err := r.RunCodemode(ctx, "run", `const seen=[];const a=tools.codemode_slow({}).then(()=>seen.push(1));const b=tools.codemode_fast({}).then(()=>seen.push(2));await Promise.all([a,b]);return seen;`, sandbox)
 			if err != nil {
-				if diverge && sandbox.starts.Load() == 2 && strings.Contains(err.Error(), "replay divergence") {
+				if diverge && sandbox.starts.Load() == 2 && (strings.Contains(err.Error(), "divergence") || strings.Contains(err.Error(), "before replay journal")) {
 					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
 				}
 				return err

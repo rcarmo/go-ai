@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"strings"
 	"sync"
 )
 
@@ -11,6 +12,12 @@ type codemodeCompletedCall struct {
 }
 
 func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecution, key string, start CodemodeStart, journalID ID, journal *codemodeJournalState, globals []CodemodeGlobal, allowed map[string]bool, paid bool) (out CodemodeResult, runErr error) {
+	divergence := func(message string) (CodemodeResult, error) {
+		if err := r.abortCodemodeChildren(ctx, key, journal); err != nil {
+			return CodemodeResult{}, err
+		}
+		return CodemodeResult{}, reject(message)
+	}
 	linked, cancel := context.WithCancel(ctx)
 	var jobs sync.WaitGroup
 	defer func() {
@@ -102,7 +109,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 			if event.Call != nil && event.Drain == nil && event.Result == nil {
 				call := *event.Call
 				if observed >= l.MaxPage || call.ID != observed+1 || !call.Global && !allowed[call.Name] || call.Global && !codemodeGlobalAllowed(start, call.Name) {
-					return CodemodeResult{}, reject("parallel sandbox call authority mismatch")
+					return divergence("parallel sandbox call authority mismatch")
 				}
 				call.Arguments, err = copyObject(call.Arguments, l)
 				if err != nil {
@@ -111,10 +118,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
 					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !equalJSONValue(call.Arguments, old.Arguments) {
-						if err := r.abortCodemodeChildren(linked, key, journal); err != nil {
-							return CodemodeResult{}, err
-						}
-						return CodemodeResult{}, reject("sandbox call replay divergence")
+						return divergence("sandbox call replay divergence")
 					}
 				} else {
 					journal.Issued = append(journal.Issued, call)
@@ -127,6 +131,9 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					return commitCodemodeJournal(ctx, r, journalID, next)
 				})
 				if err != nil {
+					if linked.Err() == nil && strings.Contains(err.Error(), "codemode drain") {
+						return divergence(err.Error())
+					}
 					return CodemodeResult{}, err
 				}
 				drainPending = false
@@ -136,7 +143,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				}
 			} else if event.Result != nil && event.Call == nil && event.Drain == nil {
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
-					return CodemodeResult{}, reject("sandbox ended before replay journal")
+					return divergence("sandbox ended before replay journal")
 				}
 				if event.Result.Error != "" {
 					if err := commitCodemodeJournal(linked, r, journalID, *journal); err != nil {
@@ -172,7 +179,7 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 					return CodemodeResult{}, reject("unexpected event before delivery")
 				}
 				if observed != len(journal.Issued) || delivered != len(journal.Deliveries) {
-					return CodemodeResult{}, reject("sandbox ended before replay journal")
+					return divergence("sandbox ended before replay journal")
 				}
 				return *received.event.Result, nil
 			case <-linked.Done():
