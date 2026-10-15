@@ -1404,11 +1404,11 @@
       },
       {
         "payload": "done invalid JSON return",
-        "disposition": "native-partial",
+        "disposition": "native-adapted",
         "nativeTests": [
-          "internal/quickjs/engine.go"
+          "internal/quickjs/bridge_validation_120_test.go"
         ],
-        "note": "Host validates return JSON; injected worker message API absent."
+        "note": "Native shared validation rejects malformed return JSON/unknown host operations. Worker-channel injection API remains absent; tests exercise extracted production validators, not injected worker transport."
       },
       {
         "payload": "failed error scalar",
@@ -1426,9 +1426,11 @@
       },
       {
         "payload": "unknown worker message",
-        "disposition": "reviewed-gap",
-        "nativeTests": [],
-        "note": "No worker-channel equivalent; native host operation validation needs separate injected-boundary case."
+        "disposition": "native-adapted",
+        "nativeTests": [
+          "internal/quickjs/bridge_validation_120_test.go"
+        ],
+        "note": "Native shared validation rejects malformed return JSON/unknown host operations. Worker-channel injection API remains absent; tests exercise extracted production validators, not injected worker transport."
       }
     ]
   }

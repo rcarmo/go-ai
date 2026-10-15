@@ -816,6 +816,12 @@ Audited the seven malformed-worker payload cases excluded from the 149-declarati
 
 Focused parser/return/stack/isolation/bridge race count 3 passes in 43.634s. Full normal root tests pass (durable 76.468s, tools 4.590s), with static/logging/non-CGO and diff checks. The first broader QuickJS race run failed: one bridge stress case hit its 3s deadline and the new parser initially rejected valid message-only errors. The parser was corrected; the bridge subset then passed unchanged. No timeout threshold was widened. Diagnostic logs were removed after analysis; a fresh full race remains required.
 
+## Return and operation bridge validation
+
+Unknown host operation names now terminate the VM as sandbox errors instead of silently returning undefined. Successful return parsing uses a shared validator that distinguishes undefined from explicit null and rejects invalid or oversized JSON. Direct tests exercise the production validators used by the host bridge; they do not simulate an injected worker channel. Replay identity advances to host44.
+
+Focused malformed/return/stack/isolation/bridge race count 3 passes in 44.075s. Full normal root tests pass (durable 79.586s, tools 4.598s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parameterised return/unknown-operation mappings now have direct validation evidence, with transport differences explicit. Final parity and security acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

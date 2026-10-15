@@ -802,6 +802,11 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 	if bridgeErr != nil {
 		return fail()
 	}
+	if err := validateBridgeOperation(kind); err != nil {
+		v.done, v.interrupt = true, true
+		v.result = Result{Error: &Error{Kind: ErrorSandbox, Message: err.Error()}}
+		return uint32(v.mustCall(ctx, "qjs_dup_value", uint64(v.undefined)))
+	}
 	switch kind {
 	case "call", "global":
 		idText, _ := arg(1)
@@ -838,12 +843,12 @@ func (v *vm) hostCall(ctx context.Context, namePtr, nameLen, argc, argvPtr uint3
 			if bridgeErr != nil {
 				return fail()
 			}
-			if has {
-				if !json.Valid([]byte(value)) {
-					return fail()
-				}
-				v.result.Value = json.RawMessage(value)
+			returned, err := parseBridgeReturn(value, has)
+			if err != nil {
+				v.result.Error = &Error{Kind: ErrorSandbox, Message: err.Error()}
+				return uint32(v.mustCall(ctx, "qjs_dup_value", uint64(v.undefined)))
 			}
+			v.result.Value = returned
 			patch, err := parseStoreWrites(writes)
 			if err != nil {
 				return fail()
