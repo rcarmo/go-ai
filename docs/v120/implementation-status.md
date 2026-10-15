@@ -1272,6 +1272,14 @@ The AI audit found pi-messages terminal conversion dropped `providerThinkingLeve
 
 Go 1.27.1 pi-messages race tests passed three times in 1.023s. Full normal tests passed (durable 102.964s, tools 4.384s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The upstream Radius/Anthropic paid token-count experiment was not run: credentials and paid execution approval were not used. This fixes metadata preservation when sent by the server; it cannot repair Radius omitting it upstream. Remaining compatibility/model-runtime audit and whole-port acceptance are unfinished.
 
+## Compatibility defaults and registered refresh endpoints
+
+Schema tests verify pinned API-specific defaults for Responses developer roles, Anthropic long cache retention and Bedrock strict mode. Provider-superset and unrelated API schemas omit those defaults. Embedded schemas pass without regeneration.
+
+The changed upstream model-runtime test exposed a missing refresh endpoint field. `ModelRefreshContext.BaseURL` now carries the registered override supplied by the optional `DynamicModelEndpointProvider.BaseURL()` interface. Existing providers retain an empty override without an interface break. Tests verify two refreshes through both model-list and store-entry provider paths.
+
+Go 1.27.1 schema/runtime race tests passed three times in 1.436s. Full normal tests passed (durable 104.814s, tools 4.290s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. This completes review of the seven changed AI test files at the contract level; full AI source-delta acceptance, remote batching/wire adaptation, large-image storage, profiling and final verification remain incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

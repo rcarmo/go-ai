@@ -54,6 +54,7 @@ func (s *InMemoryModelsStore) Delete(provider Provider) error {
 }
 
 type ModelRefreshContext struct {
+	BaseURL      string
 	Provider     Provider
 	Store        ModelsStore
 	AllowNetwork bool
@@ -72,6 +73,9 @@ type DynamicModelProvider interface {
 	StaticModels() []*Model
 	RefreshModels(ctx ModelRefreshContext) ([]*Model, error)
 }
+
+// DynamicModelEndpointProvider exposes a registered endpoint override for refresh.
+type DynamicModelEndpointProvider interface{ BaseURL() string }
 
 type DynamicModelEntryProvider interface {
 	DynamicModelProvider
@@ -231,7 +235,7 @@ func (r *ModelRuntime) refreshProvider(ctx context.Context, provider DynamicMode
 		call.err = ctx.Err()
 		return call.err
 	}
-	refreshCtx := ModelRefreshContext{Provider: id, Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx}
+	refreshCtx := ModelRefreshContext{Provider: id, BaseURL: modelRefreshBaseURL(provider), Store: r.store, AllowNetwork: allowNetwork, Force: force, Signal: ctx}
 	var entry *ModelsStoreEntry
 	var err error
 	if entryProvider, ok := provider.(DynamicModelEntryProvider); ok {
@@ -384,4 +388,11 @@ func cloneModel(model *Model) *Model {
 		}
 	}
 	return &copy
+}
+
+func modelRefreshBaseURL(provider DynamicModelProvider) string {
+	if endpoint, ok := provider.(DynamicModelEndpointProvider); ok {
+		return endpoint.BaseURL()
+	}
+	return ""
 }
