@@ -49,3 +49,38 @@ func TestCodemode120QuickJSRejectsStaleMalformedAndDuplicateDelivery(t *testing.
 		t.Fatal(done, err)
 	}
 }
+
+func TestCodemode120QuickJSCallEventCannotRewriteAdmission(t *testing.T) {
+	sandbox, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sandbox.Close(bg)
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	vm, err := sandbox.Start(ctx, `const v=await tools.leaf({n:1});return v.n;`, CodemodeStart{StartedAt: 1000, Tools: []CodemodeToolDescription{{Name: "leaf", Identifier: "leaf"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	event, err := vm.Next(ctx)
+	if err != nil || event.Call == nil {
+		t.Fatal(event, err)
+	}
+	original := *event.Call
+	original.Arguments = JSON{"n": 1}
+	event.Call.Arguments["n"] = 99
+	event.Call.Name = "changed"
+	if err = vm.Deliver(ctx, CodemodeDelivery{Seq: 1, Now: 2000, Call: *event.Call, HasValue: true, Value: JSON{"n": 7}}); err == nil {
+		t.Fatal("event mutation rewrote expected call")
+	}
+	value := JSON{"n": 7}
+	if err = vm.Deliver(ctx, CodemodeDelivery{Seq: 1, Now: 2000, Call: original, HasValue: true, Value: value}); err != nil {
+		t.Fatal(err)
+	}
+	value["n"] = 99
+	done, err := vm.Next(ctx)
+	if err != nil || done.Result == nil || done.Result.Error != "" || !equalJSONValue(done.Result.Value, 7) {
+		t.Fatal(done, err)
+	}
+}

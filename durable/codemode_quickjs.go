@@ -84,8 +84,19 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			}
 			id := execution.sequence.Add(1)
 			call := CodemodeCall{ID: int(id), Global: global, Name: name, Arguments: arguments}
+			// Keep admission identity separate from caller-visible event maps.
+			raw, err := json.Marshal(arguments)
+			if err != nil {
+				return nil, err
+			}
+			var expectedArgs JSON
+			if err = decodeQuickJSValue(raw, &expectedArgs); err != nil {
+				return nil, err
+			}
+			expected := call
+			expected.Arguments = expectedArgs
 			execution.deliveryMu.Lock()
-			execution.awaiting = &call
+			execution.awaiting = &expected
 			execution.deliveryMu.Unlock()
 			select {
 			case execution.events <- CodemodeEvent{Call: &call}:
@@ -181,6 +192,17 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	if ctx == nil {
 		return reject("nil delivery context")
 	}
+	// Detach JSON before handoff: the callback marshals the value after this
+	// method returns, and callers retain ownership of their original maps.
+	raw, err := json.Marshal(delivery)
+	if err != nil || len(raw) > MaxCodemodeFullOutputBytes {
+		return reject("invalid or oversized delivery JSON")
+	}
+	var owned CodemodeDelivery
+	if err = decodeQuickJSValue(raw, &owned); err != nil {
+		return reject("invalid delivery JSON")
+	}
+	delivery = owned
 	e.deliveryMu.Lock()
 	defer e.deliveryMu.Unlock()
 	select {
@@ -208,7 +230,7 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 }
 func (e *quickjsExecution) Close() error { e.cancel(); <-e.done; return nil }
 
-func decodeQuickJSValue(raw []byte, value *any) error {
+func decodeQuickJSValue(raw []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	return decoder.Decode(value)

@@ -894,6 +894,12 @@ The serial QuickJS adapter now validates delivery sequence, call identity/name/g
 
 Direct malformed/stale delivery, clock, model recovery and tool revocation race count 3 passes in 40.417s. Full normal root tests pass (durable 79.243s, tools 4.567s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel delivery/watermark semantics and final acceptance remain unfinished.
 
+## Direct delivery ownership
+
+The adapter now retains a detached expected call instead of sharing its argument map with the emitted event. Accepted deliveries are JSON-detached before callback handoff, preserving numbers and rejecting malformed or oversized payloads. Mutating a returned event cannot rewrite admission identity, and mutating a value after `Deliver` returns cannot alter the VM result. Concurrent caller mutation during `Deliver` remains outside the Go ownership contract. Replay identity advances to host50.
+
+Ownership/stale-delivery/model-recovery race count 3 passes in 29.272s. Full normal root tests pass (durable 77.224s, tools 4.527s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
