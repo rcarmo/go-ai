@@ -858,6 +858,12 @@ A concrete generation/VM test now verifies failed scripts produce one error tool
 
 Focused failure race count 3 passes in 12.893s. Full normal root tests pass (durable 76.221s, tools 4.718s), with static/logging/non-CGO and diff checks; the final focused rerun also checks the correct nested store envelope. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance gaps remain.
 
+## Deferred tool discovery and execution
+
+Expanded the zero-inline-budget model integration to ordinary and deferred registrations. A deferred tool is absent from direct model offers and inline prompt declarations, but the real VM can find it with `searchTools`, inspect it with `describeTool` and execute it. The resulting header-bearing transcript reaches the model. No production changes were needed.
+
+Focused inline/deferred race count 3 passes in 22.390s. Full normal root tests pass (durable 77.821s, tools 4.786s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance gaps remain.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
