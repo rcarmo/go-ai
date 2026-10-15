@@ -1398,6 +1398,12 @@ A backend restart test now interrupts an active replay-safe nested child, reopen
 
 Go 1.27.1 active-attribution restart race tests passed three times in 2.229s. Full normal tests passed (durable 109.903s, tools 4.687s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No production change was needed. Remaining changed durable event/live contracts, large-image persistence, remote wire/batching and final acceptance are incomplete.
 
+## Active nested-tool conversation snapshots
+
+Conversation snapshots now expose `NestedTools`, derived from adopted active nested tasks in task-ID order. Each item includes task/parent IDs, composite call ID, parent call ID, tool name and detached arguments. Snapshot copying owns nested arguments independently; terminal tasks disappear from the projection. Agent events also have parent-attribution fields for subsequent nested lifecycle integration.
+
+The active-restart test checks both levels of nested work, attribution, snapshot alias isolation and removal after settlement. Go 1.27.1 nested snapshot/existing event race tests passed three times in 12.247s. Full normal tests passed (durable 113.622s, tools 4.797s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Per-call nested lifecycle/progress events and compaction-failure projection still need implementation; full event/live parity is incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

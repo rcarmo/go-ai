@@ -9,35 +9,37 @@ import (
 // AgentEvent is derived only from adopted records. Raw provider events are never
 // forwarded before persistence. A snapshot replaces queued batches on overflow.
 type AgentEvent struct {
-	Type         string
-	Seq          uint64
-	Entry        *Entry
-	Submission   *Submission
-	Task         ID
-	Kind         string
-	ToolCallID   string
-	ToolName     string
-	Args         JSON
-	Output       string
-	Message      *MessageReceipt
-	Changes      []MessageChange
-	OutputChange *ToolOutputChange
-	Inputs       []ID
-	RetryAt      int64
-	Attempt      uint64
-	Snapshot     *ConversationSnapshot
-	Agent        JSON
-	Usage        JSON
-	Items        []QueuedItem
-	PollAt       int64
-	Reason       string
-	Blocking     bool
-	Error        string
-	Details      any
-	HasDetails   bool
-	DroppedBytes uint64
-	DroppedLines uint64
-	Diagnostics  []ToolDiagnostic
+	Type             string
+	Seq              uint64
+	Entry            *Entry
+	Submission       *Submission
+	Task             ID
+	Kind             string
+	ToolCallID       string
+	ToolName         string
+	ParentToolCallID string
+	ParentTask       ID
+	Args             JSON
+	Output           string
+	Message          *MessageReceipt
+	Changes          []MessageChange
+	OutputChange     *ToolOutputChange
+	Inputs           []ID
+	RetryAt          int64
+	Attempt          uint64
+	Snapshot         *ConversationSnapshot
+	Agent            JSON
+	Usage            JSON
+	Items            []QueuedItem
+	PollAt           int64
+	Reason           string
+	Blocking         bool
+	Error            string
+	Details          any
+	HasDetails       bool
+	DroppedBytes     uint64
+	DroppedLines     uint64
+	Diagnostics      []ToolDiagnostic
 }
 type QueuedItem struct {
 	ID   ID
@@ -49,7 +51,19 @@ type ConversationSnapshot struct {
 	Tasks        []TaskRecord
 	Documents    map[string]JSON
 	Submissions  []Submission
+	NestedTools  []NestedToolSnapshot
 }
+
+// NestedToolSnapshot is committed active nested work, ordered by task ID.
+type NestedToolSnapshot struct {
+	Task             ID
+	ParentTask       ID
+	ToolCallID       string
+	ParentToolCallID string
+	ToolName         string
+	Arguments        JSON
+}
+
 type AgentEventStream struct {
 	conversation ID
 	initial      ConversationSnapshot
@@ -76,6 +90,21 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			return result, err
 		}
 		result.Tasks = append(result.Tasks, record)
+		if task.Kind == nestedToolKind {
+			input, err := nestedInput(record, limits)
+			if err != nil {
+				return result, err
+			}
+			args, err := copyObject(input.Arguments, limits)
+			if err != nil {
+				return result, err
+			}
+			callID := input.Key
+			if input.ParentCallID != "" {
+				callID = input.ParentCallID + "/" + input.Key
+			}
+			result.NestedTools = append(result.NestedTools, NestedToolSnapshot{Task: task.ID, ParentTask: task.Owner, ToolCallID: callID, ParentToolCallID: input.ParentCallID, ToolName: input.Name, Arguments: args})
+		}
 	}
 	for _, sid := range ids(state.Submissions) {
 		sub := state.Submissions[sid]
@@ -136,6 +165,14 @@ func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (Conver
 			return result, err
 		}
 		result.Tasks = append(result.Tasks, copy)
+	}
+	for _, nested := range value.NestedTools {
+		args, err := copyObject(nested.Arguments, limits)
+		if err != nil {
+			return result, err
+		}
+		nested.Arguments = args
+		result.NestedTools = append(result.NestedTools, nested)
 	}
 	for key, value := range value.Documents {
 		copy, err := copyObject(value, limits)

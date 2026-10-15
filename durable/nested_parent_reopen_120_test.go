@@ -79,6 +79,33 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 				}
 			}
 		}
+		view, err := conversationSnapshot(original, original.Tasks[id].Conversation, h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(view.NestedTools) != 2 {
+			t.Fatal("active nested snapshot absent", view.NestedTools)
+		}
+		foundChild := false
+		for _, nested := range view.NestedTools {
+			if nested.Task == childID {
+				foundChild = true
+				if nested.ToolCallID != "outer/child" || nested.ParentToolCallID != "outer" || nested.ToolName != "restart_leaf" {
+					t.Fatal("nested snapshot attribution", nested)
+				}
+			}
+		}
+		if !foundChild {
+			t.Fatal("child not projected")
+		}
+		copy, err := copyConversationSnapshot(view, h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		copy.NestedTools[0].Arguments["mutated"] = true
+		if view.NestedTools[0].Arguments["mutated"] != nil {
+			t.Fatal("nested snapshot alias")
+		}
 		if childID == 0 {
 			t.Fatal("child absent")
 		}
@@ -93,6 +120,13 @@ func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
 		recovered, err := next.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
+		}
+		finished, err := conversationSnapshot(recovered, recovered.Tasks[id].Conversation, next.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(finished.NestedTools) != 0 {
+			t.Fatal("terminal nested snapshot retained", finished.NestedTools)
 		}
 		child, ok := recovered.Tasks[childID]
 		if !ok {
