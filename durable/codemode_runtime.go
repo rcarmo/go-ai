@@ -338,6 +338,11 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			return CodemodeResult{}, reject("invalid sandbox event union")
 		}
 		if event.Result != nil {
+			if run.Start.DrainAcknowledgements && event.Result.Error != "" && (journal.FirstIssued == nil || index > 0 && journal.Deliveries[index-1].IssuedAfter == nil) {
+				result := *event.Result
+				result.StoreWrites, result.StoreDeletes = nil, nil
+				return ownCodemodeResult(result, l)
+			}
 			if index < len(journal.Issued) || index < len(journal.Deliveries) {
 				return CodemodeResult{}, reject("sandbox ended before replay journal")
 			}
@@ -459,6 +464,13 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 			drainEvent, err := nextCodemodeEvent(linked, vm)
 			if err != nil {
 				return CodemodeResult{}, err
+			}
+			if drainEvent.Result != nil && drainEvent.Call == nil && drainEvent.Drain == nil && drainEvent.Result.Error != "" {
+				// Fatal VM termination cannot certify the pending drain. Admit no
+				// effect and discard store mutations; the incomplete run can retry.
+				result := *drainEvent.Result
+				result.StoreWrites, result.StoreDeletes = nil, nil
+				return ownCodemodeResult(result, l)
 			}
 			if drainEvent.Drain == nil || drainEvent.Call != nil || drainEvent.Result != nil {
 				return CodemodeResult{}, reject("missing serial codemode drain")

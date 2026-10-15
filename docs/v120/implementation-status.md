@@ -1126,6 +1126,12 @@ Memory and journal backend tests verify a real QuickJS run persists `firstIssued
 
 Drain admission remains opt-in. An initial default-enabled run exposed a deadlock when the serial engine rejects overlapping calls: its issued count can include a rejected call with no published adapter event. The default remains unchanged until that fatal-boundary case is handled. Persisted-backend fault/reopen count verification and parallel execution still need tests and implementation.
 
+## Fatal drain termination
+
+The engine no longer requests admission acknowledgement after a fatal or script-error result. Rejected bridge calls may have incremented the issued count without launching a callback, so the adapter cannot certify that drain. Drain-enabled serial runtime returns the error without admitting the pending effect or adopting store writes. It leaves the incomplete run unsettled for retry; terminal-error persistence still needs a design for admitted but undelivered calls.
+
+Unsupported-parallel tests now run with drain admission enabled and disabled on both backends. The enabled mode rejects overlap with zero tool effects. Runtime identity advances to host58. Go 1.27.1 focused durable race tests passed three times in 30.526s (31.824s after the identity bump); engine drain/ordered race tests passed three times in 43.992s. Full normal root tests passed (durable 83.927s, tools 4.358s); vet, staticcheck, logging checks, non-CGO build and diff checks passed before the identity-only bump. Diagnostic logs were deleted after analysis. Drain admission remains opt-in; backend fault/reopen verification and parallel execution are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

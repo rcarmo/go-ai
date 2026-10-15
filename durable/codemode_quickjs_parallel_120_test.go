@@ -8,11 +8,17 @@ import (
 )
 
 func TestCodemode120QuickJSUnsupportedParallelTerminates(t *testing.T) {
+	for _, drains := range []bool{false, true} {
+		t.Run(map[bool]string{false: "legacy", true: "drains"}[drains], func(t *testing.T) { testQuickJSUnsupportedParallel120(t, drains) })
+	}
+}
+func testQuickJSUnsupportedParallel120(t *testing.T, drains bool) {
 	sandbox, err := NewQuickJSSandbox(bg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
+	sandbox.AcknowledgeDrains = drains
 	backends(t, func(t *testing.T, b backend) {
 		registry := NewRegistry()
 		var effects atomic.Int64
@@ -28,6 +34,9 @@ func TestCodemode120QuickJSUnsupportedParallelTerminates(t *testing.T) {
 			result, err := r.RunCodemode(ctx, "run", `await Promise.all([tools.codemode_leaf({n:1}),tools.codemode_leaf({n:2})]);store("unsafe",true);`, sandbox)
 			if err != nil {
 				return err
+			}
+			if drains && effects.Load() != 0 {
+				t.Error("effect before certified drain", effects.Load())
 			}
 			if !strings.Contains(result.Error, "parallel") || len(result.StoreWrites) != 0 || effects.Load() > 1 {
 				t.Errorf("parallel rejected result %+v effects=%d", result, effects.Load())

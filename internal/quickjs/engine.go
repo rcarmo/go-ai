@@ -377,6 +377,11 @@ func (e *Engine) Execute(ctx context.Context, code string, opts Options) Result 
 		return failed(err)
 	}
 	acknowledge := func(deliveryID int) error {
+		// Fatal/script-error termination may include rejected bridge calls
+		// which never launched callbacks. No admission drain can be certified.
+		if v.done && v.result.Error != nil {
+			return nil
+		}
 		if opts.OnDrain != nil {
 			return opts.OnDrain(runCtx, deliveryID, v.issuedCalls)
 		}
