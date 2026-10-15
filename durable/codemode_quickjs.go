@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	goai "github.com/rcarmo/go-ai"
+	"sync"
 	"sync/atomic"
 
 	"github.com/rcarmo/go-ai/internal/quickjs"
@@ -33,6 +34,8 @@ type quickjsExecution struct {
 	done       chan struct{}
 	pending    atomic.Bool
 	sequence   atomic.Uint64
+	deliveryMu sync.Mutex
+	awaiting   *CodemodeCall
 }
 
 func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeStart) (CodemodeExecution, error) {
@@ -80,8 +83,12 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				arguments = JSON(object)
 			}
 			id := execution.sequence.Add(1)
+			call := CodemodeCall{ID: int(id), Global: global, Name: name, Arguments: arguments}
+			execution.deliveryMu.Lock()
+			execution.awaiting = &call
+			execution.deliveryMu.Unlock()
 			select {
-			case execution.events <- CodemodeEvent{Call: &CodemodeCall{ID: int(id), Global: global, Name: name, Arguments: arguments}}:
+			case execution.events <- CodemodeEvent{Call: &call}:
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}
@@ -171,8 +178,23 @@ func (e *quickjsExecution) Next(ctx context.Context) (CodemodeEvent, error) {
 	}
 }
 func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDelivery) error {
+	if ctx == nil {
+		return reject("nil delivery context")
+	}
+	e.deliveryMu.Lock()
+	defer e.deliveryMu.Unlock()
+	select {
+	case <-e.done:
+		return nil
+	default:
+	}
+	call := e.awaiting
+	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < 0 || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
+		return reject("invalid QuickJS delivery")
+	}
 	select {
 	case e.deliveries <- delivery:
+		e.awaiting = nil
 		return nil
 	case <-e.done:
 		// A fatal VM boundary may end before an admitted host call settles.

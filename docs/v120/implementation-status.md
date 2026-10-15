@@ -888,6 +888,12 @@ Collapsed transcripts preserve the first system timestamp, including an otherwis
 
 Root-package race count 3 passes in 1.021s. Full normal root tests pass (durable 77.653s, tools 4.517s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Broader AI audit and final parity acceptance remain unfinished.
 
+## Direct delivery admission
+
+The serial QuickJS adapter now validates delivery sequence, call identity/name/global flag/arguments, clock sign and value/error unions before sending a delivery to the VM. Accepted deliveries consume the waiting slot atomically, so a stale or duplicate delivery cannot resolve a later call. Malformed attempts leave the legitimate pending call available. Deliveries after VM completion retain the existing join behaviour. Replay identity advances to host49.
+
+Direct malformed/stale delivery, clock, model recovery and tool revocation race count 3 passes in 40.417s. Full normal root tests pass (durable 79.243s, tools 4.567s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel delivery/watermark semantics and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
