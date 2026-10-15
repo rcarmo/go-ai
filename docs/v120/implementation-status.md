@@ -1292,6 +1292,14 @@ The complete pinned pricing type uses `pricing.overrides`; the native parser and
 
 Go 1.27.1 OpenRouter race tests passed three times (root 1.015s, external tests 1.036s). Full normal tests passed (durable 104.655s, tools 4.300s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. The earlier source-delta checkpoint had not completed this wire comparison; final parity remains unaccepted.
 
+## Current full-race and parallel profiling checkpoint
+
+Full-root race tests passed on runtime revision `121828ab69d13a07dfabc6f886c0cfdf4208d27e` with Go 1.27.1, GOMAXPROCS=2, shuffle seed 1792048054992322251 and a 900-second per-package timeout. Durable took 649.085s, QuickJS 74.208s, tools 26.697s and external consumer tests 28.590s. This replaces the old full-race receipt for the implemented parallel/remote paths; no source changed during verification.
+
+A CPU/allocation profile of five repetitions of `TestCodemode120ParallelRuntime(CompletionOrder|Reopen)$` passed in 7.387s. CPU samples totalled 6.89s; cold QuickJS/wazero compilation accounted for 4.43s cumulative (64.30%). Total allocated space was 1119.38MB; sandbox creation accounted for 705.97MB cumulative (63.07%). Of 7,639,236 allocated objects, session commit accounted for 5,309,015 cumulative (69.50%), preparation for 4,183,320 (54.76%), and reflection's unsafe_New for 3,792,249 flat (49.64%). JSON cloning accounted for 66.51MB and 1,622,900 objects cumulative.
+
+The workload repeatedly creates cold engines, so it cannot establish steady-state execution cost or an optimisation improvement. Production callers can reuse the sandbox engine; any tuning comparison must separate cold construction and reused-engine execution while preserving commit validation and isolation. No allocation optimisation was made at this checkpoint. Raw CPU/heap profiles, matching test binary and disposable logs were deleted immediately after analysis. Remaining whole-port profiling/tuning, security disposition and parity gaps still prevent final acceptance.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
