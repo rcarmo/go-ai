@@ -74,6 +74,13 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		// Deployment is a wire override; callbacks/response attribution retain
 		// the catalog identity and callers can still replace the payload.
 		compat := goai.DetectCompatForModel(model)
+		strictSupported := compat.SupportsStrictMode == nil || *compat.SupportsStrictMode
+		for _, tool := range convCtx.Tools {
+			if _, err := goai.ResolveJSONSchemaStrictSampling(tool, strictSupported); err != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+				return
+			}
+		}
 		if compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
 			for _, tool := range grammarTranscriptTools(convCtx) {
 				if tool.ConstrainedSampling != nil && tool.ConstrainedSampling.Type == "grammar" {

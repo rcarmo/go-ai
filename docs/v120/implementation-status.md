@@ -1050,6 +1050,12 @@ All output projections now share a saturating four-unit token estimate based on 
 
 Focused token/head-tail/line race count 3 passes in 1.135s. Full normal root tests pass (durable 85.405s, tools 4.277s), with static/logging/non-CGO and diff checks before the identity-only bump. Diagnostic logs were removed after analysis. This does not widen storage limits or complete large-output/parallel acceptance.
 
+## Required strict constraints before HTTP
+
+Completions and Responses now preflight constrained tool declarations before constructing or sending requests. Unsupported strict capability and unrepresentable required schemas return errors; Completions previously ignored resolver errors, while Responses request construction could substitute error text into a request. External HTTP-counter tests verify both failure modes make zero requests for both APIs.
+
+Focused strict HTTP race count 3 passes in 1.025s. Full normal root tests pass (durable 82.573s, tools 4.347s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Preferred-schema fallback and broader AI audit still need review; large-output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

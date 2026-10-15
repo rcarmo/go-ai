@@ -77,6 +77,13 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			baseURL = goai.ResolveCloudflareBaseURL(model, goai.ProviderEnvFromOptions(opts))
 		}
 
+		compat := getResponsesCompat(model)
+		for _, tool := range convCtx.Tools {
+			if _, err := convertResponsesTool(tool, compat.supportsStrictMode, compat.supportsGrammarTools); err != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+				return
+			}
+		}
 		body := buildRequest(model, convCtx, opts)
 		body.Model = requestModelID
 		payload, err := goai.InvokeOnPayload(opts, body, model)
