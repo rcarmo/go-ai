@@ -784,6 +784,12 @@ Concrete VM tests cover top-level callbacks excluded from tool-call records, spr
 
 Focused globals race count 3 passes in 8.232s. Full normal root tests pass (durable 73.044s, tools 4.547s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Review total is 97/149, with 52 unreviewed; final acceptance is unfinished.
 
+## Sandbox declaration review complete
+
+Reviewed the twelve remaining sandbox declarations. New concrete tests verify concurrent independent WASM executions retain isolated globals and deep recursion yields a catchable RangeError. Output/MIME/pretty-print mappings remain partial, and output overflow classification differs. Node worker paths/watch notifications and injected worker/WASM failure APIs have no native equivalent. Parallel independent executions do not implement concurrent calls inside one script.
+
+Focused execution race count 3 passes in 10.488s. Full normal root tests pass (durable 95.257s, tools 6.212s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Review total is 109/149, with the 40 durable-runtime declarations unreviewed. This inventory excludes parameterised declarations by its documented counting rule; complete security/parity acceptance is unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

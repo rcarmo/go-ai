@@ -399,22 +399,40 @@
         {
           "line": 91,
           "name": "supports top-level await",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/engine_120_test.go"
+          ],
+          "note": "Undefined completion and text output supported in native Result; broader upstream simple script fixture differs."
         },
         {
           "line": 97,
           "name": "collects text(), image(), and console output in order",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_output_120_test.go",
+            "durable/codemode_image_output_120_test.go"
+          ],
+          "note": "Text/console/image ordering and MIME handling have native coverage; exact mixed fixture and full result rendering partial."
         },
         {
           "line": 132,
           "name": "rejects invalid text() and image() arguments",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_quickjs_output_120_test.go"
+          ],
+          "note": "Native text/console formatting covered; exact prettyJSON semantics on all types incomplete."
         },
         {
           "line": 180,
           "name": "accepts wrapped and large base64 image data",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "durable/codemode_output_validation_120_test.go",
+            "durable/codemode_image_output_120_test.go"
+          ],
+          "note": "Image bridge validation covered; native accepts explicit supported MIME/base64 and does not establish every upstream guessing/format case."
         },
         {
           "line": 194,
@@ -695,22 +713,36 @@
         {
           "line": 629,
           "name": "fails a script whose output passes the limits, even if it catches the error",
-          "disposition": "unreviewed"
+          "disposition": "native-partial",
+          "nativeTests": [
+            "internal/quickjs/bridge_120_test.go"
+          ],
+          "note": "Byte/item overflows fail before effects with native sandbox classification and stricter1MiB strings; upstream RangeError/maxChars retained-output shape differs."
         },
         {
           "line": 658,
           "name": "rejects execute after close",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Native closed engine returns execution failure; upstream execute promise rejection contract has no direct Go API counterpart."
         },
         {
           "line": 664,
           "name": "runs executions in parallel without sharing state",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/execution_crosswalk_120_test.go"
+          ],
+          "note": "Concurrent independent WASM instances share engine compilation but no global state; not parallel calls within a script."
         },
         {
           "line": 674,
           "name": "turns deep recursion into a catchable RangeError",
-          "disposition": "unreviewed"
+          "disposition": "native-adapted",
+          "nativeTests": [
+            "internal/quickjs/execution_crosswalk_120_test.go"
+          ],
+          "note": "Deep recursion produces catchable RangeError after1000depth with native stack limit."
         },
         {
           "line": 686,
@@ -787,22 +819,30 @@
         {
           "line": 816,
           "name": "accepts a worker path string",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Worker path constructor absent; embedded WASM native engine used."
         },
         {
           "line": 823,
           "name": "reports a missing worker file as a sandbox error",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Missing worker-file error API absent; native has no worker URL."
         },
         {
           "line": 829,
           "name": "reports a failing wasm module as a sandbox error",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Injected failing WASM promise absent; embedded asset loading has native initialization errors, no pinned counterpart."
         },
         {
           "line": 839,
           "name": "ignores Node --watch notifications from the worker",
-          "disposition": "unreviewed"
+          "disposition": "reviewed-gap",
+          "nativeTests": [],
+          "note": "Node watch message channel absent. Native wazero host has no Node worker notifications."
         }
       ]
     },
