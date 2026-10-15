@@ -972,6 +972,12 @@ Expanded rejected-result recovery to two identical PNG outputs. The default file
 
 Filesystem text/image recovery race count 3 passes in 17.538s. Full normal root tests pass (durable 86.688s, tools 4.658s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
 
+## Integrated durable CPU/allocation profile
+
+Profiled the complete durable suite at `cc5fe71`, Go1.27.1/GOMAXPROCS2, seed `1792017546493000040`. CPU, alloc_space and alloc_objects were inspected. Session commits/JSON validation dominate; independent test engine compilation accounts for about 14.6s CPU. Moved map key marshal-authority checks outside the per-member loop and bypassed interface-implementation checks for methodless types, preserving pointer-method rejection and empty-map behaviour.
+
+Equivalent before/after suite profiles pass in 84.093s/79.803s. Sampled CPU is 63.45s/59.05s; marshal-authority cumulative CPU is 5.32s/1.53s. Allocation totals are effectively unchanged (12.405/12.461 GB, 148.795/149.538 million objects); no allocation improvement is established. These are single-run comparisons with scheduling/profile sampling variation. Raw captures, matching test binaries and disposable logs were deleted immediately after analysis. Focused authority regression race count 3 passes in 1.088s; static/logging/non-CGO and diff checks pass. Root/nested consumer profiling and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

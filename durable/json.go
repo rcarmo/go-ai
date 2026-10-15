@@ -165,12 +165,12 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		it := v.MapRange()
 		key := reflect.New(v.Type().Key()).Elem()
 		value := reflect.New(v.Type().Elem()).Elem()
+		if v.Len() > 0 && hasMarshalAuthority(key.Type()) {
+			return reject("caller-defined map key marshal authority")
+		}
 		for it.Next() {
 			key.SetIterKey(it)
 			value.SetIterValue(it)
-			if hasMarshalAuthority(key.Type()) {
-				return reject("caller-defined map key marshal authority")
-			}
 			if err := b.node(); err != nil {
 				return err
 			}
@@ -236,10 +236,19 @@ func validNumber(s string) error {
 	}
 	return nil
 }
+
+var jsonMarshalerType = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+var textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+
 func hasMarshalAuthority(t reflect.Type) bool {
-	j := reflect.TypeOf((*json.Marshaler)(nil)).Elem()
-	text := reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
-	return t.Implements(j) || t.Implements(text) || (t.Kind() != reflect.Pointer && (reflect.PointerTo(t).Implements(j) || reflect.PointerTo(t).Implements(text)))
+	if t.NumMethod() > 0 && (t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType)) {
+		return true
+	}
+	if t.Kind() == reflect.Pointer {
+		return false
+	}
+	pointer := reflect.PointerTo(t)
+	return pointer.NumMethod() > 0 && (pointer.Implements(jsonMarshalerType) || pointer.Implements(textMarshalerType))
 }
 func encodeBounded(v any, l Limits, max int) ([]byte, error) {
 	if max < 1 {
