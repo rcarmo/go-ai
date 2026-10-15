@@ -90,11 +90,11 @@ type codemodeJournalState struct {
 // commits before VM resolution. A replayed call must match ID/name/arguments.
 // Source is a durable JSON string, never evaluated by the host Go process.
 func (r *TaskRuntime) RunCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox) (CodemodeResult, error) {
-	return r.runCodemode(ctx, key, source, sandbox, nil)
+	return r.runCodemode(ctx, key, source, sandbox, nil, nil)
 }
 
 // Namespace overrides apply to new runs; replay uses persisted metadata.
-func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace) (CodemodeResult, error) {
+func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandbox CodemodeSandbox, namespaces *[]CodemodeNamespace, models *bool) (CodemodeResult, error) {
 	if err := r.check(); err != nil {
 		return CodemodeResult{}, err
 	}
@@ -142,11 +142,15 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	if now > int64(^uint64(0)>>1)-parsed.TimeoutMs {
 		return CodemodeResult{}, reject("codemode deadline overflow")
 	}
+	paid := r.harness.options.PaidModels
+	if models != nil {
+		paid = paid && *models
+	}
 	selectedNamespaces := r.harness.options.CodemodeNamespaces
 	if namespaces != nil {
 		selectedNamespaces = *namespaces
 	}
-	start := CodemodeStart{PaidModels: r.harness.options.PaidModels, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
+	start := CodemodeStart{PaidModels: paid, Namespaces: append([]CodemodeNamespace(nil), selectedNamespaces...), RuntimeIdentity: identity, Deadline: now + parsed.TimeoutMs, MaxOutputTokens: parsed.MaxOutputTokens, Version: 2, StartedAt: now, Seed: uint64(binary.LittleEndian.Uint32(random[:4])), Tools: tools}
 	for _, global := range r.harness.options.CodemodeGlobals {
 		start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 	}
@@ -430,7 +434,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 					name, arguments, argumentErr = codemodePaidArguments(call)
 					// Persisted opt-in permits replay, never fresh paid effects after
 					// current host revocation. A retained registry is not authority.
-					if !r.harness.options.PaidModels {
+					if !paid {
 						argumentErr = reject("paid model globals revoked")
 					}
 				}

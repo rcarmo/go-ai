@@ -912,6 +912,12 @@ Expanded model-facing recovery to replace the extension namespace description af
 
 Focused interrupted replacement race count 3 passes in 16.231s. Full normal root tests pass (durable 82.647s, tools 4.538s), with static/logging/non-CGO and diff checks. No production changes were needed. Diagnostic logs were removed after analysis. Parallel/output-storage/global-model scope and final acceptance gaps remain.
 
+## Extension paid-model restriction
+
+`CodemodeExtensionOptions.Models` captures a paid-model restriction. Nil inherits harness authority; false hides model declarations/globals for new runs. True cannot enable paid authority when the harness has disabled it. Fresh effects during replay also check the current combined authority, while confirmed deliveries retain existing replay behaviour. Global callbacks remain harness-scoped.
+
+Real generation/VM tests verify opt-out under an enabled host, no authority expansion under a disabled host, and detachment from caller option mutation. Extension-model/paid-replay/classifier race count 3 passes in 41.564s. Full normal root tests pass (durable 81.056s, tools 4.607s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Interrupted extension-model revocation needs its own counterpart; parallel/output-storage and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

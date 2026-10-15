@@ -25,6 +25,8 @@ SOURCE: /[\s\S]+/
 type CodemodeExtensionOptions struct {
 	InlineBudget *int
 	Namespaces   *[]CodemodeNamespace
+	// Models may restrict harness paid authority, never expand it.
+	Models *bool
 }
 
 // NewCodemodeExtension installs a model-only, replay-safe serial candidate.
@@ -36,6 +38,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 	budget := DefaultCodemodeInlineBudget
 	if len(options) == 1 && options[0].InlineBudget != nil {
 		budget = *options[0].InlineBudget
+	}
+	var models *bool
+	if len(options) == 1 && options[0].Models != nil {
+		copy := *options[0].Models
+		models = &copy
 	}
 	var namespaces *[]CodemodeNamespace
 	if len(options) == 1 && options[0].Namespaces != nil {
@@ -56,7 +63,7 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if !ok {
 			return ToolResult{}, reject("codemode source missing")
 		}
-		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces)
+		result, err := api.runtime.runCodemode(ctx, "script", code, sandbox, namespaces, models)
 		if err != nil {
 			return ToolResult{}, err
 		}
@@ -105,7 +112,11 @@ func NewCodemodeExtension(sandbox CodemodeSandbox, options ...CodemodeExtensionO
 		if err != nil {
 			return nil, err
 		}
-		start := CodemodeStart{PaidModels: runtime.harness.options.PaidModels}
+		paid := runtime.harness.options.PaidModels
+		if models != nil {
+			paid = paid && *models
+		}
+		start := CodemodeStart{PaidModels: paid}
 		for _, global := range runtime.harness.options.CodemodeGlobals {
 			start.Globals = append(start.Globals, codemodeGlobalDescription(global))
 		}
