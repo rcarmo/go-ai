@@ -82,12 +82,13 @@ type CodemodeResult struct {
 	Error          string              `json:"error,omitempty"`
 }
 type CodemodeDelivery struct {
-	Seq      int          `json:"seq"`
-	Now      int64        `json:"now"`
-	Call     CodemodeCall `json:"call"`
-	Value    any          `json:"value,omitempty"`
-	HasValue bool         `json:"hasValue"`
-	Error    string       `json:"error,omitempty"`
+	IssuedAfter *int         `json:"issuedAfter,omitempty"`
+	Seq         int          `json:"seq"`
+	Now         int64        `json:"now"`
+	Call        CodemodeCall `json:"call"`
+	Value       any          `json:"value,omitempty"`
+	HasValue    bool         `json:"hasValue"`
+	Error       string       `json:"error,omitempty"`
 }
 type codemodeRunState struct {
 	OutputDir string          `json:"outputDir,omitempty"`
@@ -97,8 +98,9 @@ type codemodeRunState struct {
 	Result    *CodemodeResult `json:"result,omitempty"`
 }
 type codemodeJournalState struct {
-	Issued     []CodemodeCall     `json:"issued"`
-	Deliveries []CodemodeDelivery `json:"deliveries"`
+	FirstIssued *int               `json:"firstIssued,omitempty"`
+	Issued      []CodemodeCall     `json:"issued"`
+	Deliveries  []CodemodeDelivery `json:"deliveries"`
 }
 
 // RunCodemode persists a serial deterministic replay boundary in caller-owned

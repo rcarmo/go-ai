@@ -33,6 +33,9 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 	if run.Start.InterruptBudget < 0 || run.Start.InterruptBudget > 1000000 || run.Start.Version != 2 || run.Start.Deadline <= run.Start.StartedAt || run.Start.Deadline-run.Start.StartedAt > 2147483647 || run.Start.MaxOutputTokens < 0 || uint64(run.Start.MaxOutputTokens) > MaxID || run.Start.Seed > 0xffffffff || len(run.Source) > l.MaxStringBytes || len(journal.Issued) > l.MaxPage || len(journal.Deliveries) > len(journal.Issued) {
 		return reject("invalid codemode start/journal limits")
 	}
+	if err := validateCodemodeWatermarks(run.Start, journal, run.Result != nil); err != nil {
+		return err
+	}
 	if err := validateCodemodeGlobalDescriptions(run.Start.Globals, l); err != nil {
 		return err
 	}
@@ -117,6 +120,9 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 	if len(b.Issued) < len(a.Issued) || len(b.Deliveries) < len(a.Deliveries) {
 		return reject("codemode journal truncated")
 	}
+	if a.FirstIssued != nil && (b.FirstIssued == nil || *a.FirstIssued != *b.FirstIssued) {
+		return reject("codemode initial watermark changed")
+	}
 	for i, call := range a.Issued {
 		other := b.Issued[i]
 		if call.ID != other.ID || call.Name != other.Name || call.Global != other.Global || !equalJSONValue(call.Arguments, other.Arguments) {
@@ -124,17 +130,68 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 		}
 	}
 	for i, delivery := range a.Deliveries {
+		other := b.Deliveries[i]
+		if delivery.IssuedAfter != nil && (other.IssuedAfter == nil || *delivery.IssuedAfter != *other.IssuedAfter) {
+			return reject("codemode delivery watermark changed")
+		}
+		// A previously unacknowledged delivery may acquire its count once.
+		delivery.IssuedAfter, other.IssuedAfter = nil, nil
 		left, err := dtoObject(delivery, l)
 		if err != nil {
 			return err
 		}
-		right, err := dtoObject(b.Deliveries[i], l)
+		right, err := dtoObject(other, l)
 		if err != nil {
 			return err
 		}
 		if !equalJSONValue(left, right) {
 			return reject("codemode delivery prefix changed")
 		}
+	}
+	return nil
+}
+
+// A nil count is an unacknowledged drain; zero is an acknowledged empty drain.
+func validateCodemodeWatermarks(start CodemodeStart, journal codemodeJournalState, settled bool) error {
+	if !start.DrainAcknowledgements {
+		if journal.FirstIssued != nil {
+			return reject("codemode watermark without drain protocol")
+		}
+		for _, delivery := range journal.Deliveries {
+			if delivery.IssuedAfter != nil {
+				return reject("codemode watermark without drain protocol")
+			}
+		}
+		return nil
+	}
+	if journal.FirstIssued == nil {
+		if len(journal.Deliveries) > 0 || settled {
+			return reject("codemode initial watermark missing")
+		}
+		return nil
+	}
+	count := *journal.FirstIssued
+	if count < 0 || count > len(journal.Issued) {
+		return reject("invalid codemode initial watermark")
+	}
+	for i, delivery := range journal.Deliveries {
+		if delivery.Call.ID < 1 || delivery.Call.ID > count {
+			return reject("codemode delivery before admitted call")
+		}
+		if delivery.IssuedAfter == nil {
+			if i != len(journal.Deliveries)-1 || settled {
+				return reject("codemode delivery watermark missing")
+			}
+			return nil
+		}
+		next := *delivery.IssuedAfter
+		if next < count || next > len(journal.Issued) {
+			return reject("invalid codemode delivery watermark")
+		}
+		count = next
+	}
+	if settled && count != len(journal.Issued) {
+		return reject("codemode result before acknowledged calls")
 	}
 	return nil
 }

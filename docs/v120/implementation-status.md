@@ -1102,6 +1102,14 @@ Direct sandbox callers can opt into `CodemodeStart.DrainAcknowledgements`. The a
 
 The normal `RunCodemode` path does not enable this option. Calls remain serial; persisted watermarks, effect admission and delivery-order replay still need implementation. Go 1.27.1 adapter drain/admission race tests passed three times in 30.301s. Full normal root tests passed (durable 84.388s, tools 4.342s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
 
+## Persisted drain watermark integrity
+
+Journal state now represents optional `firstIssued` and per-delivery `issuedAfter` counts. Nil denotes an unacknowledged drain; zero denotes an acknowledged empty drain. For starts using drain acknowledgements, validation checks count bounds, monotonicity and delivery admission against the preceding count. Only the final delivery may lack an acknowledgement, and settled runs must acknowledge all issued calls. Starts without the protocol reject watermark fields.
+
+Replacement permits a count to be added once and then freezes it. Delivery payloads remain immutable when a count is added. Tests cover missing, negative, excessive and decreasing counts, premature delivery, zero counts, pending acknowledgements and replacement mutation. Go 1.27.1 focused race tests passed three times in 38.464s. Full normal root tests passed (durable 82.057s, tools 4.384s); vet, staticcheck, logging checks, non-CGO build and diff checks passed. Diagnostic logs were deleted after analysis.
+
+The runtime does not populate these fields yet. Persisting and verifying drain counts, effect gating and concurrent delivery-order replay are the next integration steps.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
