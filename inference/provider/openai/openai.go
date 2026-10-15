@@ -319,13 +319,13 @@ func openAIGrammarToolDef(t goai.Tool, cacheMarker *cacheControl) (toolDef, erro
 	if _, err := grammarInputProperty(t); err != nil {
 		return toolDef{}, err
 	}
-	definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
+	definition := t.ConstrainedSampling.Variants["openai_lark"]
 	syntax := "lark"
-	if definition == "" {
-		definition = strings.TrimSpace(t.ConstrainedSampling.Variants["openai_regex"])
+	if strings.TrimSpace(definition) == "" {
+		definition = t.ConstrainedSampling.Variants["openai_regex"]
 		syntax = "regex"
 	}
-	if definition == "" {
+	if strings.TrimSpace(definition) == "" {
 		return toolDef{}, fmt.Errorf("tool %q cannot use grammar constrained sampling", t.Name)
 	}
 	return toolDef{Type: "custom", Name: t.Name, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}, CacheControl: cacheMarker}, nil

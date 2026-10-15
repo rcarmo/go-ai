@@ -47,3 +47,20 @@ func TestConstrainedSamplingRejectsRequiredStrictOrInvalidGrammar(t *testing.T) 
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestResponses120GrammarDefinitionPreservesWhitespace(t *testing.T) {
+	tool := goai.Tool{Name: "grammar", Parameters: json.RawMessage(`{"type":"object","required":["code"],"properties":{"code":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "\n start: /.+/ \n", "openai_regex": "  ^.+$  "}}}
+	definition, err := resolveResponsesGrammarTool(tool, true)
+	if err != nil || definition.definition != "\n start: /.+/ \n" || definition.syntax != "lark" {
+		t.Fatal(definition, err)
+	}
+	tool.ConstrainedSampling.Variants["openai_lark"] = " \n\t"
+	definition, err = resolveResponsesGrammarTool(tool, true)
+	if err != nil || definition.definition != "  ^.+$  " || definition.syntax != "regex" {
+		t.Fatal(definition, err)
+	}
+	tool.ConstrainedSampling.Variants["openai_regex"] = " \n"
+	if _, err = resolveResponsesGrammarTool(tool, true); err == nil {
+		t.Fatal("blank grammar accepted")
+	}
+}

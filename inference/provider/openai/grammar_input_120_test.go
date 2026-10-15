@@ -84,3 +84,20 @@ func TestGrammar120RejectsMalformedReplayBeforeHTTP(t *testing.T) {
 		}
 	}
 }
+
+func TestGrammar120DefinitionPreservesWhitespaceAndVariantPriority(t *testing.T) {
+	tool := goai.Tool{Name: "grammar", Parameters: json.RawMessage(`{"type":"object","required":["code"],"properties":{"code":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "\n start: /.+/ \n", "openai_regex": "  ^.+$  "}}}
+	definition, err := openAIGrammarToolDef(tool, nil)
+	if err != nil || definition.Format["definition"] != "\n start: /.+/ \n" || definition.Format["syntax"] != "lark" {
+		t.Fatal(definition, err)
+	}
+	tool.ConstrainedSampling.Variants["openai_lark"] = " \n\t"
+	definition, err = openAIGrammarToolDef(tool, nil)
+	if err != nil || definition.Format["definition"] != "  ^.+$  " || definition.Format["syntax"] != "regex" {
+		t.Fatal(definition, err)
+	}
+	tool.ConstrainedSampling.Variants["openai_regex"] = " \n"
+	if _, err = openAIGrammarToolDef(tool, nil); err == nil {
+		t.Fatal("blank grammar accepted")
+	}
+}

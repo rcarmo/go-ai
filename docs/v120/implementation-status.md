@@ -864,6 +864,12 @@ Expanded the zero-inline-budget model integration to ordinary and deferred regis
 
 Focused inline/deferred race count 3 passes in 22.390s. Full normal root tests pass (durable 77.821s, tools 4.786s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Parallel/output-storage and final acceptance gaps remain.
 
+## Grammar definition wire preservation
+
+Completions and Responses now preserve grammar definition whitespace, matching pinned constrained-sampling resolution. Whitespace is trimmed only for blank checks; nonblank Lark takes precedence, otherwise regex is selected. Unsupported capability still falls back to function tools as upstream specifies. Both HTTP API tests now require the complete pinned grammar string, rather than its trimmed form.
+
+Both provider package race count 3 passes (Completions 2.730s, Responses 2.486s); real two-API HTTP/VM/reopen race passes in 20.983s. Full normal root tests pass (durable 77.733s, tools 4.639s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. The broader AI audit and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

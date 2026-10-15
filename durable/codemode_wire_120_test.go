@@ -49,7 +49,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool)
 					tool := raw.(map[string]any)
 					if tool["name"] == "codemode" {
 						found = true
-						if tool["type"] != "custom" || tool["format"].(map[string]any)["definition"] != strings.TrimSpace(CodemodeSourceGrammar) {
+						if tool["type"] != "custom" || tool["format"].(map[string]any)["definition"] != CodemodeSourceGrammar {
 							t.Error("grammar definition", tool)
 						}
 					}

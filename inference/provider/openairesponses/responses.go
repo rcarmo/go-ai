@@ -246,13 +246,13 @@ func resolveResponsesGrammarTool(t goai.Tool, supportsGrammar bool) (*responsesG
 	if cfg == nil || cfg.Type != "grammar" || !supportsGrammar {
 		return nil, nil
 	}
-	definition := strings.TrimSpace(cfg.Variants["openai_lark"])
+	definition := cfg.Variants["openai_lark"]
 	syntax := "lark"
-	if definition == "" {
-		definition = strings.TrimSpace(cfg.Variants["openai_regex"])
+	if strings.TrimSpace(definition) == "" {
+		definition = cfg.Variants["openai_regex"]
 		syntax = "regex"
 	}
-	if definition == "" {
+	if strings.TrimSpace(definition) == "" {
 		return nil, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", t.Name)
 	}
 	inputProperty, err := inferGrammarInputProperty(t)
