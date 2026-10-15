@@ -84,3 +84,41 @@ func TestCodemode120QuickJSCallEventCannotRewriteAdmission(t *testing.T) {
 		t.Fatal(done, err)
 	}
 }
+
+type deliveryMarshaler120 struct{ calls *int }
+
+func (v deliveryMarshaler120) MarshalJSON() ([]byte, error) {
+	*v.calls++
+	return []byte(`"private"`), nil
+}
+func TestCodemode120QuickJSDeliveryRejectsMarshalAuthority(t *testing.T) {
+	sandbox, err := NewQuickJSSandbox(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sandbox.Close(bg)
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	vm, err := sandbox.Start(ctx, `return await tools.leaf({});`, CodemodeStart{StartedAt: 1000, Tools: []CodemodeToolDescription{{Name: "leaf", Identifier: "leaf"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vm.Close()
+	event, err := vm.Next(ctx)
+	if err != nil || event.Call == nil {
+		t.Fatal(event, err)
+	}
+	calls := 0
+	bad := CodemodeDelivery{Seq: 1, Now: 2000, Call: *event.Call, HasValue: true, Value: deliveryMarshaler120{&calls}}
+	if err = vm.Deliver(ctx, bad); err == nil || calls != 0 {
+		t.Fatal("delivery marshaler executed", err, calls)
+	}
+	valid := CodemodeDelivery{Seq: 1, Now: 2000, Call: *event.Call, HasValue: true, Value: "safe"}
+	if err = vm.Deliver(ctx, valid); err != nil {
+		t.Fatal(err)
+	}
+	done, err := vm.Next(ctx)
+	if err != nil || done.Result == nil || done.Result.Value != "safe" {
+		t.Fatal(done, err)
+	}
+}

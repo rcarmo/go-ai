@@ -194,7 +194,11 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	}
 	// Detach JSON before handoff: the callback marshals the value after this
 	// method returns, and callers retain ownership of their original maps.
-	raw, err := json.Marshal(delivery)
+	// Validate before encoding so caller marshalers cannot execute at handoff.
+	limits := DefaultLimits()
+	limits.MaxStringBytes = 1 << 20
+	limits.MaxRecordBytes = MaxCodemodeFullOutputBytes
+	raw, err := encodeBounded(delivery, limits, MaxCodemodeFullOutputBytes)
 	if err != nil || len(raw) > MaxCodemodeFullOutputBytes {
 		return reject("invalid or oversized delivery JSON")
 	}

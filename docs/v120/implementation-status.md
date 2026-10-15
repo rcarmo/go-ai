@@ -1002,6 +1002,12 @@ Displayed codemode text now has a 100,000-line ceiling with a 100-line margin fo
 
 Focused line/projection/spill race count 3 passes in 9.013s. Full normal root tests pass (durable 81.587s, tools 4.357s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. This tests projection/preparation directly; the outer 50 KiB cap and persisted storage ceilings still prevent full upstream large-output parity. Parallel and final acceptance remain unfinished.
 
+## Delivery marshal authority
+
+Direct delivery handoff now uses bounded native encoding before detachment, preventing caller-defined JSON/text marshal hooks from executing. Bridge-sized string/total limits remain enforced independently of persisted journal limits. A hostile marshaler is rejected with zero invocations and leaves the legitimate waiting call available. Replay identity advances to host54.
+
+Delivery ownership/authority/stale/recovery race count 3 passes in 36.278s. Full normal root tests pass (durable 81.040s, tools 4.384s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
