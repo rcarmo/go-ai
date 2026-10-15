@@ -1008,6 +1008,12 @@ Direct delivery handoff now uses bounded native encoding before detachment, prev
 
 Delivery ownership/authority/stale/recovery race count 3 passes in 36.278s. Full normal root tests pass (durable 81.040s, tools 4.384s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Large output/parallel and final acceptance remain unfinished.
 
+## Current root race/security refresh
+
+At `6c442d2`, the complete root race suite passes with Go1.27.1, GOMAXPROCS2, `-shuffle=1792017546493000040 -count=1 -timeout=900s` (durable 511.978s, tools 26.773s). This replaces the stale root race receipt for the present code revision. Licence checks pass; assembly-only dependency inspection emits warnings.
+
+The pinned vulnerability gate still fails on 13 reachable findings: GO-2026-6599, GO-2026-6600, GO-2026-6603, GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608, GO-2026-6609, GO-2026-6610, GO-2026-6611, GO-2026-6612, GO-2026-6613 and GO-2026-6617. No exceptions or toolchain changes were made. Disposable race/security/licence logs were removed after analysis. SBOM/consumer/whole-port profiling refresh, remaining implementation and final acceptance are unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
