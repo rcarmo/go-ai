@@ -1032,6 +1032,12 @@ Added an external-package test using only exported API: register a replay-safe t
 
 Full normal root tests pass (durable 81.152s, tools 4.323s), with static/logging/non-CGO and diff checks. The initial consumer fixture referenced a nonexistent RootOptions type; it was corrected to the exported AgentChange API. Disposable module source/manifests and logs were removed after use. Broader consumer/profiling, large output/parallel and final acceptance remain unfinished.
 
+## Empty text-block separators
+
+`ContentText` now tracks text-block presence independently of accumulated text. Leading empty blocks retain their separators, matching pinned text-only array joining; image blocks remain excluded and image-only arrays return an empty string. A builder replaces repeated string concatenation, without a measured performance claim.
+
+Root race count 3 passes in 1.019s. Full normal root tests pass (durable 80.462s, tools 4.441s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Exact mixed tool-result integration, larger output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

@@ -3,6 +3,7 @@ package goai
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,17 +33,19 @@ func ContentText(content interface{}, separators ...string) string {
 }
 
 func contentBlocksText(blocks []ContentBlock, separator string) string {
-	out := ""
+	var out strings.Builder
+	seen := false
 	for _, block := range blocks {
 		if block.Type != "text" {
 			continue
 		}
-		if out != "" {
-			out += separator
+		if seen {
+			out.WriteString(separator)
 		}
-		out += block.Text
+		seen = true
+		out.WriteString(block.Text)
 	}
-	return out
+	return out.String()
 }
 
 var uuidV7State = struct {
