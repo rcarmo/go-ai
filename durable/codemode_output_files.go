@@ -30,7 +30,7 @@ func (r *TaskRuntime) prepareCodemodeOutput(ctx context.Context, key string, res
 		return result, err
 	}
 	text := result.Output
-	truncated := boundCodemodeOutput(text, tokens) != text
+	truncated := projectCodemodeOutput(text, tokens) != text
 	if !truncated && len(result.Images) == 0 {
 		return result, nil
 	}
@@ -96,7 +96,7 @@ func (r *TaskRuntime) prepareCodemodeOutput(ctx context.Context, key string, res
 	if err := validateCodemodeFullText(text); err != nil {
 		return result, err
 	}
-	truncated = boundCodemodeOutput(text, tokens) != text
+	truncated = projectCodemodeOutput(text, tokens) != text
 	if truncated {
 		path, err := write("output.txt", []byte(text))
 		if err == nil {

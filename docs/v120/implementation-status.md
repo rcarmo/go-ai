@@ -996,6 +996,12 @@ New tests verify caught synchronous/microtask exhaustion releases no tool effect
 
 Engine compute race count 3 passes in 25.433s; durable budget/recovery race count 3 passes in 29.033s. Full normal root tests pass (durable 81.311s, tools 4.402s), with static/logging/non-CGO and diff checks. The initial repeated-callback failure is not passing budget evidence. Diagnostic logs were removed after analysis. Default/remote budget semantics, large output/parallel and final acceptance remain unfinished.
 
+## Output line projection
+
+Displayed codemode text now has a 100,000-line ceiling with a 100-line margin for status/path notices. Projection preserves head/tail context and a truncation marker, then applies the existing token budget. Line truncation triggers full-text spill even when the token budget alone would fit. A 200,000-line test verifies the owned writer receives complete text while displayed output stays below the ceiling. Replay identity advances to host53.
+
+Focused line/projection/spill race count 3 passes in 9.013s. Full normal root tests pass (durable 81.587s, tools 4.357s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. This tests projection/preparation directly; the outer 50 KiB cap and persisted storage ceilings still prevent full upstream large-output parity. Parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

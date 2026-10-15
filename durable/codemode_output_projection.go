@@ -7,7 +7,35 @@ import (
 
 // projectCodemodeOutput keeps both ends when the budget can fit a marker and
 // useful context. Small budgets retain the existing prefix contract.
+const MaxCodemodeOutputLines = 100000
+
+// Reserve lines for truncation/path/status notices in the model transcript.
+func codemodeLineProjection(text string) string {
+	if strings.Count(text, "\n")+1 <= MaxCodemodeOutputLines-100 {
+		return text
+	}
+	keep := (MaxCodemodeOutputLines - 100) / 2
+	headEnd := 0
+	for i := 0; i < keep; i++ {
+		next := strings.IndexByte(text[headEnd:], '\n')
+		if next < 0 {
+			return text
+		}
+		headEnd += next + 1
+	}
+	tailStart := len(text)
+	for i := 0; i < keep; i++ {
+		next := strings.LastIndexByte(text[:tailStart], '\n')
+		if next < 0 {
+			break
+		}
+		tailStart = next
+	}
+	return text[:headEnd] + "\n… truncated …\n" + text[tailStart:]
+}
+
 func projectCodemodeOutput(text string, tokens int) string {
+	text = codemodeLineProjection(text)
 	prefix := boundCodemodeOutput(text, tokens)
 	if prefix == text || tokens <= 0 {
 		return prefix
