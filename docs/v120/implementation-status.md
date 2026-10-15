@@ -1392,6 +1392,12 @@ Nested reference validation now derives the expected parent call ID from the act
 
 Go 1.27.1 parent-call race tests passed three times in 6.274s. Full normal tests passed (durable 111.808s, tools 4.901s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. Mid-execution attribution recovery still needs a targeted test; remaining durable source gaps, large-image persistence, remote wire/batching and final acceptance are incomplete.
 
+## Active nested parent-attribution recovery
+
+A backend restart test now interrupts an active replay-safe nested child, reopens the parent and verifies the same keyed child task retains its persisted parent call ID. Both replay-safe executors resume twice, as configured; the completed receipt keeps the expected text result. The fixture explicitly projects child text into the schema-less outer result instead of forwarding synthetic nested structured output, which the existing output contract rejects.
+
+Go 1.27.1 active-attribution restart race tests passed three times in 2.229s. Full normal tests passed (durable 109.903s, tools 4.687s), plus vet, staticcheck, logging, non-CGO and diff checks. Diagnostic logs were deleted after analysis. No production change was needed. Remaining changed durable event/live contracts, large-image persistence, remote wire/batching and final acceptance are incomplete.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
