@@ -1154,6 +1154,14 @@ Real QuickJS memory/journal tests cover out-of-order completion, continuation-cr
 
 Parallel execution remains opt-in. Mid-flight reopen with an unsettled delivery suffix, mixed concurrent paid/global calls, measured model-capacity enforcement and broader cancellation/divergence fault coverage still need acceptance tests. Fatal errors before initial drain acknowledgement also need verification. Larger-output storage, broader AI parity and final release verification are unfinished.
 
+## Mid-flight parallel restart and paid capacity
+
+Real QuickJS tests now stop the caller with call 2 delivered and call 1 still active, both before and after committing call 2's `issuedAfter` count. On both storage backends, reopen replays call 2, verifies or commits its count, and reattaches call 1. The completed fast effect stays at one; the slow effect completes once after replay acknowledgement. Script observation remains `[2, 1]`.
+
+A six-classifier-call workload holds the first four provider calls at a barrier. No fifth call enters before release, observed maximum concurrency is four, and all six calls finish. The new workload uses a 15-second completion wait because race-instrumented six-call settlement exceeded the shared three-second single-task helper; concurrency barrier checks and production deadlines are unchanged.
+
+Go 1.27.1 combined mid-flight/capacity race tests passed three times in 67.644s. Before adding the second crash boundary, full normal root tests passed (durable 95.218s, tools 4.352s), with vet, staticcheck, logging, non-CGO and diff checks; the final change is test-only. Diagnostic logs were deleted after analysis. Mixed classifier/image/global capacity, cancellation/divergence and fatal-initial-drain acceptance still need tests before default parallel enablement.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
