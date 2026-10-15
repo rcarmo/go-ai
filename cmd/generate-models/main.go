@@ -660,6 +660,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		b.WriteString("},\n")
 	case "openai-responses", "azure-openai-responses", "openai-codex-responses":
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
+		writeBoolField(b, "SupportsMidConvoEffort", c.SupportsMidConvoEffort)
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
 		writeBoolField(b, "SupportsMidConvoSystemMessages", c.SupportsMidConvoSystemMessages)
 		writeBoolField(b, "SupportsLongCacheRetention", c.SupportsLongCacheRetention)

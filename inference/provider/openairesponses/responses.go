@@ -180,7 +180,9 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			return
 		}
 
-		processStreamWithOptions(resp.Body, model, opts, send, buildResponsesToolView(convCtx, getResponsesCompat(model).supportsGrammarTools))
+		view := buildResponsesToolView(convCtx, getResponsesCompat(model).supportsGrammarTools)
+		view.providerThinkingLevel = responsesConfigurationEffort(model, opts)
+		processStreamWithOptions(resp.Body, model, opts, send, view)
 	}()
 
 	return ch
@@ -239,6 +241,7 @@ type toolDef struct {
 }
 
 type responsesToolView struct {
+	providerThinkingLevel      string
 	grammarToolInputProperties map[string]string
 }
 
@@ -424,9 +427,19 @@ func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string
 	return goai.ResolveSamplingParams(model, level, overrides)
 }
 
+func responsesConfigurationEffort(model *goai.Model, opts *goai.StreamOptions) string {
+	compat := getResponsesCompat(model)
+	if opts == nil || opts.Reasoning == nil || *opts.Reasoning == "" || !compat.supportsMidConvoEffort || isChatGPTSignIn(model, opts) {
+		return ""
+	}
+	effort, _ := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+	return effort
+}
+
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {
 	compat := getResponsesCompat(model)
 	chatGPTSignIn := isChatGPTSignIn(model, opts)
+	configurationEffort := responsesConfigurationEffort(model, opts)
 	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
 	req := responsesRequest{
 		Model:          model.ID,
@@ -453,7 +466,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	deferredPlan := goai.PlanDeferredTools(convCtx, deferredMode != "", false)
 
 	// Convert messages to Responses API input format
-	input := convertMessagesWithDeferred(model, convCtx, deferredPlan, deferredMode, compat)
+	input := convertMessagesWithDeferred(model, convCtx, deferredPlan, deferredMode, compat, configurationEffort)
 	if model.Api == goai.ApiAzureOpenAIResponses {
 		limited := goai.ApplyToolCallLimit(input, goai.DefaultToolCallLimitConfig())
 		input = limited.Messages
@@ -488,6 +501,9 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
 					effort = mapped
 				}
+			}
+			if configurationEffort != "" {
+				effort = "medium"
 			}
 			summary := "auto"
 			if opts.ReasoningSummary != "" {
@@ -551,6 +567,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 }
 
 type responsesCompat struct {
+	supportsMidConvoEffort          bool
 	sessionAffinityFormat           string
 	supportsLongCacheRetention      bool
 	supportsMidConvoSystemMessages  bool
@@ -594,6 +611,9 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		c.supportsLongCacheRetention = false
 	}
 	if model.ResponsesCompat != nil {
+		if model.ResponsesCompat.SupportsMidConvoEffort != nil {
+			c.supportsMidConvoEffort = *model.ResponsesCompat.SupportsMidConvoEffort
+		}
 		if model.ResponsesCompat.SupportsMidConvoSystemMessages != nil {
 			c.supportsMidConvoSystemMessages = *model.ResponsesCompat.SupportsMidConvoSystemMessages
 		}
@@ -632,7 +652,11 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []interface{} {
 	return convertMessagesWithDeferred(model, convCtx, goai.DeferredToolPlan{}, "", responsesCompat{})
 }
 
-func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, deferredPlan goai.DeferredToolPlan, deferredMode string, compat responsesCompat) []interface{} {
+func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, deferredPlan goai.DeferredToolPlan, deferredMode string, compat responsesCompat, configurationEfforts ...string) []interface{} {
+	effort := ""
+	if len(configurationEfforts) > 0 {
+		effort = configurationEfforts[0]
+	}
 	var input []interface{}
 	toolView := buildResponsesToolView(convCtx, compat.supportsGrammarTools)
 
@@ -674,6 +698,9 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			}
 
 		case goai.RoleAssistant:
+			if effort != "" && msg.Model == model.ID && msg.Provider == model.Provider && msg.Api == model.Api && msg.ProviderThinkingLevel != "" {
+				input = append(input, map[string]interface{}{"type": "configuration_update", "reasoning": map[string]interface{}{"effort": msg.ProviderThinkingLevel}})
+			}
 			items := buildAssistantItemsWithToolView(msgIndex, msg, model, toolView)
 			input = append(input, items...)
 
@@ -700,6 +727,9 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 		}
 	}
 
+	if effort != "" {
+		input = append(input, map[string]interface{}{"type": "configuration_update", "reasoning": map[string]interface{}{"effort": effort}})
+	}
 	return input
 }
 
@@ -949,6 +979,8 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		Usage:      &goai.Usage{},
 		StopReason: goai.StopReasonPending,
 	}
+
+	partial.ProviderThinkingLevel = toolView.providerThinkingLevel
 
 	send(&goai.StartEvent{Partial: partial})
 

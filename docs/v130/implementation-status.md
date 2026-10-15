@@ -21,3 +21,7 @@ Anthropic now retains image blocks inside successful ordinary results; errored r
 ## Anthropic explicit thinking off
 
 Managed-effort requests now honour explicit native Reasoning pointer off/empty when the model supports off: disabled thinking without block_binding/output effort or historical/final effort markers; terminal providerThinkingLevel omitted. Omitted reasoning keeps managed adaptive defaults; explicit off=null model mapping remains unsupported and preserves adaptive mode. Request regressions and full Anthropic race count3 pass7.095s, vet/diff pass. No full1.3 acceptance.
+
+## Responses cache-preserving effort
+
+Added Responses SupportsMidConvoEffort DTO/generator emission. Gated explicit reasoning requests emit configuration_update before same-provider/API/model historical assistants with providerThinkingLevel, then current effort; request-level effort stays medium. Other model history, disabled capability, omitted reasoning and ChatGPT sign-in remain unmarked. Stream output receives the effective providerThinkingLevel through the request view. New payload gate/history regression passes; full Responses race count3 2.510s plus generator compile/vet/diff pass. Updated fallback-message-ID fixture to1.3 cross-model thinking removal. Catalogue regeneration and full HTTP terminal metadata acceptance still pending; no full1.3 claim.

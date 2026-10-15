@@ -120,6 +120,7 @@ type OpenAICompletionsCompat struct {
 
 // OpenAIResponsesCompat holds compatibility overrides for OpenAI Responses APIs.
 type OpenAIResponsesCompat struct {
+	SupportsMidConvoEffort *bool `json:"supportsMidConvoEffort,omitempty"`
 	// Whether to send the OpenAI session_id cache-affinity header. Default: true.
 	SendSessionIdHeader *bool `json:"sendSessionIdHeader,omitempty"`
 

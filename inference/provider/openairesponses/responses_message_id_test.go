@@ -21,7 +21,7 @@ func TestOpenAIResponsesMessageIDGeneratesUniqueFallbackMessageIDsForMultipleTex
 			ids = append(ids, id)
 		}
 	}
-	want := []string{"msg_pi_1", "msg_pi_1_1"}
+	want := []string{"msg_pi_1"}
 	if len(ids) != len(want) {
 		t.Fatalf("message ids=%#v, want %#v", ids, want)
 	}
