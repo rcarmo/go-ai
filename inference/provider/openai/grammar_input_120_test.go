@@ -101,3 +101,26 @@ func TestGrammar120DefinitionPreservesWhitespaceAndVariantPriority(t *testing.T)
 		t.Fatal("blank grammar accepted")
 	}
 }
+
+func TestGrammar120HistoricalDeclarationsSurviveRemoval(t *testing.T) {
+	tool := func(property string) goai.Tool {
+		return goai.Tool{Name: "script", Parameters: json.RawMessage(`{"type":"object","required":["` + property + `"],"properties":{"` + property + `":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}}
+	}
+	context := &goai.Context{Tools: []goai.Tool{tool("current")}, Messages: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{tool("old")}}, {Role: goai.RoleSystem, ToolsAdded: []goai.Tool{tool("code")}}, {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: "script"}}}, {Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "toolCall", ID: "call", Name: "script", Arguments: map[string]any{"code": "return 7"}}}}}}
+	declared := grammarTranscriptTools(context)
+	if len(declared) != 1 || grammarInputPropertyFor("script", [][]goai.Tool{declared}) != "code" {
+		t.Fatal(declared)
+	}
+	yes := true
+	messages := convertMessages(&goai.Model{}, context, &goai.OpenAICompletionsCompat{SupportsOpenAIGrammarTools: &yes}, declared)
+	var last chatMessage
+	for _, message := range messages {
+		if len(message.ToolCalls) > 0 {
+			last = message
+			break
+		}
+	}
+	if len(last.ToolCalls) != 1 || last.ToolCalls[0].Type != "custom" || last.ToolCalls[0].Custom["input"] != "return 7" {
+		t.Fatal(last)
+	}
+}

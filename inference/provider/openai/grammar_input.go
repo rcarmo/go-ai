@@ -35,3 +35,34 @@ func grammarInputPropertyFor(name string, sets [][]goai.Tool) string {
 	}
 	return ""
 }
+
+// Historical declarations retain removed definitions and use the last schema
+// for a name, matching pinned transcript.ts getDeclaredTools. Legacy context
+// tools fill only names not represented in the transcript.
+func grammarTranscriptTools(context *goai.Context) []goai.Tool {
+	if context == nil {
+		return nil
+	}
+	tools := []goai.Tool{}
+	indices := map[string]int{}
+	for _, message := range context.Messages {
+		if message.Role != goai.RoleSystem {
+			continue
+		}
+		for _, tool := range message.ToolsAdded {
+			if index, ok := indices[tool.Name]; ok {
+				tools[index] = tool
+			} else {
+				indices[tool.Name] = len(tools)
+				tools = append(tools, tool)
+			}
+		}
+	}
+	for _, tool := range context.Tools {
+		if _, ok := indices[tool.Name]; !ok {
+			indices[tool.Name] = len(tools)
+			tools = append(tools, tool)
+		}
+	}
+	return tools
+}

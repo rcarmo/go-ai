@@ -870,6 +870,12 @@ Completions and Responses now preserve grammar definition whitespace, matching p
 
 Both provider package race count 3 passes (Completions 2.730s, Responses 2.486s); real two-API HTTP/VM/reopen race passes in 20.983s. Full normal root tests pass (durable 77.733s, tools 4.639s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. The broader AI audit and final acceptance are unfinished.
 
+## Completions historical grammar declarations
+
+Completions now derives grammar input properties from system tool declarations, retaining removed definitions and applying the latest declaration for each name in first-declaration order. Legacy context tools fill only undeclared names. This matches pinned `getDeclaredTools` and the existing Responses tool view. Replay validation, assistant custom-call encoding and streamed input mapping use the same declaration set, avoiding current-offer schema changes rewriting historical calls.
+
+Provider race count 3 passes in 2.960s; both-API HTTP/reopen/interruption race passes in 30.412s. Full normal root tests pass (durable 77.048s, tools 4.566s), with static/logging/non-CGO and diff checks. Fixtures were corrected to typed tool references and assistant-call selection before passing evidence. Diagnostic logs were removed after analysis. Broader AI audit and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.

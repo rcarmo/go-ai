@@ -75,7 +75,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		// the catalog identity and callers can still replace the payload.
 		compat := goai.DetectCompatForModel(model)
 		if compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
-			for _, tool := range convCtx.Tools {
+			for _, tool := range grammarTranscriptTools(convCtx) {
 				if tool.ConstrainedSampling != nil && tool.ConstrainedSampling.Type == "grammar" {
 					if _, err := openAIGrammarToolDef(tool, nil); err != nil {
 						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
@@ -188,7 +188,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		processSSEStreamWithOptions(resp.Body, model, opts, send, convCtx.Tools)
+		processSSEStreamWithOptions(resp.Body, model, opts, send, grammarTranscriptTools(convCtx))
 	}()
 
 	return ch
@@ -525,7 +525,7 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 	}
 
 	// Convert messages with compat awareness
-	req.Messages = convertMessages(model, convCtx, &compat, convCtx.Tools)
+	req.Messages = convertMessages(model, convCtx, &compat, grammarTranscriptTools(convCtx))
 	if useAnthropicCacheControl {
 		applyAnthropicCacheControl(req.Messages, cacheMarker)
 	}
