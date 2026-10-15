@@ -1026,6 +1026,12 @@ Direct sandbox start now rejects caller marshal hooks while encoding initial sto
 
 Start/delivery authority and model recovery race count 3 passes in 30.290s. Full normal root tests pass (durable 83.404s, tools 4.269s), with static/logging/non-CGO and diff checks. Diagnostic logs were removed after analysis. Current full-race receipt predates this change; large output/parallel and final acceptance remain unfinished.
 
+## External public codemode consumer
+
+Added an external-package test using only exported API: register a replay-safe tool, install codemode with namespaces/model opt-out/compute budget, open memory storage and a harness, submit a model call, execute real QuickJS and inspect the header-bearing transcript. It passes race count 3 in 11.036s. The same source also passes from a disposable independent Go module with a local replace (4.245s); this is local source compatibility, not published-module or live-provider acceptance.
+
+Full normal root tests pass (durable 81.152s, tools 4.323s), with static/logging/non-CGO and diff checks. The initial consumer fixture referenced a nonexistent RootOptions type; it was corrected to the exported AgentChange API. Disposable module source/manifests and logs were removed after use. Broader consumer/profiling, large output/parallel and final acceptance remain unfinished.
+
 ## Work remaining
 
 * Expand provider boundary evidence to all three strict-limit phrases, inline tool changes, hooks/cancellation and timeout retry interactions before final acceptance.
