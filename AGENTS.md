@@ -100,9 +100,9 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
   - `git config --global user.name "Rui Carmo"`
   - `git config --global user.email "rui.carmo@gmail.com"`
 - Use a local-first workflow: finish implementation, docs, regeneration, deliberate fault gates, focused/full tests, race/static checks, SBOM/security checks, and git hygiene locally before pushing.
-- Hosted CI for developer/release candidate pushes must run only once at the end of the local validation cycle. Do not use hosted CI as an iterative debugging loop; batch fixes locally into the final candidate push unless explicitly instructed otherwise.
-- Scheduled CI maintenance (`.github/workflows/ci.yml` weekly cron) is independent of developer candidate pushes and exists to refresh security/SBOM/license/fuzz evidence against live advisory databases.
-- If final CI run metadata must be recorded after the final runtime candidate, use a docs-only `[skip ci]` commit or a proven paths-ignore mechanism, and record both the separately tested runtime SHA and final docs SHA.
+- Hosted CI runs only for explicit release preparation, after local validation. `.github/workflows/ci.yml` has no push, pull-request or scheduled trigger. Dispatch it on the candidate ref with `release_preparation=true`; a dispatch without confirmation skips validation. Do not use hosted CI as an iterative debugging loop.
+- Weekly security review and urgent-advisory review are local/operator work; they do not automatically dispatch CI. Keep all release security, SBOM, licence, race and fuzz gates intact.
+- Record the tested runtime SHA and any later docs-only SHA separately. SBOM publication remains an independent manual workflow requiring explicit publication authority.
 - Final release parity state must be clean and synced with `origin/main`, Rui-authored, and non-rebased.
 
 ## Supply chain, SBOM, security, and licenses
@@ -130,7 +130,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 ## Lifecycle maintenance
 
 - Keep lockfiles/manifests consistent with `go.mod` and `go.sum`; dependency changes must run `go mod tidy`, tests, SBOM, vulnerability, and license checks.
-- Review dependencies and security posture at least weekly through the scheduled CI maintenance scan and immediately when urgent advisories are published or reported.
+- Review dependencies and security at least weekly using local checks or operator review, and immediately when urgent advisories are published or reported. Hosted validation runs only during explicit release preparation.
 - Treat generated-data drift as a release blocker until explained by pinned upstream inputs and regeneration evidence.
 - Review deprecations/removals for backward compatibility, migration notes, and tests before accepting upstream removals.
 - Release/tag/changelog work must identify the accepted runtime SHA, final docs SHA if different, and rollback SHA.

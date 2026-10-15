@@ -1,18 +1,18 @@
 name: CI
 
+# Run explicitly for release preparation, never on ordinary pushes/PRs/cron.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    # Weekly maintenance/security scan. This is independent from developer
-    # candidate pushes; local-first release work still pushes only once at the end.
-    - cron: '17 4 * * 1'
   workflow_dispatch:
+    inputs:
+      release_preparation:
+        description: 'Confirm this run validates a release candidate'
+        type: boolean
+        required: true
+        default: false
 
 jobs:
   check:
+    if: ${{ inputs.release_preparation }}
     name: Vet, Staticcheck & Deterministic Tests
     runs-on: ubuntu-latest
     strategy:
