@@ -112,8 +112,8 @@ while IFS='|' read -r package kind; do
       for report in alloc_space alloc_objects cpu; do
         printf '%s\n' "=== $report ==="; head -22 "$out/$report.txt"; printf '\n'
       done
-      printf 'Compare matching workload, toolchain and flags before attributing changes.\n'
-      printf 'Review the leading allocation/CPU call chains; record measured reductions or why no safe change applies.\n'
+      printf 'Rank material CPU/alloc_space/alloc_objects outliers in this block; investigate cause and act (fix, or justify no safe change) before declaring profiling complete.\n'
+      printf 'Compare matching workload, toolchain and flags before attributing changes or claiming measured benefit.\n'
     } > "$out/analysis.txt"
     cat "$out/analysis.txt"
   fi
@@ -133,6 +133,7 @@ while IFS='|' read -r package kind; do
       for metric in cpu alloc_space alloc_objects; do
         printf '\n%s\n' "$metric"; head -14 "$out/$metric.txt"
       done
+      printf 'Rank the top CPU/alloc_space/alloc_objects entries as material outliers; investigate cause and act (fix, or justify no safe change) before declaring profiling complete.\n'
       printf 'Inspect application chains separately from runtime/test overhead; unlike workloads are not a speedup comparison.\n'
     fi
   } >> "$summary"
