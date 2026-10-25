@@ -12,11 +12,12 @@ type RetrySettings struct {
 	MaxDelayMs  *int64 `json:"maxDelayMs,omitempty"`
 }
 type CompactionSettings struct {
-	Enabled          *bool `json:"enabled,omitempty"`
-	ReserveTokens    *int  `json:"reserveTokens,omitempty"`
-	KeepRecentTokens *int  `json:"keepRecentTokens,omitempty"`
-	BackgroundTokens *int  `json:"backgroundTokens,omitempty"`
-	MaxTokens        *int  `json:"maxTokens,omitempty"`
+	ModelOverrides   map[string]CompactionSettings `json:"modelOverrides,omitempty"`
+	Enabled          *bool                         `json:"enabled,omitempty"`
+	ReserveTokens    *int                          `json:"reserveTokens,omitempty"`
+	KeepRecentTokens *int                          `json:"keepRecentTokens,omitempty"`
+	BackgroundTokens *int                          `json:"backgroundTokens,omitempty"`
+	MaxTokens        *int                          `json:"maxTokens,omitempty"`
 }
 
 // ProgressSettings preserves explicit zero intervals. Omitted fields inherit
@@ -86,6 +87,12 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 		settings.Compaction = applyCompactionOverrides(settings.Compaction, host.Stream.CompactionOverrides)
 		settings.Retry = applyRetryOverrides(settings.Retry, host.Retry)
 		settings.Compaction = applyCompactionOverrides(settings.Compaction, host.Compaction)
+		if host.Stream.CompactionOverrides != nil {
+			settings.CompactionModelOverrides = mergeCompactionModels(settings.CompactionModelOverrides, host.Stream.CompactionOverrides.ModelOverrides)
+		}
+		if host.Compaction != nil {
+			settings.CompactionModelOverrides = mergeCompactionModels(settings.CompactionModelOverrides, host.Compaction.ModelOverrides)
+		}
 		settings.Progress = mergeProgress(settings.Progress, host.Progress)
 		if host.ToolExecution != "" {
 			settings.ToolExecution = host.ToolExecution
@@ -153,6 +160,10 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	}
 	settings.Retry = applyRetryOverrides(settings.Retry, stored.RetryOverrides)
 	settings.Compaction = applyCompactionOverrides(settings.Compaction, stored.CompactionOverrides)
+	settings.CompactionModelOverrides = mergeCompactionModels(settings.CompactionModelOverrides, stored.CompactionModelOverrides)
+	if stored.CompactionOverrides != nil {
+		settings.CompactionModelOverrides = mergeCompactionModels(settings.CompactionModelOverrides, stored.CompactionOverrides.ModelOverrides)
+	}
 	// Resolved intents contain concrete policies, not input presence metadata.
 	settings.RetryOverrides, settings.CompactionOverrides = nil, nil
 	settings.Progress = mergeProgress(settings.Progress, stored.Progress)

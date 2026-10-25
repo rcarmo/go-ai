@@ -25,7 +25,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		return false, err
 	}
 	agent.Settings = h.resolvedSettings(agent.Settings)
-	policy := agent.Settings.Compaction
+	policy := compactionPolicy(agent.Settings, agent.Model)
 	if !policy.Enabled {
 		return false, nil
 	}

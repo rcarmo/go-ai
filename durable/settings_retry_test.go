@@ -24,7 +24,8 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 	for _, tc := range []struct {
 		name                    string
 		reserve, modelMax, want int
-	}{{"reserve", 1000, 4096, 800}, {"model-cap", 1000, 256, 256}, {"zero", 0, 4096, 0}} {
+		modelOverride           bool
+	}{{"reserve", 1000, 4096, 800, false}, {"model-cap", 1000, 256, 256, false}, {"zero", 0, 4096, 0, false}, {"model-override", 1000, 4096, 640, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			backends(t, func(t *testing.T, b backend) {
 				entered, release := make(chan struct{}), make(chan struct{})
@@ -55,7 +56,12 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 					return nil
 				}
 				options.Settings = &HarnessSettings{Compaction: &CompactionSettings{ReserveTokens: &tc.reserve}}
+				overrideReserve := 800
+				if tc.modelOverride {
+					options.Settings.Compaction.ModelOverrides = map[string]CompactionSettings{string(ref.Provider) + "/" + ref.ID: {ReserveTokens: &overrideReserve}}
+				}
 				h := openHarness(t, b.store, options)
+				overrideReserve = 2000 // Open must have detached the host's model map.
 				conversation, err := h.CreateConversation(bg, AgentChange{Model: ref, ThinkingLevel: "low"})
 				if err != nil {
 					t.Fatal(err)

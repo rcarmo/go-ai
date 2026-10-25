@@ -16,16 +16,17 @@ type ModelRef struct {
 }
 type RequestSettings struct {
 	// Identity is pinned plain JSON; request-time callbacks cannot replace it.
-	Identity            JSON             `json:"identity,omitempty"`
-	ContextRetentionMs  *int64           `json:"contextRetentionMs,omitempty"`
-	DocumentRetentionMs *int64           `json:"documentRetentionMs,omitempty"`
-	Temperature         *float64         `json:"temperature,omitempty"`
-	MaxTokens           *int             `json:"maxTokens,omitempty"`
-	ToolExecution       string           `json:"toolExecution,omitempty"`
-	SteeringMode        string           `json:"steeringMode,omitempty"`
-	FollowUpMode        string           `json:"followUpMode,omitempty"`
-	Retry               RetryPolicy      `json:"retry,omitempty"`
-	Compaction          CompactionPolicy `json:"compaction,omitempty"`
+	Identity                 JSON                          `json:"identity,omitempty"`
+	CompactionModelOverrides map[string]CompactionSettings `json:"compactionModelOverrides,omitempty"`
+	ContextRetentionMs       *int64                        `json:"contextRetentionMs,omitempty"`
+	DocumentRetentionMs      *int64                        `json:"documentRetentionMs,omitempty"`
+	Temperature              *float64                      `json:"temperature,omitempty"`
+	MaxTokens                *int                          `json:"maxTokens,omitempty"`
+	ToolExecution            string                        `json:"toolExecution,omitempty"`
+	SteeringMode             string                        `json:"steeringMode,omitempty"`
+	FollowUpMode             string                        `json:"followUpMode,omitempty"`
+	Retry                    RetryPolicy                   `json:"retry,omitempty"`
+	Compaction               CompactionPolicy              `json:"compaction,omitempty"`
 	// Presence-aware native counterparts of reference per-field object merges.
 	// Whole policies above retain their existing replacement semantics.
 	RetryOverrides      *RetrySettings        `json:"retryOverrides,omitempty"`
@@ -288,6 +289,12 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 		if policy.ReserveTokens < 0 || policy.KeepRecentTokens < 0 || policy.BackgroundTokens < 0 || policy.MaxTokens < 0 {
 			e = reject("invalid compaction overrides")
 		}
+	}
+	if e == nil {
+		e = validateCompactionModels(n.CompactionModelOverrides)
+	}
+	if e == nil && n.CompactionOverrides != nil {
+		e = validateCompactionModels(n.CompactionOverrides.ModelOverrides)
 	}
 	return n, e
 }

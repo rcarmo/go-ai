@@ -101,7 +101,8 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				return reject("compaction model identity mismatch")
 			}
 			input := task.Input.Value.(map[string]any)
-			keep := agent.Settings.Compaction.KeepRecentTokens
+			policy := compactionPolicy(agent.Settings, agent.Model)
+			keep := policy.KeepRecentTokens
 			if value, ok := input["keepRecentTokens"]; ok {
 				n, _ := exactNumber(value)
 				if n != nil {
@@ -176,9 +177,9 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					})
 				}
 			}
-			maxTokens := agent.Settings.Compaction.ReserveTokens/5*4 + agent.Settings.Compaction.ReserveTokens%5*4/5
-			if agent.Settings.Compaction.MaxTokens > 0 {
-				maxTokens = agent.Settings.Compaction.MaxTokens
+			maxTokens := policy.ReserveTokens/5*4 + policy.ReserveTokens%5*4/5
+			if policy.MaxTokens > 0 {
+				maxTokens = policy.MaxTokens
 			}
 			if value, ok := input["maxTokens"]; ok {
 				n, _ := exactNumber(value)
