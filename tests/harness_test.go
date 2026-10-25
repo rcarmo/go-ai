@@ -245,20 +245,20 @@ func TestInvokeOnPayloadNil(t *testing.T) {
 	}
 }
 
-func TestTelemetryContextHooks(t *testing.T) {
-	telemetry := &goai.TelemetryContext{Value: "trace-1"}
+func TestTelemetrySpanHooks(t *testing.T) {
+	telemetry := &goai.TelemetrySpan{Value: "trace-1"}
 	payloadSeen := false
 	responseSeen := false
 	opts := &goai.StreamOptions{
-		TelemetryContext: telemetry,
-		OnPayloadWithTelemetry: func(payload interface{}, model *goai.Model, got *goai.TelemetryContext) (interface{}, error) {
+		Telemetry: telemetry,
+		OnPayloadWithTelemetry: func(payload interface{}, model *goai.Model, got *goai.TelemetrySpan) (interface{}, error) {
 			if got != telemetry {
 				t.Fatalf("payload telemetry = %#v", got)
 			}
 			payloadSeen = true
 			return payload, nil
 		},
-		OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+		OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetrySpan) {
 			if got != telemetry {
 				t.Fatalf("response telemetry = %#v", got)
 			}

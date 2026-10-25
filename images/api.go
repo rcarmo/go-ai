@@ -67,9 +67,9 @@ type ImagesResponseMetadata struct {
 }
 
 type ImagesPayloadHook func(payload map[string]any, model *ImagesModel) (map[string]any, error)
-type ImagesPayloadTelemetryHook func(payload map[string]any, model *ImagesModel, telemetry *goai.TelemetryContext) (map[string]any, error)
+type ImagesPayloadTelemetryHook func(payload map[string]any, model *ImagesModel, telemetry *goai.TelemetrySpan) (map[string]any, error)
 type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel) error
-type ImagesResponseTelemetryHook func(response ImagesResponseMetadata, model *ImagesModel, telemetry *goai.TelemetryContext) error
+type ImagesResponseTelemetryHook func(response ImagesResponseMetadata, model *ImagesModel, telemetry *goai.TelemetrySpan) error
 
 type ImagesOptions struct {
 	Identity *goai.ClientIdentity
@@ -89,7 +89,7 @@ type ImagesOptions struct {
 	MaxRetries              int
 	MaxRetryDelayMs         int
 	Metadata                map[string]any
-	TelemetryContext        *goai.TelemetryContext
+	Telemetry               *goai.TelemetrySpan `json:"-"`
 	Env                     goai.ProviderEnv
 	HTTPClient              *http.Client
 	OnPayload               ImagesPayloadHook

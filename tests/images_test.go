@@ -102,7 +102,7 @@ func TestGenerateImagesErrorPaths(t *testing.T) {
 
 func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 	var sawAuth, sawPayload, sawResponse, sawTelemetryPayload, sawTelemetryResponse bool
-	telemetry := &goai.TelemetryContext{Value: "image-trace"}
+	telemetry := &goai.TelemetrySpan{Value: "image-trace"}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "Bearer test-key" {
 			sawAuth = true
@@ -128,10 +128,10 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 
 	model := &images.ImagesModel{ID: "img", Api: images.ImagesApiOpenRouter, Provider: images.ImagesProviderOpenRouter, BaseURL: server.URL, Output: []string{"image", "text"}}
 	out, err := images.GenerateImages(model, images.ImagesContext{Input: []images.ImageInput{{Type: "text", Text: "draw"}}}, &images.ImagesOptions{
-		APIKey:           "test-key",
-		Signal:           context.Background(),
-		TelemetryContext: telemetry,
-		OnPayloadWithTelemetry: func(payload map[string]any, model *images.ImagesModel, got *goai.TelemetryContext) (map[string]any, error) {
+		APIKey:    "test-key",
+		Signal:    context.Background(),
+		Telemetry: telemetry,
+		OnPayloadWithTelemetry: func(payload map[string]any, model *images.ImagesModel, got *goai.TelemetrySpan) (map[string]any, error) {
 			if got != telemetry {
 				t.Fatalf("image payload telemetry=%#v", got)
 			}
@@ -142,7 +142,7 @@ func TestGenerateImagesOpenRouterHooksAndResponse(t *testing.T) {
 			payload["custom"] = "yes"
 			return payload, nil
 		},
-		OnResponseWithTelemetry: func(response images.ImagesResponseMetadata, model *images.ImagesModel, got *goai.TelemetryContext) error {
+		OnResponseWithTelemetry: func(response images.ImagesResponseMetadata, model *images.ImagesModel, got *goai.TelemetrySpan) error {
 			if got != telemetry {
 				t.Fatalf("image response telemetry=%#v", got)
 			}

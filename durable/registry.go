@@ -140,7 +140,7 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 	behavior.BearerToken = ""
 	behavior.Headers = nil
 	behavior.Env = nil
-	behavior.TelemetryContext = nil
+	behavior.Telemetry = nil
 	behavior.OnPayload = nil
 	behavior.OnPayloadWithTelemetry = nil
 	behavior.OnResponse = nil
@@ -165,7 +165,7 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 	data.Headers = nil
 	data.Env = nil
 	data.BearerToken = ""
-	data.TelemetryContext = nil
+	data.Telemetry = nil
 	data.OnPayload = nil
 	data.OnPayloadWithTelemetry = nil
 	data.OnResponse = nil
@@ -191,7 +191,7 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 		n.Env[k] = v
 	}
 	n.RetryConfig = nil
-	n.TelemetryContext = o.TelemetryContext
+	n.Telemetry = o.Telemetry
 	// Payload-changing hooks are intentionally unsupported in M1b because they
 	// can override the committed model/context/settings after intent. Read-only
 	// response/raw-event observers remain explicit process-local host authority.

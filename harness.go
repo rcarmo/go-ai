@@ -410,7 +410,7 @@ func InvokeOnPayload(opts *StreamOptions, payload interface{}, model *Model) (in
 		return payload, nil
 	}
 	if opts.OnPayloadWithTelemetry != nil {
-		replaced, err := opts.OnPayloadWithTelemetry(payload, model, opts.TelemetryContext)
+		replaced, err := opts.OnPayloadWithTelemetry(payload, model, opts.Telemetry)
 		if err != nil {
 			return nil, err
 		}
@@ -441,7 +441,7 @@ func InvokeOnResponse(opts *StreamOptions, resp *http.Response, model *Model) {
 		headers[k] = resp.Header.Get(k)
 	}
 	if opts.OnResponseWithTelemetry != nil {
-		opts.OnResponseWithTelemetry(resp.StatusCode, headers, model, opts.TelemetryContext)
+		opts.OnResponseWithTelemetry(resp.StatusCode, headers, model, opts.Telemetry)
 	}
 	if opts.OnResponse != nil {
 		opts.OnResponse(resp.StatusCode, headers, model)

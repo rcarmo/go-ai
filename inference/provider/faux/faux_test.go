@@ -302,9 +302,9 @@ func TestFauxDeferredSubmitPollReady(t *testing.T) {
 		t.Fatalf("unexpected deferred handle: %#v", deferred.Deferred)
 	}
 
-	telemetry := &goai.TelemetryContext{Value: "deferred-trace"}
+	telemetry := &goai.TelemetrySpan{Value: "deferred-trace"}
 	var fetchTelemetrySeen bool
-	pending, err := goai.FetchDeferred(context.Background(), model, *deferred.Deferred, &goai.StreamOptions{WaitMs: intPtr(0), TelemetryContext: telemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+	pending, err := goai.FetchDeferred(context.Background(), model, *deferred.Deferred, &goai.StreamOptions{WaitMs: intPtr(0), Telemetry: telemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetrySpan) {
 		if got != telemetry {
 			t.Fatalf("fetch telemetry=%#v", got)
 		}
@@ -354,9 +354,9 @@ func TestFauxDeferredFailureAndCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cancelTelemetry := &goai.TelemetryContext{Value: "cancel-trace"}
+	cancelTelemetry := &goai.TelemetrySpan{Value: "cancel-trace"}
 	var cancelTelemetrySeen bool
-	if err := goai.CancelDeferred(context.Background(), model, *cancelledSubmission.Deferred, &goai.StreamOptions{TelemetryContext: cancelTelemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetryContext) {
+	if err := goai.CancelDeferred(context.Background(), model, *cancelledSubmission.Deferred, &goai.StreamOptions{Telemetry: cancelTelemetry, OnResponseWithTelemetry: func(status int, headers map[string]string, model *goai.Model, got *goai.TelemetrySpan) {
 		if got != cancelTelemetry {
 			t.Fatalf("cancel telemetry=%#v", got)
 		}

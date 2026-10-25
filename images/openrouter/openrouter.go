@@ -46,7 +46,7 @@ func GenerateImagesOpenRouter(model *images.ImagesModel, ictx images.ImagesConte
 	}
 	if opts != nil {
 		if opts.OnPayloadWithTelemetry != nil {
-			next, err := opts.OnPayloadWithTelemetry(payload, model, opts.TelemetryContext)
+			next, err := opts.OnPayloadWithTelemetry(payload, model, opts.Telemetry)
 			if err != nil {
 				out.StopReason = goai.StopReasonError
 				out.ErrorMessage = err.Error()
@@ -379,7 +379,7 @@ func invokeImagesOnResponse(opts *images.ImagesOptions, metadata images.ImagesRe
 		return nil
 	}
 	if opts.OnResponseWithTelemetry != nil {
-		if err := opts.OnResponseWithTelemetry(metadata, model, opts.TelemetryContext); err != nil {
+		if err := opts.OnResponseWithTelemetry(metadata, model, opts.Telemetry); err != nil {
 			return err
 		}
 	}

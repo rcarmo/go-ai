@@ -501,10 +501,24 @@ type ThinkingBudgets struct {
 // StreamOptions controls a single stream/complete request.
 type ProviderEnv map[string]string
 
-// TelemetryContext is an opaque vendor-neutral request context propagated to
-// provider hooks. go-ai does not interpret the payload.
-type TelemetryContext struct {
-	Value any `json:"-"`
+// TelemetrySpan adapts an opt-in tracing/metrics backend. Callbacks are optional;
+// nil callbacks are no-ops. Value carries a process-local backend context for
+// provider hooks. Spans and callbacks are never persisted in request JSON.
+type TelemetrySpan struct {
+	Value         any                                                         `json:"-"`
+	StartSpan     func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
+	SetAttributes func(attributes map[string]any)                             `json:"-"`
+	AddEvent      func(name string, attributes map[string]any)                `json:"-"`
+	SetStatus     func(status, errorName, message string)                     `json:"-"`
+	End           func()                                                      `json:"-"`
+	Metrics       *TelemetryMetrics                                           `json:"-"`
+}
+
+// TelemetryMetrics receives low-cardinality pi.ai measurements. Histogram units
+// are milliseconds; counters report tokens and USD. Content is never recorded.
+type TelemetryMetrics struct {
+	Histogram func(name string, value float64, attributes map[string]any, span *TelemetrySpan)
+	Counter   func(name string, value float64, attributes map[string]any)
 }
 
 type StreamOptions struct {
@@ -522,12 +536,12 @@ type StreamOptions struct {
 	Headers        map[string]string `json:"headers,omitempty"`
 	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
 	// removes a provider/model/default header after normal header merging.
-	SuppressHeaders  []string          `json:"suppressHeaders,omitempty"`
-	MaxRetryDelayMs  *int              `json:"maxRetryDelayMs,omitempty"`
-	RetryConfig      *RetryConfig      `json:"-"`
-	Metadata         map[string]any    `json:"metadata,omitempty"`
-	TelemetryContext *TelemetryContext `json:"telemetryContext,omitempty"`
-	Env              ProviderEnv       `json:"env,omitempty"`
+	SuppressHeaders []string       `json:"suppressHeaders,omitempty"`
+	MaxRetryDelayMs *int           `json:"maxRetryDelayMs,omitempty"`
+	RetryConfig     *RetryConfig   `json:"-"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	Telemetry       *TelemetrySpan `json:"-"`
+	Env             ProviderEnv    `json:"env,omitempty"`
 
 	// Provider-specific options that mirror upstream option names where Go has
 	// equivalent transport/payload support.
@@ -571,10 +585,10 @@ type StreamOptions struct {
 	// Return a modified payload to replace it, or nil to keep the original.
 	OnPayload func(payload interface{}, model *Model) (interface{}, error) `json:"-"`
 	// OnPayloadWithTelemetry is the telemetry-aware form of OnPayload.
-	OnPayloadWithTelemetry func(payload interface{}, model *Model, telemetry *TelemetryContext) (interface{}, error) `json:"-"`
+	OnPayloadWithTelemetry func(payload interface{}, model *Model, telemetry *TelemetrySpan) (interface{}, error) `json:"-"`
 
 	// OnResponse is called after receiving the HTTP response headers.
 	OnResponse func(status int, headers map[string]string, model *Model) `json:"-"`
 	// OnResponseWithTelemetry is the telemetry-aware form of OnResponse.
-	OnResponseWithTelemetry func(status int, headers map[string]string, model *Model, telemetry *TelemetryContext) `json:"-"`
+	OnResponseWithTelemetry func(status int, headers map[string]string, model *Model, telemetry *TelemetrySpan) `json:"-"`
 }

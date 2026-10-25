@@ -152,6 +152,11 @@ func ListProviders() []Provider {
 // Read all events until the channel is closed. The final event is either
 // DoneEvent or ErrorEvent.
 func Stream(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
+	observer := observeModelRequest(model, opts, false)
+	return observeRequestEvents(streamRequest(ctx, model, convCtx, opts), observer)
+}
+
+func streamRequest(ctx context.Context, model *Model, convCtx *Context, opts *StreamOptions) <-chan Event {
 	if model == nil {
 		ch := make(chan Event, 1)
 		ch <- &ErrorEvent{Reason: StopReasonError, Err: fmt.Errorf("nil model")}
@@ -238,6 +243,8 @@ func Complete(ctx context.Context, model *Model, convCtx *Context, opts *StreamO
 // "error"; structural errors (nil model, unsupported API, cancellation) are
 // returned as Go errors.
 func FetchDeferred(ctx context.Context, model *Model, handle DeferredHandle, opts *StreamOptions) (*Message, error) {
+	observer := observeModelRequest(model, opts, true)
+	defer observer.end()
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
@@ -260,7 +267,7 @@ func FetchDeferred(ctx context.Context, model *Model, handle DeferredHandle, opt
 	if handle.Api != "" && handle.Api != string(model.Api) {
 		return nil, fmt.Errorf("deferred handle api %q does not match model API %q", handle.Api, model.Api)
 	}
-	return drainDeferredEvents(ctx, p.FetchDeferred(ctx, model, handle, opts))
+	return drainDeferredEvents(ctx, p.FetchDeferred(ctx, model, handle, opts), observer)
 }
 
 // CancelDeferred cancels a provider-side deferred/background response.
@@ -281,7 +288,7 @@ func CancelDeferred(ctx context.Context, model *Model, handle DeferredHandle, op
 	return p.CancelDeferred(ctx, model, handle, opts)
 }
 
-func drainDeferredEvents(ctx context.Context, events <-chan Event) (*Message, error) {
+func drainDeferredEvents(ctx context.Context, events <-chan Event, observer *modelRequestObserver) (*Message, error) {
 	var result *Message
 	for {
 		select {
@@ -294,6 +301,7 @@ func drainDeferredEvents(ctx context.Context, events <-chan Event) (*Message, er
 				}
 				return result, nil
 			}
+			observer.onEvent(event)
 			switch e := event.(type) {
 			case *DoneEvent:
 				result = e.Message

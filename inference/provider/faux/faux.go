@@ -465,7 +465,7 @@ func (r *Registration) fetchDeferred(ctx context.Context, model *goai.Model, han
 		if opts != nil {
 			headers := map[string]string{}
 			if opts.OnResponseWithTelemetry != nil {
-				opts.OnResponseWithTelemetry(200, headers, model, opts.TelemetryContext)
+				opts.OnResponseWithTelemetry(200, headers, model, opts.Telemetry)
 			}
 			if opts.OnResponse != nil {
 				opts.OnResponse(200, headers, model)
@@ -521,7 +521,7 @@ func (r *Registration) cancelDeferred(ctx context.Context, model *goai.Model, ha
 	if opts != nil {
 		headers := map[string]string{}
 		if opts.OnResponseWithTelemetry != nil {
-			opts.OnResponseWithTelemetry(200, headers, model, opts.TelemetryContext)
+			opts.OnResponseWithTelemetry(200, headers, model, opts.Telemetry)
 		}
 		if opts.OnResponse != nil {
 			opts.OnResponse(200, headers, model)
