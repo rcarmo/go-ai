@@ -65,6 +65,11 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 			if options.OnPayload != nil {
 				return ToolResult{}, reject("paid classifier payload rewrite hook unsupported")
 			}
+			identity, e := boundedIdentity(options.Identity, h.session.limits)
+			if e != nil {
+				return ToolResult{}, e
+			}
+			options.Identity = goai.MergeClientIdentity(h.options.Identity, identity)
 			options.Context = ctx
 			result, err := goai.Classify(value.(*goai.ClassifierModel), input, options)
 			if err != nil {
@@ -146,6 +151,11 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 				}
 				options.Metadata = map[string]any(value)
 			}
+			identity, e := boundedIdentity(options.Identity, h.session.limits)
+			if e != nil {
+				return ToolResult{}, e
+			}
+			options.Identity = goai.MergeClientIdentity(h.options.Identity, identity)
 			options.Context = ctx
 			options.Signal = nil
 			model := value.(*goai.ImageModel)

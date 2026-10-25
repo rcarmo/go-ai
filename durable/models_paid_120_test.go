@@ -43,6 +43,9 @@ func TestModels120PaidTypedCallsDurableScopedAuthUsageAndKeyReuse(t *testing.T) 
 		var classifierRuns, imageRuns, optionsRuns atomic.Int64
 		goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "paid-test-classifier", Classify: func(model *goai.ClassifierModel, input goai.ClassifierContext, opts *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
 			classifierRuns.Add(1)
+			if opts.Identity == nil || opts.Identity.Attribution == nil || opts.Identity.Attribution.Name != "pi" {
+				t.Error("missing classifier harness attribution")
+			}
 			if opts.APIKey != "host-key" || opts.Context == nil || model.BaseURL != "" || model.Headers != nil {
 				t.Error("classifier boundary", model, opts)
 			}
@@ -51,6 +54,9 @@ func TestModels120PaidTypedCallsDurableScopedAuthUsageAndKeyReuse(t *testing.T) 
 
 		images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: "paid-test-images", GenerateImages: func(model *images.ImagesModel, input images.ImagesContext, opts *images.ImagesOptions) (*images.AssistantImages, error) {
 			imageRuns.Add(1)
+			if opts.Identity == nil || opts.Identity.Attribution == nil || opts.Identity.Attribution.Name != "pi" {
+				t.Error("missing image harness attribution")
+			}
 			if opts.APIKey != "image-key" || opts.Context == nil || model.BaseURL != "" || model.Headers != nil || len(input.Input) != 1 {
 				t.Error("image boundary", model, opts)
 			}

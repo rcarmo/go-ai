@@ -62,6 +62,12 @@ type ClientAttribution struct {
 	Categories []string `json:"categories,omitempty"`
 }
 
+// PiAttribution returns pi's caller-owned application attribution, used by
+// durable harnesses and available to other pi-based clients.
+func PiAttribution() ClientAttribution {
+	return ClientAttribution{Name: "pi", URL: "https://pi.dev", Categories: []string{"cli-agent"}}
+}
+
 // ClientIdentity is persistable request identity. AttributionSet distinguishes
 // explicit null (disable inherited attribution) from an omitted attribution.
 type ClientIdentity struct {

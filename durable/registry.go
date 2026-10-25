@@ -15,6 +15,8 @@ type ModelRef struct {
 	ID       string        `json:"id"`
 }
 type RequestSettings struct {
+	// Identity is pinned plain JSON; request-time callbacks cannot replace it.
+	Identity            JSON             `json:"identity,omitempty"`
 	ContextRetentionMs  *int64           `json:"contextRetentionMs,omitempty"`
 	DocumentRetentionMs *int64           `json:"documentRetentionMs,omitempty"`
 	Temperature         *float64         `json:"temperature,omitempty"`
@@ -63,6 +65,9 @@ type ExtensionFilter struct {
 	Remove []string `json:"remove,omitempty"`
 }
 type Options struct {
+	// Identity overrides pi's default harness attribution. Explicit attribution
+	// null disables it. Open snapshots this host-owned, process-local default.
+	Identity        *goai.ClientIdentity
 	CodemodeGlobals []CodemodeGlobal
 	// CodemodeNamespaces is copied and validated at Open, then pinned per run.
 	CodemodeNamespaces []CodemodeNamespace
@@ -235,6 +240,9 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	if e != nil {
 		return n, e
+	}
+	if _, err := requestIdentity(n.Identity, l); err != nil {
+		return n, err
 	}
 	if n.Progress != nil && (n.Progress.PartialIntervalMs != nil && *n.Progress.PartialIntervalMs < 0 || n.Progress.OutputIntervalMs != nil && *n.Progress.OutputIntervalMs < 0) {
 		return n, reject("negative progress interval")

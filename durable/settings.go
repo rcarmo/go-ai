@@ -105,6 +105,16 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	if stored.ContextRetentionMs != nil {
 		settings.ContextRetentionMs = copyTaskTime(stored.ContextRetentionMs)
 	}
+	if stored.Identity != nil {
+		identity := make(JSON, len(settings.Identity)+len(stored.Identity))
+		for key, value := range settings.Identity {
+			identity[key] = value
+		}
+		for key, value := range stored.Identity {
+			identity[key] = value
+		}
+		settings.Identity = identity
+	}
 	if stored.Temperature != nil {
 		settings.Temperature = stored.Temperature
 	}

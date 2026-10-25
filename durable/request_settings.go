@@ -9,6 +9,10 @@ func applyRequestSettings(options *goai.StreamOptions, settings RequestSettings,
 	if err != nil {
 		return err
 	}
+	options.Identity, err = requestIdentity(value.Identity, limits)
+	if err != nil {
+		return err
+	}
 	options.Temperature, options.MaxTokens, options.Deferred = value.Temperature, value.MaxTokens, value.Deferred
 	options.Transport, options.TimeoutMs = value.Transport, value.TimeoutMs
 	options.MaxRetries, options.MaxRetryDelayMs = value.MaxRetries, value.MaxRetryDelayMs

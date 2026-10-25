@@ -231,6 +231,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	if err := applyRequestSettings(options, cp.Agent.Settings, h.session.limits); err != nil {
 		return h.finish(task, cp, errorReceipt("invalid_options"), false)
 	}
+	options.Identity = goai.MergeClientIdentity(h.options.Identity, options.Identity)
 	options.SessionID, e = runtime.providerSessionID(runtime.context)
 	if e != nil {
 		return e

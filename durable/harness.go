@@ -65,6 +65,12 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}
+	identity, err := boundedIdentity(options.Identity, DefaultLimits())
+	if err != nil {
+		return nil, err
+	}
+	attribution := goai.PiAttribution()
+	options.Identity = goai.MergeClientIdentity(&goai.ClientIdentity{Attribution: &attribution}, identity)
 	globals, err := cloneCodemodeGlobals(options.CodemodeGlobals, DefaultLimits())
 	if err != nil {
 		return nil, err
