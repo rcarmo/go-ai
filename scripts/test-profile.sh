@@ -59,7 +59,13 @@ while IFS='|' read -r package kind; do
   # Full import path avoids collisions between root/provider package names.
   out="$run/$package"
   mkdir -p "$out"
-  args=(test "$package" -count=1 -timeout=6m "${flags[@]}" "-o=$out/test.bin")
+  # Complete profiled durable race runs took 735–753s on Go 1.27.1;
+  # the former 12m package alarm interrupted progressing tests. Allow 14m
+  # for race instrumentation while keeping the normal-run budget unchanged.
+  # Failed or incomplete captures still cannot count as passing verification.
+  package_timeout=6m
+  for flag in "${flags[@]}"; do case "$flag" in -race) package_timeout=14m;; esac; done
+  args=(test "$package" -count=1 -timeout="$package_timeout" "${flags[@]}" "-o=$out/test.bin")
   if ((fuzz_mode == 0)); then args+=("-cpuprofile=$out/cpu.pprof" "-memprofile=$out/heap.pprof"); fi
   if [[ -n ${COVERAGE_FILE:-} ]]; then args+=("-coverprofile=$out/coverage.out"); fi
   printf '%q ' "$GO" "${args[@]}" > "$out/command.txt"; printf '\n' >> "$out/command.txt"
