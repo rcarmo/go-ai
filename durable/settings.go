@@ -28,6 +28,9 @@ type ProgressSettings struct {
 }
 
 type HarnessSettings struct {
+	// RestartLimit counts interrupted running phases without committed progress.
+	// Nil or zero uses five. A cap of ^uint64(0) is effectively unlimited.
+	RestartLimit        *uint64
 	ContextRetentionMs  *int64
 	DocumentRetentionMs *int64
 	Extensions          *[]string
@@ -251,7 +254,12 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 	if h.closing.Load() {
 		return ErrClosed
 	}
+	if settings.RestartLimit != nil {
+		limit := *settings.RestartLimit
+		copy.RestartLimit = &limit
+	}
 	h.hostSettings.Store(copy)
+	h.scheduler.externalKick()
 	h.session.taskBookkeeping(func() {
 		h.session.expireContextRanges()
 		h.session.sweepDocumentCache()

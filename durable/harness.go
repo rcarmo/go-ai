@@ -86,6 +86,11 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		if err != nil {
 			return nil, err
 		}
+		var restartLimit *uint64
+		if options.Settings.RestartLimit != nil {
+			limit := *options.Settings.RestartLimit
+			restartLimit = &limit
+		}
 		enabledRetry, enabledCompact := value.Retry.Enabled, value.Compaction.Enabled
 		extensions := options.Settings.Extensions
 		if extensions != nil {
@@ -96,6 +101,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			extensions = &names
 		}
 		options.Settings = &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
+		options.Settings.RestartLimit = restartLimit
 	}
 	if options.Extensions != nil {
 		names, err := agentSelectionNames(*options.Extensions)
@@ -151,6 +157,9 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 				return failOpen(err)
 			}
 			task = owned
+			if task.Restarts < ^uint64(0) {
+				task.Restarts++
+			}
 			task.Status = "pending"
 			if task.Execution != nil && task.Execution.Native != nil {
 				task.Execution.Native.State.Status = "pending"
@@ -213,6 +222,11 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		return failOpen(e)
 	}
 	go h.scheduler.loop()
+	for _, task := range recovered {
+		if h.scheduler.parked(task) {
+			h.scheduler.report(fmt.Errorf("task %d (%s) cut off %d times without progress; parked until RetryTask", task.ID, task.Kind, task.Restarts))
+		}
+	}
 	return h, nil
 }
 func (h *Harness) notify() {
@@ -922,7 +936,9 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 						}
 					}
 				}
-				if len(item.On) > 0 {
+				if h.scheduler.parked(task) {
+					item.Kind, item.Reason = "blocked", h.scheduler.nativeBlockedReason(task, snapshot)
+				} else if len(item.On) > 0 {
 					item.Kind = "waiting"
 				} else if task.Execution != nil && task.Execution.Native != nil {
 					if reason := h.scheduler.nativeBlockedReason(task, snapshot); reason != "" {

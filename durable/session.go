@@ -186,7 +186,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 		err = e
 		return 0, e
 	}
-	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external}
+	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external, progressTask: taskID}
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err

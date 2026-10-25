@@ -138,6 +138,7 @@ type Task struct {
 	Status           string         `json:"status"`
 	Checkpoint       JSON           `json:"checkpoint"`
 	Execution        *TaskExecution `json:"execution,omitempty"`
+	Restarts         uint64         `json:"restarts,omitempty"`
 	AbandonOnRestart bool           `json:"abandonOnRestart,omitempty"`
 	AbortReason      string         `json:"abortReason,omitempty"` // restart; ordinary cancellation omits it
 	// Optional Unix millisecond lifecycle times. Old records keep these absent.
@@ -217,6 +218,7 @@ type TaskExecution struct {
 // TaskRecord is a detached canonical runtime view. Legacy raw records remain
 // available through Snapshot; their absent generic results are not invented.
 type TaskRecord struct {
+	Restarts         uint64
 	AbandonOnRestart bool
 	AbortReason      string
 	StartedAt        *int64

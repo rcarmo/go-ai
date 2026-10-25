@@ -4720,6 +4720,7 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 						t.Fatal(err)
 					}
 					if index < wantPrefix {
+						expected.Restarts++ // 1.4 counts only the adopted recovery prefix.
 						expected.Status = "pending"
 						if expected.Execution.Native != nil {
 							expected.Execution.Native.State.Status = "pending"
@@ -4757,8 +4758,8 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 					t.Fatal("retryOpen prefix count/effects", err)
 				}
 				for _, id := range retained {
-					if final.Tasks[id].Status != "pending" {
-						t.Fatal("retryOpen left running record", id)
+					if final.Tasks[id].Status != "pending" || final.Tasks[id].Restarts != before.Tasks[id].Restarts+1 {
+						t.Fatal("retryOpen must recover each record exactly once", id, final.Tasks[id])
 					}
 				}
 			})

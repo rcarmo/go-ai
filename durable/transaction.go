@@ -22,6 +22,7 @@ type Tx struct {
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
 	taskConversation   ID
+	progressTask       ID // process-local invocation whose state can reset restarts
 	byTask             ID
 	taskStops          []taskStop
 	taskAdoptState     *Snapshot   // immutable confirmed storage view, private to adoption
@@ -77,18 +78,21 @@ func (t *Tx) stage(w Write) error {
 	}
 	if w.Task != nil {
 		stamped := *w.Task
-		if t.session != nil {
-			prior := t.state.Tasks[stamped.ID]
-			for _, write := range t.writes {
-				if write.Task != nil && write.Task.ID == stamped.ID {
-					prior = *write.Task
-				}
+		prior := t.state.Tasks[stamped.ID]
+		for _, write := range t.writes {
+			if write.Task != nil && write.Task.ID == stamped.ID {
+				prior = *write.Task
 			}
+		}
+		if t.session != nil {
 			stamped = stampTaskTimes(stamped, prior, t.session.now)
 		}
 		owned, e := copyTask(stamped, t.limits)
 		if e != nil {
 			return e
+		}
+		if owned.ID == t.progressTask && owned.Restarts != 0 && taskMadeProgress(prior, owned) {
+			owned.Restarts = 0
 		}
 		w.Task = &owned
 	}

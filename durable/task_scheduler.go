@@ -132,7 +132,7 @@ func taskManaged(task Task) bool {
 	return task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Execution != nil && task.Execution.Native != nil
 }
 func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
-	if !taskManaged(task) {
+	if !taskManaged(task) || s.parked(task) {
 		return false
 	}
 	if epoch, blocked := s.retryAfter[task.ID]; blocked && s.epoch.Load() <= epoch {
@@ -757,6 +757,9 @@ func callTaskPhase(handler TaskPhase, ctx context.Context, task TaskRecord, runt
 // Unknown migration results remain reservation work; no host code runs here.
 func (s *taskScheduler) nativeBlockedReason(task Task, snapshot TaskRegistrySnapshot) string {
 	if task.Execution == nil || task.Execution.Native == nil {
+		if s.parked(task) {
+			return "restart_limit"
+		}
 		return ""
 	}
 	definition := snapshot.Task(task.Kind)
@@ -769,6 +772,9 @@ func (s *taskScheduler) nativeBlockedReason(task Task, snapshot TaskRegistrySnap
 	}
 	if s.failed[task.ID] == definition || definition.Version() > version && definition.options.Migrate == nil {
 		return "migration_failed"
+	}
+	if s.parked(task) {
+		return "restart_limit"
 	}
 	return ""
 }
@@ -1302,6 +1308,7 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 	return err
 }
 func markTask(task Task) Task {
+	task.Restarts = 0
 	task.AbortReason = "" // explicit cancellation supersedes restart-only intent
 	if task.Execution != nil && task.Execution.Native != nil {
 		native := *task.Execution.Native
