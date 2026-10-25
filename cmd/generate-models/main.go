@@ -155,6 +155,8 @@ type modelEntry struct {
 }
 
 type compatEntry struct {
+	ImageInput                                  string                       `json:"imageInput"`
+	SendImageOptInHeader                        *bool                        `json:"sendImageOptInHeader"`
 	SupportsStore                               *bool                        `json:"supportsStore"`
 	SupportsDeveloperRole                       *bool                        `json:"supportsDeveloperRole"`
 	SupportsReasoningEffort                     *bool                        `json:"supportsReasoningEffort"`
@@ -546,6 +548,14 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 					}
 					b.WriteString(fmt.Sprintf("%q: %q", k, m.Headers[k]))
 				}
+				b.WriteString("},\n")
+			}
+			if kind == "classifier" && (m.Compat.ImageInput != "" || m.Compat.SendImageOptInHeader != nil) {
+				b.WriteString("\t\tCompat: &SystemOneCompat{")
+				if m.Compat.ImageInput != "" {
+					fmt.Fprintf(&b, "ImageInput: %q, ", m.Compat.ImageInput)
+				}
+				writeBoolField(&b, "SendImageOptInHeader", m.Compat.SendImageOptInHeader)
 				b.WriteString("},\n")
 			}
 			if kind == "chat" {

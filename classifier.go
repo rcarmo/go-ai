@@ -22,6 +22,12 @@ const (
 	ClassifierProviderOpenCode            ClassifierProvider = "opencode"
 )
 
+// SystemOneCompat overrides service defaults for classifier image transport.
+type SystemOneCompat struct {
+	ImageInput           string `json:"imageInput,omitempty"` // assets, images, or state-image-urls
+	SendImageOptInHeader *bool  `json:"sendImageOptInHeader,omitempty"`
+}
+
 type ClassifierModel struct {
 	ID            string             `json:"id"`
 	Type          string             `json:"type,omitempty"`
@@ -34,6 +40,7 @@ type ClassifierModel struct {
 	Cost          ModelCost          `json:"cost"`
 	ContextWindow int                `json:"contextWindow"`
 	MaxTokens     int                `json:"maxTokens,omitempty"`
+	Compat        *SystemOneCompat   `json:"compat,omitempty"`
 }
 
 var (
@@ -102,6 +109,14 @@ func cloneClassifierModel(model *ClassifierModel) *ClassifierModel {
 		return nil
 	}
 	copy := *model
+	if model.Compat != nil {
+		compat := *model.Compat
+		if compat.SendImageOptInHeader != nil {
+			value := *compat.SendImageOptInHeader
+			compat.SendImageOptInHeader = &value
+		}
+		copy.Compat = &compat
+	}
 	copy.Input = append([]string{}, model.Input...)
 	copy.Cost.Tiers = append([]ModelCostTier(nil), model.Cost.Tiers...)
 	if model.Headers != nil {

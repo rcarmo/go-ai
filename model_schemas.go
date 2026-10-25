@@ -16,7 +16,7 @@ import (
 //go:embed model_schemas_generated.json
 var officialModelSchemas []byte
 
-// ModelSchema returns a detached JSON schema exported by official pi-ai1.2.0.
+// ModelSchema returns a detached JSON schema exported by official pi-ai 1.4.0.
 // These shared fragments exclude the coding-agent's models.json config surface.
 func ModelSchema(name string) (json.RawMessage, error) {
 	var catalog struct {

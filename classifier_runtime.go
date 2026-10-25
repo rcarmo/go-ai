@@ -147,9 +147,6 @@ func ProviderEnvFromClassifierOptions(opts *ClassifierOptions) ProviderEnv {
 
 func classifySystemOne(transport systemOneTransport, model *ClassifierModel, classCtx ClassifierContext, opts *ClassifierOptions) (*ClassifierResult, error) {
 	out := classifierBaseResult(model)
-	if len(classCtx.Images) > 0 {
-		return classifierError(model, fmt.Errorf("%s does not support image input", transport.label), false), nil
-	}
 	ctx := context.Background()
 	if opts != nil && opts.Context != nil {
 		ctx = opts.Context
@@ -166,13 +163,36 @@ func classifySystemOne(transport systemOneTransport, model *ClassifierModel, cla
 	}
 	payload := map[string]any{"model": model.ID}
 	wire := wireClassifierContext(classCtx)
+	requestOptions := opts
+	if len(classCtx.Images) > 0 {
+		imageInput, optIn := systemOneImageCompat(model)
+		if err := addSystemOneImages(transport.label, model, imageInput, classCtx.Images, wire); err != nil {
+			return classifierError(model, err, false), nil
+		}
+		if optIn {
+			copy := ClassifierOptions{}
+			if opts != nil {
+				copy = *opts
+			}
+			headers := http.Header{}
+			headers.Set("TypeSafe-Danger-Zone-Images", "true")
+			ApplyHeaders(headers, copy.Headers)
+			copy.Headers = responseHeaders(headers)
+			requestOptions = &copy
+		}
+	}
 	if transport.api == ClassifierApiCloudflareWorkersAI {
 		payload["input"] = wire
 	} else {
 		payload["state"] = wire["state"]
 		payload["questions"] = wire["questions"]
+		for _, key := range []string{"assets", "images"} {
+			if value, ok := wire[key]; ok {
+				payload[key] = value
+			}
+		}
 	}
-	value, err := postClassifierRequest(ctx, transport.label, transport.url(model), model, payload, opts, nil)
+	value, err := postClassifierRequest(ctx, transport.label, transport.url(model), model, payload, requestOptions, nil)
 	if err != nil {
 		return classifierError(model, err, ctx.Err() != nil), nil
 	}

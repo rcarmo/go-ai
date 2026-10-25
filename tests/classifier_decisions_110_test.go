@@ -157,7 +157,13 @@ func TestDecisions110ValidationNoTransportAndUnsupportedAPIImages(t *testing.T) 
 	for _, api := range []goai.ClassifierApi{goai.ClassifierApiTypeSafeSystemOne, goai.ClassifierApiCloudflareWorkersAI, goai.ClassifierApiLlamaCPP} {
 		model.Api = api
 		result, _ = goai.Classify(model, classCtx, &goai.ClassifierOptions{APIKey: "key"})
-		if result.StopReason != goai.StopReasonError || !strings.Contains(result.ErrorMessage, "does not support image") {
+		// System One accepts images in 1.4, but still rejects this empty MIME
+		// type before HTTP. llama.cpp remains text-only.
+		want := "accepts PNG and JPEG"
+		if api == goai.ClassifierApiLlamaCPP {
+			want = "does not support image"
+		}
+		if result.StopReason != goai.StopReasonError || !strings.Contains(result.ErrorMessage, want) {
 			t.Fatal(api, result)
 		}
 	}
