@@ -579,9 +579,14 @@ type responsesCompat struct {
 	supportsMaxOutputTokens         bool
 }
 
+const chatGPTWorkspaceLimitHint = "You've reached your ChatGPT workspace's usage limit. Ask your workspace admin to increase it at admin.openai.com → Workspace → Usage limits."
+
 func addChatGPTUsageGuidance(message string) string {
 	if strings.Contains(message, "subscription_sharing_usage_limit_exceeded") && !strings.Contains(message, chatGPTUsageURL) {
 		return message + " Check your ChatGPT usage: " + chatGPTUsageURL
+	}
+	if strings.Contains(message, "subscription_sharing_workplace_individual_usage_limit_exceeded") && !strings.Contains(message, chatGPTWorkspaceLimitHint) {
+		return message + "\n" + chatGPTWorkspaceLimitHint
 	}
 	return message
 }

@@ -12,7 +12,7 @@ import (
 // --- Context overflow detection ---
 
 var overflowPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)prompt is too long`),
+	regexp.MustCompile(`(?i)prompt (?:is )?too long`),
 	regexp.MustCompile(`(?i)prompt exceeds max length`),
 	regexp.MustCompile(`(?i)request_too_large`),
 	regexp.MustCompile(`(?i)input is too long for requested model`),
@@ -36,7 +36,12 @@ var overflowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)context[_ ]length[_ ]exceeded`),
 	regexp.MustCompile(`(?i)too many tokens`),
 	regexp.MustCompile(`(?i)token limit exceeded`),
-	regexp.MustCompile(`(?i)^(?:HTTP\s*)?4(?:00|13|29)\s*:?(?:\s*status code)?\s*\(no body\)`),
+	regexp.MustCompile(`(?i)^(?:HTTP\s*)?4(?:00|13)\s*:?(?:\s*status code)?\s*\(no body\)`),
+	regexp.MustCompile(`(?i)range of input length should be`),
+	// HTTP 413 means request-size overflow regardless of provider or body text
+	// (e.g. GitHub Copilot "failed to parse request"). Match the formatted
+	// provider-error prefix or a bare status, not a status mentioned in the body.
+	regexp.MustCompile(`(?i)^(?:[\w -]+ API error \(413\):|413(?:\s|:|$))`),
 }
 
 var nonOverflowPatterns = []*regexp.Regexp{
