@@ -217,7 +217,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 			return failOpen(err)
 		}
 	}
-	h.scheduler.unsubscribe, e = h.options.Registry.subscribeTasks(h.scheduler.externalKick)
+	h.scheduler.unsubscribe, e = h.options.Registry.subscribeTasks(func() { h.scheduler.externalKick(); h.session.refreshTaskGraphObservers() })
 	if e != nil {
 		return failOpen(e)
 	}

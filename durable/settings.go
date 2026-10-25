@@ -259,6 +259,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 		copy.RestartLimit = &limit
 	}
 	h.hostSettings.Store(copy)
+	h.session.refreshTaskGraphObservers()
 	h.scheduler.externalKick()
 	h.session.taskBookkeeping(func() {
 		h.session.expireContextRanges()

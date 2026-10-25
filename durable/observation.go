@@ -474,10 +474,11 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 // PublicationFrame is an exact adopted batch or an explicit resnapshot after
 // bounded backlog overflow. Snapshots are never raw pre-adoption state.
 type PublicationFrame struct {
-	Publication CommitPublication
-	Snapshot    *Snapshot
-	Context     context.Context
-	ready       <-chan struct{}
+	Publication  CommitPublication
+	Snapshot     *Snapshot
+	Context      context.Context
+	ready        <-chan struct{}
+	graphRefresh bool // process-local metadata only; never a storage publication
 }
 type CommitSubscription struct {
 	mu                      sync.Mutex
@@ -488,6 +489,7 @@ type CommitSubscription struct {
 	quota                   int64
 	callback                func(context.Context, PublicationFrame) error
 	started, running, ended bool
+	graph                   bool // opts this existing quota-bound subscription into graph metadata wakes
 	end                     WatchEnd
 	closed                  chan struct{}
 }

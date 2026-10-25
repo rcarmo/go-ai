@@ -13,6 +13,7 @@ type TaskGraph struct {
 }
 type TaskGraphNode struct {
 	ID             ID             `json:"id"`
+	Blocked        string         `json:"blocked,omitempty"`
 	Kind           string         `json:"kind"`
 	Conversation   ID             `json:"conversationId"`
 	Owner          ID             `json:"owner,omitempty"`
@@ -84,6 +85,9 @@ func (h *Harness) TaskGraph(ctx context.Context) (TaskGraph, error) {
 		}
 		var err error
 		graph, err = buildTaskGraph(state, h.session.limits)
+		if err == nil {
+			err = h.applyGraphBlocking(&graph, graphSubjects(state))
+		}
 		return err
 	})
 	return graph, err
@@ -93,10 +97,12 @@ func (h *Harness) TaskGraph(ctx context.Context) (TaskGraph, error) {
 // It uses the Session's atomic baseline/registration and bounded resnapshot queue.
 // Checkpoint payload-only changes generate no graph callback.
 type TaskGraphWatch struct {
-	mu      sync.Mutex
-	current TaskGraph
-	sub     *CommitSubscription
-	limits  Limits
+	mu       sync.Mutex
+	current  TaskGraph
+	sub      *CommitSubscription
+	limits   Limits
+	harness  *Harness
+	subjects map[string]taskGraphSubject
 }
 
 func (h *Harness) WatchTaskGraph(ctx context.Context) (*TaskGraphWatch, error) {
@@ -115,7 +121,15 @@ func (h *Harness) WatchTaskGraph(ctx context.Context) (*TaskGraphWatch, error) {
 		}
 		return nil, err
 	}
-	return &TaskGraphWatch{current: graph, sub: sub, limits: h.session.limits}, nil
+	sub.mu.Lock()
+	sub.graph = true
+	sub.mu.Unlock()
+	watch := &TaskGraphWatch{current: graph, sub: sub, limits: h.session.limits, harness: h, subjects: graphSubjects(state)}
+	if err := watch.refreshBlocking(ctx, &watch.current); err != nil {
+		sub.Stop()
+		return nil, err
+	}
+	return watch, nil
 }
 func (w *TaskGraphWatch) Value() TaskGraph {
 	w.mu.Lock()
@@ -136,6 +150,7 @@ func (w *TaskGraphWatch) Start(listener func(context.Context, TaskGraph, []Opera
 		var err error
 		if frame.Snapshot != nil {
 			next, err = buildTaskGraph(*frame.Snapshot, w.limits)
+			w.subjects = graphSubjects(*frame.Snapshot)
 		} else {
 			for _, write := range frame.Publication.Tables {
 				if write.Task == nil {
@@ -144,6 +159,7 @@ func (w *TaskGraphWatch) Start(listener func(context.Context, TaskGraph, []Opera
 				task := *write.Task
 				key := strconv.FormatUint(uint64(task.ID), 10)
 				if terminalStatus(task.Status) {
+					delete(w.subjects, key)
 					delete(next.Tasks, key)
 					continue
 				}
@@ -157,6 +173,7 @@ func (w *TaskGraphWatch) Start(listener func(context.Context, TaskGraph, []Opera
 					break
 				}
 				next.Tasks[key] = node
+				w.subjects[key] = graphSubject(task)
 			}
 			if err == nil {
 				for _, write := range frame.Publication.Tables {
@@ -181,6 +198,10 @@ func (w *TaskGraphWatch) Start(listener func(context.Context, TaskGraph, []Opera
 					next.Tasks[key] = node
 				}
 			}
+		}
+		if err == nil {
+			// An adopted publication outlives its writer's cancellation.
+			err = w.refreshBlocking(context.WithoutCancel(ctx), &next)
 		}
 		var ops []Operation
 		if err == nil {

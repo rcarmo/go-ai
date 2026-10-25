@@ -356,6 +356,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				if definition.Version() > task.Execution.Native.Version {
 					if definition.options.Migrate == nil {
 						s.failed[id] = definition
+						s.h.session.refreshTaskGraphObservers()
 						s.failures[id] = reject("missing task migration")
 						s.reports = append(s.reports, s.failures[id])
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
@@ -394,6 +395,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 					}
 					if err != nil {
 						s.failed[id] = definition
+						s.h.session.refreshTaskGraphObservers()
 						s.failures[id] = err
 						s.reports = append(s.reports, err)
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
@@ -762,19 +764,25 @@ func (s *taskScheduler) nativeBlockedReason(task Task, snapshot TaskRegistrySnap
 		}
 		return ""
 	}
-	definition := snapshot.Task(task.Kind)
-	if definition == nil {
-		return "missing_task"
-	}
-	version := task.Execution.Native.Version
-	if definition.Version() < version {
-		return "task_too_old"
-	}
-	if s.failed[task.ID] == definition || definition.Version() > version && definition.options.Migrate == nil {
-		return "migration_failed"
+	if reason := s.definitionBlockedReason(task.ID, task.Kind, task.Execution.Native.Version, snapshot); reason != "" {
+		return reason
 	}
 	if s.parked(task) {
 		return "restart_limit"
+	}
+	return ""
+}
+
+func (s *taskScheduler) definitionBlockedReason(id ID, kind string, version uint64, snapshot TaskRegistrySnapshot) string {
+	definition := snapshot.Task(kind)
+	if definition == nil {
+		return "missing_task"
+	}
+	if definition.Version() < version {
+		return "task_too_old"
+	}
+	if s.failed[id] == definition || definition.Version() > version && definition.options.Migrate == nil {
+		return "migration_failed"
 	}
 	return ""
 }
