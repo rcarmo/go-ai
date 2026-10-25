@@ -31,6 +31,7 @@ type ClassifierResponseMetadata struct {
 }
 
 type ClassifierOptions struct {
+	Identity        *ClientIdentity
 	APIKey          string
 	Temperature     float64
 	Headers         map[string]string
@@ -247,6 +248,11 @@ func applyClassifierHeaders(h http.Header, model *ClassifierModel, apiKey string
 	if apiKey != "" {
 		h.Set("Authorization", "Bearer "+apiKey)
 	}
+	var identity *ClientIdentity
+	if opts != nil {
+		identity = opts.Identity
+	}
+	ApplyDefaultHeaders(h, GetIdentityHeaders(ClientIdentityTarget{Provider: string(model.Provider), BaseURL: model.BaseURL}, identity))
 	// Apply each precedence layer to http.Header directly: map iteration must
 	// not choose between differently cased spellings of the same header.
 	ApplyHeaders(h, model.Headers)

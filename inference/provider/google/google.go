@@ -88,7 +88,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
-		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
+		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

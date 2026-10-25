@@ -160,7 +160,7 @@ func HasAnthropicAuthHeader(headers ...map[string]string) bool {
 
 // PiUserAgent returns the default pi runtime user-agent used by providers
 // that do not need an upstream product-specific user-agent.
-func PiUserAgent() string { return "pi (go)" }
+func PiUserAgent() string { return FormatUserAgent(nil) }
 
 // PiUserAgentHeader returns a ProviderHeaders-style default User-Agent map.
 func PiUserAgentHeader() map[string]string { return map[string]string{"User-Agent": PiUserAgent()} }
@@ -175,8 +175,12 @@ func SessionIDFromOptions(opts *StreamOptions) string {
 	return opts.SessionID
 }
 
-func WithOpenCodeSessionHeader(provider Provider, sessionID string, headers map[string]string) map[string]string {
-	if provider != ProviderOpenCode && provider != ProviderOpenCodeGo || strings.TrimSpace(sessionID) == "" || HasNonEmptyHeader(headers, "x-opencode-session") {
+func WithOpenCodeSessionHeader(provider Provider, sessionID string, headers map[string]string, baseURLs ...string) map[string]string {
+	baseURL := ""
+	if len(baseURLs) > 0 {
+		baseURL = baseURLs[0]
+	}
+	if !identityIsOpenCode(ClientIdentityTarget{Provider: string(provider), BaseURL: baseURL}) || strings.TrimSpace(sessionID) == "" || HasNonEmptyHeader(headers, "x-opencode-session") {
 		return headers
 	}
 	out := map[string]string{}

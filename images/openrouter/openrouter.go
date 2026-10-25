@@ -183,6 +183,11 @@ func doOpenRouterImageRequest(ctx context.Context, client *http.Client, model *i
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	var identity *goai.ClientIdentity
+	if opts != nil {
+		identity = opts.Identity
+	}
+	goai.ApplyDefaultHeaders(req.Header, goai.GetIdentityHeaders(goai.ClientIdentityTarget{Provider: string(model.Provider), BaseURL: model.BaseURL}, identity))
 	for k, v := range model.Headers {
 		req.Header.Set(k, v)
 	}

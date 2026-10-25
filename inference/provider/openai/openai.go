@@ -161,8 +161,8 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 		}
-		goai.ApplyDefaultHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, goai.SessionIDFromOptions(opts), model.Headers))
-		goai.ApplyDefaultHeaders(req.Header, goai.PiUserAgentHeader())
+		goai.ApplyDefaultHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, goai.SessionIDFromOptions(opts), model.Headers, model.BaseURL))
+		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

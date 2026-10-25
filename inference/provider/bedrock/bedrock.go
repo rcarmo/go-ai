@@ -124,6 +124,19 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 				o.HTTPClient = &http.Client{Transport: &http.Transport{ForceAttemptHTTP2: false}}
 			})
 		}
+		clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
+			var identity *goai.ClientIdentity
+			if opts != nil {
+				identity = opts.Identity
+			}
+			if identity != nil && identity.UserAgent != nil && identity.UserAgent.Custom != nil {
+				o.APIOptions = append(o.APIOptions, awsmiddleware.AddUserAgentKey(*identity.UserAgent.Custom))
+			} else if identity != nil && identity.UserAgent != nil && identity.UserAgent.Mode == "short" {
+				o.APIOptions = append(o.APIOptions, awsmiddleware.AddUserAgentKey("pi"))
+			} else {
+				o.APIOptions = append(o.APIOptions, awsmiddleware.AddUserAgentKeyValue("pi", goai.GetClientVersion(identity)))
+			}
+		})
 		if opts != nil && (len(opts.Headers) > 0 || len(opts.SuppressHeaders) > 0) {
 			headers := cloneStringMap(opts.Headers)
 			suppress := append([]string(nil), opts.SuppressHeaders...)

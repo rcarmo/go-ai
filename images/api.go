@@ -72,8 +72,9 @@ type ImagesResponseHook func(response ImagesResponseMetadata, model *ImagesModel
 type ImagesResponseTelemetryHook func(response ImagesResponseMetadata, model *ImagesModel, telemetry *goai.TelemetryContext) error
 
 type ImagesOptions struct {
-	APIKey  string
-	Headers map[string]string
+	Identity *goai.ClientIdentity
+	APIKey   string
+	Headers  map[string]string
 	// SuppressHeaders mirrors upstream ProviderHeaders null values: each name
 	// removes a provider/model/default header after normal header merging.
 	SuppressHeaders []string

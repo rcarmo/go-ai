@@ -29,7 +29,7 @@ func TestV0842CodexSSECapturesEndTurn(t *testing.T) {
 
 func TestV0842CodexUserAgentMatchesPiShape(t *testing.T) {
 	h := buildCodexSSEHeaders(nil, nil, nil, "acct", "token", "session")
-	if h.Get("User-Agent") == "" || !strings.HasPrefix(h.Get("User-Agent"), "pi (") || strings.HasPrefix(h.Get("User-Agent"), "go-ai (") {
+	if h.Get("User-Agent") == "" || !strings.HasPrefix(h.Get("User-Agent"), "pi/1.4.0 (") || strings.HasPrefix(h.Get("User-Agent"), "go-ai (") {
 		t.Fatalf("unexpected user-agent: %q", h.Get("User-Agent"))
 	}
 }

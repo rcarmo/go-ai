@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -231,13 +230,13 @@ func extractCodexAccountID(token string) (string, error) {
 }
 
 func codexPiUserAgent() string {
-	return fmt.Sprintf("pi (%s; %s)", runtime.GOOS, runtime.GOARCH)
+	return goai.FormatUserAgent(nil)
 }
 
-func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string) http.Header {
+func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string, identities ...*goai.ClientIdentity) http.Header {
 	h := http.Header{}
 	h.Set("originator", "pi")
-	h.Set("User-Agent", codexPiUserAgent())
+	h.Set("User-Agent", goai.FormatUserAgent(goai.MergeClientIdentity(identities...)))
 	goai.ApplyHeaders(h, modelHeaders)
 	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
@@ -253,10 +252,10 @@ func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHe
 	return h
 }
 
-func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, requestID string) http.Header {
+func buildCodexWebSocketHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, requestID string, identities ...*goai.ClientIdentity) http.Header {
 	h := http.Header{}
 	h.Set("originator", "pi")
-	h.Set("User-Agent", codexPiUserAgent())
+	h.Set("User-Agent", goai.FormatUserAgent(goai.MergeClientIdentity(identities...)))
 	goai.ApplyHeaders(h, modelHeaders)
 	goai.ApplyHeaders(h, optHeaders)
 	h.Set("Authorization", "Bearer "+token)
@@ -677,7 +676,12 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			return opts.SuppressHeaders
 		}
 		return nil
-	}(), accountID, apiKey, requestID)
+	}(), accountID, apiKey, requestID, func() *goai.ClientIdentity {
+		if opts != nil {
+			return opts.Identity
+		}
+		return nil
+	}())
 
 	retryCfg := goai.RetryConfigFromOptions(opts)
 	if opts != nil && opts.WebSocketConnectTimeoutMs != nil {

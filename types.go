@@ -508,7 +508,8 @@ type TelemetryContext struct {
 }
 
 type StreamOptions struct {
-	Temperature *float64 `json:"temperature,omitempty"`
+	Identity    *ClientIdentity `json:"identity,omitempty"`
+	Temperature *float64        `json:"temperature,omitempty"`
 	// SamplingParams is an OpenAI-compatible escape hatch for advanced sampling
 	// controls (for example top_p, top_k, min_p, repetition_penalty). Providers
 	// that do not support arbitrary request-body parameters ignore it.
