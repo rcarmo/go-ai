@@ -15,9 +15,7 @@ func RegisterBuiltinModels() {
 		model := cloneModel(&builtinModels[i])
 		byProvider[model.Provider] = append(byProvider[model.Provider], model)
 	}
-	for provider, models := range byProvider {
-		RegisterDynamicModelProvider(StaticModelProvider{Provider: provider, Models: models})
-	}
+	registerBuiltinModelProviders(byProvider)
 }
 
 var builtinModels = []Model{

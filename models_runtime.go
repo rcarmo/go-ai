@@ -304,6 +304,19 @@ func RegisterDynamicModelProvider(provider DynamicModelProvider) {
 	syncLegacyModelRegistry(runtime.GetModels(""))
 }
 
+// registerBuiltinModelProviders publishes the legacy snapshot once, after all
+// built-in providers have been installed. SetProvider retains its normal deep
+// copy boundary; unrelated dynamic providers remain registered.
+func registerBuiltinModelProviders(byProvider map[Provider][]*Model) {
+	modelRuntimeMu.RLock()
+	runtime := defaultRuntime
+	modelRuntimeMu.RUnlock()
+	for provider, models := range byProvider {
+		runtime.SetProvider(StaticModelProvider{Provider: provider, Models: models})
+	}
+	syncLegacyModelRegistry(runtime.GetModels(""))
+}
+
 // RefreshModels refreshes the package default runtime and synchronizes the
 // legacy registry snapshot used by older callers.
 func RefreshModels(ctx context.Context, allowNetwork bool) ModelRuntimeRefreshResult {

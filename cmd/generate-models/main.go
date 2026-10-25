@@ -488,9 +488,7 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 		b.WriteString("\t\tmodel := cloneModel(&builtinModels[i])\n")
 		b.WriteString("\t\tbyProvider[model.Provider] = append(byProvider[model.Provider], model)\n")
 		b.WriteString("\t}\n")
-		b.WriteString("\tfor provider, models := range byProvider {\n")
-		b.WriteString("\t\tRegisterDynamicModelProvider(StaticModelProvider{Provider: provider, Models: models})\n")
-		b.WriteString("\t}\n")
+		b.WriteString("\tregisterBuiltinModelProviders(byProvider)\n")
 		b.WriteString("}\n\n")
 		b.WriteString("var builtinModels = []Model{\n")
 	}
