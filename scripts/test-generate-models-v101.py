@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory(prefix='go-ai-v101-hydrate-') as tmp:
  if os.environ.get('GO_AI_HELPER_PROFILE_ROOT'):
   fd,name=tempfile.mkstemp(prefix='generator-bin-',dir=os.environ['GO_AI_HELPER_PROFILE_ROOT']);os.close(fd);binary=pathlib.Path(name)
  subprocess.run([os.environ.get('GO','go'),'build','-o',str(binary),'./cmd/generate-models'],cwd=repo,check=True)
- for kind,count in [('chat',1614),('image',60),('classifier',40)]:
+ for kind,count in [('chat',1599),('image',63),('classifier',51)]:
   a=root/(kind+'.go');b=root/(kind+'-again.go')
   for dest in [a,b]:
    r=subprocess.run([str(binary),'-data-dir',str(source),'-kind',kind,'-output',str(dest)],capture_output=True,text=True)

@@ -86,13 +86,13 @@ func TestTogetherModelsReasoningControlsFromTogetherAPISurface(t *testing.T) {
 		t.Fatalf("DeepSeek-V4 compat=%#v, want supportsReasoningEffort true and thinkingFormat together", deepSeekV4.CompletionsCompat)
 	}
 
-	minimax := requireModel(t, goai.ProviderTogether, "MiniMaxAI/MiniMax-M2.7")
-	wantMiniMax := map[goai.ModelThinkingLevel]*string{goai.ThinkingOff: nil, goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil}
+	minimax := requireModel(t, goai.ProviderTogether, "MiniMaxAI/MiniMax-M3")
+	wantMiniMax := map[goai.ModelThinkingLevel]*string{goai.ModelThinkingLevel(goai.ThinkingMinimal): nil, goai.ModelThinkingLevel(goai.ThinkingLow): nil, goai.ModelThinkingLevel(goai.ThinkingMedium): nil}
 	if !reflect.DeepEqual(minimax.ThinkingLevelMap, wantMiniMax) {
 		t.Fatalf("MiniMax thinkingLevelMap=%#v, want %#v", minimax.ThinkingLevelMap, wantMiniMax)
 	}
-	if minimax.CompletionsCompat == nil || minimax.CompletionsCompat.ThinkingFormat != "" || ptrValue(minimax.CompletionsCompat.SupportsReasoningEffort) != false {
-		t.Fatalf("MiniMax compat=%#v, want no thinkingFormat and supportsReasoningEffort false", minimax.CompletionsCompat)
+	if minimax.CompletionsCompat == nil || minimax.CompletionsCompat.ThinkingFormat != "together" || ptrValue(minimax.CompletionsCompat.SupportsReasoningEffort) != false {
+		t.Fatalf("MiniMax compat=%#v, want thinkingFormat together and supportsReasoningEffort false", minimax.CompletionsCompat)
 	}
 }
 
@@ -103,14 +103,14 @@ func TestTogetherModelsResolvesTogetherAPIKeyFromEnvironment(t *testing.T) {
 	}
 }
 
-func TestXiaomiModelsKeepsMimoV25OnAPIBillingAndTokenPlanProviders(t *testing.T) {
+func TestXiaomiModelsKeepsMimoV26ProOnAPIBillingAndTokenPlanProviders(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.5"); model == nil {
-		t.Fatalf("mimo-v2.5 should be present for xiaomi")
+	if model := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.6-pro"); model == nil {
+		t.Fatalf("mimo-v2.6-pro should be present for xiaomi")
 	}
 	for _, provider := range []goai.Provider{goai.ProviderXiaomiTokenPlanCN, goai.ProviderXiaomiTokenPlanAMS, goai.ProviderXiaomiTokenPlanSGP} {
-		if model := goai.GetModel(provider, "mimo-v2.5"); model == nil {
-			t.Fatalf("mimo-v2.5 should be present for %s", provider)
+		if model := goai.GetModel(provider, "mimo-v2.6-pro"); model == nil {
+			t.Fatalf("mimo-v2.6-pro should be present for %s", provider)
 		}
 	}
 }

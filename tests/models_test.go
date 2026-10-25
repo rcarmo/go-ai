@@ -20,8 +20,8 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	for _, provider := range providers {
 		total += len(goai.ListModels(provider))
 	}
-	if total != 1614 {
-		t.Fatalf("expected exactly 1614 generated models from pi-ai v1.3.0, got %d", total)
+	if total != 1599 {
+		t.Fatalf("expected exactly 1599 generated models from pi-ai v1.4.0, got %d", total)
 	}
 
 	// Check representative provider registries without depending on rotating
@@ -85,11 +85,11 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 
 	kimi := goai.GetModel(goai.ProviderOpenRouter, "moonshotai/kimi-k2.7-code")
 	if kimi == nil || kimi.Cost.Input != 0.6712 || kimi.Cost.Output != 3.35 || kimi.Cost.CacheRead != 0.18 || kimi.ContextWindow != 262144 || kimi.MaxTokens != 235929 || kimi.InputLimits == nil || kimi.InputLimits.Images == nil || kimi.InputLimits.Images.Resize == nil || kimi.InputLimits.Images.Resize.MaxBytes != 4718592 {
-		t.Fatalf("expected OpenRouter Kimi K2.7 Code v1.3.0 metadata and image limits, got %#v", kimi)
+		t.Fatalf("expected OpenRouter Kimi K2.7 Code v1.4.0 metadata and image limits, got %#v", kimi)
 	}
 	openRouterGLM52 := goai.GetModel(goai.ProviderOpenRouter, "z-ai/glm-5.2")
-	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.65 || openRouterGLM52.Cost.Output != 10 || openRouterGLM52.Cost.CacheRead != 0.649 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
-		t.Fatalf("expected OpenRouter GLM-5.2 v1.3.0 metadata, got %#v", openRouterGLM52)
+	if openRouterGLM52 == nil || openRouterGLM52.Cost.Input != 0.0341 || openRouterGLM52.Cost.Output != 7 || openRouterGLM52.Cost.CacheRead != 0.033 || openRouterGLM52.ContextWindow != 1048576 || openRouterGLM52.MaxTokens != 943718 {
+		t.Fatalf("expected OpenRouter GLM-5.2 v1.4.0 metadata, got %#v", openRouterGLM52)
 	}
 
 	for _, tc := range []struct {
@@ -147,9 +147,9 @@ func TestGeneratedModelMetadataParity(t *testing.T) {
 		}
 	}
 
-	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.5")
+	xiaomi := goai.GetModel(goai.ProviderXiaomi, "mimo-v2.6-pro")
 	if xiaomi == nil {
-		t.Fatal("expected Xiaomi mimo-v2.5 model")
+		t.Fatal("expected Xiaomi mimo-v2.6-pro model")
 	}
 	if xiaomi.CompletionsCompat == nil || xiaomi.CompletionsCompat.ThinkingFormat != "deepseek" || xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages == nil || !*xiaomi.CompletionsCompat.RequiresReasoningContentOnAssistantMessages {
 		t.Fatalf("expected Xiaomi OpenAI-compatible DeepSeek thinking compat metadata, got %#v", xiaomi.CompletionsCompat)

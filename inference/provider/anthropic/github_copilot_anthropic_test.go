@@ -14,9 +14,9 @@ import (
 
 func TestGitHubCopilotAnthropicAppliesAdaptiveThinkingEffortOverrides(t *testing.T) {
 	goai.RegisterBuiltinModels()
-	opus47 := goai.GetModel(goai.ProviderGitHubCopilot, "claude-opus-4.7")
+	opus47 := goai.GetModel(goai.ProviderGitHubCopilot, "claude-opus-4.8")
 	if opus47 == nil {
-		t.Fatal("missing claude-opus-4.7")
+		t.Fatal("missing claude-opus-4.8")
 	}
 	if got := opus47.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingMinimal)]; got == nil || *got != "low" {
 		t.Fatalf("opus47 minimal=%v, want low", got)

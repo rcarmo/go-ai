@@ -25,7 +25,7 @@ func TestGitHubCopilotRuntimeHelperReturnsFilteredUsableModels(t *testing.T) {
 	runtime, err := oauth.RuntimeForGitHubCopilot(&oauth.Credentials{
 		Access: "tid=abc;exp=123;proxy-ep=proxy.individual.githubcopilot.com;sku=abc",
 		Extra: map[string]interface{}{
-			"availableModelIds": []interface{}{"gpt-5.4", "claude-sonnet-4.6"},
+			"availableModelIds": []interface{}{"gpt-5.3-codex", "claude-sonnet-4.6"},
 		},
 	})
 	if err != nil {
@@ -40,7 +40,7 @@ func TestGitHubCopilotRuntimeHelperReturnsFilteredUsableModels(t *testing.T) {
 			continue
 		}
 		switch model.ID {
-		case "gpt-5.4":
+		case "gpt-5.3-codex":
 			gotGPT = true
 		case "claude-sonnet-4.6":
 			gotClaude = true

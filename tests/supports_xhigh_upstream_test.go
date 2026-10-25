@@ -74,8 +74,13 @@ func TestSupportsXHighDoesNotIncludeXHighForClaudeSonnet45(t *testing.T) {
 	assertThinkingNotContains(t, requireModelForThinking(t, goai.ProviderAnthropic, "claude-sonnet-4-5"), "xhigh")
 }
 
-func TestSupportsXHighIncludesXHighForGPT55CodexModel(t *testing.T) {
-	assertThinkingContains(t, requireModelForThinking(t, goai.ProviderOpenAICodex, "gpt-5.5"), "xhigh")
+func TestCodex140RemovesUnavailableModels(t *testing.T) {
+	goai.RegisterBuiltinModels()
+	for _, id := range []string{"gpt-5.5", "gpt-5.3-codex-spark"} {
+		if goai.GetModel(goai.ProviderOpenAICodex, id) != nil {
+			t.Errorf("1.4.0 Codex catalogue must omit %s", id)
+		}
+	}
 }
 
 func TestSupportsXHighIncludesOnlyMediumHighXHighForOpenAIGPT55Pro(t *testing.T) {

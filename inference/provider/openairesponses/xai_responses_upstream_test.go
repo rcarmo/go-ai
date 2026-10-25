@@ -24,7 +24,7 @@ func TestXAIUpstreamV0811Grok45UsesResponses(t *testing.T) {
 		t.Fatalf("unexpected xAI grok-4.5 v0.81.1 metadata: %#v", model)
 	}
 	levels := goai.GetSupportedThinkingLevels(model)
-	wantLevels := []goai.ModelThinkingLevel{goai.ModelThinkingLevel(goai.ThinkingLow), goai.ModelThinkingLevel(goai.ThinkingMedium), goai.ModelThinkingLevel(goai.ThinkingHigh)}
+	wantLevels := []goai.ModelThinkingLevel{goai.ModelThinkingLevel(goai.ThinkingLow), goai.ModelThinkingLevel(goai.ThinkingMedium), goai.ModelThinkingLevel(goai.ThinkingHigh), goai.ModelThinkingLevel(goai.ThinkingXHigh)}
 	if len(levels) != len(wantLevels) {
 		t.Fatalf("thinking levels=%#v, want exact %#v", levels, wantLevels)
 	}

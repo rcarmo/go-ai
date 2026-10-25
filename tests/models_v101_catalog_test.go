@@ -15,14 +15,17 @@ func TestV101CatalogTypedCountsAndNewClassifierPrices(t *testing.T) {
 	goai.RegisterBuiltinModels()
 	goai.RegisterBuiltinImageModels()
 	goai.RegisterBuiltinClassifierModels()
-	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: 1614, goai.ModelTypeImage: 60, goai.ModelTypeClassifier: 40} {
+	for kind, count := range map[goai.ModelType]int{goai.ModelTypeChat: 1599, goai.ModelTypeImage: 63, goai.ModelTypeClassifier: 51} {
 		if got := len(goai.ListTypedModels(kind, "")); got != count {
 			t.Fatalf("%s count=%d want=%d", kind, got, count)
 		}
 	}
-	for id, input := range map[string]float64{"@cf/cloudflare/clef": 0.24, "@cf/cloudflare/clef-flash": 0.09} {
+	for id, want := range map[string]struct {
+		input   float64
+		context int
+	}{"@cf/cloudflare/clef": {0.24, 65536}, "@cf/cloudflare/clef-flash": {0.038, 24576}} {
 		m := goai.GetClassifierModel(goai.ClassifierProviderCloudflareWorkersAI, id)
-		if m == nil || m.ContextWindow != 65536 || m.Cost.Input != input || m.Api != goai.ClassifierApiCloudflareWorkersAI {
+		if m == nil || m.ContextWindow != want.context || m.Cost.Input != want.input || m.Api != goai.ClassifierApiCloudflareWorkersAI {
 			t.Fatalf("classifier %s=%#v", id, m)
 		}
 	}
