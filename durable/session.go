@@ -309,6 +309,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			tx.taskAdoptState = &adopted
 		}
 		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
+			s.taskScheduler.h.noteTaskAncestry(ctx, tx, state)
 			for _, write := range tx.writes {
 				if write.Task != nil {
 					if runtime := s.taskScheduler.invocations[write.Task.ID]; runtime != nil {

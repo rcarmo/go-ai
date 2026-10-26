@@ -23,7 +23,8 @@ type Harness struct {
 	closing               atomic.Bool
 	timerFallbackReported atomic.Bool
 	workers               map[ID]bool
-	telemetryLoaded       map[ID]bool // mu-owned first invocation of loaded tasks
+	telemetryLoaded       map[ID]bool                // mu-owned first invocation of loaded tasks
+	telemetryParents      map[ID]*goai.TelemetrySpan // Session-line owned; live-task ancestry only
 	pins                  map[ID]map[string]registeredTool
 	closeOnce             sync.Once
 	closeDone             chan struct{}
@@ -655,6 +656,7 @@ func (h *Harness) Close(ctx context.Context) error {
 				h.scheduler.retryAfter = map[ID]uint64{}
 				h.scheduler.reconcileRetry = nil
 				h.scheduler.reports = nil
+				clear(h.telemetryParents)
 			})
 			h.mu.Lock()
 			h.pins = map[ID]map[string]registeredTool{}

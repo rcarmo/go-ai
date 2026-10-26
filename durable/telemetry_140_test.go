@@ -425,3 +425,110 @@ func TestTelemetry140SubmitInputUsesCommittedAdmissionResult(t *testing.T) {
 		}
 	})
 }
+
+func TestTelemetry140InputRootsLinkCallersAndWritesRemainChildren(t *testing.T) {
+	var roots, children int
+	caller := &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan { children++; return &goai.TelemetrySpan{} }}
+	carrier := &invocationTelemetry{}
+	carrier.span.Store(caller)
+	ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
+	telemetry := &goai.TelemetrySpan{StartRootSpan: func(name string, attrs map[string]any, links []*goai.TelemetrySpan) *goai.TelemetrySpan {
+		roots++
+		if name != "pi.durable.submit" || attrs["submission.type"] != "input" || len(links) != 1 || links[0] != caller {
+			t.Error(name, attrs, links)
+		}
+		return &goai.TelemetrySpan{}
+	}}
+	h := openHarness(t, mustMemory(t), Options{Telemetry: telemetry})
+	conv, err := h.Root(bg, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Invalid inputs still cover their complete public admission without exposing error text.
+	if _, err := conv.Submit(ctx, Input{Type: "invalid"}); err == nil {
+		t.Fatal("invalid accepted")
+	}
+	if _, err := conv.Submit(ctx, Input{Type: "write", Content: "child"}); err != nil {
+		t.Fatal(err)
+	}
+	if roots != 1 || children != 1 {
+		t.Fatal(roots, children)
+	}
+	trace := conv.beginSubmitTrace(ctx, Input{})
+	submitCtx := context.WithValue(ctx, submitTelemetryContextKey{}, trace)
+	if TelemetryFromContext(submitCtx) != trace.span {
+		t.Fatal("submit did not replace caller scope")
+	}
+	trace.finish(nil, errors.New("reject"))
+	// The new backend operation is isolated just like existing callbacks.
+	h.options.Telemetry = &goai.TelemetrySpan{StartRootSpan: func(string, map[string]any, []*goai.TelemetrySpan) *goai.TelemetrySpan { panic("backend failure") }}
+	if _, err := conv.Submit(ctx, Input{Type: "invalid"}); err == nil {
+		t.Fatal("invalid accepted after panic")
+	}
+}
+
+func TestTelemetry140NestedTasksInheritCreatingPhaseAndReleaseParents(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var mu sync.Mutex
+		ancestry := map[string]string{}
+		var backend func(string) *goai.TelemetrySpan
+		backend = func(parent string) *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+				task, _ := attrs["task.name"].(string)
+				mu.Lock()
+				ancestry[task] = parent
+				mu.Unlock()
+				return backend(task)
+			}}
+		}
+		child := taskDefinition(t, "task.child-carrier-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+		parent, err := DefineTask(TaskDefinitionOptions{Kind: "task.parent-carrier-140", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "spawn"}, nil }, Abort: taskAbort, Phases: map[string]TaskPhase{
+			"spawn": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				// Binding, not context propagation alone, identifies the creating phase.
+				return r.Commit(bg, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+					id, err := tx.CreateTask(child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: r.TaskID()}})
+					if err != nil {
+						return nil, err
+					}
+					return &TaskState{Status: "waiting", Checkpoint: JSON{"phase": "join"}, On: []ID{id}, Policy: "failFast"}, nil
+				})
+			},
+			"join": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := taskTestHarnessOptions(t, b.store, Options{Telemetry: backend("root")}, parent, child)
+		id := createPublicTask(t, h, parent, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		result := waitPublicTask(t, h, id)
+		if result.State.Outcome == nil || result.State.Outcome.Status != "completed" {
+			t.Fatal(result)
+		}
+		if err := h.WaitForIdle(bg); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.session.readTasks(bg, func(Snapshot) error {
+			if len(h.telemetryParents) != 0 {
+				t.Error("terminal ancestry retained", len(h.telemetryParents))
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if ancestry["task.parent-carrier-140"] != "root" || ancestry["task.child-carrier-140"] != "task.parent-carrier-140" {
+			t.Fatal(ancestry)
+		}
+	})
+}

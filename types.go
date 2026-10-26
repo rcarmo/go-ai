@@ -505,13 +505,17 @@ type ProviderEnv map[string]string
 // nil callbacks are no-ops. Value carries a process-local backend context for
 // provider hooks. Spans and callbacks are never persisted in request JSON.
 type TelemetrySpan struct {
-	Value         any                                                         `json:"-"`
-	StartSpan     func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
-	SetAttributes func(attributes map[string]any)                             `json:"-"`
-	AddEvent      func(name string, attributes map[string]any)                `json:"-"`
-	SetStatus     func(status, errorName, message string)                     `json:"-"`
-	End           func()                                                      `json:"-"`
-	Metrics       *TelemetryMetrics                                           `json:"-"`
+	Value     any                                                         `json:"-"`
+	StartSpan func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
+	// StartRootSpan starts an independent trace linked to the supplied callers.
+	// Backends without link support may omit it; callers fall back to StartSpan.
+	// Links are process-local span handles, never serialized request content.
+	StartRootSpan func(name string, attributes map[string]any, links []*TelemetrySpan) *TelemetrySpan `json:"-"`
+	SetAttributes func(attributes map[string]any)                                                     `json:"-"`
+	AddEvent      func(name string, attributes map[string]any)                                        `json:"-"`
+	SetStatus     func(status, errorName, message string)                                             `json:"-"`
+	End           func()                                                                              `json:"-"`
+	Metrics       *TelemetryMetrics                                                                   `json:"-"`
 }
 
 // TelemetryMetrics receives low-cardinality pi.ai measurements. Histogram units

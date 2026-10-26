@@ -14,11 +14,14 @@ const DurableTelemetrySchemaVersion = 1
 
 type telemetryContextKey struct{}
 
-// TelemetryFromContext returns the current process-local durable phase span.
+// TelemetryFromContext returns the current process-local durable submit or phase span.
 // Nil means telemetry is disabled. Spans never enter durable record JSON.
 func TelemetryFromContext(ctx context.Context) *goai.TelemetrySpan {
 	if ctx == nil {
 		return nil
+	}
+	if trace := submitTraceFromContext(ctx); trace != nil {
+		return trace.span
 	}
 	if carrier, ok := ctx.Value(telemetryContextKey{}).(*invocationTelemetry); ok {
 		return carrier.span.Load()
@@ -100,7 +103,15 @@ func (r *TaskRuntime) initTelemetry() {
 	if r.harness.options.Telemetry == nil {
 		return
 	}
-	r.telemetry = &invocationTelemetry{root: r.harness.options.Telemetry}
+	parent := r.harness.telemetryParents[r.taskID] // Session-line owned at reservation
+	if parent == nil {
+		parent = r.harness.options.Telemetry
+	}
+	copy := *parent
+	if copy.Metrics == nil {
+		copy.Metrics = r.harness.options.Telemetry.Metrics
+	}
+	r.telemetry = &invocationTelemetry{root: &copy}
 	r.context = context.WithValue(r.context, telemetryContextKey{}, r.telemetry)
 }
 func (r *TaskRuntime) beginPhase(checkpoint JSON) {
@@ -233,12 +244,21 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 			parent = caller
 		}
 	}
-	if parent == nil || parent.StartSpan == nil {
+	if parent == nil {
 		return nil
 	}
+	attrs := map[string]any{"submission.type": kind, "conversation.id": uint64(c.id)}
 	var span *goai.TelemetrySpan
 	telemetryCall(func() {
-		span = parent.StartSpan("pi.durable.submit", map[string]any{"submission.type": kind, "conversation.id": uint64(c.id)})
+		if kind == "input" && parent.StartRootSpan != nil {
+			var links []*goai.TelemetrySpan
+			if caller := TelemetryFromContext(ctx); caller != nil {
+				links = []*goai.TelemetrySpan{caller}
+			}
+			span = parent.StartRootSpan("pi.durable.submit", attrs, links)
+		} else if parent.StartSpan != nil {
+			span = parent.StartSpan("pi.durable.submit", attrs)
+		}
 	})
 	if span == nil {
 		return nil
@@ -278,5 +298,37 @@ func (trace *submitTrace) finish(handle *SubmissionHandle, err error) {
 	}
 	if trace.span.End != nil {
 		telemetryCall(trace.span.End)
+	}
+}
+
+// noteTaskAncestry runs only after Apply succeeds, on the Session line. A task
+// inherits the creating scope once; later state writes cannot reparent it.
+// Terminal tasks and Close release references without touching durable records.
+func (h *Harness) noteTaskAncestry(ctx context.Context, tx *Tx, before Snapshot) {
+	parent := TelemetryFromContext(ctx)
+	if parent == nil {
+		creator := tx.byTask
+		if creator == 0 {
+			creator = tx.progressTask
+		}
+		if runtime := h.scheduler.invocations[creator]; runtime != nil && runtime.telemetry != nil {
+			parent = runtime.telemetry.span.Load()
+		}
+	}
+	for _, write := range tx.writes {
+		task := write.Task
+		if task == nil {
+			continue
+		}
+		if terminalStatus(task.Status) {
+			delete(h.telemetryParents, task.ID)
+			continue
+		}
+		if _, exists := before.Tasks[task.ID]; !exists && parent != nil {
+			if h.telemetryParents == nil {
+				h.telemetryParents = make(map[ID]*goai.TelemetrySpan)
+			}
+			h.telemetryParents[task.ID] = parent
+		}
 	}
 }
