@@ -71,7 +71,9 @@ func (s *taskScheduler) report(err error) {
 		s.h.report(report.ctx, report.cause, report.info)
 		return
 	}
-	reportTaskError(s.h.options.OnReport, err)
+	// An unscoped failure here is infrastructure reacting to an adopted
+	// publication, rather than code executing inside a task phase.
+	s.h.report(context.Background(), err, ReportInfo{Type: "listener_error"})
 }
 func (s *taskScheduler) loop() {
 	defer close(s.done)
@@ -537,49 +539,66 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 		if err := s.h.executeTool(task, runtime); err != nil {
 			var invalid *invalidToolResult
 			if errors.As(err, &invalid) {
+				decided := false
 				_, faultErr := s.h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
 					current := tx.state.Tasks[task.ID]
-					if s.sealed.Load() || taskAborted(current) {
+					if s.sealed.Load() || taskAborted(current) || taskHasDecidedOutcome(current) || terminalStatus(current.Status) {
 						return nil
 					}
-					return s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: invalid.reason}})
+					if err := s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: invalid.reason}}); err != nil {
+						return err
+					}
+					decided = true
+					return nil
 				})
 				if faultErr != nil {
 					runtime.admissionFailed = true
-					s.report(faultErr)
+					runtime.reportError(faultErr)
+				} else if decided {
+					runtime.report(err, runtime.reportInfo("task_faulted", "threw"))
 				}
 				return
 			}
 			runtime.admissionFailed = true
-			s.report(err)
+			runtime.reportError(err)
 			return
 		}
 	}
 	if task.Kind == "pi.generation" {
 		var cp generationCheckpoint
 		if err := fromObject(task.Checkpoint, &cp, s.h.session.limits); err != nil {
-			s.report(err)
+			runtime.reportError(err)
 			return
 		}
 		if err := s.h.runGenerationInvocation(runtime, task, cp); err != nil {
 			var provider *generationProviderFault
 			if errors.As(err, &provider) {
+				decided := false
 				_, faultErr := s.h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
 					current := tx.state.Tasks[task.ID]
 					if taskAborted(current) || s.h.closing.Load() {
 						return ErrSealed
 					}
-					return s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: provider.Error()}})
+					if taskHasDecidedOutcome(current) || terminalStatus(current.Status) {
+						return nil
+					}
+					if err := s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: provider.Error()}}); err != nil {
+						return err
+					}
+					decided = true
+					return nil
 				})
 				if faultErr != nil {
 					runtime.admissionFailed = true
-					s.report(faultErr)
+					runtime.reportError(faultErr)
+				} else if decided {
+					runtime.report(err, runtime.reportInfo("task_faulted", "threw"))
 				}
 				return
 			}
 			runtime.admissionFailed = true
 			if !s.expectedGenerationStop(runtime, err) {
-				s.report(err)
+				runtime.reportError(err)
 			}
 			return
 		}
@@ -587,6 +606,7 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 	// A successful built-in unit must either decide an outcome or make durable
 	// progress. Uncaught corruption/no-progress is a SCHEDULER fault, not an
 	// ordinary unavailable/interrupted tool error receipt.
+	noProgress := false
 	_, err = s.h.session.invocationCommit(context.Background(), runtime.taskID, func(tx *Tx) error {
 		current, ok := tx.state.Tasks[runtime.taskID]
 		if !ok || current.Status != "running" || taskHasDecidedOutcome(current) || taskAborted(current) || s.sealed.Load() || s.h.closing.Load() {
@@ -603,11 +623,17 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 		if !equalDeltaJSON(before, after) {
 			return nil
 		}
-		return s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "builtin_no_progress"}})
+		if err := s.builtinDecision(tx, current, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "builtin_no_progress"}}); err != nil {
+			return err
+		}
+		noProgress = true
+		return nil
 	})
 	if err != nil {
 		runtime.admissionFailed = true
-		s.report(err)
+		runtime.reportError(err)
+	} else if noProgress {
+		runtime.report(reject("builtin_no_progress"), runtime.reportInfo("task_faulted", "threw"))
 	}
 }
 
@@ -767,7 +793,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		}
 		if err != nil {
 			runtime.admissionFailed = true
-			s.report(err)
+			runtime.reportError(err)
 			return
 		}
 		if faultReport != nil {

@@ -62,6 +62,7 @@ type toolOffer struct {
 	OutputLimits           *ToolOutputLimits             `json:"outputLimits,omitempty"`
 }
 type registeredTool struct {
+	extension string // process-local installer, never an intent field
 	paidModel bool
 	offer     toolOffer
 	execute   func(context.Context, JSON, *ToolAPI) (ToolResult, error)
@@ -1445,6 +1446,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	}, runtime, progressInterval(interval))
 	defer func() { settleProgress(api.pendingProgress, finalErr) }()
 	var result ToolResult
+	resultExtension := reg.extension
 	var executionError error
 	var durationMs *int64
 	func() {
@@ -1522,6 +1524,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 				continue
 			}
 			if next != nil {
+				resultExtension = hook.extension
 				next.usesRetainedOutput = result.usesRetainedOutput && next.Content == result.Content && equalJSONValue(next.Blocks, result.Blocks)
 				next.usesReportedDiagnostics = result.usesReportedDiagnostics
 				result, err = detachToolResult(*next, h.session.limits)
@@ -1550,7 +1553,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	}
 	if executionError != nil {
 		result.thrownError = fmt.Sprintf("Tool %s threw", cp.Offer.Name)
-		return h.finishTool(task, cp, result, "tool_error")
+		return h.finishTool(task, cp, result, "tool_error", func(err error) { runtime.reportExtensionError(err, resultExtension) })
 	}
 	if len(result.imageChunks) == 0 {
 		result.Blocks, result.imageChunks, e = runtime.chunkTranscriptImages(runtime.context, result.Blocks)
@@ -1558,14 +1561,14 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			return e
 		}
 	}
-	return h.finishTool(task, cp, result, "")
+	return h.finishTool(task, cp, result, "", func(err error) { runtime.reportExtensionError(err, resultExtension) })
 }
 
 type invalidToolResult struct{ reason string }
 
 func (e *invalidToolResult) Error() string { return "durable: invalid tool result: " + e.reason }
 
-func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, code string) error {
+func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, code string, reports ...func(error)) error {
 	// Detach and validate known usage before any app callback/outcome staging.
 	// Invalid receipts settle once with no usage/app mutation; fallback never
 	// recycles the invalid pointer into another failing outcome.
@@ -1713,7 +1716,13 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		diagnostics = nil
 		content = []goai.ContentBlock{{Type: "text", Text: code}}
 	}
-	result = h.validateModelStructuredResult(result, cp.Offer)
+	report := func(err error) {
+		h.report(context.Background(), err, ReportInfo{Type: "extension_error", Task: &ReportTask{ID: task.ID, Kind: task.Kind, ConversationID: task.Conversation}})
+	}
+	if len(reports) > 0 && reports[0] != nil {
+		report = reports[0]
+	}
+	result = h.validateModelStructuredResult(result, cp.Offer, report)
 	if err := validateToolControl(result.Control, h.session.limits); err != nil {
 		code = "invalid_control"
 		result.Control = nil

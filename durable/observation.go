@@ -128,9 +128,12 @@ func (w *DocumentWatch) kick() {
 	go w.drain()
 }
 func (w *DocumentWatch) drain() {
+	callbackContext := context.Background()
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			w.terminate(WatchEnd{Reason: "listener_error", Error: errors.New("watch listener panicked")})
+			err := errors.New("watch listener panicked")
+			w.terminate(WatchEnd{Reason: "listener_error", Error: err})
+			w.session.reportListener(callbackContext, err)
 		}
 		w.mu.Lock()
 		w.running = false
@@ -162,8 +165,10 @@ func (w *DocumentWatch) drain() {
 		if ended {
 			return
 		}
+		callbackContext = frame.Context
 		if e := callback(frame.Context, frame.Value, frame.Ops); e != nil {
 			w.terminate(WatchEnd{Reason: "listener_error", Error: e})
+			w.session.reportListener(frame.Context, e)
 			return
 		}
 		if frame.Value == nil {
@@ -550,9 +555,12 @@ func (p *CommitSubscription) kick() {
 	go p.drain()
 }
 func (p *CommitSubscription) drain() {
+	callbackContext := context.Background()
 	defer func() {
 		if recover() != nil {
-			p.stop(WatchEnd{Reason: "listener_error", Error: errors.New("publication listener panicked")})
+			err := errors.New("publication listener panicked")
+			p.stop(WatchEnd{Reason: "listener_error", Error: err})
+			p.session.reportListener(callbackContext, err)
 		}
 		p.mu.Lock()
 		p.running = false
@@ -578,8 +586,10 @@ func (p *CommitSubscription) drain() {
 		if ended {
 			return
 		}
+		callbackContext = frame.Context
 		if e := fn(frame.Context, frame); e != nil {
 			p.stop(WatchEnd{Reason: "listener_error", Error: e})
+			p.session.reportListener(frame.Context, e)
 			return
 		}
 	}

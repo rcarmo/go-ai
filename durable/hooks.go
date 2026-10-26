@@ -217,6 +217,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 					delete(tools, wrap.Tool)
 					reportSelectionError(reports, extensionReportError(err, extension.name))
 				} else {
+					next.extension = extension.name
 					tools[wrap.Tool] = next
 				}
 			} else {

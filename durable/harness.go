@@ -151,7 +151,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		// secondary error only after Close has returned outside all lines;
 		// retain the exact primary Open error and bounded callback policy.
 		if closeErr := s.Close(context.Background()); closeErr != nil {
-			reportTaskError(h.options.OnReport, closeErr)
+			h.report(ctx, closeErr, ReportInfo{Type: "listener_error"})
 		}
 		return nil, primary
 	}

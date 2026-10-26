@@ -102,7 +102,9 @@ func (r *Registry) Install(extension *Extension) error {
 		if err := trial.Register(tool); err != nil {
 			return err
 		}
-		prepared.tools[tool.Definition.Name] = trial.tools[tool.Definition.Name]
+		registration := trial.tools[tool.Definition.Name]
+		registration.extension = prepared.name
+		prepared.tools[tool.Definition.Name] = registration
 		prepared.toolOrder = append(prepared.toolOrder, tool.Definition.Name)
 	}
 	for _, task := range extension.Tasks {

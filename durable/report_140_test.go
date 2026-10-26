@@ -3,7 +3,9 @@ package durable
 import (
 	"context"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -399,6 +401,138 @@ func TestReport140ModelHostFailuresReportAfterFallbackAdoption(t *testing.T) {
 					t.Fatal(report)
 				}
 				waitSubmission(t, submission)
+			})
+		})
+	}
+}
+
+func TestReport140StructuredOutputUsesCapturedProducer(t *testing.T) {
+	for _, after := range []bool{false, true} {
+		t.Run(fmt.Sprintf("after=%v", after), func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				registry := NewRegistry()
+				events := make(chan observedReport140, 8)
+				var expected context.Context
+				registration := wrapRegistration("structured_origin")
+				registration.StructuredOutputSchema = JSON{"type": "integer"}
+				producer := &Extension{Name: "producer"}
+				registration.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
+					expected = api.runtime.Context()
+					registry.Uninstall(producer)
+					producer.Name = "changed"
+					value := any("invalid")
+					if after {
+						value = 1
+					}
+					return ToolResult{Content: "visible", StructuredOutput: value}, nil
+				}
+				producer.Tools = []ToolRegistration{registration}
+				if err := registry.Install(producer); err != nil {
+					t.Fatal(err)
+				}
+				if after {
+					if err := registry.Install(&Extension{Name: "replacement", ToolHooks: ToolHooks{AfterTool: func(_ context.Context, _ goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
+						result.StructuredOutput = "invalid"
+						return &result, nil
+					}}}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var calls atomic.Int64
+				ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+					ch := make(chan goai.Event, 1)
+					if calls.Add(1) == 1 {
+						ch <- toolAnswer("structured-call", "structured_origin", JSON{})
+					} else {
+						ch <- terminal("done")
+					}
+					close(ch)
+					return ch
+				})
+				options.Registry = registry
+				options.OnReportWithInfo = func(ctx context.Context, err error, info ReportInfo) {
+					events <- observedReport140{ctx: ctx, err: err, info: info}
+				}
+				h := openHarness(t, b.store, options)
+				conversation := root(t, h, ref)
+				submission, err := conversation.Submit(bg, Input{Content: "structured"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				report := awaitReport140(t, events)
+				owner := "producer"
+				if after {
+					owner = "replacement"
+				}
+				if report.info.Type != "extension_error" || report.info.Extension != owner || report.info.Task == nil || report.info.Task.Kind != "pi.tool" || report.ctx != expected {
+					t.Fatal(report)
+				}
+				result := waitSubmission(t, submission)
+				if result.Submission.Status != "done" {
+					t.Fatal(result)
+				}
+			})
+		})
+	}
+}
+
+func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
+	for _, kind := range []string{"watch-error", "watch-panic", "commit-error", "commit-panic"} {
+		t.Run(kind, func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				type key struct{}
+				ctx := context.WithValue(bg, key{}, "commit trace")
+				cause := errors.New("listener returned error")
+				events := make(chan observedReport140, 4)
+				var h *Harness
+				h = openHarness(t, b.store, Options{OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+					if _, e := h.Snapshot(bg); e != nil {
+						t.Error(e)
+					}
+					events <- observedReport140{ctx: ctx, err: err, info: info}
+				}})
+				definition := watchDoc(t, h.session)
+				fail := func() error {
+					if strings.HasSuffix(kind, "panic") {
+						panic("private listener panic")
+					}
+					return cause
+				}
+				if strings.HasPrefix(kind, "watch") {
+					watch := watchAcquire(t, h.session, definition)
+					defer watch.Stop()
+					if err := watch.Start(func(context.Context, JSON, []Operation) error { return fail() }); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					_, subscription, err := h.session.SubscribeCommits(bg)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer subscription.Stop()
+					if err = subscription.Start(func(context.Context, PublicationFrame) error { return fail() }); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := h.session.Commit(ctx, func(tx *Tx) error {
+					document, err := tx.AcquireDocument(definition, 0, nil, nil)
+					if err != nil {
+						return err
+					}
+					return document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+				}); err != nil {
+					t.Fatal(err)
+				}
+				report := awaitReport140(t, events)
+				if report.info.Type != "listener_error" || report.info.Task != nil || report.ctx.Value(key{}) != "commit trace" {
+					t.Fatal(report)
+				}
+				if strings.HasSuffix(kind, "error") && report.err != cause {
+					t.Fatal("listener error identity changed", report.err)
+				}
 			})
 		})
 	}

@@ -46,6 +46,10 @@ func TestInvalidToolResultWithAfterToolStillFaultsWithoutReceipt(t *testing.T) {
 					return ch
 				})
 				options.Registry = registry
+				reports := make(chan observedReport140, 4)
+				options.OnReportWithInfo = func(ctx context.Context, err error, info ReportInfo) {
+					reports <- observedReport140{ctx: ctx, err: err, info: info}
+				}
 				h := openHarness(t, b.store, options)
 				sub, err := root(t, h, ref).Submit(bg, Input{Content: "invalid"})
 				if err != nil {
@@ -53,6 +57,10 @@ func TestInvalidToolResultWithAfterToolStillFaultsWithoutReceipt(t *testing.T) {
 				}
 				if result := waitSubmission(t, sub); result.Submission.Status != "done" {
 					t.Fatal(result)
+				}
+				report := awaitReport140(t, reports)
+				if report.info.Type != "task_faulted" || report.info.Reason != "threw" || report.info.Task == nil || report.info.Task.Kind != "pi.tool" || report.ctx == nil {
+					t.Fatal(report)
 				}
 				state, err := h.Snapshot(bg)
 				if err != nil {

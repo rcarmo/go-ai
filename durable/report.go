@@ -70,6 +70,14 @@ func (h *Harness) report(ctx context.Context, err error, info ReportInfo) {
 	}
 	deliverReport(ctx, err, info, h.options.OnReport, h.options.OnReportWithInfo)
 }
+
+// Listener workers are caller-owned and already detached from mutation lines.
+// Standalone Sessions retain their existing WatchEnd diagnostic contract.
+func (s *Session) reportListener(ctx context.Context, err error) {
+	if scheduler := s.taskScheduler; scheduler != nil {
+		scheduler.h.report(ctx, err, ReportInfo{Type: "listener_error"})
+	}
+}
 func (s TaskRegistrySnapshot) installer(kind string, definition *TaskDefinition) string {
 	if definition == nil || s.selection == nil || s.Task(kind) != definition {
 		return ""
