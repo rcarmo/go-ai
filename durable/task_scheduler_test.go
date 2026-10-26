@@ -2339,7 +2339,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 
 func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
-		notes, err := DefineDocument(DefinitionOptions{Kind: "app.runtime-notes", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }})
+		notes, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.runtime-notes", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2566,7 +2566,7 @@ func TestTaskSchedulerCheckpointValueProgressPolicy(t *testing.T) {
 					}
 					err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 						if variant == "document-only" {
-							definition, err := DefineDocument(DefinitionOptions{Kind: "app.progress", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
+							definition, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.progress", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
 							if err != nil {
 								return nil, err
 							}
@@ -3065,7 +3065,7 @@ func TestTaskSchedulerLateWatchAcquisitionAttachmentSealsAndStops(t *testing.T) 
 				}
 				h := taskTestHarness(t, b.store, def)
 				cleanupTaskGates(t, releaseHost)
-				notes, err := DefineDocument(DefinitionOptions{Kind: "app.late-watch", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "owned"}, nil }})
+				notes, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.late-watch", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "owned"}, nil }})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -3912,7 +3912,7 @@ func TestTaskSchedulerInitialWatchAcquisitionQueuedSealCancelAbsent(t *testing.T
 					})
 					h := taskTestHarness(t, b.store, def)
 					cleanupTaskGates(t, releaseHost)
-					notes, err := DefineDocument(DefinitionOptions{Kind: "app.initial-watch", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "owned"}, nil }})
+					notes, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.initial-watch", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "owned"}, nil }})
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -32,7 +32,7 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 		defer session.Close(bg)
 		var initCalls int
 		var retained JSON
-		family := mustDefinition(t, DefinitionOptions{Kind: "definition.family", Version: 1, Scope: "session", Family: true, Initial: func(seed JSON) (JSON, error) {
+		family := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "definition.family", Version: 1, Scope: "session", Family: true, Initial: func(seed JSON) (JSON, error) {
 			initCalls++
 			retained = JSON{"seed": seed, "nested": JSON{"value": "owned"}}
 			return retained, nil
@@ -117,10 +117,10 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 			t.Fatal(e)
 		}
 		defer session.Close(bg)
-		old := mustDefinition(t, DefinitionOptions{Kind: "definition.version", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"count": 2}, nil }})
+		old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "definition.version", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"count": 2}, nil }})
 		var calls int
 		var retained JSON
-		current := mustDefinition(t, DefinitionOptions{Kind: "definition.version", Version: 3, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(value JSON, version uint64) (JSON, error) {
+		current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "definition.version", Version: 3, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(value JSON, version uint64) (JSON, error) {
 			if version != 1 {
 				return nil, errors.New("wrongfromversion")
 			}
@@ -157,7 +157,7 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 		if e != nil || !equalSnapshot(before, after) {
 			t.Fatal("snapshotpersistedmigration", e)
 		}
-		unrelated := mustDefinition(t, DefinitionOptions{Kind: "definition.other", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
+		unrelated := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "definition.other", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
 		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(unrelated, 0, nil, nil); return e })
 		if e != nil {
 			t.Fatal(e)
@@ -225,19 +225,19 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 		_, e := DefineDocument(options)
 		rejected(t, e)
 	}
-	old := mustDefinition(t, DefinitionOptions{Kind: "versions", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "stored"}, nil }})
+	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "stored"}, nil }})
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
 	if e != nil {
 		t.Fatal(e)
 	}
 	for _, version := range []uint64{1, 3} {
-		def := mustDefinition(t, DefinitionOptions{Kind: "versions", Version: version, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
+		def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: version, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
 		_, _, e = session.SnapshotDefinition(bg, def, 0, nil)
 		rejected(t, e)
 		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
 		rejected(t, e)
 	}
-	bad := mustDefinition(t, DefinitionOptions{Kind: "versions", Version: 3, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(JSON, uint64) (JSON, error) { return JSON{"bad": func() {}}, nil }})
+	bad := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "versions", Version: 3, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(JSON, uint64) (JSON, error) { return JSON{"bad": func() {}}, nil }})
 	_, _, e = session.SnapshotDefinition(bg, bad, 0, nil)
 	rejected(t, e)
 	var wg sync.WaitGroup
@@ -276,7 +276,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 			t.Fatal(e)
 		}
 		defer session.Close(bg)
-		old := mustDefinition(t, DefinitionOptions{Kind: "history.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }})
+		old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "history.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }})
 		var cut ID
 		_, e = session.Commit(bg, func(tx *Tx) error {
 			var e error
@@ -307,7 +307,7 @@ func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 			t.Fatal(e)
 		}
 		var calls int
-		current := mustDefinition(t, DefinitionOptions{Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["migrated"] = true; return v, nil }})
+		current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["migrated"] = true; return v, nil }})
 		var child Conversation
 		_, e = session.Commit(bg, func(tx *Tx) error { var e error; child, e = tx.ForkConversation(1, cut, 0); return e })
 		if e != nil {
@@ -368,7 +368,7 @@ func TestDocumentDefinitionToolCommitProductionAndReopen(t *testing.T) {
 	options := Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 		return &goai.StreamOptions{APIKey: "LOCAL_TEST"}, nil
 	}}
-	definition := mustDefinition(t, DefinitionOptions{Kind: "app.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "empty"}, nil }})
+	definition := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.typed", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": "empty"}, nil }})
 	if e := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "typed", Description: "save typed document", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Implementation: "typed.native", Version: 1, ReplaySafe: true, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 		effects.Add(1)
 		return ToolResult{Content: "typed saved", Commit: func(tx *Tx) error {
@@ -434,7 +434,7 @@ func TestDocumentDefinitionCacheBoundUnloadAndUnaccessedVersions(t *testing.T) {
 	}
 	defer session.Close(bg)
 	for i := 0; i < 5; i++ {
-		d := mustDefinition(t, DefinitionOptions{Kind: fmt.Sprintf("cache.d%d", i), Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "bounded"}, nil }})
+		d := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: fmt.Sprintf("cache.d%d", i), Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "bounded"}, nil }})
 		_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(d, 0, nil, nil); return e })
 		if e != nil {
 			t.Fatal(e)
@@ -472,7 +472,7 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer session.Close(bg)
-	def := mustDefinition(t, DefinitionOptions{Kind: "task.doc", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"value": "live"}, nil }})
+	def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "task.doc", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"value": "live"}, nil }})
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, task, nil, nil); return e })
 	if e != nil {
 		t.Fatal(e)
@@ -485,12 +485,12 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 	}
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(def, task, nil, nil); return e })
 	rejected(t, e)
-	first := mustDefinition(t, DefinitionOptions{Kind: "policy", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
+	first := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "policy", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{}, nil }})
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(first, 1, nil, nil); return e })
 	if e != nil {
 		t.Fatal(e)
 	}
-	changed := mustDefinition(t, DefinitionOptions{Kind: "policy", Version: 1, Scope: "conversation", History: "latest", Fork: "current", Initial: first.options.Initial})
+	changed := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "policy", Version: 1, Scope: "conversation", History: "latest", Fork: "current", Initial: first.options.Initial})
 	_, _, e = session.SnapshotDefinition(bg, changed, 1, nil)
 	rejected(t, e)
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(changed, 1, nil, nil); return e })
@@ -507,9 +507,9 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 		t.Fatal(e)
 	}
 	defer session.Close(bg)
-	old := mustDefinition(t, DefinitionOptions{Kind: "cold", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "old"}, nil }})
+	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cold", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "old"}, nil }})
 	var calls int
-	current := mustDefinition(t, DefinitionOptions{Kind: "cold", Version: 2, Scope: "session", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["new"] = true; return v, nil }})
+	current := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cold", Version: 2, Scope: "session", Initial: old.options.Initial, Migrate: func(v JSON, _ uint64) (JSON, error) { calls++; v["new"] = true; return v, nil }})
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
 	if e != nil {
 		t.Fatal(e)
@@ -565,12 +565,12 @@ func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer session.Close(bg)
-	old := mustDefinition(t, DefinitionOptions{Kind: "cache.large", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "small"}, nil }})
+	old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cache.large", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"value": "small"}, nil }})
 	_, e = session.Commit(bg, func(tx *Tx) error { _, e := tx.AcquireDocument(old, 0, nil, nil); return e })
 	if e != nil {
 		t.Fatal(e)
 	}
-	large := mustDefinition(t, DefinitionOptions{Kind: "cache.large", Version: 2, Scope: "session", Initial: old.options.Initial, Migrate: func(JSON, uint64) (JSON, error) { return JSON{"value": strings.Repeat("x", 3000)}, nil }})
+	large := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "cache.large", Version: 2, Scope: "session", Initial: old.options.Initial, Migrate: func(JSON, uint64) (JSON, error) { return JSON{"value": strings.Repeat("x", 3000)}, nil }})
 	before, e := session.Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
@@ -599,7 +599,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	invalid := mustDefinition(t, DefinitionOptions{Kind: "invalid.init", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"invalid": func() {}}, nil }})
+	invalid := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "invalid.init", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"invalid": func() {}}, nil }})
 	before, e := session.Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
@@ -611,7 +611,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 		t.Fatal("invalidinitializerwrote", e)
 	}
 	var active *Tx
-	def := mustDefinition(t, DefinitionOptions{Kind: "reentrant.init", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) {
+	def := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "reentrant.init", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) {
 		if _, e := active.MintID(); !errors.Is(e, ErrConcurrent) {
 			return nil, fmt.Errorf("reentrancy %v", e)
 		}
@@ -658,7 +658,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 				t.Fatal(e)
 			}
 			defer session.Close(bg)
-			old := mustDefinition(t, DefinitionOptions{
+			old := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil },
 				Kind: "migration.document-budget", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf",
 				Initial: func(JSON) (JSON, error) { return JSON{"value": "small"}, nil },
 			})
@@ -683,7 +683,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 			if e != nil || len(encoded) <= limits.MaxDocumentBytes || len(encoded) >= limits.MaxRecordBytes {
 				t.Fatal("fixture must be strictly between document and record bounds", len(encoded), e)
 			}
-			oversized := mustDefinition(t, DefinitionOptions{
+			oversized := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil },
 				Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial,
 				Migrate: func(JSON, uint64) (JSON, error) { return oversizedValue, nil },
 			})
@@ -711,7 +711,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 			if len(session.definitionCache) != 0 || session.definitionCacheBytes != 0 {
 				t.Fatal("rejected migration was retained")
 			}
-			valid := mustDefinition(t, DefinitionOptions{
+			valid := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil },
 				Kind: old.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: old.options.Initial,
 				Migrate: func(v JSON, _ uint64) (JSON, error) { v["migrated"] = true; return v, nil },
 			})

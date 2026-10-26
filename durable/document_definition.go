@@ -15,6 +15,7 @@ type DefinitionOptions struct {
 	Initial func(JSON) (JSON, error)
 	Migrate func(JSON, uint64) (JSON, error)
 	// CheckpointWhen sees detached final value/ops and the already stored count.
+	// Required: use an explicit false predicate to retain deltas indefinitely.
 	// Create/copy/required migration bases bypass this ordinary-change predicate.
 	CheckpointWhen func(JSON, []Operation, CheckpointInfo) (bool, error)
 }
@@ -26,7 +27,7 @@ type CheckpointInfo struct{ DeltasSinceBase uint64 }
 type DocumentDefinition struct{ options DefinitionOptions }
 
 func DefineDocument(options DefinitionOptions) (*DocumentDefinition, error) {
-	if !validKind(options.Kind) || options.Version == 0 || options.Version > MaxID || options.Initial == nil {
+	if !validKind(options.Kind) || options.Version == 0 || options.Version > MaxID || options.Initial == nil || options.CheckpointWhen == nil {
 		return nil, reject("invalid document definition")
 	}
 	if options.Scope != "session" && options.Scope != "conversation" && options.Scope != "task" {

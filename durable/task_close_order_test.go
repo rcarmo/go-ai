@@ -10,7 +10,7 @@ import (
 
 func TestTaskSchedulerPinnedCloseSealsAdmissionStopsWatchBeforeSignalAndJoins(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
-		notes, err := DefineDocument(DefinitionOptions{Kind: "app.close-order.notes", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": "kept"}, nil }})
+		notes, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.close-order.notes", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": "kept"}, nil }})
 		if err != nil {
 			t.Fatal(err)
 		}

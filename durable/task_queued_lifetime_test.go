@@ -28,8 +28,8 @@ func TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation(t *testing.T) {
 					h := taskTestHarness(t, b.store, owner)
 					cleanupTaskGates(t, release)
 					var migrations, effects atomic.Int64
-					document := mustDefinition(t, DefinitionOptions{Kind: "app.queued.capability", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": 1}, nil }})
-					migrated := mustDefinition(t, DefinitionOptions{Kind: document.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: document.options.Initial, Migrate: func(value JSON, _ uint64) (JSON, error) { migrations.Add(1); return value, nil }})
+					document := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.queued.capability", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"value": 1}, nil }})
+					migrated := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: document.options.Kind, Version: 2, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: document.options.Initial, Migrate: func(value JSON, _ uint64) (JSON, error) { migrations.Add(1); return value, nil }})
 					token := entryToken(t, "app.queued.entry")
 					var entry ID
 					if _, err := h.Commit(bg, func(tx *Tx) error {

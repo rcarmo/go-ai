@@ -269,7 +269,7 @@ func TestDocumentCheckpointFinalDetachedArgumentsAndWholeRollback(t *testing.T) 
 }
 func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
-		def := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.fork", Version: 1, Scope: "conversation", History: "rewindable", Fork: "current", Initial: func(JSON) (JSON, error) { return JSON{"s": "a"}, nil }})
+		def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "checkpoint.fork", Version: 1, Scope: "conversation", History: "rewindable", Fork: "current", Initial: func(JSON) (JSON, error) { return JSON{"s": "a"}, nil }})
 		var entry ID
 		checkpointCommit(t, s, func(tx *Tx) error {
 			if _, err := tx.AcquireDocument(def, 1, nil, nil); err != nil {

@@ -22,7 +22,7 @@ func TestDocument120IdleRetentionZeroExpiryAndWatchPin(t *testing.T) {
 					t.Fatal(e)
 				}
 				defer s.Close(bg)
-				def, e := DefineDocument(DefinitionOptions{Kind: "retained", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"x": 0}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { calls.Add(1); return v, nil }})
+				def, e := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "retained", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"x": 0}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { calls.Add(1); return v, nil }})
 				if e != nil {
 					t.Fatal(e)
 				}

@@ -19,7 +19,7 @@ func TestJournalReclaimHistoryAllocatorAndLaterAppend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	def, err := DefineDocument(DefinitionOptions{Kind: "reclaim.counter", Version: 1, Scope: "conversation", Fork: "asOf", History: "rewindable", Initial: func(JSON) (JSON, error) { return JSON{"count": 0}, nil }})
+	def, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "reclaim.counter", Version: 1, Scope: "conversation", Fork: "asOf", History: "rewindable", Initial: func(JSON) (JSON, error) { return JSON{"count": 0}, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

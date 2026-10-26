@@ -24,7 +24,7 @@ func watchReceive[T any](t *testing.T, ch <-chan T) T {
 }
 func watchDoc(t *testing.T, s *Session) *DocumentDefinition {
 	t.Helper()
-	def := checkpointDef(t, DefinitionOptions{Kind: "watch.test", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0, "xs": []any{"a", "b"}}, nil }})
+	def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.test", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0, "xs": []any{"a", "b"}}, nil }})
 	checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
 	return def
 }
@@ -141,7 +141,7 @@ func TestObservationMigrationVersionResetStateAndUnload(t *testing.T) {
 		old := watchDoc(t, s)
 		oldWatch := watchAcquire(t, s, old)
 		defer oldWatch.Stop()
-		current := checkpointDef(t, DefinitionOptions{Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { v["migrated"] = true; return v, nil }})
+		current := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { v["migrated"] = true; return v, nil }})
 		before := checkpointSnapshot(t, s)
 		newWatch := watchAcquire(t, s, current)
 		defer newWatch.Stop()
@@ -424,7 +424,7 @@ func TestObservationCallbackInitiatesCommitAndStructuralFrame(t *testing.T) {
 
 func TestObservationAbsentAndStateIncarnationAfterReopen(t *testing.T) {
 	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
-		def := checkpointDef(t, DefinitionOptions{Kind: "watch.absent", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }})
+		def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.absent", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }})
 		before := checkpointSnapshot(t, s)
 		if w, ok, e := s.WatchDefinition(bg, def, 0, nil); e != nil || ok || w != nil {
 			t.Fatal("absent watch", w, ok, e)
@@ -519,7 +519,7 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 	}
 	defer s.Close(bg)
 	text := strings.Repeat("x", 3000)
-	def := checkpointDef(t, DefinitionOptions{Kind: "watch.bytes", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0, "text": text}, nil }})
+	def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.bytes", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0, "text": text}, nil }})
 	checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
 	w := watchAcquire(t, s, def)
 	defer w.Stop()
@@ -543,7 +543,7 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 	}
 	// Migration-only acquisition cannot retain an oversized baseline, and does
 	// not write or register a watch while computing that detached value.
-	huge := checkpointDef(t, DefinitionOptions{Kind: "watch.bytes", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { v["text"] = strings.Repeat("y", 9000); return v, nil }})
+	huge := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.bytes", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { v["text"] = strings.Repeat("y", 9000); return v, nil }})
 	before := checkpointSnapshot(t, s)
 	if _, ok, e := s.WatchDefinition(bg, huge, 0, nil); e == nil || ok {
 		t.Fatal("overquota baseline accepted")
@@ -578,7 +578,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	old := watchDoc(t, s)
 	entered := make(chan struct{})
 	release := make(chan struct{})
-	migrated := checkpointDef(t, DefinitionOptions{Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { close(entered); <-release; v["migrated"] = true; return v, nil }})
+	migrated := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { close(entered); <-release; v["migrated"] = true; return v, nil }})
 	acquired := make(chan *DocumentWatch, 1)
 	acquireError := make(chan error, 1)
 	go func() {
@@ -640,7 +640,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	watchDoc(t, s2)
 	gate := make(chan struct{})
 	done := make(chan struct{})
-	cancelDef := checkpointDef(t, DefinitionOptions{Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { close(gate); <-done; return v, nil }})
+	cancelDef := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.test", Version: 2, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { close(gate); <-done; return v, nil }})
 	ctx, cancel := context.WithCancel(bg)
 	result := make(chan error, 1)
 	go func() { _, _, e := s2.WatchDefinition(ctx, cancelDef, 0, nil); result <- e }()

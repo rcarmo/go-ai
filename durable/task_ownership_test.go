@@ -1079,7 +1079,7 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 						scope = "conversation"
 					}
 					var initializers atomic.Int64
-					definition, err := DefineDocument(DefinitionOptions{Kind: "app.owner-admission", Scope: scope, Version: 1, Initial: func(JSON) (JSON, error) { initializers.Add(1); return JSON{"value": "initial"}, nil }})
+					definition, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.owner-admission", Scope: scope, Version: 1, Initial: func(JSON) (JSON, error) { initializers.Add(1); return JSON{"value": "initial"}, nil }})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1122,7 +1122,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 		owner := foundationTask(ownerID, "immutable input")
 		apply(t, b.store, Write{Op: "put-task", Task: &owner})
 		h := taskTestHarness(t, b.store)
-		definition, err := DefineDocument(DefinitionOptions{Kind: "app.overlay-family", Scope: "task", Family: true, Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }})
+		definition, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.overlay-family", Scope: "task", Family: true, Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"value": "initial"}, nil }})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -7,7 +7,7 @@ import (
 
 func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
-		notes := mustDefinition(t, DefinitionOptions{Kind: "app.forward.notes", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"text": "initial"}, nil }})
+		notes := mustDefinition(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.forward.notes", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"text": "initial"}, nil }})
 		h := taskTestHarness(t, b.store)
 		root, err := h.Root(bg, AgentChange{})
 		if err != nil {

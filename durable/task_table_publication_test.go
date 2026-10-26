@@ -10,11 +10,11 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		h := taskTestHarness(t, b.store)
 		work := taskDefinition(t, "task.table.typed", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
-		progress, err := DefineDocument(DefinitionOptions{Kind: "app.table.progress", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"lines": []any{}}, nil }})
+		progress, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.table.progress", Version: 1, Scope: "task", Initial: func(JSON) (JSON, error) { return JSON{"lines": []any{}}, nil }})
 		if err != nil {
 			t.Fatal(err)
 		}
-		step, err := DefineDocument(DefinitionOptions{Kind: "app.table.step", Version: 1, Scope: "task", Family: true, Initial: func(JSON) (JSON, error) { return JSON{"lines": []any{}}, nil }})
+		step, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.table.step", Version: 1, Scope: "task", Family: true, Initial: func(JSON) (JSON, error) { return JSON{"lines": []any{}}, nil }})
 		if err != nil {
 			t.Fatal(err)
 		}

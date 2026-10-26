@@ -18,7 +18,7 @@ func TestObservation120LargeBaselineSharesTotalReservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close(bg)
-	def := checkpointDef(t, DefinitionOptions{Kind: "reserve.large", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"text": strings.Repeat("x", 24000)}, nil }})
+	def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "reserve.large", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"text": strings.Repeat("x", 24000)}, nil }})
 	checkpointCommit(t, s, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err })
 	_, first, err := s.SubscribeCommits(bg)
 	if err != nil {
