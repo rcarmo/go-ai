@@ -474,6 +474,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			// Inheriting life cancellation would signal before that stop order.
 			ctx, cancel := context.WithCancel(context.WithoutCancel(s.h.life))
 			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, kind: task.Kind, context: ctx, cancel: cancel, registry: snapshot, definition: definition, reportExtension: snapshot.installer(task.Kind, definition), abortMode: taskAborted(task), done: make(chan struct{})}
+			runtime.initTelemetry()
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
 			reservations = append(reservations, runtime)
@@ -533,6 +534,10 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 		return err
 	})
 	if err != nil {
+		return
+	}
+	runtime.beginPhase(task.Checkpoint)
+	if runtime.check() != nil || s.sealed.Load() || s.h.closing.Load() {
 		return
 	}
 	if task.Kind == "pi.tool" {
@@ -661,6 +666,7 @@ func (s *taskScheduler) expectedGenerationStop(runtime *TaskRuntime, err error) 
 
 func (s *taskScheduler) run(runtime *TaskRuntime) {
 	defer func() {
+		runtime.finishPhase()
 		var watches []*DocumentWatch
 		s.h.session.taskBookkeeping(func() { runtime.ended.Store(true); watches = runtime.watches; runtime.watches = nil })
 		// Stop invocation-owned watches before cancelling their acquisition
@@ -799,6 +805,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		if faultReport != nil {
 			runtime.report(faultReport, runtime.reportInfo("task_faulted", "threw"))
 		}
+		runtime.finishPhase()
 		if !proceed || s.sealed.Load() || s.h.closing.Load() || runtime.ended.Load() {
 			return
 		}
@@ -806,6 +813,10 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		handler := runtime.definition.options.Phases[task.State.Checkpoint["phase"].(string)]
 		if runtime.abortMode {
 			handler = runtime.definition.options.Abort
+		}
+		runtime.beginPhase(task.State.Checkpoint)
+		if runtime.check() != nil || s.sealed.Load() || s.h.closing.Load() {
+			return
 		}
 		if handler == nil {
 			handlerError = reject("task phase unavailable")

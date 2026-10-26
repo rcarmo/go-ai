@@ -68,6 +68,9 @@ func (h *Harness) report(ctx context.Context, err error, info ReportInfo) {
 			}
 		}
 	}
+	if err != nil {
+		h.reportTelemetry(ctx, info)
+	}
 	deliverReport(ctx, err, info, h.options.OnReport, h.options.OnReportWithInfo)
 }
 

@@ -308,6 +308,15 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			s.core.leave()
 			tx.taskAdoptState = &adopted
 		}
+		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
+			for _, write := range tx.writes {
+				if write.Task != nil {
+					if runtime := s.taskScheduler.invocations[write.Task.ID]; runtime != nil {
+						runtime.noteTrace(*write.Task)
+					}
+				}
+			}
+		}
 		s.adoptTaskEffects(seq, tx)
 		s.enqueueWatchFrames(frames)
 		s.enqueueSubscriptions(subs)

@@ -20,6 +20,7 @@ type TaskRuntime struct {
 	codemodeActive       map[string]bool // one driver per durable run key within an invocation
 	nestedSequence       atomic.Uint64   // invocation-local default call order, reset on replay
 	harness              *Harness
+	telemetry            *invocationTelemetry // process-local, initialized before host publication
 	taskID, conversation ID
 	kind                 string
 	reportExtension      string // definition's installer, pinned at reservation

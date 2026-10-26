@@ -23,6 +23,7 @@ type Harness struct {
 	closing               atomic.Bool
 	timerFallbackReported atomic.Bool
 	workers               map[ID]bool
+	telemetryLoaded       map[ID]bool // mu-owned first invocation of loaded tasks
 	pins                  map[ID]map[string]registeredTool
 	closeOnce             sync.Once
 	closeDone             chan struct{}
@@ -159,6 +160,14 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	state, e := s.Snapshot(ctx)
 	if e != nil {
 		return failOpen(e)
+	}
+	if options.Telemetry != nil {
+		h.telemetryLoaded = map[ID]bool{}
+		for id, task := range state.Tasks {
+			if taskManaged(task) && !terminalStatus(task.Status) {
+				h.telemetryLoaded[id] = true
+			}
+		}
 	}
 	var recovered []Task
 	for _, id := range ids(state.Tasks) {

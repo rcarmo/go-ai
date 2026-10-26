@@ -96,7 +96,10 @@ type Options struct {
 	// For attributed reports both callbacks run, with independent panic containment.
 	// It has the same non-joining, prompt-return contract as OnReport.
 	OnReportWithInfo func(context.Context, error, ReportInfo)
-	Registry         *Registry
+	// Telemetry opts into content-free durable observations. Backend callbacks
+	// run off-line, must return promptly and must not join Close/Wait.
+	Telemetry *goai.TelemetrySpan
+	Registry  *Registry
 	// ConversationCreated runs after Harness builtin/agent initialization and
 	// before convenience overrides. Nil skips only the callback. It must only
 	// use its Tx; reentering the Harness/Session would deadlock its serial line.
