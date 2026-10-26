@@ -71,6 +71,9 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 			}
 			options.Identity = goai.MergeClientIdentity(h.options.Identity, identity)
 			options.Context = ctx
+			if options.Telemetry == nil {
+				options.Telemetry = TelemetryFromContext(ctx)
+			}
 			result, err := goai.Classify(value.(*goai.ClassifierModel), input, options)
 			if err != nil {
 				return ToolResult{}, err
@@ -158,6 +161,9 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 			options.Identity = goai.MergeClientIdentity(h.options.Identity, identity)
 			options.Context = ctx
 			options.Signal = nil
+			if options.Telemetry == nil {
+				options.Telemetry = TelemetryFromContext(ctx)
+			}
 			model := value.(*goai.ImageModel)
 			native := &images.ImagesModel{ID: model.ID, Name: model.Name, Api: images.ImagesApi(model.Api), Provider: images.ImagesProvider(model.Provider), Input: append([]string{}, model.Input...), Cost: model.Cost}
 			result, err := images.GenerateImages(native, input, options)

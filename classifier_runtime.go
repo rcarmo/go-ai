@@ -31,6 +31,9 @@ type ClassifierResponseMetadata struct {
 }
 
 type ClassifierOptions struct {
+	// Telemetry carries process-local caller context to classifier providers.
+	// It is never part of serialized requests.
+	Telemetry       *TelemetrySpan `json:"-"`
 	Identity        *ClientIdentity
 	APIKey          string
 	Temperature     float64

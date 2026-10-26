@@ -1,7 +1,7 @@
 package durable
 
 var codemodeStoreToken = func() *DocumentDefinition {
-	definition, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "pi.codemode.store", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"values": JSON{}}, nil }})
+	definition, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(_ JSON, _ []Operation, info CheckpointInfo) (bool, error) { return info.DeltasSinceBase >= 64, nil }, Kind: "pi.codemode.store", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"values": JSON{}}, nil }})
 	if err != nil {
 		panic(err)
 	}
