@@ -1231,6 +1231,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	if e := fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
 		return e
 	}
+	runtime.toolTelemetry(cp.Offer.Name, cp.CallID)
 	var parentCheckpoint generationCheckpoint
 	if err := h.session.readTasks(context.Background(), func(state Snapshot) error {
 		if err := runtime.check(); err != nil {

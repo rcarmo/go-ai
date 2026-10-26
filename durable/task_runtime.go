@@ -68,6 +68,7 @@ func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (
 	if change == nil {
 		return reject("nil runtime commit")
 	}
+	checkpointChanged := false
 	_, err := r.harness.session.invocationCommit(ctx, r.taskID, func(tx *Tx) error {
 		if err := r.check(); err != nil {
 			return err
@@ -131,8 +132,14 @@ func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (
 			task.Status = state.Status
 		}
 		task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &native}
+		nextPhase, nextOK := state.Checkpoint["phase"].(string)
+		previousPhase, _ := view.State.Checkpoint["phase"].(string)
+		checkpointChanged = state.Status == "running" && nextOK && nextPhase != previousPhase
 		return tx.stage(Write{Op: "put-task", Task: &task})
 	})
+	if err == nil && checkpointChanged {
+		r.telemetryEvent("pi.durable.checkpoint", nil)
+	}
 	return err
 }
 func (r *TaskRuntime) Memo(ctx context.Context, name string) (any, bool, error) {

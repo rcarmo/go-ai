@@ -25,7 +25,7 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		var mu sync.Mutex
 		var phases []*phaseObservation140
-		var histograms, counters, activeCalls int
+		var histograms, counters, activeCalls, checkpoints int
 		var active float64
 		ended := make(chan struct{}, 8)
 		var clock atomic.Int64
@@ -69,6 +69,18 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 			phases = append(phases, observation)
 			mu.Unlock()
 			return &goai.TelemetrySpan{Value: attrs["phase"], SetAttributes: func(attrs map[string]any) { mu.Lock(); observation.end = attrs; mu.Unlock() }, AddEvent: func(name string, attrs map[string]any) {
+				if name == "pi.durable.checkpoint" {
+					if len(attrs) != 0 {
+						t.Error(attrs)
+					}
+					if _, err := h.Snapshot(bg); err != nil {
+						t.Error(err)
+					}
+					mu.Lock()
+					checkpoints++
+					mu.Unlock()
+					return
+				}
 				if name != "pi.durable.report" {
 					t.Error(name)
 				}
@@ -116,7 +128,7 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if len(phases) != 3 || histograms != 3 || counters != 1 || active != 0 || activeCalls != 4 {
+		if len(phases) != 3 || histograms != 3 || counters != 1 || active != 0 || activeCalls != 4 || checkpoints != 1 {
 			t.Fatal(len(phases), histograms, counters, active, activeCalls)
 		}
 		for i, outcome := range []string{"next=b", "sleeping", "done"} {
@@ -758,4 +770,162 @@ func TestTelemetry140EventBufferConcurrentDrain(t *testing.T) {
 	if !buffer.closed || len(buffer.batches) != 0 {
 		t.Fatal("completed buffer retained batches")
 	}
+}
+
+func TestTelemetry140NestedReplayAndToolAttributes(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var calls atomic.Int64
+		var replays, checkpoints atomic.Int64
+		var mu sync.Mutex
+		var toolAttrs []map[string]any
+		var h *Harness
+		var backend func(string) *goai.TelemetrySpan
+		backend = func(task string) *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{StartSpan: func(_ string, attrs map[string]any) *goai.TelemetrySpan {
+				name, _ := attrs["task.name"].(string)
+				return backend(name)
+			}, SetAttributes: func(attrs map[string]any) {
+				if attrs["tool.name"] != nil {
+					mu.Lock()
+					toolAttrs = append(toolAttrs, attrs)
+					mu.Unlock()
+				}
+			}, AddEvent: func(name string, attrs map[string]any) {
+				if _, err := h.Snapshot(bg); err != nil {
+					t.Error(err)
+				}
+				if name == "pi.durable.replay" {
+					if task != "task.replay-telemetry-140" || len(attrs) != 1 || attrs["tool.name"] != "telemetry_leaf" {
+						t.Error(task, attrs)
+					}
+					replays.Add(1)
+				}
+				if name == "pi.durable.checkpoint" && task == "task.replay-telemetry-140" {
+					checkpoints.Add(1)
+				}
+			}}
+		}
+		registry := NewRegistry()
+		leaf := wrapRegistration("telemetry_leaf")
+		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
+			calls.Add(1)
+			return ToolResult{Content: "private result"}, nil
+		}
+		if err := registry.Register(leaf); err != nil {
+			t.Fatal(err)
+		}
+		def := taskDefinition(t, "task.replay-telemetry-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			// Invalid composite phases must reject, not panic or emit a checkpoint.
+			if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "running", Checkpoint: JSON{"phase": JSON{"private": "invalid"}}}, nil
+			}); err == nil {
+				return errors.New("invalid phase accepted")
+			}
+			if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "work"}}, nil
+			}); err != nil {
+				return err
+			}
+			for i := 0; i < 2; i++ {
+				if _, err := r.CallTool(ctx, "leaf-key", "telemetry_leaf", JSON{"n": 1}); err != nil {
+					return err
+				}
+			}
+			if _, err := r.CallTool(ctx, "leaf-key", "telemetry_leaf", JSON{"n": 2}); err == nil {
+				return errors.New("mismatched replay accepted")
+			}
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+		if _, err := registry.RegisterTask(def); err != nil {
+			t.Fatal(err)
+		}
+		h = openHarness(t, b.store, Options{Registry: registry, Telemetry: backend("root")})
+		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		result := waitPublicTask(t, h, id)
+		if result.State.Outcome == nil || result.State.Outcome.Status != "completed" {
+			t.Fatal(result)
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		if calls.Load() != 1 || replays.Load() != 1 || checkpoints.Load() != 0 {
+			t.Fatal(calls.Load(), replays.Load(), checkpoints.Load())
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(toolAttrs) != 1 || toolAttrs[0]["tool.name"] != "telemetry_leaf" || toolAttrs[0]["tool.call_id"] != "leaf-key" {
+			t.Fatal(toolAttrs)
+		}
+	})
+}
+
+func TestTelemetry140BuiltinToolAttributes(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var rounds atomic.Int64
+		ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			if rounds.Add(1) == 1 {
+				ch <- toolAnswer("provider-call", "telemetry_model_leaf", JSON{})
+			} else {
+				ch <- terminal("done")
+			}
+			close(ch)
+			return ch
+		})
+		registry := NewRegistry()
+		if err := registry.Register(wrapRegistration("telemetry_model_leaf")); err != nil {
+			t.Fatal(err)
+		}
+		opts.Registry = registry
+		var mu sync.Mutex
+		var tools []map[string]any
+		var parents [][2]string
+		var backend func(string) *goai.TelemetrySpan
+		backend = func(parent string) *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+				scope := name
+				if kind, ok := attrs["task.name"].(string); ok {
+					scope = kind
+					mu.Lock()
+					parents = append(parents, [2]string{kind, parent})
+					mu.Unlock()
+				}
+				return backend(scope)
+			}, SetAttributes: func(attrs map[string]any) {
+				if attrs["tool.name"] != nil {
+					mu.Lock()
+					tools = append(tools, attrs)
+					mu.Unlock()
+				}
+			}}
+		}
+		opts.Telemetry = backend("root")
+		h := openHarness(t, b.store, opts)
+		conv := root(t, h, ref)
+		sub, err := conv.Submit(bg, Input{Content: "run tool"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitSubmission(t, sub)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(tools) != 1 || tools[0]["tool.name"] != "telemetry_model_leaf" || tools[0]["tool.call_id"] != "provider-call" {
+			t.Fatal(tools)
+		}
+		toolParent, continuation := false, false
+		for _, edge := range parents {
+			if edge == [2]string{"pi.tool", "pi.generation"} {
+				toolParent = true
+			}
+			if edge == [2]string{"pi.generation", "pi.generation"} {
+				continuation = true
+			}
+		}
+		if !toolParent || !continuation {
+			t.Fatal("lost tool/continuation ancestry", parents)
+		}
+	})
 }

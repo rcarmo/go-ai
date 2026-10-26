@@ -179,6 +179,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 		return nil, reject("tool is not callable by tools")
 	}
 	handle := &NestedToolHandle{runtime: r}
+	replayed := false
 	err = r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 		for _, doc := range tx.state.Documents {
 			if !doc.Retired && doc.Scope == "task" && doc.Owner == r.taskID && doc.Kind == nestedCallDocument && doc.Family && doc.Key == key {
@@ -191,6 +192,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 				}
 				handle.task = call.Task
 				handle.document = doc.ID
+				replayed = call.Result != nil
 				return nil, nil
 			}
 		}
@@ -222,6 +224,9 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 	})
 	if err != nil {
 		return nil, err
+	}
+	if replayed {
+		r.telemetryEvent("pi.durable.replay", map[string]any{"tool.name": name})
 	}
 	return handle, nil
 }
@@ -310,6 +315,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 	if err != nil {
 		return err
 	}
+	r.toolTelemetry(input.Name, input.Key)
 	agent, err := r.Agent(ctx)
 	if err != nil {
 		return err

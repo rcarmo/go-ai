@@ -452,3 +452,18 @@ func (h *Harness) captureCommitEvents(ctx context.Context, tx *Tx, before Snapsh
 	}
 	return batch
 }
+
+func (r *TaskRuntime) telemetryEvent(name string, attrs map[string]any) {
+	if trace := r.telemetry; trace != nil {
+		if span := trace.span.Load(); span != nil && span.AddEvent != nil {
+			telemetryCall(func() { span.AddEvent(name, attrs) })
+		}
+	}
+}
+func (r *TaskRuntime) toolTelemetry(name, callID string) {
+	if trace := r.telemetry; trace != nil {
+		if span := trace.span.Load(); span != nil && span.SetAttributes != nil {
+			telemetryCall(func() { span.SetAttributes(map[string]any{"tool.name": name, "tool.call_id": callID}) })
+		}
+	}
+}
