@@ -271,6 +271,7 @@ func TestTelemetry140ReopenResumesOnlyFirstPhase(t *testing.T) {
 }
 
 func TestTelemetry140DiagnosticBoundAndDisabled(t *testing.T) {
+	//lint:ignore SA1012 Verify the explicitly supported nil-context fallback.
 	if TelemetryFromContext(nil) != nil || TelemetryFromContext(bg) != nil {
 		t.Fatal("unexpected span")
 	}

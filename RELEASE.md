@@ -1,5 +1,11 @@
 # Release acceptance
 
+## Native 1.4.0 local audit — security blocker
+
+Local implementation and verification continue; no push, hosted CI, tag or publication is authorised. Reachable `GO-2026-6809` makes the Go 1.27.2 vulnerability gate fail. The fix requires Go 1.27.3 and Rui's approval to change the validation toolchain. No exception has been added.
+
+[Local verification, profiling results and remaining work](docs/v140/progress.md), [exact changed paths](docs/v140/changed-paths.json), [catalogue delta](docs/v140/catalog-delta.json). This release has not been accepted.
+
 ## Native 1.3.0 release
 
 Native [v1.3.0](https://github.com/rcarmo/go-ai/releases/tag/v1.3.0) published at `d9449bf4b102eb4303b8c60e9b0649b4bf99d08f`; Rui annotated tag object `daf84804d0bdbdc48a875c742bf8b31522422f65` verified locally/remotely. [Native workflow38823285300](https://github.com/rcarmo/go-ai/actions/runs/38823285300) succeeded. Public SBOM/checksum validates24components/version1.3.0/exact VCS revision; SHA256 `5856ebf022a310f6be67cc391d0ad4c2e1ffeccb7d502f2bbd1e8ebc80e031a6`. Go proxy download resolves the same commit.

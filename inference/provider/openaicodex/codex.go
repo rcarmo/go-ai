@@ -229,10 +229,6 @@ func extractCodexAccountID(token string) (string, error) {
 	return accountID, nil
 }
 
-func codexPiUserAgent() string {
-	return goai.FormatUserAgent(nil)
-}
-
 func buildCodexSSEHeaders(modelHeaders, optHeaders map[string]string, suppressHeaders []string, accountID, token, sessionID string, identities ...*goai.ClientIdentity) http.Header {
 	h := http.Header{}
 	h.Set("originator", "pi")
