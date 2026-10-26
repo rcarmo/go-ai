@@ -236,6 +236,7 @@ type submitTelemetryContextKey struct{}
 type submitTrace struct {
 	span    *goai.TelemetrySpan
 	results map[ID]string
+	events  durableEventBuffer
 }
 
 func submitTraceFromContext(ctx context.Context) *submitTrace {
@@ -295,6 +296,7 @@ func (trace *submitTrace) observe(sub Submission) {
 // finish runs after admission releases Harness/Session locks, including when
 // validation, binding, or storage rejects the call. Error text may carry input.
 func (trace *submitTrace) finish(handle *SubmissionHandle, err error) {
+	trace.events.deliver()
 	if err != nil {
 		if trace.span.SetStatus != nil {
 			telemetryCall(func() { trace.span.SetStatus("error", "", "") })
@@ -341,4 +343,112 @@ func (h *Harness) noteTaskAncestry(ctx context.Context, tx *Tx, before Snapshot)
 			h.telemetryParents[task.ID] = parent
 		}
 	}
+}
+
+// Event batches contain scalar attributes only, and live no longer than one
+// synchronous admission/commit. Lock-owning public adapters defer delivery until
+// their locks are released; other commits deliver after the Session line exits.
+type telemetryEventsContextKey struct{}
+type durableEvent struct {
+	name  string
+	attrs map[string]any
+}
+type durableEventBatch struct {
+	span   *goai.TelemetrySpan
+	events []durableEvent
+}
+type durableEventBuffer struct {
+	mu      sync.Mutex
+	batches []*durableEventBatch
+	closed  bool
+}
+
+func eventBufferFromContext(ctx context.Context) *durableEventBuffer {
+	if ctx == nil {
+		return nil
+	}
+	buffer, _ := ctx.Value(telemetryEventsContextKey{}).(*durableEventBuffer)
+	return buffer
+}
+func (batch *durableEventBatch) deliver() {
+	for _, event := range batch.events {
+		telemetryCall(func() { batch.span.AddEvent(event.name, event.attrs) })
+	}
+}
+func (buffer *durableEventBuffer) enqueue(batch *durableEventBatch) {
+	buffer.mu.Lock()
+	closed := buffer.closed
+	if !closed {
+		buffer.batches = append(buffer.batches, batch)
+	}
+	buffer.mu.Unlock()
+	if closed {
+		batch.deliver()
+	}
+}
+func (buffer *durableEventBuffer) deliver() {
+	buffer.mu.Lock()
+	batches := buffer.batches
+	buffer.batches = nil
+	buffer.closed = true
+	buffer.mu.Unlock()
+	for _, batch := range batches {
+		batch.deliver()
+	}
+}
+func (h *Harness) captureCommitEvents(ctx context.Context, tx *Tx, before Snapshot) *durableEventBatch {
+	span := TelemetryFromContext(ctx)
+	if span == nil {
+		creator := tx.byTask
+		if creator == 0 {
+			creator = tx.progressTask
+		}
+		if runtime := h.scheduler.invocations[creator]; runtime != nil && runtime.telemetry != nil {
+			span = runtime.telemetry.span.Load()
+		}
+	}
+	if span == nil || span.AddEvent == nil {
+		return nil
+	}
+	var batch *durableEventBatch
+	add := func(name string, attrs map[string]any) {
+		if batch == nil {
+			batch = &durableEventBatch{span: span}
+		}
+		batch.events = append(batch.events, durableEvent{name, attrs})
+	}
+	var seen map[ID]bool
+	for _, write := range tx.writes {
+		if entry := write.Entry; entry != nil {
+			if _, existed := before.Entries[entry.ID]; !existed {
+				add("pi.durable.entry", map[string]any{"entry.id": uint64(entry.ID), "entry.kind": entry.Kind})
+			}
+		}
+		if sub := write.Submission; sub != nil {
+			if seen[sub.ID] {
+				continue
+			}
+			if seen == nil {
+				seen = make(map[ID]bool)
+			}
+			seen[sub.ID] = true
+			current := *sub
+			if tx.taskAdoptState != nil {
+				current = tx.taskAdoptState.Submissions[sub.ID]
+			}
+			if !terminalStatus(current.Status) {
+				continue
+			}
+			if old, exists := before.Submissions[sub.ID]; exists && terminalStatus(old.Status) {
+				continue
+			}
+			record := publicSubmission(current)
+			attrs := map[string]any{"submission.id": uint64(sub.ID), "status": record.Status}
+			if record.Answer != 0 {
+				attrs["answer.entry_id"] = uint64(record.Answer)
+			}
+			add("pi.durable.submission", attrs)
+		}
+	}
+	return batch
 }

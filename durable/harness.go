@@ -587,6 +587,11 @@ func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, li
 // Commit binds task/document creation to this conversation without enabling
 // scheduling. Committed application changes are allowed while work is live.
 func (c *ConversationHandle) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
+	if c.h.options.Telemetry != nil && TelemetryFromContext(ctx) != nil {
+		buffer := &durableEventBuffer{}
+		ctx = context.WithValue(ctx, telemetryEventsContextKey{}, buffer)
+		defer buffer.deliver() // Unlock is registered next and runs first.
+	}
 	c.h.mu.Lock()
 	defer c.h.mu.Unlock()
 	return c.h.CommitTasks(ctx, c.id, callback)

@@ -162,7 +162,18 @@ func TestTelemetry140BackendPanicsCannotReplaceTaskOutcome(t *testing.T) {
 				if where == "status" {
 					return errors.New(strings.Repeat("界", 600))
 				}
-				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+				return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+					if where == "event" {
+						id, err := tx.MintID()
+						if err != nil {
+							return nil, err
+						}
+						if err := tx.AppendEntry(Entry{ID: id, Conversation: r.ConversationID(), Kind: "app.test", Value: JSON{}}); err != nil {
+							return nil, err
+						}
+					}
+					return taskDone(nil), nil
+				})
 			})
 			h := taskTestHarnessOptions(t, mustMemory(t), Options{Telemetry: telemetry}, definition)
 			id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
@@ -592,4 +603,159 @@ func TestTelemetry140ActiveInvocationBalancedOnClose(t *testing.T) {
 			t.Fatal("Close did not balance active counts", values)
 		}
 	})
+}
+
+func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var h *Harness
+		var conv *ConversationHandle
+		var mu sync.Mutex
+		var events []durableEvent
+		var backend func() *goai.TelemetrySpan
+		backend = func() *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{StartSpan: func(string, map[string]any) *goai.TelemetrySpan { return backend() }, AddEvent: func(name string, attrs map[string]any) {
+				if _, err := h.Snapshot(bg); err != nil {
+					t.Error("event on Session line", err)
+				}
+				// Reenter a lock-owning adapter without causing another event.
+				if _, err := conv.Commit(bg, func(*Tx) error { return nil }); err != nil {
+					t.Error("event under admission lock", err)
+				}
+				mu.Lock()
+				events = append(events, durableEvent{name, attrs})
+				mu.Unlock()
+			}}
+		}
+		h = openHarness(t, b.store, Options{Telemetry: backend()})
+		var err error
+		conv, err = h.Root(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sub, err := conv.Submit(bg, Input{Type: "write", Content: "private transcript", RequestID: "private request"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 2 || events[0].name != "pi.durable.submission" || events[1].name != "pi.durable.entry" || events[0].attrs["submission.id"] != uint64(sub.id) || events[0].attrs["status"] != "done" {
+			t.Fatal(events)
+		}
+		if _, err := conv.Submit(bg, Input{Type: "write", RequestID: "private request"}); err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 2 {
+			t.Fatal("dedup emitted commit events", events)
+		}
+		if _, err := conv.Submit(bg, Input{Type: "invalid", Content: "private rejected"}); err == nil {
+			t.Fatal("write accepted")
+		}
+		if len(events) != 2 {
+			t.Fatal("rejected admission emitted events", events)
+		}
+		data, err := json.Marshal(events[0].attrs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "private") {
+			t.Fatal(string(data))
+		}
+		// Explicit traced conversation commits must also flush after unlocking.
+		carrier := &invocationTelemetry{}
+		carrier.span.Store(backend())
+		ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
+		if _, err := conv.Commit(ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			return tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.note", Value: JSON{"private": "payload"}})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 3 || events[2].name != "pi.durable.entry" || events[2].attrs["entry.kind"] != "app.note" {
+			t.Fatal(events)
+		}
+		if _, err := conv.Commit(ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: conv.id, Kind: "app.rejected", Value: JSON{}}); err != nil {
+				return err
+			}
+			return errors.New("reject after staging")
+		}); err == nil {
+			t.Fatal("rejected callback accepted")
+		}
+		if len(events) != 3 {
+			t.Fatal("rolled back entry emitted event", events)
+		}
+	})
+}
+
+func TestTelemetry140GenerationCommitEvents(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var mu sync.Mutex
+		var entries int
+		var settled []map[string]any
+		ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("private answer")
+			close(ch)
+			return ch
+		})
+		var backend func() *goai.TelemetrySpan
+		backend = func() *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{StartSpan: func(string, map[string]any) *goai.TelemetrySpan { return backend() }, AddEvent: func(name string, attrs map[string]any) {
+				mu.Lock()
+				defer mu.Unlock()
+				switch name {
+				case "pi.durable.entry":
+					entries++
+				case "pi.durable.submission":
+					settled = append(settled, attrs)
+				}
+			}}
+		}
+		opts.Telemetry = backend()
+		h := openHarness(t, b.store, opts)
+		conv := root(t, h, ref)
+		sub, err := conv.Submit(bg, Input{Content: "private input"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitSubmission(t, sub)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if entries != 2 || len(settled) != 1 || settled[0]["submission.id"] != uint64(sub.id) || settled[0]["status"] != "done" || settled[0]["answer.entry_id"] == nil {
+			t.Fatal(entries, settled)
+		}
+	})
+}
+
+func TestTelemetry140EventBufferConcurrentDrain(t *testing.T) {
+	var buffer durableEventBuffer
+	var delivered atomic.Int64
+	span := &goai.TelemetrySpan{AddEvent: func(string, map[string]any) { delivered.Add(1) }}
+	var group sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			buffer.enqueue(&durableEventBatch{span: span, events: []durableEvent{{name: "test"}}})
+			buffer.deliver()
+		}()
+	}
+	group.Wait()
+	buffer.deliver()
+	if delivered.Load() != 32 {
+		t.Fatal("lost or repeated events", delivered.Load())
+	}
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	if !buffer.closed || len(buffer.batches) != 0 {
+		t.Fatal("completed buffer retained batches")
+	}
 }

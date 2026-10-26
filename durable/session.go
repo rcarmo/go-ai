@@ -223,6 +223,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	markAdmission()
 	ready := make(chan struct{})
 	var tx *Tx
+	var telemetryEvents *durableEventBatch
 	defer func() {
 		if err != nil && tx != nil && tx.taskRollback != nil {
 			tx.taskRollback(err)
@@ -241,6 +242,13 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 				s.taskScheduler.dispatchStops()
 			}
 		})
+		if telemetryEvents != nil {
+			if buffer := eventBufferFromContext(ctx); buffer != nil {
+				buffer.enqueue(telemetryEvents)
+			} else {
+				telemetryEvents.deliver()
+			}
+		}
 	}()
 	state, e := s.taskSnapshot(ctx)
 	if e != nil {
@@ -310,6 +318,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 		}
 		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
 			s.taskScheduler.h.noteTaskAncestry(ctx, tx, state)
+			telemetryEvents = s.taskScheduler.h.captureCommitEvents(ctx, tx, state)
 			for _, write := range tx.writes {
 				if write.Task != nil {
 					if runtime := s.taskScheduler.invocations[write.Task.ID]; runtime != nil {

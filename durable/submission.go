@@ -73,6 +73,7 @@ func (c *ConversationHandle) submitBound(ctx context.Context, input Input, bindi
 	trace := c.beginSubmitTrace(ctx, input)
 	if trace != nil {
 		ctx = context.WithValue(ctx, submitTelemetryContextKey{}, trace)
+		ctx = context.WithValue(ctx, telemetryEventsContextKey{}, &trace.events)
 		defer func() { trace.finish(handle, err) }()
 	}
 	if binding != nil {
