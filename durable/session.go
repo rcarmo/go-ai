@@ -30,6 +30,9 @@ type Session struct {
 	documentExpiry        *sessionTimer
 	setTimer              SetTimer
 	timerReport           func(error)
+	clockReport           func(error)
+	clockFallbackReported atomic.Bool
+	pendingClockFailure   error // Session-line owned; delivered by leave
 	timerFallbackReported atomic.Bool
 	pendingTimers         [2]sessionTimerChange // line-owned fixed slots
 	timerDispatch         sync.WaitGroup
@@ -47,13 +50,14 @@ func OpenSession(store Storage) (*Session, error) {
 
 // SessionOptions.Now supplies Unix milliseconds; omitted uses the wall clock.
 // It runs synchronously on the transaction line and must not reenter the Session.
+// A panic uses the wall clock and reports once, off-line after line release.
 type SessionOptions struct {
 	Now                 func() int64
 	DocumentRetentionMs *int64 // default600000; zero drops idle migrated values
 	// SetTimer may decline background cache expiry; commits/reads still sweep.
 	// Host functions run off-line and must not block or call Close (which joins them).
 	SetTimer SetTimer
-	OnReport func(error) // timer host failures; observer/storage reporting is separate
+	OnReport func(error) // timer/clock host failures; observer/storage reporting is separate
 }
 
 func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, error) {
@@ -80,7 +84,16 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if now == nil {
 		now = func() int64 { return time.Now().UnixMilli() }
 	}
-	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport}
+	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	if options.Now != nil {
+		s.now = func() int64 {
+			value, err := callClock(options.Now)
+			if err != nil && s.clockFallbackReported.CompareAndSwap(false, true) {
+				s.pendingClockFailure = err
+			}
+			return value
+		}
+	}
 	retention := int64(600000)
 	if options.DocumentRetentionMs != nil {
 		retention = *options.DocumentRetentionMs
@@ -122,7 +135,9 @@ func (s *Session) leave() { s.leaveThen(nil) }
 func (s *Session) leaveThen(afterRelease func()) {
 	changes := s.pendingTimers
 	s.pendingTimers = [2]sessionTimerChange{}
-	hasChanges := false
+	clockFailure := s.pendingClockFailure
+	s.pendingClockFailure = nil
+	hasChanges := clockFailure != nil
 	for _, change := range changes {
 		if change.arm != nil {
 			change.arm.started.Store(true)
@@ -140,6 +155,9 @@ func (s *Session) leaveThen(afterRelease func()) {
 	}
 	if afterRelease != nil {
 		afterRelease()
+	}
+	if clockFailure != nil {
+		reportTaskError(s.clockReport, clockFailure)
 	}
 	if hasChanges {
 		for _, change := range changes {

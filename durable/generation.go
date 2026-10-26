@@ -662,10 +662,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				}
 			}
 		}
-		now := time.Now().UnixMilli()
-		if h.options.Now != nil {
-			now = h.options.Now()
-		}
+		now := h.readClock(runtime)
 		promptEntries, err = PlanSystemEntries(view, desired, tools, now, h.session.limits)
 		if err != nil {
 			return err

@@ -137,6 +137,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	s.timerReport = func(err error) {
 		h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "setTimer"})
 	}
+	s.clockReport = func(err error) { h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "now"}) }
 	s.documentRetentionMs = func() int64 {
 		settings := h.resolvedSettings(RequestSettings{})
 		if settings.DocumentRetentionMs == nil {

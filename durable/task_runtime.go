@@ -330,10 +330,7 @@ func (r *TaskRuntime) Now() (int64, error) {
 	if err := r.check(); err != nil {
 		return 0, err
 	}
-	if r.harness.options.Now != nil {
-		return r.harness.options.Now(), nil
-	}
-	return time.Now().UnixMilli(), nil
+	return r.harness.readClock(r), nil
 }
 func (r *TaskRuntime) Report(err error) error { return r.reportFrom(err, nil) }
 

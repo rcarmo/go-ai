@@ -193,5 +193,5 @@ func (p *wakePublisher) update(s *taskScheduler) {
 			alarm.fired.Store(true)
 			s.kick()
 		}
-	}, sleepWakeDelay(s.h.session.now(), at), TimerOptions{})
+	}, sleepWakeDelay(s.h.readClock(nil), at), TimerOptions{})
 }

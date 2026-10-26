@@ -537,3 +537,92 @@ func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
 		})
 	}
 }
+
+func TestReport140ClockPanicOffLineAndReentryBounded(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var bad atomic.Bool
+		var reports atomic.Int64
+		events := make(chan observedReport140, 4)
+		var h *Harness
+		h = openHarness(t, b.store, Options{Now: func() int64 {
+			if bad.Load() {
+				panic("private clock panic")
+			}
+			return 1000
+		}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			reports.Add(1)
+			if _, e := h.Snapshot(bg); e != nil {
+				t.Error(e)
+			}
+			// Another clock read from the reporter must be off-line, and cannot spawn
+			// a reporting feedback loop even while the host clock remains broken.
+			h.session.taskBookkeeping(func() {
+				if h.session.now() <= 0 {
+					t.Error("fallback missing")
+				}
+			})
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}})
+		definition := watchDoc(t, h.session)
+		bad.Store(true)
+		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+			if h.session.now() <= 0 {
+				t.Error("Session clock fallback missing")
+			}
+			document, err := tx.AcquireDocument(definition, 0, nil, nil)
+			if err != nil {
+				return err
+			}
+			return document.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		report := awaitReport140(t, events)
+		if report.info.Type != "host_error" || report.info.Callback != "now" || report.info.Task != nil || reports.Load() != 1 {
+			t.Fatal(report, reports.Load())
+		}
+		bad.Store(false)
+	})
+}
+func TestReport140RuntimeClockPanicKeepsInvocationContext(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var bad atomic.Bool
+		events := make(chan observedReport140, 4)
+		definition := taskDefinition(t, "task.clock-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			bad.Store(true)
+			for i := 0; i < 2; i++ {
+				value, err := r.Now()
+				if err != nil || value < time.Now().Add(-time.Minute).UnixMilli() {
+					t.Error("runtime wall-clock fallback missing", value, err)
+				}
+			}
+			bad.Store(false)
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+		h := taskTestHarnessOptions(t, b.store, Options{Now: func() int64 {
+			if bad.Load() {
+				panic("clock")
+			}
+			return 1000
+		}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}}, definition)
+		id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		report := awaitReport140(t, events)
+		if report.info.Type != "host_error" || report.info.Callback != "now" || report.info.Task == nil || report.info.Task.ID != id {
+			t.Fatal(report)
+		}
+		waitPublicTask(t, h, id)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case extra := <-events:
+			t.Fatal("repeated clock fallback diagnostic", extra)
+		default:
+		}
+	})
+}

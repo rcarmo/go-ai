@@ -74,7 +74,10 @@ type Options struct {
 	// CodemodeNamespaces is copied and validated at Open, then pinned per run.
 	CodemodeNamespaces []CodemodeNamespace
 	Settings           *HarnessSettings
-	Now                func() int64
+	// Now supplies Unix milliseconds and must not reenter Harness/Session APIs.
+	// A panic falls back to the wall clock; one diagnostic per Session prevents
+	// a broken clock and observational reporter from creating a feedback loop.
+	Now func() int64
 	// SetTimer runs off the Session line. A nil cancellation declines the timer.
 	SetTimer SetTimer
 	// OnWake replaces the sleep alarm. It runs off-line and must not block;
