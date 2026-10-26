@@ -665,8 +665,10 @@ func (s *taskScheduler) expectedGenerationStop(runtime *TaskRuntime, err error) 
 }
 
 func (s *taskScheduler) run(runtime *TaskRuntime) {
+	runtime.activeInvocation(1)
 	defer func() {
 		runtime.finishPhase()
+		runtime.activeInvocation(-1)
 		var watches []*DocumentWatch
 		s.h.session.taskBookkeeping(func() { runtime.ended.Store(true); watches = runtime.watches; runtime.watches = nil })
 		// Stop invocation-owned watches before cancelling their acquisition

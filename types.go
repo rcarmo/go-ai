@@ -518,8 +518,10 @@ type TelemetrySpan struct {
 	Metrics       *TelemetryMetrics                                                                   `json:"-"`
 }
 
-// TelemetryMetrics receives low-cardinality pi.ai measurements. Histogram units
-// are milliseconds; counters report tokens and USD. Content is never recorded.
+// TelemetryMetrics receives low-cardinality pi.ai and pi.durable measurements.
+// Histogram units are milliseconds; counters report tokens, USD and event counts.
+// pi.durable.tasks.active uses signed up/down deltas for live host invocations.
+// Content is never recorded.
 type TelemetryMetrics struct {
 	Histogram func(name string, value float64, attributes map[string]any, span *TelemetrySpan)
 	Counter   func(name string, value float64, attributes map[string]any)

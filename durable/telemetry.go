@@ -114,6 +114,16 @@ func (r *TaskRuntime) initTelemetry() {
 	r.telemetry = &invocationTelemetry{root: &copy}
 	r.context = context.WithValue(r.context, telemetryContextKey{}, r.telemetry)
 }
+
+// activeInvocation records signed deltas for the live host invocation, not each
+// phase or durably parked task. Its paired calls run on the retained host, so
+// Close joins the final decrement even when cancellation precedes phase entry.
+func (r *TaskRuntime) activeInvocation(delta float64) {
+	if root := r.harness.options.Telemetry; root != nil && root.Metrics != nil && root.Metrics.Counter != nil {
+		telemetryCall(func() { root.Metrics.Counter("pi.durable.tasks.active", delta, map[string]any{"task": r.kind}) })
+	}
+}
+
 func (r *TaskRuntime) beginPhase(checkpoint JSON) {
 	trace := r.telemetry
 	if trace == nil {

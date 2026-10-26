@@ -25,7 +25,8 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		var mu sync.Mutex
 		var phases []*phaseObservation140
-		var histograms, counters int
+		var histograms, counters, activeCalls int
+		var active float64
 		ended := make(chan struct{}, 8)
 		var clock atomic.Int64
 		clock.Store(1000)
@@ -38,12 +39,23 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 			histograms++
 			mu.Unlock()
 		}, Counter: func(name string, value float64, attributes map[string]any) {
+			mu.Lock()
+			defer mu.Unlock()
+			if name == "pi.durable.tasks.active" {
+				if (value != 1 && value != -1) || len(attributes) != 1 || attributes["task"] != "task.telemetry-140" {
+					t.Error(name, value, attributes)
+				}
+				active += value
+				activeCalls++
+				if active < 0 {
+					t.Error("negative active count", active)
+				}
+				return
+			}
 			if name != "pi.durable.reports" || value != 1 || len(attributes) != 1 || attributes["type"] != "task_error" {
 				t.Error(name, value, attributes)
 			}
-			mu.Lock()
 			counters++
-			mu.Unlock()
 		}}}
 		telemetry.StartSpan = func(name string, attrs map[string]any) *goai.TelemetrySpan {
 			if name != "pi.durable.phase" {
@@ -104,8 +116,8 @@ func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if len(phases) != 3 || histograms != 3 || counters != 1 {
-			t.Fatal(len(phases), histograms, counters)
+		if len(phases) != 3 || histograms != 3 || counters != 1 || active != 0 || activeCalls != 4 {
+			t.Fatal(len(phases), histograms, counters, active, activeCalls)
 		}
 		for i, outcome := range []string{"next=b", "sleeping", "done"} {
 			phase := phases[i]
@@ -529,6 +541,55 @@ func TestTelemetry140NestedTasksInheritCreatingPhaseAndReleaseParents(t *testing
 		defer mu.Unlock()
 		if ancestry["task.parent-carrier-140"] != "root" || ancestry["task.child-carrier-140"] != "task.parent-carrier-140" {
 			t.Fatal(ancestry)
+		}
+	})
+}
+
+func TestTelemetry140ActiveInvocationBalancedOnClose(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var h *Harness
+		var mu sync.Mutex
+		var values []float64
+		entered := make(chan struct{})
+		telemetry := &goai.TelemetrySpan{Metrics: &goai.TelemetryMetrics{Counter: func(name string, value float64, attrs map[string]any) {
+			if name != "pi.durable.tasks.active" {
+				return
+			}
+			if len(attrs) != 1 || attrs["task"] != "task.active-close-140" {
+				t.Error(attrs)
+			}
+			if _, err := h.Snapshot(bg); err != nil {
+				t.Error("metric on mutation line", err)
+			}
+			mu.Lock()
+			values = append(values, value)
+			mu.Unlock()
+		}}}
+		definition := taskDefinition(t, "task.active-close-140", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
+			close(entered)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		h = taskTestHarnessOptions(t, b.store, Options{Telemetry: telemetry}, definition)
+		createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		awaitTaskSignal(t, entered)
+		mu.Lock()
+		if len(values) != 1 || values[0] != 1 {
+			t.Error(values)
+		}
+		mu.Unlock()
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		defer cancel()
+		if err := h.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(values) != 2 || values[0] != 1 || values[1] != -1 {
+			t.Fatal("Close did not balance active counts", values)
 		}
 	})
 }
