@@ -228,6 +228,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		return failOpen(e)
 	}
 	go h.scheduler.loop()
+	h.scheduler.kick() // Publish initial wake metadata without enabling effects.
 	for _, task := range recovered {
 		if h.scheduler.parked(task) {
 			h.scheduler.report(fmt.Errorf("task %d (%s) cut off %d times without progress; parked until RetryTask", task.ID, task.Kind, task.Restarts))

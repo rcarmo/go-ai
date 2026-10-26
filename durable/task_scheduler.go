@@ -71,42 +71,41 @@ func (s *taskScheduler) report(err error) {
 }
 func (s *taskScheduler) loop() {
 	defer close(s.done)
-	var sleepTimer func() // scheduler-loop owned; never mutates task state
-	defer func() {
-		if sleepTimer != nil {
-			sleepTimer()
-		}
-	}()
+	publisher := &wakePublisher{}
+	defer publisher.stopAlarm()
 	for {
 		select {
 		case <-s.h.life.Done():
 			return
 		case <-s.wake:
 		}
-		if s.sealed.Load() || !s.enabled.Load() {
+		if s.sealed.Load() {
 			continue
 		}
-		if err := s.reconcilePass(true); err != nil {
-			if !errors.Is(err, errTaskPassAwaitingWake) {
-				s.report(err)
-			}
-			continue
+		if s.enabled.Load() {
+			func() {
+				if err := s.reconcilePass(true); err != nil {
+					if !errors.Is(err, errTaskPassAwaitingWake) {
+						s.report(err)
+					}
+					return
+				}
+				reservations, err := s.reserve()
+				if err != nil {
+					s.report(err)
+					return
+				}
+				// Publish adopted activity before invoking host task code, so a host
+				// can arm its recovery heartbeat before effects begin.
+				publisher.update(s)
+				for _, runtime := range reservations {
+					go s.run(runtime)
+				}
+				s.updateDiagnostics()
+			}()
 		}
-		reservations, err := s.reserve()
-		if err != nil {
-			s.report(err)
-			continue
-		}
-		for _, runtime := range reservations {
-			go s.run(runtime)
-		}
-		s.updateDiagnostics()
-		if sleepTimer != nil {
-			sleepTimer()
-			sleepTimer = nil
-		}
-		if delay, ok := s.nextSleepDelay(); ok {
-			sleepTimer = s.h.armTimer(s.kick, delay, TimerOptions{})
+		if !s.sealed.Load() {
+			publisher.update(s)
 		}
 	}
 }
