@@ -25,6 +25,8 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 			return ch
 		})
 		options.Now = now.Load
+		wakes := make(chan Wake, 128)
+		options.OnWake = func(w Wake) { wakes <- copyWake(w) }
 		h := openHarness(t, b.store, options)
 		conversation := root(t, h, ref)
 		_, err := h.session.Commit(bg, func(tx *Tx) error {
@@ -52,6 +54,12 @@ func TestCompactionLiveStatusRetrySnapshotReopenAndRemoval(t *testing.T) {
 			t.Fatal(err)
 		}
 		state := waitCompactionCheckpoint(t, h, id, "retry")
+		record, err := CanonicalTask(state.Tasks[id], h.session.limits)
+		if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 3000 {
+			t.Fatal("compaction retry did not durably sleep", record.State, err)
+		}
+		until := int64(3000)
+		awaitWake140(t, wakes, false, &until)
 		var status map[string]any
 		for _, document := range state.Documents {
 			if document.Kind == "pi.live" && document.Owner == conversation.ID() {

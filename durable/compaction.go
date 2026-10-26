@@ -352,9 +352,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 						if err != nil {
 							return nil, err
 						}
-						next["phase"], next["until"], next["attempt"] = "retry", retryDeadline(now, retryDelay(policy, attempt)), attempt+1
+						deadline := retryDeadline(now, retryDelay(policy, attempt))
+						next["phase"], next["until"], next["attempt"] = "retry", deadline, attempt+1
 						next["retryError"] = message.ErrorMessage
-						return &TaskState{Status: "running", Checkpoint: next}, nil
+						return pacedTaskState(next, deadline), nil
 					}
 					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: summaryFailure(message), Detail: &TaskValue{Present: true, Value: JSON{"reason": "model_error"}}}}}, nil
 				}
@@ -365,11 +366,23 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 		},
 		"retry": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			until, err := exactNumber(task.State.Checkpoint["until"])
-			if !err {
+			if !err || !until.IsInt() || !until.Num().IsInt64() {
 				return reject("invalid compaction retry deadline")
 			}
-			if err := r.waitUntil(ctx, until.Num().Int64()); err != nil {
-				return err
+			deadline := until.Num().Int64()
+			now, clockErr := r.Now()
+			if clockErr != nil {
+				return clockErr
+			}
+			if now < deadline {
+				if deadline >= 0 && uint64(deadline) <= MaxID {
+					// Recovered pre-sleep checkpoints, or a clock rollback after
+					// reservation, must yield rather than occupy a host permit.
+					return r.SleepUntil(ctx, deadline, task.State.Checkpoint)
+				}
+				if err := r.waitUntil(ctx, deadline); err != nil {
+					return err
+				}
 			}
 			checkpoint, copyErr := copyObject(task.State.Checkpoint, r.harness.session.limits)
 			if copyErr != nil {
