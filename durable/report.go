@@ -1,6 +1,9 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // ReportTask addresses a durable record; no inputs or checkpoint content belong
 // in reporting metadata.
@@ -57,6 +60,14 @@ func deliverReport(ctx context.Context, err error, info ReportInfo, legacy func(
 	reportTaskError(legacy, err)
 }
 func (h *Harness) report(ctx context.Context, err error, info ReportInfo) {
+	if info.Type != "session_failed" && err != nil && h.session != nil {
+		if failure := h.session.failure(); failure != nil {
+			var failed *SessionFailed
+			if errors.As(err, &failed) && errors.Is(err, failure.(*SessionFailed).Cause) {
+				return
+			}
+		}
+	}
 	deliverReport(ctx, err, info, h.options.OnReport, h.options.OnReportWithInfo)
 }
 func (s TaskRegistrySnapshot) installer(kind string, definition *TaskDefinition) string {
@@ -75,6 +86,49 @@ func (r *TaskRuntime) reportInfo(kind, reason string) ReportInfo {
 	return ReportInfo{Type: kind, Task: &ReportTask{ID: r.taskID, Kind: r.kind, ConversationID: r.conversation}, Extension: r.reportExtension, Reason: reason}
 }
 func (r *TaskRuntime) report(err error, info ReportInfo) { r.harness.report(r.context, err, info) }
+func (r *TaskRuntime) reportExtensionError(err error, extension string) {
+	r.reportError(extensionReportError(err, extension))
+}
+func (r *TaskRuntime) hostCallbackFailure(err error, callback HostCallback) error {
+	info := r.reportInfo("host_error", "")
+	info.Extension = ""
+	info.Callback = callback
+	return &attributedReport{cause: err, info: info, ctx: r.context}
+}
+func (r *TaskRuntime) reportHostError(err error, callback HostCallback) {
+	info := r.reportInfo("host_error", "")
+	info.Extension = ""
+	info.Callback = callback
+	r.report(err, info)
+}
+func (r *TaskRuntime) reportError(err error) {
+	info := r.reportInfo("task_error", "")
+	if attributed, ok := err.(*attributedReport); ok {
+		info = copyReportInfo(attributed.info)
+		if info.Task == nil {
+			info.Task = &ReportTask{ID: r.taskID, Kind: r.kind, ConversationID: r.conversation}
+		}
+		err = attributed.cause
+	}
+	r.report(err, info)
+}
+func extensionReportError(err error, extension string) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*attributedReport); ok {
+		return err
+	}
+	return &attributedReport{cause: err, info: ReportInfo{Type: "extension_error", Extension: extension}}
+}
+func attributedPromptSection(section PromptSection, extension string) PromptSection {
+	original := section
+	section.Render = func(ctx context.Context, input PromptInput) (*string, error) {
+		text, err := renderPromptCallback(ctx, original, input)
+		return text, extensionReportError(err, extension)
+	}
+	return section
+}
 func taskReportInfo(task Task, registry TaskRegistrySnapshot, kind, reason string) ReportInfo {
 	return ReportInfo{Type: kind, Task: &ReportTask{ID: task.ID, Kind: task.Kind, ConversationID: task.Conversation}, Extension: registry.installer(task.Kind, registry.Task(task.Kind)), Reason: reason}
 }

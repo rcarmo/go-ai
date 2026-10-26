@@ -20,7 +20,7 @@ type phaseAgentResolution struct {
 	done  chan struct{}
 	agent TaskAgent
 	err   error
-	hooks []TaskHookRegistration
+	hooks []selectedTaskHook
 }
 
 // Agent resolves once on first use with the phase's registry snapshot and the
@@ -160,17 +160,17 @@ func (r *TaskRuntime) resolvePhaseAgent(resolution *phaseAgentResolution, snapsh
 	if resolution.err != nil {
 		return
 	}
-	resolution.agent, resolution.hooks, resolution.err = r.harness.resolveTaskAgent(agent, snapshot)
+	resolution.agent, resolution.hooks, resolution.err = r.harness.resolveTaskAgent(agent, snapshot, r.reportError)
 }
 
-func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapshot) (TaskAgent, []TaskHookRegistration, error) {
+func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapshot, reports ...func(error)) (TaskAgent, []selectedTaskHook, error) {
 	agent.Settings = h.resolvedSettings(agent.Settings)
 	selected := h.selectionAgent(agent)
 	registry := snapshot.selection
 	if registry == nil {
 		registry = NewRegistry()
 	}
-	enabled, _, sections, _, err := registry.selectedTools(selected, h.session.limits, false, h.scheduler.report)
+	enabled, _, sections, _, err := registry.selectedTools(selected, h.session.limits, false, reports...)
 	if err != nil {
 		return TaskAgent{}, nil, err
 	}
@@ -219,11 +219,13 @@ func (h *Harness) resolveTaskAgent(agent agentState, snapshot TaskRegistrySnapsh
 		return TaskAgent{}, nil, err
 	}
 	extensions := []string{}
-	hooks := []TaskHookRegistration{}
+	hooks := []selectedTaskHook{}
 	registry.mu.RLock()
 	for _, extension := range registry.selectedExtensionsLocked(selected) {
 		extensions = append(extensions, extension.name)
-		hooks = append(hooks, extension.taskHooks...)
+		for _, hook := range extension.taskHooks {
+			hooks = append(hooks, selectedTaskHook{hook, extension.name})
+		}
 	}
 	registry.mu.RUnlock()
 	if agent.ThinkingLevel == "" {

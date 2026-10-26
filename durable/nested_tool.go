@@ -170,7 +170,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 	if err = fromObject(value, &state, l); err != nil {
 		return nil, err
 	}
-	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(state), l, false, r.harness.scheduler.report)
+	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(state), l, false, r.reportError)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 	if err = fromObject(value, &agentState, l); err != nil {
 		return err
 	}
-	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(agentState), l, false, r.harness.scheduler.report)
+	_, pins, _, _, err := r.phaseSelection().selectedTools(r.harness.selectionAgent(agentState), l, false, r.reportError)
 	if err != nil {
 		return err
 	}
@@ -366,7 +366,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 					return ctx.Err()
 				}
 				if e != nil {
-					r.harness.scheduler.report(e)
+					r.reportExtensionError(e, hooks.extension)
 				}
 				return settleNestedTool(ctx, record, r, ToolResult{Content: "Tool blocked", IsError: true}, "blocked", 0)
 			}

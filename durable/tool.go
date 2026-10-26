@@ -1139,7 +1139,7 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 				if runtime.context.Err() != nil {
 					return runtime.context.Err()
 				}
-				h.scheduler.report(err)
+				runtime.reportExtensionError(err, hook.extension)
 			}
 		}
 		if hook.AfterToolEntries != nil {
@@ -1147,7 +1147,7 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 				if runtime.context.Err() != nil {
 					return runtime.context.Err()
 				}
-				h.scheduler.report(err)
+				runtime.reportExtensionError(err, hook.extension)
 			}
 		}
 	}
@@ -1256,7 +1256,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	if registry == nil {
 		registry = NewRegistry()
 	}
-	_, selectedPins, _, _, err := registry.selectedGeneration(h.selectionAgent(parentCheckpoint.Agent), h.session.limits, h.scheduler.report)
+	_, selectedPins, _, _, err := registry.selectedGeneration(h.selectionAgent(parentCheckpoint.Agent), h.session.limits, runtime.reportError)
 	if err != nil {
 		return err
 	}
@@ -1440,7 +1440,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	}
 	api.progress = newRuntimeToolProgress(api.publishProgress, func(err error) {
 		if ctx.Err() == nil {
-			h.scheduler.report(err)
+			runtime.reportError(err)
 		}
 	}, runtime, progressInterval(interval))
 	defer func() { settleProgress(api.pendingProgress, finalErr) }()
@@ -1518,7 +1518,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 					executionError = ctx.Err()
 					break
 				}
-				h.scheduler.report(err)
+				runtime.reportExtensionError(err, hook.extension)
 				continue
 			}
 			if next != nil {

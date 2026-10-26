@@ -334,7 +334,7 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 	}
 	defer func() {
 		if err := closeCodemodeSandbox(vm); err != nil {
-			r.harness.scheduler.report(err)
+			r.reportError(err)
 		}
 	}()
 	allowed := map[string]bool{}

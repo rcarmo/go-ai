@@ -38,7 +38,7 @@ func (h *Harness) nextTask(id ID) (Task, generationCheckpoint, bool, error) {
 func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp generationCheckpoint) (e error) {
 	id := task.Conversation
 	if cp.Abort {
-		h.cancelDeferred(runtime.context, cp)
+		h.cancelDeferred(runtime.context, cp, runtime)
 		return h.drainAborted(task, cp)
 	}
 	if cp.Phase == "tools" {
@@ -141,6 +141,9 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 					fallbackErr := h.finish(task, cp, errorReceipt("invalid_preparation"), false)
 					if fallbackErr == nil {
 						h.notify()
+						if _, attributed := preparationErr.(*attributedReport); attributed {
+							runtime.reportError(preparationErr)
+						}
 					}
 					return fallbackErr
 				}
@@ -199,6 +202,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		return reject("missing pinned model")
 	}
 	local, e := callModelResolver(h.options.Models, cp.Agent.Model)
+	hostFailure := e
 	if e == nil && local == nil {
 		return h.finishGenerationNoModel(task, cp, &generationNoModel{ref: cp.Agent.Model})
 	}
@@ -219,7 +223,11 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		}
 	}
 	if e != nil {
-		return h.finish(task, cp, errorReceipt("model_unavailable"), false)
+		err := h.finish(task, cp, errorReceipt("model_unavailable"), false)
+		if err == nil && hostFailure != nil {
+			runtime.reportHostError(hostFailure, "models")
+		}
+		return err
 	}
 	var options *goai.StreamOptions
 	if h.options.RequestOptions != nil {
@@ -228,7 +236,11 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if h.life.Err() != nil {
 				return e
 			}
-			return h.finish(task, cp, errorReceipt("request_options_unavailable"), false)
+			err := h.finish(task, cp, errorReceipt("request_options_unavailable"), false)
+			if err == nil {
+				runtime.reportHostError(e, "models")
+			}
+			return err
 		}
 	}
 	options, e = cloneOptions(options, h.session.limits)
@@ -284,13 +296,13 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if runtime.context.Err() != nil {
 				return runtime.context.Err()
 			}
-			h.scheduler.report(err)
+			runtime.reportExtensionError(err, hook.extension)
 			continue
 		}
 		if next != nil {
 			owned, err := detachReceipts(next, h.session.limits)
 			if err != nil {
-				h.scheduler.report(err)
+				runtime.reportExtensionError(err, hook.extension)
 				continue
 			}
 			requestMessages = owned
@@ -359,7 +371,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if runtime.context.Err() != nil {
 				return runtime.context.Err()
 			}
-			h.scheduler.report(err)
+			runtime.reportExtensionError(err, hook.extension)
 		}
 	}
 	if success && receipt.StopReason == goai.StopReasonDeferred && receipt.Deferred != nil {
@@ -501,13 +513,13 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				if runtime.context.Err() != nil {
 					return runtime.context.Err()
 				}
-				h.scheduler.report(err)
+				runtime.reportExtensionError(err, hook.extension)
 				continue
 			}
 			if input == nil {
 				continue
 			}
-			continued, err := h.continueYield(runtime, task, cp, receipt, *input)
+			continued, err := h.continueYield(runtime, task, cp, receipt, *input, hook.extension)
 			if err != nil {
 				return err
 			}
@@ -582,7 +594,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	if h.options.RequestOptions != nil {
 		resolved, err := callRequestOptions(h.options.RequestOptions, h.life, cp.Agent.Model)
 		if err != nil {
-			return reject("request options unavailable")
+			return runtime.hostCallbackFailure(reject("request options unavailable"), "models")
 		}
 		if _, err = cloneOptions(resolved, h.session.limits); err != nil {
 			return err
@@ -592,7 +604,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	// credentials are erased from persistence and rehydrated process-locally.
 	local, e := callModelResolver(h.options.Models, cp.Agent.Model)
 	if e != nil {
-		return e
+		return runtime.hostCallbackFailure(e, "models")
 	}
 	if local == nil {
 		return &generationNoModel{ref: cp.Agent.Model}
@@ -608,7 +620,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	model.Headers = nil
 	model.BaseURL = ""
 	cp.Model = model
-	offers, pins, selectedSections, _, e := runtime.phaseSelection().selectedGeneration(h.selectionAgent(cp.Agent), h.session.limits, h.scheduler.report)
+	offers, pins, selectedSections, _, e := runtime.phaseSelection().selectedGeneration(h.selectionAgent(cp.Agent), h.session.limits, runtime.reportError)
 	if e != nil {
 		return e
 	}
@@ -635,9 +647,9 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			if runtime.context.Err() != nil {
 				return runtime.context.Err()
 			}
-			h.scheduler.report(envErr)
+			runtime.reportError(envErr)
 		}
-		desired, err := RenderPromptSections(runtime.context, sections, PromptInput{Env: environment, Read: &InvocationReader{runtime}, Shown: shown, Conversation: task.Conversation, Agent: AgentChange{Name: cp.Agent.Name, Cwd: cp.Agent.Cwd, Model: cp.Agent.Model, ThinkingLevel: cp.Agent.ThinkingLevel, SystemPrompt: cp.Agent.SystemPrompt, Instructions: cp.Agent.Instructions, Settings: cp.Agent.Settings, Extensions: cp.Agent.Extensions, Tools: cp.Agent.Tools, ExtensionFilter: cp.Agent.ExtensionFilter, ToolsRemoved: cp.Agent.ToolsRemoved}, Tools: tools, Messages: messages}, ReplayPromptSections(messages), h.options.OnReport)
+		desired, err := RenderPromptSections(runtime.context, sections, PromptInput{Env: environment, Read: &InvocationReader{runtime}, Shown: shown, Conversation: task.Conversation, Agent: AgentChange{Name: cp.Agent.Name, Cwd: cp.Agent.Cwd, Model: cp.Agent.Model, ThinkingLevel: cp.Agent.ThinkingLevel, SystemPrompt: cp.Agent.SystemPrompt, Instructions: cp.Agent.Instructions, Settings: cp.Agent.Settings, Extensions: cp.Agent.Extensions, Tools: cp.Agent.Tools, ExtensionFilter: cp.Agent.ExtensionFilter, ToolsRemoved: cp.Agent.ToolsRemoved}, Tools: tools, Messages: messages}, ReplayPromptSections(messages), func(err error) { runtime.reportExtensionError(err, "") })
 		if err != nil {
 			return err
 		}
@@ -827,7 +839,11 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 			if readErr == nil && taskAborted(state.Tasks[taskID[0]]) {
 				return
 			}
-			reportTaskError(h.options.OnReport, err)
+			if runtime != nil {
+				runtime.reportError(err)
+			} else {
+				reportTaskError(h.options.OnReport, err)
+			}
 		}
 		if runtime != nil {
 			progress = newRuntimeGenerationProgress(write, report, runtime, progressInterval(interval))

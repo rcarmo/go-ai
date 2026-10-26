@@ -23,7 +23,7 @@ func runNestedAfterHooks(ctx context.Context, r *TaskRuntime, agent agentState, 
 			if ctx.Err() != nil {
 				return ToolResult{}, ctx.Err()
 			}
-			r.harness.scheduler.report(err)
+			r.reportExtensionError(err, hooks.extension)
 			continue
 		}
 		if replacement != nil {

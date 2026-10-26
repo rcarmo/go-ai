@@ -8,7 +8,7 @@ import (
 // Deferred cancellation is best effort host work of the fresh abort invocation.
 // Close leaves the handle pending for reopen. Provider failures are reported but
 // cannot erase the durable abort mark or prevent local bottom-up settlement.
-func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint) {
+func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint, runtime *TaskRuntime) {
 	if cp.Phase != "poll" || cp.Deferred == nil || cp.Model == nil {
 		return
 	}
@@ -21,12 +21,12 @@ func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint) {
 		if err == nil {
 			err = reject("deferred cancellation model unavailable")
 		}
-		h.scheduler.report(err)
+		runtime.reportHostError(err, "models")
 		return
 	}
 	model, err := cloneModel(cp.Model, h.session.limits)
 	if err != nil {
-		h.scheduler.report(err)
+		runtime.reportError(err)
 		return
 	}
 	model.BaseURL, model.APIKey = local.BaseURL, local.APIKey
@@ -38,19 +38,19 @@ func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint) {
 	if h.options.RequestOptions != nil {
 		options, err = callRequestOptions(h.options.RequestOptions, ctx, cp.Agent.Model)
 		if err != nil {
-			h.scheduler.report(err)
+			runtime.reportHostError(err, "models")
 			return
 		}
 	}
 	options, err = cloneOptions(options, h.session.limits)
 	if err != nil {
-		h.scheduler.report(err)
+		runtime.reportError(err)
 		return
 	}
 	options.Deferred = cp.Agent.Settings.Deferred
 	err = callDeferredCancel(ctx, model, *cp.Deferred, options)
 	if err != nil {
-		h.scheduler.report(err)
+		runtime.reportHostError(err, "models")
 	}
 }
 func callDeferredCancel(ctx context.Context, model *goai.Model, handle goai.DeferredHandle, options *goai.StreamOptions) (err error) {

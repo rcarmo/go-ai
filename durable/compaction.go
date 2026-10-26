@@ -155,7 +155,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					if ctx.Err() != nil {
 						return ctx.Err()
 					}
-					h.scheduler.report(err)
+					r.reportExtensionError(err, hook.extension)
 					continue
 				}
 				if decision == nil {
@@ -169,7 +169,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				if decision.Summary != nil {
 					summary := *decision.Summary
 					if strings.TrimSpace(summary) == "" || len(summary) > h.session.limits.MaxStringBytes {
-						h.scheduler.report(reject("invalid compaction hook summary"))
+						r.reportExtensionError(reject("invalid compaction hook summary"), hook.extension)
 						continue
 					}
 					return r.Commit(ctx, func(tx *Tx, current TaskRecord) (*TaskState, error) {

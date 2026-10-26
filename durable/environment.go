@@ -95,7 +95,7 @@ func resolveInvocationEnvironment(ctx context.Context, h *Harness, runtime *Task
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		reportTaskError(h.options.OnReport, err)
+		runtime.reportHostError(err, "env")
 		return nil, reject("environment callback failed")
 	}
 	if err := runtime.check(); err != nil {

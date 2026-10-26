@@ -51,6 +51,21 @@ type ToolHooks struct {
 type CompactionHooks struct {
 	BeforeCompact func(context.Context, CompactionInput, *HookAPI) (*CompactionDecision, error)
 }
+
+// Private selections keep provenance without changing the public hook structs.
+type selectedGenerationHook struct {
+	GenerationHooks
+	extension string
+}
+type selectedToolHook struct {
+	ToolHooks
+	extension string
+}
+type selectedCompactionHook struct {
+	CompactionHooks
+	extension string
+}
+
 type CompactionInput struct {
 	Reason       string
 	Entries      []Entry
@@ -131,13 +146,13 @@ func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt,
 	}
 	return copy.Messages, nil
 }
-func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
+func (r *Registry) selectedGeneration(agent agentState, limits Limits, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []selectedGenerationHook, error) {
 	return r.selectedTools(agent, limits, true, reports...)
 }
 
 // selectedTools composes enabled registrations before optional model-offer
 // filtering. Wrappers run once per selection, outside registry locks.
-func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []GenerationHooks, error) {
+func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool, reports ...func(error)) ([]toolOffer, map[string]registeredTool, []PromptSection, []selectedGenerationHook, error) {
 	r.mu.RLock()
 	extensions := append([]installedExtension(nil), r.selectedExtensionsLocked(agent)...)
 	selected := func(names *[]string, name string) bool {
@@ -161,7 +176,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 		known[name] = true
 	}
 	sections := []PromptSection{}
-	hooks := []GenerationHooks{}
+	hooks := []selectedGenerationHook{}
 	for _, extension := range extensions {
 		for _, name := range extension.toolOrder {
 			tools[name] = extension.tools[name]
@@ -171,6 +186,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 			}
 		}
 		for _, section := range extension.sections {
+			section = attributedPromptSection(section, extension.name)
 			index := -1
 			for i, existing := range sections {
 				if existing.Key == section.Key {
@@ -184,7 +200,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 				sections[index] = section
 			}
 		}
-		hooks = append(hooks, extension.hooks)
+		hooks = append(hooks, selectedGenerationHook{extension.hooks, extension.name})
 	}
 	r.mu.RUnlock()
 	// Host callbacks may reenter the registry. Compose from captured definitions,
@@ -199,7 +215,7 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 				next, err := applyToolWrap(wrap, tool, limits)
 				if err != nil {
 					delete(tools, wrap.Tool)
-					reportSelectionError(reports, err)
+					reportSelectionError(reports, extensionReportError(err, extension.name))
 				} else {
 					tools[wrap.Tool] = next
 				}
@@ -217,9 +233,9 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 				next, err := applySectionWrap(wrap, sections[index])
 				if err != nil {
 					sections = append(sections[:index], sections[index+1:]...)
-					reportSelectionError(reports, err)
+					reportSelectionError(reports, extensionReportError(err, extension.name))
 				} else {
-					sections[index] = next
+					sections[index] = attributedPromptSection(next, extension.name)
 				}
 			}
 		}
@@ -284,12 +300,12 @@ func (r *Registry) selectedTools(agent agentState, limits Limits, modelOnly bool
 	return offers, pins, sections, hooks, nil
 }
 
-func (r *Registry) selectedToolHooks(agent agentState) []ToolHooks {
+func (r *Registry) selectedToolHooks(agent agentState) []selectedToolHook {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	hooks := []ToolHooks{}
+	hooks := []selectedToolHook{}
 	for _, extension := range r.selectedExtensionsLocked(agent) {
-		hooks = append(hooks, extension.toolHooks)
+		hooks = append(hooks, selectedToolHook{extension.toolHooks, extension.name})
 	}
 	return hooks
 }
@@ -376,13 +392,13 @@ func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt,
 	}()
 	return hook(ctx, message, &HookAPI{r})
 }
-func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCheckpoint, message MessageReceipt, input Input) (continued bool, err error) {
+func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCheckpoint, message MessageReceipt, input Input, extension string) (continued bool, err error) {
 	if input.Type != "" && input.Type != "follow-up" || input.Entry != nil || input.RequestID != "" {
-		h.scheduler.report(reject("invalid onYield continuation"))
+		runtime.reportExtensionError(reject("invalid onYield continuation"), extension)
 		return false, nil
 	}
 	if len(input.Content) > h.session.limits.MaxStringBytes {
-		h.scheduler.report(reject("onYield continuation too large"))
+		runtime.reportExtensionError(reject("onYield continuation too large"), extension)
 		return false, nil
 	}
 	_, err = h.session.invocationCommit(runtime.context, task.ID, func(tx *Tx) error {
@@ -470,22 +486,22 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 	return continued, err
 }
 
-func (r *Registry) selectedHooks(agent agentState) []GenerationHooks {
+func (r *Registry) selectedHooks(agent agentState) []selectedGenerationHook {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	hooks := []GenerationHooks{}
+	hooks := []selectedGenerationHook{}
 	for _, extension := range r.selectedExtensionsLocked(agent) {
-		hooks = append(hooks, extension.hooks)
+		hooks = append(hooks, selectedGenerationHook{extension.hooks, extension.name})
 	}
 	return hooks
 }
 
-func (r *Registry) selectedCompactionHooks(agent agentState) []CompactionHooks {
+func (r *Registry) selectedCompactionHooks(agent agentState) []selectedCompactionHook {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	hooks := []CompactionHooks{}
+	hooks := []selectedCompactionHook{}
 	for _, extension := range r.selectedExtensionsLocked(agent) {
-		hooks = append(hooks, extension.compactionHooks)
+		hooks = append(hooks, selectedCompactionHook{extension.compactionHooks, extension.name})
 	}
 	return hooks
 }
