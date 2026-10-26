@@ -74,7 +74,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		return h.sessionPrepareAfterCompaction(runtime, task, cp)
 	}
 	if cp.Phase == "retry" {
-		if err := runtime.waitUntil(runtime.context, cp.RetryUntil); err != nil {
+		if yielded, err := runtime.waitGenerationDeadline(cp.RetryUntil); yielded || err != nil {
 			return err
 		}
 		// A durable retry starts a new logical attempt from current committed
@@ -91,6 +91,13 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			}
 			return tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {
+			return err
+		}
+	}
+	if cp.Phase == "poll" && cp.Deferred != nil {
+		// Migrate pre-sleep checkpoints before resolving live credentials or
+		// building a request. The later guard also handles clock rollback.
+		if yielded, err := runtime.waitGenerationDeadline(cp.PollAt); yielded || err != nil {
 			return err
 		}
 	}
@@ -308,7 +315,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		if cp.Deferred == nil {
 			return h.finish(task, cp, errorReceipt("invalid_deferred_handle"), false)
 		}
-		if err := runtime.waitUntil(runtime.context, cp.PollAt); err != nil {
+		if yielded, err := runtime.waitGenerationDeadline(cp.PollAt); yielded || err != nil {
 			return err
 		}
 		message, err := goai.FetchDeferred(runtime.context, model, *cp.Deferred, options)
@@ -386,6 +393,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				return err
 			}
 			owned.Status, owned.Checkpoint = "pending", checkpoint
+			sleepGeneration(&owned)
 			return tx.stage(Write{Op: "put-task", Task: &owned})
 		})
 		return err
@@ -474,6 +482,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				return err
 			}
 			owned.Status, owned.Checkpoint = "pending", checkpoint
+			sleepGeneration(&owned)
 			return tx.stage(Write{Op: "put-task", Task: &owned})
 		})
 		return err

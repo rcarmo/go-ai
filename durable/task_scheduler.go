@@ -164,7 +164,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	if taskAborted(task) && task.Kind != "pi.tool" {
 		return len(s.ownedLive(state, task.ID)) == 0
 	}
-	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "sleeping" && *task.Execution.Native.State.Until > s.h.session.now() {
+	if until, sleeping := taskSleepDeadline(task); sleeping && until > s.h.session.now() {
 		return false
 	}
 	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {

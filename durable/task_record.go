@@ -309,6 +309,12 @@ func validateTaskRecord(task Task, l Limits) error {
 		if terminalStatus(task.Status) && builtin.Memos != nil {
 			return reject("terminal builtin has memos")
 		}
+		if task.Status == "sleeping" {
+			until, valid := generationPacingDeadline(task)
+			if !valid || until < 0 || uint64(until) > MaxID {
+				return reject("invalid builtin sleep checkpoint/deadline")
+			}
+		}
 	default:
 		return reject("unsupported task execution tag")
 	}

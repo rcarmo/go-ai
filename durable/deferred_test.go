@@ -36,7 +36,8 @@ func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 		}}
 		goai.RegisterApi(provider)
 		t.Cleanup(func() { goai.UnregisterApi(api) })
-		options := Options{Now: clock.Load, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
+		wakes := make(chan Wake, 128)
+		options := Options{Now: clock.Load, OnWake: func(w Wake) { wakes <- copyWake(w) }, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }}
 		first := openHarness(t, b.store, options)
 		conversation, err := first.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "durable-test"}, Settings: RequestSettings{Deferred: &goai.DeferredOptions{PollAfterMs: 1000}}})
 		if err != nil {
@@ -65,6 +66,12 @@ func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 						if cp.PollAt != 2000 || cp.Deferred.ID != "job" {
 							t.Fatal(cp)
 						}
+						record, err := CanonicalTask(task, first.session.limits)
+						if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 2000 {
+							t.Fatal("poll did not persist sleep", record.State, err)
+						}
+						until := int64(2000)
+						awaitWake140(t, wakes, false, &until)
 					}
 				}
 			}

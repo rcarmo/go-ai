@@ -24,6 +24,8 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 			return ch
 		})
 		options.Now = clock.Load
+		wakes := make(chan Wake, 128)
+		options.OnWake = func(w Wake) { wakes <- copyWake(w) }
 		first := openHarness(t, b.store, options)
 		conversation, err := first.Root(bg, AgentChange{Model: ref, Settings: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 1, BaseDelayMs: 1000, MaxDelayMs: 60000}}})
 		if err != nil {
@@ -52,6 +54,12 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 						if cp.RetryUntil != 2000 || cp.RetryCount != 1 {
 							t.Fatal(cp)
 						}
+						record, err := CanonicalTask(task, first.session.limits)
+						if err != nil || record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 2000 {
+							t.Fatal("retry did not persist sleep", record.State, err)
+						}
+						until := int64(2000)
+						awaitWake140(t, wakes, false, &until)
 					}
 				}
 			}

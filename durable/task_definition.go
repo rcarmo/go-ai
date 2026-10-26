@@ -365,6 +365,9 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 		return view, nil
 	}
 	view.State = TaskState{Status: owned.Status, Checkpoint: owned.Checkpoint}
+	if until, sleeping := taskSleepDeadline(owned); sleeping {
+		view.State.Until = &until
+	}
 	if owned.Execution != nil && owned.Execution.Builtin != nil {
 		builtin := owned.Execution.Builtin
 		view.AbortRequested = builtin.AbortRequested
