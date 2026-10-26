@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/images"
+	"reflect"
 )
 
 // ModelRef selects a process-local provider. Intent also persists a sanitized
@@ -152,40 +153,27 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 	behavior.OnResponse = nil
 	behavior.OnResponseWithTelemetry = nil
 	behavior.OnProviderStreamEvent = nil
-	encoded, e := encodeBounded(behavior, l, l.MaxRecordBytes)
-	if e != nil {
-		return nil, e
+	// Inspect only the trusted StreamOptions envelope. No caller JSON hook is
+	// invoked, including the optional ClientIdentity marshaler when nil. Every
+	// nonempty behavior field (including future additions) still fails closed.
+	v := reflect.ValueOf(behavior)
+	for i := 0; i < v.NumField(); i++ {
+		if v.Type().Field(i).Tag.Get("json") == "-" {
+			continue
+		}
+		f := v.Field(i)
+		empty := false
+		switch f.Kind() {
+		case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+			empty = f.Len() == 0
+		case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64, reflect.Interface, reflect.Pointer:
+			empty = f.IsZero()
+		}
+		if !empty {
+			return nil, reject("unsupported unpinned request behavior")
+		}
 	}
-	var fields JSON
-	if e = decodeStrict(encoded, l, l.MaxRecordBytes, &fields); e != nil {
-		return nil, e
-	}
-	if len(fields) != 0 {
-		return nil, reject("unsupported unpinned request behavior")
-	}
-	n := *o
-	// Remove executable/credential fields only from the temporary copy used to
-	// detach DTO fields. They are restored exclusively to process-local memory.
-	data := *o
-	data.APIKey = ""
-	data.Headers = nil
-	data.Env = nil
-	data.BearerToken = ""
-	data.Telemetry = nil
-	data.OnPayload = nil
-	data.OnPayloadWithTelemetry = nil
-	data.OnResponse = nil
-	data.OnResponseWithTelemetry = nil
-	data.OnProviderStreamEvent = nil
-	p, e := encodeBounded(data, l, l.MaxRecordBytes)
-	if e != nil {
-		return nil, e
-	}
-	var detached goai.StreamOptions
-	if e = decodeStrict(p, l, l.MaxRecordBytes, &detached); e != nil {
-		return nil, e
-	}
-	n = detached
+	n := goai.StreamOptions{}
 	n.APIKey = o.APIKey
 	n.BearerToken = o.BearerToken
 	n.Headers = make(map[string]string, len(o.Headers))
