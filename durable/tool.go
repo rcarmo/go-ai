@@ -1438,11 +1438,11 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	if settings := h.resolvedSettings(RequestSettings{}).Progress; settings.OutputIntervalMs != nil {
 		interval = *settings.OutputIntervalMs
 	}
-	api.progress = newToolProgressInterval(api.publishProgress, func(err error) {
+	api.progress = newRuntimeToolProgress(api.publishProgress, func(err error) {
 		if ctx.Err() == nil {
 			h.scheduler.report(err)
 		}
-	}, time.Now, time.After, progressInterval(interval))
+	}, runtime, progressInterval(interval))
 	defer func() { settleProgress(api.pendingProgress, finalErr) }()
 	var result ToolResult
 	var executionError error

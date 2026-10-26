@@ -20,20 +20,46 @@ type toolProgress struct {
 	write          func() (int, error)
 	report         func(error)
 	now            func() time.Time
-	after          func(time.Duration) <-chan time.Time
+	arm            func(time.Duration) (<-chan time.Time, func(), error)
 	interval       time.Duration
 }
 
 func newToolProgress(write func() (int, error), report func(error)) *toolProgress {
-	return newToolProgressClock(write, report, time.Now, time.After)
+	return newToolProgressTimer(write, report, time.Now, func(delay time.Duration) (<-chan time.Time, func(), error) {
+		timer := time.NewTimer(delay)
+		return timer.C, func() { timer.Stop() }, nil
+	}, 100*time.Millisecond)
 }
 func newToolProgressClock(write func() (int, error), report func(error), now func() time.Time, after func(time.Duration) <-chan time.Time) *toolProgress {
 	return newToolProgressInterval(write, report, now, after, 100*time.Millisecond)
 }
 func newToolProgressInterval(write func() (int, error), report func(error), now func() time.Time, after func(time.Duration) <-chan time.Time, interval time.Duration) *toolProgress {
-	p := &toolProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), write: write, report: report, now: now, after: after}
+	return newToolProgressTimer(write, report, now, func(delay time.Duration) (<-chan time.Time, func(), error) {
+		return after(delay), func() {}, nil
+	}, interval)
+}
+func newToolProgressTimer(write func() (int, error), report func(error), now func() time.Time, arm func(time.Duration) (<-chan time.Time, func(), error), interval time.Duration) *toolProgress {
+	p := &toolProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), write: write, report: report, now: now, arm: arm}
 	go p.run()
 	return p
+}
+func newRuntimeToolProgress(write func() (int, error), report func(error), runtime *TaskRuntime, interval time.Duration) *toolProgress {
+	var last time.Time // only the progress worker reads the clock
+	return newToolProgressTimer(write, report, func() time.Time {
+		if ms, err := runtime.Now(); err == nil {
+			last = time.UnixMilli(ms)
+		}
+		return last
+	}, func(delay time.Duration) (<-chan time.Time, func(), error) {
+		ticks := make(chan time.Time, 1)
+		cancel, err := runtime.SetTimer(func() {
+			select {
+			case ticks <- time.Time{}:
+			default:
+			}
+		}, delay, TimerOptions{})
+		return ticks, cancel, err
+	}, interval)
 }
 func (p *toolProgress) mark(wait bool) progressWaiter {
 	p.mu.Lock()
@@ -89,6 +115,7 @@ func progressInterval(ms int64) time.Duration {
 func (p *toolProgress) run() {
 	defer close(p.done)
 	var next time.Time
+	paced := false
 	for {
 		select {
 		case <-p.halt:
@@ -105,12 +132,38 @@ func (p *toolProgress) run() {
 			if !dirty {
 				break
 			}
-			if delay := next.Sub(p.now()); delay > 0 {
+			armFailed := false
+			for paced {
+				delay := next.Sub(p.now())
+				if delay <= 0 {
+					break
+				}
+				ticks, disarm, err := p.arm(delay)
+				if err != nil {
+					p.mu.Lock()
+					waiters := p.waiters
+					p.waiters = nil
+					p.dirty = false
+					p.mu.Unlock()
+					settleProgress(waiters, err)
+					if p.report != nil {
+						p.report(err)
+					}
+					armFailed = true
+					break
+				}
 				select {
 				case <-p.halt:
+					disarm()
 					return
-				case <-p.after(delay):
+				case <-ticks:
+					disarm()
 				}
+				// A host timer may fire early. Recheck the same clock rather
+				// than flushing before the size/minimum spacing has elapsed.
+			}
+			if armFailed {
+				break
 			}
 			p.mu.Lock()
 			if p.stopped {
@@ -123,6 +176,7 @@ func (p *toolProgress) run() {
 			p.mu.Unlock()
 			started := p.now()
 			bytes, err := p.write()
+			paced = true
 			next = started.Add(progressDelayInterval(bytes, p.interval))
 			if err != nil {
 				next = started.Add(p.interval)
