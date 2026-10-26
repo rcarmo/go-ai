@@ -98,10 +98,10 @@ func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		if err != nil {
 			return err
 		}
-		if state.Status != "running" && state.Status != "waiting" && state.Status != "terminal" {
+		if state.Status != "running" && state.Status != "waiting" && state.Status != "sleeping" && state.Status != "terminal" {
 			return reject("runtime next state union")
 		}
-		if state.Status == "waiting" && r.abortMode {
+		if (state.Status == "waiting" || state.Status == "sleeping") && r.abortMode {
 			return reject("abort handler cannot wait")
 		}
 		if state.Outcome != nil && (state.Outcome.Status == "faulted" || state.Outcome.Status == "orphaned") {
@@ -339,7 +339,17 @@ func (r *TaskRuntime) Report(err error) error {
 	r.harness.scheduler.report(err)
 	return nil
 }
-func (r *TaskRuntime) SleepUntil(ctx context.Context, until int64) error {
+
+// SleepUntil atomically stores a sleeping continuation and ends this invocation.
+// The phase must return immediately afterwards; it resumes at checkpoint once due.
+func (r *TaskRuntime) SleepUntil(ctx context.Context, until int64, checkpoint JSON) error {
+	return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+		return &TaskState{Status: "sleeping", Until: &until, Checkpoint: checkpoint}, nil
+	})
+}
+
+// waitUntil is legacy builtin pacing, pending conversion to durable continuations.
+func (r *TaskRuntime) waitUntil(ctx context.Context, until int64) error {
 	if err := r.check(); err != nil {
 		return err
 	}

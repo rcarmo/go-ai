@@ -956,6 +956,9 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 					item.Reason = "legacy_raw_task"
 				}
 			}
+			if item.Kind == "ready" && !taskAborted(task) && view.State.Status == "sleeping" {
+				item.Kind, item.Until = "sleeping", view.State.Until
+			}
 			result.Tasks = append(result.Tasks, item)
 		}
 		return nil

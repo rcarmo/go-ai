@@ -615,7 +615,7 @@ func validKind(s string) bool {
 }
 func validStatus(s string) bool {
 	switch s {
-	case "pending", "running", "waiting", "completing", "done", "failed", "aborted":
+	case "pending", "running", "waiting", "sleeping", "completing", "done", "failed", "aborted":
 		return true
 	}
 	return false

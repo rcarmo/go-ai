@@ -2461,7 +2461,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		if err := captured.Commit(bg, func(*Tx, TaskRecord) (*TaskState, error) { t.Error("ended callback ran"); return taskDone(nil), nil }); !errors.Is(err, ErrSealed) {
 			t.Fatal("ended commit", err)
 		}
-		if err := captured.SleepUntil(bg, 0); !errors.Is(err, ErrSealed) {
+		if err := captured.waitUntil(bg, 0); !errors.Is(err, ErrSealed) {
 			t.Fatal("ended sleep", err)
 		}
 		if _, err := captured.WatchDefinition(bg, notes, 1, nil); !errors.Is(err, ErrSealed) {
@@ -2480,13 +2480,13 @@ func TestTaskSchedulerSleepClockAndCancellation(t *testing.T) {
 				var reads atomic.Int64
 				var cancelled atomic.Bool
 				def := taskDefinition(t, "task.sleep.control", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
-					if err := r.SleepUntil(ctx, 900); err != nil {
+					if err := r.waitUntil(ctx, 900); err != nil {
 						return err
 					}
 					if mode == "caller-cancel" {
 						caller, cancel := context.WithCancel(ctx)
 						cancel()
-						if err := r.SleepUntil(caller, 60000); !errors.Is(err, context.Canceled) {
+						if err := r.waitUntil(caller, 60000); !errors.Is(err, context.Canceled) {
 							return errors.New("sleep caller cancellation lost")
 						}
 						cancelled.Store(true)
@@ -2497,7 +2497,7 @@ func TestTaskSchedulerSleepClockAndCancellation(t *testing.T) {
 					if mode == "invocation-mark" {
 						deadline = 60000
 					}
-					err := r.SleepUntil(ctx, deadline)
+					err := r.waitUntil(ctx, deadline)
 					if mode == "invocation-mark" {
 						if errors.Is(err, context.Canceled) || errors.Is(err, ErrSealed) {
 							cancelled.Store(true)
@@ -3184,9 +3184,9 @@ func TestTaskSchedulerSleepFullClockRangeAndCancelledPast(t *testing.T) {
 					var err error
 					if variant == "nil-context" {
 						//lint:ignore SA1012 Intentional nil-context rejection boundary test.
-						err = r.SleepUntil(nil, deadline)
+						err = r.waitUntil(nil, deadline)
 					} else {
-						err = r.SleepUntil(caller, deadline)
+						err = r.waitUntil(caller, deadline)
 					}
 					if variant == "extreme-past" {
 						if err != nil {

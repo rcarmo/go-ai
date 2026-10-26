@@ -169,6 +169,7 @@ type TaskOutcome struct {
 // TaskState is a strict union. Live states own an object checkpoint. Outcomes
 // have no checkpoint/memos; waiting additionally owns On and Policy.
 type TaskState struct {
+	Until      *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds
 	Status     string       `json:"status"`
 	Checkpoint JSON         `json:"checkpoint,omitempty"`
 	On         []ID         `json:"on,omitempty"`
@@ -249,7 +250,8 @@ type TaskOptions struct {
 
 type TaskInspection struct {
 	Record   TaskRecord
-	Kind     string // ready, running, waiting, completing, blocked
+	Kind     string // ready, running, waiting, sleeping, completing, blocked
+	Until    *int64
 	Reason   string
 	Migrates bool
 	On       []ID

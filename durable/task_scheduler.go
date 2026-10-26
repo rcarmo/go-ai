@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // taskScheduler is the sole task reservation/cancellation/join owner. All maps
@@ -71,6 +72,12 @@ func (s *taskScheduler) report(err error) {
 }
 func (s *taskScheduler) loop() {
 	defer close(s.done)
+	var sleepTimer *time.Timer // scheduler-loop owned; never mutates task state
+	defer func() {
+		if sleepTimer != nil {
+			sleepTimer.Stop()
+		}
+	}()
 	for {
 		select {
 		case <-s.h.life.Done():
@@ -95,6 +102,13 @@ func (s *taskScheduler) loop() {
 			go s.run(runtime)
 		}
 		s.updateDiagnostics()
+		if sleepTimer != nil {
+			sleepTimer.Stop()
+			sleepTimer = nil
+		}
+		if delay, ok := s.nextSleepDelay(); ok {
+			sleepTimer = time.AfterFunc(delay, s.kick)
+		}
 	}
 }
 func (s *taskScheduler) updateDiagnostics() {
@@ -151,6 +165,9 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	}
 	if taskAborted(task) && task.Kind != "pi.tool" {
 		return len(s.ownedLive(state, task.ID)) == 0
+	}
+	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "sleeping" && *task.Execution.Native.State.Until > s.h.session.now() {
+		return false
 	}
 	if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {
 		for _, id := range task.Execution.Native.State.On {
@@ -426,6 +443,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				task.Execution.Native.State.Status = "running"
 				task.Execution.Native.State.On = nil
 				task.Execution.Native.State.Policy = ""
+				task.Execution.Native.State.Until = nil
 			}
 			if err := tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 				return false, err
@@ -1160,7 +1178,7 @@ func (s *taskScheduler) adopt(_ uint64, tx *Tx) {
 					delete(s.failed, write.Task.ID)
 					delete(s.failures, write.Task.ID)
 				}
-				if terminalStatus(write.Task.Status) || taskHasDecidedOutcome(*write.Task) || write.Task.Status == "waiting" {
+				if terminalStatus(write.Task.Status) || taskHasDecidedOutcome(*write.Task) || write.Task.Status == "waiting" || write.Task.Status == "sleeping" {
 					s.endOnLine(r)
 				}
 			}

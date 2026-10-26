@@ -23,6 +23,7 @@ type TaskGraphNode struct {
 	Conversations  []ID           `json:"conversations"`
 }
 type TaskGraphState struct {
+	Until   *int64 `json:"until,omitempty"`
 	Status  string `json:"status"`
 	Phase   string `json:"phase,omitempty"`
 	On      []ID   `json:"on,omitempty"`
@@ -35,7 +36,7 @@ func graphNode(task Task, conversations []ID, limits Limits) (TaskGraphNode, err
 	if err != nil {
 		return TaskGraphNode{}, err
 	}
-	state := TaskGraphState{Status: record.State.Status}
+	state := TaskGraphState{Status: record.State.Status, Until: record.State.Until}
 	if record.State.Outcome != nil {
 		state.Outcome = record.State.Outcome.Status
 	} else {
@@ -71,6 +72,10 @@ func copyTaskGraph(graph TaskGraph) TaskGraph {
 	for key, node := range graph.Tasks {
 		node.Conversations = append([]ID{}, node.Conversations...)
 		node.State.On = append([]ID(nil), node.State.On...)
+		if node.State.Until != nil {
+			until := *node.State.Until
+			node.State.Until = &until
+		}
 		result.Tasks[key] = node
 	}
 	return result

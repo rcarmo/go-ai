@@ -74,7 +74,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		return h.sessionPrepareAfterCompaction(runtime, task, cp)
 	}
 	if cp.Phase == "retry" {
-		if err := runtime.SleepUntil(runtime.context, cp.RetryUntil); err != nil {
+		if err := runtime.waitUntil(runtime.context, cp.RetryUntil); err != nil {
 			return err
 		}
 		// A durable retry starts a new logical attempt from current committed
@@ -308,7 +308,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		if cp.Deferred == nil {
 			return h.finish(task, cp, errorReceipt("invalid_deferred_handle"), false)
 		}
-		if err := runtime.SleepUntil(runtime.context, cp.PollAt); err != nil {
+		if err := runtime.waitUntil(runtime.context, cp.PollAt); err != nil {
 			return err
 		}
 		message, err := goai.FetchDeferred(runtime.context, model, *cp.Deferred, options)

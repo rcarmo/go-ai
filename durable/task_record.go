@@ -104,6 +104,10 @@ func copyTaskMemos(memos map[string]*TaskValue, l Limits) (map[string]*TaskValue
 }
 
 func copyTaskState(state TaskState, l Limits) (TaskState, error) {
+	if state.Until != nil {
+		until := *state.Until
+		state.Until = &until
+	}
 	if state.Checkpoint != nil {
 		checkpoint, err := copyObject(state.Checkpoint, l)
 		if err != nil {
@@ -192,8 +196,14 @@ func validateTaskOutcome(outcome *TaskOutcome) error {
 }
 
 func validateTaskState(state TaskState) error {
+	if state.Status != "sleeping" && state.Until != nil {
+		return reject("nonsleeping task has deadline")
+	}
 	switch state.Status {
-	case "pending", "running", "waiting":
+	case "pending", "running", "waiting", "sleeping":
+		if state.Status == "sleeping" && (state.Until == nil || *state.Until < 0 || uint64(*state.Until) > MaxID) {
+			return reject("invalid task sleep deadline")
+		}
 		phase, ok := state.Checkpoint["phase"].(string)
 		if state.Checkpoint == nil || !ok || !validKind(phase) || state.Outcome != nil {
 			return reject("live task state union")
@@ -260,6 +270,9 @@ func validateTaskRecord(task Task, l Limits) error {
 		}
 	}
 	if task.Execution == nil {
+		if task.Status == "sleeping" {
+			return reject("legacy raw task cannot sleep")
+		}
 		return nil // exact legacy object-checkpoint contract, no inferred envelope
 	}
 	switch task.Execution.Tag {

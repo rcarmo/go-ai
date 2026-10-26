@@ -368,7 +368,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if !err {
 				return reject("invalid compaction retry deadline")
 			}
-			if err := r.SleepUntil(ctx, until.Num().Int64()); err != nil {
+			if err := r.waitUntil(ctx, until.Num().Int64()); err != nil {
 				return err
 			}
 			checkpoint, copyErr := copyObject(task.State.Checkpoint, r.harness.session.limits)
