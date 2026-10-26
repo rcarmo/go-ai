@@ -13,21 +13,22 @@ import (
 // Harness runs persistent model generations and their owned host tools. Opening never starts
 // provider effects. Explicit Submit/Resume/Wait may schedule committed work.
 type Harness struct {
-	session           *Session
-	scheduler         *taskScheduler
-	options           Options
-	hostSettings      atomic.Pointer[HarnessSettings]
-	life              context.Context
-	cancel            context.CancelFunc
-	mu                sync.Mutex
-	closing           atomic.Bool
-	workers           map[ID]bool
-	pins              map[ID]map[string]registeredTool
-	closeOnce         sync.Once
-	closeDone         chan struct{}
-	closeErr          error
-	changed           chan struct{}
-	submissionWaiters map[ID]map[chan struct{}]bool // Session-line owned; bounded registrations.
+	session               *Session
+	scheduler             *taskScheduler
+	options               Options
+	hostSettings          atomic.Pointer[HarnessSettings]
+	life                  context.Context
+	cancel                context.CancelFunc
+	mu                    sync.Mutex
+	closing               atomic.Bool
+	timerFallbackReported atomic.Bool
+	workers               map[ID]bool
+	pins                  map[ID]map[string]registeredTool
+	closeOnce             sync.Once
+	closeDone             chan struct{}
+	closeErr              error
+	changed               chan struct{}
+	submissionWaiters     map[ID]map[chan struct{}]bool // Session-line owned; bounded registrations.
 }
 type ConversationHandle struct {
 	h  *Harness

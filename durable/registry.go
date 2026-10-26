@@ -75,6 +75,8 @@ type Options struct {
 	CodemodeNamespaces []CodemodeNamespace
 	Settings           *HarnessSettings
 	Now                func() int64
+	// SetTimer runs off the Session line. A nil cancellation declines the timer.
+	SetTimer SetTimer
 	// Env resolves process-local capabilities for each tool use, off the Session
 	// line. Only agent cwd is persisted; environments and credentials are not.
 	Env func(context.Context, EnvTarget) (ExecutionEnvironment, error)

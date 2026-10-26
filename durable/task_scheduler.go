@@ -8,7 +8,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // taskScheduler is the sole task reservation/cancellation/join owner. All maps
@@ -72,10 +71,10 @@ func (s *taskScheduler) report(err error) {
 }
 func (s *taskScheduler) loop() {
 	defer close(s.done)
-	var sleepTimer *time.Timer // scheduler-loop owned; never mutates task state
+	var sleepTimer func() // scheduler-loop owned; never mutates task state
 	defer func() {
 		if sleepTimer != nil {
-			sleepTimer.Stop()
+			sleepTimer()
 		}
 	}()
 	for {
@@ -103,11 +102,11 @@ func (s *taskScheduler) loop() {
 		}
 		s.updateDiagnostics()
 		if sleepTimer != nil {
-			sleepTimer.Stop()
+			sleepTimer()
 			sleepTimer = nil
 		}
 		if delay, ok := s.nextSleepDelay(); ok {
-			sleepTimer = time.AfterFunc(delay, s.kick)
+			sleepTimer = s.h.armTimer(s.kick, delay, TimerOptions{})
 		}
 	}
 }
@@ -1138,6 +1137,7 @@ func (s *taskScheduler) dispatchStops() {
 		for _, watch := range stop.watches {
 			watch.Stop()
 		}
+		stop.runtime.stopTimers()
 		stop.runtime.cancel()
 	}
 }
