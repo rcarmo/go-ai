@@ -65,7 +65,7 @@ func (s *Session) scheduleDocumentExpiry() {
 		}
 	}
 	if delay > 0 {
-		s.documentExpiry = time.AfterFunc(delay, func() {
+		s.documentExpiry = s.newSessionTimer(documentExpiryTimer, delay, func() {
 			s.taskBookkeeping(func() {
 				if !s.closing.Load() {
 					s.sweepDocumentCache()

@@ -181,7 +181,7 @@ func (s *Session) expireContextRanges() {
 		}
 	}
 	if delay > 0 && !s.closing.Load() {
-		s.contextExpiry = time.AfterFunc(delay, func() {
+		s.contextExpiry = s.newSessionTimer(contextExpiryTimer, delay, func() {
 			s.taskBookkeeping(func() {
 				if !s.closing.Load() {
 					s.expireContextRanges()

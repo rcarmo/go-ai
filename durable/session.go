@@ -11,27 +11,32 @@ import (
 // Session serializes transaction preparation, storage settlement and committed
 // reads. M1a has no execution/scheduling API and dispatches no external effects.
 type Session struct {
-	store                Storage
-	failureMu            sync.Mutex
-	failureCause         error
-	now                  func() int64 // line-owned wall clock for lifecycle stamps
-	core                 *storeCore
-	line                 chan struct{}
-	closing              atomic.Bool
-	once                 sync.Once
-	done                 chan struct{}
-	closeErr             error
-	limits               Limits
-	contextRanges        map[ID]*contextRange
-	contextExpiry        *time.Timer
-	definitionCache      map[definitionCacheKey]definitionCacheValue
-	definitionCacheBytes int64
-	documentRetentionMs  func() int64
-	documentExpiry       *time.Timer
-	observerMu           sync.Mutex
-	watches              map[*DocumentWatch]bool
-	subscriptions        map[*CommitSubscription]bool
-	taskScheduler        *taskScheduler // private line-owned Harness integration
+	store                 Storage
+	failureMu             sync.Mutex
+	failureCause          error
+	now                   func() int64 // line-owned wall clock for lifecycle stamps
+	core                  *storeCore
+	line                  chan struct{}
+	closing               atomic.Bool
+	once                  sync.Once
+	done                  chan struct{}
+	closeErr              error
+	limits                Limits
+	contextRanges         map[ID]*contextRange
+	contextExpiry         *sessionTimer
+	definitionCache       map[definitionCacheKey]definitionCacheValue
+	definitionCacheBytes  int64
+	documentRetentionMs   func() int64
+	documentExpiry        *sessionTimer
+	setTimer              SetTimer
+	timerReport           func(error)
+	timerFallbackReported atomic.Bool
+	pendingTimers         [2]sessionTimerChange // line-owned fixed slots
+	timerDispatch         sync.WaitGroup
+	observerMu            sync.Mutex
+	watches               map[*DocumentWatch]bool
+	subscriptions         map[*CommitSubscription]bool
+	taskScheduler         *taskScheduler // private line-owned Harness integration
 }
 
 // OpenSession claims one native memory/journal store. Storage remains owned
@@ -45,6 +50,10 @@ func OpenSession(store Storage) (*Session, error) {
 type SessionOptions struct {
 	Now                 func() int64
 	DocumentRetentionMs *int64 // default600000; zero drops idle migrated values
+	// SetTimer may decline background cache expiry; commits/reads still sweep.
+	// Host functions run off-line and must not block or call Close (which joins them).
+	SetTimer SetTimer
+	OnReport func(error) // timer host failures; observer/storage reporting is separate
 }
 
 func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, error) {
@@ -71,7 +80,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if now == nil {
 		now = func() int64 { return time.Now().UnixMilli() }
 	}
-	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l}
+	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport}
 	retention := int64(600000)
 	if options.DocumentRetentionMs != nil {
 		retention = *options.DocumentRetentionMs
@@ -109,7 +118,40 @@ func (s *Session) enter(ctx context.Context) error {
 	}
 	return nil
 }
-func (s *Session) leave() { s.line <- struct{}{} }
+func (s *Session) leave() { s.leaveThen(nil) }
+func (s *Session) leaveThen(afterRelease func()) {
+	changes := s.pendingTimers
+	s.pendingTimers = [2]sessionTimerChange{}
+	hasChanges := false
+	for _, change := range changes {
+		if change.arm != nil {
+			change.arm.started.Store(true)
+		}
+		hasChanges = hasChanges || change.arm != nil || change.stop != nil
+	}
+	// Admit before releasing the line: Close drains every already-admitted
+	// arm/cancel, including a host arm still returning its cancellation function.
+	if hasChanges {
+		s.timerDispatch.Add(1)
+	}
+	s.line <- struct{}{}
+	if hasChanges {
+		defer s.timerDispatch.Done()
+	}
+	if afterRelease != nil {
+		afterRelease()
+	}
+	if hasChanges {
+		for _, change := range changes {
+			if change.stop != nil {
+				change.stop.disarm()
+			}
+			if change.arm != nil {
+				change.arm.arm()
+			}
+		}
+	}
+}
 func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
 	if e := s.enter(ctx); e != nil {
 		return Snapshot{}, e
@@ -174,12 +216,13 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 				s.taskScheduler.failTicket(target, ErrPoisoned)
 			}
 		}
-		s.leave()
-		close(ready)
-		s.kickWatches()
-		if s.taskScheduler != nil {
-			s.taskScheduler.dispatchStops()
-		}
+		s.leaveThen(func() {
+			close(ready)
+			s.kickWatches()
+			if s.taskScheduler != nil {
+				s.taskScheduler.dispatchStops()
+			}
+		})
 	}()
 	state, e := s.taskSnapshot(ctx)
 	if e != nil {
@@ -271,6 +314,12 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			}
 		}
 	}
+	if err == nil {
+		// Background expiry is optional: successful commits still evict idle
+		// values when a host declines its timer (reads also sweep on access).
+		s.sweepDocumentCache()
+		s.scheduleDocumentExpiry()
+	}
 	return seq, err
 }
 func (s *Session) finalizeTaskWrites(tx *Tx) error {
@@ -347,8 +396,11 @@ func (s *Session) Close(ctx context.Context) error {
 			s.definitionCache = nil
 			s.definitionCacheBytes = 0
 			s.closeErr = s.core.close(context.Background(), true)
-			close(s.done)
 			s.leave()
+			// Closing prevents further expiry admission. Waiting off-line allows
+			// host timer/cancel functions to make reentrant observational reads.
+			s.timerDispatch.Wait()
+			close(s.done)
 		}()
 	})
 	select {

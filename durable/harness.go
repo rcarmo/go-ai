@@ -116,7 +116,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 		options.Extensions = &names
 	}
-	s, e := OpenSessionWithOptions(store, SessionOptions{Now: options.Now})
+	s, e := OpenSessionWithOptions(store, SessionOptions{Now: options.Now, SetTimer: options.SetTimer, OnReport: options.OnReport})
 	if e != nil {
 		return nil, e
 	}

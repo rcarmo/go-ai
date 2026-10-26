@@ -3,6 +3,7 @@ package durable
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,30 +15,33 @@ type TimerOptions struct{ Background bool }
 type SetTimer func(callback func(), delay time.Duration, options TimerOptions) (cancel func())
 
 func (h *Harness) armTimer(callback func(), delay time.Duration, options TimerOptions) func() {
+	return armHostTimer(h.options.SetTimer, h.options.OnReport, &h.timerFallbackReported, "HarnessOptions.SetTimer", callback, delay, options)
+}
+func armHostTimer(setTimer SetTimer, report func(error), fallbackReported *atomic.Bool, label string, callback func(), delay time.Duration, options TimerOptions) func() {
 	if delay < 0 {
 		delay = 0
 	}
 	var cancel func()
 	var failure error
-	if h.options.SetTimer != nil {
+	if setTimer != nil {
 		func() {
 			defer func() {
 				if value := recover(); value != nil {
 					failure = fmt.Errorf("timer host panic: %v", value)
 				}
 			}()
-			cancel = h.options.SetTimer(callback, delay, options)
+			cancel = setTimer(callback, delay, options)
 		}()
 		if cancel == nil && failure == nil && !options.Background {
-			failure = fmt.Errorf("HarnessOptions.SetTimer declined a timer that paces work; using time.AfterFunc")
+			failure = fmt.Errorf("%s declined a timer that paces work; using time.AfterFunc", label)
 		}
 	} else {
 		timer := time.AfterFunc(delay, callback)
 		cancel = func() { timer.Stop() }
 	}
 	if failure != nil {
-		if options.Background || h.timerFallbackReported.CompareAndSwap(false, true) {
-			reportTaskError(h.options.OnReport, failure)
+		if options.Background || fallbackReported.CompareAndSwap(false, true) {
+			reportTaskError(report, failure)
 		}
 	}
 	if cancel == nil && !options.Background {
@@ -52,7 +56,7 @@ func (h *Harness) armTimer(callback func(), delay time.Duration, options TimerOp
 		once.Do(func() {
 			defer func() {
 				if value := recover(); value != nil {
-					reportTaskError(h.options.OnReport, fmt.Errorf("timer cancellation panic: %v", value))
+					reportTaskError(report, fmt.Errorf("timer cancellation panic: %v", value))
 				}
 			}()
 			cancel()
