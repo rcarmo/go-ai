@@ -69,7 +69,12 @@ type generationCheckpoint struct {
 func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*SubmissionHandle, error) {
 	return c.submitBound(ctx, input, nil)
 }
-func (c *ConversationHandle) submitBound(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
+func (c *ConversationHandle) submitBound(ctx context.Context, input Input, binding *TaskRuntime) (handle *SubmissionHandle, err error) {
+	trace := c.beginSubmitTrace(ctx, input)
+	if trace != nil {
+		ctx = context.WithValue(ctx, submitTelemetryContextKey{}, trace)
+		defer func() { trace.finish(handle, err) }()
+	}
 	if binding != nil {
 		if err := binding.check(); err != nil {
 			return nil, err
@@ -149,6 +154,9 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 		return nil, reject("unknown conversation")
 	}
 	if dedupID != 0 {
+		if trace := submitTraceFromContext(ctx); trace != nil {
+			trace.observe(state.Submissions[dedupID])
+		}
 		// Lookup, bound lifetime/mark check and any pending wake all belonged
 		// to the same line admission. Only diagnostic occupancy changes here.
 		if !terminalStatus(state.Submissions[dedupID].Status) {

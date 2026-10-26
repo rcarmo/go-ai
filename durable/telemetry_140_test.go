@@ -249,3 +249,179 @@ func TestTelemetry140DiagnosticBoundAndDisabled(t *testing.T) {
 		}
 	}
 }
+
+func TestTelemetry140SubmitAdmissionDedupAndPrivacy(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var h *Harness
+		var starts, ends []map[string]any
+		var statuses []string
+		var ended int
+		telemetry := &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+			if name != "pi.durable.submit" {
+				t.Error(name)
+			}
+			if !h.mu.TryLock() {
+				t.Error("start callback under Harness lock")
+			} else {
+				h.mu.Unlock()
+			}
+			if _, err := h.Snapshot(bg); err != nil {
+				t.Error(err)
+			}
+			starts = append(starts, attrs)
+			return &goai.TelemetrySpan{SetAttributes: func(attrs map[string]any) {
+				if !h.mu.TryLock() {
+					t.Error("end callback under Harness lock")
+				} else {
+					h.mu.Unlock()
+				}
+				if _, err := h.Snapshot(bg); err != nil {
+					t.Error(err)
+				}
+				ends = append(ends, attrs)
+			}, SetStatus: func(status, code, message string) {
+				statuses = append(statuses, status)
+				if code != "" || message != "" {
+					t.Error("content-bearing admission diagnostic", code, message)
+				}
+			}, End: func() { ended++ }}
+		}}
+		h = openHarness(t, b.store, Options{Telemetry: telemetry})
+		conv, err := h.Root(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := Input{Type: "write", Content: "private transcript content", RequestID: "private request ID"}
+		first, err := conv.Submit(bg, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := conv.Submit(bg, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.id != second.id {
+			t.Fatal("dedup changed ID")
+		}
+		if _, err := conv.Submit(bg, Input{RequestID: input.RequestID, Content: "private conflict"}); err == nil {
+			t.Fatal("cross-type accepted")
+		}
+		if _, err := conv.Submit(bg, Input{WhenBusy: "private invalid"}); err == nil {
+			t.Fatal("invalid busy accepted")
+		}
+		if len(starts) != 4 || len(ends) != 2 || ended != 4 || len(statuses) != 2 {
+			t.Fatal(starts, ends, statuses, ended)
+		}
+		for _, attrs := range ends {
+			if attrs["submission.id"] != uint64(first.id) || attrs["result"] != "done" {
+				t.Fatal(attrs)
+			}
+		}
+		for i, attrs := range starts {
+			kind := "input"
+			if i < 2 {
+				kind = "write"
+			}
+			if attrs["submission.type"] != kind || attrs["conversation.id"] != uint64(conv.id) {
+				t.Fatal(attrs)
+			}
+		}
+		data, err := json.Marshal([]any{starts, ends, statuses})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "private") {
+			t.Fatal("content in submit span", string(data))
+		}
+	})
+}
+
+func TestTelemetry140SubmitBackendPanicsAndCallerParent(t *testing.T) {
+	for _, where := range []string{"start", "attributes", "status", "end"} {
+		t.Run(where, func(t *testing.T) {
+			panicAt := func(name string) {
+				if name == where {
+					panic("telemetry failure")
+				}
+			}
+			var rootStarts, callerStarts int
+			telemetry := &goai.TelemetrySpan{StartSpan: func(string, map[string]any) *goai.TelemetrySpan {
+				rootStarts++
+				panicAt("start")
+				return &goai.TelemetrySpan{SetAttributes: func(map[string]any) { panicAt("attributes") }, SetStatus: func(string, string, string) { panicAt("status") }, End: func() { panicAt("end") }}
+			}}
+			h := openHarness(t, mustMemory(t), Options{Telemetry: telemetry})
+			conv, err := h.Root(bg, AgentChange{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := conv.Submit(bg, Input{Type: "write", Content: "hello"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := conv.Submit(bg, Input{Type: "invalid"}); err == nil {
+				t.Fatal("invalid accepted")
+			}
+			carrier := &invocationTelemetry{}
+			carrier.span.Store(&goai.TelemetrySpan{StartSpan: func(string, map[string]any) *goai.TelemetrySpan { callerStarts++; return &goai.TelemetrySpan{} }})
+			ctx := context.WithValue(bg, telemetryContextKey{}, carrier)
+			if _, err := conv.Submit(ctx, Input{Type: "write", Content: "child"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := conv.Submit(ctx, Input{Type: "invalid"}); err == nil {
+				t.Fatal("invalid accepted")
+			}
+			if rootStarts != 3 || callerStarts != 1 {
+				t.Fatal(rootStarts, callerStarts)
+			}
+		})
+	}
+}
+
+func TestTelemetry140SubmitInputUsesCommittedAdmissionResult(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		var mu sync.Mutex
+		var results []string
+		ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("private answer")
+			close(ch)
+			return ch
+		})
+		opts.Telemetry = &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+			if name != "pi.durable.submit" {
+				return nil
+			}
+			if attrs["submission.type"] != "input" {
+				t.Error(attrs)
+			}
+			return &goai.TelemetrySpan{SetAttributes: func(attrs map[string]any) {
+				mu.Lock()
+				defer mu.Unlock()
+				result, _ := attrs["result"].(string)
+				results = append(results, result)
+			}}
+		}}
+		h := openHarness(t, b.store, opts)
+		conv := root(t, h, ref)
+		sub, err := conv.Submit(bg, Input{Content: "private input", RequestID: "private request"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitSubmission(t, sub)
+		again, err := conv.Submit(bg, Input{Content: "private changed input", RequestID: "private request"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again.id != sub.id {
+			t.Fatal("dedup changed admission")
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(results) != 2 || results[0] != "placed" || results[1] != "done" {
+			t.Fatal(results)
+		}
+	})
+}

@@ -317,6 +317,13 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 				}
 			}
 		}
+		if trace := submitTraceFromContext(ctx); trace != nil {
+			for _, write := range tx.writes {
+				if write.Submission != nil {
+					trace.observe(*write.Submission)
+				}
+			}
+		}
 		s.adoptTaskEffects(seq, tx)
 		s.enqueueWatchFrames(frames)
 		s.enqueueSubscriptions(subs)

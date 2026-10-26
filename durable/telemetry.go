@@ -208,3 +208,75 @@ func (h *Harness) reportTelemetry(ctx context.Context, info ReportInfo) {
 		telemetryCall(func() { metrics.Counter("pi.durable.reports", 1, map[string]any{"type": info.Type}) })
 	}
 }
+
+// submitTrace contains only scalar admission observations. It is private to one
+// submit call and is never stored in a record or used to alter admission.
+type submitTelemetryContextKey struct{}
+type submitTrace struct {
+	span    *goai.TelemetrySpan
+	results map[ID]string
+}
+
+func submitTraceFromContext(ctx context.Context) *submitTrace {
+	if ctx == nil {
+		return nil
+	}
+	trace, _ := ctx.Value(submitTelemetryContextKey{}).(*submitTrace)
+	return trace
+}
+func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) *submitTrace {
+	parent := c.h.options.Telemetry
+	kind := "input"
+	if input.Type == "write" {
+		kind = "write"
+		if caller := TelemetryFromContext(ctx); caller != nil {
+			parent = caller
+		}
+	}
+	if parent == nil || parent.StartSpan == nil {
+		return nil
+	}
+	var span *goai.TelemetrySpan
+	telemetryCall(func() {
+		span = parent.StartSpan("pi.durable.submit", map[string]any{"submission.type": kind, "conversation.id": uint64(c.id)})
+	})
+	if span == nil {
+		return nil
+	}
+	return &submitTrace{span: span}
+}
+
+// observe runs on the admission line; no backend callbacks, content, or retained
+// record pointers escape. Multiple writes can include older settled submissions.
+func (trace *submitTrace) observe(sub Submission) {
+	result := "done"
+	if sub.Status == "pending" || sub.Status == "running" {
+		result = "queued"
+		if submissionEntryID(sub.Value["placedEntry"]) != 0 {
+			result = "placed"
+		}
+	}
+	if trace.results == nil {
+		trace.results = make(map[ID]string)
+	}
+	trace.results[sub.ID] = result
+}
+
+// finish runs after admission releases Harness/Session locks, including when
+// validation, binding, or storage rejects the call. Error text may carry input.
+func (trace *submitTrace) finish(handle *SubmissionHandle, err error) {
+	if err != nil {
+		if trace.span.SetStatus != nil {
+			telemetryCall(func() { trace.span.SetStatus("error", "", "") })
+		}
+	} else if handle != nil && trace.span.SetAttributes != nil {
+		attrs := map[string]any{"submission.id": uint64(handle.id)}
+		if result, ok := trace.results[handle.id]; ok {
+			attrs["result"] = result
+		}
+		telemetryCall(func() { trace.span.SetAttributes(attrs) })
+	}
+	if trace.span.End != nil {
+		telemetryCall(trace.span.End)
+	}
+}
