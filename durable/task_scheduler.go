@@ -164,6 +164,9 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 		if fromObject(task.Checkpoint, &cp, s.h.session.limits) != nil {
 			return false
 		}
+		if cp.Phase == "queued" && failedQueueHeld(state, task.Conversation) {
+			return false
+		}
 		// A committed live run outranks queued inputs even when its successor
 		// has a newer ID. Keep ID ordering within genuinely queued runs.
 		var active ID
@@ -1580,6 +1583,9 @@ func (s *taskScheduler) idleTargets(state Snapshot, conversation ID) []ID {
 	targets := []ID{}
 	for _, id := range ids(state.Tasks) {
 		task := state.Tasks[id]
+		if s.heldFailedInput(state, task) {
+			continue
+		}
 		if (!terminalStatus(task.Status) || s.invocations[id] != nil) && taskInScope(state, task, conversation, false) {
 			targets = append(targets, id)
 		}

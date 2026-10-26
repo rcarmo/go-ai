@@ -31,6 +31,8 @@ type Settlement struct {
 	Message    *messageReceipt
 }
 type generationCheckpoint struct {
+	AfterFailedRun        string               `json:"afterFailedRun,omitempty"`
+	FailureCut            ID                   `json:"failureCut,omitempty"`
 	Phase                 string               `json:"phase"`
 	Submission            ID                   `json:"submission"`
 	InputMetadata         *Entry               `json:"inputMetadata,omitempty"`
@@ -186,7 +188,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			return err
 		}
 		busy := conversationGenerationBusy(tx.state, c.id)
-		if input.WhenBusy == "reject" && input.Type != "write" && busy {
+		if input.WhenBusy == "reject" && input.Type != "write" && busy && !failedQueueHeld(tx.state, c.id) {
 			return ErrConversationBusy
 		}
 		subID, err = tx.MintID()
@@ -293,6 +295,17 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			}
 			value["placedEntry"] = id
 			return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value})
+		}
+		// Only a genuinely new user input releases a kept queue. Deduplication
+		// and passive writes have returned before this point.
+		if failedQueueHeld(tx.state, c.id) {
+			live, err := builtin(tx, c.id, "pi.live")
+			if err != nil {
+				return err
+			}
+			if err := live.Update(func(value JSON) error { delete(value, "failedRun"); return nil }); err != nil {
+				return err
+			}
 		}
 		taskID, err := tx.MintID()
 		if err != nil {

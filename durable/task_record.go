@@ -317,7 +317,7 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 		return reject("builtin hold raw status disagreement")
 	}
 	switch hold.Action {
-	case "generation-receipt", "generation-handoff", "generation-reset", "generation-abort", "generation-no-model", "generation-model-failure", "scheduler-generation":
+	case "generation-receipt", "generation-handoff", "generation-reset", "generation-abort", "generation-no-model", "generation-model-failure", "generation-withdraw", "scheduler-generation":
 		if task.Kind != "pi.generation" || hold.Submission == 0 || hold.CallID != "" {
 			return reject("generation hold union")
 		}
@@ -325,8 +325,11 @@ func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
 		if err := fromObject(task.Checkpoint, &cp, l); err != nil {
 			return err
 		}
-		if (hold.Action == "generation-no-model" || hold.Action == "generation-model-failure") && (hold.Outcome.Status != "failed" || hold.FinalStatus != "failed" || cp.Phase != "terminal" || hold.Entry != 0) {
+		if (hold.Action == "generation-no-model" || hold.Action == "generation-model-failure" || hold.Action == "generation-withdraw") && (hold.Outcome.Status != "failed" || hold.FinalStatus != "failed" || cp.Phase != "terminal" || hold.Entry != 0) {
 			return reject("generation no-model hold disagreement")
+		}
+		if hold.Action == "generation-withdraw" && (!cp.Abort || hold.Outcome.Error == nil || hold.Outcome.Error.Message != "run_failed") {
+			return reject("generation withdrawal hold disagreement")
 		}
 		if hold.Action == "generation-abort" && (hold.Outcome.Status != "aborted" || hold.FinalStatus != "aborted" || cp.Phase != "terminal") {
 			return reject("generation abort hold disagreement")

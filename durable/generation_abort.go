@@ -60,7 +60,7 @@ func (h *Harness) finishAbortedGeneration(parent Task, cp generationCheckpoint) 
 		if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
 			hold.Stage, current.Status = "held", "completing"
 		}
-		if err := h.cleanupGeneration(tx, current, hold, value); err != nil {
+		if _, err := h.cleanupGeneration(tx, &current, hold, value); err != nil {
 			return err
 		}
 		return tx.stage(Write{Op: "put-task", Task: &current})

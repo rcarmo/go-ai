@@ -28,6 +28,8 @@ type ProgressSettings struct {
 }
 
 type HarnessSettings struct {
+	// AfterFailedRun is keep (default), continue, or withdraw for queued inputs.
+	AfterFailedRun string
 	// RestartLimit counts interrupted running phases without committed progress.
 	// Nil or zero uses five. A cap of ^uint64(0) is effectively unlimited.
 	RestartLimit        *uint64
@@ -237,6 +239,9 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 	if h.closing.Load() {
 		return ErrClosed
 	}
+	if !validAfterFailedRun(settings.AfterFailedRun) {
+		return reject("invalid failed-run policy")
+	}
 	resolved := (&Harness{options: Options{Settings: &settings}}).resolvedSettings(RequestSettings{})
 	value, err := cloneSettings(resolved, h.session.limits)
 	if err != nil {
@@ -254,6 +259,7 @@ func (h *Harness) SetSettings(ctx context.Context, settings HarnessSettings) err
 	if h.closing.Load() {
 		return ErrClosed
 	}
+	copy.AfterFailedRun = settings.AfterFailedRun
 	if settings.RestartLimit != nil {
 		limit := *settings.RestartLimit
 		copy.RestartLimit = &limit

@@ -81,6 +81,10 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	}
 	options.CodemodeNamespaces = append([]CodemodeNamespace(nil), options.CodemodeNamespaces...)
 	if options.Settings != nil {
+		if !validAfterFailedRun(options.Settings.AfterFailedRun) {
+			return nil, reject("invalid failed-run policy")
+		}
+		afterFailedRun := options.Settings.AfterFailedRun
 		resolved := (&Harness{options: options}).resolvedSettings(RequestSettings{})
 		value, err := cloneSettings(resolved, DefaultLimits())
 		if err != nil {
@@ -102,6 +106,7 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		}
 		options.Settings = &HarnessSettings{DocumentRetentionMs: copyTaskTime(value.DocumentRetentionMs), ContextRetentionMs: copyTaskTime(value.ContextRetentionMs), Extensions: extensions, Stream: value, Retry: &RetrySettings{Enabled: &enabledRetry, MaxRetries: &value.Retry.MaxRetries, BaseDelayMs: &value.Retry.BaseDelayMs, MaxDelayMs: &value.Retry.MaxDelayMs}, Compaction: &CompactionSettings{Enabled: &enabledCompact, ReserveTokens: &value.Compaction.ReserveTokens, KeepRecentTokens: &value.Compaction.KeepRecentTokens, BackgroundTokens: &value.Compaction.BackgroundTokens, MaxTokens: &value.Compaction.MaxTokens}, ToolExecution: value.ToolExecution, SteeringMode: value.SteeringMode, FollowUpMode: value.FollowUpMode, Progress: mergeProgress(nil, value.Progress)}
 		options.Settings.RestartLimit = restartLimit
+		options.Settings.AfterFailedRun = afterFailedRun
 	}
 	if options.Extensions != nil {
 		names, err := agentSelectionNames(*options.Extensions)
@@ -958,15 +963,18 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 	return result, err
 }
 
-func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, value JSON) error {
+func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, value JSON) (bool, error) {
 	var checkpoint generationCheckpoint
 	if err := fromObject(task.Checkpoint, &checkpoint, tx.limits); err != nil {
-		return err
+		return false, err
+	}
+	if pending, err := h.prepareFailedCleanup(tx, task, hold, &checkpoint); pending || err != nil {
+		return pending, err
 	}
 	for _, id := range checkpoint.Steered {
 		steer, exists := tx.state.Submissions[id]
 		if !exists {
-			return reject("steered submission missing")
+			return false, reject("steered submission missing")
 		}
 		if terminalStatus(steer.Status) {
 			continue
@@ -982,12 +990,12 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 			steer.Value["message"] = value
 		}
 		if err := tx.PutSubmission(steer); err != nil {
-			return err
+			return false, err
 		}
 	}
 	sub, ok := tx.state.Submissions[hold.Submission]
 	if !ok {
-		return reject("submission unavailable")
+		return false, reject("submission unavailable")
 	}
 	if !terminalStatus(sub.Status) {
 		oldValue := sub.Value
@@ -1027,39 +1035,46 @@ func (h *Harness) cleanupGeneration(tx *Tx, task Task, hold *BuiltinTaskHold, va
 		sub.Value["taskId"] = task.ID
 		retainSubmissionPlacement(oldValue, sub.Value, hold.Entry)
 		if err := tx.PutSubmission(sub); err != nil {
-			return err
+			return false, err
 		}
 	}
 	live, err := builtin(tx, task.Conversation, "pi.live")
 	if err != nil {
-		return err
+		return false, err
 	}
 	current, err := live.Get()
 	if err != nil {
-		return err
+		return false, err
 	}
 	run, _ := current["run"].(map[string]any)
-	if run != nil && fmt.Sprint(run["task"]) == strconv.FormatUint(uint64(task.ID), 10) {
+	if run == nil || fmt.Sprint(run["task"]) == strconv.FormatUint(uint64(task.ID), 10) {
 		if err = live.Update(func(value JSON) error {
 			delete(value, "run")
 			delete(value, "generation")
 			delete(value, "tools")
+			if failurePolicyApplies(hold) && checkpoint.AfterFailedRun == "keep" {
+				value["failedRun"] = true
+			} else {
+				delete(value, "failedRun")
+			}
 			return nil
 		}); err != nil {
-			return err
+			return false, err
 		}
 	}
-	if err := h.placeQueuedWrites(tx, task.Conversation); err != nil {
-		return err
-	}
-	if _, err := h.placeQueuedResets(tx, task.Conversation); err != nil {
-		return err
+	if !failurePolicyApplies(hold) || checkpoint.AfterFailedRun == "continue" {
+		if err := h.placeQueuedWrites(tx, task.Conversation); err != nil {
+			return false, err
+		}
+		if _, err := h.placeQueuedResets(tx, task.Conversation); err != nil {
+			return false, err
+		}
 	}
 	inbox, err := builtin(tx, task.Conversation, "pi.inbox")
 	if err != nil {
-		return err
+		return false, err
 	}
-	return inbox.Update(func(value JSON) error {
+	return false, inbox.Update(func(value JSON) error {
 		items, ok := value["items"].([]any)
 		if !ok {
 			return reject("inbox shape")
@@ -1088,17 +1103,23 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 	if hold == nil || hold.Stage != "held" {
 		return reject("builtin hold not finalisable")
 	}
-	if hold.Action == "generation-receipt" {
-		entry, ok := tx.state.Entries[hold.Entry]
-		if !ok {
-			return reject("hold receipt missing")
+	if hold.Action == "generation-receipt" || hold.Action == "generation-no-model" || hold.Action == "generation-model-failure" {
+		var value JSON
+		if hold.Entry != 0 {
+			entry, ok := tx.state.Entries[hold.Entry]
+			if !ok {
+				return reject("hold receipt missing")
+			}
+			value = entry.Value
 		}
 		// Fresh decisions already ran endRun. Only legacy held receipts with
 		// pending inputs need boundary cleanup here; repeating it could place
 		// writes queued for a later live run.
 		if !terminalStatus(tx.state.Submissions[hold.Submission].Status) {
-			if err := h.cleanupGeneration(tx, task, hold, entry.Value); err != nil {
+			if pending, err := h.cleanupGeneration(tx, &task, hold, value); err != nil {
 				return err
+			} else if pending {
+				return nil
 			}
 		}
 	}
@@ -1141,7 +1162,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 			}
 			task.Checkpoint = checkpoint
 		}
-		if err := h.cleanupGeneration(tx, task, hold, value); err != nil {
+		if _, err := h.cleanupGeneration(tx, &task, hold, value); err != nil {
 			return err
 		}
 	}

@@ -47,7 +47,8 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 				return err
 			}
 		}
-		if cp.Phase == "queued" {
+		h.pinFailedRunPolicy(tx, current.Conversation, &cp)
+		if cp.Phase == "queued" && cp.AfterFailedRun == "continue" {
 			if err := h.applyQueuedInputs(tx, current, &cp, true); err != nil {
 				return err
 			}
@@ -64,7 +65,7 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 		if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
 			hold.Stage, current.Status = "held", "completing"
 		}
-		if err := h.cleanupGeneration(tx, current, hold, nil); err != nil {
+		if _, err := h.cleanupGeneration(tx, &current, hold, nil); err != nil {
 			return err
 		}
 		return tx.stage(Write{Op: "put-task", Task: &current})

@@ -25,15 +25,22 @@ type backend struct {
 	reopen func() Storage
 }
 
-func backends(t *testing.T, fn func(*testing.T, backend)) {
+func backends(t *testing.T, fn func(*testing.T, backend), configured ...Limits) {
 	t.Helper()
+	if len(configured) > 1 {
+		t.Fatal("multiple backend limits")
+	}
+	var limits *Limits
+	if len(configured) == 1 {
+		limits = &configured[0]
+	}
 	for _, name := range []string{"memory", "journal"} {
 		t.Run(name, func(t *testing.T) {
 			var open func() Storage
 			if name == "memory" {
 				image := &MemoryImage{}
 				open = func() Storage {
-					s, e := OpenMemory(MemoryOptions{Image: image})
+					s, e := OpenMemory(MemoryOptions{Image: image, Limits: limits})
 					if e != nil {
 						t.Fatal(e)
 					}
@@ -42,7 +49,7 @@ func backends(t *testing.T, fn func(*testing.T, backend)) {
 			} else {
 				dir := filepath.Join(t.TempDir(), "private")
 				open = func() Storage {
-					s, e := OpenJournal(dir, JournalOptions{})
+					s, e := OpenJournal(dir, JournalOptions{Limits: limits})
 					if e != nil {
 						t.Fatal(e)
 					}
@@ -52,8 +59,16 @@ func backends(t *testing.T, fn func(*testing.T, backend)) {
 			s := open()
 			t.Cleanup(func() { _ = s.Close(bg) })
 			fn(t, backend{s, func() Storage {
-				if e := s.Close(bg); e != nil {
-					t.Fatal(e)
+				core := s.(interface{ nativeCore() *storeCore }).nativeCore()
+				select {
+				case <-core.closeDone: // Session/Harness already closed its owned store.
+					if core.closeErr != nil {
+						t.Fatal(core.closeErr)
+					}
+				default:
+					if e := s.Close(bg); e != nil {
+						t.Fatal(e)
+					}
 				}
 				s = open()
 				return s

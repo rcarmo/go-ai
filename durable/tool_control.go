@@ -170,7 +170,7 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 	if err != nil {
 		return false, err
 	}
-	if err := h.cleanupGeneration(tx, current, hold, value); err != nil {
+	if _, err := h.cleanupGeneration(tx, &current, hold, value); err != nil {
 		return false, err
 	}
 	if err := tx.stage(Write{Op: "put-task", Task: &current}); err != nil {

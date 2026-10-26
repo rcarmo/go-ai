@@ -28,7 +28,7 @@ func (h *Harness) finishRecordedModelFailure(task Task, cp generationCheckpoint,
 		if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
 			hold.Stage, current.Status = "held", "completing"
 		}
-		if err := h.cleanupGeneration(tx, current, hold, nil); err != nil {
+		if _, err := h.cleanupGeneration(tx, &current, hold, nil); err != nil {
 			return err
 		}
 		return tx.stage(Write{Op: "put-task", Task: &current})

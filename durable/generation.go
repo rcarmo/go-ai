@@ -1056,7 +1056,7 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 		}
 		// endRun settles inputs at the deciding commit. Owned work holds the
 		// task's terminal state, not its answer or the next run boundary.
-		if err := h.cleanupGeneration(tx, task, hold, value); err != nil {
+		if _, err := h.cleanupGeneration(tx, &task, hold, value); err != nil {
 			return err
 		}
 		if e = tx.stage(Write{Op: "put-task", Task: &task}); e != nil {
