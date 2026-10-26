@@ -22,6 +22,7 @@ type TaskRuntime struct {
 	harness              *Harness
 	taskID, conversation ID
 	kind                 string
+	reportExtension      string // definition's installer, pinned at reservation
 	context              context.Context
 	cancel               context.CancelFunc
 	ended                atomic.Bool
@@ -334,11 +335,37 @@ func (r *TaskRuntime) Now() (int64, error) {
 	}
 	return time.Now().UnixMilli(), nil
 }
-func (r *TaskRuntime) Report(err error) error {
+func (r *TaskRuntime) Report(err error) error { return r.reportFrom(err, nil) }
+
+// ReportFrom attributes a diagnostic to a host callback or extension. Report's
+// original single-argument method type is retained for interface compatibility.
+func (r *TaskRuntime) ReportFrom(err error, from ReportFrom) error { return r.reportFrom(err, &from) }
+func (r *TaskRuntime) reportFrom(err error, from *ReportFrom) error {
 	if e := r.check(); e != nil {
 		return e
 	}
-	r.harness.scheduler.report(err)
+	info := r.reportInfo("task_error", "")
+	if from != nil {
+		origin := *from
+		switch origin.Type {
+		case "extension":
+			if origin.Callback != "" || origin.Extension != "" && !validKind(origin.Extension) {
+				return reject("invalid extension report origin")
+			}
+			info.Type = "extension_error"
+			info.Extension = origin.Extension
+		case "host":
+			if origin.Extension != "" || !validHostCallback(origin.Callback) {
+				return reject("invalid host report origin")
+			}
+			info.Type = "host_error"
+			info.Extension = ""
+			info.Callback = origin.Callback
+		default:
+			return reject("invalid report origin")
+		}
+	}
+	r.report(err, info)
 	return nil
 }
 

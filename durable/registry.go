@@ -85,9 +85,15 @@ type Options struct {
 	Env func(context.Context, EnvTarget) (ExecutionEnvironment, error)
 	// OnReport runs off-line after reservation rollback/adoption. It must return
 	// promptly and must not synchronously join this Harness (Close/Wait APIs).
-	// Panic is contained; no detached unbounded reporting goroutines are used.
+	// Panic is contained; ordinary reports use no detached reporting goroutines.
+	// The first fatal Session error is delivered on one independent worker, so
+	// that notification may join Close without delaying failure settlement.
 	OnReport func(error)
-	Registry *Registry
+	// OnReportWithInfo receives attributed diagnostics with process-local context.
+	// For attributed reports both callbacks run, with independent panic containment.
+	// It has the same non-joining, prompt-return contract as OnReport.
+	OnReportWithInfo func(context.Context, error, ReportInfo)
+	Registry         *Registry
 	// ConversationCreated runs after Harness builtin/agent initialization and
 	// before convenience overrides. Nil skips only the callback. It must only
 	// use its Tx; reentering the Harness/Session would deadlock its serial line.

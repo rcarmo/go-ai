@@ -67,6 +67,10 @@ func (s *taskScheduler) report(err error) {
 			return // this backend cause is reported by failure shutdown
 		}
 	}
+	if report, ok := err.(*attributedReport); ok {
+		s.h.report(report.ctx, report.cause, report.info)
+		return
+	}
 	reportTaskError(s.h.options.OnReport, err)
 }
 func (s *taskScheduler) loop() {
@@ -376,7 +380,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 						s.failed[id] = definition
 						s.h.session.refreshTaskGraphObservers()
 						s.failures[id] = reject("missing task migration")
-						s.reports = append(s.reports, s.failures[id])
+						s.reports = append(s.reports, &attributedReport{cause: s.failures[id], info: taskReportInfo(task, snapshot, "migration_failed", "")})
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
 						if taskAborted(task) && task.AbortReason != "restart" {
 							if err := s.orphan(tx, task, "migration_failed"); err != nil {
@@ -415,7 +419,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 						s.failed[id] = definition
 						s.h.session.refreshTaskGraphObservers()
 						s.failures[id] = err
-						s.reports = append(s.reports, err)
+						s.reports = append(s.reports, &attributedReport{cause: err, info: taskReportInfo(task, snapshot, "migration_failed", "")})
 						s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
 						if taskAborted(task) && task.AbortReason != "restart" {
 							if err := s.orphan(tx, task, "migration_failed"); err != nil {
@@ -450,7 +454,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			// then explicitly signals handlers and joins their actual return.
 			// Inheriting life cancellation would signal before that stop order.
 			ctx, cancel := context.WithCancel(context.WithoutCancel(s.h.life))
-			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, kind: task.Kind, context: ctx, cancel: cancel, registry: snapshot, definition: definition, abortMode: taskAborted(task), done: make(chan struct{})}
+			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, kind: task.Kind, context: ctx, cancel: cancel, registry: snapshot, definition: definition, reportExtension: snapshot.installer(task.Kind, definition), abortMode: taskAborted(task), done: make(chan struct{})}
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
 			reservations = append(reservations, runtime)
@@ -659,6 +663,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		var task TaskRecord
 		var proceed bool
 		var handoverReport error
+		var faultReport error
 		_, err := s.h.session.invocationCommit(context.Background(), runtime.taskID, func(tx *Tx) error {
 			raw, ok := tx.state.Tasks[runtime.taskID]
 			if !ok || s.sealed.Load() || runtime.ended.Load() || raw.Status != "running" {
@@ -679,10 +684,14 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			}
 			if previous != nil {
 				if handlerError != nil {
+					if !errors.Is(handlerError, ErrClosed) {
+						faultReport = handlerError
+					}
 					return s.fault(tx, raw, handlerError)
 				}
 				if runtime.abortMode {
-					return s.fault(tx, raw, fmt.Errorf("Abort handler of task %d returned without a terminal outcome", raw.ID))
+					faultReport = fmt.Errorf("Abort handler of task %d returned without a terminal outcome", raw.ID)
+					return s.fault(tx, raw, faultReport)
 				}
 				before, err := ownJSONValue(previous, tx.limits)
 				if err != nil {
@@ -693,7 +702,8 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					return err
 				}
 				if equalDeltaJSON(before, after) {
-					return s.fault(tx, raw, fmt.Errorf("Task %s phase %s returned without durable progress", raw.Kind, previous["phase"]))
+					faultReport = fmt.Errorf("Task %s phase %s returned without durable progress", raw.Kind, previous["phase"])
+					return s.fault(tx, raw, faultReport)
 				}
 				snapshot, err := s.h.options.Registry.taskSnapshot(tx.limits)
 				if err != nil {
@@ -716,7 +726,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					if next == nil {
 						code = "missing_task"
 					}
-					handoverReport = reject(code)
+					handoverReport = &attributedReport{cause: reject(code), info: runtime.reportInfo("task_outdated", code), ctx: runtime.context}
 					runtime.handoverReported = true
 					runtime.handoverToken = next
 				} else if next == runtime.definition {
@@ -739,6 +749,9 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			runtime.admissionFailed = true
 			s.report(err)
 			return
+		}
+		if faultReport != nil {
+			runtime.report(faultReport, runtime.reportInfo("task_faulted", "threw"))
 		}
 		if !proceed || s.sealed.Load() || s.h.closing.Load() || runtime.ended.Load() {
 			return
