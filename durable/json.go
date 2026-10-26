@@ -162,6 +162,20 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		}
 		b.active[ptr] = true
 		defer delete(b.active, ptr)
+		if values, ok := plainJSONMap(v); ok {
+			for key, value := range values {
+				if err := b.node(); err != nil {
+					return err
+				}
+				if err := b.str(key); err != nil {
+					return err
+				}
+				if err := b.walk(reflect.ValueOf(value), depth+1, objectsOnly); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		it := v.MapRange()
 		key := reflect.New(v.Type().Key()).Elem()
 		value := reflect.New(v.Type().Elem()).Elem()
@@ -270,6 +284,21 @@ func encodeBounded(v any, l Limits, max int) ([]byte, error) {
 	}
 	return out.data, nil
 }
+
+// Exact plain map types need no reflect.New iterator slots. Named caller maps
+// stay on the generic path, preserving marshal-authority and key checks.
+func plainJSONMap(v reflect.Value) (map[string]any, bool) {
+	if v.CanInterface() {
+		switch value := v.Interface().(type) {
+		case JSON:
+			return map[string]any(value), true
+		case map[string]any:
+			return value, true
+		}
+	}
+	return nil, false
+}
+
 func emit(b *limitedJSON, s string) error { _, e := b.Write([]byte(s)); return e }
 func encodeString(b *limitedJSON, s string) error {
 	if e := emit(b, "\""); e != nil {
@@ -354,6 +383,26 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 			return e
 		}
 		first := true
+		if values, ok := plainJSONMap(v); ok {
+			for key, value := range values {
+				if !first {
+					if err := emit(b, ","); err != nil {
+						return err
+					}
+				}
+				first = false
+				if err := encodeString(b, key); err != nil {
+					return err
+				}
+				if err := emit(b, ":"); err != nil {
+					return err
+				}
+				if err := encodeValue(b, reflect.ValueOf(value)); err != nil {
+					return err
+				}
+			}
+			return emit(b, "}")
+		}
 		it := v.MapRange()
 		key := reflect.New(v.Type().Key()).Elem()
 		value := reflect.New(v.Type().Elem()).Elem()

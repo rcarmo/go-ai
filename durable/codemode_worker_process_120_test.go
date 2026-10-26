@@ -68,8 +68,14 @@ func (p officialWorkerTransport120) Execute(ctx context.Context, request Codemod
 			settled = true
 			break
 		}
+		hasCall := false
+		for _, message := range frame.Messages {
+			if message.Type == "call" {
+				hasCall = true
+			}
+		}
 		callbacks.Add(1)
-		go func(id int, messages []CodemodeWorkerMessage) {
+		run := func(id int, messages []CodemodeWorkerMessage) {
 			defer callbacks.Done()
 			reply, err := exchange(linked, messages)
 			if err != nil {
@@ -87,18 +93,18 @@ func (p officialWorkerTransport120) Execute(ctx context.Context, request Codemod
 				failures <- err
 				cancel()
 			}
-		}(frame.ID, frame.Messages)
-		hasCall := false
-		for _, message := range frame.Messages {
-			if message.Type == "call" {
-				hasCall = true
-			}
 		}
 		if hasCall {
+			go run(frame.ID, frame.Messages)
 			select {
 			case <-p.observed:
 			case <-linked.Done():
 			}
+		} else {
+			// Only tool calls need overlap while waiting for host delivery.
+			// Output/start/terminal batches must enter in wire order; spawning
+			// them all lets terminal overtake an earlier output-only batch.
+			run(frame.ID, frame.Messages)
 		}
 	}
 	if !settled {

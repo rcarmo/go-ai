@@ -45,7 +45,7 @@ func TestCodemode120OfficialPortableOutputBatching(t *testing.T) {
 		t.Fatal(event, err)
 	}
 	if exchanges.Load() > 6 || items.Load() != 5000 || !strings.Contains(event.Result.Output, "==> text 5000/5000 <==\n4999") {
-		t.Fatal("batching lost output or made per-line RPCs", exchanges.Load(), items.Load())
+		t.Fatalf("batching lost output or made per-line RPCs: exchanges=%d items=%d hasValue=%t value=%v output-tail=%q", exchanges.Load(), items.Load(), event.Result.HasValue, event.Result.Value, event.Result.Output[max(0, len(event.Result.Output)-160):])
 	}
 }
 

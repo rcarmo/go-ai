@@ -166,6 +166,10 @@ var (
 	defaultOnce   sync.Once
 	defaultEngine *Engine
 	defaultErr    error
+	// Share only immutable compiled code for the single embedded module. Each
+	// Engine still owns its runtime; guest memory, host state and cancellation
+	// remain execution-local. The bounded in-memory cache lives for the process.
+	moduleCompilationCache = wazero.NewCompilationCache()
 )
 
 // Default returns the process-wide engine, compiling QuickJS on first use.
@@ -180,7 +184,7 @@ func NewEngine(ctx context.Context) (*Engine, error) {
 }
 
 func newEngineWithConfig(ctx context.Context, config wazero.RuntimeConfig) (*Engine, error) {
-	cfg := config.WithCloseOnContextDone(true).WithMemoryLimitPages(memoryLimitPages)
+	cfg := config.WithCloseOnContextDone(true).WithMemoryLimitPages(memoryLimitPages).WithCompilationCache(moduleCompilationCache)
 	r := wazero.NewRuntimeWithConfig(ctx, cfg)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		r.Close(ctx)

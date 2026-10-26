@@ -32,8 +32,10 @@ func TestCompaction140SleepAlarmResumesWithoutWaitAdmission(t *testing.T) {
 			if mode.Background {
 				return nil
 			}
-			if delay != 2*time.Second {
-				t.Errorf("retry sleep delay %v", delay)
+			// Once the clock reaches the deadline, the scheduler may re-arm
+			// at zero while the admitted invocation is settling the task.
+			if delay != 2*time.Second && !(clock.Load() == 3000 && delay == 0) {
+				t.Errorf("retry sleep delay %v at clock %d", delay, clock.Load())
 			}
 			node := &capturedTimer140{fire: callback}
 			armed <- node
