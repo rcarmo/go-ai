@@ -356,6 +356,7 @@ type durableEvent struct {
 type durableEventBatch struct {
 	span   *goai.TelemetrySpan
 	events []durableEvent
+	links  []*goai.TelemetrySpan
 }
 type durableEventBuffer struct {
 	mu      sync.Mutex
@@ -371,6 +372,9 @@ func eventBufferFromContext(ctx context.Context) *durableEventBuffer {
 	return buffer
 }
 func (batch *durableEventBatch) deliver() {
+	for _, link := range batch.links {
+		telemetryCall(func() { batch.span.AddLink(link) })
+	}
 	for _, event := range batch.events {
 		telemetryCall(func() { batch.span.AddEvent(event.name, event.attrs) })
 	}
@@ -407,11 +411,19 @@ func (h *Harness) captureCommitEvents(ctx context.Context, tx *Tx, before Snapsh
 			span = runtime.telemetry.span.Load()
 		}
 	}
-	if span == nil || span.AddEvent == nil {
+	if span == nil || (span.AddEvent == nil && span.AddLink == nil) {
 		return nil
 	}
 	var batch *durableEventBatch
+	if span.AddLink != nil {
+		if links := h.queuedInputLinks(tx, before); len(links) != 0 {
+			batch = &durableEventBatch{span: span, links: links}
+		}
+	}
 	add := func(name string, attrs map[string]any) {
+		if span.AddEvent == nil {
+			return
+		}
 		if batch == nil {
 			batch = &durableEventBatch{span: span}
 		}
@@ -466,4 +478,60 @@ func (r *TaskRuntime) toolTelemetry(name, callID string) {
 			telemetryCall(func() { span.SetAttributes(map[string]any{"tool.name": name, "tool.call_id": callID}) })
 		}
 	}
+}
+
+// Queued inputs already own placeholder generation tasks whose creating spans
+// are their original submit roots. Capture those before adoption retires them.
+// No transcript scan or persisted tracing metadata is needed.
+func (h *Harness) queuedInputLinks(tx *Tx, before Snapshot) []*goai.TelemetrySpan {
+	creator := tx.byTask
+	if creator == 0 {
+		creator = tx.progressTask
+	}
+	if creator == 0 {
+		return nil
+	}
+	var links []*goai.TelemetrySpan
+	var seen map[ID]bool
+	var placeholders map[ID]*goai.TelemetrySpan
+	for _, write := range tx.writes {
+		task := write.Task
+		if task == nil || task.ID == creator || task.Kind != "pi.generation" || !terminalStatus(task.Status) {
+			continue
+		}
+		if parent := h.telemetryParents[task.ID]; parent != nil {
+			if placeholders == nil {
+				placeholders = make(map[ID]*goai.TelemetrySpan)
+			}
+			placeholders[submissionEntryID(task.Checkpoint["submission"])] = parent
+		}
+	}
+	for _, write := range tx.writes {
+		task := write.Task
+		if task == nil || task.ID != creator || task.Kind != "pi.generation" {
+			continue
+		}
+		merged, _ := task.Checkpoint["steered"].([]any)
+		if len(merged) == 0 {
+			continue
+		}
+		if seen == nil {
+			seen = make(map[ID]bool)
+			old, _ := before.Tasks[creator].Checkpoint["steered"].([]any)
+			for _, value := range old {
+				seen[submissionEntryID(value)] = true
+			}
+		}
+		for _, value := range merged {
+			id := submissionEntryID(value)
+			if id == 0 || seen[id] {
+				continue
+			}
+			seen[id] = true
+			if parent := placeholders[id]; parent != nil {
+				links = append(links, parent)
+			}
+		}
+	}
+	return links
 }

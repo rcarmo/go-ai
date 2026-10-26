@@ -278,6 +278,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 					return err
 				}
 			}
+			options.Identity = goai.MergeClientIdentity(h.options.Identity, options.Identity)
+			if options.Telemetry == nil {
+				options.Telemetry = TelemetryFromContext(ctx)
+			}
 			options.SessionID, err = r.providerSessionID(ctx)
 			if err != nil {
 				return err

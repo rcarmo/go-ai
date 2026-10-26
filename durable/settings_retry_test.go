@@ -36,7 +36,14 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 						close(release)
 					}
 				}()
+				wantIdentity, wantTelemetry := "pi", "phase"
+				if tc.modelOverride {
+					wantIdentity, wantTelemetry = "custom", "explicit"
+				}
 				ref, options := setupFakeAPI(t, func(_ context.Context, model *goai.Model, input *goai.Context, stream *goai.StreamOptions) <-chan goai.Event {
+					if stream.Identity == nil || stream.Identity.Attribution == nil || stream.Identity.Attribution.Name != wantIdentity || stream.Telemetry == nil || stream.Telemetry.Value != wantTelemetry {
+						t.Error("compaction identity/telemetry lost", stream.Identity, stream.Telemetry)
+					}
 					if stream.MaxTokens == nil || *stream.MaxTokens != tc.want || stream.CacheRetention != goai.CacheRetentionNone || (stream.Reasoning == nil || *stream.Reasoning != "low") || stream.Deferred != nil {
 						t.Errorf("summary stream settings %+v", stream)
 					}
@@ -45,6 +52,17 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 					go func() { <-release; ch <- terminal("summary"); close(ch) }()
 					return ch
 				})
+				makeSpan := func(value string) *goai.TelemetrySpan {
+					span := &goai.TelemetrySpan{Value: value}
+					span.StartSpan = func(string, map[string]any) *goai.TelemetrySpan { return span }
+					return span
+				}
+				options.Telemetry = makeSpan("phase")
+				if tc.modelOverride {
+					options.RequestOptions = func(context.Context, ModelRef) (*goai.StreamOptions, error) {
+						return &goai.StreamOptions{Telemetry: makeSpan("explicit")}, nil
+					}
+				}
 				models := options.Models
 				options.Models = func(provider goai.Provider, id string) *goai.Model {
 					model := models(provider, id)
@@ -62,7 +80,11 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 				}
 				h := openHarness(t, b.store, options)
 				overrideReserve = 2000 // Open must have detached the host's model map.
-				conversation, err := h.CreateConversation(bg, AgentChange{Model: ref, ThinkingLevel: "low"})
+				change := AgentChange{Model: ref, ThinkingLevel: "low"}
+				if tc.modelOverride {
+					change.Settings.Identity = JSON{"attribution": JSON{"name": "custom", "url": "https://example.test"}}
+				}
+				conversation, err := h.CreateConversation(bg, change)
 				if err != nil {
 					t.Fatal(err)
 				}

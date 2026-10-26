@@ -929,3 +929,90 @@ func TestTelemetry140BuiltinToolAttributes(t *testing.T) {
 		}
 	})
 }
+
+func TestTelemetry140QueuedBatchLinksOriginalSubmission(t *testing.T) {
+	for _, panics := range []bool{false, true} {
+		name := "normal"
+		if panics {
+			name = "panic"
+		}
+		t.Run(name, func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				var requests, roots atomic.Int64
+				entered, release := make(chan struct{}), make(chan struct{})
+				defer close(release)
+				ref, opts := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+					n := requests.Add(1)
+					ch := make(chan goai.Event, 1)
+					go func() {
+						defer close(ch)
+						if n == 1 {
+							close(entered)
+							select {
+							case <-release:
+							case <-ctx.Done():
+								return
+							}
+						}
+						ch <- terminal("answer")
+					}()
+					return ch
+				})
+				var h *Harness
+				var mu sync.Mutex
+				var links [][2]int64
+				var backend func(int64) *goai.TelemetrySpan
+				backend = func(origin int64) *goai.TelemetrySpan {
+					return &goai.TelemetrySpan{Value: origin, StartSpan: func(string, map[string]any) *goai.TelemetrySpan { return backend(origin) }, StartRootSpan: func(string, map[string]any, []*goai.TelemetrySpan) *goai.TelemetrySpan { return backend(roots.Add(1)) }, AddLink: func(other *goai.TelemetrySpan) {
+						if _, err := h.Snapshot(bg); err != nil {
+							t.Error("link on mutation line", err)
+						}
+						target, ok := other.Value.(int64)
+						if !ok {
+							t.Error(other.Value)
+						}
+						mu.Lock()
+						links = append(links, [2]int64{origin, target})
+						mu.Unlock()
+						if panics {
+							panic("backend failure")
+						}
+					}}
+				}
+				opts.Telemetry = backend(0)
+				opts.Settings = &HarnessSettings{Stream: RequestSettings{FollowUpMode: "all"}}
+				h = openHarness(t, b.store, opts)
+				conv := root(t, h, ref)
+				first, err := conv.Submit(bg, Input{Content: "first"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				awaitTaskSignal(t, entered)
+				second, err := conv.Submit(bg, Input{Content: "second"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				third, err := conv.Submit(bg, Input{Content: "third", RequestID: "stable"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				dedup, err := conv.Submit(bg, Input{Content: "changed ignored", RequestID: "stable"})
+				if err != nil || dedup.id != third.id {
+					t.Fatal(dedup, err)
+				}
+				release <- struct{}{}
+				waitSubmission(t, first)
+				waitSubmission(t, second)
+				waitSubmission(t, third)
+				if err := h.Close(bg); err != nil {
+					t.Fatal(err)
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				if requests.Load() != 2 || roots.Load() != 4 || len(links) != 1 || links[0] != [2]int64{2, 3} {
+					t.Fatal("queued/dedup lineage lost", requests.Load(), roots.Load(), links)
+				}
+			})
+		})
+	}
+}

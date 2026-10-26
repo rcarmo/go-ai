@@ -513,9 +513,11 @@ type TelemetrySpan struct {
 	StartRootSpan func(name string, attributes map[string]any, links []*TelemetrySpan) *TelemetrySpan `json:"-"`
 	SetAttributes func(attributes map[string]any)                                                     `json:"-"`
 	AddEvent      func(name string, attributes map[string]any)                                        `json:"-"`
-	SetStatus     func(status, errorName, message string)                                             `json:"-"`
-	End           func()                                                                              `json:"-"`
-	Metrics       *TelemetryMetrics                                                                   `json:"-"`
+	// AddLink connects another process-local trace, such as a batched input.
+	AddLink   func(link *TelemetrySpan)               `json:"-"`
+	SetStatus func(status, errorName, message string) `json:"-"`
+	End       func()                                  `json:"-"`
+	Metrics   *TelemetryMetrics                       `json:"-"`
 }
 
 // TelemetryMetrics receives low-cardinality pi.ai and pi.durable measurements.

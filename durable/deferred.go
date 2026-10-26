@@ -47,6 +47,15 @@ func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint, r
 		runtime.reportError(err)
 		return
 	}
+	identity, err := requestIdentity(cp.Agent.Settings.Identity, h.session.limits)
+	if err != nil {
+		runtime.reportError(err)
+		return
+	}
+	options.Identity = goai.MergeClientIdentity(h.options.Identity, identity)
+	if options.Telemetry == nil {
+		options.Telemetry = TelemetryFromContext(ctx)
+	}
 	options.Deferred = cp.Agent.Settings.Deferred
 	err = callDeferredCancel(ctx, model, *cp.Deferred, options)
 	if err != nil {

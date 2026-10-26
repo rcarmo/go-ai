@@ -27,8 +27,11 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 					ch := make(chan goai.Event)
 					close(ch)
 					return ch
-				}, CancelDeferred: func(_ context.Context, _ *goai.Model, handle goai.DeferredHandle, _ *goai.StreamOptions) error {
+				}, CancelDeferred: func(_ context.Context, _ *goai.Model, handle goai.DeferredHandle, options *goai.StreamOptions) error {
 					cancels.Add(1)
+					if options.Identity == nil || options.Identity.Attribution == nil || options.Identity.Attribution.Name != "pi" || options.Telemetry == nil || options.Telemetry.Value != "cancel-phase" {
+						t.Error("cancellation identity/telemetry lost", options.Identity, options.Telemetry)
+					}
 					if handle.ID != "job" {
 						t.Error("remote cancellation handle", handle)
 					}
@@ -44,7 +47,9 @@ func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 				t.Cleanup(func() { goai.UnregisterApi(api) })
 				var reportMu sync.Mutex
 				var reportErrors []error
-				h := openHarness(t, b.store, Options{Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, OnReport: func(err error) {
+				telemetry := &goai.TelemetrySpan{Value: "cancel-phase"}
+				telemetry.StartSpan = func(string, map[string]any) *goai.TelemetrySpan { return telemetry }
+				h := openHarness(t, b.store, Options{Telemetry: telemetry, Models: func(goai.Provider, string) *goai.Model { return fakeModel(api) }, OnReport: func(err error) {
 					reportMu.Lock()
 					reportErrors = append(reportErrors, err)
 					reportMu.Unlock()

@@ -317,8 +317,9 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			tx.taskAdoptState = &adopted
 		}
 		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
-			s.taskScheduler.h.noteTaskAncestry(ctx, tx, state)
+			// Capture links before terminal placeholder writes release their parents.
 			telemetryEvents = s.taskScheduler.h.captureCommitEvents(ctx, tx, state)
+			s.taskScheduler.h.noteTaskAncestry(ctx, tx, state)
 			for _, write := range tx.writes {
 				if write.Task != nil {
 					if runtime := s.taskScheduler.invocations[write.Task.ID]; runtime != nil {
