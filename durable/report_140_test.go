@@ -179,3 +179,69 @@ func TestReport140FatalSessionContextAndDedup(t *testing.T) {
 		}
 	})
 }
+
+func TestReport140InvocationTimerCallbackAndHostOrigins(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		events := make(chan observedReport140, 8)
+		definition := taskDefinition(t, "task.timer-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			if _, err := r.SetTimer(func() { panic("callback diagnostic") }, time.Hour); err != nil {
+				return err
+			}
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+		})
+		h := taskTestHarnessOptions(t, b.store, Options{SetTimer: func(callback func(), _ time.Duration, options TimerOptions) func() {
+			if options.Background {
+				return nil
+			}
+			callback()
+			return func() { panic("cancel diagnostic") }
+		}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}}, definition)
+		id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		first, second := awaitReport140(t, events), awaitReport140(t, events)
+		if first.info.Type != "task_error" || second.info.Type != "host_error" || second.info.Callback != "setTimer" || first.info.Task.ID != id || second.info.Task.ID != id || first.ctx != second.ctx {
+			t.Fatal(first, second)
+		}
+		waitPublicTask(t, h, id)
+	})
+}
+func TestReport140HostTimerFallbackAndWake(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		events := make(chan observedReport140, 8)
+		var wakeCalls atomic.Int64
+		h := openHarness(t, b.store, Options{SetTimer: func(func(), time.Duration, TimerOptions) func() { return nil }, OnWake: func(Wake) {
+			if wakeCalls.Add(1) == 1 {
+				panic("wake diagnostic")
+			}
+		}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}})
+		report := awaitReport140(t, events)
+		if report.info.Type != "host_error" || report.info.Callback != "onWake" || report.info.Task != nil {
+			t.Fatal(report)
+		}
+		for i := 0; i < 2; i++ {
+			cancel := h.armTimer(func() {}, time.Hour, TimerOptions{})
+			if cancel == nil {
+				t.Fatal("foreground fallback absent")
+			}
+			cancel()
+		}
+		report = awaitReport140(t, events)
+		if report.info.Type != "host_error" || report.info.Callback != "setTimer" || report.info.Task != nil {
+			t.Fatal(report)
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case extra := <-events:
+			t.Fatal("duplicate timer fallback report", extra)
+		default:
+		}
+	})
+}

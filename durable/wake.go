@@ -166,7 +166,7 @@ func (p *wakePublisher) update(s *taskScheduler) {
 		func() {
 			defer func() {
 				if value := recover(); value != nil {
-					s.report(fmt.Errorf("OnWake callback panic: %v", value))
+					s.h.report(context.Background(), fmt.Errorf("OnWake callback panic: %v", value), ReportInfo{Type: "host_error", Callback: "onWake"})
 				}
 			}()
 			s.h.options.OnWake(copyWake(offered))

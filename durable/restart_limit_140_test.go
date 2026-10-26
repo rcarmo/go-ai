@@ -27,12 +27,15 @@ func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			backends(t, func(t *testing.T, b backend) {
 				var runs, reports atomic.Int64
+				events := make(chan observedReport140, 8)
 				def := taskDefinition(t, "task.restart-limit-140", func(ctx context.Context, record TaskRecord, r *TaskRuntime) error {
 					runs.Add(1)
 					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("done"), nil })
 				})
 				limit := uint64(2)
-				options := Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReport: func(error) { reports.Add(1) }}
+				options := Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReport: func(error) { reports.Add(1) }, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+					events <- observedReport140{ctx: ctx, err: err, info: info}
+				}}
 				h := taskTestHarnessOptions(t, b.store, options, def)
 				id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				for interruption := uint64(1); interruption <= 2; interruption++ {
@@ -48,6 +51,10 @@ func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
 					if task := state.Tasks[id]; task.Restarts != interruption || task.Status != "pending" {
 						t.Fatalf("recovery: %+v", task)
 					}
+				}
+				parkedReport := awaitReport140(t, events)
+				if parkedReport.info.Type != "task_parked" || parkedReport.info.Task == nil || parkedReport.info.Task.ID != id || parkedReport.info.Task.Kind != def.Kind() || parkedReport.info.Task.ConversationID != 1 || parkedReport.info.Reason != "" {
+					t.Fatal(parkedReport)
 				}
 				limit = 999 // Open must detach live host settings.
 				if h.RestartLimit() != 2 || reports.Load() != 1 || runs.Load() != 0 {
@@ -160,6 +167,175 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 		record := waitPublicTask(t, h, id)
 		if record.State.Outcome == nil || record.State.Outcome.Status != "completed" {
 			t.Fatalf("%+v", record.State.Outcome)
+		}
+	})
+}
+
+func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("missing=%v", missing), func(t *testing.T) {
+			backends(t, func(t *testing.T, b backend) {
+				var abortCalls atomic.Int64
+				events := make(chan observedReport140, 8)
+				definition, err := DefineTask(TaskDefinitionOptions{Kind: "task.abort-cutoff-140", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "work"}, nil }, Phases: map[string]TaskPhase{"work": func(context.Context, TaskRecord, *TaskRuntime) error { return fmt.Errorf("ordinary phase ran") }}, Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+					abortCalls.Add(1)
+					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
+					})
+				}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				limit := uint64(2)
+				options := Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+					events <- observedReport140{ctx: ctx, err: err, info: info}
+				}}
+				h := taskTestHarnessOptions(t, b.store, options, definition)
+				id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				if _, err = h.AbortTask(bg, id); err != nil {
+					t.Fatal(err)
+				}
+				for interruption := uint64(1); interruption <= limit; interruption++ {
+					seedInterrupted140(t, h, id)
+					if err = h.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+					definitions := []*TaskDefinition{definition}
+					if missing && interruption == limit {
+						definitions = nil
+					}
+					h = taskTestHarnessOptions(t, reopenStoreAfterHarnessClose(t, h.session.store), options, definitions...)
+				}
+				if err = h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
+				report := awaitReport140(t, events)
+				result := waitPublicTask(t, h, id)
+				if result.State.Outcome == nil || result.State.Outcome.Status != "faulted" || result.State.Outcome.Error == nil || result.State.Outcome.Error.Detail == nil || !equalJSONValue(result.State.Outcome.Error.Detail.Value, JSON{"reason": "restart_limit"}) || result.Restarts != 0 {
+					t.Fatalf("%+v", result)
+				}
+				if report.info.Type != "task_faulted" || report.info.Reason != "restart_limit" || report.info.Task.ID != id || abortCalls.Load() != 0 {
+					t.Fatal(report, abortCalls.Load())
+				}
+			})
+		})
+	}
+}
+
+func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		events := make(chan observedReport140, 8)
+		definition := taskDefinition(t, "task.reject-cutoff-140", func(context.Context, TaskRecord, *TaskRuntime) error { return fmt.Errorf("must not run") })
+		limit := uint64(2)
+		h := taskTestHarnessOptions(t, b.store, Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}}, definition)
+		id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if _, err := h.AbortTask(bg, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.session.Commit(bg, func(tx *Tx) error {
+			task := tx.state.Tasks[id]
+			task.Restarts = limit
+			return tx.stage(Write{Op: "put-task", Task: &task})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var original func(byte, uint64, uint64, []byte) error
+		h.session.taskBookkeeping(func() {
+			original = h.session.core.appendFrame
+			h.session.core.appendFrame = func(byte, uint64, uint64, []byte) error { return reject("cutoff adoption rejected") }
+		})
+		reservations, err := h.scheduler.reservePass(false)
+		h.session.taskBookkeeping(func() { h.session.core.appendFrame = original })
+		if err == nil || len(reservations) != 0 {
+			t.Fatal("rejected cutoff admitted", reservations, err)
+		}
+		report := awaitReport140(t, events)
+		if report.info.Type != "session_failed" {
+			t.Fatal("unadopted fault was reported", report)
+		}
+		if err = h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		reopened := reopenStoreAfterHarnessClose(t, h.session.store)
+		defer reopened.Close(bg)
+		snapshot, err := reopened.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		task := snapshot.Tasks[id]
+		if task.Status != "pending" || taskHasDecidedOutcome(task) || task.Restarts != limit || !taskAborted(task) {
+			t.Fatal("unadopted cutoff changed durable state", task)
+		}
+		select {
+		case extra := <-events:
+			t.Fatal("extra cutoff report", extra)
+		default:
+		}
+	})
+}
+
+func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing.T) {
+	backends(t, func(t *testing.T, b backend) {
+		events := make(chan observedReport140, 8)
+		limit := uint64(1)
+		options := Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {
+			events <- observedReport140{ctx: ctx, err: err, info: info}
+		}}
+		h := openHarness(t, b.store, options)
+		conversation, err := h.Root(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		submission, err := conversation.Submit(bg, Input{Content: "cutoff"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var id ID
+		for _, task := range snapshot.Tasks {
+			if task.Kind == "pi.generation" {
+				id = task.ID
+			}
+		}
+		if id == 0 {
+			t.Fatal("generation missing")
+		}
+		if _, err = h.AbortTask(bg, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = h.session.Commit(bg, func(tx *Tx) error {
+			task := tx.state.Tasks[id]
+			task.Status = "running"
+			return tx.stage(Write{Op: "put-task", Task: &task})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err = h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		h = openHarness(t, reopenStoreAfterHarnessClose(t, h.session.store), options)
+		if err = h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		report := awaitReport140(t, events)
+		result := waitPublicTask(t, h, id)
+		if report.info.Type != "task_faulted" || report.info.Reason != "restart_limit" || report.info.Task.ID != id || result.State.Outcome == nil || result.State.Outcome.Status != "faulted" || result.Restarts != 0 {
+			t.Fatal(report, result)
+		}
+		if err = h.WaitForIdle(bg); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err = h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if settled := snapshot.Submissions[submission.ID()]; settled.Status != "failed" || settled.Value["errorCode"] != "faulted" {
+			t.Fatal("cutoff did not settle submission", snapshot.Submissions[submission.ID()])
 		}
 	})
 }

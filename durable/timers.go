@@ -1,6 +1,7 @@
 package durable
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -15,7 +16,9 @@ type TimerOptions struct{ Background bool }
 type SetTimer func(callback func(), delay time.Duration, options TimerOptions) (cancel func())
 
 func (h *Harness) armTimer(callback func(), delay time.Duration, options TimerOptions) func() {
-	return armHostTimer(h.options.SetTimer, h.options.OnReport, &h.timerFallbackReported, "HarnessOptions.SetTimer", callback, delay, options)
+	return armHostTimer(h.options.SetTimer, func(err error) {
+		h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "setTimer"})
+	}, &h.timerFallbackReported, "HarnessOptions.SetTimer", callback, delay, options)
 }
 func armHostTimer(setTimer SetTimer, report func(error), fallbackReported *atomic.Bool, label string, callback func(), delay time.Duration, options TimerOptions) func() {
 	if delay < 0 {
@@ -124,12 +127,17 @@ func (r *TaskRuntime) SetTimer(callback func(), delay time.Duration, options ...
 		}
 		defer func() {
 			if value := recover(); value != nil {
-				r.harness.scheduler.report(fmt.Errorf("invocation timer callback panic: %v", value))
+				r.report(fmt.Errorf("invocation timer callback panic: %v", value), r.reportInfo("task_error", ""))
 			}
 		}()
 		callback()
 	}
-	cancel := r.harness.armTimer(fire, delay, mode)
+	cancel := armHostTimer(r.harness.options.SetTimer, func(err error) {
+		info := r.reportInfo("host_error", "")
+		info.Extension = ""
+		info.Callback = "setTimer"
+		r.report(err, info)
+	}, &r.harness.timerFallbackReported, "HarnessOptions.SetTimer", fire, delay, mode)
 	r.timerMu.Lock()
 	ended := r.timerAvailable() != nil
 	stopped := node.closed || ended || cancel == nil

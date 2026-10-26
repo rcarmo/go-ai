@@ -132,6 +132,11 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		options.Settings.Extensions = options.Extensions
 	}
 	h.hostSettings.Store(options.Settings)
+	// Session cache timers share Harness reporting, but have no task scope.
+	// Construction has not published the Session or armed any cache timer yet.
+	s.timerReport = func(err error) {
+		h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "setTimer"})
+	}
 	s.documentRetentionMs = func() int64 {
 		settings := h.resolvedSettings(RequestSettings{})
 		if settings.DocumentRetentionMs == nil {
@@ -231,7 +236,8 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	h.scheduler.kick() // Publish initial wake metadata without enabling effects.
 	for _, task := range recovered {
 		if h.scheduler.parked(task) {
-			h.scheduler.report(fmt.Errorf("task %d (%s) cut off %d times without progress; parked until RetryTask", task.ID, task.Kind, task.Restarts))
+			info := ReportInfo{Type: "task_parked", Task: &ReportTask{ID: task.ID, Kind: task.Kind, ConversationID: task.Conversation}, Extension: h.options.Registry.taskInstaller(task.Kind)}
+			h.report(context.Background(), fmt.Errorf("task %d (%s) cut off %d times without progress; parked until RetryTask", task.ID, task.Kind, task.Restarts), info)
 		}
 	}
 	return h, nil

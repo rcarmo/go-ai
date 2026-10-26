@@ -265,6 +265,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 func (s *taskScheduler) reserve() ([]*TaskRuntime, error) { return s.reservePass(true) }
 func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error) {
 	reservations := []*TaskRuntime{}
+	var faultReports []*attributedReport // published only after decision adoption
 	attempted := map[ID]bool{}
 	// Preserve ticket owners across provisional reservation and adoption.
 	attemptWaits := map[*taskWait]bool{}
@@ -336,6 +337,22 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			attempted[id] = true
 			for wait := range s.tickets[id] {
 				attemptWaits[wait] = true
+			}
+			if taskAborted(task) && task.Restarts >= s.h.RestartLimit() {
+				cause := fmt.Errorf("Abort handler of task %d (%s) was cut off %d times", task.ID, task.Kind, task.Restarts)
+				outcome := TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: cause.Error(), Detail: &TaskValue{Present: true, Value: JSON{"reason": "restart_limit"}}}}
+				var err error
+				if task.Execution != nil && task.Execution.Native != nil {
+					err = s.nativeDecision(tx, task, outcome)
+				} else {
+					err = s.builtinDecision(tx, task, outcome)
+				}
+				if err != nil {
+					return false, err
+				}
+				s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
+				faultReports = append(faultReports, &attributedReport{cause: cause, info: taskReportInfo(task, snapshot, "task_faulted", "restart_limit")})
+				return len(tx.writes) > 0, nil
 			}
 			var definition *TaskDefinition
 			if task.Kind == "pi.generation" {
@@ -488,6 +505,9 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 		return nil, err
 	}
 	for _, failure := range reports {
+		s.report(failure)
+	}
+	for _, failure := range faultReports {
 		s.report(failure)
 	}
 	return reservations, nil
@@ -836,10 +856,12 @@ func (s *taskScheduler) orphan(tx *Tx, task Task, reason string) error {
 }
 
 func (s *taskScheduler) fault(tx *Tx, task Task, err error) error {
-	outcome := TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: err.Error()}}
 	if errors.Is(err, ErrClosed) {
 		return nil
 	}
+	return s.nativeDecision(tx, task, TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: err.Error()}})
+}
+func (s *taskScheduler) nativeDecision(tx *Tx, task Task, outcome TaskOutcome) error {
 	owned, e := copyTask(task, tx.limits)
 	if e != nil {
 		return e
@@ -848,6 +870,7 @@ func (s *taskScheduler) fault(tx *Tx, task Task, err error) error {
 	native := *task.Execution.Native
 	native.State = TaskState{Status: "terminal", Outcome: &outcome}
 	native.Memos = nil
+	task.Restarts = 0
 	task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &native}
 	task.Status = "failed"
 	candidate := tx.state
@@ -1714,6 +1737,7 @@ func (s *taskScheduler) builtinDecision(tx *Tx, task Task, outcome TaskOutcome) 
 		*metadata = *task.Execution.Builtin
 	}
 	metadata.Memos = nil
+	task.Restarts = 0
 	metadata.Hold = hold
 	task.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: metadata}
 	task.Status = "completing"
