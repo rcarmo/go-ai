@@ -323,7 +323,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		close(events)
 		receipt, success, received = h.drain(events, cp.Model)
 	} else {
-		receipt, success, received = h.drain(goai.Stream(runtime.context, model, conv, options), cp.Model, task.ID)
+		receipt, success, received = h.drainInvocation(runtime, goai.Stream(runtime.context, model, conv, options), cp.Model, task.ID)
 	}
 	// Close joins the full provider channel, including a noncooperative provider.
 	// Its cancellation never invents an aborted durable terminal outcome.
@@ -788,6 +788,9 @@ func errorReceipt(code string) messageReceipt {
 	return messageReceipt{Role: goai.RoleAssistant, StopReason: goai.StopReasonError, Content: []goai.ContentBlock{}, ErrorCode: code}
 }
 func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...ID) (messageReceipt, bool, bool) {
+	return h.drainInvocation(nil, events, pinned, taskID...)
+}
+func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event, pinned *goai.Model, taskID ...ID) (messageReceipt, bool, bool) {
 	if pinned == nil {
 		return errorReceipt("missing_pinned_model"), false, false
 	}
@@ -806,7 +809,8 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 		if settings := h.resolvedSettings(RequestSettings{}).Progress; settings.PartialIntervalMs != nil {
 			interval = *settings.PartialIntervalMs
 		}
-		progress = newGenerationProgressInterval(func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }, func(err error) {
+		write := func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }
+		report := func(err error) {
 			if h.closing.Load() {
 				return
 			}
@@ -815,7 +819,12 @@ func (h *Harness) drain(events <-chan goai.Event, pinned *goai.Model, taskID ...
 				return
 			}
 			reportTaskError(h.options.OnReport, err)
-		}, time.After, progressInterval(interval))
+		}
+		if runtime != nil {
+			progress = newRuntimeGenerationProgress(write, report, runtime, progressInterval(interval))
+		} else {
+			progress = newGenerationProgressInterval(write, report, time.After, progressInterval(interval))
+		}
 		defer progress.stop()
 	}
 	for event := range events {

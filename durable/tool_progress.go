@@ -44,22 +44,26 @@ func newToolProgressTimer(write func() (int, error), report func(error), now fun
 	return p
 }
 func newRuntimeToolProgress(write func() (int, error), report func(error), runtime *TaskRuntime, interval time.Duration) *toolProgress {
+	now, arm := runtimeProgressTiming(runtime)
+	return newToolProgressTimer(write, report, now, arm, interval)
+}
+func runtimeProgressTiming(runtime *TaskRuntime) (func() time.Time, func(time.Duration) (<-chan time.Time, func(), error)) {
 	var last time.Time // only the progress worker reads the clock
-	return newToolProgressTimer(write, report, func() time.Time {
-		if ms, err := runtime.Now(); err == nil {
-			last = time.UnixMilli(ms)
-		}
-		return last
-	}, func(delay time.Duration) (<-chan time.Time, func(), error) {
-		ticks := make(chan time.Time, 1)
-		cancel, err := runtime.SetTimer(func() {
-			select {
-			case ticks <- time.Time{}:
-			default:
+	return func() time.Time {
+			if ms, err := runtime.Now(); err == nil {
+				last = time.UnixMilli(ms)
 			}
-		}, delay, TimerOptions{})
-		return ticks, cancel, err
-	}, interval)
+			return last
+		}, func(delay time.Duration) (<-chan time.Time, func(), error) {
+			ticks := make(chan time.Time, 1)
+			cancel, err := runtime.SetTimer(func() {
+				select {
+				case ticks <- time.Time{}:
+				default:
+				}
+			}, delay, TimerOptions{})
+			return ticks, cancel, err
+		}
 }
 func (p *toolProgress) mark(wait bool) progressWaiter {
 	p.mu.Lock()

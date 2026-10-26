@@ -16,7 +16,9 @@ type generationProgress struct {
 	wake     chan struct{}
 	halt     chan struct{}
 	done     chan struct{}
-	after    func(time.Duration) <-chan time.Time
+	after    func(time.Duration) <-chan time.Time // deterministic legacy actor tests
+	now      func() time.Time
+	arm      func(time.Duration) (<-chan time.Time, func(), error)
 	interval time.Duration
 	write    func(MessageReceipt) error
 	report   func(error)
@@ -27,6 +29,12 @@ func newGenerationProgressClock(write func(MessageReceipt) error, report func(er
 }
 func newGenerationProgressInterval(write func(MessageReceipt) error, report func(error), after func(time.Duration) <-chan time.Time, interval time.Duration) *generationProgress {
 	p := &generationProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), after: after, write: write, report: report}
+	go p.run()
+	return p
+}
+func newRuntimeGenerationProgress(write func(MessageReceipt) error, report func(error), runtime *TaskRuntime, interval time.Duration) *generationProgress {
+	now, arm := runtimeProgressTiming(runtime)
+	p := &generationProgress{interval: interval, wake: make(chan struct{}, 1), halt: make(chan struct{}), done: make(chan struct{}), now: now, arm: arm, write: write, report: report}
 	go p.run()
 	return p
 }
@@ -74,10 +82,49 @@ func (p *generationProgress) run() {
 			continue
 		}
 		for {
-			select {
-			case <-p.halt:
-				return
-			case <-p.after(p.interval):
+			var until time.Time
+			if p.now != nil {
+				until = p.now().Add(p.interval)
+			}
+			armFailed := false
+			for {
+				delay := p.interval
+				if p.now != nil {
+					delay = max(time.Duration(0), until.Sub(p.now()))
+				}
+				var ticks <-chan time.Time
+				disarm := func() {}
+				if p.arm != nil {
+					var err error
+					ticks, disarm, err = p.arm(delay)
+					if err != nil {
+						// Partials are optional, never terminal authority. Drop this
+						// failed publication window and allow a later mark to retry.
+						p.mu.Lock()
+						p.pending = nil
+						p.mu.Unlock()
+						if p.report != nil {
+							p.report(err)
+						}
+						armFailed = true
+						break
+					}
+				} else {
+					ticks = p.after(delay)
+				}
+				select {
+				case <-p.halt:
+					disarm()
+					return
+				case <-ticks:
+					disarm()
+				}
+				if p.now == nil || !p.now().Before(until) {
+					break
+				}
+			}
+			if armFailed {
+				break
 			}
 			p.mu.Lock()
 			if p.stopped {
