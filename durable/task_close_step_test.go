@@ -97,7 +97,7 @@ func TestTaskSchedulerPinnedCloseAtReturnedFaultOrProgressStepWritesNoOutcome(t 
 				store := reopenStoreAfterHarnessClose(t, b.store)
 				t.Cleanup(func() { _ = store.Close(bg) })
 				after := snap(t, store)
-				if before.Seq != after.Seq || after.Tasks[id].Status != "running" || taskHasDecidedOutcome(after.Tasks[id]) || first.Load() != 1 || second.Load() != 0 || aborts.Load() != 0 {
+				if before.Seq+1 != after.Seq || after.Tasks[id].Status != "pending" || taskHasDecidedOutcome(after.Tasks[id]) || first.Load() != 1 || second.Load() != 0 || aborts.Load() != 0 {
 					t.Fatal("Close step published decision/fresh work", before.Seq, after.Seq, after.Tasks[id], first.Load(), second.Load(), aborts.Load())
 				}
 				if mode == "progress" && after.Tasks[id].Execution.Native.State.Checkpoint["phase"] != "two" {

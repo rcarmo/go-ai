@@ -6562,7 +6562,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 					reopened := reopenStoreAfterHarnessClose(t, b.store)
 					after := snap(t, reopened)
 					var cp generationCheckpoint
-					if err := fromObject(after.Tasks[parent].Checkpoint, &cp, first.session.limits); err != nil || after.Seq != prefix.Seq || cp.Phase != "tools" || len(cp.Children) != 1 || after.Submissions[sub.ID()].Status != "pending" || requests.Load() != 1 || executions.Load() != 1 {
+					if err := fromObject(after.Tasks[parent].Checkpoint, &cp, first.session.limits); err != nil || after.Seq != prefix.Seq+1 || after.Tasks[parent].Status != "pending" || cp.Phase != "tools" || len(cp.Children) != 1 || after.Submissions[sub.ID()].Status != "pending" || requests.Load() != 1 || executions.Load() != 1 {
 						t.Fatal("fresh continuation adopted after Close", cp, err)
 					}
 					second := openHarness(t, reopened, options)

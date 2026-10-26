@@ -43,7 +43,7 @@ func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
 					if err := h.Close(bg); err != nil {
 						t.Fatal(err)
 					}
-					h = taskTestHarnessOptions(t, reopenStoreAfterHarnessClose(t, h.session.store), options, def)
+					h = taskTestHarnessOptions(t, interruptedStore140(t, reopenStoreAfterHarnessClose(t, h.session.store), id), options, def)
 					state, err := h.Snapshot(bg)
 					if err != nil {
 						t.Fatal(err)
@@ -157,7 +157,7 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 		if err = h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		h = taskTestHarness(t, reopenStoreAfterHarnessClose(t, h.session.store), def)
+		h = taskTestHarness(t, interruptedStore140(t, reopenStoreAfterHarnessClose(t, h.session.store), id), def)
 		if h.RestartLimit() != DefaultRestartLimit {
 			t.Fatal(h.RestartLimit())
 		}
@@ -204,7 +204,7 @@ func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *test
 					if missing && interruption == limit {
 						definitions = nil
 					}
-					h = taskTestHarnessOptions(t, reopenStoreAfterHarnessClose(t, h.session.store), options, definitions...)
+					h = taskTestHarnessOptions(t, interruptedStore140(t, reopenStoreAfterHarnessClose(t, h.session.store), id), options, definitions...)
 				}
 				if err = h.Resume(bg); err != nil {
 					t.Fatal(err)
@@ -318,7 +318,7 @@ func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing
 		if err = h.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		h = openHarness(t, reopenStoreAfterHarnessClose(t, h.session.store), options)
+		h = openHarness(t, interruptedStore140(t, reopenStoreAfterHarnessClose(t, h.session.store), id), options)
 		if err = h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -338,4 +338,23 @@ func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing
 			t.Fatal("cutoff did not settle submission", snapshot.Submissions[submission.ID()])
 		}
 	})
+}
+
+// Crash fixtures must retain a running record explicitly: a successful Close
+// now requeues joined hosts without consuming the interruption budget.
+func interruptedStore140(t *testing.T, store Storage, id ID) Storage {
+	t.Helper()
+	snapshot, err := store.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := snapshot.Tasks[id]
+	task.Status = "running"
+	if task.Execution != nil && task.Execution.Native != nil {
+		task.Execution.Native.State.Status = "running"
+	}
+	if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}); err != nil {
+		t.Fatal(err)
+	}
+	return store
 }

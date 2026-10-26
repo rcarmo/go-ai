@@ -79,7 +79,7 @@ func TestTaskSchedulerPinnedCloseSealsAdmissionStopsWatchBeforeSignalAndJoins(t 
 		store := reopenStoreAfterHarnessClose(t, b.store)
 		t.Cleanup(func() { _ = store.Close(bg) })
 		after := snap(t, store)
-		if after.Seq != before.Seq || after.Tasks[id].Status != "running" || taskHasDecidedOutcome(after.Tasks[id]) || phases.Load() != 1 || aborts.Load() != 0 {
+		if after.Seq != before.Seq+1 || after.Tasks[id].Status != "pending" || taskHasDecidedOutcome(after.Tasks[id]) || phases.Load() != 1 || aborts.Load() != 0 {
 			t.Fatal("Close wrote outcome or started fresh work", after.Tasks[id], before.Seq, after.Seq, phases.Load(), aborts.Load())
 		}
 	})

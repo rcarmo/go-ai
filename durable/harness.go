@@ -666,7 +666,12 @@ func (h *Harness) Close(ctx context.Context) error {
 			h.mu.Lock()
 			h.pins = map[ID]map[string]registeredTool{}
 			h.mu.Unlock()
-			h.closeErr = h.session.Close(context.Background())
+			h.closeErr = h.session.requeueAtClose()
+			if closeErr := h.session.Close(context.Background()); h.closeErr == nil {
+				h.closeErr = closeErr
+			} else if closeErr != nil {
+				h.report(context.Background(), closeErr, ReportInfo{Type: "listener_error"})
+			}
 			close(h.closeDone)
 		}()
 	})
