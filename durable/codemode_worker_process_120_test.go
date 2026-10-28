@@ -130,7 +130,7 @@ func (p officialWorkerTransport120) Execute(ctx context.Context, request Codemod
 func TestCodemode120OfficialWorkerVMIntegration(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.3.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	data, err := os.ReadFile(filepath.Join(root, "node_modules", "@earendil-works", "pi-codemode", "package.json"))
 	if err != nil {
@@ -139,7 +139,7 @@ func TestCodemode120OfficialWorkerVMIntegration(t *testing.T) {
 	var metadata struct {
 		Version string `json:"version"`
 	}
-	if json.Unmarshal(data, &metadata) != nil || metadata.Version != "1.3.0" {
+	if json.Unmarshal(data, &metadata) != nil || metadata.Version != "1.4.0" {
 		t.Fatal("wrong official package")
 	}
 	observed := make(chan int)
@@ -195,7 +195,7 @@ func TestCodemode120OfficialWorkerVMIntegration(t *testing.T) {
 func TestCodemode120OfficialWorkerTerminalAndConsole(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.3.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	for _, script := range []struct {
 		name, code string

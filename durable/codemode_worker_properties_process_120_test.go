@@ -10,7 +10,7 @@ import (
 func TestCodemode120OfficialWorkerRejectionPropertiesReplay(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.2.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	// Repeat the identical start and journal delivery. The caught value and VM
 	// clock must agree independently of the process's real time.

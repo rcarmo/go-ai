@@ -12,7 +12,7 @@ import (
 func TestCodemode120OfficialPortableOutputBatching(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.2.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	var exchanges, items atomic.Int64
 	transport := workerTransport120(func(ctx context.Context, request CodemodeWorkerRequest, exchange func(context.Context, []CodemodeWorkerMessage) (*CodemodeWorkerReply, error)) error {
@@ -52,7 +52,7 @@ func TestCodemode120OfficialPortableOutputBatching(t *testing.T) {
 func TestCodemode120OfficialPortableServerResourceCaps(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.2.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	t.Setenv("GOAI_WORKER_MAX_BUDGET", "1000")
 	t.Setenv("GOAI_WORKER_MAX_MEMORY", "8388608")
@@ -83,7 +83,7 @@ func TestCodemode120OfficialPortableServerResourceCaps(t *testing.T) {
 func TestCodemode120OfficialPortableComputingAbortJoins(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.2.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	started := make(chan struct{})
 	joined := make(chan struct{})

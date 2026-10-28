@@ -26,8 +26,9 @@ func Parse(r io.Reader) <-chan SSEEvent {
 	go func() {
 		defer close(ch)
 		scanner := bufio.NewScanner(r)
-		// SSE can have long lines (base64 images, big JSON)
-		scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+		// Start small for ordinary token events; grow to the same hard limit
+		// for long lines such as base64 images and large JSON records.
+		scanner.Buffer(make([]byte, 0, 8*1024), 4*1024*1024)
 
 		var event SSEEvent
 		event.Retry = -1

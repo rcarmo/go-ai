@@ -11,7 +11,7 @@ import (
 func TestCodemode120OfficialSourceNumberComparison(t *testing.T) {
 	root := os.Getenv("GOAI_WORKER_PACKAGE_ROOT")
 	if root == "" {
-		t.Skip("opt-in: exact pi-codemode@1.2.0 install required")
+		t.Skip("opt-in: exact pi-codemode@1.4.0 install required")
 	}
 	sources := []string{}
 	for _, raw := range []string{"1", "1.0", "1.0000000000000001", "9007199254740991.1", "9007199254740992", "-0", "1e-9999", "1e9999", "1.5", "true", "null", `"1"`} {
