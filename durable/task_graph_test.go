@@ -84,7 +84,7 @@ func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
 				return errors.New("graph operations do not replay frame")
 			}
 			mirror = JSON(applied.(map[string]any))
-			frames <- copyTaskGraph(graph)
+			frame := copyTaskGraph(graph)
 			// Callback may reenter; neither mutation changes observer/storage state.
 			if _, err := h.TaskGraph(bg); err != nil {
 				return err
@@ -92,6 +92,9 @@ func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
 			for key := range graph.Tasks {
 				delete(graph.Tasks, key)
 			}
+			// Publish completion only after reentry: the final-frame waiter
+			// may return and close the harness as soon as it receives this.
+			frames <- frame
 			return nil
 		}); err != nil {
 			t.Fatal(err)
