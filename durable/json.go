@@ -495,12 +495,56 @@ func copyObject(v JSON, l Limits) (JSON, error) {
 	if e != nil {
 		return nil, e
 	}
+	// Validation and bounded encoding above retain all ownership/size gates.
+	// Exact decoded JSON needs detached containers, not another parse/copy of
+	// potentially large immutable text. Other Go types retain normalisation.
+	if n, ok := cloneDecodedJSON(v); ok {
+		return JSON(n.(map[string]any)), nil
+	}
 	var n JSON
 	if e = decodeStrict(p, l, l.MaxRecordBytes, &n); e != nil {
 		return nil, e
 	}
 	return n, nil
 }
+
+func cloneDecodedJSON(v any) (any, bool) {
+	switch value := v.(type) {
+	case nil, bool, string, json.Number:
+		return value, true
+	case JSON:
+		return cloneDecodedJSON(map[string]any(value))
+	case map[string]any:
+		if value == nil {
+			return nil, true
+		}
+		out := make(map[string]any, len(value))
+		for key, child := range value {
+			copy, ok := cloneDecodedJSON(child)
+			if !ok {
+				return nil, false
+			}
+			out[key] = copy
+		}
+		return out, true
+	case []any:
+		if value == nil {
+			return nil, true
+		}
+		out := make([]any, len(value))
+		for index, child := range value {
+			copy, ok := cloneDecodedJSON(child)
+			if !ok {
+				return nil, false
+			}
+			out[index] = copy
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
 func decodeStrict(p []byte, l Limits, max int, target any) error {
 	if len(p) > max || !utf8.Valid(p) {
 		return reject("invalid or oversized JSON bytes")
