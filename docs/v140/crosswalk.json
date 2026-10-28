@@ -1,0 +1,2259 @@
+{
+  "target": "v1.4.0",
+  "prior": "v1.3.0",
+  "runtimeCandidate": "0852445",
+  "method": "Each changed upstream file maps to an explicit native production/test group. Group references list checked-in Go tests executed by the full suite; they are not assertions of line-for-line test translations. Live/browser/Cloudflare limits are stated per row or group.",
+  "groups": {
+    "models": {
+      "source": [
+        "models_runtime.go",
+        "models_generated.go",
+        "image_models_generated.go",
+        "classifier_models_generated.go"
+      ],
+      "tests": [
+        "tests/anthropic_adaptive_thinking_models_test.go",
+        "tests/catalog_110_test.go",
+        "tests/classifier_cloudflare_v101_test.go",
+        "tests/classifier_contract_issue1_test.go",
+        "tests/classifier_decisions_110_test.go",
+        "tests/classifier_llama_cpp_issue1_test.go",
+        "tests/classifier_llama_cpp_v0991_test.go",
+        "tests/classifier_runtime_v0991_test.go",
+        "tests/cross_model_thinking_130_test.go",
+        "tests/model_schemas_120_test.go",
+        "tests/model_selection_test.go",
+        "tests/models_catalog_upstream_test.go",
+        "tests/models_compat_v101_test.go",
+        "tests/models_runtime_baseurl_120_test.go",
+        "tests/models_runtime_lookup_issue2_test.go",
+        "tests/models_runtime_test.go",
+        "tests/models_test.go",
+        "tests/models_v0844_catalog_test.go",
+        "tests/models_v0850_catalog_test.go",
+        "tests/models_v0851_catalog_test.go",
+        "tests/models_v0870_catalog_test.go",
+        "tests/models_v100_typed_lookup_test.go",
+        "tests/models_v100_typed_registry_test.go",
+        "tests/models_v101_catalog_test.go",
+        "tests/openrouter_catalog_120_test.go",
+        "tests/thinking_catalog_120_test.go",
+        "tests/v0821_catalog_test.go"
+      ],
+      "note": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    "identity": {
+      "source": [
+        "identity.go",
+        "durable/identity.go"
+      ],
+      "tests": [
+        "durable/codemode_identity_120_test.go",
+        "durable/codemode_issued_identity_120_test.go",
+        "durable/identity_140_test.go",
+        "durable/provider_identity_test.go",
+        "tests/identity_140_test.go",
+        "inference/provider/openaicodex/identity_140_test.go"
+      ],
+      "note": "Native bounded identity settings, default attribution, suppression and provider headers."
+    },
+    "telemetry": {
+      "source": [
+        "telemetry.go",
+        "durable/telemetry.go"
+      ],
+      "tests": [
+        "durable/models_telemetry_140_test.go",
+        "durable/telemetry_140_test.go"
+      ],
+      "note": "Optional callbacks and span links are process-local and isolated from outcomes; no content/error text attributes."
+    },
+    "anthropic": {
+      "source": [
+        "inference/provider/anthropic/anthropic.go"
+      ],
+      "tests": [
+        "tests/anthropic_adaptive_thinking_models_test.go",
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/anthropic/anthropic_auth_token_test.go",
+        "inference/provider/anthropic/anthropic_cache_retention_upstream_test.go",
+        "inference/provider/anthropic/anthropic_cache_write_1h_cost_test.go",
+        "inference/provider/anthropic/anthropic_context_clamp_upstream_test.go",
+        "inference/provider/anthropic/anthropic_copilot_test.go",
+        "inference/provider/anthropic/anthropic_eager_tool_input_compat_test.go",
+        "inference/provider/anthropic/anthropic_empty_thinking_signature_compat_test.go",
+        "inference/provider/anthropic/anthropic_federation_v0992_test.go",
+        "inference/provider/anthropic/anthropic_force_adaptive_thinking_test.go",
+        "inference/provider/anthropic/anthropic_inline_tools_v101_test.go",
+        "inference/provider/anthropic/anthropic_oauth_names_v101_test.go",
+        "inference/provider/anthropic/anthropic_oauth_useragent_v0871_test.go",
+        "inference/provider/anthropic/anthropic_raw_stop_reason_test.go",
+        "inference/provider/anthropic/anthropic_reasoning_usage_upstream_test.go",
+        "inference/provider/anthropic/anthropic_request_compat_test.go",
+        "inference/provider/anthropic/anthropic_retry_test.go",
+        "inference/provider/anthropic/anthropic_sampling_v0840_test.go",
+        "inference/provider/anthropic/anthropic_strict_tool_schema_v0992_test.go",
+        "inference/provider/anthropic/anthropic_temperature_compat_test.go",
+        "inference/provider/anthropic/anthropic_thinking_disable_test.go",
+        "inference/provider/anthropic/anthropic_tool_name_normalization_test.go",
+        "inference/provider/anthropic/anthropic_v0840_test.go",
+        "inference/provider/anthropic/deferred_tools_upstream_test.go",
+        "inference/provider/anthropic/error_tool_images_130_test.go",
+        "inference/provider/anthropic/github_copilot_anthropic_test.go",
+        "inference/provider/anthropic/strict_fallback_120_test.go",
+        "inference/provider/anthropic/strict_fallback_boundary_120_test.go",
+        "inference/provider/anthropic/strict_fallback_inline_120_test.go",
+        "inference/provider/anthropic/thinking_off_130_test.go",
+        "inference/provider/anthropic/v0843_fallback_useragent_test.go",
+        "inference/provider/anthropic/v0843_stream_fallback_test.go",
+        "inference/provider/anthropic/v0850_beta_override_test.go",
+        "inference/provider/anthropic/v0850_mid_conversation_effort_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "google": {
+      "source": [
+        "inference/provider/google/google.go"
+      ],
+      "tests": [
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/google/google_audit_test.go",
+        "inference/provider/google/google_context_clamp_upstream_test.go",
+        "inference/provider/google/google_retry_test.go",
+        "inference/provider/google/google_shared_upstream_test.go",
+        "inference/provider/google/google_thinking_disable_upstream_test.go",
+        "inference/provider/google/google_thinking_signature_test.go",
+        "inference/provider/google/google_v0840_test.go",
+        "inference/provider/google/google_vertex_api_key_resolution_test.go",
+        "inference/provider/google/raw_stop_reason_upstream_test.go",
+        "inference/provider/google/thinking_level_130_test.go",
+        "inference/provider/google/v0843_thinking_level_map_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "bedrock": {
+      "source": [
+        "inference/provider/bedrock/bedrock.go"
+      ],
+      "tests": [
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/bedrock/bedrock_110_test.go",
+        "inference/provider/bedrock/bedrock_context_clamp_upstream_test.go",
+        "inference/provider/bedrock/bedrock_convert_messages_upstream_test.go",
+        "inference/provider/bedrock/bedrock_custom_headers_upstream_test.go",
+        "inference/provider/bedrock/bedrock_endpoint_resolution_upstream_test.go",
+        "inference/provider/bedrock/bedrock_stream_test.go",
+        "inference/provider/bedrock/bedrock_test.go",
+        "inference/provider/bedrock/bedrock_thinking_payload_upstream_test.go",
+        "inference/provider/bedrock/bedrock_thinking_v101_test.go",
+        "inference/provider/bedrock/error_images_130_test.go",
+        "inference/provider/bedrock/v0842_sanitization_test.go",
+        "inference/provider/bedrock/v0843_redacted_reasoning_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "openai": {
+      "source": [
+        "inference/provider/openai/openai.go"
+      ],
+      "tests": [
+        "tests/deferred_tools_upstream_test.go",
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "tests/tool_arguments_130_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/openai/azure_104_test.go",
+        "inference/provider/openai/constrained_sampling_chat_upstream_test.go",
+        "inference/provider/openai/grammar_input_120_test.go",
+        "inference/provider/openai/openai_cache_control_upstream_test.go",
+        "inference/provider/openai/openai_completions_empty_tools_upstream_test.go",
+        "inference/provider/openai/openai_completions_prompt_cache_test.go",
+        "inference/provider/openai/openai_completions_response_model_test.go",
+        "inference/provider/openai/openai_completions_thinking_as_text_test.go",
+        "inference/provider/openai/openai_context_clamp_upstream_test.go",
+        "inference/provider/openai/openai_custom_stream_upstream_test.go",
+        "inference/provider/openai/openai_deferred_kimi_test.go",
+        "inference/provider/openai/openai_empty_tool_result_upstream_test.go",
+        "inference/provider/openai/openai_image_only_upstream_test.go",
+        "inference/provider/openai/openai_malformed_tool_delta_test.go",
+        "inference/provider/openai/openai_payload_test.go",
+        "inference/provider/openai/openai_reasoning_details_upstream_test.go",
+        "inference/provider/openai/openai_retry_test.go",
+        "inference/provider/openai/openai_tool_call_id_normalization_test.go",
+        "inference/provider/openai/openai_v0840_test.go",
+        "inference/provider/openai/openrouter_cache_write_repro_upstream_test.go",
+        "inference/provider/openai/provider_stream_event_v0991_test.go",
+        "inference/provider/openai/qwen_token_plan_individual_upstream_test.go",
+        "inference/provider/openai/raw_stop_reason_upstream_test.go",
+        "inference/provider/openai/reasoning_order_130_test.go",
+        "inference/provider/openai/v0842_strict_schema_test.go",
+        "inference/provider/openai/v0844_openrouter_reasoning_options_test.go",
+        "inference/provider/openai/v0844_reasoning_details_test.go",
+        "inference/provider/openai/v0850_vllm_priority_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "responses": {
+      "source": [
+        "inference/provider/openairesponses/responses.go"
+      ],
+      "tests": [
+        "tests/deferred_tools_upstream_test.go",
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "tests/tool_arguments_130_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/openairesponses/azure_openai_base_url_test.go",
+        "inference/provider/openairesponses/azure_reasoning_replay_upstream_test.go",
+        "inference/provider/openairesponses/constrained_sampling_upstream_test.go",
+        "inference/provider/openairesponses/deferred_tools_upstream_test.go",
+        "inference/provider/openairesponses/grammar_stream_120_test.go",
+        "inference/provider/openairesponses/message_wire_exclusion_v0991_test.go",
+        "inference/provider/openairesponses/mid_effort_130_test.go",
+        "inference/provider/openairesponses/raw_status_upstream_test.go",
+        "inference/provider/openairesponses/responses_azure_test.go",
+        "inference/provider/openairesponses/responses_compat_upstream_test.go",
+        "inference/provider/openairesponses/responses_context_clamp_upstream_test.go",
+        "inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go",
+        "inference/provider/openairesponses/responses_foreign_toolcall_id_test.go",
+        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go",
+        "inference/provider/openairesponses/responses_message_id_test.go",
+        "inference/provider/openairesponses/responses_partial_json_cleanup_test.go",
+        "inference/provider/openairesponses/responses_request_test.go",
+        "inference/provider/openairesponses/responses_retry_test.go",
+        "inference/provider/openairesponses/responses_v0840_test.go",
+        "inference/provider/openairesponses/responses_v0991_chatgpt_stream_test.go",
+        "inference/provider/openairesponses/v0842_namespace_additional_tools_test.go",
+        "inference/provider/openairesponses/v0843_azure_tool_choice_test.go",
+        "inference/provider/openairesponses/v0850_max_output_tokens_test.go",
+        "inference/provider/openairesponses/v0850_stale_error_cleanup_test.go",
+        "inference/provider/openairesponses/v0851_cache_retention_test.go",
+        "inference/provider/openairesponses/workspace_limit_140_test.go",
+        "inference/provider/openairesponses/xai_responses_upstream_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "codex": {
+      "source": [
+        "inference/provider/openaicodex/codex.go"
+      ],
+      "tests": [
+        "tests/responseid_simulated_test.go",
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/openaicodex/codex_context_clamp_upstream_test.go",
+        "inference/provider/openaicodex/codex_custom_stream_upstream_test.go",
+        "inference/provider/openaicodex/codex_request_test.go",
+        "inference/provider/openaicodex/codex_retry_test.go",
+        "inference/provider/openaicodex/codex_v0805_upstream_test.go",
+        "inference/provider/openaicodex/codex_ws_limit_test.go",
+        "inference/provider/openaicodex/codex_ws_test.go",
+        "inference/provider/openaicodex/constrained_sampling_codex_upstream_test.go",
+        "inference/provider/openaicodex/headers_110_test.go",
+        "inference/provider/openaicodex/identity_140_test.go",
+        "inference/provider/openaicodex/v0842_endturn_useragent_test.go",
+        "inference/provider/openaicodex/v0842_strict_schema_test.go",
+        "inference/provider/openaicodex/v0850_terminal_sse_test.go"
+      ],
+      "note": "Native Codex transport, identity, cache/session and stream fixtures. Hosted cache-affinity/probe runs require credentials and were not run."
+    },
+    "mistral": {
+      "source": [
+        "inference/provider/mistral/mistral.go"
+      ],
+      "tests": [
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/mistral/mistral_context_clamp_upstream_test.go",
+        "inference/provider/mistral/mistral_reasoning_mode_test.go",
+        "inference/provider/mistral/mistral_retry_test.go",
+        "inference/provider/mistral/mistral_tool_schema_test.go",
+        "inference/provider/mistral/payload_120_test.go",
+        "inference/provider/mistral/raw_stop_reason_upstream_test.go",
+        "inference/provider/mistral/timeout_120_test.go",
+        "inference/provider/mistral/v0842_strict_schema_test.go",
+        "inference/provider/mistral/v0842_wire_contract_test.go",
+        "inference/provider/mistral/v0844_tool_call_fragments_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "pimessages": {
+      "source": [
+        "inference/provider/pimessages/pimessages.go"
+      ],
+      "tests": [
+        "tests/v0806_parity_test.go",
+        "tests/v0811_parity_test.go",
+        "inference/provider/pimessages/argument_error_130_test.go",
+        "inference/provider/pimessages/pimessages_test.go",
+        "inference/provider/pimessages/thinking_replay_120_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "classifier": {
+      "source": [
+        "classifier_runtime.go"
+      ],
+      "tests": [
+        "durable/codemode_classifier_errors_120_test.go",
+        "durable/models_classifier_fault_120_test.go",
+        "durable/models_classifier_lifecycle_120_test.go",
+        "tests/classifier_cloudflare_v101_test.go",
+        "tests/classifier_contract_issue1_test.go",
+        "tests/classifier_decisions_110_test.go",
+        "tests/classifier_llama_cpp_issue1_test.go",
+        "tests/classifier_llama_cpp_v0991_test.go",
+        "tests/classifier_runtime_v0991_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "images": {
+      "source": [
+        "images/openrouter/openrouter.go"
+      ],
+      "tests": [
+        "durable/codemode_generated_images_120_test.go",
+        "durable/codemode_image_chunks_120_test.go",
+        "durable/codemode_image_label_spill_120_test.go",
+        "durable/codemode_image_limit_alignment_120_test.go",
+        "durable/codemode_image_output_120_test.go",
+        "durable/codemode_image_partial_120_test.go",
+        "durable/codemode_image_poison_120_test.go",
+        "durable/codemode_image_process_120_test.go",
+        "durable/codemode_image_reopen_120_test.go",
+        "durable/codemode_images_120_test.go",
+        "durable/codemode_output_images_120_test.go",
+        "durable/codemode_transcript_image_120_test.go",
+        "durable/receipt_image_chunks_120_test.go",
+        "durable/tool_image_error_120_test.go",
+        "durable/tools/image_animation_120_test.go",
+        "durable/tools/image_detect_test.go",
+        "durable/tools/image_formats_120_test.go",
+        "durable/tools/image_lanczos_120_test.go",
+        "durable/tools/image_model_120_test.go",
+        "durable/tools/image_prepare_120_test.go",
+        "durable/tools/image_prepare_read_120_test.go",
+        "durable/tools/image_quality_120_test.go",
+        "durable/tools/image_test.go",
+        "tests/images_openrouter_upstream_test.go",
+        "tests/images_test.go",
+        "inference/provider/anthropic/error_tool_images_130_test.go",
+        "inference/provider/bedrock/error_images_130_test.go",
+        "inference/provider/openai/openai_image_only_upstream_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "retry": {
+      "source": [
+        "retry.go"
+      ],
+      "tests": [
+        "durable/compaction_current_retry_test.go",
+        "durable/generation_retry_prepare_test.go",
+        "durable/generation_retry_test.go",
+        "durable/overflow_compaction_failure_test.go",
+        "durable/settings_retry_test.go",
+        "durable/task_final_retry_test.go",
+        "tests/context_overflow_simulated_test.go",
+        "tests/overflow_upstream_test.go",
+        "tests/provider_retry_test.go",
+        "tests/retry_120_test.go",
+        "tests/retry_130_test.go",
+        "tests/retry_assistant_test.go",
+        "tests/retry_capacity_v101_test.go",
+        "tests/retry_proxy_test.go",
+        "inference/provider/anthropic/anthropic_retry_test.go",
+        "inference/provider/geminicli/geminicli_retry_test.go",
+        "inference/provider/google/google_retry_test.go",
+        "inference/provider/mistral/mistral_retry_test.go",
+        "inference/provider/openai/openai_retry_test.go",
+        "inference/provider/openaicodex/codex_retry_test.go",
+        "inference/provider/openairesponses/responses_retry_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "transcript": {
+      "source": [
+        "transcript.go"
+      ],
+      "tests": [
+        "durable/codemode_transcript_image_120_test.go",
+        "durable/generation_handoff_test.go",
+        "durable/tool_invalid_hook_result_test.go",
+        "tests/transcript_v0870_test.go",
+        "inference/provider/openai/openai_empty_tool_result_upstream_test.go",
+        "inference/provider/openai/openai_tool_call_id_normalization_test.go",
+        "inference/provider/openairesponses/responses_empty_tool_result_upstream_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "stream": {
+      "source": [
+        "registry.go",
+        "assistant_stream.go",
+        "types.go"
+      ],
+      "tests": [
+        "tests/cloudflare_stream_upstream_test.go",
+        "tests/deferred_tools_upstream_test.go",
+        "tests/estimate_upstream_test.go",
+        "tests/images_openrouter_upstream_test.go",
+        "tests/lax_message_content_upstream_test.go",
+        "tests/models_catalog_upstream_test.go",
+        "tests/overflow_upstream_test.go",
+        "tests/qwen_token_plan_upstream_test.go",
+        "tests/responseid_simulated_test.go",
+        "tests/supports_xhigh_upstream_test.go",
+        "tests/tokens_simulated_test.go",
+        "tests/total_tokens_simulated_test.go",
+        "tests/unicode_surrogate_simulated_test.go",
+        "tests/upstream_validation_test.go",
+        "tests/upstream_validation_v0842_test.go",
+        "tests/zai_coding_plan_upstream_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "generation": {
+      "source": [
+        "durable/generation.go",
+        "durable/generation_handoff.go",
+        "durable/deferred.go"
+      ],
+      "tests": [
+        "durable/compaction_generation_test.go",
+        "durable/deferred_cancel_test.go",
+        "durable/deferred_fault_test.go",
+        "durable/deferred_test.go",
+        "durable/generation_abort_test.go",
+        "durable/generation_current_settings_test.go",
+        "durable/generation_handoff_test.go",
+        "durable/generation_hook_owned_test.go",
+        "durable/generation_hook_reopen_test.go",
+        "durable/generation_hook_snapshot_test.go",
+        "durable/generation_hook_terminal_test.go",
+        "durable/generation_model_error_test.go",
+        "durable/generation_no_model_test.go",
+        "durable/generation_progress_test.go",
+        "durable/generation_retry_prepare_test.go",
+        "durable/generation_retry_test.go",
+        "durable/generation_sleep_140_test.go",
+        "durable/generation_status_test.go",
+        "durable/generation_stop_test.go",
+        "durable/generation_timer_140_test.go",
+        "durable/harness_generation_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "compaction": {
+      "source": [
+        "durable/compaction.go"
+      ],
+      "tests": [
+        "durable/compaction_background_test.go",
+        "durable/compaction_current_retry_test.go",
+        "durable/compaction_cut_test.go",
+        "durable/compaction_failure_120_test.go",
+        "durable/compaction_generation_test.go",
+        "durable/compaction_invalid_summary_test.go",
+        "durable/compaction_no_model_test.go",
+        "durable/compaction_policy_140_test.go",
+        "durable/compaction_sleep_140_test.go",
+        "durable/compaction_status_test.go",
+        "durable/compaction_test.go",
+        "durable/compaction_text_test.go",
+        "durable/compaction_threshold_test.go",
+        "durable/overflow_compaction_failure_test.go",
+        "durable/settings_retry_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "inbox": {
+      "source": [
+        "durable/inbox.go",
+        "durable/submission.go"
+      ],
+      "tests": [
+        "durable/failed_run_140_test.go",
+        "durable/inbox_test.go",
+        "durable/inbox_write_test.go",
+        "durable/submission_bound_wait_test.go",
+        "durable/submission_placement_test.go",
+        "durable/submission_status_test.go",
+        "durable/submission_test.go",
+        "durable/submission_transaction_test.go",
+        "durable/submission_wait_end_test.go",
+        "durable/submission_wait_publication_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "tasks": {
+      "source": [
+        "durable/task_scheduler.go",
+        "durable/task_runtime.go"
+      ],
+      "tests": [
+        "durable/close_requeue_140_test.go",
+        "durable/codemode_quickjs_restart_120_test.go",
+        "durable/codemode_restart_120_test.go",
+        "durable/nested_restart_120_test.go",
+        "durable/restart_limit_140_test.go",
+        "durable/task_abort_dispatch_test.go",
+        "durable/task_abort_terminal_test.go",
+        "durable/task_agent_boundary_test.go",
+        "durable/task_agent_failure_test.go",
+        "durable/task_agent_test.go",
+        "durable/task_binding_registry_test.go",
+        "durable/task_bottom_up_test.go",
+        "durable/task_close_cancel_test.go",
+        "durable/task_close_order_test.go",
+        "durable/task_close_reservation_test.go",
+        "durable/task_close_step_test.go",
+        "durable/task_commit_order_test.go",
+        "durable/task_conversation_cascade_test.go",
+        "durable/task_creation_boundary_test.go",
+        "durable/task_decided_creation_test.go",
+        "durable/task_definition_test.go",
+        "durable/task_environment_test.go",
+        "durable/task_final_retry_test.go",
+        "durable/task_foreign_wait_test.go",
+        "durable/task_graph_acquire_test.go",
+        "durable/task_graph_blocking_140_test.go",
+        "durable/task_graph_migration_140_test.go",
+        "durable/task_graph_quiet_test.go",
+        "durable/task_graph_reopen_test.go",
+        "durable/task_graph_test.go",
+        "durable/task_held_live_test.go",
+        "durable/task_held_outcome_test.go",
+        "durable/task_hold_mark_test.go",
+        "durable/task_hooks_cancel_test.go",
+        "durable/task_hooks_test.go",
+        "durable/task_late_hold_test.go",
+        "durable/task_late_owned_reopen_sqlite_test.go",
+        "durable/task_late_owned_reopen_test.go",
+        "durable/task_legacy_test.go",
+        "durable/task_marked_background_test.go",
+        "durable/task_missing_wait_test.go",
+        "durable/task_ordinary_terminal_owner_test.go",
+        "durable/task_owned_120_test.go",
+        "durable/task_owned_inspect_reopen_test.go",
+        "durable/task_owned_queue_scope_test.go",
+        "durable/task_owner_cascade_test.go",
+        "durable/task_owner_dependency_mark_test.go",
+        "durable/task_ownership_test.go",
+        "durable/task_queued_lifetime_test.go",
+        "durable/task_recovery_test.go",
+        "durable/task_reference_closure_test.go",
+        "durable/task_restart_120_test.go",
+        "durable/task_restart_cancel_120_test.go",
+        "durable/task_scheduler_test.go",
+        "durable/task_sleep_140_test.go",
+        "durable/task_structured_recovery_test.go",
+        "durable/task_table_boundary_test.go",
+        "durable/task_table_publication_test.go",
+        "durable/task_times_110_test.go",
+        "durable/task_wait_abort_test.go",
+        "durable/task_wait_migration_test.go",
+        "durable/task_wait_reopen_sqlite_test.go",
+        "durable/task_wait_reopen_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "graph": {
+      "source": [
+        "durable/task_graph.go"
+      ],
+      "tests": [
+        "durable/task_graph_acquire_test.go",
+        "durable/task_graph_blocking_140_test.go",
+        "durable/task_graph_migration_140_test.go",
+        "durable/task_graph_quiet_test.go",
+        "durable/task_graph_reopen_test.go",
+        "durable/task_graph_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "reports": {
+      "source": [
+        "durable/telemetry.go"
+      ],
+      "tests": [
+        "durable/extension_wrap_test.go",
+        "durable/models_telemetry_140_test.go",
+        "durable/report_140_test.go",
+        "durable/telemetry_140_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "timers": {
+      "source": [
+        "durable/clock.go",
+        "durable/wake.go",
+        "durable/task_sleep.go"
+      ],
+      "tests": [
+        "durable/codemode_delivery_clock_120_test.go",
+        "durable/codemode_quickjs_clock_120_test.go",
+        "durable/compaction_sleep_140_test.go",
+        "durable/generation_sleep_140_test.go",
+        "durable/generation_timer_140_test.go",
+        "durable/progress_timer_140_test.go",
+        "durable/session_timers_140_test.go",
+        "durable/storage_sqlite_sleep_140_test.go",
+        "durable/task_sleep_140_test.go",
+        "durable/timers_140_test.go",
+        "durable/tool_progress_clock_test.go",
+        "durable/wake_140_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "documents": {
+      "source": [
+        "durable/document_definition.go",
+        "durable/harness_documents.go"
+      ],
+      "tests": [
+        "durable/codemode_checkpoint_140_test.go",
+        "durable/document_checkpoint_140_test.go",
+        "durable/document_checkpoint_test.go",
+        "durable/document_definition_test.go",
+        "durable/document_history_test.go",
+        "durable/document_retention_120_test.go",
+        "durable/harness_documents_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "session": {
+      "source": [
+        "durable/session.go",
+        "durable/transaction.go"
+      ],
+      "tests": [
+        "durable/document_definition_test.go",
+        "durable/extension_wrap_test.go",
+        "durable/plain_session_defaults_test.go",
+        "durable/session_failure_120_test.go",
+        "durable/session_timers_140_test.go",
+        "durable/submission_transaction_test.go",
+        "durable/submission_wait_publication_test.go",
+        "durable/task_definition_test.go",
+        "durable/task_table_publication_test.go",
+        "durable/transaction_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "sqlite": {
+      "source": [
+        "durable/storage_sqlite.go"
+      ],
+      "tests": [
+        "durable/scan_sqlite_110_test.go",
+        "durable/storage_request_sqlite_120_test.go",
+        "durable/storage_sqlite_conformance_test.go",
+        "durable/storage_sqlite_failure_test.go",
+        "durable/storage_sqlite_prefix_130_test.go",
+        "durable/storage_sqlite_sleep_140_test.go",
+        "durable/storage_sqlite_test.go",
+        "durable/task_late_owned_reopen_sqlite_test.go",
+        "durable/task_wait_reopen_sqlite_test.go"
+      ],
+      "note": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    "storage": {
+      "source": [
+        "durable/storage.go"
+      ],
+      "tests": [
+        "durable/codemode_model_recovery_120_test.go",
+        "durable/generation_hook_snapshot_test.go",
+        "durable/journal_recovery_test.go",
+        "durable/storage_conformance_test.go",
+        "durable/storage_delta_test.go",
+        "durable/storage_journal_reclaim_test.go",
+        "durable/storage_request_120_test.go",
+        "durable/storage_request_matrix_120_test.go",
+        "durable/storage_request_sqlite_120_test.go",
+        "durable/storage_sqlite_conformance_test.go",
+        "durable/storage_sqlite_failure_test.go",
+        "durable/storage_sqlite_prefix_130_test.go",
+        "durable/storage_sqlite_sleep_140_test.go",
+        "durable/storage_sqlite_test.go",
+        "durable/task_recovery_test.go",
+        "durable/task_structured_recovery_test.go",
+        "durable/tool_selection_recovery_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "codemode": {
+      "source": [
+        "durable/codemode_store.go",
+        "durable/models_paid.go",
+        "internal/quickjs/engine.go"
+      ],
+      "tests": [
+        "durable/codemode_bounds_120_test.go",
+        "durable/codemode_builtin_declarations_120_test.go",
+        "durable/codemode_catalog_120_test.go",
+        "durable/codemode_catalog_reopen_120_test.go",
+        "durable/codemode_checkpoint_140_test.go",
+        "durable/codemode_classifier_errors_120_test.go",
+        "durable/codemode_compute_budget_120_test.go",
+        "durable/codemode_concurrency_120_test.go",
+        "durable/codemode_declaration_blocks_120_test.go",
+        "durable/codemode_declarations_120_test.go",
+        "durable/codemode_default_budget_120_test.go",
+        "durable/codemode_delivery_admission_120_test.go",
+        "durable/codemode_delivery_clock_120_test.go",
+        "durable/codemode_describe_crosswalk_120_test.go",
+        "durable/codemode_deterministic_crosswalk_120_test.go",
+        "durable/codemode_discovery_120_test.go",
+        "durable/codemode_discovery_globals_120_test.go",
+        "durable/codemode_divergence_reopen_120_test.go",
+        "durable/codemode_drain_120_test.go",
+        "durable/codemode_drain_commit_120_test.go",
+        "durable/codemode_drain_fault_120_test.go",
+        "durable/codemode_error_properties_120_test.go",
+        "durable/codemode_extension_120_test.go",
+        "durable/codemode_extension_global_revoke_120_test.go",
+        "durable/codemode_extension_globals_120_test.go",
+        "durable/codemode_extension_models_120_test.go",
+        "durable/codemode_extension_namespaces_120_test.go",
+        "durable/codemode_extension_options_120_test.go",
+        "durable/codemode_extension_revoke_120_test.go",
+        "durable/codemode_failure_output_120_test.go",
+        "durable/codemode_fault_120_test.go",
+        "durable/codemode_filesystem_address_fault_120_test.go",
+        "durable/codemode_filesystem_output_120_test.go",
+        "durable/codemode_filesystem_reopen_120_test.go",
+        "durable/codemode_generated_images_120_test.go",
+        "durable/codemode_global_cancel_120_test.go",
+        "durable/codemode_global_fault_120_test.go",
+        "durable/codemode_global_metadata_120_test.go",
+        "durable/codemode_globals_120_test.go",
+        "durable/codemode_globals_boundary_120_test.go",
+        "durable/codemode_identity_120_test.go",
+        "durable/codemode_image_chunks_120_test.go",
+        "durable/codemode_image_label_spill_120_test.go",
+        "durable/codemode_image_limit_alignment_120_test.go",
+        "durable/codemode_image_output_120_test.go",
+        "durable/codemode_image_partial_120_test.go",
+        "durable/codemode_image_poison_120_test.go",
+        "durable/codemode_image_process_120_test.go",
+        "durable/codemode_image_reopen_120_test.go",
+        "durable/codemode_images_120_test.go",
+        "durable/codemode_issued_identity_120_test.go",
+        "durable/codemode_mixed_tool_120_test.go",
+        "durable/codemode_model_catalog_120_test.go",
+        "durable/codemode_model_failure_120_test.go",
+        "durable/codemode_model_recovery_120_test.go",
+        "durable/codemode_models_120_test.go",
+        "durable/codemode_namespaces_120_test.go",
+        "durable/codemode_numeric_arguments_120_test.go",
+        "durable/codemode_output_cancel_120_test.go",
+        "durable/codemode_output_files_120_test.go",
+        "durable/codemode_output_images_120_test.go",
+        "durable/codemode_output_large_120_test.go",
+        "durable/codemode_output_lines_120_test.go",
+        "durable/codemode_output_projection_120_test.go",
+        "durable/codemode_output_reopen_120_test.go",
+        "durable/codemode_output_validation_120_test.go",
+        "durable/codemode_paid_fault_120_test.go",
+        "durable/codemode_paid_revoke_120_test.go",
+        "durable/codemode_panic_120_test.go",
+        "durable/codemode_parallel_abort_120_test.go",
+        "durable/codemode_parallel_capacity_120_test.go",
+        "durable/codemode_parallel_fatal_120_test.go",
+        "durable/codemode_parallel_finish_120_test.go",
+        "durable/codemode_parallel_midflight_120_test.go",
+        "durable/codemode_parallel_mixed_120_test.go",
+        "durable/codemode_parallel_runtime_120_test.go",
+        "durable/codemode_portable_process_120_test.go",
+        "durable/codemode_prompt_120_test.go",
+        "durable/codemode_quickjs_120_test.go",
+        "durable/codemode_quickjs_clock_120_test.go",
+        "durable/codemode_quickjs_fault_120_test.go",
+        "durable/codemode_quickjs_output_120_test.go",
+        "durable/codemode_quickjs_parallel_120_test.go",
+        "durable/codemode_quickjs_restart_120_test.go",
+        "durable/codemode_remote_120_test.go",
+        "durable/codemode_remote_process_120_test.go",
+        "durable/codemode_restart_120_test.go",
+        "durable/codemode_result_validation_120_test.go",
+        "durable/codemode_runtime_120_test.go",
+        "durable/codemode_runtime_drain_120_test.go",
+        "durable/codemode_schema_annotation_crosswalk_120_test.go",
+        "durable/codemode_schema_budget_120_test.go",
+        "durable/codemode_schema_comments_120_test.go",
+        "durable/codemode_schema_constraints_120_test.go",
+        "durable/codemode_schema_crosswalk_120_test.go",
+        "durable/codemode_schema_fallback_120_test.go",
+        "durable/codemode_schema_reference_crosswalk_120_test.go",
+        "durable/codemode_schema_refs_120_test.go",
+        "durable/codemode_schema_structural_120_test.go",
+        "durable/codemode_schema_tags_120_test.go",
+        "durable/codemode_schema_tuple_120_test.go",
+        "durable/codemode_six_mib_120_test.go",
+        "durable/codemode_source_120_test.go",
+        "durable/codemode_source_crosswalk_120_test.go",
+        "durable/codemode_source_process_120_test.go",
+        "durable/codemode_store_120_test.go",
+        "durable/codemode_store_delete_120_test.go",
+        "durable/codemode_store_fault_120_test.go",
+        "durable/codemode_tool_errors_120_test.go",
+        "durable/codemode_tool_revocation_120_test.go",
+        "durable/codemode_transcript_image_120_test.go",
+        "durable/codemode_value_chunks_120_test.go",
+        "durable/codemode_walltime_120_test.go",
+        "durable/codemode_watermark_120_test.go",
+        "durable/codemode_wire_120_test.go",
+        "durable/codemode_worker_process_120_test.go",
+        "durable/codemode_worker_properties_process_120_test.go",
+        "durable/codemode_worker_remote_120_test.go",
+        "durable/codemode_worker_remote_cancel_120_test.go",
+        "durable/models_paid_120_test.go",
+        "durable/models_paid_fault_120_test.go",
+        "durable/models_paid_lifecycle_120_test.go",
+        "durable/models_paid_options_120_test.go",
+        "durable/models_telemetry_140_test.go",
+        "tests/durable_codemode_consumer_120_test.go",
+        "internal/quickjs/admission_120_test.go",
+        "internal/quickjs/benchmark_120_test.go",
+        "internal/quickjs/bridge_120_test.go",
+        "internal/quickjs/bridge_validation_120_test.go",
+        "internal/quickjs/callback_120_test.go",
+        "internal/quickjs/clock_120_test.go",
+        "internal/quickjs/deterministic_environment_120_test.go",
+        "internal/quickjs/drain_ack_120_test.go",
+        "internal/quickjs/engine_120_test.go",
+        "internal/quickjs/engine_cache_140_test.go",
+        "internal/quickjs/error_properties_120_test.go",
+        "internal/quickjs/execution_crosswalk_120_test.go",
+        "internal/quickjs/global_budget_120_test.go",
+        "internal/quickjs/global_names_120_test.go",
+        "internal/quickjs/global_serial_120_test.go",
+        "internal/quickjs/global_timeout_120_test.go",
+        "internal/quickjs/globals_crosswalk_120_test.go",
+        "internal/quickjs/interrupt_budget_120_test.go",
+        "internal/quickjs/isolation_120_test.go",
+        "internal/quickjs/isolation_crosswalk_120_test.go",
+        "internal/quickjs/lifetime_crosswalk_120_test.go",
+        "internal/quickjs/microtask_120_test.go",
+        "internal/quickjs/ordered_settlement_120_test.go",
+        "internal/quickjs/ordinary_execution_120_test.go",
+        "internal/quickjs/output_crosswalk_120_test.go",
+        "internal/quickjs/portable_modes_120_test.go",
+        "internal/quickjs/random_120_test.go",
+        "internal/quickjs/script_error_120_test.go",
+        "internal/quickjs/script_names_120_test.go",
+        "internal/quickjs/serial_120_test.go",
+        "internal/quickjs/settlement_120_test.go",
+        "internal/quickjs/store_120_test.go",
+        "internal/quickjs/store_crosswalk_120_test.go",
+        "internal/quickjs/store_fuzz_test.go",
+        "internal/quickjs/timezone_120_test.go",
+        "internal/quickjs/tools_crosswalk_120_test.go",
+        "internal/quickjs/worker_lifetime_130_test.go"
+      ],
+      "note": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    "env": {
+      "source": [
+        "durable/environment.go"
+      ],
+      "tests": [
+        "durable/environment_call_test.go",
+        "durable/environment_test.go",
+        "durable/nested_environment_120_test.go",
+        "durable/prompt_environment_test.go",
+        "durable/task_environment_test.go",
+        "durable/tools/environment_test.go"
+      ],
+      "note": "Native environment isolation and ownership fences; no JavaScript event-loop/time primitive equivalence."
+    },
+    "tools": {
+      "source": [
+        "durable/tool.go",
+        "durable/nested_tool.go"
+      ],
+      "tests": [
+        "durable/codemode_mixed_tool_120_test.go",
+        "durable/codemode_tool_errors_120_test.go",
+        "durable/codemode_tool_revocation_120_test.go",
+        "durable/harness_tools_test.go",
+        "durable/nested_abort_120_test.go",
+        "durable/nested_capacity_120_test.go",
+        "durable/nested_deep_abort_120_test.go",
+        "durable/nested_environment_120_test.go",
+        "durable/nested_events_120_test.go",
+        "durable/nested_fault_120_test.go",
+        "durable/nested_fidelity_120_test.go",
+        "durable/nested_hooks_120_test.go",
+        "durable/nested_integrity_120_test.go",
+        "durable/nested_mode_120_test.go",
+        "durable/nested_output_shape_120_test.go",
+        "durable/nested_parent_call_120_test.go",
+        "durable/nested_parent_reopen_120_test.go",
+        "durable/nested_restart_120_test.go",
+        "durable/nested_sequence_120_test.go",
+        "durable/nested_settlement_120_test.go",
+        "durable/nested_structured_120_test.go",
+        "durable/nested_tool_120_test.go",
+        "durable/prompt_tools_test.go",
+        "durable/task_structured_recovery_test.go",
+        "durable/tool_arguments_130_test.go",
+        "durable/tool_authority_120_test.go",
+        "durable/tool_constraints_120_test.go",
+        "durable/tool_constraints_reopen_120_test.go",
+        "durable/tool_constraints_wire_120_test.go",
+        "durable/tool_content_test.go",
+        "durable/tool_control_boundary_test.go",
+        "durable/tool_control_test.go",
+        "durable/tool_details_test.go",
+        "durable/tool_diagnostic_test.go",
+        "durable/tool_duration_110_test.go",
+        "durable/tool_error_test.go",
+        "durable/tool_execution_test.go",
+        "durable/tool_fault_boundary_test.go",
+        "durable/tool_fault_hold_test.go",
+        "durable/tool_image_error_120_test.go",
+        "durable/tool_invalid_hook_result_test.go",
+        "durable/tool_output_decode_test.go",
+        "durable/tool_output_default_test.go",
+        "durable/tool_output_skip_test.go",
+        "durable/tool_output_test.go",
+        "durable/tool_progress_clock_test.go",
+        "durable/tool_progress_integration_test.go",
+        "durable/tool_progress_test.go",
+        "durable/tool_search_120_test.go",
+        "durable/tool_selection_recovery_test.go",
+        "durable/tool_sequential_abort_test.go",
+        "durable/tool_structured_120_test.go",
+        "durable/tool_truncation_test.go",
+        "durable/tools/bash_failure_receipt_test.go",
+        "durable/tools/bash_options_test.go",
+        "durable/tools/bash_test.go",
+        "durable/tools/edit_fuzzy_test.go",
+        "durable/tools/edit_prepare_test.go",
+        "durable/tools/environment_test.go",
+        "durable/tools/filesystem_104_test.go",
+        "durable/tools/filesystem_custom_test.go",
+        "durable/tools/filesystem_test.go",
+        "durable/tools/image_animation_120_test.go",
+        "durable/tools/image_detect_test.go",
+        "durable/tools/image_formats_120_test.go",
+        "durable/tools/image_lanczos_120_test.go",
+        "durable/tools/image_model_120_test.go",
+        "durable/tools/image_prepare_120_test.go",
+        "durable/tools/image_prepare_read_120_test.go",
+        "durable/tools/image_quality_120_test.go",
+        "durable/tools/image_test.go",
+        "durable/tools/integration_test.go",
+        "durable/tools/line_scan_reference_104_test.go",
+        "durable/tools/mutation_cancel_test.go",
+        "durable/tools/mutation_queue_test.go",
+        "durable/tools/path_test.go",
+        "durable/tools/powershell_104_test.go",
+        "durable/tools/read_bounded_104_test.go",
+        "durable/tools/read_formats_120_test.go",
+        "durable/tools/read_inline_120_test.go",
+        "durable/tools/read_reference_test.go",
+        "durable/tools/shell_104_test.go",
+        "durable/tools/shell_contract_test.go",
+        "durable/tools/shell_test.go",
+        "durable/tools/tools_test.go",
+        "durable/tools/truncate_head_104_test.go",
+        "durable/tools/truncate_test.go",
+        "durable/tools/unicode_regression_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    },
+    "harness": {
+      "source": [
+        "durable/harness.go"
+      ],
+      "tests": [
+        "durable/codemode_identity_120_test.go",
+        "durable/codemode_issued_identity_120_test.go",
+        "durable/context_baseline_130_test.go",
+        "durable/context_cache_110_test.go",
+        "durable/entry_context_test.go",
+        "durable/generation_current_settings_test.go",
+        "durable/harness_documents_test.go",
+        "durable/harness_generation_test.go",
+        "durable/harness_tools_test.go",
+        "durable/identity_140_test.go",
+        "durable/provider_identity_test.go",
+        "durable/registry_builtin_test.go",
+        "durable/request_settings_test.go",
+        "durable/settings_extensions_test.go",
+        "durable/settings_live_test.go",
+        "durable/settings_overrides_test.go",
+        "durable/settings_retry_test.go",
+        "durable/settings_stream_test.go",
+        "durable/settings_test.go",
+        "durable/task_binding_registry_test.go",
+        "durable/task_ownership_test.go",
+        "durable/view_test.go"
+      ],
+      "note": "Native deterministic contracts; no live credential claim."
+    }
+  },
+  "files": [
+    {
+      "path": "packages/ai/package.json",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Packaging/tooling adaptation: Go module/build tests replace npm/Vitest loading; exact npm provenance is separately verified."
+    },
+    {
+      "path": "packages/ai/scripts/generate-models.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "runtime-or-tooling",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/scripts/openrouter-catalog.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "runtime-or-tooling",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/src/api/anthropic-messages.ts",
+      "status": "M",
+      "group": "anthropic",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/azure-openai-responses.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/bedrock-converse-stream.ts",
+      "status": "M",
+      "group": "bedrock",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/classifier-shared.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/cloudflare-workers-ai-system-one.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/google-generative-ai.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/google-shared.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/google-vertex.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/lazy.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/llama-cpp-classify.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/mistral-conversations.ts",
+      "status": "M",
+      "group": "mistral",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/openai-codex-responses.ts",
+      "status": "M",
+      "group": "codex",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Codex transport, identity, cache/session and stream fixtures. Hosted cache-affinity/probe runs require credentials and were not run."
+    },
+    {
+      "path": "packages/ai/src/api/openai-completions.ts",
+      "status": "M",
+      "group": "openai",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/openai-responses-shared.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/openai-responses.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/openrouter-images.ts",
+      "status": "M",
+      "group": "images",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/pi-messages.ts",
+      "status": "M",
+      "group": "pimessages",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/simple-options.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/system-one-shared.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/api/typesafe-system-one.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/index.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/models.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "runtime-or-tooling",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/src/providers/compat-schema.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "runtime-or-tooling",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/src/providers/model-schema.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "runtime-or-tooling",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/src/telemetry.ts",
+      "status": "A",
+      "group": "telemetry",
+      "kind": "runtime-or-tooling",
+      "disposition": "Optional callbacks and span links are process-local and isolated from outcomes; no content/error text attributes."
+    },
+    {
+      "path": "packages/ai/src/types.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/utils/identity.ts",
+      "status": "A",
+      "group": "identity",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native bounded identity settings, default attribution, suppression and provider headers."
+    },
+    {
+      "path": "packages/ai/src/utils/overflow.ts",
+      "status": "M",
+      "group": "retry",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/utils/pi-user-agent.ts",
+      "status": "D",
+      "group": "identity",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native bounded identity settings, default attribution, suppression and provider headers."
+    },
+    {
+      "path": "packages/ai/src/utils/retry.ts",
+      "status": "M",
+      "group": "retry",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/utils/transcript.ts",
+      "status": "M",
+      "group": "transcript",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/src/utils/version.ts",
+      "status": "A",
+      "group": "identity",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native bounded identity settings, default attribution, suppression and provider headers."
+    },
+    {
+      "path": "packages/ai/test/abort.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/anthropic-adaptive-thinking-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/anthropic-auth-token.test.ts",
+      "status": "M",
+      "group": "anthropic",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/anthropic-empty-thinking-signature-compat.test.ts",
+      "status": "M",
+      "group": "anthropic",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/azure-openai-base-url.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/baseten-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/classifier-images-live.test.ts",
+      "status": "A",
+      "group": "classifier",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/classifier-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/cloudflare-workers-ai-system-one.test.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/codex-websocket-cached-probe.ts",
+      "status": "M",
+      "group": "codex",
+      "kind": "test-or-fixture",
+      "disposition": "Native Codex transport, identity, cache/session and stream fixtures. Hosted cache-affinity/probe runs require credentials and were not run."
+    },
+    {
+      "path": "packages/ai/test/context-overflow.test.ts",
+      "status": "M",
+      "group": "retry",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/cross-provider-handoff.test.ts",
+      "status": "M",
+      "group": "transcript",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/empty.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/github-copilot-anthropic.test.ts",
+      "status": "M",
+      "group": "anthropic",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/github-copilot-request-size-overflow.test.ts",
+      "status": "A",
+      "group": "retry",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/google-raw-stop-reason.test.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/google-shared-image-tool-result-routing.test.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/google-vertex-api-key-resolution.test.ts",
+      "status": "M",
+      "group": "google",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/identity.test.ts",
+      "status": "A",
+      "group": "identity",
+      "kind": "test-or-fixture",
+      "disposition": "Native bounded identity settings, default attribution, suppression and provider headers."
+    },
+    {
+      "path": "packages/ai/test/image-model-data.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/image-tool-result.test.ts",
+      "status": "M",
+      "group": "images",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/mistral-http-transport.test.ts",
+      "status": "M",
+      "group": "mistral",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-codex-cache-affinity-e2e.test.ts",
+      "status": "M",
+      "group": "codex",
+      "kind": "test-or-fixture",
+      "disposition": "Native Codex transport, identity, cache/session and stream fixtures. Hosted cache-affinity/probe runs require credentials and were not run."
+    },
+    {
+      "path": "packages/ai/test/openai-codex-stream.test.ts",
+      "status": "M",
+      "group": "codex",
+      "kind": "test-or-fixture",
+      "disposition": "Native Codex transport, identity, cache/session and stream fixtures. Hosted cache-affinity/probe runs require credentials and were not run."
+    },
+    {
+      "path": "packages/ai/test/openai-completions-tool-choice.test.ts",
+      "status": "M",
+      "group": "openai",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-completions-tool-result-images.test.ts",
+      "status": "M",
+      "group": "openai",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-responses-compat.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-responses-empty-tool-result.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-responses-foreign-toolcall-id.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-responses-message-id.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/openai-responses-tool-result-images.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/overflow.test.ts",
+      "status": "M",
+      "group": "retry",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/providers.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/responseid.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/retry.test.ts",
+      "status": "M",
+      "group": "retry",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/stream.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/supports-xhigh.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/telemetry-options.test.ts",
+      "status": "M",
+      "group": "telemetry",
+      "kind": "test-or-fixture",
+      "disposition": "Optional callbacks and span links are process-local and isolated from outcomes; no content/error text attributes."
+    },
+    {
+      "path": "packages/ai/test/telemetry.test.ts",
+      "status": "A",
+      "group": "telemetry",
+      "kind": "test-or-fixture",
+      "disposition": "Optional callbacks and span links are process-local and isolated from outcomes; no content/error text attributes."
+    },
+    {
+      "path": "packages/ai/test/together-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/tokens.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/tool-call-id-normalization.test.ts",
+      "status": "M",
+      "group": "transcript",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/tool-call-without-result.test.ts",
+      "status": "M",
+      "group": "transcript",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/total-tokens.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/transcript-tool-changes.test.ts",
+      "status": "M",
+      "group": "transcript",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/typesafe-system-one.test.ts",
+      "status": "M",
+      "group": "classifier",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/unicode-surrogate.test.ts",
+      "status": "M",
+      "group": "stream",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/xai-responses.test.ts",
+      "status": "M",
+      "group": "responses",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/xiaomi-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/ai/test/xiaomi-token-plan-ams-anthropic-empty-signature-smoke.test.ts",
+      "status": "M",
+      "group": "anthropic",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/ai/test/zai-coding-plan-models.test.ts",
+      "status": "M",
+      "group": "models",
+      "kind": "test-or-fixture",
+      "disposition": "Generated from exact pinned v1.4.0 artifacts; full-record regeneration and deliberate metadata fault gates pass."
+    },
+    {
+      "path": "packages/durable/package.json",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Packaging/tooling adaptation: Go module/build tests replace npm/Vitest loading; exact npm provenance is separately verified."
+    },
+    {
+      "path": "packages/durable/src/codemode/codemode.ts",
+      "status": "M",
+      "group": "codemode",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    {
+      "path": "packages/durable/src/codemode/models.ts",
+      "status": "M",
+      "group": "codemode",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    {
+      "path": "packages/durable/src/documents.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/env/node.ts",
+      "status": "M",
+      "group": "env",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native environment isolation and ownership fences; no JavaScript event-loop/time primitive equivalence."
+    },
+    {
+      "path": "packages/durable/src/harness/agent.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/compaction.ts",
+      "status": "M",
+      "group": "compaction",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/generation.ts",
+      "status": "M",
+      "group": "generation",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/harness.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/inbox.ts",
+      "status": "M",
+      "group": "inbox",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/prompt.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/scheduler.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/submissions.ts",
+      "status": "M",
+      "group": "inbox",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/task-graph.ts",
+      "status": "M",
+      "group": "graph",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/telemetry.ts",
+      "status": "A",
+      "group": "reports",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/tool.ts",
+      "status": "M",
+      "group": "tools",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/types.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/harness/util.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/index.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/session/session.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/session/transaction.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/storage/indexeddb.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/src/storage/memory.ts",
+      "status": "M",
+      "group": "storage",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/cloudflare.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/database.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/index.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/migrations.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/node.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/schema.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/storage/sqlite/storage.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/src/testing/storage-conformance.ts",
+      "status": "M",
+      "group": "storage",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/timers.ts",
+      "status": "A",
+      "group": "timers",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/src/types.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test-workers/cloudflare.d.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test-workers/storage.test.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test-workers/vitest.config.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test-workers/wake.test.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test-workers/worker.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test-workers/wrangler.jsonc",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test/chat-support.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/codemode-checkpoints.test.ts",
+      "status": "A",
+      "group": "codemode",
+      "kind": "test-or-fixture",
+      "disposition": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    {
+      "path": "packages/durable/test/codemode.test.ts",
+      "status": "M",
+      "group": "codemode",
+      "kind": "test-or-fixture",
+      "disposition": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    {
+      "path": "packages/durable/test/document-append-bench.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/env-node.test.ts",
+      "status": "M",
+      "group": "env",
+      "kind": "test-or-fixture",
+      "disposition": "Native environment isolation and ownership fences; no JavaScript event-loop/time primitive equivalence."
+    },
+    {
+      "path": "packages/durable/test/examples/01-documents.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/02-forks.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/03-owned-conversations.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/04-chord-state.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/05-watches.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/06-harness.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/11-extension-state.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/13-recovery.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/23-subagent-background.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/24-child-tasks.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/27-plan-mode.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/examples/29-sandbox-per-conversation.ts",
+      "status": "M",
+      "group": "codemode",
+      "kind": "test-or-fixture",
+      "disposition": "Native QuickJS and paid models; exact official pi-codemode@1.4.0 worker/portable/source/property integration enabled explicitly."
+    },
+    {
+      "path": "packages/durable/test/harness-blocked.test.ts",
+      "status": "A",
+      "group": "graph",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-compaction.test.ts",
+      "status": "M",
+      "group": "compaction",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-conversations.test.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-failed-run-inbox.test.ts",
+      "status": "A",
+      "group": "inbox",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-generation-recovery.test.ts",
+      "status": "M",
+      "group": "generation",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-generation.test.ts",
+      "status": "M",
+      "group": "generation",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-host-inputs.test.ts",
+      "status": "A",
+      "group": "inbox",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-inbox.test.ts",
+      "status": "M",
+      "group": "inbox",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-lifecycle.test.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-ownership.test.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-registry.test.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-reports.test.ts",
+      "status": "A",
+      "group": "reports",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-sleep.test.ts",
+      "status": "A",
+      "group": "timers",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-structured.test.ts",
+      "status": "M",
+      "group": "tools",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-tasks-recovery.test.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-tasks.test.ts",
+      "status": "M",
+      "group": "tasks",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-telemetry-options.test.ts",
+      "status": "A",
+      "group": "reports",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-telemetry.test.ts",
+      "status": "A",
+      "group": "reports",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-tools.test.ts",
+      "status": "M",
+      "group": "tools",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/harness-view.test.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/indexeddb-storage.test.ts",
+      "status": "A",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test/provider-session-cache-e2e.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-checkpoints-migrations.test.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-definitions.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-document-retention.test.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-documents.test.ts",
+      "status": "M",
+      "group": "documents",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-forks.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-states.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-tables.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/session-watches.test.ts",
+      "status": "M",
+      "group": "session",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/spec-usage.test.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/test/sqlite-cloudflare.test.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Platform adaptation: browser IndexedDB and Cloudflare worker deployment are unavailable in the Go host. Native SQLite/storage and wake hooks cover portable contracts; no browser or Cloudflare deployment claim."
+    },
+    {
+      "path": "packages/durable/test/sqlite-facade.test.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/test/sqlite-migrations.test.ts",
+      "status": "M",
+      "group": "sqlite",
+      "kind": "test-or-fixture",
+      "disposition": "Native Go SQLite frame/checkpoint reopen and sleep/recovery semantics; no copy of upstream status-column migration."
+    },
+    {
+      "path": "packages/durable/test/task-support.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "test-or-fixture",
+      "disposition": "Native deterministic contracts; no live credential claim."
+    },
+    {
+      "path": "packages/durable/vitest.config.ts",
+      "status": "M",
+      "group": "harness",
+      "kind": "runtime-or-tooling",
+      "disposition": "Packaging/tooling adaptation: Go module/build tests replace npm/Vitest loading; exact npm provenance is separately verified."
+    }
+  ]
+}

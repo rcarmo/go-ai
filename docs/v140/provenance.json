@@ -1,0 +1,40 @@
+{
+  "target": "v1.4.0",
+  "revision": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+  "prior": "v1.3.0",
+  "priorRevision": "71023aec1546d6d677a65669c5665c0927ce0dd0",
+  "packages": [
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "1.4.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.4.0.tgz",
+      "tarSha256": "b40e2ba8bb6fc332908f8b96e837dc2d1fdfb45eb9cd382f5aed111462981e3c",
+      "signaturesVerified": true,
+      "registrySignatures": 2,
+      "attestations": 2,
+      "tamperedPayloadRejected": true
+    },
+    {
+      "name": "@earendil-works/pi-durable",
+      "version": "1.4.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-durable/-/pi-durable-1.4.0.tgz",
+      "tarSha256": "6d4dedd7a342151bca8b962f35a6231312cb10e5226796734e6644ad02f48224",
+      "signaturesVerified": true,
+      "registrySignatures": 2,
+      "attestations": 2,
+      "tamperedPayloadRejected": true
+    },
+    {
+      "name": "@earendil-works/pi-codemode",
+      "version": "1.4.0",
+      "url": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.4.0.tgz",
+      "tarSha256": "497845355c494b11b779923c988f88412074182bbd59c7f704d8af40b3a46ada",
+      "signaturesVerified": true,
+      "registrySignatures": 2,
+      "attestations": 2,
+      "tamperedPayloadRejected": true
+    }
+  ],
+  "verifier": "npm-bundled sigstore3.1.0",
+  "workflow": "https://github.com/earendil-works/pi/.github/workflows/build-binaries.yml@refs/tags/v1.4.0"
+}

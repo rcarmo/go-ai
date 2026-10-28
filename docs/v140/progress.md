@@ -1,6 +1,6 @@
-# Native 1.4.0 local verification
+# Native 1.4.0 checkpoint — 26 October 2026
 
-Release preparation is blocked by reachable `GO-2026-6809` in the approved Go 1.27.2 toolchain. Nothing has been pushed, dispatched, tagged or published.
+This historical checkpoint recorded a Go 1.27.2 security blocker. Rui approved Go 1.27.3 on 28 October, and subsequent validation passed. Current results, exact 1.4.0 worker/provenance verification and final profiling decisions are in [acceptance.md](acceptance.md). Nothing has been pushed, dispatched, tagged or published.
 
 ## Scope
 

@@ -1,10 +1,12 @@
 # Release acceptance
 
-## Native 1.4.0 local audit — security blocker
+## Native 1.4.0 — local verification complete
 
-Local implementation and verification continue; no push, hosted CI, tag or publication is authorised. Reachable `GO-2026-6809` makes the Go 1.27.2 vulnerability gate fail. The fix requires Go 1.27.3 and Rui's approval to change the validation toolchain. No exception has been added.
+Local runtime/test candidate `0852445ca9db68e13013f64fa5dd77ec1e10cb80` passes ordinary, race, shuffled, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. Rui approved that toolchain on 28 October 2026 to remediate `GO-2026-6809`; no vulnerability exceptions were added. No push, hosted CI, tag or publication was authorised or performed.
 
-[Local verification, profiling results and remaining work](docs/v140/progress.md), [exact changed paths](docs/v140/changed-paths.json), [catalogue delta](docs/v140/catalog-delta.json). This release has not been accepted.
+[Acceptance evidence and profiling trade-offs](docs/v140/acceptance.md), [per-file crosswalk](docs/v140/crosswalk.json), [changed paths](docs/v140/changed-paths.tsv), [upstream test corpus](docs/v140/upstream-test-corpus.tsv), [verified npm provenance](docs/v140/provenance.json), [catalogue delta](docs/v140/catalog-delta.json). Exact official pi-codemode 1.4.0 integration passes. The earlier [checkpoint](docs/v140/progress.md) records the resolved security blocker.
+
+Local candidate SBOM: CycloneDX 1.6 / cyclonedx-gomod 1.12.0, 24 components, exact candidate VCS revision, SHA-256 `2fe221797eceb9cc3e81d48e15f98515d69f2a5a62b7ccfe20063b51c2a1d1f9`. It has not been published as a native-version release asset. Rollback baseline `16cc898de506eb413254e303b0b4f36d77596314`; hosted validation and publication require separate authority.
 
 ## Native 1.3.0 release
 
