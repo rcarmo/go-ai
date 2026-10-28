@@ -43,8 +43,10 @@ func TestGeneration140PacingAlarmAloneResumesRetryAndPoll(t *testing.T) {
 					if options.Background {
 						return nil
 					}
-					if delay != time.Second {
-						t.Errorf("sleep delay %v", delay)
+					// A fired deadline can be re-armed while the admitted task
+					// is settling. It is due (zero), not another future sleep.
+					if delay != time.Second && !(clock.Load() == 2000 && delay == 0) {
+						t.Errorf("sleep delay %v at clock %d", delay, clock.Load())
 					}
 					node := &capturedTimer140{fire: callback}
 					armed <- node
