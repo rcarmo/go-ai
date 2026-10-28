@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reviewedAt": "2026-10-14",
-  "notes": "The active 1.2.0 working-tree scan uses the user-pinned Go 1.27.1. On 2026-10-14 it fails for reachable GO-2026-6599, GO-2026-6600, GO-2026-6603, GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608, GO-2026-6609, GO-2026-6610, GO-2026-6611, GO-2026-6612, GO-2026-6613 and GO-2026-6617. Toolchain remediation requires user approval. No exceptions are authorised; findings remain release blockers. Any exception must include owner, rationale, mitigation, expiry, Go version and scope.",
+  "reviewedAt": "2026-10-28",
+  "notes": "Rui approved Go 1.27.3 on 2026-10-28 to remediate reachable standard-library finding GO-2026-6809 in Go 1.27.2. The 2026-10-28 govulncheck 1.7.0 scan reports no reachable vulnerabilities on Go 1.27.3. No exceptions are authorised. Any future exception must include owner, rationale, mitigation, expiry, Go version and scope.",
   "allowedFindings": []
 }

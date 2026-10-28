@@ -79,7 +79,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 ## Local gates and review
 
-- Rui's current validation instruction (15 October 2026): use one modern Go toolchain only, currently Go 1.27.2 (approved continuation of security remediation), for remaining work. Do not repeat minimum-version or dual-toolchain runs. Existing historical receipts and the declared module minimum keep their original scope; this instruction changes ongoing validation, not compatibility metadata.
+- Rui's current validation instruction (28 October 2026): use one modern Go toolchain only, currently Go 1.27.3 (explicitly approved to remediate GO-2026-6809), for remaining work. Do not repeat minimum-version or dual-toolchain runs. Existing historical receipts and the declared module minimum keep their original scope; this instruction changes ongoing validation, not compatibility metadata.
 
 - Required local validation for upstream release parity includes:
   - focused tests for every changed behavior;
