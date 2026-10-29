@@ -1,3 +1,11 @@
+# Native 1.4.0 publication -- 29 October 2026
+
+Published at `ee3076b3659697f1de01b87da964396e069a4389` after green CI40777636922 and native publisher40881655142. Downloaded assets and preservation of all prior refs/releases were verified. Annotated v1.4.0 is fixed at this runtime/test candidate; later documentation commits do not move it. Final profiling, local/hosted verification and publication evidence are in [acceptance.md](acceptance.md) and [release.json](release.json).
+
+The earlier checkpoint below is retained as history; its outstanding tasks and publication restrictions are superseded by final acceptance and Rui's conditional release authority.
+
+---
+
 # Native 1.4.0 checkpoint — 26 October 2026
 
 This historical checkpoint recorded a Go 1.27.2 security blocker. Rui approved Go 1.27.3 on 28 October, and subsequent validation passed. Current results, exact 1.4.0 worker/provenance verification and final profiling decisions are in [acceptance.md](acceptance.md). Nothing has been pushed, dispatched, tagged or published.

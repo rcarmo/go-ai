@@ -1,7 +1,7 @@
 {
   "target": "v1.4.0",
   "prior": "v1.3.0",
-  "runtimeCandidate": "0852445",
+  "runtimeCandidate": "ee3076b3659697f1de01b87da964396e069a4389",
   "method": "Each changed upstream file maps to an explicit native production/test group. Group references list checked-in Go tests executed by the full suite; they are not assertions of line-for-line test translations. Live/browser/Cloudflare limits are stated per row or group.",
   "groups": {
     "models": {
@@ -671,7 +671,8 @@
     },
     "storage": {
       "source": [
-        "durable/storage.go"
+        "durable/storage.go",
+        "durable/json.go"
       ],
       "tests": [
         "durable/codemode_model_recovery_120_test.go",
@@ -690,7 +691,8 @@
         "durable/storage_sqlite_test.go",
         "durable/task_recovery_test.go",
         "durable/task_structured_recovery_test.go",
-        "durable/tool_selection_recovery_test.go"
+        "durable/tool_selection_recovery_test.go",
+        "durable/json_copy_140_test.go"
       ],
       "note": "Native deterministic contracts; no live credential claim."
     },

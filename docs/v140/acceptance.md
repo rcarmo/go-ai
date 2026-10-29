@@ -1,8 +1,8 @@
-# Native 1.4.0 local verification
+# Native 1.4.0 acceptance and publication
 
-Local verification is complete on Go 1.27.3. No push, hosted CI, tag, release or publication was authorised or performed.
+Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) was published on 29 October 2026 under Rui's conditional release authority, after final hosted CI passed on Go 1.27.3. Final verification and publication details are recorded below.
 
-Runtime and test candidate: `0852445ca9db68e13013f64fa5dd77ec1e10cb80`. Later evidence-only commits record these results. Rollback baseline: `16cc898de506eb413254e303b0b4f36d77596314` (`origin/main` at the start of this audit). Historical release refs and assets are unchanged.
+Released runtime/test candidate: `ee3076b3659697f1de01b87da964396e069a4389`. Rui-annotated tag object: `7c5a602d965705fdb8b96cb16050901ba6d7d9bd`. Production code is unchanged from locally validated d766711; the final commit corrects a timer test fixture. Later evidence-only commits do not move the tag. Rollback baseline: `16cc898de506eb413254e303b0b4f36d77596314` (`origin/main` at the start of this audit). Historical release refs and assets are unchanged.
 
 ## Exact upstream scope
 
@@ -31,7 +31,7 @@ Upstream codemode v1.3.0→v1.4.0 changes only its changelog and package version
 
 [Provenance](provenance.json) records SHA-256 and cryptographic verification for pi-ai, pi-durable and pi-codemode 1.4.0. Each has two verified registry signatures and two verified attestations. SLSA certificate identity is restricted to `earendil-works/pi/.github/workflows/build-binaries.yml@refs/tags/v1.4.0`; issuer is GitHub Actions; resolved source revision and tarball subject digest match. Modified payloads are rejected. Verification used npm-bundled Sigstore 3.1.0 with project-scoped TUF storage and registry public keys.
 
-## Profiled local gates
+## Earlier local gates (0852445; superseded by final verification below)
 
 All runs used only Go 1.27.3, Linux amd64, with cgo enabled and the exact official worker environment. Module minimum remains Go 1.26.0. CPU cumulative, allocation space and allocation objects were captured and inspected; raw profiles, matching binaries and disposable logs were removed after analysis.
 
@@ -69,12 +69,27 @@ QuickJS shares immutable compiled code for the fixed embedded module through waz
 
 SSE starts with an 8-KiB scanner buffer instead of 64 KiB, preserving its 4-MiB line limit. Small streams save 57346 bytes (85.2%) and roughly 60% of parse time. Large initial events pay 57346 additional bytes (9.6%) and three growth allocations; timing ranges overlap. This bounded trade-off reduces the measured small-stream cost while retaining large-event support. Buffer-growth and oversize rejection tests pass under race detection. There is no pooled content retention or change to cancellation/channel semantics.
 
-Final durable profiling samples total 63.82 CPU seconds, about 19.96 GB of allocations and 120.86 million allocation objects across the entire test workload. The dominant remaining application paths are commit preparation and bounded encode/decode. Caller/storage detachment, validation and independent adopted-state copies enforce ownership and failure isolation. Removing those boundaries would weaken contracts; the measured plain-map fast path removes avoidable work without doing so. Remaining QuickJS CPU is primarily execution; shared compilation removed repeated machine-code generation. No further material contract-preserving change was identified within this release scope.
+Earlier full-suite durable profiling samples total 63.82 CPU seconds, about 19.96 GB of allocations and 120.86 million allocation objects across the entire test workload. The dominant remaining application paths are commit preparation and bounded encode/decode. Caller/storage detachment, validation and independent adopted-state copies enforce ownership and failure isolation. Removing those boundaries would weaken contracts; the measured plain-map fast path removes avoidable work without doing so. Remaining QuickJS CPU is primarily execution; shared compilation removed repeated machine-code generation. The later large-output investigation below found another contract-preserving improvement.
 
-## Security and SBOM
+## Security and earlier candidate SBOM
 
 Rui approved Go 1.27.3 on 28 October 2026 to fix reachable `GO-2026-6809` / CVE-2026-111943 in Go 1.27.2's certificate verification. Local/CI/publisher toolchain pins now use 1.27.3. Govulncheck reports no reachable vulnerabilities; `allowedFindings` stays empty.
 
-Final local SBOM uses `cyclonedx-gomod@v1.12.0`, CycloneDX 1.6, with 24 dependency components and recorded guest assets. Root version is the local candidate abbreviation `0852445ca9db`, with exact VCS revision `0852445ca9db68e13013f64fa5dd77ec1e10cb80`. Canonical local files are `artifacts/sbom.cdx.json` and `artifacts/sbom.cdx.json.sha256`; SHA-256 is `2fe221797eceb9cc3e81d48e15f98515d69f2a5a62b7ccfe20063b51c2a1d1f9`. These are local candidate assets, not published native-version release assets.
+The earlier 0852445 local SBOM uses `cyclonedx-gomod@v1.12.0`, CycloneDX 1.6, with 24 dependency components and recorded guest assets. Root version is the local candidate abbreviation `0852445ca9db`, with exact VCS revision `0852445ca9db68e13013f64fa5dd77ec1e10cb80`. Canonical local files are `artifacts/sbom.cdx.json` and `artifacts/sbom.cdx.json.sha256`; SHA-256 is `2fe221797eceb9cc3e81d48e15f98515d69f2a5a62b7ccfe20063b51c2a1d1f9`. These are local candidate assets, not published native-version release assets.
 
-Hosted CI, synchronising `origin/main`, annotated tagging and publication require separate explicit authority. A future publisher must generate/verify native-version SBOM assets for the accepted release target and preserve earlier refs/assets.
+## Final candidate verification and publication
+
+Final local `make test-repro` returned zero at d766711 on Go 1.27.3/GOMAXPROCS=2 with exact official worker 1.4.0. Ordinary durable/QuickJS/consumer suites passed in 89.601/8.677/3.959 seconds; race in 406.828/39.908/18.894 seconds. Full shuffle passed separately in 89.096/8.938/3.940 seconds. The interrupted invocation described above remains historical, not a passing invocation.
+
+Final [CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed both jobs on the exact released ee3076b candidate, including deterministic, race, coverage, security and fuzz checks. Two prior hosted attempts failed and were investigated locally:
+
+* Run 40767931366 hit large-output race-case deadlines. Removing redundant JSON reparsing reduced a matched focused workload from 34.992 to 28.870 seconds without changing deadlines. After the object-only walk and bounded encoder have checked all limits, exact decoded-JSON containers can be detached without reparsing immutable strings. Other Go types retain original normalisation; untrusted byte decoding is unchanged. CPU samples fell from 34.49 to 28.41 seconds, alloc_space from 3004.46 to 2473.10 MB, and alloc_objects from 3680467 to 2965827. The large-copy microbenchmark improved from 677220–792244 to 251469–256716 ns, 542727–542751 to 148168 bytes and 50 to 8 allocations. Independent original-path differential tests and 161354 fuzz cases passed, including budgets and alias isolation. Full-suite timings with different CPU settings are not used to attribute this gain. Captures and matching binaries were removed after comparison.
+* Run 40775573084 exposed a timer fixture rejecting a legitimate zero-delay re-arm once the fake clock reached the durable deadline. This reproduced 30 invalid assertions over 200 local repetitions. The corrected fixture passed 200 normal and 200 race/shuffled repetitions, preserving exact initial/early delays, no early provider calls, durable deadline and exactly-once settlement checks. Production timer code was unchanged.
+
+[Publisher 40881655142](https://github.com/rcarmo/go-ai/actions/runs/40881655142) passed native tag/provenance, vulnerability, licence and SBOM gates. Published CycloneDX 1.6 SBOM has 24 dependency components and recorded guest assets. Root version, PURL and dependency-graph reference identify native `1.4.0`; VCS revision is `ee3076b3659697f1de01b87da964396e069a4389`. Published `sbom.cdx.json` SHA-256 is `c29bed20485e3ed824db26b9abe5f08a35838c9e255f4160b399dde67d4711f6`.
+
+Both downloaded assets match GitHub's asset digests; the SBOM matches its checksum and the exact publisher validation digest. Schema, version, VCS, graph and guest checks pass. Local native SBOM SHA-256 is `702413c11112edf6d81df7faf9d9269fb35e50c713f08a355f3c2c6e0ecbc7bd`: only recorded cyclonedx-gomod generator-binary hashes differ between hosts; all other parsed fields are identical. This is artifact-verified publication, not a claim of byte-reproducibility across hosts.
+
+Release metadata is native `go-ai v1.4.0`, neither draft nor prerelease, targeting the accepted commit. All 63 pre-existing tag refs and all 20 earlier release/asset inventories are unchanged. No `upstream-v1.4.0` alias was created. See [release.json](release.json) for concise publication evidence.
+
+Public Go proxy download resolves `github.com/rcarmo/go-ai@v1.4.0` to the exact released commit; module checksum is recorded in the publication receipt.

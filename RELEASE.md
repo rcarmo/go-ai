@@ -1,12 +1,12 @@
 # Release acceptance
 
-## Native 1.4.0 — local verification complete
+## Native 1.4.0 released
 
-Local runtime/test candidate `0852445ca9db68e13013f64fa5dd77ec1e10cb80` passes ordinary, race, shuffled, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. Rui approved that toolchain on 28 October 2026 to remediate `GO-2026-6809`; no vulnerability exceptions were added. No push, hosted CI, tag or publication was authorised or performed.
+Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.
 
 [Acceptance evidence and profiling trade-offs](docs/v140/acceptance.md), [per-file crosswalk](docs/v140/crosswalk.json), [changed paths](docs/v140/changed-paths.tsv), [upstream test corpus](docs/v140/upstream-test-corpus.tsv), [verified npm provenance](docs/v140/provenance.json), [catalogue delta](docs/v140/catalog-delta.json). Exact official pi-codemode 1.4.0 integration passes. The earlier [checkpoint](docs/v140/progress.md) records the resolved security blocker.
 
-Local candidate SBOM: CycloneDX 1.6 / cyclonedx-gomod 1.12.0, 24 components, exact candidate VCS revision, SHA-256 `2fe221797eceb9cc3e81d48e15f98515d69f2a5a62b7ccfe20063b51c2a1d1f9`. It has not been published as a native-version release asset. Rollback baseline `16cc898de506eb413254e303b0b4f36d77596314`; hosted validation and publication require separate authority.
+[Native publisher 40881655142](https://github.com/rcarmo/go-ai/actions/runs/40881655142) passed. Downloaded CycloneDX 1.6 SBOM/checksum assets verify 24 components, native version 1.4.0, exact VCS, graph and guests, matching publisher output and GitHub asset digests. Published SBOM SHA-256: `c29bed20485e3ed824db26b9abe5f08a35838c9e255f4160b399dde67d4711f6`. Only generator-binary hashes differ from the independent local native SBOM; this is artifact-verified, not claimed cross-host byte-reproducible. All 63 earlier tag refs and 20 earlier release/asset inventories are unchanged; no upstream-v1.4.0 alias was created. Later documentation commits do not move the release tag. [Publication receipt](docs/v140/release.json).
 
 ## Native 1.3.0 release
 

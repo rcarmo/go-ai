@@ -1,0 +1,42 @@
+{
+  "release": "https://github.com/rcarmo/go-ai/releases/tag/v1.4.0",
+  "publishedAt": "2026-10-29T13:26:10Z",
+  "runtimeAndTestCommit": "ee3076b3659697f1de01b87da964396e069a4389",
+  "localFullReproProductionCommit": "d7667119bf3fba895f59844faee3daf5984a3ccf",
+  "annotatedTagObject": "7c5a602d965705fdb8b96cb16050901ba6d7d9bd",
+  "tagger": "Rui Carmo <rui.carmo@gmail.com>",
+  "ciRun": 40777636922,
+  "publisherRun": 40881655142,
+  "goToolchain": "go1.27.3",
+  "assets": [
+    {
+      "name": "sbom.cdx.json",
+      "size": 21422,
+      "digest": "sha256:c29bed20485e3ed824db26b9abe5f08a35838c9e255f4160b399dde67d4711f6"
+    },
+    {
+      "name": "sbom.cdx.json.sha256",
+      "size": 80,
+      "digest": "sha256:d7c06a41e762c1d027642909087636a71727657562f4df01a554c9d5e50fe27a"
+    }
+  ],
+  "sbom": {
+    "nativeVersion": "1.4.0",
+    "components": 24,
+    "checksumVerified": true,
+    "schemaProvenanceGraphGuestsVerified": true,
+    "exactPublisherDigestVerified": true,
+    "localNativeDigest": "702413c11112edf6d81df7faf9d9269fb35e50c713f08a355f3c2c6e0ecbc7bd",
+    "localComparison": "All parsed fields identical except cyclonedx-gomod generator-binary hashes; artifact-verified, not cross-host byte-reproducible."
+  },
+  "preserved": {
+    "earlierTags": 63,
+    "earlierReleasesAndAssetInventories": 20
+  },
+  "upstreamAliasCreated": false,
+  "goProxy": {
+    "version": "v1.4.0",
+    "commit": "ee3076b3659697f1de01b87da964396e069a4389",
+    "sum": "h1:m+8VGsmvkd5bYcMAKBMg0ygvQ12gHbU/oyUsanFc7Y0="
+  }
+}
