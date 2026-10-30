@@ -42,6 +42,14 @@ func validateNativeFields(target any, l Limits) error {
 		if !v.IsValid() {
 			return nil
 		}
+		if v.Type() == nativeToolCheckpointType && v.CanInterface() && len(v.Interface().(toolCheckpoint).UTF16Arguments) > 0 {
+			if !v.CanAddr() {
+				return reject("unaddressable tool checkpoint")
+			}
+			if err := restoreCheckpointUTF16(v.Addr().Interface().(*toolCheckpoint), l); err != nil {
+				return err
+			}
+		}
 		if v.Type() == nativeReceiptType && v.CanInterface() {
 			r := v.Interface().(MessageReceipt)
 			if err := restoreReceiptUTF16(&r, l); err != nil {

@@ -134,4 +134,18 @@ Development verification, Go 1.27.3/GOMAXPROCS=4:
 * Fault cases reject duplicate/out-of-range slots, role/placeholder mismatches, malformed base64, unknown fields, identity injection, ordinary-value carriers, nonfinite floats and caller marshalers. Tight byte/chunk budgets and detached caller maps pass their regressions.
 * No profiling, performance claim, acceptance or provider integration.
 
-Next: tool checkpoints (`tool.go`), argument preparation/validation and before/after-tool hooks still use generic argument copies or reconstruct calls without typed ownership. Bridge those paths and verify tool execution/restart plus reader/codemode projection. Then handle SSE code-unit decoding, delta-event serialisation, provider wiring and the full upstream streaming/finalisation test crosswalk.
+Tool checkpoint and dispatch support follows below. Reader/codemode projection, diagnostic tool-result text, SSE/delta transport, providers and the complete streaming/finalisation crosswalk are unfinished.
+
+## Tool checkpoint and dispatch arguments
+
+Model tool checkpoints preserve the argument encoding mode in a native `streamingArguments` flag, including ordinary arguments that need no carrier. Exceptional checkpoint arguments and diagnostics use `utf16Arguments` chunks and the same bounded carrier codec as receipts. Typed replay requires the ownership flag and empty argument/diagnostic placeholders. Generic JSON keeps its existing validation.
+
+Preparation, validators, before-tool rewriting, execution and after-tool callbacks receive detached copies of the typed argument values. Replayed started intents retain the prepared/rewritten arguments without rerunning preparation or before-tool hooks. Native string-schema checks count valid surrogate pairs as one code point and isolated units as one character. A rune reader passes isolated units directly to the existing Go regexp engine; literal U+FFFD patterns cannot match them through replacement. The broader source/native schema crosswalk is unfinished.
+
+Development checks on Go 1.27.3/GOMAXPROCS=4:
+
+* Production execution/reopen across memory, journal and SQLite passes. Preparation and before-tool rewriting run once; validators run twice before execution; replayed execution sees the stored rewrite. After-tool callbacks retain argument ownership, host mutation stays detached, and the next model request keeps the original model arguments.
+* Checkpoint round trips cover isolated keys/values, diagnostic-only carriers, exact integers and ordinary-mode ownership. Fault checks reject missing ownership, inconsistent placeholders, malformed base64, unknown fields, caller marshalers and nonfinite values. Byte limits remain enforced.
+* Full root-module normal suite passes (durable 100.213 seconds). Focused checkpoint/receipt/restart race passes (3.782 seconds); final tool-argument normal/race passes (0.243/2.448 seconds). Vet and diff checks pass. No acceptance profiling.
+
+Next: inspect readers and codemode adapters, which still copy tool arguments through generic JSON. Tool argument diagnostics also reach ordinary tool-result text on the invalid-arguments path; isolated diagnostic units need a scoped representation there without relaxing ordinary text validation. Finish those boundaries before provider transport/wiring and full acceptance.

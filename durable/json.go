@@ -19,6 +19,7 @@ type limitedJSON struct {
 	canonical        bool
 	l                Limits
 	receiptViews     map[reflect.Value]*receiptWireView
+	checkpointViews  map[reflect.Value]*checkpointArgumentWire
 	projectedReceipt bool
 	utf16Keys        bool
 	data             []byte
@@ -244,6 +245,9 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			return reject("unsupported JSON object value")
 		}
 		members := v.NumField()
+		if v.Type() == nativeToolCheckpointType {
+			members -= 2
+		}
 		if v.Type() == nativeReceiptType {
 			members--
 		}
@@ -525,7 +529,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		}
 		first := true
 		for _, field := range structJSONFields(v.Type()) {
-			value, err := b.receiptJSONField(v, field)
+			value, err := b.checkpointJSONField(v, field)
 			if err != nil {
 				return err
 			}

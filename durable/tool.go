@@ -388,8 +388,11 @@ func schemaType(v any, typ string) bool {
 		_, ok := v.([]any)
 		return ok
 	case "string":
-		_, ok := v.(string)
-		return ok
+		switch v.(type) {
+		case string, goai.UTF16String:
+			return true
+		}
+		return false
 	case "boolean":
 		_, ok := v.(bool)
 		return ok
@@ -464,8 +467,7 @@ func checkSchema(s JSON, v any, depth int) error {
 			}
 		}
 	case "string":
-		text := v.(string)
-		n := float64(len([]rune(text)))
+		n := float64(schemaStringLength(v))
 		if e := bound("minLength", n, true); e != nil {
 			return e
 		}
@@ -473,7 +475,7 @@ func checkSchema(s JSON, v any, depth int) error {
 			return e
 		}
 		if pattern, ok := s["pattern"].(string); ok {
-			matched, _ := regexp.MatchString(pattern, text)
+			matched := schemaStringMatches(pattern, v)
 			if !matched {
 				return reject("tool arguments pattern")
 			}
@@ -523,15 +525,17 @@ type ToolResult struct {
 	thrownError             string
 }
 type toolCheckpoint struct {
-	DurationMs     *int64    `json:"durationMs,omitempty"`
-	Offer          toolOffer `json:"offer"`
-	CallID         string    `json:"callId"`
-	Arguments      JSON      `json:"arguments"`
-	ArgumentsError string    `json:"argumentsError,omitempty"`
-	Started        bool      `json:"started"`
-	Abort          bool      `json:"abort,omitempty"`
-	ErrorCode      string    `json:"errorCode,omitempty"`
-	ReportedError  bool      `json:"reportedError,omitempty"`
+	StreamingArguments bool      `json:"streamingArguments,omitempty"`
+	UTF16Arguments     []string  `json:"utf16Arguments,omitempty"`
+	DurationMs         *int64    `json:"durationMs,omitempty"`
+	Offer              toolOffer `json:"offer"`
+	CallID             string    `json:"callId"`
+	Arguments          JSON      `json:"arguments"`
+	ArgumentsError     string    `json:"argumentsError,omitempty"`
+	Started            bool      `json:"started"`
+	Abort              bool      `json:"abort,omitempty"`
+	ErrorCode          string    `json:"errorCode,omitempty"`
+	ReportedError      bool      `json:"reportedError,omitempty"`
 	// Present for final results that have passed afterTool. Older receipts
 	// derive their error flag from ErrorCode/ReportedError.
 	FinalIsError     *bool            `json:"finalIsError,omitempty"`
@@ -868,7 +872,10 @@ func callToolValidator(validate func(context.Context, JSON) (JSON, error), ctx c
 }
 
 func validateArguments(ctx context.Context, reg registeredTool, args JSON, l Limits) (JSON, error) {
-	owned, e := copyObject(args, l)
+	return validateScopedArguments(ctx, reg, args, l, false)
+}
+func validateScopedArguments(ctx context.Context, reg registeredTool, args JSON, l Limits, native bool) (JSON, error) {
+	owned, e := copyScopedToolArguments(args, native, l)
 	if e != nil {
 		return nil, e
 	}
@@ -877,7 +884,7 @@ func validateArguments(ctx context.Context, reg registeredTool, args JSON, l Lim
 		if e != nil {
 			return nil, reject("tool argument preparation failed")
 		}
-		owned, e = copyObject(owned, l)
+		owned, e = copyScopedToolArguments(owned, native, l)
 		if e != nil {
 			return nil, e
 		}
@@ -887,7 +894,7 @@ func validateArguments(ctx context.Context, reg registeredTool, args JSON, l Lim
 		if e != nil {
 			return nil, reject("tool validation failed")
 		}
-		owned, e = copyObject(owned, l)
+		owned, e = copyScopedToolArguments(owned, native, l)
 		if e != nil {
 			return nil, e
 		}
@@ -937,7 +944,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 				break
 			}
 		}
-		tc := toolCheckpoint{Offer: offer, CallID: call.ID, Arguments: JSON(call.Arguments), ArgumentsError: call.ArgumentsError}
+		tc := toolCheckpoint{Offer: offer, CallID: call.ID, Arguments: JSON(call.Arguments), ArgumentsError: call.ArgumentsError, StreamingArguments: call.HasStreamingArguments()}
 		// ContentBlock omits empty arguments on JSON round-trip; the validated
 		// empty object remains an object, never an absent argument authority.
 		if tc.Arguments == nil {
@@ -1284,7 +1291,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		if cp.ArgumentsError != "" {
 			return h.finishTool(task, cp, ToolResult{Content: cp.ArgumentsError, IsError: true}, "invalid_arguments")
 		}
-		cp.Arguments, err = validateArguments(runtime.context, reg, cp.Arguments, h.session.limits)
+		cp.Arguments, err = validateScopedArguments(runtime.context, reg, cp.Arguments, h.session.limits, cp.StreamingArguments)
 		if err != nil {
 			return h.finishTool(task, cp, ToolResult{}, "invalid_arguments")
 		}
@@ -1296,11 +1303,11 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			if hook.BeforeTool == nil {
 				continue
 			}
-			args, err := copyObject(cp.Arguments, h.session.limits)
+			args, err := copyScopedToolArguments(cp.Arguments, cp.StreamingArguments, h.session.limits)
 			if err != nil {
 				return err
 			}
-			decision, err := callBeforeTool(runtime.context, hook.BeforeTool, goai.ToolCall{Type: "toolCall", ID: cp.CallID, Name: cp.Offer.Name, Arguments: args}, runtime)
+			decision, err := callBeforeTool(runtime.context, hook.BeforeTool, cp.argumentCall(args), runtime)
 			if err != nil {
 				if runtime.context.Err() != nil {
 					return runtime.context.Err()
@@ -1316,7 +1323,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 				break
 			}
 			if decision.Arguments != nil {
-				cp.Arguments, err = copyObject(decision.Arguments, h.session.limits)
+				cp.Arguments, err = copyScopedToolArguments(decision.Arguments, cp.StreamingArguments, h.session.limits)
 				if err != nil {
 					code = "invalid_arguments"
 					break
@@ -1327,7 +1334,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			// Revalidate hook-rewritten arguments, without rerunning prepare.
 			checked := reg
 			checked.prepare = nil
-			cp.Arguments, err = validateArguments(runtime.context, checked, cp.Arguments, h.session.limits)
+			cp.Arguments, err = validateScopedArguments(runtime.context, checked, cp.Arguments, h.session.limits, cp.StreamingArguments)
 			if err != nil {
 				code = "invalid_arguments"
 			}
@@ -1462,7 +1469,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			executionError = api.environmentErr
 			return
 		}
-		args, err := copyObject(cp.Arguments, h.session.limits)
+		args, err := copyScopedToolArguments(cp.Arguments, cp.StreamingArguments, h.session.limits)
 		if err != nil {
 			executionError = err
 			return
@@ -1510,12 +1517,12 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			if err != nil {
 				return &invalidToolResult{reason: "invalid_tool_result"}
 			}
-			callArgs, err := copyObject(cp.Arguments, h.session.limits)
+			callArgs, err := copyScopedToolArguments(cp.Arguments, cp.StreamingArguments, h.session.limits)
 			if err != nil {
 				executionError = err
 				break
 			}
-			next, err := callAfterTool(ctx, hook.AfterTool, goai.ToolCall{Type: "toolCall", ID: cp.CallID, Name: cp.Offer.Name, Arguments: callArgs}, copy, runtime)
+			next, err := callAfterTool(ctx, hook.AfterTool, cp.argumentCall(callArgs), copy, runtime)
 			if err != nil {
 				if ctx.Err() != nil {
 					executionError = ctx.Err()
@@ -2028,6 +2035,9 @@ func exactNumber(v any) (*big.Rat, bool) {
 	return n, true
 }
 func equalJSONValue(a, b any) bool {
+	if same, handled := equalUTF16Values(a, b); handled {
+		return same
+	}
 	if an, ok := exactNumber(a); ok {
 		bn, ok := exactNumber(b)
 		return ok && an.Cmp(bn) == 0

@@ -1062,9 +1062,12 @@
         "durable/receipt_utf16.go",
         "durable/receipt_utf16_main_test.go",
         "durable/generation.go",
-        "durable/registry.go"
+        "durable/registry.go",
+        "durable/tool.go",
+        "durable/tool_utf16.go",
+        "durable/tool_utf16_main_test.go"
       ],
-      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, generation/contribution receipt projection and memory/journal/SQLite replay tested. Generic JSON fences retained through native receipt carriers. Tool checkpoints/preparation/validation/hooks, reader/codemode crosswalk, SSE/delta transport, providers and complete upstream test/finalisation review remain open."
+      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, receipts and tool checkpoints, detached preparation/validation/hooks and execution/restart tested. Generic JSON fences retained through bounded native carriers. Reader/codemode projection, diagnostic tool-result text, SSE/delta transport, providers and complete upstream streaming/finalisation review remain open."
     },
     {
       "change": "M",
@@ -1315,9 +1318,12 @@
         "durable/receipt_utf16.go",
         "durable/receipt_utf16_main_test.go",
         "durable/generation.go",
-        "durable/registry.go"
+        "durable/registry.go",
+        "durable/tool.go",
+        "durable/tool_utf16.go",
+        "durable/tool_utf16_main_test.go"
       ],
-      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, generation/contribution receipt projection and memory/journal/SQLite replay tested. Generic JSON fences retained through native receipt carriers. Tool checkpoints/preparation/validation/hooks, reader/codemode crosswalk, SSE/delta transport, providers and complete upstream test/finalisation review remain open."
+      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, receipts and tool checkpoints, detached preparation/validation/hooks and execution/restart tested. Generic JSON fences retained through bounded native carriers. Reader/codemode projection, diagnostic tool-result text, SSE/delta transport, providers and complete upstream streaming/finalisation review remain open."
     },
     {
       "change": "A",
