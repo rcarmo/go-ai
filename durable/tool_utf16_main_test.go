@@ -102,7 +102,7 @@ func TestToolUTF16MainCheckpointOwnership(t *testing.T) {
 }
 
 func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	utf16Backends(t, func(t *testing.T, b backend) {
 		original := toolUTF16Scalar(t, `"\ud800"`)
 		prepared := toolUTF16Scalar(t, `"\udfff"`)
 		rewritten := toolUTF16Scalar(t, `"\ud801"`)
@@ -185,7 +185,7 @@ func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
 		if err = first.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		second := openHarness(t, reopenStoreAfterHarnessClose(t, b.store), options)
+		second := openHarness(t, utf16ReopenStore(t, b.store), options)
 		handle, err := second.Submission(bg, submission.ID())
 		if err != nil {
 			t.Fatal(err)

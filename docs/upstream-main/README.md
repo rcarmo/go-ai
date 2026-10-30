@@ -156,4 +156,21 @@ Tool-start event projection now uses the checkpoint argument mode when detaching
 
 Go 1.27.3/GOMAXPROCS=4 development checks: new reader normal test 0.135 seconds, focused reader/event race 2.748 seconds, shuffled event/snapshot/reader/context suite 3.723 seconds; vet and diff checks pass. The preceding tool checkpoint commit passed the full root-module suite. No acceptance profiling.
 
-Remaining read/adapter boundaries include compaction transcript argument formatting (`compaction_text.go`), nested-tool events and codemode. Codemode serial/parallel journals, remote dispatch and nested-tool preparation/hooks still use generic copies; QuickJS host argument decoding uses the ordinary Go JSON decoder and loses isolated units before dispatch. These paths need explicit typed ownership through parsing, identity checks, journals, execution and replay. Generic values outside tool arguments retain strict validation.
+Remaining read/adapter boundaries include compaction transcript argument formatting (`compaction_text.go`) and codemode. Codemode serial/parallel journals and remote dispatch still use generic copies; QuickJS host argument decoding uses the ordinary Go JSON decoder and loses isolated units before dispatch. These paths need explicit typed ownership through parsing, identity checks, journals, execution and replay. Typed nested execution and readers follow below. Generic values outside tool arguments retain strict validation.
+
+## Typed nested tool arguments
+
+`TaskRuntime` and `ToolAPI` now expose `StartToolWithArguments`/`CallToolWithArguments`, accepting the SDK final `StreamingArgumentsJSON` domain. Ordinary `StartTool`/`CallTool` keep strict JSON validation. Durable key reuse compares the argument mode as well as the tool name and values.
+
+Nested input and caller-owned call documents use bounded carriers for exceptional arguments. Prepared/hook-rewritten typed arguments persist in a schema-owned `argumentState` checkpoint. Replay requires matching ownership and rejects mixed legacy/typed states, missing intents and null argument snapshots. Argument-only owners reject diagnostic-bearing carriers. No parser state is stored.
+
+Preparation and before/after hooks receive detached typed values. Execution mutations no longer change the intent passed to after-tool hooks. Nested lifecycle events and active snapshots use the same prepared argument state and return independent maps.
+
+Development verification on Go 1.27.3/GOMAXPROCS=4:
+
+* Memory, journal and explicit SQLite execution/reopen tests preserve isolated keys/values, prepared rewrites and original durable identity. Preparation/before hooks run once across replay; the executor runs twice after interruption and the successful after hook runs once.
+* Main-tool dispatch and committed-event tests now also have explicit SQLite runs. **Coverage correction:** their initial descriptions above included SQLite, but the shared `backends` helper covers only memory/journal. Receipt storage had a separate SQLite probe; the dispatch/event-reader SQLite coverage was added in this slice.
+* Full root-module normal suite passes (durable 103.427 seconds). Final shuffled nested checks pass (1.755 seconds); focused main/nested/reader race passes (5.619 seconds); vet and diff checks pass. The final null-intent guard and ordinary-API rejection regression were followed by these focused checks.
+* No acceptance profiling or performance comparison.
+
+Next: wire codemode arguments through lossless QuickJS decoding, serial/parallel journals, delivery identity, remote adapters and the typed nested admission path. Compaction argument formatting and scoped diagnostic tool-result text also need work before provider SSE/delta integration and acceptance.

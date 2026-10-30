@@ -245,7 +245,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			return reject("unsupported JSON object value")
 		}
 		members := v.NumField()
-		if v.Type() == nativeToolCheckpointType {
+		if nativeArgumentDTO(v.Type()) {
 			members -= 2
 		}
 		if v.Type() == nativeReceiptType {

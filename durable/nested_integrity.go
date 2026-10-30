@@ -35,7 +35,7 @@ func validateNestedReferences(s Snapshot, task Task, l Limits) error {
 		if err := fromObject(doc.Value, &call, l); err != nil {
 			return err
 		}
-		if call.Task != task.ID || call.Name != input.Name || !equalJSONValue(call.Arguments, input.Arguments) {
+		if call.Task != task.ID || call.Name != input.Name || call.StreamingArguments != input.StreamingArguments || !equalJSONValue(call.Arguments, input.Arguments) {
 			return reject("nested call identity mismatch")
 		}
 		decided := taskHasDecidedOutcome(task)

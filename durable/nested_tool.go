@@ -13,19 +13,23 @@ const nestedToolKind = "task.pi.nested-tool"
 const nestedCallDocument = "pi.tool.nested-call"
 
 type nestedToolInput struct {
-	Sequential   bool      `json:"sequential,omitempty"`
-	ParentCallID string    `json:"parentCallId,omitempty"`
-	Parent       ID        `json:"parent"`
-	Key          string    `json:"key"`
-	Name         string    `json:"name"`
-	Arguments    JSON      `json:"arguments"`
-	Offer        toolOffer `json:"offer"`
+	StreamingArguments bool      `json:"streamingArguments,omitempty"`
+	UTF16Arguments     []string  `json:"utf16Arguments,omitempty"`
+	Sequential         bool      `json:"sequential,omitempty"`
+	ParentCallID       string    `json:"parentCallId,omitempty"`
+	Parent             ID        `json:"parent"`
+	Key                string    `json:"key"`
+	Name               string    `json:"name"`
+	Arguments          JSON      `json:"arguments"`
+	Offer              toolOffer `json:"offer"`
 }
 type nestedCallState struct {
-	Task      ID                 `json:"task"`
-	Name      string             `json:"name"`
-	Arguments JSON               `json:"arguments"`
-	Result    *nestedToolReceipt `json:"result,omitempty"`
+	StreamingArguments bool               `json:"streamingArguments,omitempty"`
+	UTF16Arguments     []string           `json:"utf16Arguments,omitempty"`
+	Task               ID                 `json:"task"`
+	Name               string             `json:"name"`
+	Arguments          JSON               `json:"arguments"`
+	Result             *nestedToolReceipt `json:"result,omitempty"`
 }
 type nestedToolReceipt struct {
 	StructuredOutput    any                 `json:"structuredOutput,omitempty"`
@@ -130,6 +134,9 @@ func (r *TaskRuntime) CallToolAuto(ctx context.Context, name string, args JSON) 
 	return handle.Wait(ctx)
 }
 func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments JSON, sequential bool) (*NestedToolHandle, error) {
+	return r.startToolScoped(ctx, key, name, arguments, sequential, false)
+}
+func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arguments JSON, sequential, native bool) (*NestedToolHandle, error) {
 	if err := r.check(); err != nil {
 		return nil, err
 	}
@@ -140,7 +147,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 	if (!sequential && !validNestedKey(key) || sequential && !validSequentialKey(key)) || len(key) > l.MaxRequestIDBytes || !validKind(name) {
 		return nil, reject("invalid nested call key/name")
 	}
-	owned, err := copyObject(arguments, l)
+	owned, err := copyScopedToolArguments(arguments, native, l)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +194,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 				if err := fromObject(doc.Value, &call, l); err != nil {
 					return nil, err
 				}
-				if call.Name != name || !equalJSONValue(call.Arguments, owned) {
+				if call.Name != name || call.StreamingArguments != native || !equalJSONValue(call.Arguments, owned) {
 					return nil, reject("nested call key reused with different tool/arguments")
 				}
 				handle.task = call.Task
@@ -200,7 +207,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 		if err != nil {
 			return nil, err
 		}
-		input := nestedToolInput{ParentCallID: parentCallID, Sequential: sequential, Parent: r.taskID, Key: key, Name: name, Arguments: owned, Offer: reg.offer}
+		input := nestedToolInput{StreamingArguments: native, ParentCallID: parentCallID, Sequential: sequential, Parent: r.taskID, Key: key, Name: name, Arguments: owned, Offer: reg.offer}
 		object, err := dtoObject(input, l)
 		if err != nil {
 			return nil, err
@@ -213,7 +220,7 @@ func (r *TaskRuntime) startTool(ctx context.Context, key, name string, arguments
 		if err != nil {
 			return nil, err
 		}
-		call, err := dtoObject(nestedCallState{Task: id, Name: name, Arguments: owned}, l)
+		call, err := dtoObject(nestedCallState{StreamingArguments: native, Task: id, Name: name, Arguments: owned}, l)
 		if err != nil {
 			return nil, err
 		}
@@ -340,11 +347,11 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 	if started && (!input.Offer.ReplaySafe || !reg.offer.ReplaySafe) {
 		return settleNestedTool(ctx, record, r, ToolResult{Content: "Tool interrupted", IsError: true}, "interrupted", 0)
 	}
-	args := input.Arguments
+	args, err := nestedCheckpointArguments(record.State.Checkpoint, input, l)
+	if err != nil {
+		return err
+	}
 	if started {
-		if object, ok := record.State.Checkpoint["arguments"].(map[string]any); ok {
-			args = JSON(object)
-		}
 		// Each replayed executor attempt starts a fresh progress buffer.
 		if err = r.Commit(ctx, func(_ *Tx, current TaskRecord) (*TaskState, error) {
 			cp := current.State.Checkpoint
@@ -354,7 +361,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			return err
 		}
 	} else {
-		args, err = validateArguments(ctx, reg, args, l)
+		args, err = validateScopedArguments(ctx, reg, args, l, input.StreamingArguments)
 		if err != nil {
 			return settleNestedTool(ctx, record, r, ToolResult{Content: "Invalid tool arguments", IsError: true}, "invalid_arguments", 0)
 		}
@@ -362,11 +369,11 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			if hooks.BeforeTool == nil {
 				continue
 			}
-			copy, e := copyObject(args, l)
+			copy, e := copyScopedToolArguments(args, input.StreamingArguments, l)
 			if e != nil {
 				return e
 			}
-			decision, e := callBeforeTool(ctx, hooks.BeforeTool, goai.ToolCall{ID: input.Key, Name: input.Name, Arguments: map[string]any(copy)}, r)
+			decision, e := callBeforeTool(ctx, hooks.BeforeTool, input.argumentCall(copy), r)
 			if e != nil || decision != nil && decision.Block != "" {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -379,14 +386,18 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 			if decision != nil && decision.Arguments != nil {
 				trial := reg
 				trial.prepare = nil
-				args, e = validateArguments(ctx, trial, decision.Arguments, l)
+				args, e = validateScopedArguments(ctx, trial, decision.Arguments, l, input.StreamingArguments)
 				if e != nil {
 					return settleNestedTool(ctx, record, r, ToolResult{Content: "Invalid tool arguments", IsError: true}, "invalid_arguments", 0)
 				}
 			}
 		}
 		if err = r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
-			return &TaskState{Status: "running", Checkpoint: JSON{"phase": "execute", "started": true, "arguments": args}}, nil
+			checkpoint, err := nestedArgumentCheckpoint(args, input.StreamingArguments, l)
+			if err != nil {
+				return nil, err
+			}
+			return &TaskState{Status: "running", Checkpoint: checkpoint}, nil
 		}); err != nil {
 			return err
 		}
@@ -404,7 +415,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 		return settleNestedTool(ctx, record, r, ToolResult{Content: "Tool environment failed", IsError: true}, "tool_error", 0)
 	}
 	// Do not share persisted admission arguments with executor-owned mutations.
-	args, err = copyObject(args, l)
+	executionArgs, err := copyScopedToolArguments(args, input.StreamingArguments, l)
 	if err != nil {
 		_ = api.seal()
 		return err
@@ -417,7 +428,7 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 				err = errors.New("nested tool executor panic")
 			}
 		}()
-		result, err = reg.execute(ctx, args, api)
+		result, err = reg.execute(ctx, executionArgs, api)
 	}()
 	duration := time.Since(startedAt).Round(time.Millisecond).Milliseconds()
 	if sealErr := api.seal(); err == nil {

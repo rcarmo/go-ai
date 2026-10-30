@@ -1067,9 +1067,16 @@
         "durable/tool_utf16.go",
         "durable/tool_utf16_main_test.go",
         "durable/events.go",
-        "durable/reader_utf16_main_test.go"
+        "durable/reader_utf16_main_test.go",
+        "durable/nested_utf16.go",
+        "durable/nested_utf16_main_test.go",
+        "durable/nested_tool.go",
+        "durable/nested_events.go",
+        "durable/nested_result.go",
+        "durable/nested_integrity.go",
+        "durable/utf16_backends_main_test.go"
       ],
-      "note": "Partial: lossless core/wrapper cases, SDK/typed DTO codecs, receipts, tool checkpoints, detached preparation/validation/hooks, execution/restart and committed tool-start/snapshot readers tested. Generic JSON fences retained through bounded native carriers. Compaction/nested readers, codemode, diagnostic tool-result text, SSE/delta transport, providers and complete upstream streaming/finalisation review remain open."
+      "note": "Partial: lossless core/wrapper, SDK/DTO, receipts, main/nested checkpoints and typed preparation/hooks/execution/recovery/readers tested. Explicit SQLite runs now supplement shared memory/journal integration tests. Ordinary JSON fences retained. Codemode decode/journals/remote/typed admission, compaction formatting, diagnostic tool-result text, providers and complete streaming/finalisation review remain open."
     },
     {
       "change": "M",
@@ -1325,9 +1332,16 @@
         "durable/tool_utf16.go",
         "durable/tool_utf16_main_test.go",
         "durable/events.go",
-        "durable/reader_utf16_main_test.go"
+        "durable/reader_utf16_main_test.go",
+        "durable/nested_utf16.go",
+        "durable/nested_utf16_main_test.go",
+        "durable/nested_tool.go",
+        "durable/nested_events.go",
+        "durable/nested_result.go",
+        "durable/nested_integrity.go",
+        "durable/utf16_backends_main_test.go"
       ],
-      "note": "Partial: lossless core/wrapper cases, SDK/typed DTO codecs, receipts, tool checkpoints, detached preparation/validation/hooks, execution/restart and committed tool-start/snapshot readers tested. Generic JSON fences retained through bounded native carriers. Compaction/nested readers, codemode, diagnostic tool-result text, SSE/delta transport, providers and complete upstream streaming/finalisation review remain open."
+      "note": "Partial: lossless core/wrapper, SDK/DTO, receipts, main/nested checkpoints and typed preparation/hooks/execution/recovery/readers tested. Explicit SQLite runs now supplement shared memory/journal integration tests. Ordinary JSON fences retained. Codemode decode/journals/remote/typed admission, compaction formatting, diagnostic tool-result text, providers and complete streaming/finalisation review remain open."
     },
     {
       "change": "A",

@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	goai "github.com/rcarmo/go-ai"
 )
 
 func runNestedAfterHooks(ctx context.Context, r *TaskRuntime, agent agentState, input nestedToolInput, args JSON, result ToolResult) (ToolResult, error) {
@@ -14,11 +13,11 @@ func runNestedAfterHooks(ctx context.Context, r *TaskRuntime, agent agentState, 
 		if err != nil {
 			return ToolResult{Content: "Invalid tool result", IsError: true}, nil
 		}
-		copy, err := copyObject(args, r.harness.session.limits)
+		copy, err := copyScopedToolArguments(args, input.StreamingArguments, r.harness.session.limits)
 		if err != nil {
 			return ToolResult{}, err
 		}
-		replacement, err := callAfterTool(ctx, hooks.AfterTool, goai.ToolCall{ID: input.Key, Name: input.Name, Arguments: map[string]any(copy)}, detached, r)
+		replacement, err := callAfterTool(ctx, hooks.AfterTool, input.argumentCall(copy), detached, r)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ToolResult{}, ctx.Err()

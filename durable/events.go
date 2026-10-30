@@ -66,18 +66,19 @@ type CompactionFailure struct {
 
 // NestedToolSnapshot is committed active nested work, ordered by task ID.
 type NestedToolSnapshot struct {
-	Task             ID
-	ParentTask       ID
-	ToolCallID       string
-	ParentToolCallID string
-	ToolName         string
-	Arguments        JSON
-	Output           string
-	Details          any
-	HasDetails       bool
-	Diagnostics      []ToolDiagnostic
-	DroppedBytes     uint64
-	DroppedLines     uint64
+	StreamingArguments bool
+	Task               ID
+	ParentTask         ID
+	ToolCallID         string
+	ParentToolCallID   string
+	ToolName           string
+	Arguments          JSON
+	Output             string
+	Details            any
+	HasDetails         bool
+	Diagnostics        []ToolDiagnostic
+	DroppedBytes       uint64
+	DroppedLines       uint64
 }
 
 type AgentEventStream struct {
@@ -123,11 +124,11 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if err != nil {
 				return result, err
 			}
-			arguments := input.Arguments
-			if rewritten, ok := record.State.Checkpoint["arguments"].(map[string]any); ok {
-				arguments = JSON(rewritten)
+			arguments, err := nestedCheckpointArguments(record.State.Checkpoint, input, limits)
+			if err != nil {
+				return result, err
 			}
-			args, err := copyObject(arguments, limits)
+			args, err := copyScopedToolArguments(arguments, input.StreamingArguments, limits)
 			if err != nil {
 				return result, err
 			}
@@ -143,7 +144,7 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if err != nil {
 				return result, err
 			}
-			result.NestedTools = append(result.NestedTools, NestedToolSnapshot{Task: task.ID, ParentTask: task.Owner, ToolCallID: callID, ParentToolCallID: input.ParentCallID, ToolName: input.Name, Arguments: args, Output: progress.Output, Details: details, HasDetails: progress.HasDetails, Diagnostics: append([]ToolDiagnostic(nil), progress.Diagnostics...), DroppedBytes: progress.DroppedBytes, DroppedLines: progress.DroppedLines})
+			result.NestedTools = append(result.NestedTools, NestedToolSnapshot{StreamingArguments: input.StreamingArguments, Task: task.ID, ParentTask: task.Owner, ToolCallID: callID, ParentToolCallID: input.ParentCallID, ToolName: input.Name, Arguments: args, Output: progress.Output, Details: details, HasDetails: progress.HasDetails, Diagnostics: append([]ToolDiagnostic(nil), progress.Diagnostics...), DroppedBytes: progress.DroppedBytes, DroppedLines: progress.DroppedLines})
 		}
 	}
 	for _, sid := range ids(state.Submissions) {
@@ -216,7 +217,7 @@ func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (Conver
 		result.Tasks = append(result.Tasks, copy)
 	}
 	for _, nested := range value.NestedTools {
-		args, err := copyObject(nested.Arguments, limits)
+		args, err := copyScopedToolArguments(nested.Arguments, nested.StreamingArguments, limits)
 		if err != nil {
 			return result, err
 		}

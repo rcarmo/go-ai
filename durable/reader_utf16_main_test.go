@@ -11,7 +11,7 @@ import (
 )
 
 func TestReaderUTF16MainCommittedEventsAndSnapshot(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	utf16Backends(t, func(t *testing.T, b backend) {
 		scalar := toolUTF16Scalar(t, `"\ud800"`)
 		key := scalar.WTF8()
 		entered := make(chan struct{})

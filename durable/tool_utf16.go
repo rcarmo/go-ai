@@ -13,6 +13,10 @@ import (
 
 var nativeToolCheckpointType = reflect.TypeFor[toolCheckpoint]()
 
+func nativeArgumentDTO(t reflect.Type) bool {
+	return t == nativeToolCheckpointType || t == reflect.TypeFor[nestedToolInput]() || t == reflect.TypeFor[nestedCallState]() || t == reflect.TypeFor[toolArgumentState]()
+}
+
 type checkpointArgumentWire struct {
 	arguments  JSON
 	diagnostic string
@@ -36,11 +40,15 @@ func (cp toolCheckpoint) argumentCall(args JSON) goai.ToolCall {
 }
 
 func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField) (reflect.Value, error) {
-	if v.Type() != nativeToolCheckpointType || field.name != "arguments" && field.name != "argumentsError" && field.name != "utf16Arguments" {
+	if !nativeArgumentDTO(v.Type()) || field.name != "arguments" && field.name != "argumentsError" && field.name != "utf16Arguments" {
 		return b.receiptJSONField(v, field)
 	}
-	cp := v.Interface().(toolCheckpoint)
-	if !cp.StreamingArguments {
+	args := v.FieldByName("Arguments").Interface().(JSON)
+	diagnostic := ""
+	if field := v.FieldByName("ArgumentsError"); field.IsValid() {
+		diagnostic = field.String()
+	}
+	if !v.FieldByName("StreamingArguments").Bool() {
 		if field.name == "utf16Arguments" {
 			return reflect.Zero(v.Field(field.index).Type()), nil
 		}
@@ -52,10 +60,10 @@ func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField
 	}
 	view := b.checkpointViews[v]
 	if view == nil {
-		view = &checkpointArgumentWire{arguments: cp.Arguments, diagnostic: cp.ArgumentsError}
-		if containsUTF16(reflect.ValueOf(cp.Arguments)) || !utf8.ValidString(cp.ArgumentsError) {
+		view = &checkpointArgumentWire{arguments: args, diagnostic: diagnostic}
+		if containsUTF16(reflect.ValueOf(args)) || !utf8.ValidString(diagnostic) {
 			var err error
-			view.chunks, err = encodeArgumentCarrier(cp.Arguments, cp.ArgumentsError, b.l, b.max-len(b.data))
+			view.chunks, err = encodeArgumentCarrier(args, diagnostic, b.l, b.max-len(b.data))
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -73,19 +81,30 @@ func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField
 		return reflect.ValueOf(view.chunks), nil
 	}
 }
-func restoreCheckpointUTF16(cp *toolCheckpoint, l Limits) error {
-	if len(cp.UTF16Arguments) == 0 {
+func restoreArgumentDTO(v reflect.Value, l Limits) error {
+	chunks := v.FieldByName("UTF16Arguments").Interface().([]string)
+	if len(chunks) == 0 {
 		return nil
 	}
-	if !cp.StreamingArguments || cp.Arguments == nil || len(cp.Arguments) != 0 || cp.ArgumentsError != "" {
+	if !v.CanSet() {
+		return reject("unaddressable argument owner")
+	}
+	args := v.FieldByName("Arguments")
+	diagnostic := v.FieldByName("ArgumentsError")
+	if !v.FieldByName("StreamingArguments").Bool() || args.IsNil() || args.Len() != 0 || diagnostic.IsValid() && diagnostic.String() != "" {
 		return reject("inconsistent tool argument placeholder")
 	}
-	carrier, err := decodeArgumentCarrier(cp.UTF16Arguments, l)
+	carrier, err := decodeArgumentCarrier(chunks, l)
 	if err != nil {
 		return err
 	}
-	cp.Arguments = JSON(carrier.Arguments)
-	cp.ArgumentsError = carrier.ArgumentsError
+	if !diagnostic.IsValid() && carrier.ArgumentsError != "" {
+		return reject("diagnostic in argument-only owner")
+	}
+	args.Set(reflect.ValueOf(JSON(carrier.Arguments)))
+	if diagnostic.IsValid() {
+		diagnostic.SetString(carrier.ArgumentsError)
+	}
 	return nil
 }
 

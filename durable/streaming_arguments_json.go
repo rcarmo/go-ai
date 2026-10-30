@@ -19,9 +19,10 @@ func isNativeJSONType(t reflect.Type) bool {
 	return t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
 }
 func nativeStreamingFields(v reflect.Value) bool {
-	switch v.Type() {
-	case nativeToolCheckpointType:
+	if nativeArgumentDTO(v.Type()) {
 		return v.FieldByName("StreamingArguments").Bool()
+	}
+	switch v.Type() {
 	case nativeToolCallType:
 		return v.Interface().(goai.ToolCall).HasStreamingArguments()
 	case nativeContentBlockType:
@@ -36,7 +37,7 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	}
 	switch field.name {
 	case "arguments":
-		if v.Type() == nativeToolCheckpointType {
+		if nativeArgumentDTO(v.Type()) {
 			return reflect.ValueOf(goai.StreamingArgumentsJSON(value.Interface().(JSON))), nil
 		}
 		return reflect.ValueOf(goai.StreamingArgumentsJSON(value.Interface().(map[string]any))), nil
@@ -109,7 +110,7 @@ func restoreStreamingArguments(p []byte, target any) error {
 }
 
 func (b *jsonBudget) walkNativeField(v reflect.Value, field jsonStructField, depth int, objectsOnly bool) error {
-	if v.Type() == nativeToolCheckpointType && (field.name == "utf16Arguments" || field.name == "streamingArguments") {
+	if nativeArgumentDTO(v.Type()) && (field.name == "utf16Arguments" || field.name == "streamingArguments") {
 		return nil
 	}
 	if v.Type() == nativeReceiptType && field.name == "utf16Arguments" {
