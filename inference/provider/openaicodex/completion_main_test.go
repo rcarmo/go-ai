@@ -100,7 +100,7 @@ func TestUnfinishedToolCompletionMain(t *testing.T) {
 				}
 				if mode != "length" && transport == "websocket" {
 					codexWebSocketSessionsMu.Lock()
-					_, cached := codexWebSocketSessions[session]
+					cached := cachedCodexSessionForTest(session) != nil
 					codexWebSocketSessionsMu.Unlock()
 					if cached {
 						t.Fatal("unfinished call retained cached session")

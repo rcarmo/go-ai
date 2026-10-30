@@ -213,7 +213,7 @@ func TestCodexInvalidArgumentEventIsNotTransportFailureMain(t *testing.T) {
 		t.Fatal("argument protocol error could trigger transport fallback/replay", err)
 	}
 	codexWebSocketSessionsMu.Lock()
-	_, cached := codexWebSocketSessions[session]
+	cached := cachedCodexSessionForTest(session) != nil
 	codexWebSocketSessionsMu.Unlock()
 	if cached {
 		t.Fatal("invalid argument event retained cached connection")

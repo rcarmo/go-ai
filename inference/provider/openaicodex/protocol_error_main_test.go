@@ -47,7 +47,7 @@ func TestCodexProtocolErrorRetainsNativePartialMain(t *testing.T) {
 		t.Fatal("protocol failure misclassified as transport", stats)
 	}
 	codexWebSocketSessionsMu.Lock()
-	_, cached := codexWebSocketSessions[session]
+	cached := cachedCodexSessionForTest(session) != nil
 	codexWebSocketSessionsMu.Unlock()
 	if cached {
 		t.Fatal("protocol failure retained cached session")

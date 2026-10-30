@@ -192,3 +192,13 @@ func TestCodexEphemeralIdentityStableAcrossRetryMain(t *testing.T) {
 		t.Fatal("retry changed request identity", first, second)
 	}
 }
+
+// The caller holds codexWebSocketSessionsMu; fixtures here use one account.
+func cachedCodexSessionForTest(sessionID string) *codexWebSocketSessionEntry {
+	for key, entry := range codexWebSocketSessions {
+		if key.sessionID == sessionID {
+			return entry
+		}
+	}
+	return nil
+}

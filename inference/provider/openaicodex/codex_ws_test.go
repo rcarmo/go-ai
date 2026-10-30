@@ -124,16 +124,16 @@ func TestRemoveCodexWebSocketSessionClosesConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)
 	}
-	entry := &codexWebSocketSessionEntry{conn: conn}
+	entry := &codexWebSocketSessionEntry{key: codexWebSocketSessionKey{sessionID: "sess-close"}, conn: conn}
 
 	codexWebSocketSessionsMu.Lock()
-	codexWebSocketSessions["sess-close"] = entry
+	codexWebSocketSessions[entry.key] = entry
 	codexWebSocketSessionsMu.Unlock()
 
 	removeCodexWebSocketSession("sess-close", entry)
 
 	codexWebSocketSessionsMu.Lock()
-	_, ok := codexWebSocketSessions["sess-close"]
+	_, ok := codexWebSocketSessions[entry.key]
 	codexWebSocketSessionsMu.Unlock()
 	if ok {
 		t.Fatal("expected session entry to be removed")

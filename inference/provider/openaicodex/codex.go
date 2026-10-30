@@ -300,7 +300,10 @@ const (
 	codexRequestCompressionZstdLevel = 3
 )
 
+type codexWebSocketSessionKey struct{ sessionID, accountID, wsURL string }
+
 type codexWebSocketSessionEntry struct {
+	key          codexWebSocketSessionKey
 	conn         *websocket.Conn
 	continuation *codexWebSocketContinuation
 	idleTimer    *time.Timer
@@ -329,7 +332,7 @@ type OpenAICodexWebSocketDebugStats struct {
 
 var (
 	codexWebSocketSessionsMu          sync.Mutex
-	codexWebSocketSessions            = map[string]*codexWebSocketSessionEntry{}
+	codexWebSocketSessions            = map[codexWebSocketSessionKey]*codexWebSocketSessionEntry{}
 	codexWebSocketStats               = map[string]*OpenAICodexWebSocketDebugStats{}
 	codexWebSocketSSEFallbackSessions = map[string]bool{}
 )
@@ -359,29 +362,30 @@ func ResetOpenAICodexWebSocketDebugStats(sessionID string) {
 	codexWebSocketSSEFallbackSessions = map[string]bool{}
 }
 
-// CloseOpenAICodexWebSocketSessions closes one cached Codex WebSocket session, or all when empty.
+// CloseOpenAICodexWebSocketSessions closes every account/endpoint partition of
+// a logical Codex session, or every cached session when sessionID is empty.
 func CloseOpenAICodexWebSocketSessions(sessionID string) {
+	var entries []*codexWebSocketSessionEntry
 	codexWebSocketSessionsMu.Lock()
-	defer codexWebSocketSessionsMu.Unlock()
-	closeEntry := func(entry *codexWebSocketSessionEntry) {
-		if entry != nil {
+	for key, entry := range codexWebSocketSessions {
+		if sessionID == "" || key.sessionID == sessionID {
+			delete(codexWebSocketSessions, key)
+			if entry == nil {
+				continue
+			}
 			if entry.idleTimer != nil {
 				entry.idleTimer.Stop()
+				entry.idleTimer = nil
 			}
-			if entry.conn != nil {
-				_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
-			}
+			entries = append(entries, entry)
 		}
 	}
-	if sessionID != "" {
-		closeEntry(codexWebSocketSessions[sessionID])
-		delete(codexWebSocketSessions, sessionID)
-		return
+	codexWebSocketSessionsMu.Unlock()
+	for _, entry := range entries {
+		if entry.conn != nil {
+			_ = entry.conn.Close(websocket.StatusNormalClosure, "debug_close")
+		}
 	}
-	for _, entry := range codexWebSocketSessions {
-		closeEntry(entry)
-	}
-	codexWebSocketSessions = map[string]*codexWebSocketSessionEntry{}
 }
 
 func isCodexWebSocketSSEFallbackActive(sessionID string) bool {
@@ -509,14 +513,15 @@ func codexWebSocketSessionExpired(entry *codexWebSocketSessionEntry, now time.Ti
 }
 
 func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*codexWebSocketSessionEntry, bool, error) {
+	key := codexWebSocketSessionKey{sessionID: sessionID, accountID: headers.Get("ChatGPT-Account-Id"), wsURL: wsURL}
 	codexWebSocketSessionsMu.Lock()
-	if entry := codexWebSocketSessions[sessionID]; entry != nil {
+	if entry := codexWebSocketSessions[key]; entry != nil {
 		if entry.idleTimer != nil {
 			entry.idleTimer.Stop()
 			entry.idleTimer = nil
 		}
 		if codexWebSocketSessionExpired(entry, time.Now()) {
-			delete(codexWebSocketSessions, sessionID)
+			delete(codexWebSocketSessions, key)
 			codexWebSocketSessionsMu.Unlock()
 			if entry.conn != nil {
 				_ = entry.conn.Close(websocket.StatusNormalClosure, "connection_age_limit")
@@ -533,10 +538,10 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 	if err != nil {
 		return nil, false, err
 	}
-	entry := &codexWebSocketSessionEntry{conn: conn, createdAt: time.Now()}
+	entry := &codexWebSocketSessionEntry{key: key, conn: conn, createdAt: time.Now()}
 
 	codexWebSocketSessionsMu.Lock()
-	if existing := codexWebSocketSessions[sessionID]; existing != nil {
+	if existing := codexWebSocketSessions[key]; existing != nil {
 		if existing.idleTimer != nil {
 			existing.idleTimer.Stop()
 			existing.idleTimer = nil
@@ -545,18 +550,19 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 		conn.CloseNow()
 		return existing, true, nil
 	}
-	codexWebSocketSessions[sessionID] = entry
+	codexWebSocketSessions[key] = entry
 	codexWebSocketSessionsMu.Unlock()
 	return entry, false, nil
 }
 
 func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionEntry) {
-	if sessionID == "" {
+	if sessionID == "" || entry == nil || entry.key.sessionID != sessionID {
 		return
 	}
+	key := entry.key
 	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
-	if codexWebSocketSessions[sessionID] == entry {
+	if codexWebSocketSessions[key] == entry {
 		if entry != nil && entry.idleTimer != nil {
 			entry.idleTimer.Stop()
 			entry.idleTimer = nil
@@ -564,7 +570,7 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 		if entry != nil {
 			conn = entry.conn
 		}
-		delete(codexWebSocketSessions, sessionID)
+		delete(codexWebSocketSessions, key)
 	}
 	codexWebSocketSessionsMu.Unlock()
 	if conn != nil {
@@ -573,12 +579,13 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 }
 
 func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSessionEntry) {
-	if sessionID == "" || entry == nil {
+	if sessionID == "" || entry == nil || entry.key.sessionID != sessionID {
 		return
 	}
+	key := entry.key
 	codexWebSocketSessionsMu.Lock()
 	defer codexWebSocketSessionsMu.Unlock()
-	if codexWebSocketSessions[sessionID] != entry {
+	if codexWebSocketSessions[key] != entry {
 		return
 	}
 	if entry.idleTimer != nil {
@@ -586,10 +593,14 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	}
 	entry.idleTimer = time.AfterFunc(codexWebSocketSessionCacheTTL, func() {
 		codexWebSocketSessionsMu.Lock()
-		defer codexWebSocketSessionsMu.Unlock()
-		if codexWebSocketSessions[sessionID] == entry {
-			delete(codexWebSocketSessions, sessionID)
-			_ = entry.conn.Close(websocket.StatusNormalClosure, "idle_timeout")
+		var conn *websocket.Conn
+		if codexWebSocketSessions[key] == entry {
+			delete(codexWebSocketSessions, key)
+			conn = entry.conn
+		}
+		codexWebSocketSessionsMu.Unlock()
+		if conn != nil {
+			_ = conn.Close(websocket.StatusNormalClosure, "idle_timeout")
 		}
 	})
 }

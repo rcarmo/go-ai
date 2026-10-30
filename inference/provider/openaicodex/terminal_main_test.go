@@ -53,7 +53,7 @@ func TestCodexTerminalStatusBothTransportsMain(t *testing.T) {
 					}
 					if transport == "websocket" {
 						codexWebSocketSessionsMu.Lock()
-						_, cached := codexWebSocketSessions[session]
+						cached := cachedCodexSessionForTest(session) != nil
 						codexWebSocketSessionsMu.Unlock()
 						if cached {
 							t.Fatal("failed output retained cached session")
@@ -124,7 +124,7 @@ func TestCodexTerminalReasoningAndUsageMain(t *testing.T) {
 			}
 			if transport == "websocket" {
 				codexWebSocketSessionsMu.Lock()
-				entry := codexWebSocketSessions[session]
+				entry := cachedCodexSessionForTest(session)
 				codexWebSocketSessionsMu.Unlock()
 				if entry == nil {
 					t.Fatal("missing cached continuation")

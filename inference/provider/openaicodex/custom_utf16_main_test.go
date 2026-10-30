@@ -104,7 +104,7 @@ func TestCustomFinalReconciliationMain(t *testing.T) {
 				}
 				if failures > 0 && transport == "websocket" {
 					codexWebSocketSessionsMu.Lock()
-					_, cached := codexWebSocketSessions[session]
+					cached := cachedCodexSessionForTest(session) != nil
 					codexWebSocketSessionsMu.Unlock()
 					if cached {
 						t.Fatal("bad custom input retained cached connection")

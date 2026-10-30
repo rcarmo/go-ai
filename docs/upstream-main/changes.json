@@ -616,9 +616,10 @@
         "transports/sse/sse.go",
         "transports/sse/context_test.go",
         "inference/provider/openaicodex/identity.go",
-        "inference/provider/openaicodex/identity_main_test.go"
+        "inference/provider/openaicodex/identity_main_test.go",
+        "inference/provider/openaicodex/account_main_test.go"
       ],
-      "note": "Partial: typed stream/grammar/phase/terminal/error handling, payloads/observers/envelopes and cancellation-aware terminal SSE completion are implemented. CacheRetention none disables generated affinity/socket reuse; ephemeral UUIDv7 is prepared once across retries, and explicit websocket caches with a session. Full normal/Codex race/twenty repeated identity fixtures/vet pass. BLOCKING: registry still keys by session only; upstream account partitions and continuation/eviction/close/concurrency isolation must be ported and A/B/A tested. Busy pooling/origin/credential boundaries, other provider ownership/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE ownership and retention/identity slices are implemented. Registry now isolates account continuations and entry-owned eviction/timers, and logical close handles all partitions outside the global lock. Native URL partition prevents wrong-backend reuse and remains an explicit final adaptation-review item versus upstream session/account grouping. Full normal/Codex race/thirty A/B/A/endpoint/concurrent-account repeats/vet pass. Busy same-account spare acquisition/release/cancellation, credential/endpoint adaptation, other provider/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",

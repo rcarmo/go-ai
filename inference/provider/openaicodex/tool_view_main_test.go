@@ -69,7 +69,7 @@ func TestCodexSchemaPropertyStreamReplayMain(t *testing.T) {
 			}
 			if transport == "websocket" {
 				codexWebSocketSessionsMu.Lock()
-				entry := codexWebSocketSessions[session]
+				entry := cachedCodexSessionForTest(session)
 				codexWebSocketSessionsMu.Unlock()
 				if entry == nil {
 					t.Fatal("missing cached continuation")

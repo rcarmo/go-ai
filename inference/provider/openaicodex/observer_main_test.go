@@ -80,7 +80,7 @@ func runCodexObserverFrames(t *testing.T, transport string, ctx context.Context,
 	}
 	if failed && transport != "sse" {
 		codexWebSocketSessionsMu.Lock()
-		entry := codexWebSocketSessions[opts.SessionID]
+		entry := cachedCodexSessionForTest(opts.SessionID)
 		codexWebSocketSessionsMu.Unlock()
 		if entry != nil {
 			t.Error("failed observer retained continuation session")
