@@ -1802,6 +1802,8 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 			for _, b := range msg.Content {
 				if b.Type == "text" {
 					content = append(content, map[string]interface{}{"type": "input_text", "text": goai.SanitizeSurrogates(b.Text)})
+				} else if b.Type == "image" {
+					content = append(content, map[string]interface{}{"type": "input_image", "detail": "auto", "image_url": "data:" + b.MimeType + ";base64," + b.Data})
 				}
 			}
 			if len(content) > 0 {
@@ -1810,12 +1812,6 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 		case goai.RoleAssistant:
 			input = append(input, buildCodexAssistantItemsWithToolView(msg, model, view)...)
 		case goai.RoleToolResult:
-			text := ""
-			for _, b := range msg.Content {
-				if b.Type == "text" {
-					text += b.Text
-				}
-			}
 			callID := msg.ToolCallID
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				callID = callID[:idx]
@@ -1825,7 +1821,7 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 				outputType = "custom_tool_call_output"
 			}
 			input = append(input, map[string]interface{}{
-				"type": outputType, "call_id": callID, "output": goai.SanitizeSurrogates(text),
+				"type": outputType, "call_id": callID, "output": responsestream.ToolResultOutput(model, msg.Content),
 			})
 		}
 	}

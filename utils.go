@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 // --- Hashing ---
@@ -24,8 +25,15 @@ func ShortHash(s string) string {
 func SanitizeSurrogates(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))
-	for _, r := range text {
-		if r == 0xFFFD || (r >= 0xD800 && r <= 0xDFFF) {
+	for index, r := range text {
+		// Range reports RuneError for both malformed bytes and literal U+FFFD.
+		// Only malformed bytes (including WTF-8 unpaired surrogates) are removed.
+		if r == utf8.RuneError {
+			if _, size := utf8.DecodeRuneInString(text[index:]); size == 1 {
+				continue
+			}
+		}
+		if r >= 0xD800 && r <= 0xDFFF {
 			continue
 		}
 		b.WriteRune(r)

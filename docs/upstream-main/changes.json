@@ -626,9 +626,14 @@
         "inference/provider/openaicodex/recovery_started_main_test.go",
         "inference/provider/openaicodex/transport_mode_main_test.go",
         "inference/provider/openaicodex/retention_scope_main_test.go",
-        "inference/provider/openaicodex/tool_result_main_test.go"
+        "inference/provider/openaicodex/tool_result_main_test.go",
+        "internal/responsestream/tool_result.go",
+        "internal/responsestream/tool_result_test.go",
+        "tests/responses_tool_content_main_test.go",
+        "transform.go",
+        "utils.go"
       ],
-      "note": "Partial: grammar-tool results now use custom_tool_call_output by resolved tool-name membership; ordinary/unsupported/unknown results remain function_call_output. Continuation snapshots filter both synthetic output types. Active/history/removal/replacement and live cached function/custom rounds pass full normal/Codex race/forty repeats/vet. Prior retention/mode/recovery/cache/stream slices are implemented. NEXT: text/newline/empty/image tool-result content and shared TransformMessages image downgrade; remaining request/schema/accounting, providers, durable/codemode and full crosswalk/acceptance. Four safety differences still need Rui acceptance."
+      "note": "Partial: shared Responses/Codex tool-result conversion now joins text/newlines, handles empty/ECMAScript whitespace and supported image arrays after capability downgrade; Codex user images are preserved. Placeholder deduplication and literal U+FFFD retention align supporting pinned source. Full normal, focused race, twenty public content fixture repeats/vet pass. NEXT: initial/default instructions and ordered system history; remaining request/schema/accounting, providers, durable/codemode and full crosswalk/acceptance. Four safety differences need Rui decision."
     },
     {
       "change": "M",
@@ -697,9 +702,14 @@
         "inference/provider/openaicodex/reasoning_identity_main_test.go",
         "inference/provider/openairesponses/azure_reasoning_replay_upstream_test.go",
         "inference/provider/openaicodex/codex.go",
-        "inference/provider/openaicodex/tool_result_main_test.go"
+        "inference/provider/openaicodex/tool_result_main_test.go",
+        "internal/responsestream/tool_result.go",
+        "internal/responsestream/tool_result_test.go",
+        "tests/responses_tool_content_main_test.go",
+        "transform.go",
+        "utils.go"
       ],
-      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open. Codex grammar-tool results now select the custom output type by resolved tool-name membership; cached function/custom rounds filter synthetic outputs and send real result deltas. Tool-result newline/empty/multimodal content conversion and native shared image-downgrade behaviour still need review."
+      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open. Codex grammar-tool results now select the custom output type by resolved tool-name membership; cached function/custom rounds filter synthetic outputs and send real result deltas. Tool-result newline/empty/multimodal content conversion and native shared image-downgrade behaviour still need review. Shared Responses/Codex tool-result text/image conversion, empty/BOM/NEL handling, capability-placeholder deduplication and literal replacement-character retention now pass live SSE/Codex-WS wire tests, full normal/focused race/twenty repeats/vet. Broader request/system/accounting/replay/source/test/dependency review remains open."
     },
     {
       "change": "M",

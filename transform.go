@@ -181,16 +181,23 @@ func downgradeUnsupportedImages(messages []Message, model *Model) ([]Message, in
 		msg.Content = normalizeLaxContent(msg.Content)
 		if msg.Role == RoleUser || msg.Role == RoleToolResult {
 			newContent := make([]ContentBlock, 0, len(msg.Content))
+			placeholder := "(image omitted: model does not support images)"
+			if msg.Role == RoleToolResult {
+				placeholder = "(tool image omitted: model does not support images)"
+			}
 			prevWasPlaceholder := false
 			for _, block := range msg.Content {
 				if block.Type == "image" {
 					replaced++
 					if !prevWasPlaceholder {
-						placeholder := "(image omitted: model does not support images)"
-						if msg.Role == RoleToolResult {
-							placeholder = "(tool image omitted: model does not support images)"
-						}
 						newContent = append(newContent, ContentBlock{Type: "text", Text: placeholder})
+					}
+					prevWasPlaceholder = true
+					continue
+				}
+				if block.Type == "text" && block.Text == placeholder {
+					if !prevWasPlaceholder {
+						newContent = append(newContent, block)
 					}
 					prevWasPlaceholder = true
 					continue

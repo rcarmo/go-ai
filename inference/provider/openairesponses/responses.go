@@ -718,7 +718,6 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			input = append(input, items...)
 
 		case goai.RoleToolResult:
-			textResult := openAIResponsesToolResultText(msg.Content)
 			callID := msg.ToolCallID
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				callID = callID[:idx]
@@ -731,7 +730,7 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			input = append(input, map[string]interface{}{
 				"type":    outputType,
 				"call_id": callID,
-				"output":  goai.SanitizeSurrogates(textResult),
+				"output":  responsestream.ToolResultOutput(model, msg.Content),
 			})
 			deferredTools := goai.DeferredToolsForMarker(deferredPlan, msg.AddedToolNames, false)
 			if len(deferredTools) > 0 {
@@ -773,14 +772,6 @@ func buildDeferredToolsInputItems(msgIndex int, msg goai.Message, tools []goai.T
 		map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed"},
 		map[string]interface{}{"type": "tool_search_output", "call_id": callID, "execution": "client", "status": "completed", "tools": converted},
 	}
-}
-
-func openAIResponsesToolResultText(content []goai.ContentBlock) string {
-	text := extractText(content)
-	if strings.TrimSpace(text) == "" {
-		return "(no tool output)"
-	}
-	return text
 }
 
 func buildUserContent(msg goai.Message) []map[string]interface{} {
