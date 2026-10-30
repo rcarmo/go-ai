@@ -888,13 +888,21 @@ readLoop:
 			return nil
 		}
 
-		observed, observeErr := observeCodexEvent(data, opts, model)
+		observed, validEvent, observeErr := decodeCodexEvent(data, "WebSocket", opts, model, partial)
 		if observeErr != nil {
 			if useCachedContext && entry != nil && opts != nil {
 				entry.continuation = nil
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
-			return &codexObserverError{cause: observeErr, partial: partial}
+			if started && !isCodexNonTransportError(observeErr) {
+				transportFailure(observeErr)
+				send(codexStreamErrorEvent(observeErr))
+				return nil
+			}
+			return observeErr
+		}
+		if !validEvent {
+			continue
 		}
 		data = observed
 		if ctx.Err() != nil {
@@ -910,7 +918,7 @@ readLoop:
 
 		var raw struct {
 			OutputIndex *int             `json:"output_index"`
-			Type        string           `json:"type"`
+			Type        codexEventType   `json:"type"`
 			Item        json.RawMessage  `json:"item,omitempty"`
 			Response    json.RawMessage  `json:"response,omitempty"`
 			Delta       string           `json:"delta,omitempty"`
@@ -1335,12 +1343,13 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
 		}
-		if evt.Data == "[DONE]" {
-			break
+		evt.Data = strings.TrimSpace(evt.Data)
+		if evt.Data == "[DONE]" || evt.Data == "" {
+			continue
 		}
-		observed, observeErr := observeCodexEvent([]byte(evt.Data), opts, model)
+		observed, validEvent, observeErr := decodeCodexEvent([]byte(evt.Data), "SSE", opts, model, partial)
 		if observeErr != nil {
-			event := codexStreamErrorEvent(&codexObserverError{cause: observeErr, partial: partial})
+			event := codexStreamErrorEvent(observeErr)
 			if ctx.Err() != nil {
 				event.Reason = goai.StopReasonAborted
 				event.Err = ctx.Err()
@@ -1350,6 +1359,10 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 			send(event)
 			return
 		}
+		if !validEvent {
+			continue
+		}
+
 		if ctx.Err() != nil {
 			partial.StopReason = goai.StopReasonAborted
 			partial.ErrorMessage = ctx.Err().Error()
@@ -1359,7 +1372,7 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 
 		var raw struct {
 			OutputIndex *int             `json:"output_index"`
-			Type        string           `json:"type"`
+			Type        codexEventType   `json:"type"`
 			Item        json.RawMessage  `json:"item,omitempty"`
 			Response    json.RawMessage  `json:"response,omitempty"`
 			Delta       string           `json:"delta,omitempty"`

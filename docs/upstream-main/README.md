@@ -439,3 +439,13 @@ The adapter review found an earlier mapping error: upstream `mapCodexEvents`/`no
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 109.869 seconds), Codex race (1.934 seconds), twenty repeated observer/status fixture runs, vet and diff checks. Independent production-transport fixtures cover callback order/mutation, first/later failures, cancellation with/without callback errors, typed partials, cache eviction and zero fallback/network counters. Field fixtures cover function/custom deltas, done items and terminal outputs. These do not complete the upstream-test crosswalk or acceptance profiling.
 
 Next: event-envelope/missing-type filtering against the Codex adapter, cache-retention/identity details, other provider observer/request/replay/accounting paths, durable progress and the full source/test/dependency review.
+
+## Codex event-envelope filtering
+
+Both transports now filter valid non-object or untyped envelopes before observers and stream startup, matching `mapCodexEvents`. A callback can subsequently replace the event type with a non-string value; processing ignores that mutated type after startup. Malformed JSON now raises a partial-preserving protocol error on SSE and on WebSocket both before and after startup, without fallback or network-failure counters. SSE trims data and ignores whitespace/`[DONE]` records instead of treating the sentinel as terminal.
+
+Upstream handles a JSON `null` frame differently: property access throws an ordinary adapter exception, outside its non-transport error classes. Native Codex preserves that distinction: before startup it records failure and falls back; after startup it records failure/diagnostics and returns the partial without fallback. Null frames never reach the observer. Production fixtures cover both policies.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 108.878 seconds), Codex race (2.158 seconds), twenty repeated envelope/protocol/mutated-type/null/sentinel fixture runs, vet and diff checks. No acceptance profiling ran.
+
+Next: investigate SSE producer cancellation/ownership on early return, then cache-retention/identity details and remaining provider request/replay/accounting/observer paths. Typed-schema projection edge cases, durable progress and the complete source/test/dependency crosswalk remain open.
