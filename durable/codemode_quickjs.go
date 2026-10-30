@@ -138,25 +138,17 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 				}
 				arguments = JSON{"args": values}
 			} else {
-				var value any
-				if err := decodeQuickJSValue(args, &value); err != nil {
-					return nil, errors.New("tool arguments must be an object")
+				var err error
+				arguments, err = decodeQuickJSToolArguments(args)
+				if err != nil {
+					return nil, err
 				}
-				object, ok := value.(map[string]any)
-				if !ok || object == nil {
-					return nil, errors.New("tool arguments must be an object")
-				}
-				arguments = JSON(object)
 			}
 			id := execution.sequence.Add(1)
-			call := CodemodeCall{ID: int(id), Global: global, Name: name, Arguments: arguments}
+			call := CodemodeCall{StreamingArguments: !global, ID: int(id), Global: global, Name: name, Arguments: arguments}
 			// Keep admission identity separate from caller-visible event maps.
-			raw, err := json.Marshal(arguments)
+			expectedArgs, err := ownCodemodeArguments(call, DefaultLimits())
 			if err != nil {
-				return nil, err
-			}
-			var expectedArgs JSON
-			if err = decodeQuickJSValue(raw, &expectedArgs); err != nil {
 				return nil, err
 			}
 			expected := call
@@ -197,22 +189,22 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 	}
 	if start.ParallelCalls {
 		opts.PrepareCall = func(ctx context.Context, id int, global bool, name string, args json.RawMessage) (func(context.Context) (json.RawMessage, error), error) {
-			var value any
-			if err := decodeQuickJSValue(args, &value); err != nil {
-				return nil, err
-			}
 			var arguments JSON
 			if global {
+				var value any
+				if err := decodeQuickJSValue(args, &value); err != nil {
+					return nil, err
+				}
 				arguments = JSON{"args": value}
 			} else {
-				object, ok := value.(map[string]any)
-				if !ok {
-					return nil, errors.New("tool arguments must be an object")
+				var err error
+				arguments, err = decodeQuickJSToolArguments(args)
+				if err != nil {
+					return nil, err
 				}
-				arguments = JSON(object)
 			}
-			call := CodemodeCall{ID: id, Global: global, Name: name, Arguments: arguments}
-			owned, err := copyObject(arguments, DefaultLimits())
+			call := CodemodeCall{StreamingArguments: !global, ID: id, Global: global, Name: name, Arguments: arguments}
+			owned, err := ownCodemodeArguments(call, DefaultLimits())
 			if err != nil {
 				return nil, err
 			}
@@ -336,7 +328,7 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 		return reject("invalid or oversized delivery JSON")
 	}
 	var owned CodemodeDelivery
-	if err = decodeQuickJSValue(raw, &owned); err != nil {
+	if err = decodeStrict(raw, limits, MaxCodemodeFullOutputBytes, &owned); err != nil {
 		return reject("invalid delivery JSON")
 	}
 	delivery = owned
@@ -356,7 +348,7 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 	}
 	if e.responses != nil {
 		call, ok := e.waiting[delivery.Call.ID]
-		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+		if !ok || delivery.Seq != e.delivered+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
 			return reject("invalid QuickJS parallel delivery")
 		}
 		e.responses[call.ID] <- delivery
@@ -368,7 +360,7 @@ func (e *quickjsExecution) Deliver(ctx context.Context, delivery CodemodeDeliver
 		return nil
 	}
 	call := e.awaiting
-	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
+	if call == nil || delivery.Seq != call.ID || delivery.Call.ID != call.ID || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, *call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.Now < e.lastNow || uint64(delivery.Now) > MaxID || delivery.Properties != nil && delivery.Error == "" || !delivery.HasValue && delivery.Value != nil || delivery.Error != "" && (delivery.HasValue || delivery.Value != nil) {
 		return reject("invalid QuickJS delivery")
 	}
 	select {

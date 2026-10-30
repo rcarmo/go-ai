@@ -111,13 +111,13 @@ func (r *TaskRuntime) runParallelCodemode(ctx context.Context, vm CodemodeExecut
 				if observed >= l.MaxPage || call.ID != observed+1 || !call.Global && !allowed[call.Name] || call.Global && !codemodeGlobalAllowed(start, call.Name) {
 					return divergence("parallel sandbox call authority mismatch")
 				}
-				call.Arguments, err = copyObject(call.Arguments, l)
+				call.Arguments, err = ownCodemodeArguments(call, l)
 				if err != nil {
 					return CodemodeResult{}, err
 				}
 				if observed < len(journal.Issued) {
 					old := journal.Issued[observed]
-					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !equalJSONValue(call.Arguments, old.Arguments) {
+					if call.ID != old.ID || call.Name != old.Name || call.Global != old.Global || !codemodeArgumentModeCompatible(call, old) || !equalJSONValue(call.Arguments, old.Arguments) {
 						return divergence("sandbox call replay divergence")
 					}
 				} else {

@@ -239,7 +239,7 @@ func (e *remoteCodemodeExecution) Deliver(ctx context.Context, delivery Codemode
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	call, ok := e.waiting[owned.Call.ID]
-	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < e.lastNow || uint64(owned.Now) > MaxID || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.Properties != nil && owned.Error == "" || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
+	if e.terminal || !e.acknowledged || !ok || owned.Seq != e.delivered+1 || owned.Now < e.lastNow || uint64(owned.Now) > MaxID || owned.Call.Name != call.Name || owned.Call.Global != call.Global || !codemodeArgumentModeCompatible(owned.Call, call) || !equalJSONValue(owned.Call.Arguments, call.Arguments) || owned.Properties != nil && owned.Error == "" || owned.HasValue && owned.Error != "" || !owned.HasValue && owned.Value != nil {
 		return reject("invalid remote delivery")
 	}
 	select {
@@ -286,7 +286,7 @@ func (e *remoteCodemodeExecution) admitEvent(event CodemodeEvent, start Codemode
 		if !allowed {
 			return reject("remote call outside captured authority")
 		}
-		args, err := copyObject(call.Arguments, DefaultLimits())
+		args, err := ownCodemodeArguments(call, DefaultLimits())
 		if err != nil {
 			return err
 		}

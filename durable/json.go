@@ -248,6 +248,9 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if nativeArgumentDTO(v.Type()) {
 			members -= 2
 		}
+		if v.Type() == reflect.TypeFor[CodemodeCall]() {
+			members--
+		}
 		if v.Type() == nativeReceiptType {
 			members--
 		}

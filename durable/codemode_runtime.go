@@ -77,10 +77,13 @@ type CodemodeEvent struct {
 	Result *CodemodeResult
 }
 type CodemodeCall struct {
-	Global    bool   `json:"global,omitempty"`
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Arguments JSON   `json:"arguments"`
+	argumentsDecoded   bool
+	StreamingArguments bool     `json:"streamingArguments,omitempty"`
+	UTF16Arguments     []string `json:"utf16Arguments,omitempty"`
+	Global             bool     `json:"global,omitempty"`
+	ID                 int      `json:"id"`
+	Name               string   `json:"name"`
+	Arguments          JSON     `json:"arguments"`
 }
 type CodemodeResult struct {
 	WallMs         int64               `json:"wallMs"`
@@ -516,15 +519,16 @@ func (r *TaskRuntime) runCodemode(ctx context.Context, key, source string, sandb
 		if call.ID != index+1 || (!call.Global && !allowed[call.Name]) || (call.Global && !codemodeGlobalAllowed(run.Start, call.Name)) {
 			return CodemodeResult{}, reject("sandbox call ID/authority mismatch")
 		}
-		call.Arguments, err = copyObject(call.Arguments, l)
+		call.Arguments, err = ownCodemodeArguments(call, l)
 		if err != nil {
 			return CodemodeResult{}, err
 		}
 		if index < len(journal.Issued) {
 			old := journal.Issued[index]
-			if old.ID != call.ID || old.Name != call.Name || old.Global != call.Global || !equalJSONValue(old.Arguments, call.Arguments) {
+			if old.ID != call.ID || old.Name != call.Name || old.Global != call.Global || !codemodeArgumentModeCompatible(old, call) || !equalJSONValue(old.Arguments, call.Arguments) {
 				return CodemodeResult{}, reject("sandbox call replay divergence")
 			}
+			call = old
 		} else {
 			journal.Issued = append(journal.Issued, call)
 			if err = commitCodemodeJournal(linked, r, journalID, journal); err != nil {

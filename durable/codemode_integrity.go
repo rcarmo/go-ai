@@ -70,7 +70,7 @@ func validateCodemodeDocuments(s Snapshot, doc Document, l Limits) error {
 		}
 		seenDeliveries[id] = true
 		call := journal.Issued[id-1]
-		if delivery.Seq != i+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
+		if delivery.Seq != i+1 || delivery.Call.Name != call.Name || delivery.Call.Global != call.Global || !codemodeArgumentModeCompatible(delivery.Call, call) || !equalJSONValue(delivery.Call.Arguments, call.Arguments) || delivery.HasValue && delivery.Error != "" || !delivery.HasValue && delivery.Value != nil {
 			return reject("invalid codemode delivery sequence/union")
 		}
 	}
@@ -163,7 +163,7 @@ func validateCodemodeReplacement(old, next Document, l Limits) error {
 	}
 	for i, call := range a.Issued {
 		other := b.Issued[i]
-		if call.ID != other.ID || call.Name != other.Name || call.Global != other.Global || !equalJSONValue(call.Arguments, other.Arguments) {
+		if call.ID != other.ID || call.Name != other.Name || call.Global != other.Global || !codemodeArgumentModeCompatible(call, other) || !equalJSONValue(call.Arguments, other.Arguments) {
 			return reject("codemode issued prefix changed")
 		}
 	}

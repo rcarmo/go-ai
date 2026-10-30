@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"fmt"
+	goai "github.com/rcarmo/go-ai"
 	"strings"
 )
 
@@ -74,7 +75,11 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 			result := ToolResult{IsError: true, Content: "Tool " + name + " is no longer callable"}
 			if allowed {
 				var err error
-				result, err = r.CallTool(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, arguments)
+				if call.StreamingArguments && !call.Global {
+					result, err = r.CallToolWithArguments(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, goai.StreamingArgumentsJSON(arguments))
+				} else {
+					result, err = r.CallTool(linked, fmt.Sprintf("%s.c%d", key, call.ID), name, arguments)
+				}
 				if err != nil {
 					return CodemodeDelivery{}, err
 				}

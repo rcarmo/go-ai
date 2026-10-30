@@ -173,4 +173,22 @@ Development verification on Go 1.27.3/GOMAXPROCS=4:
 * Full root-module normal suite passes (durable 103.427 seconds). Final shuffled nested checks pass (1.755 seconds); focused main/nested/reader race passes (5.619 seconds); vet and diff checks pass. The final null-intent guard and ordinary-API rejection regression were followed by these focused checks.
 * No acceptance profiling or performance comparison.
 
-Next: wire codemode arguments through lossless QuickJS decoding, serial/parallel journals, delivery identity, remote adapters and the typed nested admission path. Compaction argument formatting and scoped diagnostic tool-result text also need work before provider SSE/delta integration and acceptance.
+Codemode tool arguments now use the bridge below. Compaction argument formatting and scoped diagnostic tool-result text still need work before provider SSE/delta integration and acceptance.
+
+## Codemode tool argument ownership
+
+QuickJS tool-call decoding now parses the final argument object losslessly after resource preflight. Serial and parallel calls retain typed ownership through admission copies, issued/delivered journals and nested execution. Global values and final VM results retain their ordinary decoder; their complete UTF-16 semantics need separate review.
+
+`CodemodeCall` carries the native encoding flag and bounded argument carrier. Its standard Go JSON codec preserves exceptional keys/values across the native remote-pipe protocol. The codec uses `DefaultLimits`; outer DTO readers revalidate restored carriers with their caller limits. Enlarged non-default budgets still need acceptance review. Caller wrappers receive no marshaler exception. Raw unpaired strings outside the declared carrier remain invalid.
+
+Legacy ordinary-JSON journals can replay VM calls that now carry an encoding marker: matching ordinary values retain the stored admission mode. Exceptional mode changes fail compatibility checks. Delivery identity still checks IDs, names, global/tool classification and exact logical arguments. Reused completed runs replay confirmed deliveries without repeating effects.
+
+Go 1.27.3/GOMAXPROCS=4 development checks:
+
+* Real QuickJS serial, parallel and native Go remote subprocess executions/reopen pass on memory, journal and SQLite. Isolated keys/values survive issued journals, host dispatch, interruption and recovery; executor map mutation stays detached. A completed second invocation reuses the stored result.
+* Legacy UTF-8 journal replay without the new marker passes on all three stores.
+* Native standard-JSON and DTO round trips preserve exact large integers and code units. Fault cases reject malformed/nonobject arguments, trailing documents, typed tool flags on global calls, untyped exceptional values, inconsistent decoded witnesses and caller depth-budget overflow.
+* Full root-module normal suite passes (durable 120.813 seconds). Shuffled codemode suite passes (37.392 seconds); final focused argument/receipt/reader/codemode race passes (26.355 seconds). Vet and diff checks pass.
+* No acceptance profiling, performance comparison, provider wiring or full-parity acceptance.
+
+Next: compaction argument formatting and scoped diagnostic tool-result text, provider SSE code-unit decoding/delta-event transport and the remaining streaming/finalisation test crosswalk. Review codemode global/final values, configured enlarged limits and the remaining main host-contract deltas before acceptance.

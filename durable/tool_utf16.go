@@ -14,7 +14,7 @@ import (
 var nativeToolCheckpointType = reflect.TypeFor[toolCheckpoint]()
 
 func nativeArgumentDTO(t reflect.Type) bool {
-	return t == nativeToolCheckpointType || t == reflect.TypeFor[nestedToolInput]() || t == reflect.TypeFor[nestedCallState]() || t == reflect.TypeFor[toolArgumentState]()
+	return t == nativeToolCheckpointType || t == reflect.TypeFor[nestedToolInput]() || t == reflect.TypeFor[nestedCallState]() || t == reflect.TypeFor[toolArgumentState]() || t == reflect.TypeFor[CodemodeCall]()
 }
 
 type checkpointArgumentWire struct {
@@ -43,6 +43,7 @@ func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField
 	if !nativeArgumentDTO(v.Type()) || field.name != "arguments" && field.name != "argumentsError" && field.name != "utf16Arguments" {
 		return b.receiptJSONField(v, field)
 	}
+
 	args := v.FieldByName("Arguments").Interface().(JSON)
 	diagnostic := ""
 	if field := v.FieldByName("ArgumentsError"); field.IsValid() {
@@ -88,6 +89,17 @@ func restoreArgumentDTO(v reflect.Value, l Limits) error {
 	}
 	if !v.CanSet() {
 		return reject("unaddressable argument owner")
+	}
+	if v.Type() == reflect.TypeFor[CodemodeCall]() && v.Interface().(CodemodeCall).argumentsDecoded {
+		carrier, err := decodeArgumentCarrier(chunks, l)
+		if err != nil {
+			return err
+		}
+		call := v.Interface().(CodemodeCall)
+		if !call.StreamingArguments || call.Global || carrier.ArgumentsError != "" || !equalJSONValue(call.Arguments, JSON(carrier.Arguments)) {
+			return reject("inconsistent decoded codemode arguments")
+		}
+		return nil
 	}
 	args := v.FieldByName("Arguments")
 	diagnostic := v.FieldByName("ArgumentsError")
