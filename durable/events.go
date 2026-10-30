@@ -302,7 +302,7 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 						event := base
 						event.Type = "tool_execution_start"
 						var err error
-						event.Args, err = copyObject(after.Arguments, s.limits)
+						event.Args, err = copyScopedToolArguments(after.Arguments, after.StreamingArguments, s.limits)
 						if err != nil {
 							return err
 						}

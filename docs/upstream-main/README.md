@@ -149,3 +149,11 @@ Development checks on Go 1.27.3/GOMAXPROCS=4:
 * Full root-module normal suite passes (durable 100.213 seconds). Focused checkpoint/receipt/restart race passes (3.782 seconds); final tool-argument normal/race passes (0.243/2.448 seconds). Vet and diff checks pass. No acceptance profiling.
 
 Next: inspect readers and codemode adapters, which still copy tool arguments through generic JSON. Tool argument diagnostics also reach ordinary tool-result text on the invalid-arguments path; isolated diagnostic units need a scoped representation there without relaxing ordinary text validation. Finish those boundaries before provider transport/wiring and full acceptance.
+
+## Committed event reader arguments
+
+Tool-start event projection now uses the checkpoint argument mode when detaching arguments. Previously its generic copy rejected exceptional units after successful checkpoint adoption and stopped the reader. A production watcher regression across memory, journal and SQLite verifies isolated keys/values in tool-start events and active conversation snapshots; listener/snapshot mutations leave stored arguments and later snapshots unchanged.
+
+Go 1.27.3/GOMAXPROCS=4 development checks: new reader normal test 0.135 seconds, focused reader/event race 2.748 seconds, shuffled event/snapshot/reader/context suite 3.723 seconds; vet and diff checks pass. The preceding tool checkpoint commit passed the full root-module suite. No acceptance profiling.
+
+Remaining read/adapter boundaries include compaction transcript argument formatting (`compaction_text.go`), nested-tool events and codemode. Codemode serial/parallel journals, remote dispatch and nested-tool preparation/hooks still use generic copies; QuickJS host argument decoding uses the ordinary Go JSON decoder and loses isolated units before dispatch. These paths need explicit typed ownership through parsing, identity checks, journals, execution and replay. Generic values outside tool arguments retain strict validation.
