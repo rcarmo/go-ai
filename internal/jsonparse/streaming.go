@@ -1,12 +1,10 @@
 package jsonparse
 
 import (
-	"encoding/json"
-	"math"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf16"
 )
 
 // JSONChange is one incremental edit. Paths contain object keys and array indices.
@@ -15,7 +13,7 @@ type JSONChange struct {
 	Kind  string `json:"kind"`
 	Path  []any  `json:"path"`
 	Value any    `json:"value,omitempty"`
-	Text  string `json:"text,omitempty"`
+	Text  any    `json:"text,omitempty"`
 }
 type streamSlot struct {
 	kind  byte
@@ -36,19 +34,16 @@ type streamString struct {
 	key        bool
 	slot       *streamSlot
 	path       []any
-	text       strings.Builder
+	text       utf16Buffer
 	escape     string
-	high       uint16
 	change     int
-	changeText strings.Builder
+	changeText utf16Buffer
 }
 
-// StreamingJSONParser reads each chunk once and copies only open containers for
-// snapshots. Copy credit bounds repeated wide-container previews. It is tolerant;
-// completed tool arguments must still pass ParseToolCallArguments.
-// Go previews hold high surrogates until paired/completed and normalise isolated
-// completed surrogates to U+FFFD; lossless UTF-16
-// interoperability remains unresolved and this parser is not yet provider-wired.
+// StreamingJSONParser incrementally consumes chunks and copies only open
+// containers for snapshots. Copy credit bounds repeated wide-container previews.
+// Previews preserve JS UTF-16 units and number overflow; they are not validated
+// persisted JSON. Completed calls still need the final-argument contract.
 type StreamingJSONParser struct {
 	root             any
 	present, done    bool
@@ -61,11 +56,14 @@ type StreamingJSONParser struct {
 	snapshot         any
 	snapshotPresent  bool
 	changes          []JSONChange
+	revision         uint64
 }
 
 func (p *StreamingJSONParser) Append(text string) []JSONChange {
 	units := 0
-	for _, r := range text {
+	for rest := text; len(rest) > 0; {
+		r, n, _ := previewRune(rest)
+		rest = rest[n:]
 		units++
 		if r > 0xffff {
 			units++
@@ -147,6 +145,12 @@ func (p *StreamingJSONParser) Snapshot() (any, bool) {
 		return p.snapshot, p.snapshotPresent
 	}
 	p.credit -= cost
+	previous, previousPresent := p.snapshot, p.snapshotPresent
+	defer func() {
+		if previousPresent != p.snapshotPresent || !samePreviewScalar(previous, p.snapshot) {
+			p.revision++
+		}
+	}()
 	p.dirty = false
 	if len(p.stack) == 0 {
 		p.snapshot, p.snapshotPresent = p.root, p.present
@@ -330,15 +334,11 @@ func (p *StreamingJSONParser) startString() {
 		s.change = len(p.changes) - 1
 	}
 }
-func (p *StreamingJSONParser) stringText(s *streamString, text string, replace bool) {
-	s.text.WriteString(text)
-	value := s.text.String()
-	if s.high != 0 {
-		value += "\ufffd"
-	}
+func (p *StreamingJSONParser) publishString(s *streamString, add func(*utf16Buffer)) {
 	if s.key {
 		return
 	}
+	value := s.text.Value()
 	p.place(s.slot, value)
 	if s.path == nil {
 		return
@@ -348,44 +348,23 @@ func (p *StreamingJSONParser) stringText(s *streamString, text string, replace b
 		if c.Kind == "set" {
 			c.Value = value
 		} else {
-			s.changeText.WriteString(text)
-			c.Text = s.changeText.String()
+			add(&s.changeText)
+			c.Text = s.changeText.Value()
 		}
 		return
 	}
-	if replace {
-		p.changes = append(p.changes, JSONChange{Kind: "set", Path: s.path, Value: value})
-	} else {
-		s.changeText.Reset()
-		s.changeText.WriteString(text)
-		p.changes = append(p.changes, JSONChange{Kind: "append", Path: s.path, Text: s.changeText.String()})
-	}
+	s.changeText.Reset()
+	add(&s.changeText)
+	p.changes = append(p.changes, JSONChange{Kind: "append", Path: s.path, Text: s.changeText.Value()})
 	s.change = len(p.changes) - 1
 }
-func (p *StreamingJSONParser) flushHigh(s *streamString) {
-	if s.high != 0 {
-		s.high = 0
-		p.stringText(s, "\ufffd", true)
-	}
+func (p *StreamingJSONParser) stringText(s *streamString, text string) {
+	s.text.WriteText(text)
+	p.publishString(s, func(b *utf16Buffer) { b.WriteText(text) })
 }
 func (p *StreamingJSONParser) unicode(s *streamString, u uint16) {
-	if s.high != 0 && u >= 0xdc00 && u <= 0xdfff {
-		high := s.high
-		s.high = 0
-		p.stringText(s, string(utf16.DecodeRune(rune(high), rune(u))), true)
-		return
-	}
-	p.flushHigh(s)
-	if u >= 0xd800 && u <= 0xdbff {
-		s.high = u
-		p.dirty = true
-		return
-	}
-	if u >= 0xdc00 && u <= 0xdfff {
-		p.stringText(s, "\ufffd", false)
-		return
-	}
-	p.stringText(s, string(rune(u)), false)
+	s.text.WriteUnit(u)
+	p.publishString(s, func(b *utf16Buffer) { b.WriteUnit(u) })
 }
 func (p *StreamingJSONParser) readString(text string, start int) int {
 	s := p.str
@@ -397,16 +376,14 @@ func (p *StreamingJSONParser) readString(text string, start int) int {
 			if s.escape == "\\" {
 				if decoded, ok := streamEscapes[c]; ok {
 					s.escape = ""
-					p.flushHigh(s)
-					p.stringText(s, decoded, false)
+					p.stringText(s, decoded)
 					consumed = true
 				} else if c == 'u' {
 					s.escape = "\\u"
 					consumed = true
 				} else {
 					s.escape = ""
-					p.flushHigh(s)
-					p.stringText(s, "\\", false)
+					p.stringText(s, "\\")
 				}
 			} else if streamHex(c) {
 				s.escape += string(c)
@@ -419,8 +396,7 @@ func (p *StreamingJSONParser) readString(text string, start int) int {
 			} else {
 				literal := s.escape
 				s.escape = ""
-				p.flushHigh(s)
-				p.stringText(s, literal, false)
+				p.stringText(s, literal)
 			}
 			if consumed {
 				run = i + 1
@@ -430,14 +406,12 @@ func (p *StreamingJSONParser) readString(text string, start int) int {
 		}
 		if c == '"' {
 			if i > run {
-				p.flushHigh(s)
-				p.stringText(s, text[run:i], false)
+				p.stringText(s, text[run:i])
 			}
-			p.flushHigh(s)
 			p.str = nil
 			if s.key {
 				if f := p.top(); f != nil {
-					f.key, f.hasKey, f.phase = s.text.String(), true, 'c'
+					f.key, f.hasKey, f.phase = s.text.Key(), true, 'c'
 				}
 			} else {
 				p.ended()
@@ -446,16 +420,14 @@ func (p *StreamingJSONParser) readString(text string, start int) int {
 		}
 		if c == '\\' {
 			if i > run {
-				p.flushHigh(s)
-				p.stringText(s, text[run:i], false)
+				p.stringText(s, text[run:i])
 			}
 			s.escape = "\\"
 			run = i + 1
 		}
 	}
 	if len(text) > run {
-		p.flushHigh(s)
-		p.stringText(s, text[run:], false)
+		p.stringText(s, text[run:])
 	}
 	return len(text)
 }
@@ -501,7 +473,7 @@ func streamScalar(token string, pending bool) (any, bool) {
 		return nil, false
 	}
 	value, err := strconv.ParseFloat(token, 64)
-	if err != nil || math.IsInf(value, 0) || math.IsNaN(value) {
+	if err != nil && !errors.Is(err, strconv.ErrRange) {
 		return nil, false
 	}
 	return value, true
@@ -514,16 +486,22 @@ func streamHex(c byte) bool {
 var streamEscapes = map[byte]string{'"': "\"", '\\': "\\", '/': "/", 'b': "\b", 'f': "\f", 'n': "\n", 'r': "\r", 't': "\t"}
 
 func (c JSONChange) MarshalJSON() ([]byte, error) {
+	value := map[string]any{"kind": c.Kind, "path": c.Path}
 	if c.Kind == "set" {
-		return json.Marshal(struct {
-			Kind  string `json:"kind"`
-			Path  []any  `json:"path"`
-			Value any    `json:"value"`
-		}{c.Kind, c.Path, c.Value})
+		value["value"] = c.Value
+	} else {
+		value["text"] = c.Text
 	}
-	return json.Marshal(struct {
-		Kind string `json:"kind"`
-		Path []any  `json:"path"`
-		Text string `json:"text"`
-	}{c.Kind, c.Path, c.Text})
+	return marshalPreview(value)
+}
+
+func samePreviewScalar(a, b any) bool {
+	switch a.(type) {
+	case nil:
+		return b == nil
+	case bool, string, float64, UTF16String:
+		return a == b
+	default:
+		return false
+	}
 }

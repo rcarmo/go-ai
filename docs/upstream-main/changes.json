@@ -1044,10 +1044,17 @@
       "status": "partial",
       "native": [
         "internal/jsonparse/streaming.go",
+        "internal/jsonparse/preview.go",
+        "internal/jsonparse/arguments_stream.go",
         "internal/jsonparse/streaming_main_test.go",
-        "internal/jsonparse/testdata/streaming_main.json"
+        "internal/jsonparse/preview_main_test.go",
+        "internal/jsonparse/arguments_stream_main_test.go",
+        "internal/jsonparse/testdata/streaming_main.json",
+        "internal/jsonparse/testdata/streaming_values_main.json",
+        "internal/jsonparse/testdata/arguments_stream_main.json",
+        "durable/streaming_preview_main_test.go"
       ],
-      "note": "Core append/snapshot edits, copy credit, depth cap and immutable histories development-tested against 66 curated pinned-reference cases. Full upstream suite, UTF-16/nonfinite representations, ToolCallArgumentsStream and production provider wiring remain unresolved; no acceptance or N/A disposition."
+      "note": "Partial: core lossless UTF-16/overflow previews and argument-stream append/replace/finish tested against 66+60+14 pinned cases, histories/fuzz/race. Ordinary persistence still rejects exceptional previews. Bounded DTO bridge, provider wiring, production finalisation and complete upstream tests/review remain open."
     },
     {
       "change": "M",
@@ -1280,10 +1287,17 @@
       "status": "partial",
       "native": [
         "internal/jsonparse/streaming.go",
+        "internal/jsonparse/preview.go",
+        "internal/jsonparse/arguments_stream.go",
         "internal/jsonparse/streaming_main_test.go",
-        "internal/jsonparse/testdata/streaming_main.json"
+        "internal/jsonparse/preview_main_test.go",
+        "internal/jsonparse/arguments_stream_main_test.go",
+        "internal/jsonparse/testdata/streaming_main.json",
+        "internal/jsonparse/testdata/streaming_values_main.json",
+        "internal/jsonparse/testdata/arguments_stream_main.json",
+        "durable/streaming_preview_main_test.go"
       ],
-      "note": "Core append/snapshot edits, copy credit, depth cap and immutable histories development-tested against 66 curated pinned-reference cases. Full upstream suite, UTF-16/nonfinite representations, ToolCallArgumentsStream and production provider wiring remain unresolved; no acceptance or N/A disposition."
+      "note": "Partial: core lossless UTF-16/overflow previews and argument-stream append/replace/finish tested against 66+60+14 pinned cases, histories/fuzz/race. Ordinary persistence still rejects exceptional previews. Bounded DTO bridge, provider wiring, production finalisation and complete upstream tests/review remain open."
     },
     {
       "change": "A",

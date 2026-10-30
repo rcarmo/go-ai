@@ -77,11 +77,28 @@ CPU/allocation impact of the usage codec and strict decoded-target walk is unmea
 
 The committed 33 KB fixture contains 66 curated append/snapshot cases generated with Bun from pinned streaming-json.ts. Its finish import was replaced by a throwing stub; finish was never exercised. Comparisons use parsed objects, ordered edits and old-snapshot stability. Fixture inputs cover incomplete scalars/containers/strings, control characters, malformed escapes, missing separators, prototype-like keys and Unicode scalar values. They exclude lone UTF-16 surrogates and numeric overflow; Go JSON decoding would conceal those differences in a reference fixture.
 
-Two unresolved representation contracts block full parser parity and provider integration:
+Checkpoint `040018c` had two representation gaps, resolved for the core by the follow-up below:
 
-* After `append('"\\ud83d')`, upstream snapshot is a one-unit string containing 55357 (0xD83D). Go strings/standard JSON cannot represent and round-trip that unit faithfully. The current core holds high surrogates until paired/completed and replaces completed isolated units with U+FFFD. This difference is unaccepted.
-* After `append("1e400")`, upstream snapshot is numeric Infinity. The current core omits nonfinite scalars. Ordinary native JSON/argument decoding rejects overflow. This difference is unaccepted.
+* After `append('"\\ud83d')`, upstream snapshot is a one-unit string containing 55357 (0xD83D). Go strings/standard JSON cannot represent and round-trip that unit faithfully. That checkpoint held high surrogates until paired/completed and replaced isolated units with U+FFFD.
+* After `append("1e400")`, upstream snapshot is numeric Infinity. That checkpoint omitted nonfinite scalars. Ordinary persisted JSON still rejects them.
 
-Next: implement lossless native preview/value adapters or resolve these contracts explicitly before integration, preserving existing UTF-8, finite-number, DTO-authority and persistence checks. Then port the argument-stream wrapper, the remaining upstream tests and provider call sites.
+The native preview adapters and argument-stream wrapper below close those core gaps. Bounded provider/DTO integration and the remaining upstream tests are still open.
 
 Development checks on Go 1.27.3/GOMAXPROCS=4: core package tests pass (0.012 seconds), race tests pass (1.085 seconds), snapshot-history fuzzing passes (38,270 executions, two workers, 6.029 seconds), vet and diff checks pass. These checks cover the partial core only. No profiling or performance comparison was run; acceptance CPU/alloc_space/alloc_objects analysis is still required.
+
+## Lossless previews and argument-stream wrapper
+
+The core now represents isolated UTF-16 units with an immutable native `UTF16String`; ordinary strings remain Go strings. Open strings retain a pending high unit separately from shared prefix storage, then join a following low unit. `AppendUTF16` handles raw code-unit splits. Exceptional object keys use WTF-8 internally. `SnapshotJSON` and ordered-change serialisation escape those units losslessly; they apply JS JSON.stringify semantics to nonfinite numbers and signed zero. These are preview adapters, separate from persisted JSON validation.
+
+`ToolCallArgumentsStream` owns raw text privately, reuses unchanged argument objects, distinguishes empty continuation deltas from replacement resets, compares UTF-16 prefixes, and performs exact final structural parsing with string repairs. Truncated prefixes and nonobject results fail finalisation. Diagnostics retain original text; syntax wording uses Go errors. The existing production final-argument helper and provider call sites are unchanged.
+
+Reference coverage now includes the original 66 cases, 60 tagged UTF-16/IEEE-number cases and 14 argument-stream cases. The new tags preserve code units, infinities and signed zero before JSON fixture serialisation; they do not normalise exceptional values away. The wrapper oracle uses the pinned real finish/repair implementation. Its unused partial-json import is a throwing stub; partial-json parsing was not exercised.
+
+Development verification, Go 1.27.3/GOMAXPROCS=4:
+
+* Core/wrapper normal and race tests: pass (0.024 / 1.154 seconds).
+* Focused durable boundary/usage/authority normal and race tests: pass (0.314 / 3.269 seconds). Persisted JSON still rejects preview overflow, raw non-UTF-8 keys and unadapted UTF-16 values; the authority checks remain intact.
+* UTF-16 history fuzzing: 85,405 executions, pass (6.012 seconds). General snapshot-history fuzzing: 2,970 executions, pass (6.083 seconds). Two workers per run.
+* Vet and diff checks: pass. No profiling or performance comparison.
+
+Next: a bounded, explicit provider/DTO bridge for these preview values and UTF-16 text/key/delta/error fields, with persistence and replay tests. Keep ordinary finite-number, UTF-8, caller-authority, size and depth checks. Then wire providers and finish the complete upstream streaming test crosswalk. Root-message serialisation/replay and production finalisation are not yet aligned by this private core implementation.

@@ -136,7 +136,7 @@ func FuzzStreamingMainChunkSnapshots(f *testing.F) {
 		for _, r := range input {
 			p.Append(string(r))
 			value, _ := p.Snapshot()
-			wire, err := json.Marshal(value)
+			wire, err := json.Marshal(previewTag(value))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func FuzzStreamingMainChunkSnapshots(f *testing.F) {
 			encodings = append(encodings, wire)
 		}
 		for i, value := range snapshots {
-			wire, err := json.Marshal(value)
+			wire, err := json.Marshal(previewTag(value))
 			if err != nil {
 				t.Fatal(err)
 			}
