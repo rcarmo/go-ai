@@ -1083,9 +1083,12 @@
         "durable/codemode_parallel.go",
         "durable/codemode_remote.go",
         "durable/codemode_integrity.go",
-        "durable/codemode_call_execute.go"
+        "durable/codemode_call_execute.go",
+        "durable/diagnostic_utf16.go",
+        "durable/diagnostic_utf16_main_test.go",
+        "durable/tool_diagnostic.go"
       ],
-      "note": "Partial: SDK/DTO, receipts, main/nested preparation/hooks/recovery/readers, lossless QuickJS tool arguments, serial/parallel journals, native Go remote pipe and legacy UTF-8 replay tested on memory/journal/SQLite. Generic fences retained. Compaction formatting, diagnostic tool-result text, provider SSE/delta wiring and full streaming/finalisation review remain open. Codemode global/final values and enlarged budgets need review."
+      "note": "Partial: typed arguments across SDK/DTO, receipts, main/nested hooks/recovery/readers and codemode serial/parallel/native remote/replay tested on all three stores. Full parse-error remarks and scoped rendered diagnostic text now survive invalid-call context/reopen. Ordinary JSON/text fences retained. Compaction formatting, provider SSE/delta wiring and complete streaming/finalisation review remain open; global/final values, enlarged codec budgets and broader validator error fidelity need review."
     },
     {
       "change": "M",
@@ -1357,9 +1360,12 @@
         "durable/codemode_parallel.go",
         "durable/codemode_remote.go",
         "durable/codemode_integrity.go",
-        "durable/codemode_call_execute.go"
+        "durable/codemode_call_execute.go",
+        "durable/diagnostic_utf16.go",
+        "durable/diagnostic_utf16_main_test.go",
+        "durable/tool_diagnostic.go"
       ],
-      "note": "Partial: SDK/DTO, receipts, main/nested preparation/hooks/recovery/readers, lossless QuickJS tool arguments, serial/parallel journals, native Go remote pipe and legacy UTF-8 replay tested on memory/journal/SQLite. Generic fences retained. Compaction formatting, diagnostic tool-result text, provider SSE/delta wiring and full streaming/finalisation review remain open. Codemode global/final values and enlarged budgets need review."
+      "note": "Partial: typed arguments across SDK/DTO, receipts, main/nested hooks/recovery/readers and codemode serial/parallel/native remote/replay tested on all three stores. Full parse-error remarks and scoped rendered diagnostic text now survive invalid-call context/reopen. Ordinary JSON/text fences retained. Compaction formatting, provider SSE/delta wiring and complete streaming/finalisation review remain open; global/final values, enlarged codec budgets and broader validator error fidelity need review."
     },
     {
       "change": "A",

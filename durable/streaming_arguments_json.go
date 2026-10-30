@@ -32,6 +32,19 @@ func nativeStreamingFields(v reflect.Value) bool {
 }
 func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, error) {
 	value := v.Field(field.index)
+	if v.Type() == nativeContentBlockType {
+		block := v.Interface().(goai.ContentBlock)
+		if block.HasToolArgumentDiagnostic() && block.Type != "text" {
+			return reflect.Value{}, reject("argument diagnostic requires text block")
+		}
+	}
+	if diagnosticTextField(v, field.name) {
+		text, err := jsonparse.UTF16Text(value.String())
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		return reflect.ValueOf(text), nil
+	}
 	if !nativeStreamingFields(v) {
 		return value, nil
 	}
@@ -121,6 +134,9 @@ func (b *jsonBudget) walkNativeField(v reflect.Value, field jsonStructField, dep
 		return err
 	}
 	previousArgument, previousText := b.nativeArgument, b.utf16Text
+	if diagnosticTextField(v, field.name) {
+		b.utf16Text = true
+	}
 	if nativeStreamingFields(v) {
 		if field.name == "arguments" {
 			b.nativeArgument = true

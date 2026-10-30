@@ -15,6 +15,7 @@ import (
 // diagnostics. Chunks contain base64 JSON, never the incremental parser's raw
 // source/state. The stored content slot is an empty-object placeholder.
 type ReceiptUTF16Arguments struct {
+	Kind   string   `json:"kind,omitempty"`
 	Index  int      `json:"index"`
 	Chunks []string `json:"chunks"`
 }
@@ -22,8 +23,9 @@ type ReceiptUTF16Arguments struct {
 var nativeReceiptType = reflect.TypeFor[MessageReceipt]()
 
 type receiptWireView struct {
-	content   []goai.ContentBlock
-	arguments []ReceiptUTF16Arguments
+	diagnostics []ToolDiagnostic
+	content     []goai.ContentBlock
+	arguments   []ReceiptUTF16Arguments
 }
 
 func containsUTF16(v reflect.Value) bool {
@@ -93,7 +95,7 @@ func makeReceiptWire(r MessageReceipt, l Limits, max int) (*receiptWireView, err
 		return nil, reject("UTF-16 argument storage limit")
 	}
 	remaining := max
-	view := &receiptWireView{content: r.Content}
+	view := &receiptWireView{content: r.Content, diagnostics: r.Diagnostics}
 	for i, block := range r.Content {
 		if block.Type != "toolCall" || !block.HasStreamingArguments() || !containsUTF16(reflect.ValueOf(block.Arguments)) && utf8.ValidString(block.ArgumentsError) {
 			continue
@@ -113,11 +115,14 @@ func makeReceiptWire(r MessageReceipt, l Limits, max int) (*receiptWireView, err
 		placeholder.SetStreamingArguments(map[string]any{}, "")
 		view.content[i] = placeholder
 	}
+	if err := appendDiagnosticWire(view, r, l, remaining); err != nil {
+		return nil, err
+	}
 	return view, nil
 }
 
 func (b *limitedJSON) receiptJSONField(v reflect.Value, field jsonStructField) (reflect.Value, error) {
-	if v.Type() != nativeReceiptType || field.name != "content" && field.name != "utf16Arguments" {
+	if v.Type() != nativeReceiptType || field.name != "content" && field.name != "utf16Arguments" && field.name != "diagnostics" {
 		return nativeJSONField(v, field)
 	}
 	if b.receiptViews == nil {
@@ -135,6 +140,9 @@ func (b *limitedJSON) receiptJSONField(v reflect.Value, field jsonStructField) (
 	if len(view.arguments) > 0 {
 		b.projectedReceipt = true
 	}
+	if field.name == "diagnostics" {
+		return reflect.ValueOf(view.diagnostics), nil
+	}
 	if field.name == "content" {
 		return reflect.ValueOf(view.content), nil
 	}
@@ -142,7 +150,16 @@ func (b *limitedJSON) receiptJSONField(v reflect.Value, field jsonStructField) (
 }
 
 func restoreReceiptUTF16(r *MessageReceipt, l Limits) error {
-	seen := map[int]bool{}
+	type slot struct {
+		kind  string
+		index int
+	}
+	seen := map[slot]bool{}
+	type diagnosticValue struct {
+		w    ReceiptUTF16Arguments
+		text string
+	}
+	var diagnosticValues []diagnosticValue
 	type restored struct {
 		index      int
 		args       map[string]any
@@ -150,10 +167,22 @@ func restoreReceiptUTF16(r *MessageReceipt, l Limits) error {
 	}
 	var values []restored
 	for _, witness := range r.UTF16Arguments {
-		if r.Role != goai.RoleAssistant || witness.Index < 0 || witness.Index >= len(r.Content) || seen[witness.Index] || len(witness.Chunks) == 0 {
+		key := slot{witness.Kind, witness.Index}
+		if seen[key] {
+			return reject("duplicate UTF-16 argument witness")
+		}
+		seen[key] = true
+		if witness.Kind != "" {
+			text, err := validateDiagnosticWitness(r, witness, l)
+			if err != nil {
+				return err
+			}
+			diagnosticValues = append(diagnosticValues, diagnosticValue{witness, text})
+			continue
+		}
+		if r.Role != goai.RoleAssistant || witness.Index < 0 || witness.Index >= len(r.Content) || len(witness.Chunks) == 0 {
 			return reject("invalid UTF-16 argument witness")
 		}
-		seen[witness.Index] = true
 		block := r.Content[witness.Index]
 		if block.Type != "toolCall" || block.ID == "" || block.Name == "" || block.Arguments == nil || len(block.Arguments) != 0 || block.ArgumentsError != "" {
 			return reject("inconsistent UTF-16 argument placeholder")
@@ -165,6 +194,14 @@ func restoreReceiptUTF16(r *MessageReceipt, l Limits) error {
 		// A stored JSON decimal remains exact, while actual float infinities are
 		// rejected on the logical write path before a witness can be generated.
 		values = append(values, restored{witness.Index, carrier.Arguments, carrier.ArgumentsError})
+	}
+	for _, value := range diagnosticValues {
+		if value.w.Kind == "text" {
+			r.Content[value.w.Index].SetToolArgumentDiagnostic(value.text)
+		} else {
+			r.Diagnostics[value.w.Index].Message = value.text
+			r.Diagnostics[value.w.Index].argumentError = true
+		}
 	}
 	for _, value := range values {
 		r.Content[value.index].SetStreamingArguments(value.args, value.diagnostic)

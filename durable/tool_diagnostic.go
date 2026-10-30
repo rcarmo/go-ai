@@ -9,9 +9,10 @@ import (
 // ToolDiagnostic is the pinned model-visible remark shape. Application details
 // remain separate, and error severity alone does not set ToolResult.IsError.
 type ToolDiagnostic struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-	Code     string `json:"code,omitempty"`
+	argumentError bool
+	Severity      string `json:"severity"`
+	Message       string `json:"message"`
+	Code          string `json:"code,omitempty"`
 }
 
 func validateToolDiagnostics(diagnostics []ToolDiagnostic, l Limits) error {
@@ -19,7 +20,10 @@ func validateToolDiagnostics(diagnostics []ToolDiagnostic, l Limits) error {
 		return reject("tool diagnostic limit")
 	}
 	for _, d := range diagnostics {
-		if d.Severity != "info" && d.Severity != "warn" && d.Severity != "error" || !utf8.ValidString(d.Message) || !utf8.ValidString(d.Code) || len(d.Message) > l.MaxStringBytes || len(d.Code) > l.MaxStringBytes {
+		if d.argumentError && (d.Severity != "error" || d.Code != "invalid_arguments") {
+			return reject("argument diagnostic context")
+		}
+		if d.Severity != "info" && d.Severity != "warn" && d.Severity != "error" || !utf8.ValidString(d.Message) && !d.argumentError || !utf8.ValidString(d.Code) || len(d.Message) > l.MaxStringBytes || len(d.Code) > l.MaxStringBytes {
 			return reject("invalid tool diagnostic")
 		}
 	}

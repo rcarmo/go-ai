@@ -192,3 +192,19 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * No acceptance profiling, performance comparison, provider wiring or full-parity acceptance.
 
 Next: compaction argument formatting and scoped diagnostic tool-result text, provider SSE code-unit decoding/delta-event transport and the remaining streaming/finalisation test crosswalk. Review codemode global/final values, configured enlarged limits and the remaining main host-contract deltas before acceptance.
+
+## Tool argument error diagnostics
+
+Invalid parsed tool arguments now retain the full upstream-style diagnostic, including received UTF-16 units, in structured remarks and rendered tool-result text. Inspection corrected the earlier boundary description: `finishTool` discarded the supplied `Content` for harness errors and generated a generic remark. It did not simply fail while serialising that supplied text. The detailed parse error now becomes the `invalid_arguments` remark before finalisation.
+
+`ContentBlock.SetToolArgumentDiagnostic` explicitly marks derived text; SDK JSON emission preserves its units. `RestoreStreamingArgumentsJSON` restores such text only on an already marked target. Ordinary content text and generic JSON keep their existing validation. The durable diagnostic flag is private.
+
+Receipt witnesses now distinguish tool arguments, rendered diagnostic text and structured diagnostic remarks by kind/index. Diagnostic witnesses require an errored tool-result receipt with `errorCode: invalid_arguments`, matching text/remark placeholders and error severity/code. They share the bounded argument-carrier codec and aggregate encoded-byte budget. Final checkpoint remarks restore from the witnessed receipt instead of duplicating its payload. Unknown kinds, role/code/error mismatches and malformed placeholders fail validation.
+
+Go 1.27.3/GOMAXPROCS=4 development checks:
+
+* Memory/journal/SQLite invalid-call execution, next-model context, snapshot and reopen preserve full isolated-unit diagnostics. Invalid calls never invoke the executor.
+* SDK explicit-text and durable receipt round trips pass; ordinary invalid text still fails. ASCII checkpoint remarks remain intact; nontext flag misuse and witness context mutations fail.
+* Full root-module normal suite passes (durable 109.514 seconds). Focused normal checks pass (durable 5.646 seconds); focused diagnostic/receipt/tool/reader race passes (8.977 seconds). Vet and diff checks pass. No acceptance profiling.
+
+Next: compaction transcript formatting still handles argument values and joined tool text through ordinary JSON/UTF-8 paths. Preserve their exact logical units through a scoped representation, then wire provider SSE/delta transport and finish the streaming/finalisation crosswalk. Codemode global/final values, enlarged codec budgets and broader validation-error fidelity still need review.

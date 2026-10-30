@@ -18,9 +18,10 @@ func nativeArgumentDTO(t reflect.Type) bool {
 }
 
 type checkpointArgumentWire struct {
-	arguments  JSON
-	diagnostic string
-	chunks     []string
+	diagnostics []ToolDiagnostic
+	arguments   JSON
+	diagnostic  string
+	chunks      []string
 }
 
 func copyScopedToolArguments(args JSON, native bool, l Limits) (JSON, error) {
@@ -40,7 +41,7 @@ func (cp toolCheckpoint) argumentCall(args JSON) goai.ToolCall {
 }
 
 func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField) (reflect.Value, error) {
-	if !nativeArgumentDTO(v.Type()) || field.name != "arguments" && field.name != "argumentsError" && field.name != "utf16Arguments" {
+	if !nativeArgumentDTO(v.Type()) || field.name != "arguments" && field.name != "argumentsError" && field.name != "utf16Arguments" && field.name != "diagnostics" {
 		return b.receiptJSONField(v, field)
 	}
 
@@ -62,6 +63,18 @@ func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField
 	view := b.checkpointViews[v]
 	if view == nil {
 		view = &checkpointArgumentWire{arguments: args, diagnostic: diagnostic}
+		if v.Type() == nativeToolCheckpointType {
+			cp := v.Interface().(toolCheckpoint)
+			view.diagnostics = cp.Diagnostics
+			if cp.Result != nil && argumentDiagnosticReceipt(*cp.Result) {
+				view.diagnostics = append([]ToolDiagnostic(nil), cp.Diagnostics...)
+				for i, d := range view.diagnostics {
+					if d.argumentError && !utf8.ValidString(d.Message) {
+						view.diagnostics[i].Message = ""
+					}
+				}
+			}
+		}
 		if containsUTF16(reflect.ValueOf(args)) || !utf8.ValidString(diagnostic) {
 			var err error
 			view.chunks, err = encodeArgumentCarrier(args, diagnostic, b.l, b.max-len(b.data))
@@ -74,6 +87,8 @@ func (b *limitedJSON) checkpointJSONField(v reflect.Value, field jsonStructField
 		b.checkpointViews[v] = view
 	}
 	switch field.name {
+	case "diagnostics":
+		return reflect.ValueOf(view.diagnostics), nil
 	case "arguments":
 		return reflect.ValueOf(view.arguments), nil
 	case "argumentsError":

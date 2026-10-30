@@ -132,6 +132,32 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 				return restore(&t.Arguments, &t.ArgumentsError, &t.streamingArguments, raw)
 			case reflect.TypeFor[ContentBlock]():
 				b := v.Addr().Interface().(*ContentBlock)
+				if b.Type == "text" && b.HasToolArgumentDiagnostic() {
+					if !lossless {
+						return nil
+					}
+					fields, err := streamingRawFields(raw)
+					if err != nil {
+						return err
+					}
+					encoded := streamingRawLookup(fields, "text")
+					if len(encoded) == 0 {
+						return nil
+					}
+					value, err := jsonparse.ParseJSONValue(string(encoded), preserveNumbers)
+					if err != nil {
+						return err
+					}
+					switch text := value.(type) {
+					case string:
+						b.Text = text
+					case UTF16String:
+						b.Text = text.WTF8()
+					default:
+						return fmt.Errorf("diagnostic text must be string")
+					}
+					return nil
+				}
 				if b.Type == "toolCall" {
 					return restore(&b.Arguments, &b.ArgumentsError, &b.streamingArguments, raw)
 				}

@@ -2,6 +2,7 @@ package goai
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
@@ -91,11 +92,24 @@ func (b ContentBlock) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	var text any = b.Text
+	if b.toolArgumentDiagnostic {
+		if b.Type != "text" {
+			return nil, fmt.Errorf("diagnostic text requires text block")
+		}
+		text, err = jsonparse.UTF16Text(b.Text)
+		if err != nil {
+			return nil, err
+		}
+	} else if b.Text == "" {
+		text = nil
+	}
 	if !b.streamingArguments && len(b.Arguments) == 0 {
 		args = nil
 	}
 	return json.Marshal(struct {
 		contentBlockJSONAlias
+		Text              any     `json:"text,omitempty"`
 		Arguments         any     `json:"arguments,omitempty"`
 		ArgumentsError    any     `json:"argumentsError,omitempty"`
 		TextSignature     *string `json:"textSignature,omitempty"`
@@ -103,5 +117,14 @@ func (b ContentBlock) MarshalJSON() ([]byte, error) {
 		Redacted          *bool   `json:"redacted,omitempty"`
 		ThoughtSignature  *string `json:"thoughtSignature,omitempty"`
 		Namespace         *string `json:"namespace,omitempty"`
-	}{contentBlockJSONAlias(b), args, message, optionalString(b.TextSignature, b.TextSignaturePresent), optionalString(b.ThinkingSignature, b.ThinkingSignaturePresent), optionalBool(b.Redacted, b.RedactedPresent), optionalString(b.ThoughtSignature, b.ThoughtSignaturePresent), optionalString(b.Namespace, b.NamespacePresent)})
+	}{contentBlockJSONAlias(b), text, args, message, optionalString(b.TextSignature, b.TextSignaturePresent), optionalString(b.ThinkingSignature, b.ThinkingSignaturePresent), optionalBool(b.Redacted, b.RedactedPresent), optionalString(b.ThoughtSignature, b.ThoughtSignaturePresent), optionalString(b.Namespace, b.NamespacePresent)})
 }
+
+// SetToolArgumentDiagnostic marks text derived from a tool-argument error.
+// Ordinary text remains in the normal UTF-8 domain.
+func (b *ContentBlock) SetToolArgumentDiagnostic(text string) {
+	b.Type = "text"
+	b.Text = text
+	b.toolArgumentDiagnostic = true
+}
+func (b ContentBlock) HasToolArgumentDiagnostic() bool { return b.toolArgumentDiagnostic }

@@ -80,6 +80,12 @@ func validateNativeFields(target any, l Limits) error {
 					return err
 				}
 			}
+			if v.Type() == nativeToolCheckpointType && v.CanInterface() {
+				cp := v.Interface().(toolCheckpoint)
+				if err := restoreCheckpointDiagnosticRemarks(&cp); err != nil {
+					return err
+				}
+			}
 		case reflect.Map:
 			if v.IsNil() {
 				return nil

@@ -215,6 +215,7 @@ type ContentBlock struct {
 	Namespace               string                 `json:"namespace,omitempty"`
 	NamespacePresent        bool                   `json:"-"`
 	streamingArguments      bool
+	toolArgumentDiagnostic  bool
 }
 
 // --- Usage ---

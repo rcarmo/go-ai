@@ -1289,7 +1289,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	}
 	if !cp.Started {
 		if cp.ArgumentsError != "" {
-			return h.finishTool(task, cp, ToolResult{Content: cp.ArgumentsError, IsError: true}, "invalid_arguments")
+			return h.finishTool(task, cp, ToolResult{IsError: true, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "invalid_arguments", Message: fmt.Sprintf(`Invalid arguments for tool "%s": %s`, cp.Offer.Name, cp.ArgumentsError), argumentError: true}}}, "invalid_arguments")
 		}
 		cp.Arguments, err = validateScopedArguments(runtime.context, reg, cp.Arguments, h.session.limits, cp.StreamingArguments)
 		if err != nil {
@@ -1741,7 +1741,14 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		return &invalidToolResult{reason: code}
 	}
 	if len(diagnostics) > 0 {
-		content = append(content, goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(diagnostics)})
+		block := goai.ContentBlock{Type: "text", Text: renderToolDiagnostics(diagnostics)}
+		for _, d := range diagnostics {
+			if d.argumentError {
+				block.SetToolArgumentDiagnostic(block.Text)
+				break
+			}
+		}
+		content = append(content, block)
 	}
 	receipt := messageReceipt{Role: goai.RoleToolResult, DurationMs: copyTaskTime(cp.DurationMs), Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
 	receipt.ImageChunks = result.imageChunks
