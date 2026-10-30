@@ -36,6 +36,8 @@ Responses/Codex custom-input slice: initial buffering, UTF-16-safe JSON deltas, 
 
 Codex custom replay now shares schema properties with SSE/WebSocket and cached output, including empty names and historical declarations. Native function fallback retains argument keys/values; selected malformed schemas/replay strings fail preflight. Full normal, focused race and vet pass. Broader semantics and acceptance remain open: [schema/replay evidence](docs/upstream-main/README.md#codex-schema-properties-and-custom-replay).
 
+Empty custom schema properties now survive OpenAI stream/closure/replay and Responses/Azure replay. Codex rejects blank active grammar variants and preserves definition whitespace. Full normal/focused race/vet pass; historical malformed declaration handling and broader semantics remain open. [Evidence](docs/upstream-main/README.md#empty-custom-properties-and-codex-variants).
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

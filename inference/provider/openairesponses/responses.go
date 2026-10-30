@@ -868,10 +868,10 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 			}
 			// Normalize callID for API compatibility
 			callID = normalizeResponsesIDPart(callID)
-			customInputProperty, _ := toolView.grammarToolInputProperty(block.Name)
+			customInputProperty, customSelected := toolView.grammarToolInputProperty(block.Name)
 			itemType := "function_call"
 			expectedItemPrefix := "fc_"
-			if customInputProperty != "" {
+			if customSelected {
 				itemType = "custom_tool_call"
 				expectedItemPrefix = "ctc_"
 			}
@@ -890,7 +890,7 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 				"call_id": callID,
 				"name":    block.Name,
 			}
-			if customInputProperty == "" {
+			if !customSelected {
 				item["arguments"] = mustJSON(block.Arguments)
 			} else {
 				customInput := ""

@@ -836,8 +836,8 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					if details := validReplayReasoningDetails(c.ThoughtSignature); len(details) > 0 {
 						msg.ReasoningDetails = append(msg.ReasoningDetails, details...)
 					}
-					property := grammarInputPropertyFor(c.Name, toolSets)
-					if property != "" && compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
+					property, selected := grammarInputPropertyFor(c.Name, toolSets)
+					if selected && compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
 						input, ok := customGrammarInput(c, property)
 						if ok {
 							msg.ToolCalls = append(msg.ToolCalls, toolCallPart{ID: toolCallID, Type: "custom", Custom: map[string]string{"name": c.Name, "input": goai.SanitizeSurrogates(input)}})
@@ -1280,11 +1280,12 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: string(tc.Function.Arguments), Partial: partial})
 			}
 			if tc.Custom.Input != "" {
-				property := grammarInputPropertyFor(at.name, toolSets)
-				if property == "" {
+				property, selected := grammarInputPropertyFor(at.name, toolSets)
+				if !selected {
 					property = "input"
 				}
 				at.customStream.Property = property
+				at.customStream.PropertySet = true
 				deltaJSON, err := at.customStream.Append(string(tc.Custom.Input))
 				if err != nil {
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
@@ -1361,11 +1362,12 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		var args map[string]interface{}
 		var argumentsError string
 		if at.custom {
-			property := grammarInputPropertyFor(at.name, toolSets)
-			if property == "" {
+			property, selected := grammarInputPropertyFor(at.name, toolSets)
+			if !selected {
 				property = "input"
 			}
 			at.customStream.Property = property
+			at.customStream.PropertySet = true
 			deltaJSON, err := at.customStream.Close(nil)
 			if err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})

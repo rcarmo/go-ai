@@ -225,3 +225,40 @@ func TestCodexEmptySchemaPropertyMain(t *testing.T) {
 		})
 	}
 }
+
+func TestCodexGrammarVariantsMain(t *testing.T) {
+	for _, tc := range []struct{ name, lark, regex, syntax, definition string }{{"lark", "  start: /.+/\n", "  .+  ", "lark", "  start: /.+/\n"}, {"regex", " \n\t", "  .+\n", "regex", "  .+\n"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			tool := codexPayloadTool("payload")
+			tool.ConstrainedSampling.Variants = map[string]string{"openai_lark": tc.lark, "openai_regex": tc.regex}
+			input := &goai.Context{Tools: []goai.Tool{tool}}
+			if _, err := newCodexToolView(codexGrammarModel(), input); err != nil {
+				t.Fatal(err)
+			}
+			req := buildCodexRequest(codexGrammarModel(), input, nil)
+			if len(req.Tools) != 1 || req.Tools[0].Format["syntax"] != tc.syntax || req.Tools[0].Format["definition"] != tc.definition {
+				t.Fatal("variant was trimmed or misselected", req.Tools)
+			}
+		})
+	}
+	tool := codexPayloadTool("payload")
+	tool.ConstrainedSampling.Variants = map[string]string{"openai_lark": " \n", "openai_regex": "\t"}
+	input := &goai.Context{Tools: []goai.Tool{tool}}
+	if _, err := newCodexToolView(codexGrammarModel(), input); err == nil {
+		t.Fatal("blank variants accepted")
+	}
+	err := streamViaWebSocket(context.Background(), codexGrammarModel(), input, nil, "fixture", func(goai.Event) {})
+	if err == nil || !isCodexNonTransportError(err) || !strings.Contains(err.Error(), "variant") {
+		t.Fatal("bad variant escaped preflight", err)
+	}
+	model := codexGrammarModel()
+	no := false
+	model.ResponsesCompat.SupportsOpenAIGrammarTools = &no
+	if _, err = newCodexToolView(model, input); err != nil {
+		t.Fatal("unsupported grammar should fall back", err)
+	}
+	req := buildCodexRequest(model, input, nil)
+	if len(req.Tools) != 1 || req.Tools[0].Type != "function" {
+		t.Fatal("unsupported grammar fallback", req.Tools)
+	}
+}

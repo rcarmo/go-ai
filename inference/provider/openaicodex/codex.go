@@ -1583,13 +1583,13 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	supportsStrictMode := model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || *model.ResponsesCompat.SupportsStrictMode
 	for _, t := range convCtx.Tools {
 		if supportsGrammar && t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" {
-			definition := strings.TrimSpace(t.ConstrainedSampling.Variants["openai_lark"])
+			definition := t.ConstrainedSampling.Variants["openai_lark"]
 			syntax := "lark"
-			if definition == "" {
-				definition = strings.TrimSpace(t.ConstrainedSampling.Variants["openai_regex"])
+			if strings.TrimSpace(definition) == "" {
+				definition = t.ConstrainedSampling.Variants["openai_regex"]
 				syntax = "regex"
 			}
-			if definition != "" {
+			if strings.TrimSpace(definition) != "" {
 				req.Tools = append(req.Tools, codexTool{Type: "custom", Name: t.Name, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}})
 				continue
 			}

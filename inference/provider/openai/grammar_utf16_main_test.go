@@ -131,3 +131,59 @@ func TestOpenAIGrammarEmptyCloseSnapshotMain(t *testing.T) {
 		t.Fatal("missing empty closure delta", deltas)
 	}
 }
+
+func TestOpenAIEmptyGrammarPropertyMain(t *testing.T) {
+	tool := grammarUTF16CodeTool()
+	tool.Parameters = json.RawMessage(`{"type":"object","required":[""],"properties":{"":{"type":"string"}}}`)
+	property, selected := grammarInputPropertyFor("python", [][]goai.Tool{{tool}})
+	if !selected || property != "" {
+		t.Fatal("empty property lost", property, selected)
+	}
+	if _, selected = grammarInputPropertyFor("unknown", [][]goai.Tool{{tool}}); selected {
+		t.Fatal("unknown selected")
+	}
+	for _, input := range []string{"", "literal"} {
+		t.Run(input, func(t *testing.T) {
+			frame, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"tool_calls": []any{map[string]any{"index": 0, "id": "a", "type": "custom", "custom": map[string]any{"name": "python", "input": input}}}}, "finish_reason": "tool_calls"}}})
+			var final *goai.Message
+			delta := ""
+			processSSEStreamWithOptions(strings.NewReader("data: "+string(frame)+"\n\ndata: [DONE]\n\n"), &goai.Model{}, nil, func(event goai.Event) {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					final = e.Message
+				case *goai.ToolCallDeltaEvent:
+					delta += e.Delta
+				case *goai.ErrorEvent:
+					t.Error(e.Err)
+				}
+			}, []goai.Tool{tool})
+			if final == nil {
+				t.Fatal("missing completion")
+			}
+			args := final.Content[0].Arguments
+			if len(args) != 1 || args[""] != input {
+				t.Fatal("empty property defaulted", args)
+			}
+			parsed, err := jsonparse.ParseJSONValue(delta, false)
+			if err != nil || !reflect.DeepEqual(parsed, args) {
+				t.Fatal("delta mismatch", parsed, err)
+			}
+			yes := true
+			messages := convertMessages(&goai.Model{}, &goai.Context{Messages: []goai.Message{*final}}, &goai.OpenAICompletionsCompat{SupportsOpenAIGrammarTools: &yes}, []goai.Tool{tool})
+			found := false
+			for _, message := range messages {
+				for _, call := range message.ToolCalls {
+					if call.ID == "a" {
+						found = true
+						if call.Type != "custom" || call.Custom["input"] != input {
+							t.Fatal("empty-property replay fell back", call)
+						}
+					}
+				}
+			}
+			if !found {
+				t.Fatal("missing replay")
+			}
+		})
+	}
+}

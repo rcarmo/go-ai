@@ -19,7 +19,7 @@ func codexGrammarProperty(tool goai.Tool) (string, bool, error) {
 	}
 	variants := tool.ConstrainedSampling.Variants
 	if strings.TrimSpace(variants["openai_lark"]) == "" && strings.TrimSpace(variants["openai_regex"]) == "" {
-		return "", false, nil
+		return "", false, fmt.Errorf("tool %q cannot use grammar constrained sampling: no supported grammar variant was provided", tool.Name)
 	}
 	var schema struct {
 		Type       string   `json:"type"`

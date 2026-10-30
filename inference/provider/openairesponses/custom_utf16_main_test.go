@@ -132,3 +132,41 @@ func TestResponsesCustomNativeReplayMain(t *testing.T) {
 		t.Fatal("native scalar replay did not retain existing sanitization", item)
 	}
 }
+
+func TestResponsesEmptyGrammarPropertyMain(t *testing.T) {
+	tool := goai.Tool{Name: "script", Parameters: json.RawMessage(`{"type":"object","required":[""],"properties":{"":{"type":"string"}}}`), ConstrainedSampling: &goai.ToolConstrainedSampling{Type: "grammar", Variants: map[string]string{"openai_lark": "start: /.+/"}}}
+	view := buildResponsesToolViewFromTools([]goai.Tool{tool}, true)
+	for _, api := range []goai.Api{goai.ApiOpenAIResponses, goai.ApiAzureOpenAIResponses} {
+		t.Run(string(api), func(t *testing.T) {
+			source := "data: " + strings.Join([]string{`{"type":"response.output_item.added","item":{"type":"custom_tool_call","id":"ctc_i","call_id":"c","name":"script"}}`, `{"type":"response.custom_tool_call_input.done","input":"literal"}`, `{"type":"response.output_item.done","item":{"type":"custom_tool_call","input":"literal"}}`, `{"type":"response.completed","response":{"status":"completed"}}`}, "\n\ndata: ") + "\n\n"
+			model := &goai.Model{Api: api, Provider: goai.ProviderOpenAI}
+			var final *goai.Message
+			delta := ""
+			processStreamWithOptions(strings.NewReader(source), model, nil, func(event goai.Event) {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					final = e.Message
+				case *goai.ToolCallDeltaEvent:
+					delta += e.Delta
+				case *goai.ErrorEvent:
+					t.Error(e.Err)
+				}
+			}, view)
+			if final == nil {
+				t.Fatal("missing completion")
+			}
+			args := final.Content[0].Arguments
+			if len(args) != 1 || args[""] != "literal" || delta != `{"":"literal"}` {
+				t.Fatal("empty property lost", args, delta)
+			}
+			items := buildAssistantItemsWithToolView(0, *final, model, view)
+			if len(items) != 1 {
+				t.Fatal(items)
+			}
+			item := items[0].(map[string]interface{})
+			if item["type"] != "custom_tool_call" || item["input"] != "literal" || item["id"] != "ctc_i" {
+				t.Fatal("empty-property replay lost", item)
+			}
+		})
+	}
+}

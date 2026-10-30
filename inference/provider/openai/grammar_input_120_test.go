@@ -110,7 +110,8 @@ func TestGrammar120HistoricalDeclarationsSurviveRemoval(t *testing.T) {
 	}
 	context := &goai.Context{Tools: []goai.Tool{tool("current")}, Messages: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{tool("old")}}, {Role: goai.RoleSystem, ToolsAdded: []goai.Tool{tool("code")}}, {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: "script"}}}, {Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "toolCall", ID: "call", Name: "script", Arguments: map[string]any{"code": "return 7"}}}}}}
 	declared := grammarTranscriptTools(context)
-	if len(declared) != 1 || grammarInputPropertyFor("script", [][]goai.Tool{declared}) != "code" {
+	property, selected := grammarInputPropertyFor("script", [][]goai.Tool{declared})
+	if len(declared) != 1 || !selected || property != "code" {
 		t.Fatal(declared)
 	}
 	yes := true

@@ -341,3 +341,13 @@ Malformed selected active schemas and non-string custom replay arguments fail be
 Development checks on Go 1.27.3/GOMAXPROCS=4: full `go test ./... -count=1 -timeout=240s`, focused JSON/grammar/Responses/Codex race tests, `go vet ./...` and `git diff --check` pass. Tests cover schema-mapped UTF-16 stream/replay, cached view sharing, declaration replacement/removal, native fallback keys/values, malformed preflight and empty property names on both transports. These checks do not include acceptance profiling.
 
 Next: message-phase/finalisation and the remaining source/test/dependency crosswalk, provider/request/replay/observer payloads and durable progress contracts.
+
+## Empty custom properties and Codex variants
+
+OpenAI and Responses replay now distinguish a selected empty property name from an unknown tool. OpenAI streaming explicitly selects that key for both nonempty input and empty closure. Responses/Azure use the same selection flag for custom replay type, item-ID prefix and input extraction.
+
+Codex rejects active grammar configurations whose supported variants are missing or blank before connecting. Its request builder checks trimmed text for variant selection but sends the original definition, preserving leading/trailing whitespace. Lark takes precedence over regex; models without grammar support retain function fallback. OpenAI and Responses already validate these variants and preserve definitions.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal tests, focused OpenAI/Responses/Codex/JSON/grammar race tests, vet and diff checks. New fixtures cover empty property streaming/closure/replay in OpenAI and Responses/Azure, Codex variant precedence/whitespace, blank-variant WebSocket preflight and unsupported-model fallback. No acceptance profiling ran.
+
+Next: malformed historical declaration handling (Responses/Codex views still skip invalid historical grammar definitions), phase/finalisation, broader request/replay/observer validation and the remaining source/test/dependency crosswalk.

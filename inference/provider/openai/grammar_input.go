@@ -24,16 +24,16 @@ func grammarInputProperty(tool goai.Tool) (string, error) {
 	}
 	return schema.Required[0], nil
 }
-func grammarInputPropertyFor(name string, sets [][]goai.Tool) string {
+func grammarInputPropertyFor(name string, sets [][]goai.Tool) (string, bool) {
 	for _, tools := range sets {
 		for _, tool := range tools {
 			if tool.Name == name && tool.ConstrainedSampling != nil && tool.ConstrainedSampling.Type == "grammar" {
-				property, _ := grammarInputProperty(tool)
-				return property
+				property, err := grammarInputProperty(tool)
+				return property, err == nil
 			}
 		}
 	}
-	return ""
+	return "", false
 }
 
 // Historical declarations retain removed definitions and use the last schema
