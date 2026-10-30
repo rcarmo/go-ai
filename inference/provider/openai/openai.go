@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -96,7 +95,7 @@ func streamOpenAI(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 						}
 						for _, block := range message.Content {
 							if block.Type == "toolCall" && block.Name == tool.Name {
-								if _, ok := block.Arguments[property].(string); !ok {
+								if _, ok := customGrammarInput(block, property); !ok {
 									send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("grammar tool call %q requires string argument %q", tool.Name, property)})
 									return
 								}
@@ -839,7 +838,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context, compat *goai.Open
 					}
 					property := grammarInputPropertyFor(c.Name, toolSets)
 					if property != "" && compat.SupportsOpenAIGrammarTools != nil && *compat.SupportsOpenAIGrammarTools {
-						input, ok := c.Arguments[property].(string)
+						input, ok := customGrammarInput(c, property)
 						if ok {
 							msg.ToolCalls = append(msg.ToolCalls, toolCallPart{ID: toolCallID, Type: "custom", Custom: map[string]string{"name": c.Name, "input": goai.SanitizeSurrogates(input)}})
 							continue
@@ -986,31 +985,6 @@ func joinStrings(parts []string) string {
 	return result
 }
 
-func appendGrammarInputDelta(previous, next string, close bool, properties ...string) (string, error) {
-	property := "input"
-	if len(properties) > 0 && properties[0] != "" {
-		property = properties[0]
-	}
-	if !strings.HasPrefix(next, previous) {
-		return "", fmt.Errorf("grammar tool input changed non-monotonically")
-	}
-	delta := next[len(previous):]
-	if !close && delta == "" {
-		return "", nil
-	}
-	encoded := strings.TrimSuffix(strings.TrimPrefix(strconv.Quote(delta), "\""), "\"")
-	if close {
-		if previous == "" {
-			return "{" + strconv.Quote(property) + ":\"" + encoded + "\"}", nil
-		}
-		return encoded + "\"}", nil
-	}
-	if previous == "" {
-		return "{" + strconv.Quote(property) + ":\"" + encoded, nil
-	}
-	return encoded, nil
-}
-
 // --- SSE response processing ---
 
 type sseChunk struct {
@@ -1131,8 +1105,8 @@ type sseToolFunction struct {
 }
 
 type sseToolCustom struct {
-	Name  string `json:"name,omitempty"`
-	Input string `json:"input,omitempty"`
+	Name  string                 `json:"name,omitempty"`
+	Input jsonparse.ArgumentText `json:"input,omitempty"`
 }
 
 type sseUsage struct {
@@ -1173,11 +1147,11 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		id             string
 		name           string
 		argumentStream jsonparse.ToolCallArgumentsStream
-		customInput    string
+		customStream   jsonparse.GrammarToolInputStream
 		custom         bool
 		contentIdx     int
 	}
-	var activeTools []activeToolCall
+	var activeTools []*activeToolCall
 	var streamedReasoningDetails []reasoningDetail
 	var thinkingBlockIdx = -1
 	var finishReason *string
@@ -1275,7 +1249,7 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			var at *activeToolCall
 			for i := range activeTools {
 				if activeTools[i].index == tc.Index {
-					at = &activeTools[i]
+					at = activeTools[i]
 					break
 				}
 			}
@@ -1286,14 +1260,14 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 					ID:   tc.ID,
 					Name: name,
 				})
-				activeTools = append(activeTools, activeToolCall{
+				activeTools = append(activeTools, &activeToolCall{
 					index:      tc.Index,
 					id:         tc.ID,
 					name:       name,
 					custom:     isCustom,
 					contentIdx: contentIdx,
 				})
-				at = &activeTools[len(activeTools)-1]
+				at = activeTools[len(activeTools)-1]
 				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
 			if isCustom {
@@ -1306,18 +1280,17 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: string(tc.Function.Arguments), Partial: partial})
 			}
 			if tc.Custom.Input != "" {
-				next := at.customInput + tc.Custom.Input
 				property := grammarInputPropertyFor(at.name, toolSets)
 				if property == "" {
 					property = "input"
 				}
-				deltaJSON, err := appendGrammarInputDelta(at.customInput, next, false, property)
+				at.customStream.Property = property
+				deltaJSON, err := at.customStream.Append(string(tc.Custom.Input))
 				if err != nil {
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 					return
 				}
-				at.customInput = next
-				partial.Content[at.contentIdx].Arguments = map[string]interface{}{property: next}
+				partial.Content[at.contentIdx].SetStreamingArguments(at.customStream.Arguments(), "")
 				if deltaJSON != "" {
 					send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 				}
@@ -1392,15 +1365,17 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			if property == "" {
 				property = "input"
 			}
-			deltaJSON, err := appendGrammarInputDelta(at.customInput, at.customInput, true, property)
+			at.customStream.Property = property
+			deltaJSON, err := at.customStream.Close(nil)
 			if err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}
+			partial.Content[at.contentIdx].SetStreamingArguments(at.customStream.Arguments(), "")
 			if deltaJSON != "" {
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: deltaJSON, Partial: partial})
 			}
-			args = map[string]interface{}{property: at.customInput}
+			args = at.customStream.Arguments()
 		} else {
 			args, argumentsError = at.argumentStream.Finish()
 			if args == nil {
@@ -1409,13 +1384,9 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 		}
 		partial.Content[at.contentIdx].Arguments = args
 		partial.Content[at.contentIdx].ArgumentsError = argumentsError
-		if !at.custom {
-			partial.Content[at.contentIdx].SetStreamingArguments(args, argumentsError)
-		}
+		partial.Content[at.contentIdx].SetStreamingArguments(args, argumentsError)
 		call := goai.ToolCall{Type: "toolCall", ID: at.id, Name: at.name, Arguments: args, ArgumentsError: argumentsError}
-		if !at.custom {
-			call.SetStreamingArguments(args, argumentsError)
-		}
+		call.SetStreamingArguments(args, argumentsError)
 		send(goai.SnapshotEvent(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
 			ToolCall:     call,

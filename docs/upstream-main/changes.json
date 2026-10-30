@@ -511,8 +511,14 @@
       "change": "M",
       "path": "packages/ai/src/api/constrained-sampling.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "internal/jsonparse/grammar_stream.go",
+        "internal/jsonparse/grammar_stream_test.go",
+        "inference/provider/openai/grammar_utf16.go",
+        "inference/provider/openai/grammar_utf16_main_test.go"
+      ],
+      "note": "Partial: UTF-16-aware grammar literal stream append/close, monotonic final reconciliation, JSON escaping and closure rules implemented/tested; OpenAI custom-call integration and native replay extraction tested. Responses/Codex wiring and remaining constrained-sampling validation/request semantics require review."
     },
     {
       "change": "M",
@@ -569,9 +575,13 @@
       "status": "partial",
       "native": [
         "inference/provider/openai/openai.go",
-        "inference/provider/openai/openrouter_cost_main_test.go"
+        "inference/provider/openai/openrouter_cost_main_test.go",
+        "internal/jsonparse/grammar_stream.go",
+        "internal/jsonparse/grammar_stream_test.go",
+        "inference/provider/openai/grammar_utf16.go",
+        "inference/provider/openai/grammar_utf16_main_test.go"
       ],
-      "note": "Billed accounting, nullish cache precedence, independent writes, clamped input, separate reasoning and derived totals development-tested. Other parser/stream/provider deltas pending."
+      "note": "Billed accounting, nullish cache precedence, independent writes, clamped input, separate reasoning and derived totals development-tested. Other parser/stream/provider deltas pending. OpenAI custom input now uses a UTF-16-aware grammar stream, native partial/final ownership and JSON-safe deltas. Active call pointers prevent live builder copies during interleaving. Explicit native scalar replay extraction retains existing sanitization and function fallback. Remaining source/request/finalisation semantics require review."
     },
     {
       "change": "M",
@@ -1135,9 +1145,13 @@
         "internal/responsestream/item.go",
         "internal/responsestream/item_test.go",
         "inference/provider/openairesponses/completion_main_test.go",
-        "inference/provider/openaicodex/completion_main_test.go"
+        "inference/provider/openaicodex/completion_main_test.go",
+        "internal/jsonparse/grammar_stream.go",
+        "internal/jsonparse/grammar_stream_test.go",
+        "inference/provider/openai/grammar_utf16.go",
+        "inference/provider/openai/grammar_utf16_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, output-slot routing/recovery and unfinished-call guards implemented/tested. Custom grammar, finalisation details, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON, slot routing/recovery/guards and common/OpenAI custom grammar streams implemented/tested. Responses/Codex custom wiring, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1433,9 +1447,13 @@
         "internal/responsestream/item.go",
         "internal/responsestream/item_test.go",
         "inference/provider/openairesponses/completion_main_test.go",
-        "inference/provider/openaicodex/completion_main_test.go"
+        "inference/provider/openaicodex/completion_main_test.go",
+        "internal/jsonparse/grammar_stream.go",
+        "internal/jsonparse/grammar_stream_test.go",
+        "inference/provider/openai/grammar_utf16.go",
+        "inference/provider/openai/grammar_utf16_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, output-slot routing/recovery and unfinished-call guards implemented/tested. Custom grammar, finalisation details, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON, slot routing/recovery/guards and common/OpenAI custom grammar streams implemented/tested. Responses/Codex custom wiring, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "A",

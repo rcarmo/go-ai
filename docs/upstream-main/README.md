@@ -297,3 +297,19 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * Full root-module normal passes (durable 108.138 seconds); router/projection, Responses and Codex race pass (1.011/1.136/1.792 seconds). Vet and diff checks pass. No acceptance profiling.
 
 Remaining: custom grammar input/reconciliation and UTF-16 scope, message-phase/finalisation details, provider request/replay/cached payloads and observer fidelity, other provider boundaries, durable progress and the complete source/test crosswalk. These guards do not establish complete Responses/Codex/main parity.
+
+## Shared grammar-input stream and OpenAI custom calls
+
+`GrammarToolInputStream` owns literal tool input and incremental JSON encoding. It counts/comparisons UTF-16 units for monotonic final-input reconciliation, emits valid JSON escapes (including NUL and isolated units), preserves valid pairs split between deltas, and enforces append/close/idempotence rules from pinned `constrained-sampling.ts`. Arguments expose strings or the native isolated-unit scalar; ordinary text decoding is unchanged.
+
+OpenAI custom input now uses the nominal fragment decoder and this stream. Custom partial/final calls carry native ownership, including empty closing-delta snapshots. The old `strconv.Quote` fragment helper was removed: it could produce Go-only escapes rather than JSON. Native scalar grammar replay requires explicit block ownership, then retains existing native custom-replay sanitization; function fallback preserves the native JSON value. Full provider request/replay parity is not claimed.
+
+Active OpenAI calls now live behind pointers. Growing a value slice could copy a live `strings.Builder` inside an argument/input stream and panic on later writes. Interleaved function/custom fixtures exercise creation of additional calls followed by writes to earlier streams. This is a correctness fix, not a measured performance claim.
+
+Development checks, Go 1.27.3/GOMAXPROCS=4:
+
+* Common stream tests cover UTF-16 prefix equivalence across split pairs, isolated units, JSON controls, empty input, idempotent closure, changed/invalid input rejection and non-mutating failed reconciliation.
+* OpenAI fixtures cover interleaved function/custom calls, native ownership, valid generated JSON, isolated custom input, custom replay sanitization, function fallback and empty closing snapshots.
+* Full root normal passed (durable 110.310 seconds) before the final empty-closing-snapshot adjustment. Final parser/OpenAI race suites pass (1.165/1.092 seconds); vet and diff checks pass. No acceptance profiling.
+
+Next: wire the common grammar stream into Responses/Azure and Codex SSE/WebSocket custom inputs, including initial input buffering and final reconciliation. Message-phase/finalisation, remaining provider/request/replay/cached/observer payloads, durable progress and full semantic/test review remain open.

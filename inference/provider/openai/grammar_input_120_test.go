@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/jsonparse"
 	"strings"
 	"testing"
 )
@@ -56,7 +57,8 @@ func TestGrammar120RejectsAmbiguousInputSchema(t *testing.T) {
 }
 
 func TestGrammar120EmptyInputDelta(t *testing.T) {
-	delta, err := appendGrammarInputDelta("", "", true, "code")
+	stream := jsonparse.GrammarToolInputStream{Property: "code"}
+	delta, err := stream.Close(nil)
 	var args map[string]string
 	if err != nil {
 		t.Fatal(err)
