@@ -552,13 +552,24 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 	}
 	entry := &codexWebSocketSessionEntry{key: key, conn: conn, busy: true, createdAt: time.Now(), lease: newCodexSocketLease()}
 	codexWebSocketSessionsMu.Lock()
-	if codexWebSocketSessions[key] != nil {
-		codexWebSocketSessionsMu.Unlock()
-		return conn, nil, false, nil
+	// Like upstream, a cold dial adopts on completion even when another cold
+	// dial completed first. Busy superseded owners finish independently.
+	previous := codexWebSocketSessions[key]
+	var superseded *websocket.Conn
+	if previous != nil && !previous.busy {
+		stopCodexSocketReader(previous)
+		if previous.idleTimer != nil {
+			previous.idleTimer.Stop()
+			previous.idleTimer = nil
+		}
+		superseded = previous.conn
 	}
 	codexWebSocketSessions[key] = entry
 	startCodexSocketReader(entry)
 	codexWebSocketSessionsMu.Unlock()
+	if superseded != nil {
+		superseded.CloseNow()
+	}
 	return conn, entry, false, nil
 }
 
@@ -570,16 +581,16 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
 	if codexWebSocketSessions[key] == entry {
-		stopCodexSocketReader(entry)
-		if entry != nil && entry.idleTimer != nil {
-			entry.idleTimer.Stop()
-			entry.idleTimer = nil
-		}
-		if entry != nil {
-			conn = entry.conn
-		}
 		delete(codexWebSocketSessions, key)
 	}
+	// Removing a superseded owner still closes that owner's resources, never
+	// the current registry entry.
+	stopCodexSocketReader(entry)
+	if entry.idleTimer != nil {
+		entry.idleTimer.Stop()
+		entry.idleTimer = nil
+	}
+	conn = entry.conn
 	codexWebSocketSessionsMu.Unlock()
 	if conn != nil {
 		conn.CloseNow()
@@ -593,7 +604,15 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	key := entry.key
 	codexWebSocketSessionsMu.Lock()
 	if codexWebSocketSessions[key] != entry {
+		stopCodexSocketReader(entry)
+		if entry.idleTimer != nil {
+			entry.idleTimer.Stop()
+			entry.idleTimer = nil
+		}
 		codexWebSocketSessionsMu.Unlock()
+		if entry.conn != nil {
+			entry.conn.CloseNow()
+		}
 		return
 	}
 	if entry.readClosed {

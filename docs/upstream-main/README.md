@@ -499,3 +499,13 @@ The first full run exposed an unrelated existing durable fault-fixture race: pub
 Go 1.27.3/GOMAXPROCS=4 development checks pass after that fixture repair: full root normal, Codex race (2.346 seconds), thirty repeated liveness/backpressure/busy-ownership fixtures, durable targeted race (2.087 seconds), vet and diff checks. No acceptance profiling ran.
 
 Next: concurrent cold-dial adoption and endpoint-key adaptation review, remaining Codex continuation recovery/request/accounting/schema edge cases, other provider ownership and the full source/test/dependency crosswalk. Account-scoped credential reuse is covered; this does not establish full provider parity.
+
+## Codex concurrent cold-dial adoption
+
+Cold dials now adopt on completion as the pinned `acquireWebSocket` does: a later completed dial becomes the registry owner even when an earlier cold dial has already installed an entry. This supersedes the earlier first-owner/loser-spare policy. Busy-cache acquisitions still use independent uncached spares. Stream completion order cannot replace the last adopted socket or overwrite its continuation.
+
+Superseded busy owners finish independently. Their release or error cleanup closes their own reader/socket without deleting the newer entry; superseded idle owners are retired immediately. Fixtures force handshake completion separately from stream completion and cover old-first/new-first success, old protocol failure, old cancellation and an older already-idle owner. The next request must reuse the last adopted continuation.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 111.088 seconds), Codex race (2.398 seconds), forty repeated cold-adoption fixture runs, vet and diff checks. No acceptance profiling ran.
+
+Pending Rui decision: retain (1) native endpoint URL partitioning in addition to upstream session/account grouping, preventing wrong-backend reuse, and (2) prompt retirement of superseded untracked sockets/readers instead of preserving their upstream resource-lifetime behaviour. These safety adaptations remain explicit differences, not accepted parity. Other source-aligned work can continue while approval is pending. Next implementation slice: missing-previous-response continuation recovery and remaining request/accounting/schema crosswalks.
