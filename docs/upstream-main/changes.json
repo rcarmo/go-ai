@@ -625,9 +625,10 @@
         "inference/provider/openaicodex/recovery_main_test.go",
         "inference/provider/openaicodex/recovery_started_main_test.go",
         "inference/provider/openaicodex/transport_mode_main_test.go",
-        "inference/provider/openaicodex/retention_scope_main_test.go"
+        "inference/provider/openaicodex/retention_scope_main_test.go",
+        "inference/provider/openaicodex/tool_result_main_test.go"
       ],
-      "note": "Partial: retention none now removes the transport session from fallback lookup/request/failure counters as well as caching; per-request SSE fallback remains available without sticky state. Raw session ownership/counters remain separate from clamped wire identity. Warm-owner/fallback/long-key tests pass full normal/Codex race/forty repeats/vet. Prior mode/recovery/stream/typed/observer/cache slices are implemented. NEXT: custom grammar tool-result wire types and continuation filtering; remaining request/schema/accounting, providers, durable/codemode, full source/test/dependency review/acceptance. Four native safety differences still require Rui decision."
+      "note": "Partial: grammar-tool results now use custom_tool_call_output by resolved tool-name membership; ordinary/unsupported/unknown results remain function_call_output. Continuation snapshots filter both synthetic output types. Active/history/removal/replacement and live cached function/custom rounds pass full normal/Codex race/forty repeats/vet. Prior retention/mode/recovery/cache/stream slices are implemented. NEXT: text/newline/empty/image tool-result content and shared TransformMessages image downgrade; remaining request/schema/accounting, providers, durable/codemode and full crosswalk/acceptance. Four safety differences still need Rui acceptance."
     },
     {
       "change": "M",
@@ -694,9 +695,11 @@
         "inference/provider/openairesponses/responses_v0840_test.go",
         "inference/provider/openairesponses/reasoning_identity_main_test.go",
         "inference/provider/openaicodex/reasoning_identity_main_test.go",
-        "inference/provider/openairesponses/azure_reasoning_replay_upstream_test.go"
+        "inference/provider/openairesponses/azure_reasoning_replay_upstream_test.go",
+        "inference/provider/openaicodex/codex.go",
+        "inference/provider/openaicodex/tool_result_main_test.go"
       ],
-      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open. Codex grammar-tool results now select the custom output type by resolved tool-name membership; cached function/custom rounds filter synthetic outputs and send real result deltas. Tool-result newline/empty/multimodal content conversion and native shared image-downgrade behaviour still need review."
     },
     {
       "change": "M",

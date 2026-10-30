@@ -1231,7 +1231,7 @@ readLoop:
 			responseItems := buildCodexInputWithToolView(model, &goai.Context{Messages: []goai.Message{*partial}}, toolView)
 			filtered := make([]interface{}, 0, len(responseItems))
 			for _, item := range responseItems {
-				if m, ok := item.(map[string]interface{}); ok && m["type"] == "function_call_output" {
+				if m, ok := item.(map[string]interface{}); ok && (m["type"] == "function_call_output" || m["type"] == "custom_tool_call_output") {
 					continue
 				}
 				filtered = append(filtered, item)
@@ -1820,8 +1820,12 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 			if idx := strings.Index(callID, "|"); idx >= 0 {
 				callID = callID[:idx]
 			}
+			outputType := "function_call_output"
+			if _, custom := view.properties[msg.ToolName]; custom {
+				outputType = "custom_tool_call_output"
+			}
 			input = append(input, map[string]interface{}{
-				"type": "function_call_output", "call_id": callID, "output": goai.SanitizeSurrogates(text),
+				"type": outputType, "call_id": callID, "output": goai.SanitizeSurrogates(text),
 			})
 		}
 	}
