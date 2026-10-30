@@ -786,7 +786,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	if opts != nil && opts.WebSocketConnectTimeoutMs != nil {
 		retryCfg.ConnectTimeout = time.Duration(*opts.WebSocketConnectTimeoutMs) * time.Millisecond
 	}
-	useCachedContext := opts != nil && opts.CacheRetention != goai.CacheRetentionNone && opts.SessionID != ""
+	useCachedSession := opts != nil && opts.CacheRetention != goai.CacheRetentionNone && opts.SessionID != ""
 	var (
 		conn   *websocket.Conn
 		entry  *codexWebSocketSessionEntry
@@ -794,13 +794,13 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		lease  *codexSocketLease
 	)
 	keepEntry := false
-	if useCachedContext {
+	if useCachedSession {
 		var err error
 		conn, entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, opts.SessionID, retryCfg, model)
 		if err != nil {
 			return err
 		}
-		useCachedContext = entry != nil
+		useCachedSession = entry != nil
 	} else {
 		var err error
 		conn, err = dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
@@ -808,6 +808,9 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			return err
 		}
 	}
+	// Socket reuse is independent of continuation mode. Match upstream’s raw
+	// option guard: omitted transport defaults to auto for dialing only.
+	useCachedContext := useCachedSession && (opts.Transport == goai.TransportAuto || opts.Transport == goai.TransportWebSocketCached)
 	if entry != nil {
 		codexWebSocketSessionsMu.Lock()
 		lease = entry.lease
@@ -847,7 +850,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		return fmt.Errorf("encode websocket payload: %w", err)
 	}
 	if err := conn.Write(ctx, websocket.MessageText, framedJSON); err != nil {
-		if useCachedContext && entry != nil && opts != nil {
+		if useCachedSession && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
 		return fmt.Errorf("WebSocket write: %w", err)
@@ -938,7 +941,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 
 	argumentProtocolError := func(err error, payload []byte) error {
-		if useCachedContext && entry != nil && opts != nil {
+		if useCachedSession && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
 		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err, partial: partial}
@@ -948,7 +951,7 @@ readLoop:
 	for {
 		data, err := readCodexSocket(ctx, conn, lease)
 		if err != nil {
-			if useCachedContext && entry != nil && opts != nil {
+			if useCachedSession && entry != nil && opts != nil {
 				removeCodexWebSocketSession(opts.SessionID, entry)
 				entry.continuation = nil
 			}
@@ -976,7 +979,7 @@ readLoop:
 
 		observed, validEvent, observeErr := decodeCodexEvent(data, "WebSocket", opts, model, partial)
 		if observeErr != nil {
-			if useCachedContext && entry != nil && opts != nil {
+			if useCachedSession && entry != nil && opts != nil {
 				entry.continuation = nil
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
@@ -992,7 +995,7 @@ readLoop:
 		}
 		data = observed
 		if ctx.Err() != nil {
-			if useCachedContext && entry != nil && opts != nil {
+			if useCachedSession && entry != nil && opts != nil {
 				entry.continuation = nil
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
@@ -1153,14 +1156,14 @@ readLoop:
 			break readLoop
 
 		case "error":
-			if useCachedContext && entry != nil {
+			if useCachedSession && entry != nil {
 				entry.continuation = nil
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
 			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data), partial: partial}
 			if !started || isCodexPreviousResponseNotFoundError(err) {
-				if useCachedContext && entry != nil && opts != nil {
+				if useCachedSession && entry != nil && opts != nil {
 					removeCodexWebSocketSession(opts.SessionID, entry)
 				}
 				return err
@@ -1171,7 +1174,7 @@ readLoop:
 			return nil
 
 		case "response.failed":
-			if useCachedContext && entry != nil {
+			if useCachedSession && entry != nil {
 				entry.continuation = nil
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
@@ -1205,7 +1208,7 @@ readLoop:
 	}
 
 	if !sawCompletion {
-		if useCachedContext && entry != nil && opts != nil {
+		if useCachedSession && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 			entry.continuation = nil
 		}
@@ -1224,27 +1227,26 @@ readLoop:
 
 	if err := responsestream.TerminalFailure(partial); err != nil {
 		partial.Timestamp = time.Now().UnixMilli()
-		if useCachedContext && entry != nil && opts != nil {
+		if useCachedSession && entry != nil && opts != nil {
 			entry.continuation = nil
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
 		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
 		return nil
 	}
-	if useCachedContext && entry != nil && partial.ResponseID != "" {
-		responseItems := buildCodexInputWithToolView(model, &goai.Context{Messages: []goai.Message{*partial}}, toolView)
-		filtered := make([]interface{}, 0, len(responseItems))
-		for _, item := range responseItems {
-			if m, ok := item.(map[string]interface{}); ok && m["type"] == "function_call_output" {
-				continue
+	if useCachedSession && entry != nil {
+		if useCachedContext && partial.ResponseID != "" {
+			responseItems := buildCodexInputWithToolView(model, &goai.Context{Messages: []goai.Message{*partial}}, toolView)
+			filtered := make([]interface{}, 0, len(responseItems))
+			for _, item := range responseItems {
+				if m, ok := item.(map[string]interface{}); ok && m["type"] == "function_call_output" {
+					continue
+				}
+				filtered = append(filtered, item)
 			}
-			filtered = append(filtered, item)
+			normalized, _ := normalizeJSONValue(filtered).([]interface{})
+			entry.continuation = &codexWebSocketContinuation{lastRequestBody: fullEnvelope, lastResponseID: partial.ResponseID, lastResponseItems: normalized}
 		}
-		normalized, _ := normalizeJSONValue(filtered).([]interface{})
-		entry.continuation = &codexWebSocketContinuation{lastRequestBody: fullEnvelope, lastResponseID: partial.ResponseID, lastResponseItems: normalized}
-		keepEntry = true
-	} else if useCachedContext && entry != nil {
-		entry.continuation = nil
 		keepEntry = true
 	} else {
 		conn.Close(websocket.StatusNormalClosure, "done")

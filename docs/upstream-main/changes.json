@@ -623,9 +623,10 @@
         "inference/provider/openaicodex/liveness_main_test.go",
         "inference/provider/openaicodex/cold_main_test.go",
         "inference/provider/openaicodex/recovery_main_test.go",
-        "inference/provider/openaicodex/recovery_started_main_test.go"
+        "inference/provider/openaicodex/recovery_started_main_test.go",
+        "inference/provider/openaicodex/transport_mode_main_test.go"
       ],
-      "note": "Partial: missing-continuation recovery now spans startup with shared output, one start event, retained typed tool arguments, and partial errors on exhaustion/cancellation. Full normal/Codex race/forty repeated recovery+cold fixture groups/vet pass. Native unfinished-tool validation and no-SSE-after-any-start span retries; pinned upstream resets per-invocation/per-attempt state. These explicit safety differences and earlier endpoint isolation/superseded retirement lack Rui acceptance. NEXT: raw transport versus effective-default continuation guard; remaining request/schema/accounting, other providers, durable/codemode, full source/test/dependency review and acceptance remain open."
+      "note": "Partial: transport continuation selection now matches the raw auto/websocket-cached guard independently of session/socket reuse; plain/omitted modes preserve earlier continuation, as do responses lacking an ID. Mixed modes and plain failure eviction pass full normal/Codex race/forty fixture repeats/vet. Prior recovery/stream/typed arguments/observer/cache ownership slices are implemented. NEXT: retention-none effective session for fallback/debug accounting; remaining request/schema/accounting, providers, durable/codemode and full source/test/dependency review/acceptance. Endpoint isolation, superseded retirement and cross-attempt unfinished-tool/no-SSE-replay fences still lack Rui acceptance."
     },
     {
       "change": "M",
