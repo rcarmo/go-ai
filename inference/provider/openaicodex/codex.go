@@ -21,6 +21,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/responsestream"
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
 	"github.com/rcarmo/go-ai/transports/sse"
 	"github.com/rcarmo/go-ai/transports/websocket"
@@ -765,6 +766,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		customPayload  string
 	}
 	var current *activeItem
+	var slots responsestream.Slots[activeItem]
 
 	argumentProtocolError := func(err error, payload []byte) error {
 		if useCachedContext && entry != nil && opts != nil {
@@ -801,13 +803,14 @@ readLoop:
 		}
 
 		var raw struct {
-			Type     string           `json:"type"`
-			Item     json.RawMessage  `json:"item,omitempty"`
-			Response json.RawMessage  `json:"response,omitempty"`
-			Delta    string           `json:"delta,omitempty"`
-			Code     string           `json:"code,omitempty"`
-			Message  string           `json:"message,omitempty"`
-			Error    *codexEventError `json:"error,omitempty"`
+			OutputIndex *int             `json:"output_index"`
+			Type        string           `json:"type"`
+			Item        json.RawMessage  `json:"item,omitempty"`
+			Response    json.RawMessage  `json:"response,omitempty"`
+			Delta       string           `json:"delta,omitempty"`
+			Code        string           `json:"code,omitempty"`
+			Message     string           `json:"message,omitempty"`
+			Error       *codexEventError `json:"error,omitempty"`
 		}
 		if err := json.Unmarshal(data, &raw); err != nil {
 			if !started {
@@ -821,6 +824,9 @@ readLoop:
 		}
 
 		// Same event processing as OpenAI Responses
+		if raw.Type != "response.output_item.added" {
+			current = slots.Get(raw.OutputIndex)
+		}
 		switch raw.Type {
 		case "response.created":
 			var resp struct {
@@ -830,6 +836,7 @@ readLoop:
 			partial.ResponseID = resp.ID
 
 		case "response.output_item.added":
+			current = nil
 			var item struct {
 				Type   string `json:"type"`
 				ID     string `json:"id"`
@@ -843,11 +850,13 @@ readLoop:
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "reasoning", contentIdx: idx}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "message", contentIdx: idx}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{
@@ -857,6 +866,7 @@ readLoop:
 				})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: item.Type, contentIdx: idx}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 			}
 
@@ -930,6 +940,7 @@ readLoop:
 				}
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
+			slots.Delete(raw.OutputIndex)
 			current = nil
 
 		case "response.completed", "response.incomplete", "response.done":
@@ -1159,6 +1170,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		customPayload  string
 	}
 	var current *activeItem
+	var slots responsestream.Slots[activeItem]
 
 	events := sse.Parse(body)
 	for evt := range events {
@@ -1170,18 +1182,22 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			break
 		}
 		var raw struct {
-			Type     string           `json:"type"`
-			Item     json.RawMessage  `json:"item,omitempty"`
-			Response json.RawMessage  `json:"response,omitempty"`
-			Delta    string           `json:"delta,omitempty"`
-			Code     string           `json:"code,omitempty"`
-			Message  string           `json:"message,omitempty"`
-			Error    *codexEventError `json:"error,omitempty"`
+			OutputIndex *int             `json:"output_index"`
+			Type        string           `json:"type"`
+			Item        json.RawMessage  `json:"item,omitempty"`
+			Response    json.RawMessage  `json:"response,omitempty"`
+			Delta       string           `json:"delta,omitempty"`
+			Code        string           `json:"code,omitempty"`
+			Message     string           `json:"message,omitempty"`
+			Error       *codexEventError `json:"error,omitempty"`
 		}
 		if json.Unmarshal([]byte(evt.Data), &raw) != nil {
 			continue
 		}
 
+		if raw.Type != "response.output_item.added" {
+			current = slots.Get(raw.OutputIndex)
+		}
 		switch raw.Type {
 		case "response.created":
 			var resp struct {
@@ -1190,6 +1206,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			json.Unmarshal(raw.Response, &resp)
 			partial.ResponseID = resp.ID
 		case "response.output_item.added":
+			current = nil
 			var item struct {
 				Type   string `json:"type"`
 				ID     string `json:"id"`
@@ -1201,14 +1218,17 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			case "reasoning":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				current = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ThinkingStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				current = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.TextStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			case "function_call", "custom_tool_call":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 				current = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial})
 			}
 		case "response.reasoning_summary_text.delta":
@@ -1282,6 +1302,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 				}
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
+			slots.Delete(raw.OutputIndex)
 			current = nil
 		case "error":
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)

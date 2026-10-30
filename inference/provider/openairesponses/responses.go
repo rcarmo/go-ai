@@ -19,6 +19,7 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/internal/responsestream"
 	"github.com/rcarmo/go-ai/transports/sse"
 )
 
@@ -999,6 +1000,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		inputClosed    bool
 	}
 	var current *activeItem
+	var slots responsestream.Slots[activeItem]
 	appendCustom := func(input string, close bool) error {
 		if current.inputClosed {
 			return nil
@@ -1056,15 +1058,16 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		}
 
 		var raw struct {
-			Type      string          `json:"type"`
-			Item      json.RawMessage `json:"item,omitempty"`
-			Response  json.RawMessage `json:"response,omitempty"`
-			Delta     string          `json:"delta,omitempty"`
-			Arguments string          `json:"arguments,omitempty"`
-			Input     string          `json:"input,omitempty"`
-			Part      json.RawMessage `json:"part,omitempty"`
-			Code      string          `json:"code,omitempty"`
-			Message   string          `json:"message,omitempty"`
+			OutputIndex *int            `json:"output_index"`
+			Type        string          `json:"type"`
+			Item        json.RawMessage `json:"item,omitempty"`
+			Response    json.RawMessage `json:"response,omitempty"`
+			Delta       string          `json:"delta,omitempty"`
+			Arguments   string          `json:"arguments,omitempty"`
+			Input       string          `json:"input,omitempty"`
+			Part        json.RawMessage `json:"part,omitempty"`
+			Code        string          `json:"code,omitempty"`
+			Message     string          `json:"message,omitempty"`
 		}
 		if json.Unmarshal(data, &raw) != nil {
 			continue
@@ -1083,6 +1086,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			raw.Arguments = string(argumentWire.Arguments)
 		}
 
+		if raw.Type != "response.output_item.added" {
+			current = slots.Get(raw.OutputIndex)
+		}
 		switch raw.Type {
 		case "response.created":
 			var resp struct {
@@ -1092,6 +1098,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			partial.ResponseID = resp.ID
 
 		case "response.output_item.added":
+			current = nil
 			var item struct {
 				Type      string `json:"type"`
 				ID        string `json:"id"`
@@ -1107,12 +1114,14 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "reasoning", contentIdx: idx}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 
 			case "message":
 				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 				idx := len(partial.Content) - 1
 				current = &activeItem{itemType: "message", contentIdx: idx}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
 
 			case "function_call", "custom_tool_call":
@@ -1128,6 +1137,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					property = "input"
 				}
 				current = &activeItem{itemType: item.Type, contentIdx: idx, inputProperty: property}
+				slots.Add(raw.OutputIndex, current)
 				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 			}
 
@@ -1274,6 +1284,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				call.SetStreamingArguments(args, diagnostic)
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
+			slots.Delete(raw.OutputIndex)
 			current = nil
 
 		case "response.completed", "response.incomplete":

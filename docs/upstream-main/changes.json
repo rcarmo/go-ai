@@ -550,9 +550,13 @@
       "native": [
         "inference/provider/openaicodex/codex.go",
         "inference/provider/openaicodex/argument_stream.go",
-        "inference/provider/openaicodex/stream_utf16_main_test.go"
+        "inference/provider/openaicodex/stream_utf16_main_test.go",
+        "internal/responsestream/slots.go",
+        "internal/responsestream/slots_test.go",
+        "inference/provider/openairesponses/output_slots_main_test.go",
+        "inference/provider/openaicodex/output_slots_main_test.go"
       ],
-      "note": "Partial: SSE and WebSocket function-call fields now use native UTF-16 streams, authoritative argument/item replacements and explicit partial/final ownership. Protocol failures evict cached WS connections and cannot trigger transport fallback. Both transports and cache/protocol behavior tested. Per-output-slot interleaving, custom grammar, request/replay/cached payloads and remaining source semantics are open."
+      "note": "Partial: Responses/Azure/Codex SSE/WebSocket function-call native streams, authoritative replacements and indexed output-slot interleaving implemented/tested. Legacy no-index compatibility retained. Missing-slot reconstruction on item-done, unfinished-tool terminal guards, custom grammar, request/replay/cached builders and remaining finalisation/source semantics are open."
     },
     {
       "change": "M",
@@ -575,9 +579,13 @@
         "inference/provider/openairesponses/argument_stream.go",
         "inference/provider/openairesponses/stream_utf16_main_test.go",
         "inference/provider/openaicodex/argument_stream.go",
-        "inference/provider/openaicodex/stream_utf16_main_test.go"
+        "inference/provider/openaicodex/stream_utf16_main_test.go",
+        "internal/responsestream/slots.go",
+        "internal/responsestream/slots_test.go",
+        "inference/provider/openairesponses/output_slots_main_test.go",
+        "inference/provider/openaicodex/output_slots_main_test.go"
       ],
-      "note": "Partial: Responses/Azure and separate Codex SSE/WebSocket function-call streams preserve UTF-16 argument partial/final ownership and authoritative replacements. Tests cover divergent/empty overrides and Codex protocol/cache cleanup. Per-output-slot interleaving, custom grammar, request/replay builders and remaining shared semantics need review; no acceptance claim."
+      "note": "Partial: Responses/Azure/Codex SSE/WebSocket function-call native streams, authoritative replacements and indexed output-slot interleaving implemented/tested. Legacy no-index compatibility retained. Missing-slot reconstruction on item-done, unfinished-tool terminal guards, custom grammar, request/replay/cached builders and remaining finalisation/source semantics are open."
     },
     {
       "change": "M",
@@ -1111,9 +1119,13 @@
         "inference/provider/openairesponses/argument_stream.go",
         "inference/provider/openairesponses/stream_utf16_main_test.go",
         "inference/provider/openaicodex/argument_stream.go",
-        "inference/provider/openaicodex/stream_utf16_main_test.go"
+        "inference/provider/openaicodex/stream_utf16_main_test.go",
+        "internal/responsestream/slots.go",
+        "internal/responsestream/slots_test.go",
+        "inference/provider/openairesponses/output_slots_main_test.go",
+        "inference/provider/openaicodex/output_slots_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, OpenAI/Anthropic/Responses/Azure and Codex SSE/WebSocket function-call streams implemented/tested. SDK delta JSON preserves units. Slot interleaving, custom grammar, other providers, request/replay/cached payloads, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON and Responses/Codex indexed interleaving implemented/tested. Missing-slot reconstruction, terminal guards, custom grammar, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1401,9 +1413,13 @@
         "inference/provider/openairesponses/argument_stream.go",
         "inference/provider/openairesponses/stream_utf16_main_test.go",
         "inference/provider/openaicodex/argument_stream.go",
-        "inference/provider/openaicodex/stream_utf16_main_test.go"
+        "inference/provider/openaicodex/stream_utf16_main_test.go",
+        "internal/responsestream/slots.go",
+        "internal/responsestream/slots_test.go",
+        "inference/provider/openairesponses/output_slots_main_test.go",
+        "inference/provider/openaicodex/output_slots_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, OpenAI/Anthropic/Responses/Azure and Codex SSE/WebSocket function-call streams implemented/tested. SDK delta JSON preserves units. Slot interleaving, custom grammar, other providers, request/replay/cached payloads, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON and Responses/Codex indexed interleaving implemented/tested. Missing-slot reconstruction, terminal guards, custom grammar, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "A",

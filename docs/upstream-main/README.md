@@ -268,3 +268,17 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * Full root-module normal passes (durable 109.900 seconds). Full Codex race passes, including the final cache-eviction assertion (1.739 seconds); vet and diff checks pass. No acceptance profiling.
 
 Still open: per-output-slot routing/interleaving in Responses and both Codex transports, custom grammar, provider request/replay builders and cached continuation payload fidelity, provider-observer maps, other provider boundaries, durable progress ownership and full source/test crosswalk. This slice does not establish complete Codex/main parity.
+
+## Indexed output-slot routing
+
+Responses/Azure and both Codex processors now route each explicit `output_index` to its private active-item state. Function-argument streams, text, thinking and custom-input state no longer share a single current item when indexed events interleave. Completed slots are removed. An unknown explicit index never falls back to another item; events with the wrong item kind remain ignored. Parser state stays outside content blocks and SDK snapshots.
+
+The shared internal router retains native compatibility for omitted indices: those events use the latest added item. Completing an older explicitly indexed item does not clear another active item; completing the legacy current item removes its indexed alias. This is a compatibility choice for existing no-index fixtures, not a claim of strict schema enforcement on noncompliant providers.
+
+Development checks, Go 1.27.3/GOMAXPROCS=4:
+
+* Responses, Azure, Codex SSE and local-server Codex WebSocket tests interleave two function calls with text and reasoning; verify separate argument replacement, isolated-unit ownership, content indices and staggered completion. Unknown indices, wrong-kind deltas and late deltas after completion do not corrupt other blocks.
+* Router unit tests cover explicit zero/other indices, unknown completion and legacy/indexed alias cleanup. Existing unindexed provider suites pass.
+* Full root-module normal passes (durable 109.945 seconds). Router/Responses/Codex race passes (1.007/1.130/1.778 seconds); vet and diff checks pass. No acceptance profiling.
+
+Still open: upstream creation of missing slots from item-done events, unfinished-tool terminal guards and remaining finalisation details; custom grammar, provider request/replay/cached builders and observer payloads, other provider boundaries, durable progress ownership and the full semantic/test crosswalk. Slot routing alone is not full Responses/Codex parity.
