@@ -1179,6 +1179,8 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 		return a + b, nil
 	}
 	current := *r.Usage
+	current.CacheWrite1hSet = current.CacheWrite1hSet || prior.CacheWrite1hSet
+	current.ReasoningSet = current.ReasoningSet || prior.ReasoningSet
 	// Upstream copies the first record, then adds only numeric counters. Its
 	// optional cost provenance is not replaced by later records' provenance.
 	if _, exists := models[key]; exists {

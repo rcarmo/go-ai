@@ -223,7 +223,11 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if objectsOnly {
 			return reject("unsupported JSON object value")
 		}
-		if depth > b.l.MaxDepth || v.NumField() > b.l.MaxMembers {
+		members := v.NumField()
+		if v.Type() == nativeUsageType {
+			members = len(structJSONFields(v.Type()))
+		}
+		if depth > b.l.MaxDepth || members > b.l.MaxMembers {
 			return reject("JSON container limit")
 		}
 		b.hint(2)
@@ -255,6 +259,10 @@ var jsonMarshalerType = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
 var textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
 
 func hasMarshalAuthority(t reflect.Type) bool {
+	// Only this exact library type is encoded natively; no method is invoked.
+	if isNativeUsageType(t) {
+		return false
+	}
 	if t.NumMethod() > 0 && (t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType)) {
 		return true
 	}
@@ -451,7 +459,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		first := true
 		for _, field := range structJSONFields(v.Type()) {
 			value := v.Field(field.index)
-			if field.omitEmpty && isEmpty(value) {
+			if field.omitEmpty && isEmpty(value) && !usageZeroIsPresent(v, field.name) {
 				continue
 			}
 			if !first {
@@ -571,7 +579,7 @@ func decodeStrict(p []byte, l Limits, max int, target any) error {
 	if err := d.Decode(&extra); err != io.EOF {
 		return reject("trailing JSON data")
 	}
-	return nil
+	return rejectUnknownUsageFields(target)
 }
 
 type jsonScanner struct {

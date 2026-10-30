@@ -251,7 +251,9 @@ func TestProcessSSEStreamCapturesResponseModelAndCacheUsage(t *testing.T) {
 	if msg.ResponseID != "chatcmpl_1" || msg.ResponseModel != "actual-model" {
 		t.Fatalf("response metadata = id %q model %q", msg.ResponseID, msg.ResponseModel)
 	}
-	if msg.Usage.Input != 70 || msg.Usage.CacheRead != 20 || msg.Usage.CacheWrite != 10 || msg.Usage.Output != 5 {
+	// Pinned main treats cache reads and writes independently; cached_tokens
+	// is not an inclusive total from which writes must be subtracted.
+	if msg.Usage.Input != 60 || msg.Usage.CacheRead != 30 || msg.Usage.CacheWrite != 10 || msg.Usage.Output != 5 {
 		t.Fatalf("usage = %+v", msg.Usage)
 	}
 }

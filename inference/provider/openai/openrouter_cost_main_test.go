@@ -84,3 +84,35 @@ func TestOpenRouterCostMainTieredComponents(t *testing.T) {
 		t.Fatal(usage.Cost)
 	}
 }
+
+func TestOpenAIUsageMainNullishCachePrecedenceAndReasoning(t *testing.T) {
+	for _, test := range []struct {
+		name, raw                                    string
+		input, read, write, output, reasoning, total int
+	}{
+		{"top-level Kimi cache", `{"prompt_tokens":100,"cached_tokens":30}`, 70, 30, 0, 0, 0, 100},
+		{"zero hit beats top-level", `{"prompt_tokens":100,"cached_tokens":30,"prompt_cache_hit_tokens":0}`, 100, 0, 0, 0, 0, 100},
+		{"zero details beats fallbacks", `{"prompt_tokens":100,"cached_tokens":30,"prompt_cache_hit_tokens":20,"prompt_tokens_details":{"cached_tokens":0}}`, 100, 0, 0, 0, 0, 100},
+		{"null details falls back to hit", `{"prompt_tokens":100,"cached_tokens":30,"prompt_cache_hit_tokens":20,"prompt_tokens_details":{"cached_tokens":null}}`, 80, 20, 0, 0, 0, 100},
+		{"null hit falls back to top-level", `{"prompt_tokens":100,"cached_tokens":30,"prompt_cache_hit_tokens":null}`, 70, 30, 0, 0, 0, 100},
+		{"independent writes and derived total", `{"prompt_tokens":100,"prompt_tokens_details":{"cached_tokens":30,"cache_write_tokens":10},"completion_tokens":9,"completion_tokens_details":{"reasoning_tokens":7},"total_tokens":999}`, 60, 30, 10, 9, 7, 109},
+		{"clamped input", `{"prompt_tokens":5,"prompt_tokens_details":{"cached_tokens":10,"cache_write_tokens":20},"completion_tokens":2}`, 0, 10, 20, 2, 0, 32},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload := fmt.Sprintf(`{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":%s}`, test.raw)
+			var message *goai.Message
+			processSSEStream(strings.NewReader("data: "+payload+"\n\ndata: [DONE]\n\n"), &goai.Model{ID: "test", Provider: "openai", Api: goai.ApiOpenAICompletions}, func(e goai.Event) {
+				if done, ok := e.(*goai.DoneEvent); ok {
+					message = done.Message
+				}
+			})
+			if message == nil || message.Usage == nil {
+				t.Fatal("missing usage")
+			}
+			u := message.Usage
+			if u.Input != test.input || u.CacheRead != test.read || u.CacheWrite != test.write || u.Output != test.output || u.Reasoning != test.reasoning || u.TotalTokens != test.total || !u.ReasoningSet || u.CacheWrite1hSet {
+				t.Fatalf("usage=%+v", u)
+			}
+		})
+	}
+}

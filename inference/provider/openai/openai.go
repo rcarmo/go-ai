@@ -1137,13 +1137,17 @@ type sseToolCustom struct {
 
 type sseUsage struct {
 	openroutercost.Accounting
-	PromptTokens         int `json:"prompt_tokens"`
-	CompletionTokens     int `json:"completion_tokens"`
-	TotalTokens          int `json:"total_tokens"`
-	PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
-	PromptTokensDetails  *struct {
-		CachedTokens     int `json:"cached_tokens"`
-		CacheWriteTokens int `json:"cache_write_tokens"`
+	PromptTokens            int  `json:"prompt_tokens"`
+	CompletionTokens        int  `json:"completion_tokens"`
+	TotalTokens             int  `json:"total_tokens"`
+	PromptCacheHitTokens    *int `json:"prompt_cache_hit_tokens"`
+	CachedTokens            *int `json:"cached_tokens"`
+	CompletionTokensDetails *struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
+	PromptTokensDetails *struct {
+		CachedTokens     *int `json:"cached_tokens"`
+		CacheWriteTokens int  `json:"cache_write_tokens"`
 	} `json:"prompt_tokens_details"`
 }
 
@@ -1462,18 +1466,21 @@ func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
 	if usage == nil || raw == nil {
 		return
 	}
-	reportedCached := raw.PromptCacheHitTokens
+	cacheRead := 0
+	if raw.CachedTokens != nil {
+		cacheRead = *raw.CachedTokens
+	}
+	if raw.PromptCacheHitTokens != nil {
+		cacheRead = *raw.PromptCacheHitTokens
+	}
 	cacheWrite := 0
 	if raw.PromptTokensDetails != nil {
-		if raw.PromptTokensDetails.CachedTokens > 0 {
-			reportedCached = raw.PromptTokensDetails.CachedTokens
+		if raw.PromptTokensDetails.CachedTokens != nil {
+			cacheRead = *raw.PromptTokensDetails.CachedTokens
 		}
 		cacheWrite = raw.PromptTokensDetails.CacheWriteTokens
 	}
-	cacheRead := reportedCached
-	if cacheWrite > 0 && cacheRead >= cacheWrite {
-		cacheRead -= cacheWrite
-	}
+	// Cache reads and writes are independent counts, including explicit zero.
 	input := raw.PromptTokens - cacheRead - cacheWrite
 	if input < 0 {
 		input = 0
@@ -1483,8 +1490,12 @@ func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
 	usage.CacheRead = cacheRead
 	usage.CacheWrite = cacheWrite
 	usage.TotalTokens = input + raw.CompletionTokens + cacheRead + cacheWrite
-	if raw.TotalTokens > 0 {
-		usage.TotalTokens = raw.TotalTokens
+	usage.CacheWrite1h = 0
+	usage.CacheWrite1hSet = false
+	usage.Reasoning = 0
+	usage.ReasoningSet = true // pinned upstream always reports this property
+	if raw.CompletionTokensDetails != nil {
+		usage.Reasoning = raw.CompletionTokensDetails.ReasoningTokens
 	}
 	computeCosts(usage, model)
 	if openroutercost.IsModel(model) {

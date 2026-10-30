@@ -27,7 +27,7 @@ Codemode's own runtime and test sources have no diff from 1.4.0. Its package del
 
 Implemented the pinned OpenRouter accounting helper and the OpenAI Completions production SSE path. Provider or endpoint detection matches upstream; valid non-BYOK reported cost overrides the estimate, including zero. BYOK adds upstream inference cost, using components only for an explicitly null upstream total. Missing/invalid accounting leaves the estimate. Server-tool cost is not double-counted, and component costs remain catalogue estimates. Raw JSON accounting preserves missing/null and wrong-type behaviour without making the SSE decoder discard otherwise valid usage.
 
-`CostBreakdown.totalFromProvider` is optional, estimated calculations return false, and provider overrides set true. The existing native `CalculateCost` return-value API is retained; providers assign its result. OpenAI now uses that shared calculator, including tiered rates, instead of a duplicate flat-rate calculation. Context/event snapshots detach the optional provenance pointer. The follow-up below adds Anthropic's production integration and ledger provenance. Optional zero-counter JSON presence and other provider deltas remain explicit gaps; shared helper coverage alone is not evidence of full provider parity.
+`CostBreakdown.totalFromProvider` is optional, estimated calculations return false, and provider overrides set true. The existing native `CalculateCost` return-value API is retained; providers assign its result. OpenAI now uses that shared calculator, including tiered rates, instead of a duplicate flat-rate calculation. Context/event snapshots detach the optional provenance pointer. The follow-up below adds Anthropic's production integration and ledger provenance. The presence follow-up below closes optional zero-counter JSON handling. Other provider deltas still need review.
 
 Tests translate every case in upstream `packages/ai/test/openrouter-cost.test.ts`, add invalid/incomplete/overflow and missing-versus-null cases, exercise native raw SSE and choice-level usage, reset estimates on a later usage update, and verify snapshot isolation and optional JSON fields semantically. A full-package run caught a missing provenance field in the calculator's returned value; this was corrected before the passing runs below. Benchmark fixtures are prepared, but no profiling/benchmark acceptance run has been started.
 
@@ -52,4 +52,21 @@ Development verification on Go 1.27.3/GOMAXPROCS=4:
 * `go test -race ./durable -run Usage -count=1 -timeout=180s`: pass (6.446 seconds).
 * `go vet ./inference/provider/anthropic ./durable` and `git diff --check`: pass.
 
-No profiling was run: these are development regressions, not acceptance. Still pending in accounting: optional counters explicitly reported as zero must preserve their JSON presence (native integer `omitempty` currently normalises these to absence); the complete upstream accounting/test crosswalk also remains open. No divergence is accepted by documenting it. Next is that presence contract, then the incremental argument-parser/provider work. Neither full main parity nor acceptance profiling is complete.
+No profiling was run during these development regressions. The complete upstream accounting/test crosswalk and acceptance are incomplete.
+
+## Optional counter presence and OpenAI usage
+
+`Usage` retains integer fields and adds JSON-hidden presence flags for explicit zero reasoning and one-hour cache-write counts. Public JSON decoding still tolerates unknown fields; strict durable DTO decoding rejects unknown usage and nested cost fields. The bounded encoder handles the exact native Usage type directly without invoking its marshaler. Caller wrappers retain the marshal-authority rejection; object-only, byte, node, depth and member limits still apply. Models/tools retain optional zero counters after a later omitted update.
+
+Anthropic initial usage always reports one-hour cache writes, including zero, as upstream does. Delta reasoning zero survives later null/omitted updates. OpenAI Completions now uses nullish cache precedence (details, hit count, top-level Kimi count), keeps reads separate from writes, clamps uncached input at zero, reports reasoning including zero, and derives totals from counters. The older response-model/cache regression expected inclusive read/write accounting; its expectation now follows pinned main and retains the metadata assertions.
+
+Development verification on Go 1.27.3/GOMAXPROCS=4:
+
+* OpenAI/Anthropic/helper/SDK tests: pass (0.027 / 0.127 / 0.006 / 3.728 seconds).
+* Durable usage/JSON/marshal/limit tests: pass (3.238 seconds).
+* Corresponding provider/helper/SDK race tests: pass (1.138 / 1.316 / 1.017 / 18.708 seconds); durable focused race tests: pass (23.313 seconds).
+* `FuzzUsagePresenceMainNativeEncoding`, 10 seconds/two workers: 80,948 executions; pass. Parsed JSON objects and exact integer values are compared, including values above 2^53.
+* Full durable ordinary tests: pass (87.248 seconds). Other root-module packages passed a subsequent ordinary test invocation excluding packages already tested above.
+* `go vet . ./inference/provider/openai ./inference/provider/anthropic ./durable` and diff checks: pass.
+
+CPU/allocation impact of the usage codec and strict decoded-target walk is unmeasured; include both in acceptance profiling. Nested-module acceptance, complete upstream test coverage and full semantic review are still open. Next: the streaming-JSON parser and provider integration.

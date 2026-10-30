@@ -491,7 +491,7 @@
         "inference/provider/anthropic/usage_main.go",
         "inference/provider/anthropic/usage_main_test.go"
       ],
-      "note": "Initial and delta token accounting, null/omitted/zero updates, reasoning/TTL, cost recalculation and OpenRouter billed totals development-verified. Remaining streaming, fallback metadata and other API deltas pending; optional zero-counter JSON presence also pending."
+      "note": "Initial/delta accounting, billed cost and optional counter presence development-tested. Other streaming/fallback/API deltas pending."
     },
     {
       "change": "M",
@@ -558,7 +558,7 @@
         "inference/provider/openai/openai.go",
         "inference/provider/openai/openrouter_cost_main_test.go"
       ],
-      "note": "OpenRouter usage-cost subsection only. All other provider/parser/stream-event deltas remain pending."
+      "note": "Billed accounting, nullish cache precedence, independent writes, clamped input, separate reasoning and derived totals development-tested. Other parser/stream/provider deltas pending."
     },
     {
       "change": "M",
@@ -999,9 +999,11 @@
       "native": [
         "types.go",
         "harness.go",
-        "internal/openroutercost/cost_bench_test.go"
+        "internal/openroutercost/cost_bench_test.go",
+        "usage_json.go",
+        "tests/usage_presence_main_test.go"
       ],
-      "note": "Cost provenance and detached snapshots implemented; remaining type/documentation changes need review."
+      "note": "Cost provenance, detached snapshots and optional zero-counter JSON presence implemented; remaining type/documentation changes need review."
     },
     {
       "change": "M",
@@ -2575,9 +2577,11 @@
         "durable/generation.go",
         "durable/tool.go",
         "durable/usage.go",
-        "durable/usage_main_test.go"
+        "durable/usage_main_test.go",
+        "durable/usage_json.go",
+        "durable/usage_json_main_test.go"
       ],
-      "note": "Unchanged upstream arithmetic now observes new AI provenance: copy the first record, add only numeric counters. Models/tools tested, optional zero-counter presence pending."
+      "note": "First-record provenance, numeric aggregation and optional counter presence implemented/tested for model/tool ledgers; complete per-path review pending."
     }
   ]
 }

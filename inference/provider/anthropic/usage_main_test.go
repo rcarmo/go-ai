@@ -92,3 +92,14 @@ func TestAnthropicMainOtherProviderIgnoresBilledCost(t *testing.T) {
 		t.Fatal(message.Usage)
 	}
 }
+
+func TestAnthropicMainOptionalZeroPresence(t *testing.T) {
+	message, failed := runUsageMain(t, `{"input_tokens":1}`, []string{`{"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens_details":{"thinking_tokens":0},"cache_creation":{"ephemeral_1h_input_tokens":0}}}`, `{"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens_details":{"thinking_tokens":null}}}`}, false, usageModelMain())
+	if failed || !message.Usage.ReasoningSet || !message.Usage.CacheWrite1hSet {
+		t.Fatal("lost optional zero presence")
+	}
+	initial, failed := runUsageMain(t, `{"input_tokens":1}`, nil, true, usageModelMain())
+	if !failed || !initial.Usage.CacheWrite1hSet || initial.Usage.ReasoningSet {
+		t.Fatal("initial optional presence differs from upstream")
+	}
+}

@@ -61,3 +61,39 @@ func TestUsageMainFirstRecordProvenanceAndBilledTotals(t *testing.T) {
 		}
 	}
 }
+
+func TestUsagePresenceMainLedgerOptionalZero(t *testing.T) {
+	for _, bucket := range []string{"models", "tools"} {
+		t.Run(bucket, func(t *testing.T) {
+			state := JSON{"models": map[string]any{}, "tools": map[string]any{}}
+			add := func(u *goai.Usage) error {
+				if bucket == "tools" {
+					return addToolUsage(state, "tool", u, DefaultLimits())
+				}
+				return addModelUsage(state, messageReceipt{Provider: "p", Model: "m", Usage: u}, DefaultLimits())
+			}
+			for _, u := range []*goai.Usage{{}, {ReasoningSet: true, CacheWrite1hSet: true}, {}} {
+				if err := add(u); err != nil {
+					t.Fatal(err)
+				}
+			}
+			key := "p/m"
+			if bucket == "tools" {
+				key = "tool"
+			}
+			raw := state[bucket].(map[string]any)[key].(JSON)
+			for _, name := range []string{"reasoning", "cacheWrite1h"} {
+				if _, present := raw[name]; !present {
+					t.Fatal("ledger lost optional zero", name)
+				}
+			}
+			var result goai.Usage
+			if err := fromObject(raw, &result, DefaultLimits()); err != nil {
+				t.Fatal(err)
+			}
+			if !result.ReasoningSet || !result.CacheWrite1hSet || result.Reasoning != 0 || result.CacheWrite1h != 0 {
+				t.Fatal("ledger round-trip lost presence")
+			}
+		})
+	}
+}

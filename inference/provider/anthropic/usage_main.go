@@ -27,6 +27,8 @@ func applyAnthropicUsage(usage *goai.Usage, raw *anthropicUsage, model *goai.Mod
 		usage.CacheRead = 0
 		usage.CacheWrite = 0
 		usage.CacheWrite1h = 0
+		// Upstream initialises this optional property even without a TTL breakdown.
+		usage.CacheWrite1hSet = true
 	}
 	if raw != nil {
 		if raw.Input != nil {
@@ -43,9 +45,11 @@ func applyAnthropicUsage(usage *goai.Usage, raw *anthropicUsage, model *goai.Mod
 		}
 		if raw.CacheCreation != nil && raw.CacheCreation.Ephemeral1h != nil {
 			usage.CacheWrite1h = *raw.CacheCreation.Ephemeral1h
+			usage.CacheWrite1hSet = true
 		}
 		if !initial && raw.OutputDetails != nil && raw.OutputDetails.Thinking != nil {
 			usage.Reasoning = *raw.OutputDetails.Thinking
+			usage.ReasoningSet = true
 		}
 	}
 	usage.TotalTokens = usage.Input + usage.Output + usage.CacheRead + usage.CacheWrite
