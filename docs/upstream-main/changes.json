@@ -634,9 +634,11 @@
         "utils.go",
         "inference/provider/openaicodex/transcript.go",
         "inference/provider/openaicodex/transcript_main_test.go",
-        "inference/provider/openaicodex/codex_context_clamp_upstream_test.go"
+        "inference/provider/openaicodex/codex_context_clamp_upstream_test.go",
+        "inference/provider/openaicodex/additional_tools.go",
+        "inference/provider/openaicodex/additional_tools_main_test.go"
       ],
-      "note": "Partial: initial/default instructions and folded/ordered system history now project before payload construction, with exact section update/removal wording, tool snapshots, whitespace/empty-input and effective-instruction context budgeting. Compressed SSE/WS fixtures pass full normal/Codex race/thirty repeats/vet. Section map ordering is deterministic Go order; JS insertion order cannot be recovered and needs final semantic review. NEXT: enabled additional-tools/tool-search plans, anchors/removal notices; remaining request/schema/accounting, providers, durable/codemode and full crosswalk/acceptance. Four safety differences await Rui decision."
+      "note": "Partial: both mid-system/additional-tools capabilities now select anchored changes mode with no request tools, ordered initial/late definitions, incremental/unavailable/removal notices, replacement/re-addition semantics and conservative wire-context budgeting. Grammar descriptions preserved. Live SSE/WS and anchored continuations pass full normal/Codex race/thirty repeats/vet. NEXT: tool-search/additions fold boundaries, declarations/results and namespaces; remaining schema/request/accounting, providers, durable/codemode and full crosswalk/acceptance. Section map ordering needs review; four safety differences await Rui decision."
     },
     {
       "change": "M",
@@ -713,9 +715,11 @@
         "utils.go",
         "inference/provider/openaicodex/transcript.go",
         "inference/provider/openaicodex/transcript_main_test.go",
-        "inference/provider/openaicodex/codex_context_clamp_upstream_test.go"
+        "inference/provider/openaicodex/codex_context_clamp_upstream_test.go",
+        "inference/provider/openaicodex/additional_tools.go",
+        "inference/provider/openaicodex/additional_tools_main_test.go"
       ],
-      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open. Codex grammar-tool results now select the custom output type by resolved tool-name membership; cached function/custom rounds filter synthetic outputs and send real result deltas. Tool-result newline/empty/multimodal content conversion and native shared image-downgrade behaviour still need review. Shared Responses/Codex tool-result text/image conversion, empty/BOM/NEL handling, capability-placeholder deduplication and literal replacement-character retention now pass live SSE/Codex-WS wire tests, full normal/focused race/twenty repeats/vet. Broader request/system/accounting/replay/source/test/dependency review remains open. Codex system projection now folds or preserves updates by capability and uses pinned section wording; enabled dynamic-tool plans/removal notices still need review. Go section-map ordering cannot reproduce unknown JS insertion order."
+      "note": "Partial: native argument/custom/grammar/phase mapping, typed validation, terminal status/usage/error delivery and continuation safety are implemented. Reasoning recovery now follows latest provider item identity at slot creation, including unfinished duplicate IDs, across Responses/Azure/Codex SSE/WS. Full normal/focused race/vet pass. Native failed-cache eviction safety difference is documented. Protocol-error partials/transport telemetry, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open. Codex grammar-tool results now select the custom output type by resolved tool-name membership; cached function/custom rounds filter synthetic outputs and send real result deltas. Tool-result newline/empty/multimodal content conversion and native shared image-downgrade behaviour still need review. Shared Responses/Codex tool-result text/image conversion, empty/BOM/NEL handling, capability-placeholder deduplication and literal replacement-character retention now pass live SSE/Codex-WS wire tests, full normal/focused race/twenty repeats/vet. Broader request/system/accounting/replay/source/test/dependency review remains open. Codex system projection now folds or preserves updates by capability and uses pinned section wording; enabled dynamic-tool plans/removal notices still need review. Go section-map ordering cannot reproduce unknown JS insertion order. Codex changes-mode tool anchors now require both capability flags and preserve declaration/removal/incremental notice order with conservative context budgeting; SSE/WS/anchored continuations pass full normal/race/thirty repeats/vet. Additions/tool-search, namespaces and Responses older deferred-plan alignment remain open."
     },
     {
       "change": "M",

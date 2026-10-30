@@ -82,6 +82,8 @@ Responses and Codex share tool-result text/image conversion, with capability dow
 
 Codex now projects initial/default instructions and folded or ordered system history, with effective-instruction context budgeting. Full normal, Codex race, thirty repeated fixtures and vet pass: [transcript evidence](docs/upstream-main/README.md#codex-instructions-and-system-message-history). Dynamic-tool plans are next; section-map ordering, broader convergence and acceptance need further review.
 
+Codex now anchors additional_tools declarations behind both capability flags, with incremental/removal notices and conservative wire-context budgeting. Full normal, Codex race, thirty repeated fixtures and vet pass: [anchored-tool evidence](docs/upstream-main/README.md#codex-anchored-additional-tools). Tool-search/additions planning and broader convergence/acceptance are unfinished.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

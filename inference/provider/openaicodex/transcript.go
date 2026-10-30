@@ -59,7 +59,14 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 		result.Messages = normalized.Messages
 		if len(result.Messages) > 0 && result.Messages[0].Role == goai.RoleSystem {
 			result.SystemPrompt = codexSystemText(result.Messages[0], false)
-			result.Messages = result.Messages[1:]
+			if codexAnchorsTools(model) {
+				result.Messages = append([]goai.Message(nil), result.Messages...)
+				result.Messages[0].Content = nil
+				result.Messages[0].Sections = nil
+				result.Messages[0].ToolsRemoved = nil
+			} else {
+				result.Messages = result.Messages[1:]
+			}
 		}
 	} else {
 		var texts []string

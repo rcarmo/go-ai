@@ -3,6 +3,7 @@ package openaicodex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/transports/websocket"
 	"net/http"
@@ -57,12 +58,13 @@ func TestCodexToolResultWireTypeMain(t *testing.T) {
 }
 
 func TestCodexToolResultContinuationMain(t *testing.T) {
-	for _, custom := range []bool{false, true} {
+	for _, tc := range []struct{ custom, anchored bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		custom, anchored := tc.custom, tc.anchored
 		name := "function"
 		if custom {
 			name = "custom"
 		}
-		t.Run(name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s/anchored_%t", name, anchored), func(t *testing.T) {
 			captures := make(chan map[string]interface{}, 4)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
@@ -103,6 +105,8 @@ func TestCodexToolResultContinuationMain(t *testing.T) {
 			defer server.Close()
 			model := codexGrammarModel()
 			model.BaseURL = server.URL
+			model.ResponsesCompat.SupportsMidConvoSystemMessages = &anchored
+			model.ResponsesCompat.SupportsAdditionalTools = &anchored
 			tool := codexPayloadTool("program")
 			if !custom {
 				tool.ConstrainedSampling = nil

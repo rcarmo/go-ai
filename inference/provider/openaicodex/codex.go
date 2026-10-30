@@ -1753,9 +1753,23 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 
+	if !codexAnchorsTools(model) {
+		req.Tools = buildCodexToolDeclarations(model, convCtx.Tools)
+	} else {
+		// Include anchored definitions, replacements and notices in the native
+		// context guard, not just the final tool snapshot. Wire JSON is conservative.
+		budget := &goai.Context{SystemPrompt: req.Instructions, Messages: []goai.Message{goai.UserMessage(string(inputJSON))}}
+		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, budget, opts)
+	}
+
+	return req
+}
+
+func buildCodexToolDeclarations(model *goai.Model, tools []goai.Tool) []codexTool {
+	var result []codexTool
 	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
 	supportsStrictMode := model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || *model.ResponsesCompat.SupportsStrictMode
-	for _, t := range convCtx.Tools {
+	for _, t := range tools {
 		if supportsGrammar && t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" {
 			definition := t.ConstrainedSampling.Variants["openai_lark"]
 			syntax := "lark"
@@ -1764,7 +1778,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 				syntax = "regex"
 			}
 			if strings.TrimSpace(definition) != "" {
-				req.Tools = append(req.Tools, codexTool{Type: "custom", Name: t.Name, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}})
+				result = append(result, codexTool{Type: "custom", Name: t.Name, Description: t.Description, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}})
 				continue
 			}
 		}
@@ -1782,12 +1796,12 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 		if supportsStrictMode {
 			strictPtr = &strictValue
 		}
-		req.Tools = append(req.Tools, codexTool{
+		result = append(result, codexTool{
 			Type: "function", Name: t.Name, Description: t.Description, Parameters: parameters, Strict: strictPtr,
 		})
 	}
 
-	return req
+	return result
 }
 
 func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
@@ -1796,17 +1810,12 @@ func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
 }
 func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
 	input := make([]interface{}, 0)
+	var toolState codexAdditionalToolState
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 	for _, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleSystem:
-			if text := codexSystemText(msg, true); text != "" {
-				role := "system"
-				if model.Reasoning {
-					role = "developer"
-				}
-				input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
-			}
+			input = append(input, toolState.systemItems(model, msg)...)
 		case goai.RoleUser:
 			var content []map[string]interface{}
 			for _, b := range msg.Content {

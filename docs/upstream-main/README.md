@@ -577,3 +577,13 @@ The context guard budgets the effective instructions. In the existing 5000-token
 Representation limitation: section fields are Go maps. Projection keeps deterministic sorted keys; original JavaScript object insertion order is unavailable. This limitation belongs in the final semantic review; multi-section byte-order parity is unverified. The four recorded safety decisions also lack Rui acceptance.
 
 Next: Codex additional-tools/tool-search transcript plans, anchored declarations and removal notices. Current projection uses a snapshot; enabled dynamic-tool capabilities still need their own request/conversation plan. Remaining request/schema/accounting, providers, durable/codemode, full source/test/dependency review and acceptance are unfinished.
+
+## Codex anchored additional tools
+
+Codex now selects anchored declarations only when both mid-conversation system messages and additional_tools are supported, matching the pinned changes mode. Request-level tools are omitted in that mode; the initial and later declarations become developer-role additional_tools items in conversation order. Other capability combinations retain a current request snapshot.
+
+Later declaration batches carry the pinned incremental-update notice. True removals emit the prohibition notice; same-name replacements exclude that name from removals. The ordered unavailable set survives replacements, loses names on re-addition and supplies Still unavailable notices. Function and grammar declarations share the request converter; grammar descriptions now survive conversion. The native context guard budgets serialized anchored declarations/notices conservatively, including historical definitions absent from the final snapshot.
+
+`additional_tools_main_test.go` verifies compressed SSE/WebSocket wire order, instruction roles, capability gating, removals/replacements/re-additions, grammar/function definitions, context budgeting, hook count and caller immutability. Tool-result continuation fixtures also run with anchored declarations. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 109.778 seconds), Codex race (2.526 seconds), thirty repeated additional-tools/continuation fixture groups, vet and diff checks. No acceptance profiling ran.
+
+Next: tool-search/additions mode, including initial fold boundaries and request versus result declarations. Responses still uses its older AddedToolNames deferred planner and needs comparison with the pinned capability guards and transcript plans too. Tool namespaces, remaining schema/request/accounting, providers, durable/codemode and full source/test/dependency review/acceptance are unfinished. Section-map ordering and the four recorded safety adaptations retain their earlier review/decision requirements.
