@@ -605,9 +605,11 @@
         "inference/provider/openaicodex/reasoning_identity_main_test.go",
         "inference/provider/openairesponses/azure_reasoning_replay_upstream_test.go",
         "inference/provider/openaicodex/protocol_error.go",
-        "inference/provider/openaicodex/protocol_error_main_test.go"
+        "inference/provider/openaicodex/protocol_error_main_test.go",
+        "inference/provider/openaicodex/payload.go",
+        "inference/provider/openaicodex/payload_main_test.go"
       ],
-      "note": "Partial: native argument/custom/grammar/phase mapping, terminal usage/status/reasoning/error/cache handling are implemented. Protocol errors now retain typed partials at the outer wrapper. Started network failures record transport diagnostics/request bytes/failure stats without replay or current-request SSE fallback; semantic/protocol errors remain non-transport. Full normal/Codex race/repeated fixtures/vet pass. Payload/observer ordering, cancellation and pre-start byte accounting, broader billed/request/replay/provider fidelity, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native stream/grammar/phase/terminal/error/cache/identity handling and typed protocol partials are implemented. Request payload hooks/JSON preparation now run once before connection; retries/fallback reuse prepared bytes/tool view, local failures cannot fall back, cancellation gates I/O, and pre-start diagnostics include bytes. Full normal/Codex race/repeated fixtures/vet pass. Raw provider observer wiring is still absent; mutation/fidelity/cancellation, cache-retention/identity, broader accounting/request/replay/provider semantics, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",

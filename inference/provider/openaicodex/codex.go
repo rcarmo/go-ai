@@ -58,6 +58,16 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			return
 		}
 
+		prepared, prepareErr := prepareCodexRequest(ctx, model, convCtx, opts)
+		if prepareErr != nil {
+			reason := goai.StopReasonError
+			if ctx.Err() != nil {
+				reason = goai.StopReasonAborted
+			}
+			send(&goai.ErrorEvent{Reason: reason, Err: prepareErr})
+			return
+		}
+
 		// Match pi-ai: default to auto, preferring WebSocket with SSE fallback.
 		transport := goai.TransportAuto
 		if opts != nil && opts.Transport != "" {
@@ -71,7 +81,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			} else {
 				retriedConnectionLimit := false
 				for {
-					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, send)
+					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, send, prepared)
 					if err == nil {
 						return
 					}
@@ -93,6 +103,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						"fallbackTransport":   "sse",
 						"eventsEmitted":       false,
 						"phase":               "before_message_stream_start",
+						"requestBytes":        len(prepared.bodyJSON),
 					}))
 					recordCodexWebSocketFailure(func() string {
 						if opts != nil {
@@ -113,7 +124,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 		}
 
 		// SSE fallback (same as OpenAI Responses but with Codex URL)
-		streamViaSSE(ctx, model, convCtx, opts, apiKey, send, diagnostics)
+		streamViaSSE(ctx, model, convCtx, opts, apiKey, send, diagnostics, prepared)
 	}()
 
 	return ch
@@ -180,7 +191,8 @@ func isCodexNonTransportError(err error) bool {
 		return true
 	}
 	var protoErr *codexProtocolError
-	return errors.As(err, &protoErr)
+	var payloadErr *codexPayloadError
+	return errors.As(err, &protoErr) || errors.As(err, &payloadErr)
 }
 
 func isWebSocketConnectionLimitReachedError(err error) bool {
@@ -651,11 +663,13 @@ func normalizeJSONValue(v interface{}) interface{} {
 	return out
 }
 
-func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event)) error {
-	toolView, viewErr := newCodexToolView(model, convCtx)
-	if viewErr != nil {
-		return &codexProtocolError{message: viewErr.Error(), cause: viewErr}
+func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event), prepared ...*codexPreparedRequest) error {
+	request, prepareErr := codexRequestForTransport(ctx, model, convCtx, opts, prepared)
+	if prepareErr != nil {
+		return prepareErr
 	}
+	toolView := request.tools
+
 	wsURL := resolveCodexWSURL(model.BaseURL)
 	goai.GetLogger().Debug("WebSocket connect", "url", wsURL, "provider", model.Provider)
 
@@ -712,22 +726,8 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		defer conn.CloseNow()
 	}
 
-	// Build request body
-	body := buildCodexRequest(model, convCtx, opts)
-	payload, err := goai.InvokeOnPayload(opts, body, model)
-	if err != nil {
-		return err
-	}
-	bodyJSON, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	// Send request over WebSocket
-	var fullEnvelope map[string]interface{}
-	if err := json.Unmarshal(bodyJSON, &fullEnvelope); err != nil {
-		return fmt.Errorf("decode websocket payload: %w", err)
-	}
+	bodyJSON := request.bodyJSON
+	fullEnvelope := request.envelope
 	requestEnvelope := fullEnvelope
 	if useCachedContext && entry != nil {
 		requestEnvelope = buildCachedWebSocketRequestBody(entry, fullEnvelope)
@@ -1157,23 +1157,20 @@ func compressCodexRequestBodyZstd(bodyJSON []byte) ([]byte, bool) {
 	return buf.Bytes(), true
 }
 
-func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic) {
-	toolView, viewErr := newCodexToolView(model, convCtx)
-	if viewErr != nil {
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: viewErr})
+func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic, prepared ...*codexPreparedRequest) {
+	request, prepareErr := codexRequestForTransport(ctx, model, convCtx, opts, prepared)
+	if prepareErr != nil {
+		reason := goai.StopReasonError
+		if ctx.Err() != nil {
+			reason = goai.StopReasonAborted
+		}
+		send(&goai.ErrorEvent{Reason: reason, Err: prepareErr})
 		return
 	}
-	body := buildCodexRequest(model, convCtx, opts)
-	payload, err := goai.InvokeOnPayload(opts, body, model)
-	if err != nil {
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
-		return
-	}
-	bodyJSON, _ := json.Marshal(payload)
-
+	toolView := request.tools
+	bodyJSON := request.bodyJSON
 	url := resolveCodexURL(model.BaseURL)
 	goai.GetLogger().Debug("HTTP request", "url", url, "provider", model.Provider, "model", model.ID)
-
 	reqBody := bodyJSON
 	compressedBody, compressed := compressCodexRequestBodyZstd(bodyJSON)
 	if compressed {
@@ -1540,7 +1537,7 @@ type codexTool struct {
 	Format      map[string]interface{} `json:"format,omitempty"`
 }
 
-func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) codexRequest {
+func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, views ...codexToolView) codexRequest {
 	parallelToolCalls := true
 	req := codexRequest{
 		Model:             model.ID,
@@ -1583,7 +1580,13 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	}
 
 	// Build input in Responses-compatible format, but with system prompt carried in top-level instructions.
-	input := buildCodexInput(model, convCtx)
+	view := codexToolView{}
+	if len(views) > 0 {
+		view = views[0]
+	} else {
+		view, _ = newCodexToolView(model, convCtx)
+	}
+	input := buildCodexInputWithToolView(model, convCtx, view)
 	inputJSON, _ := json.Marshal(input)
 	req.Input = inputJSON
 

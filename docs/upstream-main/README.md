@@ -417,3 +417,13 @@ Started WebSocket read/normal-close failures now append `provider_transport_fail
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal (durable 108.385 seconds), Codex race (1.937 seconds), ten repeated protocol/native-partial and auto-transport failure/truncation fixtures, vet and diff checks. Tests verify typed UTF-16 error-event persistence, detached progress, cache eviction, transport/semantic counter separation and after-start diagnostic fields. No acceptance profiling ran.
 
 Next: payload/observer ordering and cancellation, pre-start request-byte accounting, remaining provider accounting/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.
+
+## Codex payload preparation
+
+Codex now validates, invokes payload hooks and serialises one prepared object before opening either transport. WebSocket retries and SSE fallback reuse those bytes and the same tool view; telemetry-aware and ordinary payload hooks each run once per request. This fixes repeated hook execution on transport fallback and prevents a failing local hook from opening a socket. SSE now handles serialisation errors instead of ignoring them.
+
+Already-cancelled requests skip hooks and network activity. Cancellation during a hook stops before connection. Local hook/schema/serialisation errors remain non-transport failures with their causes intact. Native payload replacements must encode JSON objects; null/array/scalar replacements are rejected before I/O. Pre-start transport diagnostics now include the prepared request byte count.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 112.786 seconds), Codex race (1.901 seconds), ten repeated preparation/fallback fixture runs, vet and diff checks. Fixtures cover hook failures, non-finite/non-object payloads, pre/during-hook cancellation, no connection or network counters on local failures, one hook invocation across fallback, preserved replacement fields and UTF-8 byte accounting. No acceptance profiling ran.
+
+Next: Codex raw provider-event observer wiring (currently absent), observer mutation/fidelity and cancellation contracts, cache-retention/identity details, remaining accounting/request/replay payloads, durable progress and the full source/test/dependency crosswalk.
