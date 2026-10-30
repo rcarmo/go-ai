@@ -254,3 +254,17 @@ Development checks, Go 1.27.3/GOMAXPROCS=4:
 * Full root-module normal passes (durable 110.624 seconds); full Responses race passes (1.124 seconds), vet and diff checks pass. No acceptance profiling.
 
 Remaining boundaries: Codex has separate SSE and WebSocket processors and is not covered by this change. The native Responses processor still tracks a single current item; upstream per-output-slot/interleaving semantics require a separate review and implementation. Custom grammar, provider request builders, other providers, durable progress and full streaming/finalisation review remain open. No acceptance or full-parity claim.
+
+## Codex function arguments over SSE and WebSocket
+
+Both Codex processors now share a schema-owned function-argument stream adapter. Only function-call argument fields use `ArgumentText`; ordinary text and custom-tool input decoding remain unchanged. Partial arguments, arguments-done replacements and nonempty item-done overrides retain native UTF-16 ownership through final tool-call events. Empty arguments-done replacements clear stale values. Divergent replacements do not emit false continuation deltas. Invalid completed argument JSON retains its full native diagnostic.
+
+Malformed typed function-argument events are protocol errors. The WebSocket path evicts its cached connection and classifies the error as non-transport, preventing SSE fallback/replay after emitted events. The SSE path emits an error and stops. Existing transport/cancellation handling is otherwise unchanged.
+
+Go 1.27.3/GOMAXPROCS=4 development checks:
+
+* Both transports exercise split surrogate pairs, isolated low units, trailing completion deltas, detached snapshots, native final ownership, divergent arguments/item replacements, empty replacement and invalid final argument diagnostics. WebSocket fixtures use a local test server.
+* A malformed arguments-done fixture verifies non-transport classification and cached-session eviction.
+* Full root-module normal passes (durable 109.900 seconds). Full Codex race passes, including the final cache-eviction assertion (1.739 seconds); vet and diff checks pass. No acceptance profiling.
+
+Still open: per-output-slot routing/interleaving in Responses and both Codex transports, custom grammar, provider request/replay builders and cached continuation payload fidelity, provider-observer maps, other provider boundaries, durable progress ownership and full source/test crosswalk. This slice does not establish complete Codex/main parity.

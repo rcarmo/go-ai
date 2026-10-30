@@ -21,7 +21,6 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	goai "github.com/rcarmo/go-ai"
-	"github.com/rcarmo/go-ai/internal/jsonparse"
 	retryutil "github.com/rcarmo/go-ai/internal/retry"
 	"github.com/rcarmo/go-ai/transports/sse"
 	"github.com/rcarmo/go-ai/transports/websocket"
@@ -760,12 +759,19 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	sawCompletion := false
 
 	type activeItem struct {
-		itemType      string
-		contentIdx    int
-		partialJSON   string
-		customPayload string
+		itemType       string
+		contentIdx     int
+		argumentStream codexArgumentStream
+		customPayload  string
 	}
 	var current *activeItem
+
+	argumentProtocolError := func(err error, payload []byte) error {
+		if useCachedContext && entry != nil && opts != nil {
+			removeCodexWebSocketSession(opts.SessionID, entry)
+		}
+		return &codexProtocolError{message: "Invalid Codex function argument event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
+	}
 
 readLoop:
 	for {
@@ -868,12 +874,11 @@ readLoop:
 
 		case "response.function_call_arguments.delta":
 			if current != nil && current.itemType == "function_call" {
-				current.partialJSON += raw.Delta
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args != nil {
-					partial.Content[current.contentIdx].Arguments = args
+				delta, err := current.argumentStream.append(data, &partial.Content[current.contentIdx])
+				if err != nil {
+					return argumentProtocolError(err, data)
 				}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 			}
 
 		case "response.custom_tool_call_input.delta":
@@ -894,22 +899,12 @@ readLoop:
 			}
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
-				var done struct {
-					Arguments string `json:"arguments"`
+				delta, err := current.argumentStream.replace(data, &partial.Content[current.contentIdx])
+				if err != nil {
+					return argumentProtocolError(err, data)
 				}
-				if json.Unmarshal(data, &done) == nil && done.Arguments != "" {
-					previous := current.partialJSON
-					current.partialJSON = done.Arguments
-					args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-					if args != nil {
-						partial.Content[current.contentIdx].Arguments = args
-					}
-					if strings.HasPrefix(done.Arguments, previous) {
-						delta := strings.TrimPrefix(done.Arguments, previous)
-						if delta != "" {
-							send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
-						}
-					}
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 				}
 			}
 
@@ -929,21 +924,11 @@ readLoop:
 				partial.Content[idx].Arguments = args
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
 			case "function_call":
-				rawArgs := current.partialJSON
-				var item struct {
-					Arguments string `json:"arguments"`
+				call, err := current.argumentStream.finish(raw.Item, &partial.Content[idx])
+				if err != nil {
+					return argumentProtocolError(err, data)
 				}
-				if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
-					rawArgs = item.Arguments
-				}
-				args, argumentsError := jsonparse.ParseToolCallArguments(rawArgs)
-				partial.Content[idx].ArgumentsError = argumentsError
-				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{
-					ContentIndex: idx,
-					ToolCall:     goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError},
-					Partial:      partial,
-				})
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
 			current = nil
 
@@ -1168,10 +1153,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	send(&goai.StartEvent{Partial: partial})
 
 	type activeItem struct {
-		itemType      string
-		contentIdx    int
-		partialJSON   string
-		customPayload string
+		itemType       string
+		contentIdx     int
+		argumentStream codexArgumentStream
+		customPayload  string
 	}
 	var current *activeItem
 
@@ -1238,13 +1223,14 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			}
 		case "response.function_call_arguments.delta":
 			if current != nil && current.itemType == "function_call" {
-				current.partialJSON += raw.Delta
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args != nil {
-					partial.Content[current.contentIdx].Arguments = args
+				delta, err := current.argumentStream.append([]byte(evt.Data), &partial.Content[current.contentIdx])
+				if err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
 				}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
+				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 			}
+
 		case "response.custom_tool_call_input.delta":
 			if current != nil && current.itemType == "custom_tool_call" {
 				current.customPayload += raw.Delta
@@ -1263,24 +1249,16 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			}
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
-				var done struct {
-					Arguments string `json:"arguments"`
+				delta, err := current.argumentStream.replace([]byte(evt.Data), &partial.Content[current.contentIdx])
+				if err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
 				}
-				if json.Unmarshal([]byte(evt.Data), &done) == nil && done.Arguments != "" {
-					previous := current.partialJSON
-					current.partialJSON = done.Arguments
-					args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-					if args != nil {
-						partial.Content[current.contentIdx].Arguments = args
-					}
-					if strings.HasPrefix(done.Arguments, previous) {
-						delta := strings.TrimPrefix(done.Arguments, previous)
-						if delta != "" {
-							send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
-						}
-					}
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 				}
 			}
+
 		case "response.output_item.done":
 			if current == nil {
 				continue
@@ -1297,17 +1275,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 				partial.Content[idx].Arguments = args
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
 			case "function_call":
-				rawArgs := current.partialJSON
-				var item struct {
-					Arguments string `json:"arguments"`
+				call, err := current.argumentStream.finish(raw.Item, &partial.Content[idx])
+				if err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
 				}
-				if json.Unmarshal(raw.Item, &item) == nil && item.Arguments != "" {
-					rawArgs = item.Arguments
-				}
-				args, argumentsError := jsonparse.ParseToolCallArguments(rawArgs)
-				partial.Content[idx].ArgumentsError = argumentsError
-				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
 			current = nil
 		case "error":

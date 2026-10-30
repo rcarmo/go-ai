@@ -546,8 +546,13 @@
       "change": "M",
       "path": "packages/ai/src/api/openai-codex-responses.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/openaicodex/codex.go",
+        "inference/provider/openaicodex/argument_stream.go",
+        "inference/provider/openaicodex/stream_utf16_main_test.go"
+      ],
+      "note": "Partial: SSE and WebSocket function-call fields now use native UTF-16 streams, authoritative argument/item replacements and explicit partial/final ownership. Protocol failures evict cached WS connections and cannot trigger transport fallback. Both transports and cache/protocol behavior tested. Per-output-slot interleaving, custom grammar, request/replay/cached payloads and remaining source semantics are open."
     },
     {
       "change": "M",
@@ -568,9 +573,11 @@
       "native": [
         "inference/provider/openairesponses/responses.go",
         "inference/provider/openairesponses/argument_stream.go",
-        "inference/provider/openairesponses/stream_utf16_main_test.go"
+        "inference/provider/openairesponses/stream_utf16_main_test.go",
+        "inference/provider/openaicodex/argument_stream.go",
+        "inference/provider/openaicodex/stream_utf16_main_test.go"
       ],
-      "note": "Partial: function-call UTF-16 delta/completion decoding, native stream partial/final ownership and authoritative replacement semantics implemented/tested on Responses and Azure. Codex separate SSE/WebSocket processors, per-output-slot interleaving, custom grammar, request builders and remaining source semantics still require review; no acceptance claim."
+      "note": "Partial: Responses/Azure and separate Codex SSE/WebSocket function-call streams preserve UTF-16 argument partial/final ownership and authoritative replacements. Tests cover divergent/empty overrides and Codex protocol/cache cleanup. Per-output-slot interleaving, custom grammar, request/replay builders and remaining shared semantics need review; no acceptance claim."
     },
     {
       "change": "M",
@@ -1102,9 +1109,11 @@
         "inference/provider/openai/stream_utf16_main_test.go",
         "inference/provider/anthropic/stream_utf16_main_test.go",
         "inference/provider/openairesponses/argument_stream.go",
-        "inference/provider/openairesponses/stream_utf16_main_test.go"
+        "inference/provider/openairesponses/stream_utf16_main_test.go",
+        "inference/provider/openaicodex/argument_stream.go",
+        "inference/provider/openaicodex/stream_utf16_main_test.go"
       ],
-      "note": "Partial: typed ownership, receipts/recovery, diagnostics, compaction, OpenAI function-call/Anthropic streams and SDK delta JSON implemented. Responses/Azure function calls now reconcile authoritative replacements and preserve code units. Codex separate transports, per-output-slot interleaving, custom grammar, other providers, request builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, OpenAI/Anthropic/Responses/Azure and Codex SSE/WebSocket function-call streams implemented/tested. SDK delta JSON preserves units. Slot interleaving, custom grammar, other providers, request/replay/cached payloads, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1390,9 +1399,11 @@
         "inference/provider/openai/stream_utf16_main_test.go",
         "inference/provider/anthropic/stream_utf16_main_test.go",
         "inference/provider/openairesponses/argument_stream.go",
-        "inference/provider/openairesponses/stream_utf16_main_test.go"
+        "inference/provider/openairesponses/stream_utf16_main_test.go",
+        "inference/provider/openaicodex/argument_stream.go",
+        "inference/provider/openaicodex/stream_utf16_main_test.go"
       ],
-      "note": "Partial: typed ownership, receipts/recovery, diagnostics, compaction, OpenAI function-call/Anthropic streams and SDK delta JSON implemented. Responses/Azure function calls now reconcile authoritative replacements and preserve code units. Codex separate transports, per-output-slot interleaving, custom grammar, other providers, request builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, OpenAI/Anthropic/Responses/Azure and Codex SSE/WebSocket function-call streams implemented/tested. SDK delta JSON preserves units. Slot interleaving, custom grammar, other providers, request/replay/cached payloads, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "A",
