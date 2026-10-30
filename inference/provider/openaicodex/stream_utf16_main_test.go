@@ -22,10 +22,19 @@ func runCodexArgumentFrames(t *testing.T, transport string, frames []string, sen
 	}
 }
 func streamCodexArgumentFrames(t *testing.T, transport string, frames []string, send func(goai.Event), sessions ...string) error {
+	return streamCodexArgumentFramesWithTools(t, transport, frames, nil, send, sessions...)
+}
+func streamCodexArgumentFramesWithTools(t *testing.T, transport string, frames []string, tools []goai.Tool, send func(goai.Event), sessions ...string) error {
 	t.Helper()
-	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses}
+	yes := true
+	model := &goai.Model{ID: "codex-mini", Provider: goai.ProviderOpenAICodex, Api: goai.ApiOpenAICodexResponses, ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsOpenAIGrammarTools: &yes}}
+	input := &goai.Context{Tools: tools, Messages: []goai.Message{goai.UserMessage("hello")}}
 	if transport == "sse" {
-		processCodexSSE(strings.NewReader("data: "+strings.Join(frames, "\n\ndata: ")+"\n\n"), model, send, nil)
+		view, err := newCodexToolView(model, input)
+		if err != nil {
+			return err
+		}
+		processCodexSSE(strings.NewReader("data: "+strings.Join(frames, "\n\ndata: ")+"\n\n"), model, send, nil, view)
 		return nil
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +67,7 @@ func streamCodexArgumentFrames(t *testing.T, transport string, frames []string, 
 		opts.SessionID = sessions[0]
 		opts.Transport = goai.TransportWebSocketCached
 	}
-	return streamViaWebSocket(ctx, model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, opts, jwt, send)
+	return streamViaWebSocket(ctx, model, input, opts, jwt, send)
 }
 
 func TestCodexArgumentCodeUnitsBothTransportsMain(t *testing.T) {

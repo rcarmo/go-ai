@@ -520,9 +520,11 @@
         "internal/responsestream/custom.go",
         "internal/responsestream/custom_test.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
-        "inference/provider/openaicodex/custom_utf16_main_test.go"
+        "inference/provider/openaicodex/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/tool_view.go",
+        "inference/provider/openaicodex/tool_view_main_test.go"
       ],
-      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
+      "note": "Partial: native argument/grammar streams, diagnostics/compaction persistence and slot reconciliation/guards are implemented. Codex now shares schema property selection across SSE/WS/replay/cache, handles empty properties, preserves native fallback JSON and preflights selected schemas/replay strings. Phase/finalisation, variant-definition validation, other providers empty-property handling, broader provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -572,9 +574,12 @@
         "internal/responsestream/custom.go",
         "internal/responsestream/custom_test.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
-        "inference/provider/openaicodex/custom_utf16_main_test.go"
+        "inference/provider/openaicodex/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/tool_view.go",
+        "inference/provider/openaicodex/tool_view_main_test.go",
+        "internal/jsonparse/grammar_stream.go"
       ],
-      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
+      "note": "Partial: native argument/grammar streams, diagnostics/compaction persistence and slot reconciliation/guards are implemented. Codex now shares schema property selection across SSE/WS/replay/cache, handles empty properties, preserves native fallback JSON and preflights selected schemas/replay strings. Phase/finalisation, variant-definition validation, other providers empty-property handling, broader provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -613,9 +618,12 @@
         "internal/responsestream/custom.go",
         "internal/responsestream/custom_test.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
-        "inference/provider/openaicodex/custom_utf16_main_test.go"
+        "inference/provider/openaicodex/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/tool_view.go",
+        "inference/provider/openaicodex/tool_view_main_test.go",
+        "internal/jsonparse/grammar_stream.go"
       ],
-      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
+      "note": "Partial: native argument/grammar streams, diagnostics/compaction persistence and slot reconciliation/guards are implemented. Codex now shares schema property selection across SSE/WS/replay/cache, handles empty properties, preserves native fallback JSON and preflights selected schemas/replay strings. Phase/finalisation, variant-definition validation, other providers empty-property handling, broader provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1165,9 +1173,11 @@
         "internal/responsestream/custom.go",
         "internal/responsestream/custom_test.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
-        "inference/provider/openaicodex/custom_utf16_main_test.go"
+        "inference/provider/openaicodex/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/tool_view.go",
+        "inference/provider/openaicodex/tool_view_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, slot routing/recovery/guards and custom grammar streams wired/tested across OpenAI/Responses/Azure/Codex transports. Codex property/replay mapping, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/grammar streams, diagnostics/compaction persistence and slot reconciliation/guards are implemented. Codex now shares schema property selection across SSE/WS/replay/cache, handles empty properties, preserves native fallback JSON and preflights selected schemas/replay strings. Phase/finalisation, variant-definition validation, other providers empty-property handling, broader provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1471,9 +1481,11 @@
         "internal/responsestream/custom.go",
         "internal/responsestream/custom_test.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
-        "inference/provider/openaicodex/custom_utf16_main_test.go"
+        "inference/provider/openaicodex/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/tool_view.go",
+        "inference/provider/openaicodex/tool_view_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, slot routing/recovery/guards and custom grammar streams wired/tested across OpenAI/Responses/Azure/Codex transports. Codex property/replay mapping, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/grammar streams, diagnostics/compaction persistence and slot reconciliation/guards are implemented. Codex now shares schema property selection across SSE/WS/replay/cache, handles empty properties, preserves native fallback JSON and preflights selected schemas/replay strings. Phase/finalisation, variant-definition validation, other providers empty-property handling, broader provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "A",

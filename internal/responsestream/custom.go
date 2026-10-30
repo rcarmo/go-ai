@@ -20,7 +20,7 @@ func NewCustomInput(raw []byte, property string) (*CustomInput, error) {
 	if err := json.Unmarshal(raw, &item); err != nil {
 		return nil, err
 	}
-	s := &CustomInput{stream: jsonparse.GrammarToolInputStream{Property: property}}
+	s := &CustomInput{stream: jsonparse.GrammarToolInputStream{Property: property, PropertySet: true}}
 	delta, err := s.stream.Append(string(item.Input))
 	if err != nil {
 		return nil, err

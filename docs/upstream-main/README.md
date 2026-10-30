@@ -328,4 +328,16 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * Empty and item-only completion succeed; explicit empty divergence, changed closure and append-after-close fail. WebSocket failures verify protocol classification/cache eviction. Shared adapter tests check buffered openings, schema property mapping, invalid field types and nonmutating failed reconciliation. Responses scalar replay retains native sanitization.
 * Full root normal passes (durable 107.714 seconds); shared/Responses/Codex race passes (1.008/1.131/1.770 seconds), vet and diff checks pass. No acceptance profiling.
 
-Next: Codex still defaults to the legacy `input` property despite schemas such as `payload`; its schema-specific input mapping and custom replay/request builders need alignment. Message-phase/finalisation, remaining provider/request/replay/cached/observer payloads, durable progress and full semantic/test review also remain open. No full custom-tool or main parity claim.
+At fc194ad Codex still defaulted to the legacy `input` property; the following slice aligns schema-specific mapping and replay. Message-phase/finalisation, remaining provider/request/replay/cached/observer payloads, durable progress and full semantic/test review also remain open. No full custom-tool or main parity claim.
+
+## Codex schema properties and custom replay
+
+Codex now builds a per-request grammar property view from declared tools and active context tools. The latest transcript declaration wins; removed definitions still support replay. SSE, WebSocket, history conversion and cached response items use that view. Known custom calls use their schema property; unknown calls retain the `input` fallback. A schema may require an empty property name: the shared grammar adapter now distinguishes that explicit key from its zero-value default.
+
+Replay emits `custom_tool_call` and extracts the selected property, including owned native scalars. Custom input keeps the existing surrogate sanitisation. Unsupported grammar falls back to a function call; native argument keys and values retain their units in its JSON arguments. Cross-model replay clears custom item IDs using the existing function-ID rule.
+
+Malformed selected active schemas and non-string custom replay arguments fail before either transport connects. WebSocket reports a non-transport protocol error. Builders retain their existing internal prevalidated-context contract. Variant selection/definition validation, broader request validation, other providers’ empty-property handling and complete request/observer fidelity still need review.
+
+Development checks on Go 1.27.3/GOMAXPROCS=4: full `go test ./... -count=1 -timeout=240s`, focused JSON/grammar/Responses/Codex race tests, `go vet ./...` and `git diff --check` pass. Tests cover schema-mapped UTF-16 stream/replay, cached view sharing, declaration replacement/removal, native fallback keys/values, malformed preflight and empty property names on both transports. These checks do not include acceptance profiling.
+
+Next: message-phase/finalisation and the remaining source/test/dependency crosswalk, provider/request/replay/observer payloads and durable progress contracts.

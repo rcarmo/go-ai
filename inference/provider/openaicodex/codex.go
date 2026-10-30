@@ -651,6 +651,10 @@ func normalizeJSONValue(v interface{}) interface{} {
 }
 
 func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event)) error {
+	toolView, viewErr := newCodexToolView(model, convCtx)
+	if viewErr != nil {
+		return &codexProtocolError{message: viewErr.Error(), cause: viewErr}
+	}
 	wsURL := resolveCodexWSURL(model.BaseURL)
 	goai.GetLogger().Debug("WebSocket connect", "url", wsURL, "provider", model.Provider)
 
@@ -801,7 +805,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: item.Type, contentIdx: idx}
 			if item.Type == "custom_tool_call" {
-				custom, err := responsestream.NewCustomInput(encodedItem, "input")
+				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {
 					return nil, err
 				}
@@ -1092,7 +1096,7 @@ readLoop:
 	}
 
 	if useCachedContext && entry != nil && partial.ResponseID != "" {
-		responseItems := buildCodexInput(model, &goai.Context{Messages: []goai.Message{*partial}})
+		responseItems := buildCodexInputWithToolView(model, &goai.Context{Messages: []goai.Message{*partial}}, toolView)
 		filtered := make([]interface{}, 0, len(responseItems))
 		for _, item := range responseItems {
 			if m, ok := item.(map[string]interface{}); ok && m["type"] == "function_call_output" {
@@ -1140,6 +1144,11 @@ func compressCodexRequestBodyZstd(bodyJSON []byte) ([]byte, bool) {
 }
 
 func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, apiKey string, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic) {
+	toolView, viewErr := newCodexToolView(model, convCtx)
+	if viewErr != nil {
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: viewErr})
+		return
+	}
 	body := buildCodexRequest(model, convCtx, opts)
 	payload, err := goai.InvokeOnPayload(opts, body, model)
 	if err != nil {
@@ -1208,11 +1217,15 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 
 	// Reuse same SSE processing as OpenAI Responses
-	processCodexSSE(resp.Body, model, send, diagnostics)
+	processCodexSSE(resp.Body, model, send, diagnostics, toolView)
 }
 
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
-func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic) {
+func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic, views ...codexToolView) {
+	toolView := codexToolView{}
+	if len(views) > 0 {
+		toolView = views[0]
+	}
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
 	}
@@ -1252,7 +1265,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 			created = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
 			if item.Type == "custom_tool_call" {
-				custom, err := responsestream.NewCustomInput(encodedItem, "input")
+				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {
 					return nil, err
 				}
@@ -1604,6 +1617,10 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 }
 
 func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
+	view, _ := newCodexToolView(model, convCtx)
+	return buildCodexInputWithToolView(model, convCtx, view)
+}
+func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
 	var input []interface{}
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 	for _, msg := range transformed {
@@ -1619,7 +1636,7 @@ func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
 				input = append(input, map[string]interface{}{"role": "user", "content": content})
 			}
 		case goai.RoleAssistant:
-			input = append(input, buildCodexAssistantItems(msg, model)...)
+			input = append(input, buildCodexAssistantItemsWithToolView(msg, model, view)...)
 		case goai.RoleToolResult:
 			text := ""
 			for _, b := range msg.Content {
@@ -1640,6 +1657,10 @@ func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
 }
 
 func buildCodexAssistantItems(msg goai.Message, model *goai.Model) []interface{} {
+	view, _ := newCodexToolView(model, &goai.Context{Messages: []goai.Message{msg}})
+	return buildCodexAssistantItemsWithToolView(msg, model, view)
+}
+func buildCodexAssistantItemsWithToolView(msg goai.Message, model *goai.Model, view codexToolView) []interface{} {
 	isDifferentModel := msg.Model != "" && msg.Model != model.ID && msg.Provider == model.Provider && msg.Api == model.Api
 	var items []interface{}
 	for _, block := range msg.Content {
@@ -1682,15 +1703,23 @@ func buildCodexAssistantItems(msg goai.Message, model *goai.Model) []interface{}
 				itemID = callID[idx+1:]
 				callID = callID[:idx]
 			}
-			if isDifferentModel && strings.HasPrefix(itemID, "fc_") {
+			if isDifferentModel && (strings.HasPrefix(itemID, "fc_") || strings.HasPrefix(itemID, "ctc_")) {
 				itemID = ""
 			}
-			item := map[string]interface{}{
-				"type":      "function_call",
-				"call_id":   callID,
-				"name":      block.Name,
-				"arguments": func() string { j, _ := json.Marshal(block.Arguments); return string(j) }(),
+			item := map[string]interface{}{"type": "function_call", "call_id": callID, "name": block.Name}
+			if property, selected := view.properties[block.Name]; selected {
+				input, _ := codexGrammarInput(block, property)
+				item["type"] = "custom_tool_call"
+				item["input"] = goai.SanitizeSurrogates(input)
+			} else {
+				var value any = block.Arguments
+				if block.HasStreamingArguments() {
+					value = goai.StreamingArgumentsJSON(block.Arguments)
+				}
+				encoded, _ := json.Marshal(value)
+				item["arguments"] = string(encoded)
 			}
+
 			if itemID != "" {
 				item["id"] = itemID
 			}

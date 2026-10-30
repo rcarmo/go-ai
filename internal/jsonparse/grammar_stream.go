@@ -8,13 +8,15 @@ import (
 // GrammarToolInputStream owns literal tool input and its incremental JSON
 // representation. Prefix/equality decisions use UTF-16 units, not WTF-8 bytes.
 type GrammarToolInputStream struct {
-	Property        string
+	Property string
+	// PropertySet distinguishes a schema's empty key from the legacy input default.
+	PropertySet     bool
 	input           utf16Buffer
 	started, closed bool
 }
 
 func (s *GrammarToolInputStream) property() string {
-	if s.Property == "" {
+	if s.Property == "" && !s.PropertySet {
 		return "input"
 	}
 	return s.Property
