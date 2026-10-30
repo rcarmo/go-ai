@@ -624,9 +624,10 @@
         "inference/provider/openaicodex/cold_main_test.go",
         "inference/provider/openaicodex/recovery_main_test.go",
         "inference/provider/openaicodex/recovery_started_main_test.go",
-        "inference/provider/openaicodex/transport_mode_main_test.go"
+        "inference/provider/openaicodex/transport_mode_main_test.go",
+        "inference/provider/openaicodex/retention_scope_main_test.go"
       ],
-      "note": "Partial: transport continuation selection now matches the raw auto/websocket-cached guard independently of session/socket reuse; plain/omitted modes preserve earlier continuation, as do responses lacking an ID. Mixed modes and plain failure eviction pass full normal/Codex race/forty fixture repeats/vet. Prior recovery/stream/typed arguments/observer/cache ownership slices are implemented. NEXT: retention-none effective session for fallback/debug accounting; remaining request/schema/accounting, providers, durable/codemode and full source/test/dependency review/acceptance. Endpoint isolation, superseded retirement and cross-attempt unfinished-tool/no-SSE-replay fences still lack Rui acceptance."
+      "note": "Partial: retention none now removes the transport session from fallback lookup/request/failure counters as well as caching; per-request SSE fallback remains available without sticky state. Raw session ownership/counters remain separate from clamped wire identity. Warm-owner/fallback/long-key tests pass full normal/Codex race/forty repeats/vet. Prior mode/recovery/stream/typed/observer/cache slices are implemented. NEXT: custom grammar tool-result wire types and continuation filtering; remaining request/schema/accounting, providers, durable/codemode, full source/test/dependency review/acceptance. Four native safety differences still require Rui decision."
     },
     {
       "change": "M",

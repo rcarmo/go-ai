@@ -33,9 +33,8 @@ func codexStreamErrorEvent(err error) *goai.ErrorEvent {
 
 func recordCodexStartedTransportFailure(opts *goai.StreamOptions, partial *goai.Message, requestBytes int, err error) {
 	configured := goai.TransportAuto
-	session := ""
+	session := codexTransportSessionID(opts)
 	if opts != nil {
-		session = opts.SessionID
 		if opts.Transport != "" {
 			configured = opts.Transport
 		}

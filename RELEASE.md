@@ -74,6 +74,8 @@ Codex missing-continuation recovery now retains started output, one start event 
 
 Codex separates socket reuse from raw transport continuation mode; plain/omitted transport sends full context and preserves prior anchors. Full normal, Codex race, forty repeated mode fixtures and vet pass: [transport-mode evidence](docs/upstream-main/README.md#codex-transport-mode-continuation-selection). Retention-none fallback/debug scope is the next review; broader convergence and acceptance are unfinished.
 
+Codex retention-none requests now bypass session fallback and counters without disturbing retained sockets; request-local SSE fallback still works. Full normal, Codex race, forty repeated scope fixtures and vet pass: [retention-scope evidence](docs/upstream-main/README.md#codex-retention-none-transport-scope). Custom grammar tool-result wire types are the next review; broader convergence and acceptance are unfinished.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

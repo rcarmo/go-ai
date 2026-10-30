@@ -74,10 +74,11 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 			transport = opts.Transport
 		}
 
+		cacheSessionID := codexTransportSessionID(opts)
 		var diagnostics []goai.AssistantMessageDiagnostic
 		if transport == goai.TransportWebSocket || transport == goai.TransportWebSocketCached || transport == goai.TransportAuto {
-			if opts != nil && opts.SessionID != "" && isCodexWebSocketSSEFallbackActive(opts.SessionID) {
-				recordCodexWebSocketSSEFallback(opts.SessionID)
+			if cacheSessionID != "" && isCodexWebSocketSSEFallbackActive(cacheSessionID) {
+				recordCodexWebSocketSSEFallback(cacheSessionID)
 			} else {
 				retriedConnectionLimit := false
 				retriedMissingContinuation := false
@@ -126,18 +127,8 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						"phase":               "before_message_stream_start",
 						"requestBytes":        len(prepared.bodyJSON),
 					}))
-					recordCodexWebSocketFailure(func() string {
-						if opts != nil {
-							return opts.SessionID
-						}
-						return ""
-					}(), err)
-					recordCodexWebSocketSSEFallback(func() string {
-						if opts != nil {
-							return opts.SessionID
-						}
-						return ""
-					}())
+					recordCodexWebSocketFailure(cacheSessionID, err)
+					recordCodexWebSocketSSEFallback(cacheSessionID)
 					goai.GetLogger().Debug("WebSocket fallback to SSE", "error", err)
 					break
 				}
@@ -786,7 +777,8 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	if opts != nil && opts.WebSocketConnectTimeoutMs != nil {
 		retryCfg.ConnectTimeout = time.Duration(*opts.WebSocketConnectTimeoutMs) * time.Millisecond
 	}
-	useCachedSession := opts != nil && opts.CacheRetention != goai.CacheRetentionNone && opts.SessionID != ""
+	cacheSessionID := codexTransportSessionID(opts)
+	useCachedSession := cacheSessionID != ""
 	var (
 		conn   *websocket.Conn
 		entry  *codexWebSocketSessionEntry
@@ -796,7 +788,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	keepEntry := false
 	if useCachedSession {
 		var err error
-		conn, entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, opts.SessionID, retryCfg, model)
+		conn, entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, cacheSessionID, retryCfg, model)
 		if err != nil {
 			return err
 		}
@@ -822,9 +814,9 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		defer func() {
 			entry.mu.Unlock()
 			if keepEntry {
-				scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
+				scheduleCodexWebSocketIdleClose(cacheSessionID, entry)
 			} else {
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 			}
 		}()
 	} else {
@@ -837,8 +829,8 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	if useCachedContext && entry != nil {
 		requestEnvelope = buildCachedWebSocketRequestBody(entry, fullEnvelope)
 	}
-	if opts != nil && opts.SessionID != "" {
-		recordCodexWebSocketStats(opts.SessionID, reused, useCachedContext, requestEnvelope)
+	if cacheSessionID != "" {
+		recordCodexWebSocketStats(cacheSessionID, reused, useCachedContext, requestEnvelope)
 	}
 	sendEnvelope := map[string]interface{}{}
 	for k, v := range requestEnvelope {
@@ -851,7 +843,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	if err := conn.Write(ctx, websocket.MessageText, framedJSON); err != nil {
 		if useCachedSession && entry != nil && opts != nil {
-			removeCodexWebSocketSession(opts.SessionID, entry)
+			removeCodexWebSocketSession(cacheSessionID, entry)
 		}
 		return fmt.Errorf("WebSocket write: %w", err)
 	}
@@ -942,7 +934,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 	argumentProtocolError := func(err error, payload []byte) error {
 		if useCachedSession && entry != nil && opts != nil {
-			removeCodexWebSocketSession(opts.SessionID, entry)
+			removeCodexWebSocketSession(cacheSessionID, entry)
 		}
 		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err, partial: partial}
 	}
@@ -952,7 +944,7 @@ readLoop:
 		data, err := readCodexSocket(ctx, conn, lease)
 		if err != nil {
 			if useCachedSession && entry != nil && opts != nil {
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 				entry.continuation = nil
 			}
 			if ctx.Err() != nil {
@@ -981,7 +973,7 @@ readLoop:
 		if observeErr != nil {
 			if useCachedSession && entry != nil && opts != nil {
 				entry.continuation = nil
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 			}
 			if started && !isCodexNonTransportError(observeErr) {
 				transportFailure(observeErr)
@@ -997,7 +989,7 @@ readLoop:
 		if ctx.Err() != nil {
 			if useCachedSession && entry != nil && opts != nil {
 				entry.continuation = nil
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 			}
 			partial.StopReason = goai.StopReasonAborted
 			partial.ErrorMessage = ctx.Err().Error()
@@ -1158,13 +1150,13 @@ readLoop:
 		case "error":
 			if useCachedSession && entry != nil {
 				entry.continuation = nil
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 			}
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
 			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data), partial: partial}
 			if !started || isCodexPreviousResponseNotFoundError(err) {
 				if useCachedSession && entry != nil && opts != nil {
-					removeCodexWebSocketSession(opts.SessionID, entry)
+					removeCodexWebSocketSession(cacheSessionID, entry)
 				}
 				return err
 			}
@@ -1176,7 +1168,7 @@ readLoop:
 		case "response.failed":
 			if useCachedSession && entry != nil {
 				entry.continuation = nil
-				removeCodexWebSocketSession(opts.SessionID, entry)
+				removeCodexWebSocketSession(cacheSessionID, entry)
 			}
 			var failed struct {
 				Response *struct {
@@ -1209,7 +1201,7 @@ readLoop:
 
 	if !sawCompletion {
 		if useCachedSession && entry != nil && opts != nil {
-			removeCodexWebSocketSession(opts.SessionID, entry)
+			removeCodexWebSocketSession(cacheSessionID, entry)
 			entry.continuation = nil
 		}
 		err := fmt.Errorf("WebSocket stream closed before response.completed")
@@ -1229,7 +1221,7 @@ readLoop:
 		partial.Timestamp = time.Now().UnixMilli()
 		if useCachedSession && entry != nil && opts != nil {
 			entry.continuation = nil
-			removeCodexWebSocketSession(opts.SessionID, entry)
+			removeCodexWebSocketSession(cacheSessionID, entry)
 		}
 		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
 		return nil
