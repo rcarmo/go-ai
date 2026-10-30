@@ -59,7 +59,7 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 		result.Messages = normalized.Messages
 		if len(result.Messages) > 0 && result.Messages[0].Role == goai.RoleSystem {
 			result.SystemPrompt = codexSystemText(result.Messages[0], false)
-			if codexAnchorsTools(model) {
+			if codexAnchorsTools(model) || codexUsesToolSearch(model) {
 				result.Messages = append([]goai.Message(nil), result.Messages...)
 				result.Messages[0].Content = nil
 				result.Messages[0].Sections = nil
@@ -89,8 +89,46 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 		}
 		result.SystemPrompt = codexSystemText(goai.Message{Content: []goai.ContentBlock{{Type: "text", Text: strings.Join(texts, "\n\n")}}, Sections: sections}, false)
 	}
+	if codexUsesToolSearch(model) {
+		result.Tools, _ = codexToolSearchPlan(normalized.Messages)
+	}
 	if result.SystemPrompt == "" {
 		result.SystemPrompt = "You are a helpful assistant."
 	}
 	return result
+}
+
+// Keep the existing full snapshot when mid-system messages are disabled: pinned
+// request/converter plans otherwise disagree and omit later tools. See evidence.
+func codexUsesToolSearch(model *goai.Model) bool {
+	c := model.ResponsesCompat
+	return !codexAnchorsTools(model) && c != nil && c.SupportsMidConvoSystemMessages != nil && *c.SupportsMidConvoSystemMessages && c.SupportsToolSearch != nil && *c.SupportsToolSearch
+}
+
+func codexToolSearchPlan(messages []goai.Message) ([]goai.Tool, int) {
+	var systems []goai.Message
+	seen := map[string]bool{}
+	last := -1
+	for _, message := range messages {
+		if message.Role != goai.RoleSystem {
+			continue
+		}
+		index := len(systems)
+		systems = append(systems, message)
+		if len(message.ToolsRemoved) > 0 {
+			last = index
+		}
+		for _, tool := range message.ToolsAdded {
+			if seen[tool.Name] {
+				last = index
+			}
+			seen[tool.Name] = true
+		}
+	}
+	folded := last + 1
+	if len(messages) > 0 && messages[0].Role == goai.RoleSystem && folded < 1 {
+		folded = 1
+	}
+	tools := goai.ContextFromTranscript(goai.TranscriptContext{Messages: systems[:folded]}).Tools
+	return tools, folded
 }

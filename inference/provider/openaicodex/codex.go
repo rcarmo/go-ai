@@ -1690,12 +1690,13 @@ type codexRequest struct {
 }
 
 type codexTool struct {
-	Type        string                 `json:"type"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Parameters  json.RawMessage        `json:"parameters,omitempty"`
-	Strict      *bool                  `json:"strict,omitempty"`
-	Format      map[string]interface{} `json:"format,omitempty"`
+	Type         string                 `json:"type"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	Parameters   json.RawMessage        `json:"parameters,omitempty"`
+	DeferLoading *bool                  `json:"defer_loading,omitempty"`
+	Strict       *bool                  `json:"strict,omitempty"`
+	Format       map[string]interface{} `json:"format,omitempty"`
 }
 
 func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, views ...codexToolView) codexRequest {
@@ -1755,10 +1756,14 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 	if !codexAnchorsTools(model) {
 		req.Tools = buildCodexToolDeclarations(model, convCtx.Tools)
-	} else {
+	}
+	if codexAnchorsTools(model) || codexUsesToolSearch(model) {
 		// Include anchored definitions, replacements and notices in the native
 		// context guard, not just the final tool snapshot. Wire JSON is conservative.
 		budget := &goai.Context{SystemPrompt: req.Instructions, Messages: []goai.Message{goai.UserMessage(string(inputJSON))}}
+		if codexUsesToolSearch(model) {
+			budget.Tools = convCtx.Tools
+		}
 		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, budget, opts)
 	}
 
@@ -1811,11 +1816,16 @@ func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
 func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
 	input := make([]interface{}, 0)
 	var toolState codexAdditionalToolState
+	folded := 0
+	if codexUsesToolSearch(model) {
+		_, folded = codexToolSearchPlan(convCtx.Messages)
+	}
+	messageIndex := 0
 	transformed := goai.TransformMessages(convCtx.Messages, model)
-	for _, msg := range transformed {
+	for sourceIndex, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleSystem:
-			input = append(input, toolState.systemItems(model, msg)...)
+			input = append(input, toolState.systemItems(model, msg, messageIndex, folded)...)
 		case goai.RoleUser:
 			var content []map[string]interface{}
 			for _, b := range msg.Content {
@@ -1842,6 +1852,9 @@ func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view 
 			input = append(input, map[string]interface{}{
 				"type": outputType, "call_id": callID, "output": responsestream.ToolResultOutput(model, msg.Content),
 			})
+		}
+		if !(sourceIndex == 0 && msg.Role == goai.RoleSystem) {
+			messageIndex++
 		}
 	}
 	return input
