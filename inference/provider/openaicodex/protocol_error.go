@@ -9,8 +9,14 @@ import (
 func codexStreamErrorEvent(err error) *goai.ErrorEvent {
 	event := &goai.ErrorEvent{Reason: goai.StopReasonError, Err: err}
 	var protocol *codexProtocolError
-	if errors.As(err, &protocol) && protocol.partial != nil {
-		partial := protocol.partial
+	var observer *codexObserverError
+	var partial *goai.Message
+	if errors.As(err, &protocol) {
+		partial = protocol.partial
+	} else if errors.As(err, &observer) {
+		partial = observer.partial
+	}
+	if partial != nil {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = err.Error()
 		partial.Timestamp = time.Now().UnixMilli()

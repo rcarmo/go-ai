@@ -427,3 +427,15 @@ Already-cancelled requests skip hooks and network activity. Cancellation during 
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 112.786 seconds), Codex race (1.901 seconds), ten repeated preparation/fallback fixture runs, vet and diff checks. Fixtures cover hook failures, non-finite/non-object payloads, pre/during-hook cancellation, no connection or network counters on local failures, one hook invocation across fallback, preserved replacement fields and UTF-8 byte accounting. No acceptance profiling ran.
 
 Next: Codex raw provider-event observer wiring (currently absent), observer mutation/fidelity and cancellation contracts, cache-retention/identity details, remaining accounting/request/replay payloads, durable progress and the full source/test/dependency crosswalk.
+
+## Codex raw provider observers
+
+SSE and WebSocket now invoke `OnProviderStreamEvent` before Codex event processing. The callback sees the original event type and status; its JSON-compatible mutations feed processing. Declared function-argument/custom-input fields, including terminal output items, expose exceptional code units as native `UTF16String` values and survive re-encoding. Ordinary metadata retains ordinary Go JSON decoding.
+
+Observer errors preserve their cause and typed partial, terminate processing, invalidate cached WebSocket continuation/session state and cannot trigger transport retry or SSE fallback. Cancellation during a callback terminates with an aborted partial; cancellation also takes precedence when the callback returns an error. Neither path increments network failure/fallback counters.
+
+The adapter review found an earlier mapping error: upstream `mapCodexEvents`/`normalizeCodexStatus` at the pinned source drops unrecognised or non-string statuses before shared terminal handling. Codex now does the same, superseding the earlier unknown-status rejection recorded above. Shared Responses/provider status validation is unchanged. Raw observers still see the status before this adapter step.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 109.869 seconds), Codex race (1.934 seconds), twenty repeated observer/status fixture runs, vet and diff checks. Independent production-transport fixtures cover callback order/mutation, first/later failures, cancellation with/without callback errors, typed partials, cache eviction and zero fallback/network counters. Field fixtures cover function/custom deltas, done items and terminal outputs. These do not complete the upstream-test crosswalk or acceptance profiling.
+
+Next: event-envelope/missing-type filtering against the Codex adapter, cache-retention/identity details, other provider observer/request/replay/accounting paths, durable progress and the full source/test/dependency review.

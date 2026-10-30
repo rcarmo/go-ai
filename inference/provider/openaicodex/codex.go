@@ -86,7 +86,14 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						return
 					}
 					if ctx.Err() != nil {
-						send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+						event := codexStreamErrorEvent(err)
+						event.Reason = goai.StopReasonAborted
+						event.Err = ctx.Err()
+						if event.Error != nil {
+							event.Error.StopReason = goai.StopReasonAborted
+							event.Error.ErrorMessage = ctx.Err().Error()
+						}
+						send(event)
 						return
 					}
 					connectionLimit := isWebSocketConnectionLimitReachedError(err)
@@ -192,7 +199,8 @@ func isCodexNonTransportError(err error) bool {
 	}
 	var protoErr *codexProtocolError
 	var payloadErr *codexPayloadError
-	return errors.As(err, &protoErr) || errors.As(err, &payloadErr)
+	var observerErr *codexObserverError
+	return errors.As(err, &protoErr) || errors.As(err, &payloadErr) || errors.As(err, &observerErr)
 }
 
 func isWebSocketConnectionLimitReachedError(err error) bool {
@@ -880,6 +888,26 @@ readLoop:
 			return nil
 		}
 
+		observed, observeErr := observeCodexEvent(data, opts, model)
+		if observeErr != nil {
+			if useCachedContext && entry != nil && opts != nil {
+				entry.continuation = nil
+				removeCodexWebSocketSession(opts.SessionID, entry)
+			}
+			return &codexObserverError{cause: observeErr, partial: partial}
+		}
+		data = observed
+		if ctx.Err() != nil {
+			if useCachedContext && entry != nil && opts != nil {
+				entry.continuation = nil
+				removeCodexWebSocketSession(opts.SessionID, entry)
+			}
+			partial.StopReason = goai.StopReasonAborted
+			partial.ErrorMessage = ctx.Err().Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: partial, Err: ctx.Err()})
+			return nil
+		}
+
 		var raw struct {
 			OutputIndex *int             `json:"output_index"`
 			Type        string           `json:"type"`
@@ -1228,7 +1256,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 	}
 
 	// Reuse same SSE processing as OpenAI Responses
-	processCodexSSE(resp.Body, model, send, diagnostics, toolView)
+	processCodexSSEWithOptions(ctx, resp.Body, model, opts, send, diagnostics, toolView)
 }
 
 // processCodexSSE mirrors the OpenAI Responses-style event processing used by pi-ai.
@@ -1237,6 +1265,9 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	if len(views) > 0 {
 		toolView = views[0]
 	}
+	processCodexSSEWithOptions(context.Background(), body, model, nil, send, diagnostics, toolView)
+}
+func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), diagnostics []goai.AssistantMessageDiagnostic, toolView codexToolView) {
 	terminalResponseSeen := false
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
@@ -1307,6 +1338,25 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		if evt.Data == "[DONE]" {
 			break
 		}
+		observed, observeErr := observeCodexEvent([]byte(evt.Data), opts, model)
+		if observeErr != nil {
+			event := codexStreamErrorEvent(&codexObserverError{cause: observeErr, partial: partial})
+			if ctx.Err() != nil {
+				event.Reason = goai.StopReasonAborted
+				event.Err = ctx.Err()
+				partial.StopReason = goai.StopReasonAborted
+				partial.ErrorMessage = ctx.Err().Error()
+			}
+			send(event)
+			return
+		}
+		if ctx.Err() != nil {
+			partial.StopReason = goai.StopReasonAborted
+			partial.ErrorMessage = ctx.Err().Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: partial, Err: ctx.Err()})
+			return
+		}
+
 		var raw struct {
 			OutputIndex *int             `json:"output_index"`
 			Type        string           `json:"type"`
@@ -1317,7 +1367,8 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			Message     string           `json:"message,omitempty"`
 			Error       *codexEventError `json:"error,omitempty"`
 		}
-		if json.Unmarshal([]byte(evt.Data), &raw) != nil {
+		evt.Data = string(observed)
+		if json.Unmarshal(observed, &raw) != nil {
 			continue
 		}
 

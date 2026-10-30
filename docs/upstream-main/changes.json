@@ -607,9 +607,11 @@
         "inference/provider/openaicodex/protocol_error.go",
         "inference/provider/openaicodex/protocol_error_main_test.go",
         "inference/provider/openaicodex/payload.go",
-        "inference/provider/openaicodex/payload_main_test.go"
+        "inference/provider/openaicodex/payload_main_test.go",
+        "inference/provider/openaicodex/observer.go",
+        "inference/provider/openaicodex/observer_main_test.go"
       ],
-      "note": "Partial: native stream/grammar/phase/terminal/error/cache/identity handling and typed protocol partials are implemented. Request payload hooks/JSON preparation now run once before connection; retries/fallback reuse prepared bytes/tool view, local failures cannot fall back, cancellation gates I/O, and pre-start diagnostics include bytes. Full normal/Codex race/repeated fixtures/vet pass. Raw provider observer wiring is still absent; mutation/fidelity/cancellation, cache-retention/identity, broader accounting/request/replay/provider semantics, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: typed stream/grammar/phase/terminal/error/cache handling, protocol partials and once-prepared payloads are implemented. Raw observers now run on SSE/WebSocket before normalization, honour JSON-compatible mutations, preserve declared UTF-16 argument/input fields, retain partials on errors/cancellation and evict without retry/fallback/network counters. Codex adapter status filtering now drops unknown/non-string statuses as upstream does; shared validation remains strict. Full normal/Codex race/twenty repeated fixtures/vet pass. Event-envelope/missing-type filtering, cache-retention/identity, other accounting/request/replay/provider semantics, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",

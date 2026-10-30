@@ -70,21 +70,21 @@ func TestCodexTerminalStatusBothTransportsMain(t *testing.T) {
 		t.Run(transport+"/unknown", func(t *testing.T) {
 			failures, done := 0, 0
 			err := streamCodexArgumentFrames(t, transport, []string{`{"type":"response.done","response":{"status":"unknown"}}`}, func(event goai.Event) {
-				switch event.(type) {
+				switch e := event.(type) {
 				case *goai.ErrorEvent:
 					failures++
 				case *goai.DoneEvent:
 					done++
+					if e.Message.StopReason != goai.StopReasonStop || e.Message.RawStopReason != "" {
+						t.Error("Codex adapter did not drop unknown status", e.Message)
+					}
 				}
 			})
 			if err != nil {
-				if transport != "websocket" || !isCodexNonTransportError(err) {
-					t.Fatal(err)
-				}
-				failures++
+				t.Fatal(err)
 			}
-			if failures != 1 || done != 0 {
-				t.Fatal("unknown terminal succeeded", failures, done)
+			if failures != 0 || done != 1 {
+				t.Fatal("Codex status normalization changed", failures, done)
 			}
 		})
 	}
@@ -134,6 +134,18 @@ func TestCodexTerminalReasoningAndUsageMain(t *testing.T) {
 				if entry.continuation == nil || len(entry.continuation.lastResponseItems) != 1 || entry.continuation.lastResponseItems[0].(map[string]interface{})["encrypted_content"] != "terminal_cipher" {
 					t.Fatal("cached reasoning missing terminal cipher")
 				}
+			}
+		})
+	}
+}
+
+func TestCodexAdapterDropsNonStringStatusMain(t *testing.T) {
+	for _, status := range []string{`null`, `123`, `true`, `{}`, `[]`} {
+		t.Run(status, func(t *testing.T) {
+			partial := &goai.Message{}
+			err := finalizeCodexResponse([]byte(`{"status":`+status+`}`), partial, codexGrammarModel(), nil)
+			if err != nil || partial.StopReason != goai.StopReasonStop || partial.RawStopReason != "" {
+				t.Fatal("Codex adapter leaked unrecognised status", partial, err)
 			}
 		})
 	}

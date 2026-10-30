@@ -8,9 +8,9 @@ import (
 
 func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model, reasoning responsestream.ReasoningIndex) error {
 	var response struct {
-		ID         string `json:"id"`
-		Status     string `json:"status"`
-		EndTurn    *bool  `json:"end_turn"`
+		ID         string          `json:"id"`
+		Status     json.RawMessage `json:"status"`
+		EndTurn    *bool           `json:"end_turn"`
 		Incomplete *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
@@ -54,16 +54,24 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model,
 		}
 		partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 	}
+	// Codex's event adapter drops unrecognised statuses before shared mapping.
+	var status string
+	_ = json.Unmarshal(response.Status, &status)
+	switch status {
+	case "completed", "incomplete", "failed", "cancelled", "queued", "in_progress":
+	default:
+		status = ""
+	}
 	reason := ""
 	if response.Incomplete != nil {
 		reason = response.Incomplete.Reason
 	}
-	partial.RawStopReason = response.Status
+	partial.RawStopReason = status
 	if reason != "" {
 		partial.RawStopReason += "." + reason
 	}
 	var err error
-	partial.StopReason, partial.ErrorMessage, err = responsestream.TerminalStatus(response.Status, reason)
+	partial.StopReason, partial.ErrorMessage, err = responsestream.TerminalStatus(status, reason)
 	if err != nil {
 		return err
 	}
