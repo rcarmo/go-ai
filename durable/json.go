@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,9 +16,13 @@ import (
 
 // limitedJSON refuses growth before allocating beyond the encoded byte budget.
 type limitedJSON struct {
-	utf16Keys bool
-	data      []byte
-	max       int
+	canonical        bool
+	l                Limits
+	receiptViews     map[reflect.Value]*receiptWireView
+	projectedReceipt bool
+	utf16Keys        bool
+	data             []byte
+	max              int
 }
 
 func (b *limitedJSON) Write(p []byte) (int, error) {
@@ -239,6 +244,9 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			return reject("unsupported JSON object value")
 		}
 		members := v.NumField()
+		if v.Type() == nativeReceiptType {
+			members--
+		}
 		if v.Type() == nativeToolCallType || v.Type() == nativeContentBlockType {
 			members--
 		}
@@ -291,6 +299,9 @@ func hasMarshalAuthority(t reflect.Type) bool {
 	return pointer.NumMethod() > 0 && (pointer.Implements(jsonMarshalerType) || pointer.Implements(textMarshalerType))
 }
 func encodeBounded(v any, l Limits, max int) ([]byte, error) {
+	return encodeBoundedOrder(v, l, max, false)
+}
+func encodeBoundedOrder(v any, l Limits, max int, canonical bool) ([]byte, error) {
 	if max < 1 {
 		return nil, reject("invalid encoding budget")
 	}
@@ -304,9 +315,14 @@ func encodeBounded(v any, l Limits, max int) ([]byte, error) {
 	if hint > max {
 		hint = max
 	}
-	out := &limitedJSON{max: max, data: make([]byte, 0, hint)}
+	out := &limitedJSON{max: max, l: l, canonical: canonical, data: make([]byte, 0, hint)}
 	if e := encodeValue(out, reflect.ValueOf(v)); e != nil {
 		return nil, e
+	}
+	if out.projectedReceipt {
+		if err := scanReceiptProjection(out.data, l, reflect.TypeOf(v)); err != nil {
+			return nil, err
+		}
 	}
 	return out.data, nil
 }
@@ -417,6 +433,31 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 			return e
 		}
 		first := true
+		if b.canonical {
+			if v.Len() > (b.max-len(b.data))/5 {
+				return reject("encoded JSON byte limit")
+			}
+			keys := v.MapKeys()
+			sort.Slice(keys, func(i, j int) bool { return keys[i].String() < keys[j].String() })
+			for _, key := range keys {
+				if !first {
+					if err := emit(b, ","); err != nil {
+						return err
+					}
+				}
+				first = false
+				if err := encodeKey(b, key.String()); err != nil {
+					return err
+				}
+				if err := emit(b, ":"); err != nil {
+					return err
+				}
+				if err := encodeValue(b, v.MapIndex(key)); err != nil {
+					return err
+				}
+			}
+			return emit(b, "}")
+		}
 		if values, ok := plainJSONMap(v); ok {
 			for key, value := range values {
 				if !first {
@@ -484,7 +525,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		}
 		first := true
 		for _, field := range structJSONFields(v.Type()) {
-			value, err := nativeJSONField(v, field)
+			value, err := b.receiptJSONField(v, field)
 			if err != nil {
 				return err
 			}
@@ -618,10 +659,10 @@ func decodeStrict(p []byte, l Limits, max int, target any) error {
 	if err := d.Decode(&extra); err != io.EOF {
 		return reject("trailing JSON data")
 	}
-	if err := rejectUnknownUsageFields(target); err != nil {
+	if err := restoreStreamingArguments(p, target); err != nil {
 		return err
 	}
-	return restoreStreamingArguments(p, target)
+	return validateNativeFields(target, l)
 }
 
 type jsonScanner struct {

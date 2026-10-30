@@ -307,6 +307,7 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 // Safe protocol receipt fields omit raw provider errors, opaque deferred handles,
 // HTTP headers and metadata. Text/thinking are retained only at terminal commit.
 type MessageReceipt struct {
+	UTF16Arguments        []ReceiptUTF16Arguments           `json:"utf16Arguments,omitempty"`
 	Role                  goai.Role                         `json:"role"`
 	Content               []goai.ContentBlock               `json:"content"`
 	Api                   goai.Api                          `json:"api,omitempty"`
@@ -483,14 +484,17 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 			if m.Role != goai.RoleAssistant || c.ID == "" || c.Name == "" || c.Arguments == nil || c.Text != "" || c.Data != "" || c.Thinking != "" {
 				return messageReceipt{}, reject("tool-call contribution shape")
 			}
-			args, e := copyObject(JSON(c.Arguments), l)
+			args, e := copyToolArguments(c, l)
 			if e != nil {
 				return messageReceipt{}, e
 			}
 			if len(args) == 0 {
 				r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
 			}
-			r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: args, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
+			r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: args, ArgumentsError: c.ArgumentsError, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
+			if c.HasStreamingArguments() {
+				r.Content[len(r.Content)-1].SetStreamingArguments(args, c.ArgumentsError)
+			}
 		default:
 			return messageReceipt{}, reject("unsupported contribution content")
 		}
@@ -591,7 +595,7 @@ func restoreReceiptArguments(r *MessageReceipt, l Limits) error {
 			if block.Arguments == nil {
 				return reject("tool-call arguments absent without witness")
 			}
-			if _, e := copyObject(JSON(block.Arguments), l); e != nil {
+			if _, e := copyToolArguments(block, l); e != nil {
 				return e
 			}
 		}

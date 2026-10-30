@@ -918,7 +918,7 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 					r.ErrorCode = "invalid_tool_call"
 					continue
 				}
-				arguments, e := copyObject(JSON(c.Arguments), h.session.limits)
+				arguments, e := copyToolArguments(c, h.session.limits)
 				if e != nil {
 					ok = false
 					r.ErrorCode = "invalid_tool_arguments"
@@ -928,6 +928,9 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 					r.EmptyArguments = append(r.EmptyArguments, len(r.Content))
 				}
 				r.Content = append(r.Content, goai.ContentBlock{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: arguments, ArgumentsError: c.ArgumentsError, ThoughtSignature: c.ThoughtSignature, ThoughtSignaturePresent: c.ThoughtSignaturePresent, Namespace: c.Namespace, NamespacePresent: c.NamespacePresent})
+				if c.HasStreamingArguments() {
+					r.Content[len(r.Content)-1].SetStreamingArguments(arguments, c.ArgumentsError)
+				}
 			default:
 				ok = false
 				r.ErrorCode = "content_unsupported"

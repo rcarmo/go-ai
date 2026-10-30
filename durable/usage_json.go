@@ -29,8 +29,9 @@ func usageZeroIsPresent(v reflect.Value, name string) bool {
 
 // Usage's public JSON decoder tolerates unknown fields like ordinary Go JSON.
 // Restore strict DTO rejection, including nested cost fields, after decoding.
-// The walk also covers pre-populated interface targets and typed containers.
-func rejectUnknownUsageFields(target any) error {
+// The walk also restores schema-owned receipt argument carriers and covers
+// pre-populated interface targets and typed containers.
+func validateNativeFields(target any, l Limits) error {
 	type visit struct {
 		typ reflect.Type
 		ptr uintptr
@@ -40,6 +41,12 @@ func rejectUnknownUsageFields(target any) error {
 	walk = func(v reflect.Value) error {
 		if !v.IsValid() {
 			return nil
+		}
+		if v.Type() == nativeReceiptType && v.CanInterface() {
+			r := v.Interface().(MessageReceipt)
+			if err := restoreReceiptUTF16(&r, l); err != nil {
+				return err
+			}
 		}
 		if v.Type() == nativeUsageType && v.CanInterface() {
 			if v.Interface().(goai.Usage).HasUnknownJSONFields() {

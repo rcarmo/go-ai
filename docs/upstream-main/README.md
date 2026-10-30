@@ -116,6 +116,22 @@ Development checks on Go 1.27.3/GOMAXPROCS=4:
 * Final argument-replay fuzz probe: 26,243 executions, two workers, pass (6.015 seconds). An earlier probe exposed the existing omission of empty arguments on malformed non-tool blocks. A dedicated compatibility test preserves that behaviour; the fuzz property now checks typed tool-call arguments and diagnostics.
 * Additional regressions cover exact stored integers, native string node/string/byte budgets, raw UTF-8 rejection, range isolation, distinct/duplicate surrogate keys, schema cycles, unknown fields, caller marshalers and clone isolation. No profiling or acceptance validation.
 
-Production integration is incomplete. `generation.go` and `registry.go` still call generic `copyObject` for arguments, reconstruct blocks without the private mode, and project receipts through generic `dtoObject`/`fromObject`. Those paths reject isolated units. Direct typed-message replay tests do not exercise that storage pipeline.
+At checkpoint `8cc7fa1`, generic receipt projection still rejected isolated units. The receipt adaptation below follows that typed-message slice.
 
-Next: carry lossless argument ownership through contribution/generation receipt construction, generic DTO projection, record storage and replay. Preserve generic Unicode validation and caller-authority/resource fences; investigate schema-owned representations or typed projections before changing the store codec. Then handle provider SSE code-unit decoding and delta-event serialisation, wire the argument-stream wrapper and finish the complete upstream streaming test crosswalk. No provider integration or full parity is complete.
+## Receipt storage and replay
+
+Contribution and generation-terminal receipt construction now detach streamed arguments through their typed JSON domain and preserve diagnostics and private encoding mode. Exceptional values survive generic DTO projection, record storage and typed receipt replay. Ordinary JSON keeps its Unicode, finite-number, caller-marshaler and resource checks.
+
+The native receipt wire format uses `utf16Arguments` slots: each identifies a tool-call content index and contains bounded base64 chunks of validated final arguments/diagnostics. The stored content slot holds an empty-object placeholder. Typed receipt decoding validates the role, index, uniqueness, placeholder and carrier fields before restoring the values. IDs, names, namespaces and signatures stay outside the carrier; nonempty identity fields inside it fail validation. These chunks contain final structured values, not incremental parser state or its raw source. Raw storage readers see this native adaptation; receipt/context projection restores the logical model values. The remaining API/codemode crosswalk must cover that boundary.
+
+Logical argument budgets apply before encoding. Physical budgets apply to the native wire format, including its overhead; no limit was increased. Payload/chunk budgets are aggregate across slots, allocations are bounded before base64 encoding, and the final projected document is scanned again. Canonical ordering inside carriers keeps unchanged-receipt deduplication stable. Caller-supplied carrier metadata does not override logical Go receipt arguments when writing.
+
+Development verification, Go 1.27.3/GOMAXPROCS=4:
+
+* Contribution and production `drainInvocation` terminal paths pass; replay after memory, journal and SQLite reopen preserves isolated key/value units, diagnostics and exact integers above 2^53. Empty arguments and diagnostic-only carriers pass.
+* Full root-module normal suite passes (durable 97.610 seconds); focused durable race passes (25.678 seconds). Final JSON/receipt normal checks pass (4.096 seconds), receipt race (1.124 seconds), vet and diff checks pass.
+* Final receipt projection fuzz probe: 41,391 executions, two workers, pass (6.014 seconds); earlier probe 74,692 executions.
+* Fault cases reject duplicate/out-of-range slots, role/placeholder mismatches, malformed base64, unknown fields, identity injection, ordinary-value carriers, nonfinite floats and caller marshalers. Tight byte/chunk budgets and detached caller maps pass their regressions.
+* No profiling, performance claim, acceptance or provider integration.
+
+Next: tool checkpoints (`tool.go`), argument preparation/validation and before/after-tool hooks still use generic argument copies or reconstruct calls without typed ownership. Bridge those paths and verify tool execution/restart plus reader/codemode projection. Then handle SSE code-unit decoding, delta-event serialisation, provider wiring and the full upstream streaming/finalisation test crosswalk.

@@ -104,6 +104,9 @@ func restoreStreamingArguments(p []byte, target any) error {
 }
 
 func (b *jsonBudget) walkNativeField(v reflect.Value, field jsonStructField, depth int, objectsOnly bool) error {
+	if v.Type() == nativeReceiptType && field.name == "utf16Arguments" {
+		return nil
+	}
 	value, err := nativeJSONField(v, field)
 	if err != nil {
 		return err

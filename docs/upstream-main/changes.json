@@ -1058,9 +1058,13 @@
         "tests/streaming_arguments_json_main_test.go",
         "durable/streaming_arguments_json.go",
         "durable/streaming_arguments_ranges.go",
-        "durable/streaming_arguments_main_test.go"
+        "durable/streaming_arguments_main_test.go",
+        "durable/receipt_utf16.go",
+        "durable/receipt_utf16_main_test.go",
+        "durable/generation.go",
+        "durable/registry.go"
       ],
-      "note": "Partial: lossless core/wrapper 66+60+14 references; explicit SDK and bounded typed-DTO UTF-16 argument/diagnostic codecs and direct replay pass normal/race/fuzz. Generic store/receipt projection still rejects exceptional units. Production copy/receipt/store bridge, provider SSE/delta transport/wiring, finalisation and full upstream test review remain open."
+      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, generation/contribution receipt projection and memory/journal/SQLite replay tested. Generic JSON fences retained through native receipt carriers. Tool checkpoints/preparation/validation/hooks, reader/codemode crosswalk, SSE/delta transport, providers and complete upstream test/finalisation review remain open."
     },
     {
       "change": "M",
@@ -1307,9 +1311,13 @@
         "tests/streaming_arguments_json_main_test.go",
         "durable/streaming_arguments_json.go",
         "durable/streaming_arguments_ranges.go",
-        "durable/streaming_arguments_main_test.go"
+        "durable/streaming_arguments_main_test.go",
+        "durable/receipt_utf16.go",
+        "durable/receipt_utf16_main_test.go",
+        "durable/generation.go",
+        "durable/registry.go"
       ],
-      "note": "Partial: lossless core/wrapper 66+60+14 references; explicit SDK and bounded typed-DTO UTF-16 argument/diagnostic codecs and direct replay pass normal/race/fuzz. Generic store/receipt projection still rejects exceptional units. Production copy/receipt/store bridge, provider SSE/delta transport/wiring, finalisation and full upstream test review remain open."
+      "note": "Partial: lossless core/wrapper reference cases, SDK/typed DTO codecs, generation/contribution receipt projection and memory/journal/SQLite replay tested. Generic JSON fences retained through native receipt carriers. Tool checkpoints/preparation/validation/hooks, reader/codemode crosswalk, SSE/delta transport, providers and complete upstream test/finalisation review remain open."
     },
     {
       "change": "A",
