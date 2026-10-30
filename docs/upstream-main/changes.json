@@ -1041,8 +1041,13 @@
       "change": "A",
       "path": "packages/ai/src/utils/streaming-json.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "internal/jsonparse/streaming.go",
+        "internal/jsonparse/streaming_main_test.go",
+        "internal/jsonparse/testdata/streaming_main.json"
+      ],
+      "note": "Core append/snapshot edits, copy credit, depth cap and immutable histories development-tested against 66 curated pinned-reference cases. Full upstream suite, UTF-16/nonfinite representations, ToolCallArgumentsStream and production provider wiring remain unresolved; no acceptance or N/A disposition."
     },
     {
       "change": "M",
@@ -1272,8 +1277,13 @@
       "change": "A",
       "path": "packages/ai/test/streaming-json.test.ts",
       "kind": "test-or-fixture",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "internal/jsonparse/streaming.go",
+        "internal/jsonparse/streaming_main_test.go",
+        "internal/jsonparse/testdata/streaming_main.json"
+      ],
+      "note": "Core append/snapshot edits, copy credit, depth cap and immutable histories development-tested against 66 curated pinned-reference cases. Full upstream suite, UTF-16/nonfinite representations, ToolCallArgumentsStream and production provider wiring remain unresolved; no acceptance or N/A disposition."
     },
     {
       "change": "A",

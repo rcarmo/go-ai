@@ -165,7 +165,7 @@ packages/ai/test/retry.test.ts	no	pending
 packages/ai/test/sampling-options.test.ts	no	pending	
 packages/ai/test/scratch.ts	no	pending	
 packages/ai/test/stream.test.ts	no	pending	
-packages/ai/test/streaming-json.test.ts	yes	pending	
+packages/ai/test/streaming-json.test.ts	yes	partial	internal/jsonparse/streaming_main_test.go (curated core subset only; complete upstream suite and representation gaps open)
 packages/ai/test/streaming-tool-arguments.test.ts	yes	pending	
 packages/ai/test/supports-xhigh.test.ts	yes	pending	
 packages/ai/test/system-message-replay.test.ts	no	pending	

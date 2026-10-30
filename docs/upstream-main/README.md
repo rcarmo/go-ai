@@ -70,3 +70,18 @@ Development verification on Go 1.27.3/GOMAXPROCS=4:
 * `go vet . ./inference/provider/openai ./inference/provider/anthropic ./durable` and diff checks: pass.
 
 CPU/allocation impact of the usage codec and strict decoded-target walk is unmeasured; include both in acceptance profiling. Nested-module acceptance, complete upstream test coverage and full semantic review are still open. Next: the streaming-JSON parser and provider integration.
+
+## Streaming parser core: partial
+
+`internal/jsonparse/streaming.go` adds incremental append/snapshot state, ordered set/append edits, immutable snapshot histories, buffered strings, copy credit, 32-level change paths and the 64-character pending-scalar bound. Existing production providers still use the old parser. ToolCallArgumentsStream, provider replacement/finalisation and the complete upstream streaming test file have not been ported.
+
+The committed 33 KB fixture contains 66 curated append/snapshot cases generated with Bun from pinned streaming-json.ts. Its finish import was replaced by a throwing stub; finish was never exercised. Comparisons use parsed objects, ordered edits and old-snapshot stability. Fixture inputs cover incomplete scalars/containers/strings, control characters, malformed escapes, missing separators, prototype-like keys and Unicode scalar values. They exclude lone UTF-16 surrogates and numeric overflow; Go JSON decoding would conceal those differences in a reference fixture.
+
+Two unresolved representation contracts block full parser parity and provider integration:
+
+* After `append('"\\ud83d')`, upstream snapshot is a one-unit string containing 55357 (0xD83D). Go strings/standard JSON cannot represent and round-trip that unit faithfully. The current core holds high surrogates until paired/completed and replaces completed isolated units with U+FFFD. This difference is unaccepted.
+* After `append("1e400")`, upstream snapshot is numeric Infinity. The current core omits nonfinite scalars. Ordinary native JSON/argument decoding rejects overflow. This difference is unaccepted.
+
+Next: implement lossless native preview/value adapters or resolve these contracts explicitly before integration, preserving existing UTF-8, finite-number, DTO-authority and persistence checks. Then port the argument-stream wrapper, the remaining upstream tests and provider call sites.
+
+Development checks on Go 1.27.3/GOMAXPROCS=4: core package tests pass (0.012 seconds), race tests pass (1.085 seconds), snapshot-history fuzzing passes (38,270 executions, two workers, 6.029 seconds), vet and diff checks pass. These checks cover the partial core only. No profiling or performance comparison was run; acceptance CPU/alloc_space/alloc_objects analysis is still required.
