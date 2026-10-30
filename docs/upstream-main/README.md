@@ -407,3 +407,13 @@ Recovery no longer reconstructs identity by scanning completed signatures. A leg
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal (durable 109.503 seconds), shared/Responses/Codex race (1.020/1.162/1.945 seconds), vet and diff checks. New shared and four-transport fixtures verify duplicate-ID ownership with completed and unfinished latest blocks. No acceptance profiling ran.
 
 Next: protocol-error partial propagation and error/transport telemetry, remaining provider accounting/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.
+
+## Protocol partials and started transport diagnostics
+
+Codex protocol errors now carry their stream-owned partial to the outer error event. The partial retains response identity and native argument ownership; error conversion sets terminal state without mutating detached progress snapshots. Preflight failures still have no started partial. Protocol errors remain non-transport failures, evict failed cached sessions and do not activate SSE fallback.
+
+Started WebSocket read/normal-close failures now append `provider_transport_failure` diagnostics with configured transport, emitted-event state, after-start phase and original serialised request byte count. They increment failure statistics and activate the session policy for future requests, but do not count or advertise an SSE fallback for the failed current request. Semantic terminal failures and protocol failures do not acquire transport diagnostics/counters. Cancellation keeps its separate aborted path.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal (durable 108.385 seconds), Codex race (1.937 seconds), ten repeated protocol/native-partial and auto-transport failure/truncation fixtures, vet and diff checks. Tests verify typed UTF-16 error-event persistence, detached progress, cache eviction, transport/semantic counter separation and after-start diagnostic fields. No acceptance profiling ran.
+
+Next: payload/observer ordering and cancellation, pre-start request-byte accounting, remaining provider accounting/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.

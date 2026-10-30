@@ -57,7 +57,10 @@ func TestCodexTerminalFailureAutoDoesNotFallbackMain(t *testing.T) {
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
 	done, failures := 0, 0
 	var partial *goai.Message
-	for event := range streamCodex(ctx, model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: jwt, Transport: goai.TransportAuto}) {
+	session := t.Name()
+	ResetOpenAICodexWebSocketDebugStats(session)
+	defer ResetOpenAICodexWebSocketDebugStats(session)
+	for event := range streamCodex(ctx, model, &goai.Context{Messages: []goai.Message{goai.UserMessage("hello")}}, &goai.StreamOptions{APIKey: jwt, Transport: goai.TransportAuto, SessionID: session}) {
 		switch e := event.(type) {
 		case *goai.DoneEvent:
 			done++
@@ -75,16 +78,21 @@ func TestCodexTerminalFailureAutoDoesNotFallbackMain(t *testing.T) {
 	if partial == nil || partial.StopReason != goai.StopReasonError || partial.ResponseID != "failed_response" || partial.RawStopReason != "incomplete.content_filter" || partial.Usage == nil || partial.Usage.Input != 5 || partial.Usage.Output != 2 || partial.Usage.TotalTokens != 7 || partial.EndTurn == nil || *partial.EndTurn {
 		t.Fatal("failed output lost terminal evidence", partial)
 	}
+	stats := GetOpenAICodexWebSocketDebugStats(session)
+	if stats == nil || stats.WebSocketFailures != 0 || stats.SSEFallbacks != 0 || stats.WebSocketFallbackActive || len(partial.Diagnostics) != 0 {
+		t.Fatal("semantic failure misclassified as transport", stats, partial.Diagnostics)
+	}
 }
 
 func TestCodexStartedNormalCloseDoesNotFallbackMain(t *testing.T) {
 	var fallback atomic.Int32
-	finished := make(chan struct{})
+	started, finished := make(chan struct{}), make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			fallback.Add(1)
 			return
 		}
+		close(started)
 		defer close(finished)
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -102,19 +110,31 @@ func TestCodexStartedNormalCloseDoesNotFallbackMain(t *testing.T) {
 			t.Error(err)
 		}
 	}))
-	defer func() { server.Close(); <-finished }()
+	defer func() {
+		server.Close()
+		select {
+		case <-started:
+			<-finished
+		default:
+		}
+	}()
 	model := codexGrammarModel()
 	model.BaseURL = server.URL
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	jwt := "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0."
 	done, failures := 0, 0
-	for event := range streamCodex(ctx, model, &goai.Context{}, &goai.StreamOptions{APIKey: jwt, Transport: goai.TransportAuto}) {
+	session := t.Name()
+	ResetOpenAICodexWebSocketDebugStats(session)
+	defer ResetOpenAICodexWebSocketDebugStats(session)
+	var partial *goai.Message
+	for event := range streamCodex(ctx, model, &goai.Context{}, &goai.StreamOptions{APIKey: jwt, Transport: goai.TransportAuto, SessionID: session}) {
 		switch e := event.(type) {
 		case *goai.DoneEvent:
 			done++
 		case *goai.ErrorEvent:
 			failures++
+			partial = e.Error
 			if e.Error == nil || e.Error.StopReason != goai.StopReasonError || e.Error.ErrorMessage != "WebSocket stream closed before response.completed" {
 				t.Error("truncated output lost partial", e)
 			}
@@ -122,5 +142,23 @@ func TestCodexStartedNormalCloseDoesNotFallbackMain(t *testing.T) {
 	}
 	if done != 0 || failures != 1 || fallback.Load() != 0 {
 		t.Fatal("started stream fell back", done, failures, fallback.Load())
+	}
+	stats := GetOpenAICodexWebSocketDebugStats(session)
+	if stats == nil || stats.WebSocketFailures != 1 || stats.SSEFallbacks != 0 || !stats.WebSocketFallbackActive {
+		t.Fatal("transport failure counters missing", stats)
+	}
+	if partial == nil || len(partial.Diagnostics) != 1 {
+		t.Fatal("transport diagnostic missing", partial)
+	}
+	diagnostic := partial.Diagnostics[0]
+	if diagnostic.Type != "provider_transport_failure" || diagnostic.Details["eventsEmitted"] != true || diagnostic.Details["phase"] != "after_message_stream_start" || diagnostic.Details["configuredTransport"] != "auto" {
+		t.Fatal(diagnostic)
+	}
+	if _, present := diagnostic.Details["fallbackTransport"]; present {
+		t.Fatal("false fallback advertised", diagnostic)
+	}
+	size, ok := diagnostic.Details["requestBytes"].(int)
+	if !ok || size <= 0 {
+		t.Fatal("request bytes missing", diagnostic)
 	}
 }

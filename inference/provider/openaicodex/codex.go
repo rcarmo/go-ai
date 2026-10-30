@@ -85,7 +85,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						continue
 					}
 					if isCodexNonTransportError(err) && !connectionLimit {
-						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+						send(codexStreamErrorEvent(err))
 						return
 					}
 					diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
@@ -162,6 +162,7 @@ type codexProtocolError struct {
 	message string
 	payload any
 	cause   error
+	partial *goai.Message
 }
 
 func (e *codexProtocolError) Error() string {
@@ -762,6 +763,21 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 	started := false
 	sawCompletion := false
+	transportFailure := func(err error) {
+		configured := goai.TransportAuto
+		session := ""
+		if opts != nil {
+			session = opts.SessionID
+			if opts.Transport != "" {
+				configured = opts.Transport
+			}
+		}
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = err.Error()
+		partial.Timestamp = time.Now().UnixMilli()
+		goai.AppendAssistantMessageDiagnostic(partial, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{"configuredTransport": string(configured), "eventsEmitted": true, "phase": "after_message_stream_start", "requestBytes": len(bodyJSON)}))
+		recordCodexWebSocketFailure(session, err)
+	}
 
 	type activeItem struct {
 		itemType       string
@@ -831,7 +847,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		if useCachedContext && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
-		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
+		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err, partial: partial}
 	}
 
 readLoop:
@@ -859,8 +875,7 @@ readLoop:
 			if !started {
 				return fmt.Errorf("WebSocket read: %w", err)
 			}
-			partial.StopReason = goai.StopReasonError
-			partial.ErrorMessage = err.Error()
+			transportFailure(err)
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return nil
 		}
@@ -1074,9 +1089,7 @@ readLoop:
 		}
 		err := fmt.Errorf("WebSocket stream closed before response.completed")
 		if started {
-			partial.StopReason = goai.StopReasonError
-			partial.ErrorMessage = err.Error()
-			partial.Timestamp = time.Now().UnixMilli()
+			transportFailure(err)
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return nil
 		}
