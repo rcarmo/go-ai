@@ -361,3 +361,15 @@ Responses also validates custom replay input as a string, accepting native UTF-1
 Go 1.27.3/GOMAXPROCS=4 checks pass: focused packages, full root normal tests (durable 136.010 seconds), Responses/Codex race tests, vet and diff checks. Fixtures exercise invalid historical schema/variants after removal, valid replacement, unsupported fallback, request suppression, missing/null/numeric replay and owned/unowned native scalars. No acceptance profiling ran.
 
 Next: message-phase/finalisation, remaining provider/request/replay/observer payloads, durable progress and the complete source/test/dependency review.
+
+## Message phase and text signatures
+
+Codex SSE/WebSocket now records version-one text signatures at message completion. Responses and Codex share signature parsing: version-one IDs retain `commentary`/`final_answer`; unknown phases are excluded from replay, and legacy plain IDs remain readable. Final item content stays authoritative. A `final_answer` item sets the partial stop state before text-start delivery; terminal response processing still determines the final stop reason.
+
+Codex SSE now tracks terminal events independently of partial stop state, so final phase cannot turn a truncated stream into success. WebSocket and Responses retain their independent terminal guards. Azure commentary still normalises to reasoning; its final-answer message keeps the phase/signature.
+
+A negative WebSocket fixture exposed a handler-lifetime race after intentional client rejection. The harness now waits for its hijacked handler and closes its test connection without waiting for an idle peer handshake. Frame writes may fail when rejection closes the peer; client protocol classification, cache eviction and event assertions remain the test gates.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal, shared/Responses/Codex race, ten repeated Codex custom-reconciliation/message-phase runs, vet and diff checks. Fixtures cover interleaved/out-of-order message finalisation, authoritative final text, end-snapshot signatures, phase replay, Azure normalisation, truncated final phase, signature versions and legacy IDs. No acceptance profiling ran.
+
+Next: Codex incomplete-status/reason mapping and reasoning finalisation, remaining provider/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.

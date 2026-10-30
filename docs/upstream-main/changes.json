@@ -586,9 +586,13 @@
         "inference/provider/openai/grammar_utf16_main_test.go",
         "inference/provider/openairesponses/grammar_validation.go",
         "inference/provider/openairesponses/grammar_validation_main_test.go",
-        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go"
+        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go",
+        "internal/responsestream/text.go",
+        "internal/responsestream/text_test.go",
+        "inference/provider/openairesponses/phase_main_test.go",
+        "inference/provider/openaicodex/phase_main_test.go"
       ],
-      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom streams, typed persistence, slot guards, grammar schema/replay/cache mapping and historical validation are implemented. Message completion now retains Codex v1 text signatures; shared replay supports v1/legacy IDs and known phases. Final-phase partials preserve independent terminal guards; Azure commentary normalization remains intact. Full normal/focused race/repeated fixtures/vet pass. Codex incomplete-reason/reasoning finalisation, broader payload fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -638,9 +642,13 @@
         "inference/provider/openai/grammar_utf16_main_test.go",
         "inference/provider/openairesponses/grammar_validation.go",
         "inference/provider/openairesponses/grammar_validation_main_test.go",
-        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go"
+        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go",
+        "internal/responsestream/text.go",
+        "internal/responsestream/text_test.go",
+        "inference/provider/openairesponses/phase_main_test.go",
+        "inference/provider/openaicodex/phase_main_test.go"
       ],
-      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom streams, typed persistence, slot guards, grammar schema/replay/cache mapping and historical validation are implemented. Message completion now retains Codex v1 text signatures; shared replay supports v1/legacy IDs and known phases. Final-phase partials preserve independent terminal guards; Azure commentary normalization remains intact. Full normal/focused race/repeated fixtures/vet pass. Codex incomplete-reason/reasoning finalisation, broader payload fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",

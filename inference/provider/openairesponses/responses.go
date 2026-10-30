@@ -848,21 +848,15 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 			}
 			// Include id from TextSignature for proper replay
 			if block.TextSignature != "" {
-				var sig struct {
-					ID    string `json:"id"`
-					Phase string `json:"phase"`
+				msgID, phase := responsestream.ParseTextSignature(block.TextSignature)
+				if msgID == "" {
+					msgID = fallbackMessageID
+				} else if len(msgID) > 64 {
+					msgID = fmt.Sprintf("msg_%x", crc32Hash(msgID))
 				}
-				if json.Unmarshal([]byte(block.TextSignature), &sig) == nil {
-					msgID := sig.ID
-					if msgID == "" {
-						msgID = fallbackMessageID
-					} else if len(msgID) > 64 {
-						msgID = fmt.Sprintf("msg_%x", crc32Hash(msgID))
-					}
-					item["id"] = msgID
-					if sig.Phase != "" {
-						item["phase"] = sig.Phase
-					}
+				item["id"] = msgID
+				if phase != "" {
+					item["phase"] = phase
 				}
 			}
 			items = append(items, item)
@@ -1025,6 +1019,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 
 		case "message":
+			if responsestream.IsFinalAnswer(encodedItem) {
+				partial.StopReason = goai.StopReasonStop
+			}
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: "message", contentIdx: idx}
@@ -1254,18 +1251,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
 				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
-				// Extract text signature from item
-				var item struct {
-					ID    string `json:"id"`
-					Phase string `json:"phase,omitempty"`
-				}
-				json.Unmarshal(raw.Item, &item)
-				sig := map[string]interface{}{"v": 1, "id": item.ID}
-				if item.Phase != "" {
-					sig["phase"] = item.Phase
-				}
-				sigJSON, _ := json.Marshal(sig)
-				partial.Content[idx].TextSignature = string(sigJSON)
+				partial.Content[idx].TextSignature = responsestream.MessageTextSignature(raw.Item)
 				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				if err := updateCustom(raw.Item, true); err != nil {

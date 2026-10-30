@@ -37,13 +37,16 @@ func streamCodexArgumentFramesWithTools(t *testing.T, transport string, frames [
 		processCodexSSE(strings.NewReader("data: "+strings.Join(frames, "\n\ndata: ")+"\n\n"), model, send, nil, view)
 		return nil
 	}
+	handlerStarted, handlerDone := make(chan struct{}), make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(handlerStarted)
+		defer close(handlerDone)
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		defer conn.Close(websocket.StatusNormalClosure, "done")
+		defer conn.CloseNow()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		if _, _, err = conn.Read(ctx); err != nil {
@@ -52,12 +55,20 @@ func streamCodexArgumentFramesWithTools(t *testing.T, transport string, frames [
 		}
 		for _, frame := range frames {
 			if err = conn.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
-				t.Error(err)
+				// Negative fixtures intentionally close the peer on protocol rejection.
+				// Client error classification and event assertions validate the outcome.
 				return
 			}
 		}
 	}))
-	defer server.Close()
+	defer func() {
+		server.Close()
+		select {
+		case <-handlerStarted:
+			<-handlerDone
+		default:
+		}
+	}()
 	model.BaseURL = server.URL
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

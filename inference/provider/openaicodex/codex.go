@@ -791,6 +791,9 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			slots.Add(outputIndex, created)
 			send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
 		case "message":
+			if responsestream.IsFinalAnswer(encodedItem) {
+				partial.StopReason = goai.StopReasonStop
+			}
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: "message", contentIdx: idx}
@@ -974,6 +977,7 @@ readLoop:
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
 				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
+				partial.Content[idx].TextSignature = responsestream.MessageTextSignature(raw.Item)
 				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				delta, err := current.customInput.Close(raw.Item)
@@ -1226,6 +1230,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	if len(views) > 0 {
 		toolView = views[0]
 	}
+	terminalResponseSeen := false
 	partial := &goai.Message{
 		Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, Diagnostics: diagnostics, StopReason: goai.StopReasonPending,
 	}
@@ -1257,6 +1262,9 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			slots.Add(outputIndex, created)
 			send(&goai.ThinkingStartEvent{ContentIndex: created.contentIdx, Partial: partial})
 		case "message":
+			if responsestream.IsFinalAnswer(encodedItem) {
+				partial.StopReason = goai.StopReasonStop
+			}
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
 			created = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
 			slots.Add(outputIndex, created)
@@ -1402,6 +1410,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
 				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: partial.Content[idx].Thinking, Partial: partial})
 			case "message":
+				partial.Content[idx].TextSignature = responsestream.MessageTextSignature(raw.Item)
 				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
 				delta, err := current.customInput.Close(raw.Item)
@@ -1451,6 +1460,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", message)})
 			return
 		case "response.completed", "response.incomplete", "response.done":
+			terminalResponseSeen = true
 			var resp struct {
 				ID      string `json:"id"`
 				Status  string `json:"status"`
@@ -1482,7 +1492,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
-	if partial.StopReason == goai.StopReasonPending {
+	if !terminalResponseSeen {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("codex stream ended before a terminal response event")})
@@ -1680,19 +1690,15 @@ func buildCodexAssistantItemsWithToolView(msg goai.Message, model *goai.Model, v
 				"status":  "completed",
 			}
 			if block.TextSignature != "" {
-				var sig struct {
-					ID    string `json:"id"`
-					Phase string `json:"phase"`
+				msgID, phase := responsestream.ParseTextSignature(block.TextSignature)
+				if len(msgID) > 64 {
+					msgID = fmt.Sprintf("msg_%x", crc32.ChecksumIEEE([]byte(msgID)))
 				}
-				if json.Unmarshal([]byte(block.TextSignature), &sig) == nil && sig.ID != "" {
-					msgID := sig.ID
-					if len(msgID) > 64 {
-						msgID = fmt.Sprintf("msg_%x", crc32.ChecksumIEEE([]byte(msgID)))
-					}
+				if msgID != "" {
 					item["id"] = msgID
-					if sig.Phase != "" {
-						item["phase"] = sig.Phase
-					}
+				}
+				if phase != "" {
+					item["phase"] = phase
 				}
 			}
 			items = append(items, item)
