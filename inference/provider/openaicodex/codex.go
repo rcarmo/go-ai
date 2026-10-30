@@ -1699,6 +1699,8 @@ type codexTool struct {
 }
 
 func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, views ...codexToolView) codexRequest {
+	original := convCtx
+	convCtx = codexTranscriptContext(model, convCtx)
 	parallelToolCalls := true
 	req := codexRequest{
 		Model:             model.ID,
@@ -1745,7 +1747,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 	if len(views) > 0 {
 		view = views[0]
 	} else {
-		view, _ = newCodexToolView(model, convCtx)
+		view, _ = newCodexToolView(model, original)
 	}
 	input := buildCodexInputWithToolView(model, convCtx, view)
 	inputJSON, _ := json.Marshal(input)
@@ -1790,13 +1792,21 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
 	view, _ := newCodexToolView(model, convCtx)
-	return buildCodexInputWithToolView(model, convCtx, view)
+	return buildCodexInputWithToolView(model, codexTranscriptContext(model, convCtx), view)
 }
 func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
-	var input []interface{}
+	input := make([]interface{}, 0)
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 	for _, msg := range transformed {
 		switch msg.Role {
+		case goai.RoleSystem:
+			if text := codexSystemText(msg, true); text != "" {
+				role := "system"
+				if model.Reasoning {
+					role = "developer"
+				}
+				input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
+			}
 		case goai.RoleUser:
 			var content []map[string]interface{}
 			for _, b := range msg.Content {
