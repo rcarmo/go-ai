@@ -763,12 +763,12 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		itemType       string
 		contentIdx     int
 		argumentStream codexArgumentStream
-		customPayload  string
+		customInput    *responsestream.CustomInput
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
 	unfinished := map[int]bool{}
-	createSlot := func(encodedItem json.RawMessage, outputIndex *int) *activeItem {
+	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
 		created = nil
 		var item struct {
@@ -800,6 +800,14 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			})
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: item.Type, contentIdx: idx}
+			if item.Type == "custom_tool_call" {
+				custom, err := responsestream.NewCustomInput(encodedItem, "input")
+				if err != nil {
+					return nil, err
+				}
+				created.customInput = custom
+				partial.Content[created.contentIdx].SetStreamingArguments(custom.Arguments(), "")
+			}
 			slots.Add(outputIndex, created)
 			send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
 		}
@@ -807,14 +815,14 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		if created != nil && (created.itemType == "function_call" || created.itemType == "custom_tool_call") {
 			unfinished[created.contentIdx] = true
 		}
-		return created
+		return created, nil
 	}
 
 	argumentProtocolError := func(err error, payload []byte) error {
 		if useCachedContext && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
-		return &codexProtocolError{message: "Invalid Codex function argument event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
+		return &codexProtocolError{message: "Invalid Codex tool argument event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
 	}
 
 readLoop:
@@ -878,7 +886,11 @@ readLoop:
 			partial.ResponseID = resp.ID
 
 		case "response.output_item.added":
-			current = createSlot(raw.Item, raw.OutputIndex)
+			slot, slotErr := createSlot(raw.Item, raw.OutputIndex)
+			current = slot
+			if slotErr != nil {
+				return argumentProtocolError(slotErr, data)
+			}
 
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
@@ -901,22 +913,24 @@ readLoop:
 				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 			}
 
-		case "response.custom_tool_call_input.delta":
+		case "response.custom_tool_call_input.delta", "response.custom_tool_call_input.done":
 			if current != nil && current.itemType == "custom_tool_call" {
-				current.customPayload += raw.Delta
-				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
-			}
-		case "response.custom_tool_call_input.done":
-			if current != nil && current.itemType == "custom_tool_call" {
-				var done struct {
-					Input string `json:"input"`
+				var delta string
+				var err error
+				if raw.Type == "response.custom_tool_call_input.done" {
+					delta, err = current.customInput.Close(data)
+				} else {
+					delta, err = current.customInput.Append(data)
 				}
-				if json.Unmarshal(data, &done) == nil && done.Input != "" {
-					current.customPayload = done.Input
-					partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": done.Input}
+				if err != nil {
+					return argumentProtocolError(err, data)
+				}
+				partial.Content[current.contentIdx].SetStreamingArguments(current.customInput.Arguments(), "")
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 				}
 			}
+
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
 				delta, err := current.argumentStream.replace(data, &partial.Content[current.contentIdx])
@@ -930,7 +944,11 @@ readLoop:
 
 		case "response.output_item.done":
 			if current == nil {
-				current = createSlot(raw.Item, raw.OutputIndex)
+				slot, slotErr := createSlot(raw.Item, raw.OutputIndex)
+				current = slot
+				if slotErr != nil {
+					return argumentProtocolError(slotErr, data)
+				}
 			}
 			if current == nil {
 				continue
@@ -954,9 +972,17 @@ readLoop:
 			case "message":
 				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
-				args := map[string]interface{}{"input": current.customPayload}
-				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
+				delta, err := current.customInput.Close(raw.Item)
+				if err != nil {
+					return argumentProtocolError(err, data)
+				}
+				partial.Content[idx].SetStreamingArguments(current.customInput.Arguments(), "")
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: delta, Partial: partial})
+				}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name}
+				call.SetStreamingArguments(current.customInput.Arguments(), "")
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			case "function_call":
 				call, err := current.argumentStream.finish(raw.Item, &partial.Content[idx])
 				if err != nil {
@@ -1196,12 +1222,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		itemType       string
 		contentIdx     int
 		argumentStream codexArgumentStream
-		customPayload  string
+		customInput    *responsestream.CustomInput
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
 	unfinished := map[int]bool{}
-	createSlot := func(encodedItem json.RawMessage, outputIndex *int) *activeItem {
+	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
 		created = nil
 		var item struct {
@@ -1225,13 +1251,21 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		case "function_call", "custom_tool_call":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 			created = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
+			if item.Type == "custom_tool_call" {
+				custom, err := responsestream.NewCustomInput(encodedItem, "input")
+				if err != nil {
+					return nil, err
+				}
+				created.customInput = custom
+				partial.Content[created.contentIdx].SetStreamingArguments(custom.Arguments(), "")
+			}
 			slots.Add(outputIndex, created)
 			send(&goai.ToolCallStartEvent{ContentIndex: created.contentIdx, Partial: partial})
 		}
 		if created != nil && (created.itemType == "function_call" || created.itemType == "custom_tool_call") {
 			unfinished[created.contentIdx] = true
 		}
-		return created
+		return created, nil
 	}
 
 	events := sse.Parse(body)
@@ -1268,7 +1302,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			json.Unmarshal(raw.Response, &resp)
 			partial.ResponseID = resp.ID
 		case "response.output_item.added":
-			current = createSlot(raw.Item, raw.OutputIndex)
+			slot, slotErr := createSlot(raw.Item, raw.OutputIndex)
+			current = slot
+			if slotErr != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: slotErr})
+				return
+			}
 
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
@@ -1290,22 +1329,25 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 			}
 
-		case "response.custom_tool_call_input.delta":
+		case "response.custom_tool_call_input.delta", "response.custom_tool_call_input.done":
 			if current != nil && current.itemType == "custom_tool_call" {
-				current.customPayload += raw.Delta
-				partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": current.customPayload}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
-			}
-		case "response.custom_tool_call_input.done":
-			if current != nil && current.itemType == "custom_tool_call" {
-				var done struct {
-					Input string `json:"input"`
+				var delta string
+				var err error
+				if raw.Type == "response.custom_tool_call_input.done" {
+					delta, err = current.customInput.Close([]byte(evt.Data))
+				} else {
+					delta, err = current.customInput.Append([]byte(evt.Data))
 				}
-				if json.Unmarshal([]byte(evt.Data), &done) == nil && done.Input != "" {
-					current.customPayload = done.Input
-					partial.Content[current.contentIdx].Arguments = map[string]interface{}{"input": done.Input}
+				if err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
+				partial.Content[current.contentIdx].SetStreamingArguments(current.customInput.Arguments(), "")
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 				}
 			}
+
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
 				delta, err := current.argumentStream.replace([]byte(evt.Data), &partial.Content[current.contentIdx])
@@ -1320,7 +1362,12 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 
 		case "response.output_item.done":
 			if current == nil {
-				current = createSlot(raw.Item, raw.OutputIndex)
+				slot, slotErr := createSlot(raw.Item, raw.OutputIndex)
+				current = slot
+				if slotErr != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: slotErr})
+					return
+				}
 			}
 			if current == nil {
 				continue
@@ -1344,9 +1391,18 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			case "message":
 				send(&goai.TextEndEvent{ContentIndex: idx, Content: partial.Content[idx].Text, Partial: partial})
 			case "custom_tool_call":
-				args := map[string]interface{}{"input": current.customPayload}
-				partial.Content[idx].Arguments = args
-				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Arguments: args, ArgumentsError: partial.Content[idx].ArgumentsError}, Partial: partial})
+				delta, err := current.customInput.Close(raw.Item)
+				if err != nil {
+					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+					return
+				}
+				partial.Content[idx].SetStreamingArguments(current.customInput.Arguments(), "")
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: delta, Partial: partial})
+				}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name}
+				call.SetStreamingArguments(current.customInput.Arguments(), "")
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			case "function_call":
 				call, err := current.argumentStream.finish(raw.Item, &partial.Content[idx])
 				if err != nil {

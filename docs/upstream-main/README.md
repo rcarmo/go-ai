@@ -313,3 +313,19 @@ Development checks, Go 1.27.3/GOMAXPROCS=4:
 * Full root normal passed (durable 110.310 seconds) before the final empty-closing-snapshot adjustment. Final parser/OpenAI race suites pass (1.165/1.092 seconds); vet and diff checks pass. No acceptance profiling.
 
 Next: wire the common grammar stream into Responses/Azure and Codex SSE/WebSocket custom inputs, including initial input buffering and final reconciliation. Message-phase/finalisation, remaining provider/request/replay/cached/observer payloads, durable progress and full semantic/test review remain open.
+
+## Responses/Codex custom-input stream wiring
+
+Responses/Azure and both Codex processors now use a shared `CustomInput` adapter around the grammar stream. Initial custom input is owned immediately but its JSON opening is buffered until the first delta or closure. Argument values, generated JSON deltas and final tool calls preserve native UTF-16 units. Argument state stays outside content blocks; blocks and events carry only owned argument projections.
+
+Input-done closes the literal input with code-unit-aware monotonic reconciliation. Explicit empty finals are distinguished from omitted input: they cannot silently override nonempty input. Repeated identical/omitted final input closes idempotently; changes or appends after closure fail. Initial malformed fields and reconciliation failures use the existing stream error paths; Codex WebSocket treats them as non-transport protocol errors and evicts cached connections.
+
+Azure now preserves original custom-tool JSON as well as function-call JSON when reasoning normalization is unnecessary. Responses native scalar replay extraction retains the existing custom-input sanitization policy rather than formatting the scalar as a Go struct. Full request/replay/observer fidelity is not claimed.
+
+Go 1.27.3/GOMAXPROCS=4 development checks:
+
+* Responses, Azure and Codex SSE/WebSocket fixtures interleave custom calls with initial high units, continuation low units, NUL, isolated input, duplicate closure and omitted item-final input; emitted JSON reconstructs final arguments.
+* Empty and item-only completion succeed; explicit empty divergence, changed closure and append-after-close fail. WebSocket failures verify protocol classification/cache eviction. Shared adapter tests check buffered openings, schema property mapping, invalid field types and nonmutating failed reconciliation. Responses scalar replay retains native sanitization.
+* Full root normal passes (durable 107.714 seconds); shared/Responses/Codex race passes (1.008/1.131/1.770 seconds), vet and diff checks pass. No acceptance profiling.
+
+Next: Codex still defaults to the legacy `input` property despite schemas such as `payload`; its schema-specific input mapping and custom replay/request builders need alignment. Message-phase/finalisation, remaining provider/request/replay/cached/observer payloads, durable progress and full semantic/test review also remain open. No full custom-tool or main parity claim.

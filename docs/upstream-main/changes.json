@@ -516,9 +516,13 @@
         "internal/jsonparse/grammar_stream.go",
         "internal/jsonparse/grammar_stream_test.go",
         "inference/provider/openai/grammar_utf16.go",
-        "inference/provider/openai/grammar_utf16_main_test.go"
+        "inference/provider/openai/grammar_utf16_main_test.go",
+        "internal/responsestream/custom.go",
+        "internal/responsestream/custom_test.go",
+        "inference/provider/openairesponses/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/custom_utf16_main_test.go"
       ],
-      "note": "Partial: UTF-16-aware grammar literal stream append/close, monotonic final reconciliation, JSON escaping and closure rules implemented/tested; OpenAI custom-call integration and native replay extraction tested. Responses/Codex wiring and remaining constrained-sampling validation/request semantics require review."
+      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
     },
     {
       "change": "M",
@@ -564,9 +568,13 @@
         "internal/responsestream/item.go",
         "internal/responsestream/item_test.go",
         "inference/provider/openairesponses/completion_main_test.go",
-        "inference/provider/openaicodex/completion_main_test.go"
+        "inference/provider/openaicodex/completion_main_test.go",
+        "internal/responsestream/custom.go",
+        "internal/responsestream/custom_test.go",
+        "inference/provider/openairesponses/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/custom_utf16_main_test.go"
       ],
-      "note": "Partial: function-call UTF-16 streams/replacements, indexed interleaving, done-only slot recovery, final text/reasoning projection and unfinished-tool terminal guards implemented/tested across Responses/Azure/Codex SSE/WebSocket. Legacy no-index/bare-item/missing-content compatibility retained. Custom grammar, phase/finalisation details, request/replay/cached/observer payloads and remaining semantics are open."
+      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
     },
     {
       "change": "M",
@@ -601,9 +609,13 @@
         "internal/responsestream/item.go",
         "internal/responsestream/item_test.go",
         "inference/provider/openairesponses/completion_main_test.go",
-        "inference/provider/openaicodex/completion_main_test.go"
+        "inference/provider/openaicodex/completion_main_test.go",
+        "internal/responsestream/custom.go",
+        "internal/responsestream/custom_test.go",
+        "inference/provider/openairesponses/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/custom_utf16_main_test.go"
       ],
-      "note": "Partial: function-call UTF-16 streams/replacements, indexed interleaving, done-only slot recovery, final text/reasoning projection and unfinished-tool terminal guards implemented/tested across Responses/Azure/Codex SSE/WebSocket. Legacy no-index/bare-item/missing-content compatibility retained. Custom grammar, phase/finalisation details, request/replay/cached/observer payloads and remaining semantics are open."
+      "note": "Partial: common/OpenAI/Responses/Azure/Codex SSE/WebSocket custom-input grammar streams preserve UTF-16 literal input, initial buffered openings, JSON deltas and monotonic final closure with native ownership. Function-stream/routing/recovery/guards remain implemented. Codex schema-specific property mapping/custom replay builders, message phase/finalisation, request/replay/cached/observer payloads and remaining semantics require review."
     },
     {
       "change": "M",
@@ -1149,9 +1161,13 @@
         "internal/jsonparse/grammar_stream.go",
         "internal/jsonparse/grammar_stream_test.go",
         "inference/provider/openai/grammar_utf16.go",
-        "inference/provider/openai/grammar_utf16_main_test.go"
+        "inference/provider/openai/grammar_utf16_main_test.go",
+        "internal/responsestream/custom.go",
+        "internal/responsestream/custom_test.go",
+        "inference/provider/openairesponses/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/custom_utf16_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON, slot routing/recovery/guards and common/OpenAI custom grammar streams implemented/tested. Responses/Codex custom wiring, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, slot routing/recovery/guards and custom grammar streams wired/tested across OpenAI/Responses/Azure/Codex transports. Codex property/replay mapping, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1451,9 +1467,13 @@
         "internal/jsonparse/grammar_stream.go",
         "internal/jsonparse/grammar_stream_test.go",
         "inference/provider/openai/grammar_utf16.go",
-        "inference/provider/openai/grammar_utf16_main_test.go"
+        "inference/provider/openai/grammar_utf16_main_test.go",
+        "internal/responsestream/custom.go",
+        "internal/responsestream/custom_test.go",
+        "inference/provider/openairesponses/custom_utf16_main_test.go",
+        "inference/provider/openaicodex/custom_utf16_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON, slot routing/recovery/guards and common/OpenAI custom grammar streams implemented/tested. Responses/Codex custom wiring, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, slot routing/recovery/guards and custom grammar streams wired/tested across OpenAI/Responses/Azure/Codex transports. Codex property/replay mapping, phase/finalisation, remaining providers/builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "A",
