@@ -36,7 +36,7 @@ func TestOutputSlotInterleavingMain(t *testing.T) {
 			event(30, "response.output_text.delta", "delta", "answer")
 			event(999, "response.function_call_arguments.delta", "delta", "corruption")
 			event(30, "response.function_call_arguments.delta", "delta", "wrong type")
-			event(999, "response.output_item.done", "item", map[string]any{"type": "function_call"})
+			event(999, "response.output_item.done", "item", map[string]any{"type": "unsupported"})
 			event(10, "response.function_call_arguments.done", "arguments", `{"x":2}`)
 			event(10, "response.output_item.done", "item", map[string]any{"type": "function_call"})
 			event(10, "response.function_call_arguments.delta", "delta", "late corruption")

@@ -554,9 +554,13 @@
         "internal/responsestream/slots.go",
         "internal/responsestream/slots_test.go",
         "inference/provider/openairesponses/output_slots_main_test.go",
-        "inference/provider/openaicodex/output_slots_main_test.go"
+        "inference/provider/openaicodex/output_slots_main_test.go",
+        "internal/responsestream/item.go",
+        "internal/responsestream/item_test.go",
+        "inference/provider/openairesponses/completion_main_test.go",
+        "inference/provider/openaicodex/completion_main_test.go"
       ],
-      "note": "Partial: Responses/Azure/Codex SSE/WebSocket function-call native streams, authoritative replacements and indexed output-slot interleaving implemented/tested. Legacy no-index compatibility retained. Missing-slot reconstruction on item-done, unfinished-tool terminal guards, custom grammar, request/replay/cached builders and remaining finalisation/source semantics are open."
+      "note": "Partial: function-call UTF-16 streams/replacements, indexed interleaving, done-only slot recovery, final text/reasoning projection and unfinished-tool terminal guards implemented/tested across Responses/Azure/Codex SSE/WebSocket. Legacy no-index/bare-item/missing-content compatibility retained. Custom grammar, phase/finalisation details, request/replay/cached/observer payloads and remaining semantics are open."
     },
     {
       "change": "M",
@@ -583,9 +587,13 @@
         "internal/responsestream/slots.go",
         "internal/responsestream/slots_test.go",
         "inference/provider/openairesponses/output_slots_main_test.go",
-        "inference/provider/openaicodex/output_slots_main_test.go"
+        "inference/provider/openaicodex/output_slots_main_test.go",
+        "internal/responsestream/item.go",
+        "internal/responsestream/item_test.go",
+        "inference/provider/openairesponses/completion_main_test.go",
+        "inference/provider/openaicodex/completion_main_test.go"
       ],
-      "note": "Partial: Responses/Azure/Codex SSE/WebSocket function-call native streams, authoritative replacements and indexed output-slot interleaving implemented/tested. Legacy no-index compatibility retained. Missing-slot reconstruction on item-done, unfinished-tool terminal guards, custom grammar, request/replay/cached builders and remaining finalisation/source semantics are open."
+      "note": "Partial: function-call UTF-16 streams/replacements, indexed interleaving, done-only slot recovery, final text/reasoning projection and unfinished-tool terminal guards implemented/tested across Responses/Azure/Codex SSE/WebSocket. Legacy no-index/bare-item/missing-content compatibility retained. Custom grammar, phase/finalisation details, request/replay/cached/observer payloads and remaining semantics are open."
     },
     {
       "change": "M",
@@ -1123,9 +1131,13 @@
         "internal/responsestream/slots.go",
         "internal/responsestream/slots_test.go",
         "inference/provider/openairesponses/output_slots_main_test.go",
-        "inference/provider/openaicodex/output_slots_main_test.go"
+        "inference/provider/openaicodex/output_slots_main_test.go",
+        "internal/responsestream/item.go",
+        "internal/responsestream/item_test.go",
+        "inference/provider/openairesponses/completion_main_test.go",
+        "inference/provider/openaicodex/completion_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON and Responses/Codex indexed interleaving implemented/tested. Missing-slot reconstruction, terminal guards, custom grammar, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, output-slot routing/recovery and unfinished-call guards implemented/tested. Custom grammar, finalisation details, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1417,9 +1429,13 @@
         "internal/responsestream/slots.go",
         "internal/responsestream/slots_test.go",
         "inference/provider/openairesponses/output_slots_main_test.go",
-        "inference/provider/openaicodex/output_slots_main_test.go"
+        "inference/provider/openaicodex/output_slots_main_test.go",
+        "internal/responsestream/item.go",
+        "internal/responsestream/item_test.go",
+        "inference/provider/openairesponses/completion_main_test.go",
+        "inference/provider/openaicodex/completion_main_test.go"
       ],
-      "note": "Partial: typed persistence/recovery, diagnostics, compaction, provider function streams, SDK delta JSON and Responses/Codex indexed interleaving implemented/tested. Missing-slot reconstruction, terminal guards, custom grammar, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
+      "note": "Partial: typed persistence/recovery, diagnostics, compaction, function streams, SDK delta JSON, output-slot routing/recovery and unfinished-call guards implemented/tested. Custom grammar, finalisation details, remaining provider/builders, durable progress and complete crosswalk/acceptance remain open."
     },
     {
       "change": "A",

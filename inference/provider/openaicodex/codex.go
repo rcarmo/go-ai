@@ -767,6 +767,48 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
+	unfinished := map[int]bool{}
+	createSlot := func(encodedItem json.RawMessage, outputIndex *int) *activeItem {
+		var created *activeItem
+		created = nil
+		var item struct {
+			Type   string `json:"type"`
+			ID     string `json:"id"`
+			CallID string `json:"call_id"`
+			Name   string `json:"name"`
+		}
+		json.Unmarshal(encodedItem, &item)
+
+		switch item.Type {
+		case "reasoning":
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+			idx := len(partial.Content) - 1
+			created = &activeItem{itemType: "reasoning", contentIdx: idx}
+			slots.Add(outputIndex, created)
+			send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
+		case "message":
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
+			idx := len(partial.Content) - 1
+			created = &activeItem{itemType: "message", contentIdx: idx}
+			slots.Add(outputIndex, created)
+			send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
+		case "function_call", "custom_tool_call":
+			partial.Content = append(partial.Content, goai.ContentBlock{
+				Type: "toolCall",
+				ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
+				Name: item.Name,
+			})
+			idx := len(partial.Content) - 1
+			created = &activeItem{itemType: item.Type, contentIdx: idx}
+			slots.Add(outputIndex, created)
+			send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
+		}
+
+		if created != nil && (created.itemType == "function_call" || created.itemType == "custom_tool_call") {
+			unfinished[created.contentIdx] = true
+		}
+		return created
+	}
 
 	argumentProtocolError := func(err error, payload []byte) error {
 		if useCachedContext && entry != nil && opts != nil {
@@ -836,39 +878,7 @@ readLoop:
 			partial.ResponseID = resp.ID
 
 		case "response.output_item.added":
-			current = nil
-			var item struct {
-				Type   string `json:"type"`
-				ID     string `json:"id"`
-				CallID string `json:"call_id"`
-				Name   string `json:"name"`
-			}
-			json.Unmarshal(raw.Item, &item)
-
-			switch item.Type {
-			case "reasoning":
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: "reasoning", contentIdx: idx}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
-			case "message":
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: "message", contentIdx: idx}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.TextStartEvent{ContentIndex: idx, Partial: partial})
-			case "function_call", "custom_tool_call":
-				partial.Content = append(partial.Content, goai.ContentBlock{
-					Type: "toolCall",
-					ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
-					Name: item.Name,
-				})
-				idx := len(partial.Content) - 1
-				current = &activeItem{itemType: item.Type, contentIdx: idx}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.ToolCallStartEvent{ContentIndex: idx, Partial: partial})
-			}
+			current = createSlot(raw.Item, raw.OutputIndex)
 
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
@@ -920,9 +930,23 @@ readLoop:
 
 		case "response.output_item.done":
 			if current == nil {
+				current = createSlot(raw.Item, raw.OutputIndex)
+			}
+			if current == nil {
+				continue
+			}
+			if !responsestream.MatchesItem(raw.Item, current.itemType) {
 				continue
 			}
 			idx := current.contentIdx
+			text, thinking, hasText := responsestream.FinalText(raw.Item)
+			if hasText {
+				partial.Content[idx].Text = text
+			}
+			if thinking != "" {
+				partial.Content[idx].Thinking = thinking
+			}
+
 			switch current.itemType {
 			case "reasoning":
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
@@ -940,6 +964,7 @@ readLoop:
 				}
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
+			delete(unfinished, current.contentIdx)
 			slots.Delete(raw.OutputIndex)
 			current = nil
 
@@ -1034,6 +1059,10 @@ readLoop:
 			entry.continuation = nil
 		}
 		return fmt.Errorf("WebSocket stream closed before response.completed")
+	}
+
+	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
+		return argumentProtocolError(fmt.Errorf("Tool call arguments did not complete before stream ended"), nil)
 	}
 
 	if useCachedContext && entry != nil && partial.ResponseID != "" {
@@ -1171,6 +1200,39 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
+	unfinished := map[int]bool{}
+	createSlot := func(encodedItem json.RawMessage, outputIndex *int) *activeItem {
+		var created *activeItem
+		created = nil
+		var item struct {
+			Type   string `json:"type"`
+			ID     string `json:"id"`
+			CallID string `json:"call_id"`
+			Name   string `json:"name"`
+		}
+		json.Unmarshal(encodedItem, &item)
+		switch item.Type {
+		case "reasoning":
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
+			created = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
+			slots.Add(outputIndex, created)
+			send(&goai.ThinkingStartEvent{ContentIndex: created.contentIdx, Partial: partial})
+		case "message":
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
+			created = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
+			slots.Add(outputIndex, created)
+			send(&goai.TextStartEvent{ContentIndex: created.contentIdx, Partial: partial})
+		case "function_call", "custom_tool_call":
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
+			created = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
+			slots.Add(outputIndex, created)
+			send(&goai.ToolCallStartEvent{ContentIndex: created.contentIdx, Partial: partial})
+		}
+		if created != nil && (created.itemType == "function_call" || created.itemType == "custom_tool_call") {
+			unfinished[created.contentIdx] = true
+		}
+		return created
+	}
 
 	events := sse.Parse(body)
 	for evt := range events {
@@ -1206,31 +1268,8 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			json.Unmarshal(raw.Response, &resp)
 			partial.ResponseID = resp.ID
 		case "response.output_item.added":
-			current = nil
-			var item struct {
-				Type   string `json:"type"`
-				ID     string `json:"id"`
-				CallID string `json:"call_id"`
-				Name   string `json:"name"`
-			}
-			json.Unmarshal(raw.Item, &item)
-			switch item.Type {
-			case "reasoning":
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				current = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.ThinkingStartEvent{ContentIndex: current.contentIdx, Partial: partial})
-			case "message":
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				current = &activeItem{itemType: "message", contentIdx: len(partial.Content) - 1}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.TextStartEvent{ContentIndex: current.contentIdx, Partial: partial})
-			case "function_call", "custom_tool_call":
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
-				current = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
-				slots.Add(raw.OutputIndex, current)
-				send(&goai.ToolCallStartEvent{ContentIndex: current.contentIdx, Partial: partial})
-			}
+			current = createSlot(raw.Item, raw.OutputIndex)
+
 		case "response.reasoning_summary_text.delta":
 			if current != nil && current.itemType == "reasoning" {
 				partial.Content[current.contentIdx].Thinking += raw.Delta
@@ -1281,9 +1320,23 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 
 		case "response.output_item.done":
 			if current == nil {
+				current = createSlot(raw.Item, raw.OutputIndex)
+			}
+			if current == nil {
+				continue
+			}
+			if !responsestream.MatchesItem(raw.Item, current.itemType) {
 				continue
 			}
 			idx := current.contentIdx
+			text, thinking, hasText := responsestream.FinalText(raw.Item)
+			if hasText {
+				partial.Content[idx].Text = text
+			}
+			if thinking != "" {
+				partial.Content[idx].Thinking = thinking
+			}
+
 			switch current.itemType {
 			case "reasoning":
 				partial.Content[idx].ThinkingSignature = string(raw.Item)
@@ -1302,6 +1355,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 				}
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
+			delete(unfinished, current.contentIdx)
 			slots.Delete(raw.OutputIndex)
 			current = nil
 		case "error":
@@ -1371,6 +1425,11 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			break
 		}
 	}
+	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Tool call arguments did not complete before stream ended")})
+		return
+	}
+
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 

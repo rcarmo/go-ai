@@ -282,3 +282,18 @@ Development checks, Go 1.27.3/GOMAXPROCS=4:
 * Full root-module normal passes (durable 109.945 seconds). Router/Responses/Codex race passes (1.007/1.130/1.778 seconds); vet and diff checks pass. No acceptance profiling.
 
 Still open: upstream creation of missing slots from item-done events, unfinished-tool terminal guards and remaining finalisation details; custom grammar, provider request/replay/cached builders and observer payloads, other provider boundaries, durable progress ownership and the full semantic/test crosswalk. Slot routing alone is not full Responses/Codex parity.
+
+## Missing-slot recovery and unfinished-tool guards
+
+Responses/Azure and Codex SSE/WebSocket now reuse item creation when `output_item.done` arrives without `output_item.added`. Function-call, message and reasoning completion fixtures emit start/end events and reconstruct their final content. Present final message content is authoritative (including an empty array); missing content retains native delta-only compatibility. Reasoning uses nonempty summary text, then content, then streamed text. An explicitly mismatched completion kind cannot finalize another kind of active item; bare-item fixtures remain supported.
+
+Unfinished tool calls are tracked independently of the slot router, including calls displaced by legacy omitted-index events. A terminal tool-use outcome fails if any call lacks item completion; arguments-done alone is not completion. Length-limited partial outcomes remain allowed, matching the pinned guard’s scope. The Codex WebSocket check runs before cached continuation publication, evicts the connection and returns a non-transport protocol error so incomplete calls cannot be replayed through fallback.
+
+Go 1.27.3/GOMAXPROCS=4 development checks:
+
+* Responses, Azure and both Codex transports cover done-only function calls with isolated units, final message/refusal content and reasoning summaries.
+* Terminal guard fixtures cover indexed pending calls, legacy overwrite, mismatched completion kind, arguments-only completion, one unfinished call among two, and allowed length outcomes. WebSocket failure fixtures verify protocol classification and cache eviction.
+* Shared projection tests cover explicit empty/missing content, summary/content priority and completion kind validation. The prior unknown-index completion fixture now uses an unsupported item kind: a supported done-only item legitimately creates a slot.
+* Full root-module normal passes (durable 108.138 seconds); router/projection, Responses and Codex race pass (1.011/1.136/1.792 seconds). Vet and diff checks pass. No acceptance profiling.
+
+Remaining: custom grammar input/reconciliation and UTF-16 scope, message-phase/finalisation details, provider request/replay/cached payloads and observer fidelity, other provider boundaries, durable progress and the complete source/test crosswalk. These guards do not establish complete Responses/Codex/main parity.
