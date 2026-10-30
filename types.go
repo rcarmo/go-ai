@@ -180,6 +180,7 @@ type ToolCall struct {
 	ThoughtSignaturePresent bool                   `json:"-"`
 	Namespace               string                 `json:"namespace,omitempty"`
 	NamespacePresent        bool                   `json:"-"`
+	streamingArguments      bool
 }
 
 // ContentBlock is any content element in a message.
@@ -213,6 +214,7 @@ type ContentBlock struct {
 	ThoughtSignaturePresent bool                   `json:"-"`
 	Namespace               string                 `json:"namespace,omitempty"`
 	NamespacePresent        bool                   `json:"-"`
+	streamingArguments      bool
 }
 
 // --- Usage ---

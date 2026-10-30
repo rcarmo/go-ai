@@ -1,6 +1,7 @@
 package jsonparse
 
 import (
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strconv"
@@ -57,6 +58,7 @@ type StreamingJSONParser struct {
 	snapshotPresent  bool
 	changes          []JSONChange
 	revision         uint64
+	preserveNumbers  bool
 }
 
 func (p *StreamingJSONParser) Append(text string) []JSONChange {
@@ -435,7 +437,7 @@ func (p *StreamingJSONParser) endScalar() {
 	token, slot := p.scalar.String(), p.scalarSlot
 	p.scalar.Reset()
 	p.scalarSlot = nil
-	value, ok := streamScalar(token, false)
+	value, ok := p.scalarValue(token, false)
 	if ok {
 		p.place(slot, value)
 		if path := p.path(slot); path != nil {
@@ -448,7 +450,7 @@ func (p *StreamingJSONParser) pendingScalar() (*streamSlot, any, bool) {
 	if p.scalarSlot == nil || p.scalar.Len() == 0 || p.scalar.Len() > 64 {
 		return nil, nil, false
 	}
-	value, ok := streamScalar(p.scalar.String(), true)
+	value, ok := p.scalarValue(p.scalar.String(), true)
 	return p.scalarSlot, value, ok
 }
 
@@ -504,4 +506,19 @@ func samePreviewScalar(a, b any) bool {
 	default:
 		return false
 	}
+}
+
+func (p *StreamingJSONParser) scalarValue(token string, pending bool) (any, bool) {
+	if p.preserveNumbers {
+		number := token
+		if pending {
+			if match := streamExponent.FindStringSubmatch(number); match != nil {
+				number = match[1]
+			}
+		}
+		if streamNumber.MatchString(number) {
+			return json.Number(number), true
+		}
+	}
+	return streamScalar(token, pending)
 }

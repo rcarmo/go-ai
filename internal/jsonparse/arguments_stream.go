@@ -154,3 +154,22 @@ func jsTrimSpace(r rune) bool {
 	}
 	return r >= 0x2000 && r <= 0x200a
 }
+
+// ParseJSONValue validates exact JSON grammar and preserves UTF-16 strings.
+// preserveNumbers retains integer/decimal spellings for durable DTO decoding.
+func ParseJSONValue(text string, preserveNumbers bool) (any, error) {
+	if err := ValidateUTF16Key(text); err != nil {
+		return nil, err
+	}
+	var syntax json.RawMessage
+	if err := json.Unmarshal([]byte(text), &syntax); err != nil {
+		return nil, err
+	}
+	p := StreamingJSONParser{preserveNumbers: preserveNumbers}
+	p.Append(text + " ")
+	value, present := p.Snapshot()
+	if !present {
+		return nil, fmt.Errorf("missing JSON value")
+	}
+	return value, nil
+}

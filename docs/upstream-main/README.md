@@ -101,4 +101,21 @@ Development verification, Go 1.27.3/GOMAXPROCS=4:
 * UTF-16 history fuzzing: 85,405 executions, pass (6.012 seconds). General snapshot-history fuzzing: 2,970 executions, pass (6.083 seconds). Two workers per run.
 * Vet and diff checks: pass. No profiling or performance comparison.
 
-Next: a bounded, explicit provider/DTO bridge for these preview values and UTF-16 text/key/delta/error fields, with persistence and replay tests. Keep ordinary finite-number, UTF-8, caller-authority, size and depth checks. Then wire providers and finish the complete upstream streaming test crosswalk. Root-message serialisation/replay and production finalisation are not yet aligned by this private core implementation.
+The typed SDK/DTO slice below follows this checkpoint. Production persistence, provider delta transport and finalisation still need integration.
+
+## Typed SDK and DTO argument boundaries
+
+`SetStreamingArguments` opts native tool calls/blocks into lossless argument-key/value and diagnostic serialisation. Private mode flags survive context/event copies and never become JSON fields. `UnmarshalStreamingMessage` provides an explicit SDK decoder with JS argument numbers. Ordinary Go decoding keeps its previous behaviour. The DTO decoder retains `json.Number` spellings, including integers above 2^53; the SDK decoder applies JS rounding. Native preview overflow serialises as null in the SDK and still fails the durable finite-number gate.
+
+The durable scanner permits isolated units only in argument/diagnostic spans selected from a typed tool-call schema. Generic JSON, control fields, IDs, ordinary text, unknown fields and caller-defined marshalers keep their existing checks. A resource preflight runs before allocating schema projections; the final schema-scoped scan authorises the strings. Duplicate keys compare lossless code units. UTF-16 values outside typed argument contexts still fail validation. Escaped output remains subject to the encoded-byte cap.
+
+Development checks on Go 1.27.3/GOMAXPROCS=4:
+
+* Full root-module normal suite: pass; durable 98.160 seconds.
+* Final focused streaming/JSON/usage/authority race: pass; durable 14.888, SDK tests 1.118, parser 1.161 seconds. Full normal testing preceded the final nil-map/compatibility fixes; focused normal/race and vet passed afterwards.
+* Final argument-replay fuzz probe: 26,243 executions, two workers, pass (6.015 seconds). An earlier probe exposed the existing omission of empty arguments on malformed non-tool blocks. A dedicated compatibility test preserves that behaviour; the fuzz property now checks typed tool-call arguments and diagnostics.
+* Additional regressions cover exact stored integers, native string node/string/byte budgets, raw UTF-8 rejection, range isolation, distinct/duplicate surrogate keys, schema cycles, unknown fields, caller marshalers and clone isolation. No profiling or acceptance validation.
+
+Production integration is incomplete. `generation.go` and `registry.go` still call generic `copyObject` for arguments, reconstruct blocks without the private mode, and project receipts through generic `dtoObject`/`fromObject`. Those paths reject isolated units. Direct typed-message replay tests do not exercise that storage pipeline.
+
+Next: carry lossless argument ownership through contribution/generation receipt construction, generic DTO projection, record storage and replay. Preserve generic Unicode validation and caller-authority/resource fences; investigate schema-owned representations or typed projections before changing the store codec. Then handle provider SSE code-unit decoding and delta-event serialisation, wire the argument-stream wrapper and finish the complete upstream streaming test crosswalk. No provider integration or full parity is complete.

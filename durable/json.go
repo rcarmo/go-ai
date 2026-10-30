@@ -15,8 +15,9 @@ import (
 
 // limitedJSON refuses growth before allocating beyond the encoded byte budget.
 type limitedJSON struct {
-	data []byte
-	max  int
+	utf16Keys bool
+	data      []byte
+	max       int
 }
 
 func (b *limitedJSON) Write(p []byte) (int, error) {
@@ -58,9 +59,12 @@ func structJSONFields(t reflect.Type) []jsonStructField {
 }
 
 type jsonBudget struct {
-	l      Limits
-	nodes  int
-	active map[uintptr]bool
+	nativeArgument bool
+	utf16Text      bool
+	utf16Keys      bool
+	l              Limits
+	nodes          int
+	active         map[uintptr]bool
 	// Allocation hint only, never an acceptance gate. Saturated during the
 	// existing validation walk so huge/omitted values cannot reserve huge buffers.
 	encodedHint int
@@ -103,6 +107,17 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			return nil
 		}
 		v = v.Elem()
+	}
+	if v.Type() == nativeArgumentsType {
+		if !b.nativeArgument {
+			return reject("UTF-16 object outside typed arguments")
+		}
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+	}
+	if v.Type() == nativeUTF16Type {
+		return b.nativeString(v)
 	}
 	if v.Type() == reflect.TypeOf(json.Number("")) {
 		n := string(v.Interface().(json.Number))
@@ -167,7 +182,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 				if err := b.node(); err != nil {
 					return err
 				}
-				if err := b.str(key); err != nil {
+				if err := b.key(key); err != nil {
 					return err
 				}
 				if err := b.walk(reflect.ValueOf(value), depth+1, objectsOnly); err != nil {
@@ -188,7 +203,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			if err := b.node(); err != nil {
 				return err
 			}
-			if err := b.str(key.String()); err != nil {
+			if err := b.key(key.String()); err != nil {
 				return err
 			}
 			if err := b.walk(value, depth+1, objectsOnly); err != nil {
@@ -224,6 +239,9 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 			return reject("unsupported JSON object value")
 		}
 		members := v.NumField()
+		if v.Type() == nativeToolCallType || v.Type() == nativeContentBlockType {
+			members--
+		}
 		if v.Type() == nativeUsageType {
 			members = len(structJSONFields(v.Type()))
 		}
@@ -233,7 +251,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		b.hint(2)
 		for _, field := range structJSONFields(v.Type()) {
 			b.hint(len(field.name) + 4)
-			if err := b.walk(v.Field(field.index), depth+1, objectsOnly); err != nil {
+			if err := b.walkNativeField(v, field, depth+1, objectsOnly); err != nil {
 				return err
 			}
 		}
@@ -260,7 +278,7 @@ var textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
 
 func hasMarshalAuthority(t reflect.Type) bool {
 	// Only this exact library type is encoded natively; no method is invoked.
-	if isNativeUsageType(t) {
+	if isNativeJSONType(t) {
 		return false
 	}
 	if t.NumMethod() > 0 && (t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType)) {
@@ -369,6 +387,14 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		}
 		v = v.Elem()
 	}
+	if v.Type() == nativeArgumentsType {
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+	}
+	if v.Type() == nativeUTF16Type {
+		return encodeUTF16Value(b, v)
+	}
 	if v.Type() == reflect.TypeOf(json.Number("")) {
 		return emit(b, string(v.Interface().(json.Number)))
 	}
@@ -399,7 +425,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 					}
 				}
 				first = false
-				if err := encodeString(b, key); err != nil {
+				if err := encodeKey(b, key); err != nil {
 					return err
 				}
 				if err := emit(b, ":"); err != nil {
@@ -423,7 +449,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 				}
 			}
 			first = false
-			if e := encodeString(b, key.String()); e != nil {
+			if e := encodeKey(b, key.String()); e != nil {
 				return e
 			}
 			if e := emit(b, ":"); e != nil {
@@ -458,8 +484,11 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 		}
 		first := true
 		for _, field := range structJSONFields(v.Type()) {
-			value := v.Field(field.index)
-			if field.omitEmpty && isEmpty(value) && !usageZeroIsPresent(v, field.name) {
+			value, err := nativeJSONField(v, field)
+			if err != nil {
+				return err
+			}
+			if field.omitEmpty && isEmpty(value) && !nativeFieldPresent(v, field.name) {
 				continue
 			}
 			if !first {
@@ -558,6 +587,16 @@ func decodeStrict(p []byte, l Limits, max int, target any) error {
 		return reject("invalid or oversized JSON bytes")
 	}
 	sc := jsonScanner{data: p, l: l}
+	if bytes.Contains(p, []byte(`\ud`)) || bytes.Contains(p, []byte(`\uD`)) {
+		if err := preflightStreamingLimits(p, l); err != nil {
+			return err
+		}
+		ranges, err := streamingArgumentRanges(p, reflect.TypeOf(target), l)
+		if err != nil {
+			return reject("streaming argument schema rejected")
+		}
+		sc.utf16Ranges = ranges
+	}
 	sc.space()
 	if sc.pos == len(p) || p[sc.pos] != '{' {
 		return reject("JSON root must be object")
@@ -579,14 +618,19 @@ func decodeStrict(p []byte, l Limits, max int, target any) error {
 	if err := d.Decode(&extra); err != io.EOF {
 		return reject("trailing JSON data")
 	}
-	return rejectUnknownUsageFields(target)
+	if err := rejectUnknownUsageFields(target); err != nil {
+		return err
+	}
+	return restoreStreamingArguments(p, target)
 }
 
 type jsonScanner struct {
-	data  []byte
-	pos   int
-	l     Limits
-	nodes int
+	utf16Ranges []utf16JSONRange
+	utf16Index  int
+	data        []byte
+	pos         int
+	l           Limits
+	nodes       int
 }
 
 func (s *jsonScanner) space() {
@@ -741,6 +785,7 @@ func (s *jsonScanner) string() (string, error) {
 		return "", reject("expected JSON string")
 	}
 	start := s.pos
+	allowUTF16 := s.allowsUTF16(start)
 	s.pos++
 	if at := bytes.IndexAny(s.data[s.pos:], jsonStringSpecial); at >= 0 && s.data[s.pos+at] == '"' {
 		if at > s.l.MaxStringBytes {
@@ -761,6 +806,17 @@ func (s *jsonScanner) string() (string, error) {
 				return string(s.data[start+1 : s.pos-1]), nil
 			}
 			var out string
+			if allowUTF16 {
+				var err error
+				out, err = decodeUTF16JSONString(s.data[start:s.pos])
+				if err != nil {
+					return "", err
+				}
+				if len(out) > s.l.MaxStringBytes {
+					return "", reject("JSON string byte limit")
+				}
+				return out, nil
+			}
 			if err := json.Unmarshal(s.data[start:s.pos], &out); err != nil {
 				return "", reject("invalid JSON string")
 			}
@@ -793,7 +849,19 @@ func (s *jsonScanner) string() (string, error) {
 			if e != nil {
 				return "", e
 			}
-			if u >= 0xd800 && u <= 0xdbff {
+			if allowUTF16 && u >= 0xd800 && u <= 0xdfff {
+				if u <= 0xdbff && s.pos+6 <= len(s.data) && s.data[s.pos] == '\\' && s.data[s.pos+1] == 'u' {
+					low, err := strconv.ParseUint(string(s.data[s.pos+2:s.pos+6]), 16, 16)
+					if err == nil && low >= 0xdc00 && low <= 0xdfff {
+						s.pos += 6
+						decoded += 4
+					} else {
+						decoded += 3
+					}
+				} else {
+					decoded += 3
+				}
+			} else if u >= 0xd800 && u <= 0xdbff {
 				if s.pos+2 > len(s.data) || s.data[s.pos] != '\\' || s.data[s.pos+1] != 'u' {
 					return "", reject("unpaired JSON surrogate")
 				}

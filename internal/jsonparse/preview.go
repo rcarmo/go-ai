@@ -2,6 +2,7 @@ package jsonparse
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -237,8 +238,26 @@ func writePreview(w io.Writer, value any, depth int, active map[previewVisit]boo
 			return previewEmit(w, "0")
 		}
 		return previewEmit(w, strconv.FormatFloat(v, 'g', -1, 64))
+	case json.Number:
+		if !streamNumber.MatchString(string(v)) {
+			return fmt.Errorf("invalid preview JSON number")
+		}
+		return previewEmit(w, string(v))
 	case int:
 		return previewEmit(w, strconv.Itoa(v))
+	case int8, int16, int32, int64:
+		return previewEmit(w, strconv.FormatInt(reflect.ValueOf(v).Int(), 10))
+	case uint, uint8, uint16, uint32, uint64:
+		return previewEmit(w, strconv.FormatUint(reflect.ValueOf(v).Uint(), 10))
+	case float32:
+		n := float64(v)
+		if math.IsNaN(n) || math.IsInf(n, 0) {
+			return previewEmit(w, "null")
+		}
+		if n == 0 {
+			return previewEmit(w, "0")
+		}
+		return previewEmit(w, strconv.FormatFloat(n, 'g', -1, 32))
 	case map[string]any:
 		key := previewVisit{reflect.TypeOf(v), reflect.ValueOf(v).Pointer(), len(v)}
 		if active[key] {
@@ -292,4 +311,50 @@ func writePreview(w io.Writer, value any, depth int, active map[previewVisit]boo
 	default:
 		return fmt.Errorf("unsupported preview JSON type %T", value)
 	}
+}
+
+// ArgumentsObject explicitly opts object keys into JS UTF-16 JSON semantics.
+// Persistence validators must still check their own number/resource contracts.
+type ArgumentsObject map[string]any
+
+func (o ArgumentsObject) MarshalJSON() ([]byte, error) {
+	if o == nil {
+		return []byte("null"), nil
+	}
+	return marshalPreview(map[string]any(o))
+}
+func (s UTF16String) UTF8Size() int {
+	n := len(s.prefix)
+	if s.high != 0 {
+		n += 3
+	}
+	return n
+}
+func (s UTF16String) WriteJSON(w io.Writer) error { return writePreviewString(w, s.prefix, s.high) }
+func ValidateUTF16Key(text string) error {
+	for len(text) > 0 {
+		_, n, ok := previewRune(text)
+		if !ok {
+			return fmt.Errorf("invalid UTF-16 key encoding")
+		}
+		text = text[n:]
+	}
+	return nil
+}
+func WriteUTF16Key(w io.Writer, text string) error { return writePreviewString(w, text, 0) }
+func UTF16Text(text string) (any, error) {
+	if err := ValidateUTF16Key(text); err != nil {
+		return nil, err
+	}
+	var b utf16Buffer
+	b.WriteText(text)
+	return b.Value(), nil
+}
+
+// WTF8 returns a lossless native string for a known UTF-16 text field.
+func (s UTF16String) WTF8() string {
+	if s.high == 0 {
+		return s.prefix
+	}
+	return s.prefix + surrogateBytes(s.high)
 }

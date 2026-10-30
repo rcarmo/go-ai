@@ -1052,9 +1052,15 @@
         "internal/jsonparse/testdata/streaming_main.json",
         "internal/jsonparse/testdata/streaming_values_main.json",
         "internal/jsonparse/testdata/arguments_stream_main.json",
-        "durable/streaming_preview_main_test.go"
+        "durable/streaming_preview_main_test.go",
+        "streaming_arguments_json.go",
+        "streaming_arguments_decode.go",
+        "tests/streaming_arguments_json_main_test.go",
+        "durable/streaming_arguments_json.go",
+        "durable/streaming_arguments_ranges.go",
+        "durable/streaming_arguments_main_test.go"
       ],
-      "note": "Partial: core lossless UTF-16/overflow previews and argument-stream append/replace/finish tested against 66+60+14 pinned cases, histories/fuzz/race. Ordinary persistence still rejects exceptional previews. Bounded DTO bridge, provider wiring, production finalisation and complete upstream tests/review remain open."
+      "note": "Partial: lossless core/wrapper 66+60+14 references; explicit SDK and bounded typed-DTO UTF-16 argument/diagnostic codecs and direct replay pass normal/race/fuzz. Generic store/receipt projection still rejects exceptional units. Production copy/receipt/store bridge, provider SSE/delta transport/wiring, finalisation and full upstream test review remain open."
     },
     {
       "change": "M",
@@ -1295,9 +1301,15 @@
         "internal/jsonparse/testdata/streaming_main.json",
         "internal/jsonparse/testdata/streaming_values_main.json",
         "internal/jsonparse/testdata/arguments_stream_main.json",
-        "durable/streaming_preview_main_test.go"
+        "durable/streaming_preview_main_test.go",
+        "streaming_arguments_json.go",
+        "streaming_arguments_decode.go",
+        "tests/streaming_arguments_json_main_test.go",
+        "durable/streaming_arguments_json.go",
+        "durable/streaming_arguments_ranges.go",
+        "durable/streaming_arguments_main_test.go"
       ],
-      "note": "Partial: core lossless UTF-16/overflow previews and argument-stream append/replace/finish tested against 66+60+14 pinned cases, histories/fuzz/race. Ordinary persistence still rejects exceptional previews. Bounded DTO bridge, provider wiring, production finalisation and complete upstream tests/review remain open."
+      "note": "Partial: lossless core/wrapper 66+60+14 references; explicit SDK and bounded typed-DTO UTF-16 argument/diagnostic codecs and direct replay pass normal/race/fuzz. Generic store/receipt projection still rejects exceptional units. Production copy/receipt/store bridge, provider SSE/delta transport/wiring, finalisation and full upstream test review remain open."
     },
     {
       "change": "A",
