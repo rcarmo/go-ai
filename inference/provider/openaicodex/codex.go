@@ -303,6 +303,10 @@ const (
 type codexWebSocketSessionKey struct{ sessionID, accountID, wsURL string }
 
 type codexWebSocketSessionEntry struct {
+	lease        *codexSocketLease
+	readClosed   bool
+	cancelRead   context.CancelFunc
+	readDone     chan struct{}
 	busy         bool // guarded by codexWebSocketSessionsMu
 	key          codexWebSocketSessionKey
 	conn         *websocket.Conn
@@ -374,6 +378,7 @@ func CloseOpenAICodexWebSocketSessions(sessionID string) {
 			if entry == nil {
 				continue
 			}
+			stopCodexSocketReader(entry)
 			if entry.idleTimer != nil {
 				entry.idleTimer.Stop()
 				entry.idleTimer = nil
@@ -527,12 +532,14 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 			conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
 			return conn, nil, false, err
 		}
-		if !codexWebSocketSessionExpired(cached, time.Now()) {
+		if !cached.readClosed && !codexWebSocketSessionExpired(cached, time.Now()) {
 			cached.busy = true
+			cached.lease = newCodexSocketLease()
 			codexWebSocketSessionsMu.Unlock()
 			return cached.conn, cached, true, nil
 		}
 		delete(codexWebSocketSessions, key)
+		stopCodexSocketReader(cached)
 		expired = cached.conn
 	}
 	codexWebSocketSessionsMu.Unlock()
@@ -543,13 +550,14 @@ func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers htt
 	if err != nil {
 		return nil, nil, false, err
 	}
-	entry := &codexWebSocketSessionEntry{key: key, conn: conn, busy: true, createdAt: time.Now()}
+	entry := &codexWebSocketSessionEntry{key: key, conn: conn, busy: true, createdAt: time.Now(), lease: newCodexSocketLease()}
 	codexWebSocketSessionsMu.Lock()
 	if codexWebSocketSessions[key] != nil {
 		codexWebSocketSessionsMu.Unlock()
 		return conn, nil, false, nil
 	}
 	codexWebSocketSessions[key] = entry
+	startCodexSocketReader(entry)
 	codexWebSocketSessionsMu.Unlock()
 	return conn, entry, false, nil
 }
@@ -562,6 +570,7 @@ func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionE
 	var conn *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
 	if codexWebSocketSessions[key] == entry {
+		stopCodexSocketReader(entry)
 		if entry != nil && entry.idleTimer != nil {
 			entry.idleTimer.Stop()
 			entry.idleTimer = nil
@@ -583,9 +592,22 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	}
 	key := entry.key
 	codexWebSocketSessionsMu.Lock()
-	defer codexWebSocketSessionsMu.Unlock()
 	if codexWebSocketSessions[key] != entry {
+		codexWebSocketSessionsMu.Unlock()
 		return
+	}
+	if entry.readClosed {
+		delete(codexWebSocketSessions, key)
+		stopCodexSocketReader(entry)
+		codexWebSocketSessionsMu.Unlock()
+		if entry.conn != nil {
+			entry.conn.CloseNow()
+		}
+		return
+	}
+	if entry.lease != nil {
+		close(entry.lease.done)
+		entry.lease = nil
 	}
 	entry.busy = false
 	if entry.idleTimer != nil {
@@ -594,6 +616,7 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	var timer *time.Timer
 	timer = time.AfterFunc(codexWebSocketSessionCacheTTL, func() { expireCodexWebSocketSession(key, entry, timer) })
 	entry.idleTimer = timer
+	codexWebSocketSessionsMu.Unlock()
 }
 
 func expireCodexWebSocketSession(key codexWebSocketSessionKey, entry *codexWebSocketSessionEntry, timer *time.Timer) {
@@ -602,6 +625,7 @@ func expireCodexWebSocketSession(key codexWebSocketSessionKey, entry *codexWebSo
 	if codexWebSocketSessions[key] == entry && !entry.busy && entry.idleTimer == timer {
 		delete(codexWebSocketSessions, key)
 		entry.idleTimer = nil
+		stopCodexSocketReader(entry)
 		conn = entry.conn
 	}
 	codexWebSocketSessionsMu.Unlock()
@@ -728,6 +752,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		conn   *websocket.Conn
 		entry  *codexWebSocketSessionEntry
 		reused bool
+		lease  *codexSocketLease
 	)
 	keepEntry := false
 	if useCachedContext {
@@ -745,6 +770,12 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		}
 	}
 	if entry != nil {
+		codexWebSocketSessionsMu.Lock()
+		lease = entry.lease
+		codexWebSocketSessionsMu.Unlock()
+		if lease == nil {
+			return fmt.Errorf("cached Codex WebSocket closed during acquisition")
+		}
 		entry.mu.Lock()
 		defer func() {
 			entry.mu.Unlock()
@@ -884,7 +915,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 
 readLoop:
 	for {
-		_, data, err := conn.Read(ctx)
+		data, err := readCodexSocket(ctx, conn, lease)
 		if err != nil {
 			if useCachedContext && entry != nil && opts != nil {
 				removeCodexWebSocketSession(opts.SessionID, entry)

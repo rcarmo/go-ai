@@ -60,15 +60,32 @@ func streamCodexArgumentFramesWithTools(t *testing.T, transport string, frames [
 				return
 			}
 		}
+		if len(sessions) > 0 && len(frames) > 0 {
+			var terminal struct {
+				Type string `json:"type"`
+			}
+			_ = json.Unmarshal([]byte(frames[len(frames)-1]), &terminal)
+			if terminal.Type == "response.completed" || terminal.Type == "response.done" || terminal.Type == "response.incomplete" {
+				_, _, _ = conn.Read(ctx)
+			}
+		}
 	}))
-	defer func() {
+	cleanup := func() {
+		if len(sessions) > 0 {
+			CloseOpenAICodexWebSocketSessions(sessions[0])
+		}
 		server.Close()
 		select {
 		case <-handlerStarted:
 			<-handlerDone
 		default:
 		}
-	}()
+	}
+	if len(sessions) > 0 {
+		t.Cleanup(cleanup)
+	} else {
+		defer cleanup()
+	}
 	model.BaseURL = server.URL
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

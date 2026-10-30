@@ -618,9 +618,11 @@
         "inference/provider/openaicodex/identity.go",
         "inference/provider/openaicodex/identity_main_test.go",
         "inference/provider/openaicodex/account_main_test.go",
-        "inference/provider/openaicodex/busy_main_test.go"
+        "inference/provider/openaicodex/busy_main_test.go",
+        "inference/provider/openaicodex/cache_read.go",
+        "inference/provider/openaicodex/liveness_main_test.go"
       ],
-      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE and retention/identity/account-isolation slices are implemented. Busy entries now use uncached full-context spares, with deferred owner release/eviction, independent cancellation and entry/busy/timer expiry guards. Full normal/Codex race/thirty repeated spare and expiry ownership fixtures/vet pass. Cached socket liveness and credential rotation remain next; cold-dial adoption and endpoint partitioning require explicit source/adaptation review. Other provider/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE/retention/identity/account/busy ownership slices are implemented. Connection-lifetime cached readers now detect idle peer closure/control frames, discard idle data and use bounded request leases that cancel under backpressure. Closed sockets redial without stale continuation/fallback; same-account credential rotation retains cached authentication as upstream does. Full normal/Codex race/thirty repeated liveness/ownership fixtures/vet pass after deterministic durable cutoff fixture repair c11a56c (1000 targeted/30 race). Cold-dial adoption and endpoint partitioning require explicit source/adaptation review; remaining Codex recovery/schema/request/accounting, other providers, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",
