@@ -351,3 +351,13 @@ Codex rejects active grammar configurations whose supported variants are missing
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal tests, focused OpenAI/Responses/Codex/JSON/grammar race tests, vet and diff checks. New fixtures cover empty property streaming/closure/replay in OpenAI and Responses/Azure, Codex variant precedence/whitespace, blank-variant WebSocket preflight and unsupported-model fallback. No acceptance profiling ran.
 
 Next: malformed historical declaration handling (Responses/Codex views still skip invalid historical grammar definitions), phase/finalisation, broader request/replay/observer validation and the remaining source/test/dependency crosswalk.
+
+## Historical grammar validation
+
+Responses and Codex now reject invalid latest historical grammar declarations before sending a request. Tool removal keeps declarations available for replay; a later same-name declaration replaces an earlier invalid definition. Models without grammar support retain function fallback. Active request definitions keep their existing separate validation.
+
+Responses also validates custom replay input as a string, accepting native UTF-16 scalars only on argument-owned blocks. Missing, null and numeric inputs fail before the payload hook. This supersedes the older v1.0 missing/null-to-empty test: pinned main `getGrammarToolInput` throws for every non-string input. Rendering uses the same typed extraction as validation, removing implicit `fmt.Sprint` coercion.
+
+Go 1.27.3/GOMAXPROCS=4 checks pass: focused packages, full root normal tests (durable 136.010 seconds), Responses/Codex race tests, vet and diff checks. Fixtures exercise invalid historical schema/variants after removal, valid replacement, unsupported fallback, request suppression, missing/null/numeric replay and owned/unowned native scalars. No acceptance profiling ran.
+
+Next: message-phase/finalisation, remaining provider/request/replay/observer payloads, durable progress and the complete source/test/dependency review.

@@ -262,3 +262,41 @@ func TestCodexGrammarVariantsMain(t *testing.T) {
 		t.Fatal("unsupported grammar fallback", req.Tools)
 	}
 }
+
+func TestCodexHistoricalGrammarPreflightMain(t *testing.T) {
+	good := codexPayloadTool("payload")
+	schema := codexPayloadTool("payload")
+	schema.Parameters = json.RawMessage(`{"type":"object","required":["payload"],"properties":{"payload":{"type":"number"}}}`)
+	variant := codexPayloadTool("payload")
+	variant.ConstrainedSampling.Variants = nil
+	for _, tool := range []goai.Tool{schema, variant} {
+		input := &goai.Context{Messages: []goai.Message{{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{tool}}, {Role: goai.RoleSystem, ToolsRemoved: []goai.ToolReference{{Name: "script"}}}}}
+		model := codexGrammarModel()
+		err := streamViaWebSocket(context.Background(), model, input, nil, "fixture", func(goai.Event) {})
+		if err == nil || !isCodexNonTransportError(err) || !strings.Contains(err.Error(), "grammar") {
+			t.Fatal("invalid removed definition escaped preflight", err)
+		}
+		failures := 0
+		streamViaSSE(context.Background(), model, input, nil, "fixture", func(event goai.Event) {
+			if e, ok := event.(*goai.ErrorEvent); ok {
+				failures++
+				if !strings.Contains(e.Err.Error(), "grammar") {
+					t.Error(e.Err)
+				}
+			}
+		}, nil)
+		if failures != 1 {
+			t.Fatal("SSE history escaped preflight", failures)
+		}
+		input.Messages = append(input.Messages, goai.Message{Role: goai.RoleSystem, ToolsAdded: []goai.Tool{good}})
+		if _, err = newCodexToolView(model, input); err != nil {
+			t.Fatal("overwritten definition was validated", err)
+		}
+		input.Messages = input.Messages[:2]
+		no := false
+		model.ResponsesCompat.SupportsOpenAIGrammarTools = &no
+		if _, err = newCodexToolView(model, input); err != nil {
+			t.Fatal("unsupported grammar should fall back", err)
+		}
+	}
+}

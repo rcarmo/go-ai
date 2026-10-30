@@ -3,6 +3,7 @@ package openairesponses
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -204,13 +205,25 @@ func TestResponsesGrammarForeignHistoryOmitsAllItemIDs(t *testing.T) {
 	}
 }
 
-func TestResponsesGrammarMissingAndNullInputReplayAsEmpty(t *testing.T) {
+// Pinned main getGrammarToolInput supersedes the v1.0 empty-input fallback.
+func TestResponsesGrammarMissingAndNullInputRejectedMain(t *testing.T) {
 	for _, arguments := range []map[string]interface{}{nil, {}, {"input": nil}} {
 		model := grammarReplayModel()
 		transcript := &goai.Context{Tools: []goai.Tool{grammarReplayTool()}, Messages: []goai.Message{{Role: goai.RoleAssistant, Provider: model.Provider, Api: model.Api, Model: model.ID, Content: []goai.ContentBlock{{Type: "toolCall", ID: "call_empty|ctc_empty", Name: "grammar_tool", Arguments: arguments}}}}}
-		_, input := captureV100ResponsesReplayRequest(t, model, transcript)
-		if input[0]["type"] != "custom_tool_call" || input[0]["input"] != "" {
-			t.Fatalf("input=%v", input[0])
+		failures := 0
+		for event := range streamResponses(context.Background(), model, transcript, &goai.StreamOptions{APIKey: "fixture", OnPayload: func(any, *goai.Model) (any, error) {
+			t.Error("invalid input reached payload hook")
+			return nil, context.Canceled
+		}}) {
+			if e, ok := event.(*goai.ErrorEvent); ok {
+				failures++
+				if e.Err == nil || !strings.Contains(e.Err.Error(), "requires string argument") {
+					t.Error(e.Err)
+				}
+			}
+		}
+		if failures != 1 {
+			t.Fatal("missing grammar error", failures)
 		}
 	}
 }

@@ -85,6 +85,10 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 				return
 			}
 		}
+		if err := validateResponsesGrammarContext(convCtx, compat.supportsGrammarTools); err != nil {
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			return
+		}
 		body := buildRequest(model, convCtx, opts)
 		body.Model = requestModelID
 		payload, err := goai.InvokeOnPayload(opts, body, model)
@@ -274,6 +278,9 @@ func resolveResponsesGrammarTool(t goai.Tool, supportsGrammar bool) (*responsesG
 }
 
 func buildResponsesToolView(convCtx *goai.Context, supportsGrammar bool) responsesToolView {
+	return buildResponsesToolViewFromTools(responsesTranscriptTools(convCtx), supportsGrammar)
+}
+func responsesTranscriptTools(convCtx *goai.Context) []goai.Tool {
 	toolsByName := map[string]goai.Tool{}
 	order := make([]string, 0)
 	add := func(tool goai.Tool) {
@@ -304,7 +311,7 @@ func buildResponsesToolView(convCtx *goai.Context, supportsGrammar bool) respons
 	for _, name := range order {
 		declaredTools = append(declaredTools, toolsByName[name])
 	}
-	return buildResponsesToolViewFromTools(declaredTools, supportsGrammar)
+	return declaredTools
 }
 
 func buildResponsesToolViewFromTools(tools []goai.Tool, supportsGrammar bool) responsesToolView {
@@ -893,14 +900,7 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 			if !customSelected {
 				item["arguments"] = mustJSON(block.Arguments)
 			} else {
-				customInput := ""
-				if value := block.Arguments[customInputProperty]; value != nil {
-					if scalar, ok := value.(goai.UTF16String); ok && block.HasStreamingArguments() {
-						customInput = scalar.WTF8()
-					} else {
-						customInput = fmt.Sprint(value)
-					}
-				}
+				customInput, _ := responsesGrammarInput(block, customInputProperty)
 				item["input"] = goai.SanitizeSurrogates(customInput)
 			}
 			if canReplayNamespace && block.Namespace != "" {

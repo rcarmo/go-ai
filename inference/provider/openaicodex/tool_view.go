@@ -41,8 +41,8 @@ func newCodexToolView(model *goai.Model, context *goai.Context) (codexToolView, 
 	if !codexSupportsGrammar(model) || context == nil {
 		return view, nil
 	}
-	// Active definitions are request contracts. Historical invalid definitions
-	// remain unselected, matching the shared Responses replay view.
+	// Validate active request definitions separately from the latest historical
+	// declarations used for replay.
 	for _, tool := range context.Tools {
 		if _, _, err := codexGrammarProperty(tool); err != nil {
 			return view, err
@@ -74,7 +74,10 @@ func newCodexToolView(model *goai.Model, context *goai.Context) (codexToolView, 
 	}
 	for _, tool := range tools {
 		property, selected, err := codexGrammarProperty(tool)
-		if err == nil && selected {
+		if err != nil {
+			return view, err
+		}
+		if selected {
 			view.properties[tool.Name] = property
 		}
 	}
