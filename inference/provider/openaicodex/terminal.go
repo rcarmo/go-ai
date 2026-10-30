@@ -6,7 +6,7 @@ import (
 	"github.com/rcarmo/go-ai/internal/responsestream"
 )
 
-func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model) error {
+func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model, reasoning responsestream.ReasoningIndex) error {
 	var response struct {
 		ID         string `json:"id"`
 		Status     string `json:"status"`
@@ -37,7 +37,7 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model)
 	if response.EndTurn != nil {
 		partial.EndTurn = response.EndTurn
 	}
-	responsestream.BackfillReasoning(partial.Content, response.Output)
+	reasoning.Backfill(partial.Content, response.Output)
 	if usage := response.Usage; usage != nil {
 		cached, write := 0, 0
 		if usage.InputDetails != nil {

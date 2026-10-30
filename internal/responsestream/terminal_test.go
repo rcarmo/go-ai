@@ -26,7 +26,9 @@ func TestReasoningBackfillMain(t *testing.T) {
 			signature := `{"type":"reasoning","id":"r","summary":[{"type":"summary_text","text":"mentions encrypted_content"}],"opaque":9007199254740993` + field + `}`
 			blocks := []goai.ContentBlock{{Type: "thinking", Thinking: "unchanged", ThinkingSignature: signature}, {Type: "thinking", ThinkingSignature: `{invalid`}}
 			output := []json.RawMessage{json.RawMessage(`{"type":"reasoning","id":"other","encrypted_content":"ignored"}`), json.RawMessage(`{"type":"reasoning","id":"r","encrypted_content":"backfill","summary":[{"text":"do not replace"}]}`), json.RawMessage(`{"type":"reasoning","id":"r","encrypted_content":"later"}`)}
-			BackfillReasoning(blocks, output)
+			var index ReasoningIndex
+			index.Track("r", 0)
+			index.Backfill(blocks, output)
 			var stored map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(blocks[0].ThinkingSignature), &stored); err != nil {
 				t.Fatal(err)
@@ -46,4 +48,23 @@ func TestReasoningBackfillMain(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReasoningLatestIdentityMain(t *testing.T) {
+	blocks := []goai.ContentBlock{{Type: "thinking", ThinkingSignature: `{"type":"reasoning","id":"r","summary":[{"text":"old"}]}`}, {Type: "thinking"}}
+	var index ReasoningIndex
+	index.Track("r", 0)
+	index.Track("r", 1)
+	output := []json.RawMessage{json.RawMessage(`{"type":"reasoning","id":"r","encrypted_content":"latest"}`)}
+	index.Backfill(blocks, output)
+	if strings.Contains(blocks[0].ThinkingSignature, "encrypted_content") || blocks[1].ThinkingSignature != "" {
+		t.Fatal("unfinished latest block resurrected old reasoning", blocks)
+	}
+	blocks[1].ThinkingSignature = `{"type":"reasoning","id":"r","summary":[{"text":"new"}]}`
+	index.Backfill(blocks, output)
+	if strings.Contains(blocks[0].ThinkingSignature, "encrypted_content") || !strings.Contains(blocks[1].ThinkingSignature, `"encrypted_content":"latest"`) {
+		t.Fatal("backfill missed latest reasoning", blocks)
+	}
+	index.Track("r", 8)
+	index.Backfill(blocks, output)
 }

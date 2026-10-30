@@ -26,8 +26,18 @@ func TestAzureOpenAIResponsesReasoningReplayBackfillsCompletedEncryptedContent(t
 
 func runReasoningReplayStream(t *testing.T, doneItem, completedItem string) *goai.DoneEvent {
 	t.Helper()
+	var item struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(doneItem), &item); err != nil {
+		t.Fatal(err)
+	}
+	added, err := json.Marshal(map[string]any{"type": "response.output_item.added", "output_index": 0, "sequence_number": 0, "item": map[string]any{"type": "reasoning", "id": item.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	body := strings.NewReader(strings.Join([]string{
-		`data: {"type":"response.output_item.added","output_index":0,"sequence_number":0,"item":{"type":"reasoning","id":"rs"}}`,
+		"data: " + string(added),
 		`data: {"type":"response.output_item.done","output_index":0,"sequence_number":1,"item":` + doneItem + `}`,
 		`data: {"type":"response.completed","sequence_number":2,"response":{"id":"resp_test","status":"completed","output":[` + completedItem + `]}}`,
 		`data: [DONE]`,

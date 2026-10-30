@@ -397,3 +397,13 @@ Native safety choice: semantic terminal failures clear cached continuation and e
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal, shared/Responses/Codex race, ten repeated auto-transport failure/truncation runs, vet and diff checks. Fixtures verify error-only delivery with partial metadata, cached-session eviction, no fallback after startup, max-token length success and stale-error clearing. No acceptance profiling ran.
 
 Next: duplicate/reused reasoning IDs, remaining error/transport observer telemetry, provider accounting/request/replay payloads, durable progress and the complete source/test/dependency crosswalk.
+
+## Reasoning identity ownership
+
+Responses/Azure and both Codex processors now track the latest reasoning block for each provider item ID at slot creation, matching pinned main. Terminal encryption recovery uses that stream-owned index. An unfinished newer block prevents backfill into an older completed block with the same ID; completed newer blocks receive the encryption without changing older signatures. The index never enters content blocks, events or persistence.
+
+Recovery no longer reconstructs identity by scanning completed signatures. A legacy Azure fixture used different IDs for added and done items; it now keeps the identity consistent with the provider protocol. Existing summary/encryption/opaque-field preservation tests still pass.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal (durable 109.503 seconds), shared/Responses/Codex race (1.020/1.162/1.945 seconds), vet and diff checks. New shared and four-transport fixtures verify duplicate-ID ownership with completed and unfinished latest blocks. No acceptance profiling ran.
+
+Next: protocol-error partial propagation and error/transport telemetry, remaining provider accounting/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.

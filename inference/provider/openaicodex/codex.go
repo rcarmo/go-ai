@@ -772,6 +772,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
 	unfinished := map[int]bool{}
+	var reasoning responsestream.ReasoningIndex
 	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
 		created = nil
@@ -787,6 +788,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		case "reasoning":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 			idx := len(partial.Content) - 1
+			reasoning.Track(item.ID, idx)
 			created = &activeItem{itemType: "reasoning", contentIdx: idx}
 			slots.Add(outputIndex, created)
 			send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
@@ -1008,7 +1010,7 @@ readLoop:
 
 		case "response.completed", "response.incomplete", "response.done":
 			sawCompletion = true
-			if err := finalizeCodexResponse(raw.Response, partial, model); err != nil {
+			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning); err != nil {
 				return argumentProtocolError(err, data)
 			}
 			break readLoop
@@ -1240,6 +1242,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
 	unfinished := map[int]bool{}
+	var reasoning responsestream.ReasoningIndex
 	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
 		created = nil
@@ -1254,6 +1257,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		case "reasoning":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 			created = &activeItem{itemType: "reasoning", contentIdx: len(partial.Content) - 1}
+			reasoning.Track(item.ID, created.contentIdx)
 			slots.Add(outputIndex, created)
 			send(&goai.ThinkingStartEvent{ContentIndex: created.contentIdx, Partial: partial})
 		case "message":
@@ -1461,7 +1465,7 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			terminalResponseSeen = true
-			if err := finalizeCodexResponse(raw.Response, partial, model); err != nil {
+			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}

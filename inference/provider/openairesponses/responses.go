@@ -997,6 +997,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
 	unfinished := map[int]bool{}
+	var reasoning responsestream.ReasoningIndex
 	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
 		created = nil
@@ -1014,6 +1015,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		case "reasoning":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
 			idx := len(partial.Content) - 1
+			reasoning.Track(item.ID, idx)
 			created = &activeItem{itemType: "reasoning", contentIdx: idx}
 			slots.Add(outputIndex, created)
 			send(&goai.ThinkingStartEvent{ContentIndex: idx, Partial: partial})
@@ -1302,7 +1304,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			if resp.EndTurn != nil {
 				partial.EndTurn = resp.EndTurn
 			}
-			responsestream.BackfillReasoning(partial.Content, resp.Output)
+			reasoning.Backfill(partial.Content, resp.Output)
 			if resp.Usage != nil {
 				cached := 0
 				cacheWrite := 0

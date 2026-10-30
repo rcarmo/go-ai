@@ -26,28 +26,20 @@ func TerminalStatus(status, reason string) (goai.StopReason, string, error) {
 	}
 }
 
-// BackfillReasoning keeps the completed item intact and fills only missing or
-// empty encryption fields from terminal output. Summary text is not replaced.
-func BackfillReasoning(blocks []goai.ContentBlock, output []json.RawMessage) {
-	type stored struct {
-		index int
-		item  map[string]json.RawMessage
+// ReasoningIndex follows provider item identity even when its latest block
+// has not completed. It is stream-owned and never attached to snapshots.
+type ReasoningIndex map[string]int
+
+func (r *ReasoningIndex) Track(id string, index int) {
+	if *r == nil {
+		*r = ReasoningIndex{}
 	}
-	byID := map[string]stored{}
-	for i := range blocks {
-		block := &blocks[i]
-		if block.Type != "thinking" || block.ThinkingSignature == "" {
-			continue
-		}
-		var item map[string]json.RawMessage
-		if json.Unmarshal([]byte(block.ThinkingSignature), &item) != nil {
-			continue
-		}
-		var id string
-		if json.Unmarshal(item["id"], &id) == nil && id != "" {
-			byID[id] = stored{i, item}
-		}
-	}
+	(*r)[id] = index
+}
+
+// Backfill keeps the completed item intact and fills only missing or empty
+// encryption fields on the latest block for an ID. Summary text is preserved.
+func (r ReasoningIndex) Backfill(blocks []goai.ContentBlock, output []json.RawMessage) {
 	for _, raw := range output {
 		var item struct {
 			Type      string `json:"type"`
@@ -57,21 +49,29 @@ func BackfillReasoning(blocks []goai.ContentBlock, output []json.RawMessage) {
 		if json.Unmarshal(raw, &item) != nil || item.Type != "reasoning" || item.Encrypted == "" {
 			continue
 		}
-		record, ok := byID[item.ID]
-		if !ok {
+		index, ok := r[item.ID]
+		if !ok || index < 0 || index >= len(blocks) {
 			continue
 		}
-		if raw, exists := record.item["encrypted_content"]; exists {
+		block := &blocks[index]
+		if block.Type != "thinking" || block.ThinkingSignature == "" {
+			continue
+		}
+		var stored map[string]json.RawMessage
+		if json.Unmarshal([]byte(block.ThinkingSignature), &stored) != nil || stored == nil {
+			continue
+		}
+		if value, exists := stored["encrypted_content"]; exists {
 			var existing *string
-			if json.Unmarshal(raw, &existing) != nil || (existing != nil && *existing != "") {
+			if json.Unmarshal(value, &existing) != nil || (existing != nil && *existing != "") {
 				continue
 			}
 		}
-		encoded, _ := json.Marshal(item.Encrypted)
-		record.item["encrypted_content"] = encoded
-		signature, err := json.Marshal(record.item)
+		encrypted, _ := json.Marshal(item.Encrypted)
+		stored["encrypted_content"] = encrypted
+		signature, err := json.Marshal(stored)
 		if err == nil {
-			blocks[record.index].ThinkingSignature = string(signature)
+			block.ThinkingSignature = string(signature)
 		}
 	}
 }
