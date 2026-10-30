@@ -44,7 +44,7 @@ func TestV0842ResponsesNamespaceRoundTripAndEndTurn(t *testing.T) {
 
 func TestV0842ResponsesAdditionalToolsMode(t *testing.T) {
 	yes := true
-	model := &goai.Model{ID: "gpt-5.4", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsAdditionalTools: &yes, SupportsStrictMode: &yes}}
+	model := &goai.Model{ID: "gpt-5.4", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses, ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsMidConvoSystemMessages: &yes, SupportsAdditionalTools: &yes, SupportsStrictMode: &yes}}
 	ctx := deferredContext([]goai.Tool{deferredTool("base_tool"), deferredTool("late_tool")}, []string{"late_tool"})
 	req := buildRequest(model, ctx, &goai.StreamOptions{})
 	if len(req.Tools) != 1 || req.Tools[0].Name != "base_tool" {

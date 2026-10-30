@@ -466,7 +466,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	deferredMode := ""
-	if compat.supportsAdditionalTools {
+	if compat.supportsMidConvoSystemMessages && compat.supportsAdditionalTools {
 		deferredMode = "additional-tools"
 	} else if compat.supportsToolSearch {
 		deferredMode = "tool-search"
@@ -697,7 +697,9 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			if text := goai.RenderSystemMessageText(msg); strings.TrimSpace(text) != "" {
 				input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
 			}
-			if len(msg.ToolsAdded) > 0 {
+			// The legacy immediate/deferred plan already owns the initial declarations.
+			// Re-emitting that header would advertise deferred tools before their marker.
+			if msgIndex > 0 && len(msg.ToolsAdded) > 0 {
 				input = append(input, buildDeferredToolsInputItems(msgIndex, msg, msg.ToolsAdded, deferredMode, compat)...)
 			}
 
@@ -769,7 +771,7 @@ func buildDeferredToolsInputItems(msgIndex int, msg goai.Message, tools []goai.T
 	}
 	callID := fmt.Sprintf("pi_tool_load_%x", crc32.ChecksumIEEE([]byte(fmt.Sprintf("%s:%d:%s", msg.ToolCallID, msgIndex, strings.Join(names, ",")))))
 	return []interface{}{
-		map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed"},
+		map[string]interface{}{"type": "tool_search_call", "call_id": callID, "execution": "client", "status": "completed", "arguments": map[string]interface{}{"query": strings.Join(names, " "), "limit": len(names)}},
 		map[string]interface{}{"type": "tool_search_output", "call_id": callID, "execution": "client", "status": "completed", "tools": converted},
 	}
 }
