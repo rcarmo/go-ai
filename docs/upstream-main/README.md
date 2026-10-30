@@ -224,3 +224,19 @@ Development checks on Go 1.27.3/GOMAXPROCS=4:
 * Full root-module normal suite passes (durable 109.111 seconds). Focused compaction/diagnostic race passes (5.193 seconds); vet and diff checks pass. No acceptance profiling.
 
 Next: provider SSE code-unit decoding, argument-stream/delta transport and explicit argument-derived text emission in request builders; then the remaining streaming/finalisation crosswalk. Codemode global/final values, enlarged codec budgets, broader validator error fidelity and the other main deltas still need review.
+
+## First provider argument-stream wiring
+
+OpenAI function-call argument strings and Anthropic `input_json_delta.partial_json` now use the nominal internal `ArgumentText` decoder. It preserves code units only for these fields, rejects nonstring fragments and invalid non-WTF-8 bytes, and retains JSON-null handling. Ordinary text/reasoning/name decoding is unchanged.
+
+Both paths now own a `ToolCallArgumentsStream` per call: partial arguments and final arguments use the same UTF-16-aware domain. Native ownership is explicit on content blocks and final tool-call events. OpenAI no longer accumulates an additional unused raw argument string. The former completed-call parser used ordinary `encoding/json` and lost isolated units even after lossless outer SSE decoding; the new tests exposed that boundary before the stream wiring was changed.
+
+`ToolCallDeltaEvent` JSON serialization/deserialization preserves delta units and typed partial-message arguments. Existing field names, omitted-field reuse and null behavior remain intact. Ordinary text delta serialization is unchanged. This is SDK event JSON support, not completion of durable progress-event persistence.
+
+Development checks (Go 1.27.3/GOMAXPROCS=4):
+
+* OpenAI and Anthropic SSE fixtures split a valid surrogate pair between events and retain a separate isolated low unit in final arguments. Delta units and final values are checked.
+* SDK delta-event JSON tests cover isolated delta/partial units, nonstring rejection, invalid bytes and omitted/null reuse.
+* Full root-module normal passes (durable 109.530 seconds). Root/OpenAI/Anthropic race passes, including the final decoder reuse adjustment (1.095/1.098/1.279 seconds); vet and diff checks pass. No acceptance profiling.
+
+Still open: OpenAI custom grammar input, Responses/Codex, Google/Gemini, Bedrock and other provider-specific argument boundaries; argument-derived text and replay argument request builders; durable delta/progress ownership; the complete upstream streaming/finalisation crosswalk and broader main convergence. No publication or full-parity claim.

@@ -1126,8 +1126,8 @@ type sseToolCall struct {
 }
 
 type sseToolFunction struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
+	Name      string                 `json:"name,omitempty"`
+	Arguments jsonparse.ArgumentText `json:"arguments,omitempty"`
 }
 
 type sseToolCustom struct {
@@ -1169,13 +1169,13 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 
 	// Track active tool calls for argument accumulation
 	type activeToolCall struct {
-		index       int
-		id          string
-		name        string
-		argsBuf     string
-		customInput string
-		custom      bool
-		contentIdx  int
+		index          int
+		id             string
+		name           string
+		argumentStream jsonparse.ToolCallArgumentsStream
+		customInput    string
+		custom         bool
+		contentIdx     int
 	}
 	var activeTools []activeToolCall
 	var streamedReasoningDetails []reasoningDetail
@@ -1301,9 +1301,9 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 
 			// Accumulate arguments/input
-			if tc.Function.Arguments != "" {
-				at.argsBuf += tc.Function.Arguments
-				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
+			if string(tc.Function.Arguments) != "" {
+				partial.Content[at.contentIdx].SetStreamingArguments(at.argumentStream.Append(string(tc.Function.Arguments)), "")
+				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: string(tc.Function.Arguments), Partial: partial})
 			}
 			if tc.Custom.Input != "" {
 				next := at.customInput + tc.Custom.Input
@@ -1402,23 +1402,24 @@ func processSSEStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.S
 			}
 			args = map[string]interface{}{property: at.customInput}
 		} else {
-			args, argumentsError = jsonparse.ParseToolCallArguments(at.argsBuf)
+			args, argumentsError = at.argumentStream.Finish()
 			if args == nil {
 				args = map[string]interface{}{}
 			}
 		}
 		partial.Content[at.contentIdx].Arguments = args
 		partial.Content[at.contentIdx].ArgumentsError = argumentsError
+		if !at.custom {
+			partial.Content[at.contentIdx].SetStreamingArguments(args, argumentsError)
+		}
+		call := goai.ToolCall{Type: "toolCall", ID: at.id, Name: at.name, Arguments: args, ArgumentsError: argumentsError}
+		if !at.custom {
+			call.SetStreamingArguments(args, argumentsError)
+		}
 		send(goai.SnapshotEvent(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
-			ToolCall: goai.ToolCall{
-				Type:           "toolCall",
-				ID:             at.id,
-				Name:           at.name,
-				Arguments:      args,
-				ArgumentsError: argumentsError,
-			},
-			Partial: partial,
+			ToolCall:     call,
+			Partial:      partial,
 		}))
 	}
 

@@ -995,7 +995,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	send(&goai.StartEvent{Partial: partial})
 
 	usageModel := model
-	toolJSON := map[int]string{}
+	toolStreams := map[int]*jsonparse.ToolCallArgumentsStream{}
 	sawMessageStart := false
 	sawMessageStop := false
 	events := sse.Parse(body)
@@ -1041,11 +1041,11 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			var data struct {
 				Index int `json:"index"`
 				Delta struct {
-					Type        string `json:"type"`
-					Text        string `json:"text,omitempty"`
-					Thinking    string `json:"thinking,omitempty"`
-					Signature   string `json:"signature,omitempty"`
-					PartialJSON string `json:"partial_json,omitempty"`
+					Type        string                 `json:"type"`
+					Text        string                 `json:"text,omitempty"`
+					Thinking    string                 `json:"thinking,omitempty"`
+					Signature   string                 `json:"signature,omitempty"`
+					PartialJSON jsonparse.ArgumentText `json:"partial_json,omitempty"`
 				} `json:"delta"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
@@ -1066,11 +1066,13 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			case "signature_delta":
 				partial.Content[idx].ThinkingSignature += data.Delta.Signature
 			case "input_json_delta":
-				toolJSON[idx] += data.Delta.PartialJSON
-				if args, ok := jsonparse.ParsePartialJSON(toolJSON[idx]); ok && args != nil {
-					partial.Content[idx].Arguments = args
+				stream := toolStreams[idx]
+				if stream == nil {
+					stream = &jsonparse.ToolCallArgumentsStream{}
+					toolStreams[idx] = stream
 				}
-				send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: data.Delta.PartialJSON, Partial: partial})
+				partial.Content[idx].SetStreamingArguments(stream.Append(string(data.Delta.PartialJSON)), "")
+				send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: string(data.Delta.PartialJSON), Partial: partial})
 			}
 
 		case "content_block_stop":
@@ -1092,16 +1094,18 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			case "thinking":
 				send(&goai.ThinkingEndEvent{ContentIndex: idx, Content: c.Thinking, Partial: partial})
 			case "toolCall":
-				if raw, ok := toolJSON[idx]; ok {
-					partial.Content[idx].Arguments, partial.Content[idx].ArgumentsError = jsonparse.ParseToolCallArguments(raw)
+				if stream := toolStreams[idx]; stream != nil {
+					args, diagnostic := stream.Finish()
+					partial.Content[idx].SetStreamingArguments(args, diagnostic)
+				}
+				call := goai.ToolCall{Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: partial.Content[idx].Arguments, ArgumentsError: partial.Content[idx].ArgumentsError}
+				if partial.Content[idx].HasStreamingArguments() {
+					call.SetStreamingArguments(call.Arguments, call.ArgumentsError)
 				}
 				send(&goai.ToolCallEndEvent{
 					ContentIndex: idx,
-					ToolCall: goai.ToolCall{
-						Type: "toolCall", ID: c.ID, Name: c.Name, Arguments: partial.Content[idx].Arguments,
-						ArgumentsError: partial.Content[idx].ArgumentsError,
-					},
-					Partial: partial,
+					ToolCall:     call,
+					Partial:      partial,
 				})
 			}
 

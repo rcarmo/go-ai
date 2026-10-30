@@ -1090,9 +1090,14 @@
         "durable/compaction_utf16.go",
         "durable/compaction_utf16_main_test.go",
         "durable/compaction_text.go",
-        "durable/compaction.go"
+        "durable/compaction.go",
+        "internal/jsonparse/argument_text.go",
+        "streaming_delta_json.go",
+        "streaming_delta_json_main_test.go",
+        "inference/provider/openai/stream_utf16_main_test.go",
+        "inference/provider/anthropic/stream_utf16_main_test.go"
       ],
-      "note": "Partial: SDK/DTO, receipts, main/nested/codemode ownership and restart, readers, full parsed-argument diagnostics and scoped compaction transcript state/request recovery tested. Generic text/JSON fences retained. Provider SSE/delta and argument-derived request text emission plus full streaming/finalisation crosswalk remain open. Global/final values, enlarged budgets, broader validator errors and other main deltas need review."
+      "note": "Partial: typed ownership, receipt/recovery/readers, diagnostics and compaction implemented; OpenAI function-call and Anthropic argument SSE fragments now use per-call UTF-16-aware streams through finalisation. SDK delta JSON preserves code units. Other provider/custom grammar, request builders, durable progress/event ownership and complete crosswalk remain open; no acceptance claim."
     },
     {
       "change": "M",
@@ -1371,9 +1376,14 @@
         "durable/compaction_utf16.go",
         "durable/compaction_utf16_main_test.go",
         "durable/compaction_text.go",
-        "durable/compaction.go"
+        "durable/compaction.go",
+        "internal/jsonparse/argument_text.go",
+        "streaming_delta_json.go",
+        "streaming_delta_json_main_test.go",
+        "inference/provider/openai/stream_utf16_main_test.go",
+        "inference/provider/anthropic/stream_utf16_main_test.go"
       ],
-      "note": "Partial: SDK/DTO, receipts, main/nested/codemode ownership and restart, readers, full parsed-argument diagnostics and scoped compaction transcript state/request recovery tested. Generic text/JSON fences retained. Provider SSE/delta and argument-derived request text emission plus full streaming/finalisation crosswalk remain open. Global/final values, enlarged budgets, broader validator errors and other main deltas need review."
+      "note": "Partial: typed ownership, receipt/recovery/readers, diagnostics and compaction implemented; OpenAI function-call and Anthropic argument SSE fragments now use per-call UTF-16-aware streams through finalisation. SDK delta JSON preserves code units. Other provider/custom grammar, request builders, durable progress/event ownership and complete crosswalk remain open; no acceptance claim."
     },
     {
       "change": "A",
