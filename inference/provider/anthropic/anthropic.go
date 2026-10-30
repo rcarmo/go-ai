@@ -1113,20 +1113,13 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 						Explanation string `json:"explanation"`
 					} `json:"stop_details"`
 				} `json:"delta"`
-				Usage struct {
-					OutputTokens  int `json:"output_tokens"`
-					OutputDetails struct {
-						ThinkingTokens int `json:"thinking_tokens"`
-					} `json:"output_tokens_details"`
-				} `json:"usage"`
+				Usage *anthropicUsage `json:"usage"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: anthropicSSEParseError(evt, err)})
 				return
 			}
-			partial.Usage.Output = data.Usage.OutputTokens
-			partial.Usage.Reasoning = data.Usage.OutputDetails.ThinkingTokens
-			partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output + partial.Usage.CacheRead + partial.Usage.CacheWrite
+			applyAnthropicUsage(partial.Usage, data.Usage, usageModel, false)
 			if data.Delta.StopReason != "" {
 				partial.RawStopReason = data.Delta.StopReason
 			}
@@ -1151,16 +1144,9 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 			sawMessageStart = true
 			var data struct {
 				Message struct {
-					ID    string `json:"id"`
-					Model string `json:"model"`
-					Usage struct {
-						InputTokens   int `json:"input_tokens"`
-						CacheRead     int `json:"cache_read_input_tokens"`
-						CacheCreate   int `json:"cache_creation_input_tokens"`
-						CacheCreation struct {
-							Ephemeral1h int `json:"ephemeral_1h_input_tokens"`
-						} `json:"cache_creation"`
-					} `json:"usage"`
+					ID    string         `json:"id"`
+					Model string         `json:"model"`
+					Usage anthropicUsage `json:"usage"`
 				} `json:"message"`
 			}
 			if err := json.Unmarshal([]byte(evt.Data), &data); err != nil {
@@ -1182,10 +1168,7 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 					}
 				}
 			}
-			partial.Usage.Input = data.Message.Usage.InputTokens
-			partial.Usage.CacheRead = data.Message.Usage.CacheRead
-			partial.Usage.CacheWrite = data.Message.Usage.CacheCreate
-			partial.Usage.CacheWrite1h = data.Message.Usage.CacheCreation.Ephemeral1h
+			applyAnthropicUsage(partial.Usage, &data.Message.Usage, usageModel, true)
 
 		case "message_stop":
 			sawMessageStop = true
@@ -1198,7 +1181,6 @@ func processAnthropicStream(body io.Reader, model *goai.Model, tools []goai.Tool
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
-	computeCosts(partial.Usage, usageModel)
 
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError

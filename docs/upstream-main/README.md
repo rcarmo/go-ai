@@ -27,7 +27,7 @@ Codemode's own runtime and test sources have no diff from 1.4.0. Its package del
 
 Implemented the pinned OpenRouter accounting helper and the OpenAI Completions production SSE path. Provider or endpoint detection matches upstream; valid non-BYOK reported cost overrides the estimate, including zero. BYOK adds upstream inference cost, using components only for an explicitly null upstream total. Missing/invalid accounting leaves the estimate. Server-tool cost is not double-counted, and component costs remain catalogue estimates. Raw JSON accounting preserves missing/null and wrong-type behaviour without making the SSE decoder discard otherwise valid usage.
 
-`CostBreakdown.totalFromProvider` is optional, estimated calculations return false, and provider overrides set true. The existing native `CalculateCost` return-value API is retained; providers assign its result. OpenAI now uses that shared calculator, including tiered rates, instead of a duplicate flat-rate calculation. Context/event snapshots detach the optional provenance pointer. Anthropic's corresponding billed-cost integration and its broader usage-delta changes are still pending; the shared helper is not evidence that those production paths are done.
+`CostBreakdown.totalFromProvider` is optional, estimated calculations return false, and provider overrides set true. The existing native `CalculateCost` return-value API is retained; providers assign its result. OpenAI now uses that shared calculator, including tiered rates, instead of a duplicate flat-rate calculation. Context/event snapshots detach the optional provenance pointer. The follow-up below adds Anthropic's production integration and ledger provenance. Optional zero-counter JSON presence and other provider deltas remain explicit gaps; shared helper coverage alone is not evidence of full provider parity.
 
 Tests translate every case in upstream `packages/ai/test/openrouter-cost.test.ts`, add invalid/incomplete/overflow and missing-versus-null cases, exercise native raw SSE and choice-level usage, reset estimates on a later usage update, and verify snapshot isolation and optional JSON fields semantically. A full-package run caught a missing provenance field in the calculator's returned value; this was corrected before the passing runs below. Benchmark fixtures are prepared, but no profiling/benchmark acceptance run has been started.
 
@@ -38,4 +38,18 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * `go vet . ./internal/openroutercost ./inference/provider/openai`: pass.
 * `git diff --check`: pass.
 
-Next: complete the accounting slice through Anthropic and aggregation regressions, then the incremental argument-parser/provider crosswalk. Neither full main parity nor acceptance profiling is complete.
+## Accounting follow-up: Anthropic and ledger provenance
+
+Anthropic now computes usage costs at message_start, including initial output tokens, so an early/truncated stream retains its token/cost state. Deltas replace only present, non-null numeric fields (zero is a real update), including input/cache counts, one-hour cache writes and reasoning. Omitted/null usage retains counters but recalculates the catalogue estimate, matching the pinned source. OpenRouter billed accounting applies only on delta usage; completion no longer overwrites its result with a fresh estimate. Native raw SSE tests cover partial/zero/null updates, billed BYOK and free totals, invalid accounting types, endpoint/provider detection and early failure. Existing fallback/pricing tests also pass.
+
+The durable reducer now retains the first record's optional cost provenance while summing only numeric counters, exactly as upstream recordUsage/addUsage do. A later billed or estimated record does not relabel the bucket. Models and tools (including a `__proto__` tool key) retain billed totals independently of the sum of catalogue components, with input mutation detached from stored state.
+
+Development verification on Go 1.27.3/GOMAXPROCS=4:
+
+* Full Anthropic and cost-helper packages: pass (0.120 / 0.003 seconds).
+* `go test ./durable -run Usage -count=1 -timeout=180s`: pass (0.985 seconds).
+* Full Anthropic/helper race tests: pass (1.272 / 1.014 seconds).
+* `go test -race ./durable -run Usage -count=1 -timeout=180s`: pass (6.446 seconds).
+* `go vet ./inference/provider/anthropic ./durable` and `git diff --check`: pass.
+
+No profiling was run: these are development regressions, not acceptance. Still pending in accounting: optional counters explicitly reported as zero must preserve their JSON presence (native integer `omitempty` currently normalises these to absence); the complete upstream accounting/test crosswalk also remains open. No divergence is accepted by documenting it. Next is that presence contract, then the incremental argument-parser/provider work. Neither full main parity nor acceptance profiling is complete.

@@ -13,7 +13,7 @@ packages/ai/test/anthropic-long-cache-retention-e2e.test.ts	no	pending
 packages/ai/test/anthropic-mid-conversation-effort.test.ts	yes	pending	
 packages/ai/test/anthropic-oauth.test.ts	no	pending	
 packages/ai/test/anthropic-opus-4-8-smoke.test.ts	no	pending	
-packages/ai/test/anthropic-sse-parsing.test.ts	yes	pending	
+packages/ai/test/anthropic-sse-parsing.test.ts	yes	partial	inference/provider/anthropic/usage_main_test.go (usage/cost subsection only)
 packages/ai/test/anthropic-strict-tool-fallback.test.ts	no	pending	
 packages/ai/test/anthropic-strict-tool-schema.test.ts	no	pending	
 packages/ai/test/anthropic-temperature-compat.test.ts	no	pending	

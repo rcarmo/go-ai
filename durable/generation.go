@@ -1179,6 +1179,11 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 		return a + b, nil
 	}
 	current := *r.Usage
+	// Upstream copies the first record, then adds only numeric counters. Its
+	// optional cost provenance is not replaced by later records' provenance.
+	if _, exists := models[key]; exists {
+		current.Cost.TotalFromProvider = prior.Cost.TotalFromProvider
+	}
 	for _, pair := range []struct {
 		out  *int
 		a, b int

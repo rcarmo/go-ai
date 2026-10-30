@@ -485,8 +485,13 @@
       "change": "M",
       "path": "packages/ai/src/api/anthropic-messages.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/anthropic/anthropic.go",
+        "inference/provider/anthropic/usage_main.go",
+        "inference/provider/anthropic/usage_main_test.go"
+      ],
+      "note": "Initial and delta token accounting, null/omitted/zero updates, reasoning/TTL, cost recalculation and OpenRouter billed totals development-verified. Remaining streaming, fallback metadata and other API deltas pending; optional zero-counter JSON presence also pending."
     },
     {
       "change": "M",
@@ -1014,7 +1019,7 @@
         "internal/openroutercost/cost.go",
         "internal/openroutercost/cost_test.go"
       ],
-      "note": "All utility rules translated; OpenAI production integration verified; Anthropic integration pending."
+      "note": "All utility rules translated and development-tested through OpenAI and Anthropic production SSE. Acceptance remains pending."
     },
     {
       "change": "M",
@@ -1062,8 +1067,11 @@
       "change": "M",
       "path": "packages/ai/test/anthropic-sse-parsing.test.ts",
       "kind": "test-or-fixture",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/anthropic/usage_main_test.go"
+      ],
+      "note": "Numerical usage/start-error/cost transport cases covered, not the entire upstream SSE test file."
     },
     {
       "change": "A",
@@ -2557,6 +2565,19 @@
       "kind": "configuration-or-documentation",
       "status": "pending",
       "native": []
+    }
+  ],
+  "inheritedAffected": [
+    {
+      "path": "packages/durable/src/harness/usage.ts",
+      "status": "partial",
+      "native": [
+        "durable/generation.go",
+        "durable/tool.go",
+        "durable/usage.go",
+        "durable/usage_main_test.go"
+      ],
+      "note": "Unchanged upstream arithmetic now observes new AI provenance: copy the first record, add only numeric counters. Models/tools tested, optional zero-counter presence pending."
     }
   ]
 }
