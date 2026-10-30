@@ -17,6 +17,7 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
+	"github.com/rcarmo/go-ai/internal/openroutercost"
 	"github.com/rcarmo/go-ai/transports/sse"
 )
 
@@ -1135,6 +1136,7 @@ type sseToolCustom struct {
 }
 
 type sseUsage struct {
+	openroutercost.Accounting
 	PromptTokens         int `json:"prompt_tokens"`
 	CompletionTokens     int `json:"completion_tokens"`
 	TotalTokens          int `json:"total_tokens"`
@@ -1485,13 +1487,11 @@ func applyUsage(usage *goai.Usage, raw *sseUsage, model *goai.Model) {
 		usage.TotalTokens = raw.TotalTokens
 	}
 	computeCosts(usage, model)
+	if openroutercost.IsModel(model) {
+		openroutercost.Apply(usage, raw.Accounting)
+	}
 }
 
 func computeCosts(usage *goai.Usage, model *goai.Model) {
-	m := 1_000_000.0
-	usage.Cost.Input = float64(usage.Input) * model.Cost.Input / m
-	usage.Cost.Output = float64(usage.Output) * model.Cost.Output / m
-	usage.Cost.CacheRead = float64(usage.CacheRead) * model.Cost.CacheRead / m
-	usage.Cost.CacheWrite = float64(usage.CacheWrite) * model.Cost.CacheWrite / m
-	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
+	usage.Cost = goai.CalculateCost(model, usage)
 }

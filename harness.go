@@ -77,6 +77,10 @@ func cloneMessage(msg Message) Message {
 	// Deep copy usage
 	if msg.Usage != nil {
 		u := *msg.Usage
+		if msg.Usage.Cost.TotalFromProvider != nil {
+			fromProvider := *msg.Usage.Cost.TotalFromProvider
+			u.Cost.TotalFromProvider = &fromProvider
+		}
 		clone.Usage = &u
 	}
 

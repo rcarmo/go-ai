@@ -201,6 +201,7 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 	if model == nil || usage == nil {
 		return CostBreakdown{}
 	}
+	fromProvider := false
 	m := 1_000_000.0
 	longWrite := usage.CacheWrite1h
 	if longWrite < 0 {
@@ -230,6 +231,7 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 		CacheWrite: (float64(shortWrite)*rates.CacheWrite + float64(longWrite)*rates.Input*2) / m,
 	}
 	c.Total = c.Input + c.Output + c.CacheRead + c.CacheWrite
+	c.TotalFromProvider = &fromProvider
 	return c
 }
 

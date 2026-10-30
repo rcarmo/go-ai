@@ -224,6 +224,9 @@ type CostBreakdown struct {
 	CacheRead  float64 `json:"cacheRead"`
 	CacheWrite float64 `json:"cacheWrite"`
 	Total      float64 `json:"total"`
+	// TotalFromProvider is true for a provider-billed total. False or omission
+	// means a catalogue estimate; components remain estimates in either case.
+	TotalFromProvider *bool `json:"totalFromProvider,omitempty"`
 }
 
 // Usage tracks token counts and costs for a single request.
