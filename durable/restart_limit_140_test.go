@@ -231,11 +231,11 @@ func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
 			events <- observedReport140{ctx: ctx, err: err, info: info}
 		}}, definition)
 		id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		if _, err := h.AbortTask(bg, id); err != nil {
-			t.Fatal(err)
-		}
+		// AbortTask resumes scheduling, allowing the cutoff decision to race the
+		// injected rejection. Seed the marked cutoff atomically without enabling
+		// scheduling; reservePass below exercises the real decision/adoption path.
 		if _, err := h.session.Commit(bg, func(tx *Tx) error {
-			task := tx.state.Tasks[id]
+			task := markTask(tx.state.Tasks[id])
 			task.Restarts = limit
 			return tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {
