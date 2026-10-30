@@ -80,6 +80,7 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 				recordCodexWebSocketSSEFallback(opts.SessionID)
 			} else {
 				retriedConnectionLimit := false
+				retriedMissingContinuation := false
 				for {
 					err := streamViaWebSocket(ctx, model, convCtx, opts, apiKey, send, prepared)
 					if err == nil {
@@ -95,6 +96,10 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 						}
 						send(event)
 						return
+					}
+					if isCodexPreviousResponseNotFoundError(err) && !retriedMissingContinuation {
+						retriedMissingContinuation = true
+						continue
 					}
 					connectionLimit := isWebSocketConnectionLimitReachedError(err)
 					if connectionLimit && !retriedConnectionLimit {
@@ -204,8 +209,13 @@ func isCodexNonTransportError(err error) bool {
 }
 
 func isWebSocketConnectionLimitReachedError(err error) bool {
-	var apiErr *codexAPIError
-	return errors.As(err, &apiErr) && apiErr.code == "websocket_connection_limit_reached"
+	apiErr, ok := err.(*codexAPIError)
+	return ok && apiErr.code == "websocket_connection_limit_reached"
+}
+
+func isCodexPreviousResponseNotFoundError(err error) bool {
+	apiErr, ok := err.(*codexAPIError)
+	return ok && apiErr.code == "previous_response_not_found"
 }
 
 type codexEventError struct {

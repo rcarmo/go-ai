@@ -509,3 +509,13 @@ Superseded busy owners finish independently. Their release or error cleanup clos
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 111.088 seconds), Codex race (2.398 seconds), forty repeated cold-adoption fixture runs, vet and diff checks. No acceptance profiling ran.
 
 Pending Rui decision: retain (1) native endpoint URL partitioning in addition to upstream session/account grouping, preventing wrong-backend reuse, and (2) prompt retirement of superseded untracked sockets/readers instead of preserving their upstream resource-lifetime behaviour. These safety adaptations remain explicit differences, not accepted parity. Other source-aligned work can continue while approval is pending. Next implementation slice: missing-previous-response continuation recovery and remaining request/accounting/schema crosswalks.
+
+## Codex missing continuation before startup
+
+A pre-start `previous_response_not_found` API error now retries WebSocket once. The failed cached entry/continuation is evicted and the prepared full request is reused on a fresh socket, preserving payload-hook invocation count and request identity. Repeated missing-continuation errors terminate without fallback or transport counters. Missing-continuation and connection-limit retry budgets are independent, matching the pinned outer retry loop. Fresh requests also receive the one code-based retry, even without a previous-response field.
+
+Retry classification now requires a top-level Codex API error. An observer error whose cause happens to be a missing-continuation/connection-limit API error remains an observer failure, as upstream’s callback-error wrapper does; it must not retry. Cancellation takes precedence. Fixtures cover direct/nested/error-response codes, repeated rejection, fresh requests, combined retry types, callback cancellation and observer-wrapped API causes.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 108.855 seconds), Codex race (2.385 seconds), forty repeated pre-start recovery fixtures, vet and diff checks. No acceptance profiling ran.
+
+Known remaining difference: upstream’s missing-continuation branch can retry after startup too. Native handling still terminates that started attempt; the next slice must preserve already emitted output and single-start ordering across retry while investigating partial typed-tool completion/reconciliation. This feature is not fully aligned yet. Endpoint isolation and superseded-resource cleanup still await explicit Rui acceptance; automatic continuation did not grant it. Other provider/durable/codemode/source/test/dependency work remains open.
