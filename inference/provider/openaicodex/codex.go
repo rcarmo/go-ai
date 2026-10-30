@@ -88,6 +88,9 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 					}
 					if ctx.Err() != nil {
 						event := codexStreamErrorEvent(err)
+						if event.Error == nil && prepared.output != nil {
+							event.Error = prepared.output.partial
+						}
 						event.Reason = goai.StopReasonAborted
 						event.Err = ctx.Err()
 						if event.Error != nil {
@@ -108,6 +111,12 @@ func streamCodex(ctx context.Context, model *goai.Model, convCtx *goai.Context, 
 					}
 					if isCodexNonTransportError(err) && !connectionLimit {
 						send(codexStreamErrorEvent(err))
+						return
+					}
+					if prepared.output != nil && prepared.output.startEmitted {
+						partial := prepared.output.partial
+						recordCodexStartedTransportFailure(opts, partial, len(prepared.bodyJSON), err)
+						send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 						return
 					}
 					diagnostics = append(diagnostics, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{
@@ -161,6 +170,7 @@ func resolveCodexWSURL(baseURL string) string {
 }
 
 type codexAPIError struct {
+	partial *goai.Message
 	message string
 	code    string
 	payload any
@@ -844,32 +854,24 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 
 	// Process responses
-	partial := &goai.Message{
-		Role:       goai.RoleAssistant,
-		Api:        model.Api,
-		Provider:   model.Provider,
-		Model:      model.ID,
-		Usage:      &goai.Usage{},
-		StopReason: goai.StopReasonPending,
+	if request.output == nil {
+		request.output = &codexWebSocketOutput{partial: &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonPending}, unfinished: map[int]bool{}}
 	}
-
+	output := request.output
+	partial := output.partial
+	originalSend := send
+	send = func(event goai.Event) {
+		if _, ok := event.(*goai.StartEvent); ok {
+			if output.startEmitted {
+				return
+			}
+			output.startEmitted = true
+		}
+		originalSend(event)
+	}
 	started := false
 	sawCompletion := false
-	transportFailure := func(err error) {
-		configured := goai.TransportAuto
-		session := ""
-		if opts != nil {
-			session = opts.SessionID
-			if opts.Transport != "" {
-				configured = opts.Transport
-			}
-		}
-		partial.StopReason = goai.StopReasonError
-		partial.ErrorMessage = err.Error()
-		partial.Timestamp = time.Now().UnixMilli()
-		goai.AppendAssistantMessageDiagnostic(partial, goai.CreateAssistantMessageDiagnostic("provider_transport_failure", err, map[string]any{"configuredTransport": string(configured), "eventsEmitted": true, "phase": "after_message_stream_start", "requestBytes": len(bodyJSON)}))
-		recordCodexWebSocketFailure(session, err)
-	}
+	transportFailure := func(err error) { recordCodexStartedTransportFailure(opts, partial, len(bodyJSON), err) }
 
 	type activeItem struct {
 		itemType       string
@@ -879,7 +881,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	}
 	var current *activeItem
 	var slots responsestream.Slots[activeItem]
-	unfinished := map[int]bool{}
+	unfinished := output.unfinished
 	var reasoning responsestream.ReasoningIndex
 	createSlot := func(encodedItem json.RawMessage, outputIndex *int) (*activeItem, error) {
 		var created *activeItem
@@ -1156,8 +1158,8 @@ readLoop:
 				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
-			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data)}
-			if !started {
+			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data), partial: partial}
+			if !started || isCodexPreviousResponseNotFoundError(err) {
 				if useCachedContext && entry != nil && opts != nil {
 					removeCodexWebSocketSession(opts.SessionID, entry)
 				}
@@ -1188,11 +1190,11 @@ readLoop:
 				code = failed.Response.Error.Code
 				message = failed.Response.Error.Message
 			}
-			err := &codexAPIError{message: firstNonEmpty(message, "Codex response failed"), code: code, payload: string(data)}
+			err := &codexAPIError{message: firstNonEmpty(message, "Codex response failed"), code: code, payload: string(data), partial: partial}
 			if failed.Response != nil {
 				partial.RawStopReason = failed.Response.Status
 			}
-			if !started {
+			if !started || isCodexPreviousResponseNotFoundError(err) {
 				return err
 			}
 			partial.StopReason = goai.StopReasonError

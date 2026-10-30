@@ -622,9 +622,10 @@
         "inference/provider/openaicodex/cache_read.go",
         "inference/provider/openaicodex/liveness_main_test.go",
         "inference/provider/openaicodex/cold_main_test.go",
-        "inference/provider/openaicodex/recovery_main_test.go"
+        "inference/provider/openaicodex/recovery_main_test.go",
+        "inference/provider/openaicodex/recovery_started_main_test.go"
       ],
-      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE/retention/identity/account/busy/liveness/cold-adoption slices are implemented. Pre-start previous_response_not_found now retries once on full prepared context with independent connection-limit budget; observer-wrapped API causes cannot trigger retries. Full normal/Codex race/forty pre-start recovery repeats/vet pass. Known difference: upstream also retries missing continuation after startup; output/start ordering and typed-tool reconciliation still need implementation/review. Endpoint URL isolation and superseded resource retirement await Rui acceptance. Remaining request/schema/accounting, other providers, durable/codemode and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: missing-continuation recovery now spans startup with shared output, one start event, retained typed tool arguments, and partial errors on exhaustion/cancellation. Full normal/Codex race/forty repeated recovery+cold fixture groups/vet pass. Native unfinished-tool validation and no-SSE-after-any-start span retries; pinned upstream resets per-invocation/per-attempt state. These explicit safety differences and earlier endpoint isolation/superseded retirement lack Rui acceptance. NEXT: raw transport versus effective-default continuation guard; remaining request/schema/accounting, other providers, durable/codemode, full source/test/dependency review and acceptance remain open."
     },
     {
       "change": "M",

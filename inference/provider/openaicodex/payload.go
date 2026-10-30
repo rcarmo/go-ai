@@ -7,7 +7,16 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+// Stream-owned state survives missing-continuation retries. Per-attempt slot
+// indices are rebuilt, but unresolved tool calls must still prevent completion.
+type codexWebSocketOutput struct {
+	partial      *goai.Message
+	startEmitted bool
+	unfinished   map[int]bool
+}
+
 type codexPreparedRequest struct {
+	output    *codexWebSocketOutput
 	bodyJSON  []byte
 	requestID string
 	envelope  map[string]interface{}
