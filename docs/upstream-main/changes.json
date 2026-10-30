@@ -1,0 +1,2562 @@
+{
+  "baseline": {
+    "tag": "v1.4.0",
+    "sha": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+    "nativeTag": "v1.4.0"
+  },
+  "target": {
+    "ref": "main",
+    "sha": "4b535d57ea8863dbba44b89872146523da271786"
+  },
+  "goal": "Full semantic alignment of pi-ai, pi-durable and pi-codemode; inventory is not acceptance.",
+  "counts": {
+    "ai": {
+      "changed": 178,
+      "testCorpus": 192
+    },
+    "durable": {
+      "changed": 174,
+      "testCorpus": 152
+    },
+    "codemode": {
+      "changed": 2,
+      "testCorpus": 8
+    }
+  },
+  "changes": [
+    {
+      "change": "M",
+      "path": "packages/ai/CHANGELOG.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/README.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/bedrock-provider.d.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/bedrock-provider.js",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/README.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/build.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/define.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/families/anthropic.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/families/deepseek.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/families/google.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/families/kimi.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/families/openai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/generate.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/amazon-bedrock.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/ant-ling.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/anthropic.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/azure.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/baseten.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/cerebras.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/cloudflare-ai-gateway.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/cloudflare-workers-ai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/deepseek.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/fireworks.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/github-copilot.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/google-vertex.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/google.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/groq.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/huggingface.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/index.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/kimi-coding.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/meta.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/minimax-cn.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/minimax.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/mistral.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/moonshotai-cn.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/moonshotai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/nvidia.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/openai-codex.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/openai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/opencode-go.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/opencode.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/openrouter.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan-cn.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan-individual.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/radius.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/together.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/typesafe.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/vercel-ai-gateway.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/xai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-ams.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-cn.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-sgp.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/xiaomi.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/zai-coding-cn.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/providers/zai.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R079",
+      "path": "packages/ai/catalog/reasoning.ts",
+      "previousPath": "packages/ai/scripts/models-dev-reasoning-options.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/sources/index.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/sources/models-dev.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R063",
+      "path": "packages/ai/catalog/sources/openrouter.ts",
+      "previousPath": "packages/ai/scripts/openrouter-catalog.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/catalog/sources/vercel-ai-gateway.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/package.json",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/scripts/ai-gateway-pricing.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/scripts/generate-models.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/scripts/openrouter-reasoning-options.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/anthropic-messages.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/azure-openai-responses.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/bedrock-converse-stream.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/constrained-sampling.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/google-generative-ai.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/google-shared.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/google-vertex.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/mistral-conversations.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/openai-codex-responses.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/openai-completions.ts",
+      "kind": "source",
+      "status": "partial",
+      "native": [
+        "inference/provider/openai/openai.go",
+        "inference/provider/openai/openrouter_cost_main_test.go"
+      ],
+      "note": "OpenRouter usage-cost subsection only. All other provider/parser/stream-event deltas remain pending."
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/openai-responses-shared.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/openai-responses.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/openrouter-images.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/api/pi-messages.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/auth/oauth/github-copilot.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/auth/oauth/kimi-coding.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/auth/oauth/meta.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/auth/oauth/radius.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/src/auth/oauth/trusted-url.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/auth/types.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/cli.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/compat/extension-oauth-types.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/index.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/models.generated.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/models.ts",
+      "kind": "source",
+      "status": "development-verified-acceptance-pending",
+      "native": [
+        "simple_options.go",
+        "internal/openroutercost/cost_test.go"
+      ],
+      "note": "Native return-value calculator returns totalFromProvider=false; providers assign the result."
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/amazon-bedrock.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/ant-ling.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/anthropic.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/azure.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/baseten.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/cerebras.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/cloudflare-ai-gateway.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/cloudflare-workers-ai.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/deepseek.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/faux.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/fireworks.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/github-copilot.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/google-vertex.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/google.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/groq.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/huggingface.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/kimi-coding.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/meta.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/minimax-cn.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/minimax.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/mistral.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/moonshotai-cn.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/moonshotai.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/nvidia.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/openai-codex.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/openai.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/opencode-go.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/opencode.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/opencode.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/openrouter.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan-cn.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan-individual.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/radius-config.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/radius.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/together.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/typesafe.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/vercel-ai-gateway.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/xai.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-ams.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-cn.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-sgp.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/xiaomi.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/zai-coding-cn.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/providers/zai.models.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/telemetry.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/types.ts",
+      "kind": "source",
+      "status": "partial",
+      "native": [
+        "types.go",
+        "harness.go",
+        "internal/openroutercost/cost_bench_test.go"
+      ],
+      "note": "Cost provenance and detached snapshots implemented; remaining type/documentation changes need review."
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/utils/error-body.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/src/utils/openrouter-cost.ts",
+      "kind": "source",
+      "status": "development-verified-acceptance-pending",
+      "native": [
+        "internal/openroutercost/cost.go",
+        "internal/openroutercost/cost_test.go"
+      ],
+      "note": "All utility rules translated; OpenAI production integration verified; Anthropic integration pending."
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/utils/overflow.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/utils/retry.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/src/utils/streaming-json.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/src/utils/text.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/test/anthropic-adaptive-thinking-models.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/anthropic-mid-conversation-effort.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/anthropic-sse-parsing.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/bedrock-stream-state.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/bedrock-strict-tool-fallback.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/cache-retention.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/catalog-generation-utils.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/classifier-models.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/constrained-sampling.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/data/json-test-suite.json",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/error-body.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/faux-provider.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/fireworks-model-generation.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/generate-models-strict.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/google-shared-convert-tools.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/image-model-data.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/max-thinking.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/memory-helpers.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/model-cost-tiers.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/models-runtime.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/openai-completions-provider-stream-event.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/openai-responses-compat.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/opencode-model-generation.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/ai/test/openrouter-cache-control-models.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/openrouter-cost.test.ts",
+      "kind": "test-or-fixture",
+      "status": "development-verified-acceptance-pending",
+      "native": [
+        "internal/openroutercost/cost_test.go",
+        "inference/provider/openai/openrouter_cost_main_test.go"
+      ],
+      "note": "Translated every upstream utility case plus raw SSE, malformed accounting, null/missing, snapshot and tier regressions."
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/openrouter-reasoning-options.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/overflow.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/pi-messages.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/radius-oauth.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/reasoning-options.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/streaming-json.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/ai/test/streaming-tool-arguments.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/supports-xhigh.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/telemetry.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/ai/test/transcript-tool-changes.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/codemode/CHANGELOG.md",
+      "kind": "configuration-or-documentation",
+      "status": "reviewed-no-runtime-change",
+      "native": [
+        "docs/upstream-main/README.md"
+      ],
+      "note": "Empty Unreleased section only; not an integration acceptance claim."
+    },
+    {
+      "change": "M",
+      "path": "packages/codemode/package.json",
+      "kind": "configuration-or-documentation",
+      "status": "dependency-reviewed-integration-pending",
+      "native": [
+        "Makefile",
+        "docs/v140/acceptance.md"
+      ],
+      "note": "Only Vitest development runner4.1.11→4.1.12. No codemode runtime/test source diff; shared AI/durable integration remains pending."
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/CHANGELOG.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/README.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/docs/spec.md",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/package.json",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/codemode/codemode.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/env/index.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/env/node-watch.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/env/node.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/errors.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/agent.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/compaction.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/context.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/define.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/src/harness/events.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/generation.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/harness.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/inbox.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/json.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/live.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/harness/partial-changes.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/harness/registry-reader.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/scheduler.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/submissions.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/task-graph.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/telemetry.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/tool.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/harness/transcript.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/types.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/util.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/harness/view.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/index.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/src/session/observation.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/session/session.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/session/transaction.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/storage/indexeddb.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/storage/jsonl/storage.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/storage/memory.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/storage/sqlite/storage.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/commit.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/documents.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/index.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/queries.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/storage.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/src/storage/store/tables.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/testing/env-conformance.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/testing/storage-benchmark.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/testing/storage-conformance.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/src/types.ts",
+      "kind": "source",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test-workers/storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test-workers/wake.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test-workers/worker.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/chat-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/codemode-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/codemode-imports.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/codemode.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/conversation-transcript.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/conversation-view-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/env-node-conformance.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/examples/03-owned-conversations.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/test/examples/04-chord-state.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/04-watches.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/05-harness.ts",
+      "previousPath": "packages/durable/test/examples/06-harness.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/test/examples/05-watches.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/06-configuration.ts",
+      "previousPath": "packages/durable/test/examples/07-configuration.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R098",
+      "path": "packages/durable/test/examples/07-harness-conversations.ts",
+      "previousPath": "packages/durable/test/examples/08-harness-conversations.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/08-context.ts",
+      "previousPath": "packages/durable/test/examples/09-context.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R098",
+      "path": "packages/durable/test/examples/09-registry-reload.ts",
+      "previousPath": "packages/durable/test/examples/10-registry-reload.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/10-extension-state.ts",
+      "previousPath": "packages/durable/test/examples/11-extension-state.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R097",
+      "path": "packages/durable/test/examples/11-tasks.ts",
+      "previousPath": "packages/durable/test/examples/12-tasks.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/12-recovery.ts",
+      "previousPath": "packages/durable/test/examples/13-recovery.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R095",
+      "path": "packages/durable/test/examples/13-chat.ts",
+      "previousPath": "packages/durable/test/examples/14-chat.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/14-system-prompt.ts",
+      "previousPath": "packages/durable/test/examples/15-system-prompt.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R095",
+      "path": "packages/durable/test/examples/15-real-model.ts",
+      "previousPath": "packages/durable/test/examples/16-real-model.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/16-coding-tools.ts",
+      "previousPath": "packages/durable/test/examples/17-coding-tools.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R098",
+      "path": "packages/durable/test/examples/17-print.ts",
+      "previousPath": "packages/durable/test/examples/18-print.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R075",
+      "path": "packages/durable/test/examples/18-json.ts",
+      "previousPath": "packages/durable/test/examples/19-json.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/19-inbox.ts",
+      "previousPath": "packages/durable/test/examples/20-inbox.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R063",
+      "path": "packages/durable/test/examples/20-late-join.ts",
+      "previousPath": "packages/durable/test/examples/21-late-join.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R079",
+      "path": "packages/durable/test/examples/21-subagent-foreground.ts",
+      "previousPath": "packages/durable/test/examples/22-subagent-foreground.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R097",
+      "path": "packages/durable/test/examples/22-subagent-background.ts",
+      "previousPath": "packages/durable/test/examples/23-subagent-background.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R098",
+      "path": "packages/durable/test/examples/23-child-tasks.ts",
+      "previousPath": "packages/durable/test/examples/24-child-tasks.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/24-compaction.ts",
+      "previousPath": "packages/durable/test/examples/25-compaction.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/25-coding-agent.ts",
+      "previousPath": "packages/durable/test/examples/26-coding-agent.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/26-plan-mode.ts",
+      "previousPath": "packages/durable/test/examples/27-plan-mode.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/27-reviewer.ts",
+      "previousPath": "packages/durable/test/examples/28-reviewer.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R098",
+      "path": "packages/durable/test/examples/28-sandbox-per-conversation.ts",
+      "previousPath": "packages/durable/test/examples/29-sandbox-per-conversation.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/29-tool-override.ts",
+      "previousPath": "packages/durable/test/examples/30-tool-override.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "R099",
+      "path": "packages/durable/test/examples/30-reload-and-restart.ts",
+      "previousPath": "packages/durable/test/examples/31-reload-and-restart.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/31-transcript.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/32-tests-after-edits.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/33-turn-limit-and-continue.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/34-submit-in-commit.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/35-durable-on-the-store.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/36-durable-views.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/examples/37-harness-registry.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-after-run.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-blocked.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-cancellation-barrier.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-compaction.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-continue.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-conversations.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-deferred-progress.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/test/harness-events.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-generation-recovery.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-generation.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-hook-reads.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-inbox.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-input-entries.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-inspect.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-json.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-lifecycle.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-live-deltas.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-nested-tools-restart.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-nested-tools.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-observers.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-ownership.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-partial-changes.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-read-only.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-registry-reader.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-registry.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-reports.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-restart-failure.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-run-failure.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-scheduler-indexes.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-scheduler-retention.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-sleep.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-storage-failure.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-structured-output.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-structured.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-submissions.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-submit-in-commit.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-task-graph.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-tasks-recovery.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-tasks.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-telemetry.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-tool-hooks.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-tools-recovery.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-tools.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-turn-limit.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/harness-view-run.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/harness-view.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/indexeddb-storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/jsonl-storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/live-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/memory-storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/nested-images-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/nested-tools-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/scheduler-fanout-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/session-adoption.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-checkpoints-migrations.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/session-deferred-commits.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-definitions.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-document-retention.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-documents.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-forks.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/session-observers.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "D",
+      "path": "packages/durable/test/session-states.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-tables.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/session-watches.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/spec-usage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/sqlite-cloudflare.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/sqlite-facade.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/sqlite-migrations.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/sqlite-storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/storage-memory.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/storage.bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/store-storage-node.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/store-storage-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/test/store-storage.test.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/task-support.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "M",
+      "path": "packages/durable/test/tool-output-bench.ts",
+      "kind": "test-or-fixture",
+      "status": "pending",
+      "native": []
+    },
+    {
+      "change": "A",
+      "path": "packages/durable/vitest.store.config.ts",
+      "kind": "configuration-or-documentation",
+      "status": "pending",
+      "native": []
+    }
+  ]
+}

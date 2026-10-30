@@ -1,0 +1,2160 @@
+{
+  "base": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+  "target": "4b535d57ea8863dbba44b89872146523da271786",
+  "packages": {
+    "ai": {
+      "baseline": {
+        "version": "1.4.0",
+        "dependencies": {
+          "@anthropic-ai/sdk": "0.129.0",
+          "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@google/genai": "2.21.0",
+          "@smithy/node-http-handler": "4.12.1",
+          "http-proxy-agent": "9.1.0",
+          "https-proxy-agent": "9.1.0",
+          "openai": "7.19.0",
+          "partial-json": "0.1.7",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@types/node": "22.19.19",
+          "canvas": "3.2.3",
+          "vitest": "4.1.11"
+        }
+      },
+      "target": {
+        "version": "1.4.0",
+        "dependencies": {
+          "@anthropic-ai/sdk": "0.129.0",
+          "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@google/genai": "2.21.0",
+          "@smithy/node-http-handler": "4.12.1",
+          "http-proxy-agent": "9.1.0",
+          "https-proxy-agent": "9.1.0",
+          "openai": "7.19.0",
+          "partial-json": "0.1.7",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@types/node": "22.19.19",
+          "canvas": "3.2.3",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    "durable": {
+      "baseline": {
+        "version": "1.4.0",
+        "dependencies": {
+          "@earendil-works/chord": "1.4.0",
+          "@earendil-works/pi-ai": "1.4.0",
+          "@earendil-works/pi-codemode": "1.4.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@silvia-odwyer/photon": "0.3.3",
+          "diff": "8.0.4",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@cloudflare/vitest-plugin": "1.4.4",
+          "fake-indexeddb": "6.2.6",
+          "shx": "0.3.4",
+          "vitest": "4.1.11"
+        }
+      },
+      "target": {
+        "version": "1.4.0",
+        "dependencies": {
+          "@earendil-works/chord": "1.4.0",
+          "@earendil-works/pi-ai": "1.4.0",
+          "@earendil-works/pi-codemode": "1.4.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@silvia-odwyer/photon": "0.3.3",
+          "diff": "8.0.4",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@cloudflare/vitest-plugin": "1.4.4",
+          "fake-indexeddb": "6.2.6",
+          "shx": "0.3.4",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    "codemode": {
+      "baseline": {
+        "version": "1.4.0",
+        "dependencies": {
+          "quickjs-wasi": "3.6.2"
+        },
+        "devDependencies": {
+          "shx": "0.3.4",
+          "vitest": "4.1.11"
+        }
+      },
+      "target": {
+        "version": "1.4.0",
+        "dependencies": {
+          "quickjs-wasi": "3.6.2"
+        },
+        "devDependencies": {
+          "shx": "0.3.4",
+          "vitest": "4.1.12"
+        }
+      }
+    }
+  },
+  "supportChanges": [
+    {
+      "change": "M",
+      "path": "AGENTS.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "biome.json",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "package-lock.json",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/CHANGELOG.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/benchmarks.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/decisions.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/dependencies/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/dependencies/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/dependencies/model.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/design.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/durable-observers/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/durable-observers/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/00-front.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/01-shape.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/02-first.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/03-principals.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/04-store.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/05-documents.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/06-references.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/07-revocation.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/08-derives.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/09-natives.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/10-routines.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/11-jobs.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/12-flows.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/13-registries.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/14-agent.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/15-reload.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/16-contracts.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/17-wire.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/18-p2-core.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/19-p2-sessions.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/20-p2-machines.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/20a-compared.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/21-epilogue.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/src/22-appendix.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/explainer/walkthrough.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/flow-control/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/flow-control/fold/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/flow-control/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/flow-control/window/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/layer-1.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/layer-2.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-1.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-2.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-3a.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-3b.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-4.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-4a.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-4b.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-5.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-6a.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-6b.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-7a.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-7b.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-7b/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-7b/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slice-8.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/slices.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/store/book.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/store/index.html",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/docs/next/store/walkthrough.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/package.json",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/context/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/delta/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/delta/apply-immutable-trusted.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/delta/diff.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/delta/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/delta/pending.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/delta/tracker.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next-node/compression.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/accepts.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/contract.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/declare.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/evolve.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/fingerprint.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/history.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/host-kind.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/names.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/params.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/schema.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/contracts/snapshot.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/args.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/errors.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/failure.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/params.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/principal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/data/validator.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/address-source.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/definition.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/documents.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/fence.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/handles.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/keyed-slot.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/line.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/persistence.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/residency.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/slot.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/documents/transaction.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/activity.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/adapted.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/attempt.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/backoff.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/ctx.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/deadline.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/dependencies.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/destination.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/facet.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/follow.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/host.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/members.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/native.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/object.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/parked.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/presence.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/ref-state.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/reference-keys.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/reference-source.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/reference.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/retry-on.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/revocation.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/root.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/route.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/routines.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/sleep.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/staging.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/unbound.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/host/uuid.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/definition.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/job.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/persisted.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/records.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/run-states.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/run.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/running.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/jobs/stored.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/binary.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/channel.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/errors.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/ipc.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/link.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/message.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/part.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/text.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/values.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/link/websocket.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/contribution.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/entries.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/record.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/registry.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/registries/value.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/calls.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/consumer.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/hold.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/host-link.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/path.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/provider.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/relay.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/remote-object.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/remote/replica.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/batch.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/derive.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/internal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/native-source.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/watchable.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/state/writable.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/README.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/adapter.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/allocator.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/applier.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/apply-batch.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/archive.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/backend.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/catalog.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/claims.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/columns.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/engine.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/evaluate.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/export.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/expression.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/import.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/index.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/json-column.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/jsonl.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/outbox.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/query.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/refusal.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/rows.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/schema.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/sql.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/step.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/store.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-changes.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-evolve.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-handle.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-history.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-migration.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table-writes.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/table.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/text.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/next/store/writes.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/sqlite/cloudflare.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/sqlite/database.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/src/sqlite/node.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/src/watch.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/context.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/delta-append-text.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/delta-apply-immutable.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/delta-op-text-retention.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/delta-pending.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/delta-tracker/retention.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/delta-tracker/retention.worker.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/delta-tracker/tracker.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next-node/compression.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/calls.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/compression.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/derives.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/jobs.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/links.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/registries.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/relay.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/reload.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/bench/store.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/accepts.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/contract.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/declare.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/evolve.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/fingerprint.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/history.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/host-kind.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/params.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/schema.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/contracts/snapshot.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/args.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/errors.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/failure.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/params.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/principal.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/data/validator.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/address-source.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/definition.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/documents.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/fence.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/handles.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/keyed-slot.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/line.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/persistence.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/residency.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/slot.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/documents/transaction.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/01-objects.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/02-documents.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/03-derives.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/04-watches.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/05-errors.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/06-natives.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/07-failures.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/08-remote.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/09-calls.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/10-drops.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/11-linger-and-retry.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/12-routes.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/13-relay.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/14-flow-control.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/15-revocation.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/16-presence-and-activity.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/17-limits-and-compression.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/18-routines.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/19-jobs.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/20-tables.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/21-persisted-documents.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/22-migrations.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/23-keyed-watches.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/24-keyed-members.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/25-export-import.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/28-persisted-jobs.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/29-registries.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/30-host-root.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/31-parked-dependencies.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/32-startup.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/33-reload.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/examples/34-versions.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/activity.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/adapted.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/attempt.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/backoff.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/ctx.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/deadline.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/dependencies.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/facet.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/follow.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/host.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/members.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/native.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/object.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/parked.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/presence.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/ref-state.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/reference-keys.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/reference-source.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/reference.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/retry-on.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/revocation.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/root.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/route.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/routines.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/sleep.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/staging.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/host/unbound.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/definition.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/job.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/persisted.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/records.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/run.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/jobs/running.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/channel.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/errors.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/fixtures/ipc-echo.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/ipc.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/link.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/message.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/part.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/values.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/link/websocket.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/registries/entries.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/registries/record.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/registries/registry.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/registries/value.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/calls.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/consumer.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/hold.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/host-link.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/path.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/provider.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/relay.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/remote-object.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/remote/replica.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/state/batch.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/state/derive.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/state/native-source.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/state/watchable.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/state/writable.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/allocator.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/applier.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/apply-batch.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/archive.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/catalog.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/claims.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/columns.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/engine.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/evaluate.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/export.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/expression.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/import.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/json-column.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/jsonl.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/outbox.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/query.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/refusal.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/rows.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/sql.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/store.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-changes.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-evolve.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-handle.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-history.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-migration.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table-writes.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/table.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/store/text.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/next/support.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/sqlite/cloudflare.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/sqlite/helpers.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/sqlite/node.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/chord/test/telemetry-sqlite-store.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "A",
+      "path": "packages/chord/test/watch.test.ts",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/telemetry/CHANGELOG.md",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "packages/telemetry/package.json",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "pi-test.sh",
+      "status": "pending-dependency-impact-review"
+    },
+    {
+      "change": "M",
+      "path": "tsconfig.json",
+      "status": "pending-dependency-impact-review"
+    }
+  ]
+}

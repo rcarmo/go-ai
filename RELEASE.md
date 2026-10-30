@@ -1,5 +1,11 @@
 # Release acceptance
 
+## Unreleased upstream main convergence (in progress)
+
+Rui authorised full semantic convergence for pi-ai, pi-durable and pi-codemode on 30 October 2026. Target is pinned to `4b535d57ea8863dbba44b89872146523da271786`, relative to accepted upstream v1.4.0 `4a080252f06caf63a525d7873c5d94d3c23887e0`. Native v1.4.0 and its assets remain unchanged. No new release, push or hosted dispatch is authorised by this work scope.
+
+[Convergence ledger and ordered contracts](docs/upstream-main/README.md), [354-path inventory](docs/upstream-main/changes.json), [352-path target test corpus](docs/upstream-main/upstream-tests.tsv), and [dependency/support review](docs/upstream-main/dependencies.json). Pending and partial rows are unresolved work, not parity claims. The first development slice implements OpenRouter billed-cost accounting through native OpenAI Completions SSE, cost provenance and snapshot isolation; Anthropic's corresponding integration and the remaining main deltas are pending. Focused/full affected-package normal and race tests pass on Go 1.27.3. CPU/allocation profiling is reserved for acceptance, per Rui's clarification; no acceptance profiling or full-parity claim has been made.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

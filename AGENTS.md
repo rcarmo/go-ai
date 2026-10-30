@@ -45,6 +45,15 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 - Do not hand-edit generated artifacts. Generated Go source and image/text catalogs must come from exact pinned upstream inputs and checked-in generators.
 - Preserve unrelated local work and do not weaken existing tests or gates.
 
+## Upstream semantic alignment
+
+- **Full semantic alignment is always the goal of upstream convergence.** Matching API names, selected features or happy-path outputs is not sufficient. This applies to pi-ai, pi-durable and pi-codemode together, including their interactions.
+- Cover observable behaviour and contracts: wire/event shapes, streaming and finalisation, validation/errors, ordering, cancellation, retries/timers, ownership and security boundaries, storage durability/adoption, watches, replay/checkpoints, usage accounting and worker isolation. Include relevant schemas, configuration, dependencies, generated metadata, fixtures and tests; do not silently omit changes outside production source files.
+- Go-specific implementations and API adaptations are acceptable only when their observable semantics match the pinned upstream target. Port required upstream breaking semantics and update affected callers/tests; do not preserve obsolete behaviour merely for compatibility or assume that similarly named native features are equivalent. Unrelated public compatibility and published refs/assets remain protected.
+- Pin the exact upstream target and accepted baseline before implementation. Maintain a complete changed-path disposition and upstream-test crosswalk. Verify through real production paths, translated upstream regressions, independent references where practical, adversarial/fault cases and applicable full-suite gates. Catalogue alignment requires full-record comparisons, not counts alone.
+- Work may land in bounded, tested slices, but partial progress is not full parity. Keep each unverified behaviour and unresolved difference explicit, with its cause, impact and next action. Any intentional semantic divergence requires Rui's explicit acceptance; documentation or a broad N/A label alone does not establish alignment.
+- Active scope authorised by Rui on 30 October 2026: converge pi-ai, pi-durable and pi-codemode towards upstream `main`, initially pinned to `4b535d57ea8863dbba44b89872146523da271786`, relative to accepted upstream v1.4.0 `4a080252f06caf63a525d7873c5d94d3c23887e0`. This is an explicit exception to the published-release-only default below, not permission to chase a moving target silently. Preserve the native v1.4.0 release; hosted dispatch, pushing and publication remain separately gated.
+
 ## Official release discovery and bounds
 
 - For upstream parity work, audit only the latest official published `@earendil-works/pi-ai` tag/artifact requested and the exact prior accepted upstream tag. Never audit, diff, or generate release parity from upstream `main` unless explicitly instructed.
@@ -67,9 +76,10 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 - No hidden skips, broad TODO classifications, test weakening, or unproven completion claims.
 - `RELEASE.md` must record every Go implementation, fix, adaptation, N/A decision, local validation result, deliberate fault-gate result, SBOM/security evidence, hosted CI evidence, and final/rollback SHAs.
 
-## Pre-release profiling and disposal
+## Acceptance profiling and disposal
 
-- During pre-release tests, capture CPU and heap/allocation behaviour, analyse hotspots and tune avoidable work using equivalent workloads. Ordinary development tests do not require profiling. Delete raw captures, matching binaries, traces and disposable logs immediately after analysis/use; retain only concise conclusions and measured results. Missing or incomplete capture is a limitation, not a profiling pass. Preserve active-job files until a safe boundary, source, durable datasets/checkpoints and intentional release artifacts.
+- Rui clarified on 30 October 2026: **run Go CPU and allocation profiling for acceptance validation only, not routine development tests.** Use focused unprofiled regressions while implementing convergence slices; preparing benchmark fixtures does not require running them on every edit. At acceptance (including pre-release), capture CPU, alloc_space and alloc_objects, analyse hotspots, tune avoidable work and remeasure equivalent workloads before claiming acceptance. The profiling commands/wrappers below apply at that boundary.
+- Delete raw captures, matching binaries, traces and disposable logs immediately after acceptance analysis/use; retain only concise conclusions and measured results. Missing or incomplete capture is a limitation, not a profiling pass. Preserve active-job files until a safe boundary, source, durable datasets/checkpoints and intentional release artifacts.
 
 - Prefer `make test`, `make test-race`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. All run through `scripts/test-profile.sh`, package by package, capturing and analysing cumulative CPU, `alloc_space` and `alloc_objects`, saving a compact summary and disposing raw output immediately.
 - Focus a run with `PACKAGES=./durable TEST_FLAGS='-run TestName -count=3'`. `PROFILE_ROOT` is transient capture storage below the selected project root; disposable test roots use `runs/tests/<run-id>/`. The wrapper manages paths and rejects a successful run if required capture/analysis is missing. Exit traps dispose incomplete output too, after recording capture failures.
