@@ -564,8 +564,13 @@
       "change": "M",
       "path": "packages/ai/src/api/openai-responses-shared.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/openairesponses/responses.go",
+        "inference/provider/openairesponses/argument_stream.go",
+        "inference/provider/openairesponses/stream_utf16_main_test.go"
+      ],
+      "note": "Partial: function-call UTF-16 delta/completion decoding, native stream partial/final ownership and authoritative replacement semantics implemented/tested on Responses and Azure. Codex separate SSE/WebSocket processors, per-output-slot interleaving, custom grammar, request builders and remaining source semantics still require review; no acceptance claim."
     },
     {
       "change": "M",
@@ -1095,9 +1100,11 @@
         "streaming_delta_json.go",
         "streaming_delta_json_main_test.go",
         "inference/provider/openai/stream_utf16_main_test.go",
-        "inference/provider/anthropic/stream_utf16_main_test.go"
+        "inference/provider/anthropic/stream_utf16_main_test.go",
+        "inference/provider/openairesponses/argument_stream.go",
+        "inference/provider/openairesponses/stream_utf16_main_test.go"
       ],
-      "note": "Partial: typed ownership, receipt/recovery/readers, diagnostics and compaction implemented; OpenAI function-call and Anthropic argument SSE fragments now use per-call UTF-16-aware streams through finalisation. SDK delta JSON preserves code units. Other provider/custom grammar, request builders, durable progress/event ownership and complete crosswalk remain open; no acceptance claim."
+      "note": "Partial: typed ownership, receipts/recovery, diagnostics, compaction, OpenAI function-call/Anthropic streams and SDK delta JSON implemented. Responses/Azure function calls now reconcile authoritative replacements and preserve code units. Codex separate transports, per-output-slot interleaving, custom grammar, other providers, request builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -1381,9 +1388,11 @@
         "streaming_delta_json.go",
         "streaming_delta_json_main_test.go",
         "inference/provider/openai/stream_utf16_main_test.go",
-        "inference/provider/anthropic/stream_utf16_main_test.go"
+        "inference/provider/anthropic/stream_utf16_main_test.go",
+        "inference/provider/openairesponses/argument_stream.go",
+        "inference/provider/openairesponses/stream_utf16_main_test.go"
       ],
-      "note": "Partial: typed ownership, receipt/recovery/readers, diagnostics and compaction implemented; OpenAI function-call and Anthropic argument SSE fragments now use per-call UTF-16-aware streams through finalisation. SDK delta JSON preserves code units. Other provider/custom grammar, request builders, durable progress/event ownership and complete crosswalk remain open; no acceptance claim."
+      "note": "Partial: typed ownership, receipts/recovery, diagnostics, compaction, OpenAI function-call/Anthropic streams and SDK delta JSON implemented. Responses/Azure function calls now reconcile authoritative replacements and preserve code units. Codex separate transports, per-output-slot interleaving, custom grammar, other providers, request builders, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "A",

@@ -22,6 +22,8 @@ Compaction argument slice: typed arguments and diagnostic text now survive trans
 
 First provider-stream slice: OpenAI function-call and Anthropic argument fragments now retain UTF-16 units through incremental parsing/finalisation. SDK tool-call delta JSON round trips preserve deltas and partial arguments. Full normal, focused race and vet pass; other providers/custom grammar, request builders, durable progress and complete crosswalk/acceptance remain open. See [provider argument-stream wiring](docs/upstream-main/README.md#first-provider-argument-stream-wiring).
 
+Responses function-call slice: Responses/Azure now retain argument UTF-16 units through incremental parsing and authoritative argument/item completion replacements. Stale members are discarded without false continuation deltas. Normal/race/vet pass; separate Codex transports, per-output-slot interleaving and other streaming/provider work remain unfinished. See [Responses reconciliation](docs/upstream-main/README.md#responses-function-call-reconciliation).
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

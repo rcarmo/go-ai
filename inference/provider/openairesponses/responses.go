@@ -990,13 +990,13 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	send(&goai.StartEvent{Partial: partial})
 
 	type activeItem struct {
-		itemType      string // "reasoning", "message", "function_call", "custom_tool_call"
-		contentIdx    int
-		partialJSON   string
-		customPayload string
-		inputProperty string
-		inputStarted  bool
-		inputClosed   bool
+		itemType       string // "reasoning", "message", "function_call", "custom_tool_call"
+		contentIdx     int
+		argumentStream jsonparse.ToolCallArgumentsStream
+		customPayload  string
+		inputProperty  string
+		inputStarted   bool
+		inputClosed    bool
 	}
 	var current *activeItem
 	appendCustom := func(input string, close bool) error {
@@ -1048,7 +1048,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				return
 			}
 		}
-		if model.Api == goai.ApiAzureOpenAIResponses {
+		if model.Api == goai.ApiAzureOpenAIResponses && !responsesFunctionArgumentEvent(providerEvent) {
 			providerEvent = goai.NormalizeAzureReasoningEvent(providerEvent)
 			if normalized, err := json.Marshal(providerEvent); err == nil {
 				data = normalized
@@ -1068,6 +1068,19 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		}
 		if json.Unmarshal(data, &raw) != nil {
 			continue
+		}
+
+		if raw.Type == "response.function_call_arguments.delta" || raw.Type == "response.function_call_arguments.done" {
+			var argumentWire struct {
+				Delta     jsonparse.ArgumentText `json:"delta"`
+				Arguments jsonparse.ArgumentText `json:"arguments"`
+			}
+			if err := json.Unmarshal(data, &argumentWire); err != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+				return
+			}
+			raw.Delta = string(argumentWire.Delta)
+			raw.Arguments = string(argumentWire.Arguments)
 		}
 
 		switch raw.Type {
@@ -1153,11 +1166,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 		case "response.function_call_arguments.delta":
 			if current != nil && current.itemType == "function_call" {
-				current.partialJSON += raw.Delta
-				args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-				if args != nil {
-					partial.Content[current.contentIdx].Arguments = args
-				}
+				partial.Content[current.contentIdx].SetStreamingArguments(current.argumentStream.Append(raw.Delta), "")
 				send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: raw.Delta, Partial: partial})
 			}
 
@@ -1189,17 +1198,11 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 		case "response.function_call_arguments.done":
 			if current != nil && current.itemType == "function_call" {
-				// Finalize: emit any trailing delta not covered by incremental deltas
-				if raw.Arguments != "" && strings.HasPrefix(raw.Arguments, current.partialJSON) {
-					trailing := raw.Arguments[len(current.partialJSON):]
-					if trailing != "" {
-						current.partialJSON = raw.Arguments
-						args, _ := jsonparse.ParsePartialJSON(current.partialJSON)
-						if args != nil {
-							partial.Content[current.contentIdx].Arguments = args
-						}
-						send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: trailing, Partial: partial})
-					}
+				replaced := current.argumentStream.Replace(raw.Arguments)
+				partial.Content[current.contentIdx].SetStreamingArguments(replaced.Arguments, "")
+				delta := responsesArgumentDelta(replaced.Delta)
+				if delta != "" {
+					send(&goai.ToolCallDeltaEvent{ContentIndex: current.contentIdx, Delta: delta, Partial: partial})
 				}
 			}
 
@@ -1208,9 +1211,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				continue
 			}
 			var doneItem struct {
-				Arguments string `json:"arguments"`
-				Input     string `json:"input"`
-				Namespace string `json:"namespace"`
+				Arguments jsonparse.ArgumentText `json:"arguments"`
+				Input     string                 `json:"input"`
+				Namespace string                 `json:"namespace"`
 			}
 			_ = json.Unmarshal(raw.Item, &doneItem)
 			idx := current.contentIdx
@@ -1242,7 +1245,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					input = doneItem.Input
 				}
 				if input == "" {
-					input = doneItem.Arguments
+					input = string(doneItem.Arguments)
 				}
 				if err := appendCustom(input, true); err != nil {
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
@@ -1263,22 +1266,13 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				})
 			case "function_call":
 				if doneItem.Arguments != "" {
-					current.partialJSON = doneItem.Arguments
+					current.argumentStream.Replace(string(doneItem.Arguments))
 				}
-				args, argumentsError := jsonparse.ParseToolCallArguments(current.partialJSON)
-				partial.Content[idx].Arguments = args
-				partial.Content[idx].ArgumentsError = argumentsError
-				send(&goai.ToolCallEndEvent{
-					ContentIndex: idx,
-					ToolCall: goai.ToolCall{
-						Type:      "toolCall",
-						ID:        partial.Content[idx].ID,
-						Name:      partial.Content[idx].Name,
-						Arguments: args, ArgumentsError: argumentsError,
-						Namespace: partial.Content[idx].Namespace,
-					},
-					Partial: partial,
-				})
+				args, diagnostic := current.argumentStream.Finish()
+				partial.Content[idx].SetStreamingArguments(args, diagnostic)
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace}
+				call.SetStreamingArguments(args, diagnostic)
+				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}
 			current = nil
 

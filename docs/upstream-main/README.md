@@ -240,3 +240,17 @@ Development checks (Go 1.27.3/GOMAXPROCS=4):
 * Full root-module normal passes (durable 109.530 seconds). Root/OpenAI/Anthropic race passes, including the final decoder reuse adjustment (1.095/1.098/1.279 seconds); vet and diff checks pass. No acceptance profiling.
 
 Still open: OpenAI custom grammar input, Responses/Codex, Google/Gemini, Bedrock and other provider-specific argument boundaries; argument-derived text and replay argument request builders; durable delta/progress ownership; the complete upstream streaming/finalisation crosswalk and broader main convergence. No publication or full-parity claim.
+
+## Responses function-call reconciliation
+
+The native Responses processor now uses `ToolCallArgumentsStream` for function-call partials and finalisation. In pinned `api/openai-responses-shared.ts`, `response.function_call_arguments.done` replaces accumulated arguments; only a true continuation emits a delta. Native divergent replacements now reset stale arguments without emitting a false continuation, and nonempty `output_item.done.arguments` remains authoritative. Namespace and explicit native argument ownership survive the final event.
+
+Only function-argument delta/done fields use `ArgumentText`; ordinary text/reasoning fields keep their existing decoding. Azure function-call events bypass an unnecessary map reserialization: the Azure normalizer only changes reasoning, while ordinary map reserialization discarded isolated argument units. Existing reasoning normalization remains in place. Provider observer maps still use their existing ordinary decoding; this slice does not claim lossless observer payloads.
+
+Development checks, Go 1.27.3/GOMAXPROCS=4:
+
+* Responses and Azure SSE fixtures cover surrogate pairs split between deltas, isolated low units, trailing completion deltas, detached earlier snapshots and final namespace/ownership.
+* Authoritative divergent arguments-done and item-done replacements discard stale members and retain isolated units without a false delta.
+* Full root-module normal passes (durable 110.624 seconds); full Responses race passes (1.124 seconds), vet and diff checks pass. No acceptance profiling.
+
+Remaining boundaries: Codex has separate SSE and WebSocket processors and is not covered by this change. The native Responses processor still tracks a single current item; upstream per-output-slot/interleaving semantics require a separate review and implementation. Custom grammar, provider request builders, other providers, durable progress and full streaming/finalisation review remain open. No acceptance or full-parity claim.
