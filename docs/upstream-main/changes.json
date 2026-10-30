@@ -617,9 +617,10 @@
         "transports/sse/context_test.go",
         "inference/provider/openaicodex/identity.go",
         "inference/provider/openaicodex/identity_main_test.go",
-        "inference/provider/openaicodex/account_main_test.go"
+        "inference/provider/openaicodex/account_main_test.go",
+        "inference/provider/openaicodex/busy_main_test.go"
       ],
-      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE ownership and retention/identity slices are implemented. Registry now isolates account continuations and entry-owned eviction/timers, and logical close handles all partitions outside the global lock. Native URL partition prevents wrong-backend reuse and remains an explicit final adaptation-review item versus upstream session/account grouping. Full normal/Codex race/thirty A/B/A/endpoint/concurrent-account repeats/vet pass. Busy same-account spare acquisition/release/cancellation, credential/endpoint adaptation, other provider/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: stream/typed arguments/terminal/error/payload/observer/filter/SSE and retention/identity/account-isolation slices are implemented. Busy entries now use uncached full-context spares, with deferred owner release/eviction, independent cancellation and entry/busy/timer expiry guards. Full normal/Codex race/thirty repeated spare and expiry ownership fixtures/vet pass. Cached socket liveness and credential rotation remain next; cold-dial adoption and endpoint partitioning require explicit source/adaptation review. Other provider/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",

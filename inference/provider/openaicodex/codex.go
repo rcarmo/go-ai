@@ -303,6 +303,7 @@ const (
 type codexWebSocketSessionKey struct{ sessionID, accountID, wsURL string }
 
 type codexWebSocketSessionEntry struct {
+	busy         bool // guarded by codexWebSocketSessionsMu
 	key          codexWebSocketSessionKey
 	conn         *websocket.Conn
 	continuation *codexWebSocketContinuation
@@ -512,47 +513,45 @@ func codexWebSocketSessionExpired(entry *codexWebSocketSessionEntry, now time.Ti
 	return entry != nil && !entry.createdAt.IsZero() && now.Sub(entry.createdAt) >= codexWebSocketSessionMaxAge
 }
 
-func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*codexWebSocketSessionEntry, bool, error) {
+func acquireCodexWebSocketSession(ctx context.Context, wsURL string, headers http.Header, sessionID string, retryCfg goai.RetryConfig, model *goai.Model) (*websocket.Conn, *codexWebSocketSessionEntry, bool, error) {
 	key := codexWebSocketSessionKey{sessionID: sessionID, accountID: headers.Get("ChatGPT-Account-Id"), wsURL: wsURL}
+	var expired *websocket.Conn
 	codexWebSocketSessionsMu.Lock()
-	if entry := codexWebSocketSessions[key]; entry != nil {
-		if entry.idleTimer != nil {
-			entry.idleTimer.Stop()
-			entry.idleTimer = nil
+	if cached := codexWebSocketSessions[key]; cached != nil {
+		if cached.idleTimer != nil {
+			cached.idleTimer.Stop()
+			cached.idleTimer = nil
 		}
-		if codexWebSocketSessionExpired(entry, time.Now()) {
-			delete(codexWebSocketSessions, key)
+		if cached.busy {
 			codexWebSocketSessionsMu.Unlock()
-			if entry.conn != nil {
-				_ = entry.conn.Close(websocket.StatusNormalClosure, "connection_age_limit")
-			}
-		} else {
-			codexWebSocketSessionsMu.Unlock()
-			return entry, true, nil
+			conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
+			return conn, nil, false, err
 		}
-	} else {
-		codexWebSocketSessionsMu.Unlock()
+		if !codexWebSocketSessionExpired(cached, time.Now()) {
+			cached.busy = true
+			codexWebSocketSessionsMu.Unlock()
+			return cached.conn, cached, true, nil
+		}
+		delete(codexWebSocketSessions, key)
+		expired = cached.conn
 	}
-
+	codexWebSocketSessionsMu.Unlock()
+	if expired != nil {
+		_ = expired.Close(websocket.StatusNormalClosure, "connection_age_limit")
+	}
 	conn, err := dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	entry := &codexWebSocketSessionEntry{key: key, conn: conn, createdAt: time.Now()}
-
+	entry := &codexWebSocketSessionEntry{key: key, conn: conn, busy: true, createdAt: time.Now()}
 	codexWebSocketSessionsMu.Lock()
-	if existing := codexWebSocketSessions[key]; existing != nil {
-		if existing.idleTimer != nil {
-			existing.idleTimer.Stop()
-			existing.idleTimer = nil
-		}
+	if codexWebSocketSessions[key] != nil {
 		codexWebSocketSessionsMu.Unlock()
-		conn.CloseNow()
-		return existing, true, nil
+		return conn, nil, false, nil
 	}
 	codexWebSocketSessions[key] = entry
 	codexWebSocketSessionsMu.Unlock()
-	return entry, false, nil
+	return conn, entry, false, nil
 }
 
 func removeCodexWebSocketSession(sessionID string, entry *codexWebSocketSessionEntry) {
@@ -588,21 +587,27 @@ func scheduleCodexWebSocketIdleClose(sessionID string, entry *codexWebSocketSess
 	if codexWebSocketSessions[key] != entry {
 		return
 	}
+	entry.busy = false
 	if entry.idleTimer != nil {
 		entry.idleTimer.Stop()
 	}
-	entry.idleTimer = time.AfterFunc(codexWebSocketSessionCacheTTL, func() {
-		codexWebSocketSessionsMu.Lock()
-		var conn *websocket.Conn
-		if codexWebSocketSessions[key] == entry {
-			delete(codexWebSocketSessions, key)
-			conn = entry.conn
-		}
-		codexWebSocketSessionsMu.Unlock()
-		if conn != nil {
-			_ = conn.Close(websocket.StatusNormalClosure, "idle_timeout")
-		}
-	})
+	var timer *time.Timer
+	timer = time.AfterFunc(codexWebSocketSessionCacheTTL, func() { expireCodexWebSocketSession(key, entry, timer) })
+	entry.idleTimer = timer
+}
+
+func expireCodexWebSocketSession(key codexWebSocketSessionKey, entry *codexWebSocketSessionEntry, timer *time.Timer) {
+	codexWebSocketSessionsMu.Lock()
+	var conn *websocket.Conn
+	if codexWebSocketSessions[key] == entry && !entry.busy && entry.idleTimer == timer {
+		delete(codexWebSocketSessions, key)
+		entry.idleTimer = nil
+		conn = entry.conn
+	}
+	codexWebSocketSessionsMu.Unlock()
+	if conn != nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "idle_timeout")
+	}
 }
 
 func requestBodyWithoutCodexInput(body map[string]interface{}) map[string]interface{} {
@@ -724,21 +729,32 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		entry  *codexWebSocketSessionEntry
 		reused bool
 	)
+	keepEntry := false
 	if useCachedContext {
 		var err error
-		entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, opts.SessionID, retryCfg, model)
+		conn, entry, reused, err = acquireCodexWebSocketSession(ctx, wsURL, headers, opts.SessionID, retryCfg, model)
 		if err != nil {
 			return err
 		}
-		entry.mu.Lock()
-		defer entry.mu.Unlock()
-		conn = entry.conn
+		useCachedContext = entry != nil
 	} else {
 		var err error
 		conn, err = dialCodexWebSocket(ctx, wsURL, headers, retryCfg, model)
 		if err != nil {
 			return err
 		}
+	}
+	if entry != nil {
+		entry.mu.Lock()
+		defer func() {
+			entry.mu.Unlock()
+			if keepEntry {
+				scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
+			} else {
+				removeCodexWebSocketSession(opts.SessionID, entry)
+			}
+		}()
+	} else {
 		defer conn.CloseNow()
 	}
 
@@ -1164,10 +1180,10 @@ readLoop:
 		}
 		normalized, _ := normalizeJSONValue(filtered).([]interface{})
 		entry.continuation = &codexWebSocketContinuation{lastRequestBody: fullEnvelope, lastResponseID: partial.ResponseID, lastResponseItems: normalized}
-		scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
+		keepEntry = true
 	} else if useCachedContext && entry != nil {
 		entry.continuation = nil
-		scheduleCodexWebSocketIdleClose(opts.SessionID, entry)
+		keepEntry = true
 	} else {
 		conn.Close(websocket.StatusNormalClosure, "done")
 	}

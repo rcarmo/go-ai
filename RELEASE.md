@@ -62,6 +62,8 @@ Codex retention now controls affinity/reuse; ephemeral UUIDv7 identities stay st
 
 The session-only Codex socket isolation blocker is fixed: account-specific continuation/eviction and logical-session close pass A/B/A and concurrent fixtures. Full normal/Codex race/thirty repeats/vet pass: [account evidence](docs/upstream-main/README.md#codex-account-partitioned-socket-ownership). Native endpoint partitioning requires final adaptation review; busy same-account pooling remains open.
 
+Busy Codex sessions now use independently owned transient spares; deferred release/eviction and stale timer guards preserve cached continuations. Full normal/Codex race/thirty repeats/vet pass: [busy-session evidence](docs/upstream-main/README.md#codex-busy-session-spare-sockets). Cached liveness, credential rotation and cold-dial/endpoint adaptation review remain open.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.
