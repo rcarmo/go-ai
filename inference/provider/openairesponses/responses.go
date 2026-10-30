@@ -1302,7 +1302,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			if resp.EndTurn != nil {
 				partial.EndTurn = resp.EndTurn
 			}
-			backfillReasoningEncryptedContent(partial, resp.Output)
+			responsestream.BackfillReasoning(partial.Content, resp.Output)
 			if resp.Usage != nil {
 				cached := 0
 				cacheWrite := 0
@@ -1333,7 +1333,12 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			if incompleteReason != "" {
 				partial.RawStopReason += "." + incompleteReason
 			}
-			partial.StopReason, partial.ErrorMessage = mapStatusWithIncompleteReason(resp.Status, incompleteReason)
+			var statusErr error
+			partial.StopReason, partial.ErrorMessage, statusErr = responsestream.TerminalStatus(resp.Status, incompleteReason)
+			if statusErr != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: statusErr})
+				return
+			}
 			// If we have tool calls and status is "stop", upgrade to "toolUse"
 			for _, c := range partial.Content {
 				if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
@@ -1433,58 +1438,4 @@ func applyServiceTierPricing(usage *goai.Usage, serviceTier string, model *goai.
 	usage.Cost.CacheRead *= multiplier
 	usage.Cost.CacheWrite *= multiplier
 	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
-}
-
-func backfillReasoningEncryptedContent(partial *goai.Message, output []json.RawMessage) {
-	if partial == nil || len(output) == 0 {
-		return
-	}
-	byID := make(map[string]string)
-	for _, raw := range output {
-		var item map[string]interface{}
-		if json.Unmarshal(raw, &item) != nil || item["type"] != "reasoning" {
-			continue
-		}
-		id, _ := item["id"].(string)
-		enc, _ := item["encrypted_content"].(string)
-		if id != "" && enc != "" {
-			byID[id] = enc
-		}
-	}
-	if len(byID) == 0 {
-		return
-	}
-	for i := range partial.Content {
-		block := &partial.Content[i]
-		if block.Type != "thinking" || block.ThinkingSignature == "" || strings.Contains(block.ThinkingSignature, "encrypted_content") {
-			continue
-		}
-		var item map[string]interface{}
-		if json.Unmarshal([]byte(block.ThinkingSignature), &item) != nil {
-			continue
-		}
-		id, _ := item["id"].(string)
-		if enc := byID[id]; enc != "" {
-			item["encrypted_content"] = enc
-			if b, err := json.Marshal(item); err == nil {
-				block.ThinkingSignature = string(b)
-			}
-		}
-	}
-}
-
-func mapStatusWithIncompleteReason(status, incompleteReason string) (goai.StopReason, string) {
-	switch status {
-	case "", "completed", "in_progress", "queued":
-		return goai.StopReasonStop, ""
-	case "incomplete":
-		if incompleteReason == "" || incompleteReason == "max_output_tokens" {
-			return goai.StopReasonLength, ""
-		}
-		return goai.StopReasonError, "OpenAI Responses incomplete: " + incompleteReason
-	case "failed", "cancelled":
-		return goai.StopReasonError, ""
-	default:
-		return goai.StopReasonStop, ""
-	}
 }

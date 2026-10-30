@@ -373,3 +373,15 @@ A negative WebSocket fixture exposed a handler-lifetime race after intentional c
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal, shared/Responses/Codex race, ten repeated Codex custom-reconciliation/message-phase runs, vet and diff checks. Fixtures cover interleaved/out-of-order message finalisation, authoritative final text, end-snapshot signatures, phase replay, Azure normalisation, truncated final phase, signature versions and legacy IDs. No acceptance profiling ran.
 
 Next: Codex incomplete-status/reason mapping and reasoning finalisation, remaining provider/request/replay/observer payloads, durable progress and the full source/test/dependency crosswalk.
+
+## Terminal status, usage and reasoning recovery
+
+Responses and Codex now share pinned-main status mapping. Only `incomplete.max_output_tokens` yields length. Other incomplete reasons, including an absent reason, yield error with a provider diagnostic; unknown statuses fail as protocol errors. Raw stop reasons include the incomplete reason. Native terminal error/event policy still needs comparison with the upstream outer stream wrappers.
+
+Both Codex transports use one terminal finaliser for response identity, end-turn presence, usage and reasoning recovery. Cached/cache-write tokens are removed from ordinary input with a zero floor; this fixes SSE double counting. Reasoning token counters preserve explicit zero presence. Provider total tokens remain unchanged. Broader billed-cost and service-tier accounting remains under review.
+
+Shared reasoning recovery matches terminal output to completed stored signatures by ID and fills absent/null/empty encryption fields. It preserves existing encryption, summary text and opaque JSON fields. This also fixes the Responses substring guard, which previously blocked recovery when summaries mentioned `encrypted_content` or the field was empty. Malformed/non-string existing encryption is retained conservatively. Replay and cached Codex output receive the recovered signature. Duplicate/reused reasoning IDs and outer-wrapper/cache error policy still need review.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite (durable 111.155 seconds), shared/Responses/Codex race (1.018/1.142/1.902 seconds), vet and diff checks. Tests cover complete/incomplete/unknown statuses across transports, missing/filter/length reasons, cache-token floor, explicit zero reasoning, end-turn false, terminal encryption recovery, replay/cache propagation and preservation of stored summaries/opaque values. No acceptance profiling ran.
+
+Next: outer stream error-event/cache policy, duplicate reasoning IDs, remaining request/replay/observer and provider accounting semantics, durable progress, and the complete source/test/dependency crosswalk.

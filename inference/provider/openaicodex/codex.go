@@ -829,7 +829,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		if useCachedContext && entry != nil && opts != nil {
 			removeCodexWebSocketSession(opts.SessionID, entry)
 		}
-		return &codexProtocolError{message: "Invalid Codex tool argument event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
+		return &codexProtocolError{message: "Invalid Codex stream event: " + goai.FormatThrownValue(err), payload: string(payload), cause: err}
 	}
 
 readLoop:
@@ -1004,44 +1004,8 @@ readLoop:
 
 		case "response.completed", "response.incomplete", "response.done":
 			sawCompletion = true
-			var resp struct {
-				ID      string `json:"id"`
-				Status  string `json:"status"`
-				EndTurn *bool  `json:"end_turn"`
-				Usage   *struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
-					TotalTokens  int `json:"total_tokens"`
-					InputDetails *struct {
-						CachedTokens int `json:"cached_tokens"`
-					} `json:"input_tokens_details"`
-				} `json:"usage"`
-			}
-			json.Unmarshal(raw.Response, &resp)
-			if resp.ID != "" {
-				partial.ResponseID = resp.ID
-			}
-			if resp.EndTurn != nil {
-				partial.EndTurn = resp.EndTurn
-			}
-			if resp.Usage != nil {
-				cached := 0
-				if resp.Usage.InputDetails != nil {
-					cached = resp.Usage.InputDetails.CachedTokens
-				}
-				partial.Usage = &goai.Usage{
-					Input: resp.Usage.InputTokens - cached, Output: resp.Usage.OutputTokens,
-					CacheRead: cached, TotalTokens: resp.Usage.TotalTokens,
-				}
-				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
-			}
-			partial.RawStopReason = resp.Status
-			partial.StopReason = mapCodexStatus(resp.Status)
-			for _, c := range partial.Content {
-				if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
-					partial.StopReason = goai.StopReasonToolUse
-					break
-				}
+			if err := finalizeCodexResponse(raw.Response, partial, model); err != nil {
+				return argumentProtocolError(err, data)
 			}
 			break readLoop
 
@@ -1461,33 +1425,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			terminalResponseSeen = true
-			var resp struct {
-				ID      string `json:"id"`
-				Status  string `json:"status"`
-				EndTurn *bool  `json:"end_turn"`
-				Usage   *struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
-					TotalTokens  int `json:"total_tokens"`
-					InputDetails *struct {
-						CachedTokens int `json:"cached_tokens"`
-					} `json:"input_tokens_details"`
-				} `json:"usage"`
+			if err := finalizeCodexResponse(raw.Response, partial, model); err != nil {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+				return
 			}
-			json.Unmarshal(raw.Response, &resp)
-			partial.ResponseID = resp.ID
-			if resp.EndTurn != nil {
-				partial.EndTurn = resp.EndTurn
-			}
-			if resp.Usage != nil {
-				partial.Usage = &goai.Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens, TotalTokens: resp.Usage.TotalTokens}
-				if resp.Usage.InputDetails != nil {
-					partial.Usage.CacheRead = resp.Usage.InputDetails.CachedTokens
-				}
-				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
-			}
-			partial.RawStopReason = resp.Status
-			partial.StopReason = mapCodexStatus(resp.Status)
 		}
 	}
 
@@ -1733,17 +1674,4 @@ func buildCodexAssistantItemsWithToolView(msg goai.Message, model *goai.Model, v
 		}
 	}
 	return items
-}
-
-func mapCodexStatus(status string) goai.StopReason {
-	switch status {
-	case "completed":
-		return goai.StopReasonStop
-	case "incomplete":
-		return goai.StopReasonLength
-	case "failed", "cancelled":
-		return goai.StopReasonError
-	default:
-		return goai.StopReasonStop
-	}
 }
