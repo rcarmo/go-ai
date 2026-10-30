@@ -685,10 +685,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	if err != nil {
 		return fmt.Errorf("extract codex account id: %w", err)
 	}
-	requestID := ""
-	if opts != nil {
-		requestID = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
-	}
+	requestID := request.requestID
 	headers := buildCodexWebSocketHeaders(model.Headers, func() map[string]string {
 		if opts != nil {
 			return opts.Headers
@@ -710,7 +707,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 	if opts != nil && opts.WebSocketConnectTimeoutMs != nil {
 		retryCfg.ConnectTimeout = time.Duration(*opts.WebSocketConnectTimeoutMs) * time.Millisecond
 	}
-	useCachedContext := opts != nil && (opts.Transport == goai.TransportWebSocketCached || opts.Transport == goai.TransportAuto || opts.Transport == "") && opts.SessionID != ""
+	useCachedContext := opts != nil && opts.CacheRetention != goai.CacheRetentionNone && opts.SessionID != ""
 	var (
 		conn   *websocket.Conn
 		entry  *codexWebSocketSessionEntry
@@ -1222,10 +1219,7 @@ func streamViaSSE(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("extract codex account id: %w", err)})
 		return
 	}
-	sessionID := ""
-	if opts != nil {
-		sessionID = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
-	}
+	sessionID := codexCacheSessionID(opts)
 	req.Header = buildCodexSSEHeaders(model.Headers, func() map[string]string {
 		if opts != nil {
 			return opts.Headers
@@ -1641,7 +1635,7 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 			req.Text = map[string]interface{}{"verbosity": opts.TextVerbosity}
 		}
 		if opts.SessionID != "" {
-			req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
+			req.PromptCacheKey = codexCacheSessionID(opts)
 		}
 		if opts.Reasoning != nil {
 			if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {

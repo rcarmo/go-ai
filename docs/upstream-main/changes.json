@@ -614,9 +614,11 @@
         "inference/provider/openaicodex/event_main_test.go",
         "inference/provider/openaicodex/sse_cancel_main_test.go",
         "transports/sse/sse.go",
-        "transports/sse/context_test.go"
+        "transports/sse/context_test.go",
+        "inference/provider/openaicodex/identity.go",
+        "inference/provider/openaicodex/identity_main_test.go"
       ],
-      "note": "Partial: typed stream/grammar/phase/terminal/error/cache, prepared payloads, raw observers and envelope filtering are implemented. Codex now cancels a context-aware SSE producer on every processing exit, handles cancellation at queued events/EOF and finishes at the first terminal response without waiting for EOF or processing trailing data. Reader ownership is explicit; other providers still need Parse migration/review. Full normal/SSE and Codex race/repeated cancellation and terminal fixtures/vet pass. Cache-retention/identity, typed-schema projection edges, other accounting/request/replay/provider semantics, durable progress and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: typed stream/grammar/phase/terminal/error handling, payloads/observers/envelopes and cancellation-aware terminal SSE completion are implemented. CacheRetention none disables generated affinity/socket reuse; ephemeral UUIDv7 is prepared once across retries, and explicit websocket caches with a session. Full normal/Codex race/twenty repeated identity fixtures/vet pass. BLOCKING: registry still keys by session only; upstream account partitions and continuation/eviction/close/concurrency isolation must be ported and A/B/A tested. Busy pooling/origin/credential boundaries, other provider ownership/typed-schema/accounting/request/replay semantics, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",

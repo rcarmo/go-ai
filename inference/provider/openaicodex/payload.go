@@ -8,9 +8,10 @@ import (
 )
 
 type codexPreparedRequest struct {
-	bodyJSON []byte
-	envelope map[string]interface{}
-	tools    codexToolView
+	bodyJSON  []byte
+	requestID string
+	envelope  map[string]interface{}
+	tools     codexToolView
 }
 type codexPayloadError struct{ cause error }
 
@@ -44,7 +45,11 @@ func prepareCodexRequest(ctx context.Context, model *goai.Model, input *goai.Con
 	if envelope == nil {
 		return nil, &codexPayloadError{fmt.Errorf("Codex request payload must be an object")}
 	}
-	return &codexPreparedRequest{bodyJSON: encoded, envelope: envelope, tools: tools}, nil
+	requestID := codexCacheSessionID(opts)
+	if requestID == "" {
+		requestID = goai.UUIDv7()
+	}
+	return &codexPreparedRequest{bodyJSON: encoded, envelope: envelope, tools: tools, requestID: requestID}, nil
 }
 func codexRequestForTransport(ctx context.Context, model *goai.Model, input *goai.Context, opts *goai.StreamOptions, prepared []*codexPreparedRequest) (*codexPreparedRequest, error) {
 	if err := ctx.Err(); err != nil {
