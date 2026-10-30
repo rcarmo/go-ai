@@ -3,6 +3,7 @@ package sse
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -21,10 +22,24 @@ const EventError = "__error__"
 
 // Parse reads SSE events from an io.Reader and sends them to a channel.
 // The channel is closed when the reader is exhausted or an error occurs.
-func Parse(r io.Reader) <-chan SSEEvent {
+func Parse(r io.Reader) <-chan SSEEvent { return ParseContext(context.Background(), r) }
+
+// ParseContext makes parsing and channel sends cancellation-aware. Events
+// already buffered may still be received after cancellation. It never closes r
+// or interrupts a blocked Read: callers must close/unblock their reader. HTTP
+// callers should use their request context and close the body on early exit.
+func ParseContext(ctx context.Context, r io.Reader) <-chan SSEEvent {
 	ch := make(chan SSEEvent, 16)
 	go func() {
 		defer close(ch)
+		emit := func(event SSEEvent) bool {
+			select {
+			case <-ctx.Done():
+				return false
+			case ch <- event:
+				return true
+			}
+		}
 		scanner := bufio.NewScanner(r)
 		// Start small for ordinary token events; grow to the same hard limit
 		// for long lines such as base64 images and large JSON records.
@@ -38,7 +53,7 @@ func Parse(r io.Reader) <-chan SSEEvent {
 		lastID := ""
 		lastRetry := -1
 
-		for scanner.Scan() {
+		for ctx.Err() == nil && scanner.Scan() {
 			line := scanner.Text()
 
 			if line == "" {
@@ -55,7 +70,9 @@ func Parse(r io.Reader) <-chan SSEEvent {
 					if event.Retry == -1 {
 						event.Retry = lastRetry
 					}
-					ch <- event
+					if !emit(event) {
+						return
+					}
 				}
 				// Reset per-event state; keep sticky id/retry
 				event = SSEEvent{Retry: -1}
@@ -91,6 +108,10 @@ func Parse(r io.Reader) <-chan SSEEvent {
 			}
 		}
 
+		if ctx.Err() != nil {
+			return
+		}
+
 		// Flush last event if no trailing blank line
 		if len(dataLines) > 0 {
 			event.Data = strings.Join(dataLines, "\n")
@@ -98,10 +119,12 @@ func Parse(r io.Reader) <-chan SSEEvent {
 			if event.Event == "" {
 				event.Event = "message"
 			}
-			ch <- event
+			if !emit(event) {
+				return
+			}
 		}
 		if err := scanner.Err(); err != nil {
-			ch <- SSEEvent{Event: EventError, Data: err.Error(), Retry: -1}
+			emit(SSEEvent{Event: EventError, Data: err.Error(), Retry: -1})
 		}
 	}()
 	return ch

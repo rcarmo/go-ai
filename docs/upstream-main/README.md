@@ -449,3 +449,13 @@ Upstream handles a JSON `null` frame differently: property access throws an ordi
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 108.878 seconds), Codex race (2.158 seconds), twenty repeated envelope/protocol/mutated-type/null/sentinel fixture runs, vet and diff checks. No acceptance profiling ran.
 
 Next: investigate SSE producer cancellation/ownership on early return, then cache-retention/identity details and remaining provider request/replay/accounting/observer paths. Typed-schema projection edge cases, durable progress and the complete source/test/dependency crosswalk remain open.
+
+## Codex SSE producer ownership
+
+The shared SSE parser can strand its producer on a full channel when a consumer returns early. New additive `sse.ParseContext` makes sends and between-read work cancellation-aware, preserving `Parse` compatibility. It never closes caller-owned readers or promises to interrupt arbitrary blocking reads; HTTP callers must also close response bodies. Buffered events may remain after cancellation.
+
+Codex now derives and cancels a parser context on every processing exit. It checks request cancellation before processing queued events and at EOF, retaining an aborted partial instead of reporting a missing terminal event. The pinned adapter also ends at the first terminal response; native SSE now stops there, discards subsequent frames and releases the HTTP body without waiting for EOF.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal (durable 112.250 seconds), SSE/Codex race (1.041/2.296 seconds), fifty repeated parser-cancellation runs and thirty repeated Codex EOF/terminal runs, vet and diff checks. Deterministic parser fixtures cover full-channel cancellation, no reads after pre-cancellation, caller ownership and caller-unblocked reads. A production HTTP fixture holds the connection open after terminal plus malformed trailing frames; Codex completes and closes the body without observing the tail. No acceptance profiling ran.
+
+Next: cache-retention/identity details. Other providers still using compatibility `Parse` require their own early-exit/cancellation ownership review; typed-schema projection edges, remaining request/replay/accounting/observer paths, durable progress and the full source/test/dependency crosswalk remain open.

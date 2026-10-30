@@ -1337,8 +1337,23 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 		return created, nil
 	}
 
-	events := sse.Parse(body)
+	parseCtx, cancelParser := context.WithCancel(ctx)
+	defer cancelParser()
+	events := sse.ParseContext(parseCtx, body)
+	abort := func() bool {
+		if ctx.Err() == nil {
+			return false
+		}
+		partial.StopReason = goai.StopReasonAborted
+		partial.ErrorMessage = ctx.Err().Error()
+		send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: partial, Err: ctx.Err()})
+		return true
+	}
+eventsLoop:
 	for evt := range events {
+		if abort() {
+			return
+		}
 		if evt.Event == sse.EventError {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
@@ -1543,10 +1558,15 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}
+			break eventsLoop
 		}
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if abort() {
+		return
+	}
+
 	if !terminalResponseSeen {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Codex stream ended before a terminal response event"

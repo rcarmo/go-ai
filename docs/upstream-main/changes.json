@@ -611,9 +611,12 @@
         "inference/provider/openaicodex/observer.go",
         "inference/provider/openaicodex/observer_main_test.go",
         "inference/provider/openaicodex/event.go",
-        "inference/provider/openaicodex/event_main_test.go"
+        "inference/provider/openaicodex/event_main_test.go",
+        "inference/provider/openaicodex/sse_cancel_main_test.go",
+        "transports/sse/sse.go",
+        "transports/sse/context_test.go"
       ],
-      "note": "Partial: typed stream/grammar/phase/terminal/error/cache handling, once-prepared payloads and raw observers are implemented. Event envelopes now filter missing/non-string types before observers/startup; post-callback type mutations are ignored after startup. Malformed JSON fails with protocol partials and no network fallback/counters; SSE ignores whitespace/DONE. Null adapter exceptions retain upstream pre-start fallback/after-start failure classification. Full normal/Codex race/twenty repeated fixtures/vet pass. SSE producer cancellation/ownership, typed-schema projection edges, cache-retention/identity, other accounting/request/replay/provider semantics, durable progress and full source/test/dependency review/acceptance remain open."
+      "note": "Partial: typed stream/grammar/phase/terminal/error/cache, prepared payloads, raw observers and envelope filtering are implemented. Codex now cancels a context-aware SSE producer on every processing exit, handles cancellation at queued events/EOF and finishes at the first terminal response without waiting for EOF or processing trailing data. Reader ownership is explicit; other providers still need Parse migration/review. Full normal/SSE and Codex race/repeated cancellation and terminal fixtures/vet pass. Cache-retention/identity, typed-schema projection edges, other accounting/request/replay/provider semantics, durable progress and full source/test/dependency review/acceptance remain open."
     },
     {
       "change": "M",
