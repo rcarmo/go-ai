@@ -9,7 +9,8 @@ import (
 
 func diagnosticTextField(v reflect.Value, name string) bool {
 	if v.Type() == nativeContentBlockType && name == "text" {
-		return v.Interface().(goai.ContentBlock).HasToolArgumentDiagnostic()
+		block := v.Interface().(goai.ContentBlock)
+		return block.HasToolArgumentDiagnostic() || block.HasToolArgumentTranscript()
 	}
 	return v.Type() == reflect.TypeFor[ToolDiagnostic]() && name == "message" && v.Interface().(ToolDiagnostic).argumentError
 }

@@ -198,7 +198,10 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			if err != nil {
 				return err
 			}
-			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "source": text, "instructions": instructions, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
+			checkpoint := JSON{"pinnedModel": pinned, "settings": settings, "reason": reason, "phase": "summarize", "tail": tail, "firstKept": view.Entries[cut].ID, "instructions": instructions, "model": JSON{"provider": string(agent.Model.Provider), "id": agent.Model.ID}, "maxTokens": maxTokens, "attempt": 1}
+			if err := storeCompactionSource(checkpoint, text, h.session.limits); err != nil {
+				return err
+			}
 			checkpoint["thinkingLevel"] = string(agent.ThinkingLevel)
 			retry := agent.Settings.Retry
 			if raw, ok := input["retry"].(map[string]any); ok {
@@ -294,9 +297,12 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				level := goai.ThinkingLevel(thinking)
 				options.Reasoning = &level
 			}
-			source, _ := cp["source"].(string)
+			source, nativeSource, err := loadCompactionSource(cp, h.session.limits)
+			if err != nil {
+				return err
+			}
 			instructions, _ := cp["instructions"].(string)
-			conv := &goai.Context{SystemPrompt: compactionSystemPrompt, Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{{Type: "text", Text: compactionRequestText(source, instructions)}}}}}
+			conv := &goai.Context{SystemPrompt: compactionSystemPrompt, Messages: []goai.Message{{Role: goai.RoleUser, Content: []goai.ContentBlock{compactionRequestBlock(source, instructions, nativeSource)}}}}
 			message, success, _ := h.drain(goai.Stream(ctx, model, conv, options), model)
 			if err := ctx.Err(); err != nil {
 				return err

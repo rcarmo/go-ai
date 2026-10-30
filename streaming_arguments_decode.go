@@ -132,7 +132,7 @@ func RestoreStreamingArgumentsJSON(data []byte, target any, preserveNumbers bool
 				return restore(&t.Arguments, &t.ArgumentsError, &t.streamingArguments, raw)
 			case reflect.TypeFor[ContentBlock]():
 				b := v.Addr().Interface().(*ContentBlock)
-				if b.Type == "text" && b.HasToolArgumentDiagnostic() {
+				if b.Type == "text" && (b.HasToolArgumentDiagnostic() || b.HasToolArgumentTranscript()) {
 					if !lossless {
 						return nil
 					}

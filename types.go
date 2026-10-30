@@ -216,6 +216,7 @@ type ContentBlock struct {
 	NamespacePresent        bool                   `json:"-"`
 	streamingArguments      bool
 	toolArgumentDiagnostic  bool
+	toolArgumentTranscript  bool
 }
 
 // --- Usage ---

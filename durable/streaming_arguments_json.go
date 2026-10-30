@@ -34,7 +34,7 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	value := v.Field(field.index)
 	if v.Type() == nativeContentBlockType {
 		block := v.Interface().(goai.ContentBlock)
-		if block.HasToolArgumentDiagnostic() && block.Type != "text" {
+		if (block.HasToolArgumentDiagnostic() || block.HasToolArgumentTranscript()) && block.Type != "text" {
 			return reflect.Value{}, reject("argument diagnostic requires text block")
 		}
 	}

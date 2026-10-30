@@ -93,7 +93,7 @@ func (b ContentBlock) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	var text any = b.Text
-	if b.toolArgumentDiagnostic {
+	if b.toolArgumentDiagnostic || b.toolArgumentTranscript {
 		if b.Type != "text" {
 			return nil, fmt.Errorf("diagnostic text requires text block")
 		}
@@ -128,3 +128,12 @@ func (b *ContentBlock) SetToolArgumentDiagnostic(text string) {
 	b.toolArgumentDiagnostic = true
 }
 func (b ContentBlock) HasToolArgumentDiagnostic() bool { return b.toolArgumentDiagnostic }
+
+// SetToolArgumentTranscript marks compaction text derived from typed tool
+// arguments/diagnostics. Ordinary input text keeps its existing UTF-8 domain.
+func (b *ContentBlock) SetToolArgumentTranscript(text string) {
+	b.Type = "text"
+	b.Text = text
+	b.toolArgumentTranscript = true
+}
+func (b ContentBlock) HasToolArgumentTranscript() bool { return b.toolArgumentTranscript }

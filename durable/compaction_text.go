@@ -14,8 +14,11 @@ const compactionPrompt = "Create a concise checkpoint with these sections: Goals
 // SerializeConversation presents model context as an inert text transcript.
 // System contributions and image payloads are omitted. Tool results retain at
 // most 2000 UTF-16 units, cutting only at a complete Unicode scalar in Go.
+// Isolated units from explicitly typed arguments/diagnostics use WTF-8 in the
+// returned string; compaction persists them through its scoped source state.
 func SerializeConversation(messages []MessageReceipt, limits Limits) (string, error) {
 	parts := []string{}
+	nativeText := false
 	for _, message := range messages {
 		text := []string{}
 		thinking := []string{}
@@ -23,10 +26,26 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 		for _, block := range message.Content {
 			switch block.Type {
 			case "text":
+				if !utf8.ValidString(block.Text) {
+					if !block.HasToolArgumentDiagnostic() && !block.HasToolArgumentTranscript() {
+						return "", reject("invalid compaction text")
+					}
+					nativeText = true
+				}
 				text = append(text, block.Text)
 			case "thinking":
+				if !utf8.ValidString(block.Thinking) {
+					return "", reject("invalid compaction thinking")
+				}
 				thinking = append(thinking, block.Thinking)
 			case "toolCall":
+				if !utf8.ValidString(block.Name) {
+					return "", reject("invalid compaction tool name")
+				}
+				owned, err := copyToolArguments(block, limits)
+				if err != nil {
+					return "", err
+				}
 				args := []string{}
 				keys := make([]string, 0, len(block.Arguments))
 				for key := range block.Arguments {
@@ -34,7 +53,10 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 				}
 				sort.Strings(keys)
 				for _, key := range keys {
-					value, err := encodeBounded(block.Arguments[key], limits, limits.MaxDocumentBytes)
+					if !utf8.ValidString(key) {
+						nativeText = true
+					}
+					value, err := encodeCompactionArgument(owned[key], block.HasStreamingArguments(), limits)
 					if err != nil {
 						return "", err
 					}
@@ -66,35 +88,28 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 		}
 	}
 	transcript := strings.Join(parts, "\n\n")
-	if !utf8.ValidString(transcript) || len(transcript) > limits.MaxStringBytes {
-		return "", reject("compaction transcript limit")
+	if err := compactionSourceValid(transcript, nativeText, limits); err != nil {
+		return "", err
 	}
 	return transcript, nil
 }
 func truncateCompactionText(text string, maximum int) string {
-	units, cut := 0, len(text)
-	for offset, r := range text {
-		width := 1
-		if r > 0xffff {
-			width = 2
-		}
+	units, kept, cut := 0, 0, len(text)
+	for offset := 0; offset < len(text); {
+		_, size, width := compactionRune(text[offset:])
 		if units+width > maximum && cut == len(text) {
 			cut = offset
+			kept = units
 		}
 		units += width
+		offset += size
 	}
 	if cut == len(text) {
 		return text
 	}
-	kept := 0
-	for _, r := range text[:cut] {
-		kept++
-		if r > 0xffff {
-			kept++
-		}
-	}
 	return text[:cut] + fmt.Sprintf("\n\n[... %d more characters truncated]", units-kept)
 }
+
 func compactionRequestText(source, instructions string) string {
 	focus := ""
 	if instructions != "" {

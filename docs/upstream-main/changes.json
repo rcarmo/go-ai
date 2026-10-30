@@ -1086,9 +1086,13 @@
         "durable/codemode_call_execute.go",
         "durable/diagnostic_utf16.go",
         "durable/diagnostic_utf16_main_test.go",
-        "durable/tool_diagnostic.go"
+        "durable/tool_diagnostic.go",
+        "durable/compaction_utf16.go",
+        "durable/compaction_utf16_main_test.go",
+        "durable/compaction_text.go",
+        "durable/compaction.go"
       ],
-      "note": "Partial: typed arguments across SDK/DTO, receipts, main/nested hooks/recovery/readers and codemode serial/parallel/native remote/replay tested on all three stores. Full parse-error remarks and scoped rendered diagnostic text now survive invalid-call context/reopen. Ordinary JSON/text fences retained. Compaction formatting, provider SSE/delta wiring and complete streaming/finalisation review remain open; global/final values, enlarged codec budgets and broader validator error fidelity need review."
+      "note": "Partial: SDK/DTO, receipts, main/nested/codemode ownership and restart, readers, full parsed-argument diagnostics and scoped compaction transcript state/request recovery tested. Generic text/JSON fences retained. Provider SSE/delta and argument-derived request text emission plus full streaming/finalisation crosswalk remain open. Global/final values, enlarged budgets, broader validator errors and other main deltas need review."
     },
     {
       "change": "M",
@@ -1363,9 +1367,13 @@
         "durable/codemode_call_execute.go",
         "durable/diagnostic_utf16.go",
         "durable/diagnostic_utf16_main_test.go",
-        "durable/tool_diagnostic.go"
+        "durable/tool_diagnostic.go",
+        "durable/compaction_utf16.go",
+        "durable/compaction_utf16_main_test.go",
+        "durable/compaction_text.go",
+        "durable/compaction.go"
       ],
-      "note": "Partial: typed arguments across SDK/DTO, receipts, main/nested hooks/recovery/readers and codemode serial/parallel/native remote/replay tested on all three stores. Full parse-error remarks and scoped rendered diagnostic text now survive invalid-call context/reopen. Ordinary JSON/text fences retained. Compaction formatting, provider SSE/delta wiring and complete streaming/finalisation review remain open; global/final values, enlarged codec budgets and broader validator error fidelity need review."
+      "note": "Partial: SDK/DTO, receipts, main/nested/codemode ownership and restart, readers, full parsed-argument diagnostics and scoped compaction transcript state/request recovery tested. Generic text/JSON fences retained. Provider SSE/delta and argument-derived request text emission plus full streaming/finalisation crosswalk remain open. Global/final values, enlarged budgets, broader validator errors and other main deltas need review."
     },
     {
       "change": "A",

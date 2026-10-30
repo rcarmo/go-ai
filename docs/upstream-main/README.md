@@ -208,3 +208,19 @@ Go 1.27.3/GOMAXPROCS=4 development checks:
 * Full root-module normal suite passes (durable 109.514 seconds). Focused normal checks pass (durable 5.646 seconds); focused diagnostic/receipt/tool/reader race passes (8.977 seconds). Vet and diff checks pass. No acceptance profiling.
 
 Next: compaction transcript formatting still handles argument values and joined tool text through ordinary JSON/UTF-8 paths. Preserve their exact logical units through a scoped representation, then wire provider SSE/delta transport and finish the streaming/finalisation crosswalk. Codemode global/final values, enlarged codec budgets and broader validation-error fidelity still need review.
+
+## Compaction argument-derived text
+
+Conversation formatting now encodes typed tool argument values in their declared JSON domain. Isolated argument keys and explicitly marked diagnostic text retain their UTF-16 units in the Go transcript string. Each ordinary text/thinking/name field is checked separately; the presence of native arguments does not permit invalid unrelated text. Normal UTF-8 transcripts retain the existing checkpoint shape.
+
+Exceptional transcripts persist through a bounded, schema-owned `sourceState` argument snapshot instead of a raw generic `source` string. Replay rejects mixed source representations and restores the exact logical text before constructing the summarisation request. `SetToolArgumentTranscript` marks that transient SDK request block for lossless JSON emission. The compaction source state owns persistence; ordinary message text remains strict.
+
+Tool-result truncation counts isolated units once and keeps the existing complete-scalar cut for valid pairs. The encoded-document and string caps were not increased. Provider-specific request builders still need the following transport integration.
+
+Development checks on Go 1.27.3/GOMAXPROCS=4:
+
+* Memory/journal/SQLite summarisation interruption/reopen tests preserve isolated keys, JSON-escaped argument values and rendered diagnostics in the request, then produce the expected summary/recent-tail context.
+* Formatting/state tests cover generic-JSON-safe checkpoint storage, exact restoration, mixed-state rejection, unrelated invalid text, string limits, isolated-unit counts and surrogate-pair cut boundaries.
+* Full root-module normal suite passes (durable 109.111 seconds). Focused compaction/diagnostic race passes (5.193 seconds); vet and diff checks pass. No acceptance profiling.
+
+Next: provider SSE code-unit decoding, argument-stream/delta transport and explicit argument-derived text emission in request builders; then the remaining streaming/finalisation crosswalk. Codemode global/final values, enlarged codec budgets, broader validator error fidelity and the other main deltas still need review.
