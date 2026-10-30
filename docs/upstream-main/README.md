@@ -385,3 +385,15 @@ Shared reasoning recovery matches terminal output to completed stored signatures
 Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite (durable 111.155 seconds), shared/Responses/Codex race (1.018/1.142/1.902 seconds), vet and diff checks. Tests cover complete/incomplete/unknown statuses across transports, missing/filter/length reasons, cache-token floor, explicit zero reasoning, end-turn false, terminal encryption recovery, replay/cache propagation and preservation of stored summaries/opaque values. No acceptance profiling ran.
 
 Next: outer stream error-event/cache policy, duplicate reasoning IDs, remaining request/replay/observer and provider accounting semantics, durable progress, and the complete source/test/dependency crosswalk.
+
+## Terminal error delivery and continuation safety
+
+Responses/Azure and Codex now emit a terminal error event for unsuccessful output instead of a done event with an error stop reason. The event retains the partial message, usage, raw reason, response ID and provider diagnostic. Successful stop/tool-use/length outputs keep done delivery; later successful Responses terminal events still clear earlier incomplete diagnostics. Older v0.84/v0.85 error-as-done tests now assert pinned-main error delivery. Unfinished-tool length fixtures explicitly supply `max_output_tokens`.
+
+Codex API errors after startup retain the partial message. Read failures and cancellation also preserve their partial state. A normal close before completion can fall back only before any provider events: after startup it emits one error and cannot replay the request through SSE. Auto-transport tests count zero HTTP fallback requests for both semantic failure and started normal-close truncation.
+
+Native safety choice: semantic terminal failures clear cached continuation and evict the WebSocket session. Upstream inner WebSocket processing can construct continuation state before its outer successful-output assertion; native Go does not retain failed response state. API error paths also evict the failed session. Broader debug counters/transport telemetry and protocol-error partial propagation still need review.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full root normal, shared/Responses/Codex race, ten repeated auto-transport failure/truncation runs, vet and diff checks. Fixtures verify error-only delivery with partial metadata, cached-session eviction, no fallback after startup, max-token length success and stale-error clearing. No acceptance profiling ran.
+
+Next: duplicate/reused reasoning IDs, remaining error/transport observer telemetry, provider accounting/request/replay payloads, durable progress and the complete source/test/dependency crosswalk.

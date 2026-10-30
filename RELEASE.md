@@ -44,6 +44,8 @@ Codex message completion now records v1 text signatures; Responses/Codex replay 
 
 Responses/Codex now share terminal status/reason mapping and stored reasoning encryption recovery. Codex terminal finalisation also fixes SSE cache-token double counting and preserves reasoning-counter presence. Full normal/race/vet pass: [terminal evidence](docs/upstream-main/README.md#terminal-status-usage-and-reasoning-recovery). Outer error/cache policy and broader provider parity remain under review.
 
+Failed Responses/Codex output now emits errors with terminal partial metadata. Codex evicts failed cached sessions and never falls back after a started normal-close truncation. Full normal/race/repeated auto-transport/vet checks pass: [error/cache evidence](docs/upstream-main/README.md#terminal-error-delivery-and-continuation-safety). Broader telemetry and semantic review remain unfinished.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

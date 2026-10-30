@@ -13,12 +13,18 @@ func TestResponsesTerminalReasonMain(t *testing.T) {
 			t.Run(string(api)+"/"+reason, func(t *testing.T) {
 				raw, _ := json.Marshal(map[string]any{"type": "response.incomplete", "response": map[string]any{"status": "incomplete", "incomplete_details": map[string]any{"reason": reason}}})
 				var final *goai.Message
+				done, failures := 0, 0
 				processStream(strings.NewReader("data: "+string(raw)+"\n\n"), &goai.Model{Api: api}, func(event goai.Event) {
 					switch e := event.(type) {
 					case *goai.DoneEvent:
+						done++
 						final = e.Message
 					case *goai.ErrorEvent:
-						t.Error(e.Err)
+						failures++
+						final = e.Error
+						if e.Err == nil {
+							t.Error("missing terminal error")
+						}
 					}
 				})
 				if final == nil {
@@ -34,6 +40,13 @@ func TestResponsesTerminalReasonMain(t *testing.T) {
 				if reason == "max_output_tokens" {
 					want = goai.StopReasonLength
 					message = ""
+				}
+				if want == goai.StopReasonError {
+					if failures != 1 || done != 0 {
+						t.Fatal("failed output delivered as done", done, failures)
+					}
+				} else if done != 1 || failures != 0 {
+					t.Fatal(done, failures)
 				}
 				if final.StopReason != want || final.ErrorMessage != message || final.RawStopReason != rawReason {
 					t.Fatal("incomplete reason mismatch", final)

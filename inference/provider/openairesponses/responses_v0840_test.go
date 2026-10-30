@@ -23,17 +23,30 @@ func TestResponsesIncompleteTerminalReasonMapping(t *testing.T) {
 			ch := make(chan goai.Event, 10)
 			processStream(body, &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}, goai.NewAssistantEventSender(ch))
 			close(ch)
-			var done *goai.DoneEvent
-			for ev := range ch {
-				if d, ok := ev.(*goai.DoneEvent); ok {
-					done = d
+			var message *goai.Message
+			done, failed := 0, 0
+			for event := range ch {
+				switch e := event.(type) {
+				case *goai.DoneEvent:
+					message = e.Message
+					done++
+				case *goai.ErrorEvent:
+					message = e.Error
+					failed++
 				}
 			}
-			if done == nil || done.Message.StopReason != tc.wantStop || done.Message.RawStopReason != "incomplete."+tc.reason {
-				t.Fatalf("done=%#v", done)
+			if tc.wantError {
+				if failed != 1 || done != 0 {
+					t.Fatal("failed output delivered as done", done, failed)
+				}
+			} else if done != 1 || failed != 0 {
+				t.Fatal(done, failed)
 			}
-			if tc.wantError && !strings.Contains(done.Message.ErrorMessage, tc.reason) {
-				t.Fatalf("missing incomplete error reason: %#v", done.Message)
+			if message == nil || message.StopReason != tc.wantStop || message.RawStopReason != "incomplete."+tc.reason {
+				t.Fatal(message)
+			}
+			if tc.wantError && !strings.Contains(message.ErrorMessage, tc.reason) {
+				t.Fatal("missing incomplete reason", message)
 			}
 		})
 	}

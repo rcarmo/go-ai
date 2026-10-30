@@ -1348,10 +1348,10 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			}
 
 		case "error":
-			send(&goai.ErrorEvent{
-				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("API error %s: %s", raw.Code, addChatGPTUsageGuidance(raw.Message)),
-			})
+			err := fmt.Errorf("API error %s: %s", raw.Code, addChatGPTUsageGuidance(raw.Message))
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return
 
 		case "response.failed":
@@ -1378,6 +1378,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			partial.RawStopReason = resp.Status
 			msg = addChatGPTUsageGuidance(msg)
 			partial.ErrorMessage = msg
+			partial.StopReason = goai.StopReasonError
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", msg)})
 			return
 		}
@@ -1396,6 +1397,10 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Tool call arguments did not complete before stream ended")})
+		return
+	}
+	if err := responsestream.TerminalFailure(partial); err != nil {
+		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
 		return
 	}
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})

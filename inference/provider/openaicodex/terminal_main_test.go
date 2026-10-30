@@ -14,15 +14,23 @@ func TestCodexTerminalStatusBothTransportsMain(t *testing.T) {
 				response := map[string]any{"type": "response.incomplete", "response": map[string]any{"id": "r", "status": "incomplete", "incomplete_details": map[string]any{"reason": reason}}}
 				raw, _ := json.Marshal(response)
 				var final *goai.Message
+				done, failures := 0, 0
+				session := t.Name()
+				defer CloseOpenAICodexWebSocketSessions(session)
 				send := func(event goai.Event) {
 					switch e := event.(type) {
 					case *goai.DoneEvent:
+						done++
 						final = e.Message
 					case *goai.ErrorEvent:
-						t.Error(e.Err)
+						failures++
+						final = e.Error
+						if e.Err == nil {
+							t.Error("missing terminal error")
+						}
 					}
 				}
-				if err := streamCodexArgumentFrames(t, transport, []string{string(raw)}, send); err != nil {
+				if err := streamCodexArgumentFrames(t, transport, []string{string(raw)}, send, session); err != nil {
 					t.Fatal(err)
 				}
 				if final == nil {
@@ -38,6 +46,21 @@ func TestCodexTerminalStatusBothTransportsMain(t *testing.T) {
 				if reason == "max_output_tokens" {
 					want = goai.StopReasonLength
 					message = ""
+				}
+				if want == goai.StopReasonError {
+					if failures != 1 || done != 0 {
+						t.Fatal("failed output delivered as done", done, failures)
+					}
+					if transport == "websocket" {
+						codexWebSocketSessionsMu.Lock()
+						_, cached := codexWebSocketSessions[session]
+						codexWebSocketSessionsMu.Unlock()
+						if cached {
+							t.Fatal("failed output retained cached session")
+						}
+					}
+				} else if done != 1 || failures != 0 {
+					t.Fatal(done, failures)
 				}
 				if final.StopReason != want || final.RawStopReason != rawReason || final.ErrorMessage != message {
 					t.Fatal("terminal reason lost", final)

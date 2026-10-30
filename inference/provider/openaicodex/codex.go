@@ -843,7 +843,9 @@ readLoop:
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
 				if started {
-					send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+					partial.StopReason = goai.StopReasonAborted
+					partial.ErrorMessage = ctx.Err().Error()
+					send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: partial, Err: ctx.Err()})
 					return nil
 				}
 				return ctx.Err()
@@ -855,7 +857,9 @@ readLoop:
 			if !started {
 				return fmt.Errorf("WebSocket read: %w", err)
 			}
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return nil
 		}
 
@@ -1012,6 +1016,7 @@ readLoop:
 		case "error":
 			if useCachedContext && entry != nil {
 				entry.continuation = nil
+				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
 			err := &codexAPIError{message: fmt.Sprintf("Codex error: %s", firstNonEmpty(eventErr.Message, eventErr.Code, string(data))), code: eventErr.Code, payload: string(data)}
@@ -1021,16 +1026,20 @@ readLoop:
 				}
 				return err
 			}
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return nil
 
 		case "response.failed":
 			if useCachedContext && entry != nil {
 				entry.continuation = nil
+				removeCodexWebSocketSession(opts.SessionID, entry)
 			}
 			var failed struct {
 				Response *struct {
-					Error *struct {
+					Status string `json:"status"`
+					Error  *struct {
 						Code    string `json:"code"`
 						Message string `json:"message"`
 					} `json:"error"`
@@ -1043,10 +1052,15 @@ readLoop:
 				message = failed.Response.Error.Message
 			}
 			err := &codexAPIError{message: firstNonEmpty(message, "Codex response failed"), code: code, payload: string(data)}
+			if failed.Response != nil {
+				partial.RawStopReason = failed.Response.Status
+			}
 			if !started {
 				return err
 			}
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return nil
 		}
 	}
@@ -1056,13 +1070,30 @@ readLoop:
 			removeCodexWebSocketSession(opts.SessionID, entry)
 			entry.continuation = nil
 		}
-		return fmt.Errorf("WebSocket stream closed before response.completed")
+		err := fmt.Errorf("WebSocket stream closed before response.completed")
+		if started {
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			partial.Timestamp = time.Now().UnixMilli()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+			return nil
+		}
+		return err
 	}
 
 	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
 		return argumentProtocolError(fmt.Errorf("Tool call arguments did not complete before stream ended"), nil)
 	}
 
+	if err := responsestream.TerminalFailure(partial); err != nil {
+		partial.Timestamp = time.Now().UnixMilli()
+		if useCachedContext && entry != nil && opts != nil {
+			entry.continuation = nil
+			removeCodexWebSocketSession(opts.SessionID, entry)
+		}
+		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
+		return nil
+	}
 	if useCachedContext && entry != nil && partial.ResponseID != "" {
 		responseItems := buildCodexInputWithToolView(model, &goai.Context{Messages: []goai.Message{*partial}}, toolView)
 		filtered := make([]interface{}, 0, len(responseItems))
@@ -1402,7 +1433,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			current = nil
 		case "error":
 			eventErr := extractCodexEventError(raw.Code, raw.Message, raw.Error)
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)})
+			err := fmt.Errorf("API error %s: %s", eventErr.Code, eventErr.Message)
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = err.Error()
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 			return
 		case "response.failed":
 			var failed struct {
@@ -1421,6 +1455,8 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 			if failed.Response != nil {
 				partial.RawStopReason = failed.Response.Status
 			}
+			partial.StopReason = goai.StopReasonError
+			partial.ErrorMessage = message
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("%s", message)})
 			return
 		case "response.completed", "response.incomplete", "response.done":
@@ -1450,6 +1486,10 @@ func processCodexSSE(body io.Reader, model *goai.Model, send func(goai.Event), d
 		return
 	}
 
+	if err := responsestream.TerminalFailure(partial); err != nil {
+		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
+		return
+	}
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 

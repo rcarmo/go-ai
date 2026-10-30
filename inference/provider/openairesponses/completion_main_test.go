@@ -80,7 +80,11 @@ func TestUnfinishedToolCompletionMain(t *testing.T) {
 				if mode == "length" {
 					status = "incomplete"
 				}
-				frames = append(frames, encode(map[string]any{"type": "response.completed", "response": map[string]any{"status": status, "usage": map[string]any{}}}))
+				response := map[string]any{"status": status, "usage": map[string]any{}}
+				if mode == "length" {
+					response["incomplete_details"] = map[string]any{"reason": "max_output_tokens"}
+				}
+				frames = append(frames, encode(map[string]any{"type": "response.completed", "response": response}))
 				done, failures := 0, 0
 				send := func(event goai.Event) {
 					switch event.(type) {

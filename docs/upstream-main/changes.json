@@ -595,9 +595,14 @@
         "internal/responsestream/terminal_test.go",
         "inference/provider/openaicodex/terminal.go",
         "inference/provider/openaicodex/terminal_main_test.go",
-        "inference/provider/openairesponses/terminal_main_test.go"
+        "inference/provider/openairesponses/terminal_main_test.go",
+        "internal/responsestream/failure.go",
+        "internal/responsestream/failure_test.go",
+        "inference/provider/openaicodex/terminal_error_main_test.go",
+        "inference/provider/openairesponses/v0850_stale_error_cleanup_test.go",
+        "inference/provider/openairesponses/responses_v0840_test.go"
       ],
-      "note": "Partial: native argument/custom streams, grammar/replay/cache/phase mapping and validation are implemented. Responses/Codex share terminal status/incomplete-reason mapping and completed-signature encryption recovery. Codex transports share finalisation, cache-write/input-floor/reasoning-presence accounting, terminal metadata and recovered replay/cache output. Full normal/focused race/vet pass. Outer error-event/cache policy, reused reasoning IDs, broader billed/service-tier/provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom/grammar/phase mapping, terminal status/usage/reasoning recovery and typed validation are implemented. Failed terminal output now emits errors retaining partial metadata; Codex started normal-close/API failures cannot fall back and evict failed sessions. Native safety difference: failed continuation is discarded even though upstream inner code may publish before its outer output assertion. Full normal/focused race/repeated auto tests/vet pass. Reused reasoning IDs, error/transport telemetry, protocol-error partials, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -656,9 +661,14 @@
         "internal/responsestream/terminal_test.go",
         "inference/provider/openaicodex/terminal.go",
         "inference/provider/openaicodex/terminal_main_test.go",
-        "inference/provider/openairesponses/terminal_main_test.go"
+        "inference/provider/openairesponses/terminal_main_test.go",
+        "internal/responsestream/failure.go",
+        "internal/responsestream/failure_test.go",
+        "inference/provider/openaicodex/terminal_error_main_test.go",
+        "inference/provider/openairesponses/v0850_stale_error_cleanup_test.go",
+        "inference/provider/openairesponses/responses_v0840_test.go"
       ],
-      "note": "Partial: native argument/custom streams, grammar/replay/cache/phase mapping and validation are implemented. Responses/Codex share terminal status/incomplete-reason mapping and completed-signature encryption recovery. Codex transports share finalisation, cache-write/input-floor/reasoning-presence accounting, terminal metadata and recovered replay/cache output. Full normal/focused race/vet pass. Outer error-event/cache policy, reused reasoning IDs, broader billed/service-tier/provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom/grammar/phase mapping, terminal status/usage/reasoning recovery and typed validation are implemented. Failed terminal output now emits errors retaining partial metadata; Codex started normal-close/API failures cannot fall back and evict failed sessions. Native safety difference: failed continuation is discarded even though upstream inner code may publish before its outer output assertion. Full normal/focused race/repeated auto tests/vet pass. Reused reasoning IDs, error/transport telemetry, protocol-error partials, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",
@@ -670,9 +680,14 @@
         "internal/responsestream/terminal_test.go",
         "inference/provider/openaicodex/terminal.go",
         "inference/provider/openaicodex/terminal_main_test.go",
-        "inference/provider/openairesponses/terminal_main_test.go"
+        "inference/provider/openairesponses/terminal_main_test.go",
+        "internal/responsestream/failure.go",
+        "internal/responsestream/failure_test.go",
+        "inference/provider/openaicodex/terminal_error_main_test.go",
+        "inference/provider/openairesponses/v0850_stale_error_cleanup_test.go",
+        "inference/provider/openairesponses/responses_v0840_test.go"
       ],
-      "note": "Partial: native argument/custom streams, grammar/replay/cache/phase mapping and validation are implemented. Responses/Codex share terminal status/incomplete-reason mapping and completed-signature encryption recovery. Codex transports share finalisation, cache-write/input-floor/reasoning-presence accounting, terminal metadata and recovered replay/cache output. Full normal/focused race/vet pass. Outer error-event/cache policy, reused reasoning IDs, broader billed/service-tier/provider/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
+      "note": "Partial: native argument/custom/grammar/phase mapping, terminal status/usage/reasoning recovery and typed validation are implemented. Failed terminal output now emits errors retaining partial metadata; Codex started normal-close/API failures cannot fall back and evict failed sessions. Native safety difference: failed continuation is discarded even though upstream inner code may publish before its outer output assertion. Full normal/focused race/repeated auto tests/vet pass. Reused reasoning IDs, error/transport telemetry, protocol-error partials, broader accounting/request/replay/observer fidelity, durable progress and full crosswalk/acceptance remain open."
     },
     {
       "change": "M",

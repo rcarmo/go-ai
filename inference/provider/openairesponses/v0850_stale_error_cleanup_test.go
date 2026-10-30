@@ -40,11 +40,23 @@ func TestV0850ResponsesTerminalStatusClearsStaleErrorForSuccessAndLength(t *test
 	}
 }
 
-func TestV0850ResponsesIncompleteErrorsRetainMappedErrorMessage(t *testing.T) {
+// Pinned main rejects unsuccessful output instead of emitting done.
+func TestResponsesIncompleteErrorsRetainMappedErrorMessageMain(t *testing.T) {
 	for _, reason := range []string{"content_filter", "unknown_reason"} {
 		t.Run(reason, func(t *testing.T) {
 			body := strings.NewReader(`data: {"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"` + reason + `"},"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}` + "\n\n")
-			done := collectV0850ResponsesDone(t, body)
+			var done *goai.Message
+			processStream(body, &goai.Model{}, func(event goai.Event) {
+				switch e := event.(type) {
+				case *goai.ErrorEvent:
+					done = e.Error
+				case *goai.DoneEvent:
+					t.Error("failed output delivered as done")
+				}
+			})
+			if done == nil {
+				t.Fatal("missing terminal error partial")
+			}
 			if done.StopReason != goai.StopReasonError || done.RawStopReason != "incomplete."+reason || !strings.Contains(done.ErrorMessage, reason) {
 				t.Fatalf("message=%#v, want mapped incomplete error for %q", done, reason)
 			}
