@@ -80,11 +80,32 @@ func FormatProviderError(norm NormalizedProviderError, prefix ...string) string 
 	return fmt.Sprintf("%d: %s", norm.Status, norm.Body)
 }
 
+// TruncateErrorText counts UTF-16 units, retaining complete Unicode scalars.
+// A split surrogate-pair boundary rounds down and counts both omitted units.
+// As before, maxChars must be non-negative.
 func TruncateErrorText(text string, maxChars int) string {
+	if maxChars < 0 {
+		panic("negative provider error text limit")
+	}
 	if len(text) <= maxChars {
 		return text
 	}
-	return fmt.Sprintf("%s... [truncated %d chars]", text[:maxChars], len(text)-maxChars)
+	total, kept, end := 0, 0, len(text)
+	cut := false
+	for offset, char := range text {
+		units := 1
+		if char > 0xffff {
+			units = 2
+		}
+		if !cut && total+units > maxChars {
+			end, kept, cut = offset, total, true
+		}
+		total += units
+	}
+	if !cut {
+		return text
+	}
+	return fmt.Sprintf("%s... [truncated %d chars]", text[:end], total-kept)
 }
 
 func SafeJSONStringify(value any) string {
