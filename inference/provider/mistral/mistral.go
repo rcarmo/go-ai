@@ -17,6 +17,7 @@ import (
 	"time"
 
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/errortext"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 	"github.com/rcarmo/go-ai/transports/sse"
 )
@@ -178,13 +179,15 @@ type mistralRequest struct {
 
 type mistralMsg struct {
 	Role       string            `json:"role"`
-	Content    interface{}       `json:"content"`
+	Content    interface{}       `json:"content,omitempty"`
+	Prefix     *bool             `json:"prefix,omitempty"`
 	ToolCalls  []mistralToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string            `json:"tool_call_id,omitempty"`
 	Name       string            `json:"name,omitempty"`
 }
 
 type mistralToolCall struct {
+	Index    int                 `json:"index"`
 	ID       string              `json:"id"`
 	Type     string              `json:"type"`
 	Function mistralToolCallFunc `json:"function"`
@@ -255,14 +258,19 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			req.Messages = append(req.Messages, mistralMsg{Role: "user", Content: goai.SanitizeSurrogates(text)})
 
 		case goai.RoleAssistant:
-			m := mistralMsg{Role: "assistant"}
-			var texts []string
+			prefix := false
+			m := mistralMsg{Role: "assistant", Prefix: &prefix}
+			var parts []mistralContentPart
 			for _, b := range msg.Content {
 				switch b.Type {
 				case "text":
-					texts = append(texts, b.Text)
+					if errortext.Trim(b.Text) != "" {
+						parts = append(parts, mistralContentPart{Type: "text", Text: goai.SanitizeSurrogates(b.Text)})
+					}
 				case "thinking":
-					texts = append(texts, b.Thinking)
+					if errortext.Trim(b.Thinking) != "" {
+						parts = append(parts, mistralContentPart{Type: "thinking", Thinking: []mistralThinkingText{{Type: "text", Text: goai.SanitizeSurrogates(b.Thinking)}}})
+					}
 				case "toolCall":
 					argsJSON, _ := json.Marshal(b.Arguments)
 					normID := normalizeID(b.ID)
@@ -276,14 +284,12 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					})
 				}
 			}
-			if len(texts) > 0 {
-				combined := ""
-				for _, t := range texts {
-					combined += t
-				}
-				m.Content = goai.SanitizeSurrogates(combined)
+			if len(parts) > 0 {
+				m.Content = parts
 			}
-			req.Messages = append(req.Messages, m)
+			if len(parts) > 0 || len(m.ToolCalls) > 0 {
+				req.Messages = append(req.Messages, m)
+			}
 
 		case goai.RoleToolResult:
 			text := ""
@@ -346,9 +352,9 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Content   *string       `json:"content,omitempty"`
-	Reasoning *string       `json:"reasoning_content,omitempty"`
-	ToolCalls []sseToolCall `json:"tool_calls,omitempty"`
+	Content   json.RawMessage `json:"content,omitempty"`
+	Reasoning *string         `json:"reasoning_content,omitempty"`
+	ToolCalls []sseToolCall   `json:"tool_calls,omitempty"`
 }
 
 type sseToolCall struct {
@@ -427,6 +433,42 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	var activeTools []*activeTC
 	var finishReason *string
 
+	currentContent := -1
+	finishContent := func() {
+		if currentContent < 0 {
+			return
+		}
+		block := partial.Content[currentContent]
+		if block.Type == "text" {
+			send(&goai.TextEndEvent{ContentIndex: currentContent, Content: block.Text, Partial: partial})
+		} else {
+			send(&goai.ThinkingEndEvent{ContentIndex: currentContent, Content: block.Thinking, Partial: partial})
+		}
+		currentContent = -1
+	}
+	appendContent := func(kind, text string) {
+		if text == "" {
+			return
+		}
+		if currentContent < 0 || partial.Content[currentContent].Type != kind {
+			finishContent()
+			currentContent = len(partial.Content)
+			partial.Content = append(partial.Content, goai.ContentBlock{Type: kind})
+			if kind == "text" {
+				send(&goai.TextStartEvent{ContentIndex: currentContent, Partial: partial})
+			} else {
+				send(&goai.ThinkingStartEvent{ContentIndex: currentContent, Partial: partial})
+			}
+		}
+		if kind == "text" {
+			partial.Content[currentContent].Text += text
+			send(&goai.TextDeltaEvent{ContentIndex: currentContent, Delta: text, Partial: partial})
+		} else {
+			partial.Content[currentContent].Thinking += text
+			send(&goai.ThinkingDeltaEvent{ContentIndex: currentContent, Delta: text, Partial: partial})
+		}
+	}
+
 	events := sse.Parse(body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
@@ -475,30 +517,21 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 			partial.RawStopReason = *choice.FinishReason
 		}
 
-		// Text
-		if delta.Content != nil && *delta.Content != "" {
-			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "text" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "text"})
-				send(&goai.TextStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial})
-			}
-			idx := len(partial.Content) - 1
-			partial.Content[idx].Text += *delta.Content
-			send(&goai.TextDeltaEvent{ContentIndex: idx, Delta: *delta.Content, Partial: partial})
+		deltas := mistralContentDeltas(delta.Content)
+		hasThinking := false
+		for _, part := range deltas {
+			appendContent(part.kind, part.text)
+			hasThinking = hasThinking || part.kind == "thinking"
 		}
-
-		// Reasoning
-		if delta.Reasoning != nil && *delta.Reasoning != "" {
-			if len(partial.Content) == 0 || partial.Content[len(partial.Content)-1].Type != "thinking" {
-				partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
-				send(&goai.ThinkingStartEvent{ContentIndex: len(partial.Content) - 1, Partial: partial})
-			}
-			idx := len(partial.Content) - 1
-			partial.Content[idx].Thinking += *delta.Reasoning
-			send(&goai.ThinkingDeltaEvent{ContentIndex: idx, Delta: *delta.Reasoning, Partial: partial})
+		// Preserve legacy native reasoning_content support when canonical
+		// thinking chunks are absent; canonical content is never duplicated.
+		if !hasThinking && delta.Reasoning != nil {
+			appendContent("thinking", goai.SanitizeSurrogates(*delta.Reasoning))
 		}
 
 		// Tool calls
 		for _, tc := range delta.ToolCalls {
+			finishContent()
 			var at *activeTC
 			for i := range activeTools {
 				if activeTools[i].index == tc.Index || (tc.ID != "" && activeTools[i].id == tc.ID) {
@@ -534,15 +567,7 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		}
 	}
 
-	// Close text/thinking blocks
-	for i, c := range partial.Content {
-		if c.Type == "text" {
-			send(&goai.TextEndEvent{ContentIndex: i, Content: c.Text, Partial: partial})
-		}
-		if c.Type == "thinking" {
-			send(&goai.ThinkingEndEvent{ContentIndex: i, Content: c.Thinking, Partial: partial})
-		}
-	}
+	finishContent()
 
 	// Close tool calls
 	for i := range activeTools {

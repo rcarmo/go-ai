@@ -1,0 +1,12 @@
+data: {"choices":[{"delta":{"content":[{"type":"thinking","thinking":[{"type":"text","text":"A\ud83d"},{"type":"text","text":"\ude03"}]}]}}]}
+
+data: {"choices":[{"delta":{"content":""}}]}
+
+data: {"choices":[{"delta":{"content":[{"type":"thinking","thinking":[{"type":"text","text":"\ud800B\udc00"}]}]}}]}
+
+data: {"choices":[{"delta":{"content":[{"type":"text","text":" answer "}]}}]}
+
+data: {"choices":[{"delta":{"content":["more"]},"finish_reason":"stop"}]}
+
+data: [DONE]
+
