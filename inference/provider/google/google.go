@@ -52,6 +52,9 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		goai.GetLogger().Debug("stream start", "api", "google-generative-ai", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
+		if model.Api == goai.ApiGoogleVertex {
+			apiKey = trimGoogleSDKSpace(apiKey)
+		}
 		if apiKey == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
@@ -137,6 +140,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) (string, error) {
 	baseURL := model.BaseURL
 	if model.Api == goai.ApiGoogleVertex {
+		apiKey = trimGoogleSDKSpace(apiKey)
 		// The pinned API-key client omits project/location, selecting Vertex
 		// Express. ADC keeps the project-scoped path below.
 		if apiKey != "" && !isVertexADCMarker(apiKey) {
@@ -193,8 +197,10 @@ func vertexBaseIncludesVersion(base string) bool {
 	return vertexVersionSegment.MatchString(base)
 }
 
+var vertexPlaceholderKey = regexp.MustCompile(`^<[^>]+>$`)
+
 func isVertexADCMarker(apiKey string) bool {
-	return strings.HasPrefix(apiKey, "<") || apiKey == "gcp-vertex-credentials"
+	return vertexPlaceholderKey.MatchString(apiKey) || apiKey == "gcp-vertex-credentials"
 }
 
 func resolveVertexProjectLocation(opts *goai.StreamOptions) (string, string, error) {

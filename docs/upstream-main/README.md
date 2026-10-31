@@ -987,3 +987,7 @@ The [locked SDK reference](google-sdk-framing.md) supplies 18 wires tested in tw
 ## Vertex ADC routing
 
 [Fourteen ADC-style URL/HTTP cases](vertex-adc-urls.md), including ten baseline failures, pass after selecting SDK global/multi-regional hosts and custom collection/version paths. Seven actual locked-SDK URL-method probes confirm the construction. Existing regional/missing-scope controls, real-key routing and explicit caller-header ownership are preserved. Root normal, Google race, root vet and scoped staticcheck pass. The synthetic HTTP control supplies its own header; ADC token acquisition is unimplemented.
+
+## Vertex key classification
+
+[Twenty-one trimming/marker cases](vertex-key-markers.md), including fifteen baseline failures, now pass. The actual pinned helper confirms exact complete-placeholder matching and ECMAScript trimming; explicit placeholders mask environment keys. HTTP checks retain generic key precedence, caller inputs and alias-scoped isolation. Root normal, Google race, root vet and scoped staticcheck pass. Higher-level source credential discovery, empty-key/default ADC and token acquisition still need work.

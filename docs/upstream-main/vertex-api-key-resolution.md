@@ -24,7 +24,7 @@ The implementation changes only the real-key URL branch. It trims custom bases, 
 This file remains development-verified-partial. Real-key routing, generated base handling, custom/versioned key collections and explicit headers have native checks. Model-level keys are an additional native compatibility control, not a source test. The following work is still required:
 
 - The provider does not acquire ADC tokens itself. Marker-to-URL tests cannot establish ADC authentication, key-file handling, scopes or credential refresh.
-- Marker/environment fallback and exact marker classification need production-path tests. Generic native credential precedence and provider-scoped isolation are unchanged.
+- [Key trimming/marker checks](vertex-key-markers.md) add twenty-one cases with fifteen baseline failures. Explicit markers mask environment keys; the pinned helper does not fall through to environment resolution. Generic native credential precedence and provider-scoped isolation are unchanged. Higher-level source credential discovery and empty-key/default-ADC behaviour still need review.
 - The [ADC URL follow-up](vertex-adc-urls.md) aligns custom collection/version and global/multi-regional host selection in fourteen cases, including ten baseline failures. Its synthetic caller-header HTTP control does not acquire credentials.
 - The complete nine-case constructor/header crosswalk and live credentials need further verification.
 - Query-based key transport and model-name/path escaping are preserved native contracts; SDK auth-header and endpoint composition need their own review with existing isolation fences intact.

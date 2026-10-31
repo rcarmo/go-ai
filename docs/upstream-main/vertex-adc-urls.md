@@ -24,4 +24,4 @@ The HTTP test supplies `Bearer caller-test-token` explicitly. It verifies URL/he
 
 Go 1.27.3, `GOMAXPROCS=4`: full root normal, Google race, root vet, Google-scoped staticcheck v0.8.2 and `git diff --check` pass. Raw SDK files were removed after inspection/probes. No dependencies, catalogues or release refs changed. Acceptance, CPU/allocation profiling and broader convergence are incomplete; the 23 root staticcheck findings outside Google still need review.
 
-The [nine-case Vertex crosswalk](vertex-api-key-resolution.md) stays partial. Marker/environment fallback, exact placeholder classification, ADC acquisition/refresh and SDK auth-header/endpoint composition need further work. Provider-scoped credential isolation is unchanged.
+The [nine-case Vertex crosswalk](vertex-api-key-resolution.md) stays partial. [Key trimming/classification and marker masking](vertex-key-markers.md) now have twenty-one cases. ADC acquisition/refresh, higher-level credential discovery and SDK auth-header/endpoint composition need further work. Provider-scoped credential isolation is unchanged.
