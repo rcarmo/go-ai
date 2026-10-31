@@ -637,3 +637,13 @@ Codex previously swallowed errors from required JSON-schema constrained sampling
 Fixtures cover eighteen Responses API/provider/override combinations, the Codex support/prefer/require/schema matrix, pre-transport rejection in SSE/WebSocket/auto modes, and snapshot/change/search projection boundaries. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite, Responses/Codex/responsestream race, thirty repeated strict-default/sampling groups, vet and diff checks. No acceptance profiling ran.
 
 Next: compare strict schema transformations with the pinned utility, then remaining request/accounting and provider paths. Durable/codemode, full source/test/dependency dispositions, section ordering and five earlier decisions remain open. This checkpoint does not establish acceptance or authorize publication.
+
+## Pinned strict-schema transformation vectors
+
+A direct Bun import of the pinned constrained-sampling.ts generated 33 maintained regression vectors and 132 supported/prefer/require sampling outcomes in testdata/strict_schema_main.json. Inputs cover nullable primitives, nested objects/arrays, const/enum/anyOf nullability, malformed schema nodes and unsupported constructs. Temporary extracted TypeScript was removed immediately after comparison; the retained JSON is intentional test source, not a raw run archive.
+
+Native conversion now classifies non-object roots as unsupported strict schemas, allowing preferred-mode fallback instead of accidental decoding failures. Array items must be a schema object: boolean/null/scalar items no longer pass silently. Malformed anyOf members now use the pinned unsupported-node classification. Required mode continues to reject unsupported schemas. Malformed JSON remains an error, and caller bytes remain unchanged.
+
+The native deterministic required-key order remains intact. Comparison treats JSON Schema required arrays as sets; all other output structure and strict-conversion rejection messages are checked directly. Existing native required-sampling error wrappers remain unchanged. This closes the strict-transform subset, not the whole constrained-sampling utility or provider review.
+
+Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite; tests/Responses/Codex/Anthropic/Google/Bedrock race; thirty repeated strict/schema groups; vet and diff checks. No acceptance profiling ran. Next: remaining request/accounting review, including unresolved constrained-sampling/provider helper paths in the wider crosswalk. Durable/codemode, complete source/test/dependency dispositions, five native/source decisions and section insertion ordering remain open.

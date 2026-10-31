@@ -530,9 +530,12 @@
         "inference/provider/openai/grammar_input.go",
         "inference/provider/openairesponses/grammar_validation.go",
         "inference/provider/openairesponses/grammar_validation_main_test.go",
-        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go"
+        "inference/provider/openairesponses/responses_grammar_replay_v100_test.go",
+        "schema_strict.go",
+        "tests/schema_strict_main_test.go",
+        "testdata/strict_schema_main.json"
       ],
-      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open."
+      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open. Strict-transform subset reviewed via 33 direct pinned TypeScript vectors/132 sampling outcomes. Fixed root unsupported/fallback classification, non-object items rejection and malformed anyOf member classification; native required-order determinism preserved with set comparison. Full normal/six-package race/thirty strict repeats/vet pass; extracted source disposed. Remaining utility/provider helpers and broader acceptance are still open."
     },
     {
       "change": "M",

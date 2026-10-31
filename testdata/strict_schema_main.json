@@ -1,0 +1,1464 @@
+{
+  "upstream": "4b535d57ea8863dbba44b89872146523da271786",
+  "source": "packages/ai/src/api/constrained-sampling.ts",
+  "vectors": [
+    {
+      "name": "empty_object",
+      "input": {
+        "type": "object"
+      },
+      "output": {
+        "type": "object",
+        "required": [],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "optional_primitive",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "required_primitive",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x"
+        ]
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "nested_object",
+      "input": {
+        "type": "object",
+        "properties": {
+          "child": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "child": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "n": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "n"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "child"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "nullable_types",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "nullable_enum",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "enum": [
+              null,
+              "a"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "enum": [
+              null,
+              "a"
+            ]
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "nullable_const",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "const": null
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "const": null
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "nullable_anyof",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "array_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "xs"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "boolean_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": false
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "null_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": null
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "numeric_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": 1
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "string_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": "bad"
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "tuple_items",
+      "input": {
+        "type": "object",
+        "properties": {
+          "xs": {
+            "type": "array",
+            "items": []
+          }
+        }
+      },
+      "error": "tuple schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "boolean_root",
+      "input": false,
+      "error": "root schema must have type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "null_root",
+      "input": null,
+      "error": "root schema must have type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "array_root",
+      "input": [],
+      "error": "root schema must have type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "scalar_root",
+      "input": 3,
+      "error": "root schema must have type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "string_root",
+      "input": "bad",
+      "error": "root schema must have type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "boolean_property",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": false
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "anyof_boolean",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              false
+            ]
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "anyof_null",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              null
+            ]
+          }
+        }
+      },
+      "error": "boolean schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "anyof_empty",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": []
+          }
+        }
+      },
+      "error": "anyOf must contain at least one schema",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "anyof_structured",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "error": "object and array unions are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "unknown_required",
+      "input": {
+        "type": "object",
+        "required": [
+          "unknown"
+        ]
+      },
+      "error": "required contains an unknown property",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "bad_required",
+      "input": {
+        "type": "object",
+        "required": [
+          1
+        ]
+      },
+      "error": "object required must be a string array",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "bad_properties",
+      "input": {
+        "type": "object",
+        "properties": []
+      },
+      "error": "object properties must be a schema map",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "properties_nonobject",
+      "input": {
+        "type": "array",
+        "properties": {}
+      },
+      "error": "properties require type object",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "additional_true",
+      "input": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "error": "schema-valued or true additionalProperties is unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "additional_null",
+      "input": {
+        "type": "object",
+        "additionalProperties": null
+      },
+      "error": "schema-valued or true additionalProperties is unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "unsupported_ref",
+      "input": {
+        "type": "object",
+        "$ref": "x"
+      },
+      "error": "$ref schemas are unsupported",
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": null,
+          "error": true
+        }
+      ]
+    },
+    {
+      "name": "scalar_union",
+      "input": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "x"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    },
+    {
+      "name": "property_order",
+      "input": {
+        "type": "object",
+        "properties": {
+          "z": {
+            "type": "string"
+          },
+          "a": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "z": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "a": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "z",
+          "a"
+        ],
+        "additionalProperties": false
+      },
+      "sampling": [
+        {
+          "supported": false,
+          "strict": "prefer",
+          "value": null,
+          "error": false
+        },
+        {
+          "supported": false,
+          "strict": "require",
+          "value": null,
+          "error": true
+        },
+        {
+          "supported": true,
+          "strict": "prefer",
+          "value": true,
+          "error": false
+        },
+        {
+          "supported": true,
+          "strict": "require",
+          "value": true,
+          "error": false
+        }
+      ]
+    }
+  ]
+}

@@ -48,9 +48,13 @@ func MakeStrictJSONSchemaWithUnsupportedKeyword(parameters json.RawMessage, isUn
 	if len(parameters) == 0 {
 		return nil, unsupportedStrictJSONSchemaError{"root schema must have type object"}
 	}
-	var schema map[string]interface{}
-	if err := json.Unmarshal(parameters, &schema); err != nil {
+	var value interface{}
+	if err := json.Unmarshal(parameters, &value); err != nil {
 		return nil, err
+	}
+	schema, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, unsupportedStrictJSONSchemaError{"root schema must have type object"}
 	}
 	if err := makeJSONSchemaNodeStrict(schema, isUnsupported); err != nil {
 		return nil, err
@@ -140,11 +144,15 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 	}
 
 	if rawAnyOf, ok := schema["anyOf"]; ok {
-		variants, ok := schemaArray(rawAnyOf)
+		variants, ok := rawAnyOf.([]interface{})
 		if !ok || len(variants) == 0 {
 			return unsupportedStrictJSONSchemaError{"anyOf must contain at least one schema"}
 		}
-		for _, variant := range variants {
+		for _, rawVariant := range variants {
+			variant, ok := rawVariant.(map[string]interface{})
+			if !ok {
+				return unsupportedStrictJSONSchemaError{"boolean schemas are unsupported"}
+			}
 			if isStructuredSchema(variant) {
 				return unsupportedStrictJSONSchemaError{"object and array unions are unsupported"}
 			}
@@ -162,6 +170,8 @@ func makeJSONSchemaNodeStrict(schema map[string]interface{}, isUnsupported Stric
 			if err := makeJSONSchemaNodeStrict(items, isUnsupported); err != nil {
 				return err
 			}
+		default:
+			return unsupportedStrictJSONSchemaError{"boolean schemas are unsupported"}
 		}
 	}
 
