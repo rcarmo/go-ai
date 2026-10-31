@@ -88,6 +88,8 @@ Codex mid-system tool-search now plans request-prefix definitions and paired def
 
 Responses legacy deferred-tool handling now uses the paired capability guard, includes search arguments and prevents initial-header early/duplicate declarations while retaining CRC IDs. Full normal, Responses/Codex race, forty repeats and vet pass: [legacy deferred evidence](docs/upstream-main/README.md#responses-legacy-deferred-tool-capability-guards). Full transcript anchoring and broader convergence/acceptance are unfinished.
 
+Responses transcript-native tool anchoring, fold planning and system-section projection are implemented separately from legacy markers. Full normal, focused race, thirty repeated fixture groups and vet pass: [transcript evidence](docs/upstream-main/README.md#responses-transcript-native-anchoring). Namespace review, broader convergence and acceptance remain incomplete.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

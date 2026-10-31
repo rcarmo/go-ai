@@ -238,8 +238,21 @@ func TestResponsesGrammarReplayResolvesTranscriptDeclaredTools(t *testing.T) {
 		{Role: goai.RoleToolResult, ToolName: "grammar_tool", ToolCallID: "call_added|ctc_added", Content: []goai.ContentBlock{{Type: "text", Text: "ok"}}},
 	}}
 	request, input := captureV100ResponsesReplayRequest(t, model, transcript)
-	if len(request.Tools) != 1 || request.Tools[0].Type != "custom" {
-		t.Fatalf("tools=%v", request.Tools)
+	if len(request.Tools) != 0 {
+		t.Fatalf("anchored tools duplicated at request level: %v", request.Tools)
+	}
+	declarations := 0
+	for _, item := range input {
+		if item["type"] == "additional_tools" {
+			tools := item["tools"].([]interface{})
+			if len(tools) != 1 || tools[0].(map[string]interface{})["type"] != "custom" {
+				t.Fatalf("bad grammar anchor: %v", item)
+			}
+			declarations++
+		}
+	}
+	if declarations != 1 {
+		t.Fatalf("grammar anchors=%d", declarations)
 	}
 	var call, result map[string]interface{}
 	for _, item := range input {

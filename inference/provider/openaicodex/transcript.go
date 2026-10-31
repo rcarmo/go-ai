@@ -2,46 +2,13 @@ package openaicodex
 
 import (
 	goai "github.com/rcarmo/go-ai"
-	"sort"
+	"github.com/rcarmo/go-ai/internal/responsestream"
 	"strings"
 )
 
-func codexSystemContent(message goai.Message) string {
-	var texts []string
-	for _, block := range message.Content {
-		if block.Type == "text" {
-			texts = append(texts, block.Text)
-		}
-	}
-	return strings.Join(texts, "\n")
-}
-
-// Sections are Go maps: retain the SDK's deterministic key order at projection.
 func codexSystemText(message goai.Message, update bool) string {
-	var parts []string
-	if text := codexSystemContent(message); text != "" {
-		parts = append(parts, text)
-	}
-	keys := make([]string, 0, len(message.Sections))
-	for key := range message.Sections {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		value := message.Sections[key]
-		if update {
-			if value == nil {
-				parts = append(parts, "Removed system prompt section \""+key+"\".")
-			} else {
-				parts = append(parts, "Updated system prompt section \""+key+"\":\n\n"+*value)
-			}
-		} else if value != nil && *value != "" {
-			parts = append(parts, *value)
-		}
-	}
-	return strings.Join(parts, "\n\n")
+	return responsestream.SystemMessageText(message, update)
 }
-
 func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Context {
 	normalized := goai.NormalizeContext(input)
 	// Legacy whitespace-only prompts are meaningful instructions too.
@@ -76,7 +43,7 @@ func codexTranscriptContext(model *goai.Model, input *goai.Context) *goai.Contex
 				result.Messages = append(result.Messages, message)
 				continue
 			}
-			if text := codexSystemContent(message); text != "" {
+			if text := responsestream.SystemContent(message); text != "" {
 				texts = append(texts, text)
 			}
 			for key, value := range message.Sections {
@@ -106,29 +73,5 @@ func codexUsesToolSearch(model *goai.Model) bool {
 }
 
 func codexToolSearchPlan(messages []goai.Message) ([]goai.Tool, int) {
-	var systems []goai.Message
-	seen := map[string]bool{}
-	last := -1
-	for _, message := range messages {
-		if message.Role != goai.RoleSystem {
-			continue
-		}
-		index := len(systems)
-		systems = append(systems, message)
-		if len(message.ToolsRemoved) > 0 {
-			last = index
-		}
-		for _, tool := range message.ToolsAdded {
-			if seen[tool.Name] {
-				last = index
-			}
-			seen[tool.Name] = true
-		}
-	}
-	folded := last + 1
-	if len(messages) > 0 && messages[0].Role == goai.RoleSystem && folded < 1 {
-		folded = 1
-	}
-	tools := goai.ContextFromTranscript(goai.TranscriptContext{Messages: systems[:folded]}).Tools
-	return tools, folded
+	return responsestream.ToolSearchPlan(messages)
 }

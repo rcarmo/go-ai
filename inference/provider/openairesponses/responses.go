@@ -79,7 +79,12 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		compat := getResponsesCompat(model)
-		for _, tool := range convCtx.Tools {
+		transcriptPlan := newResponsesTranscriptPlan(convCtx, compat)
+		declarations := convCtx.Tools
+		if transcriptPlan != nil {
+			declarations = transcriptPlan.declarations()
+		}
+		for _, tool := range declarations {
 			if _, err := convertResponsesTool(tool, compat.supportsStrictMode, compat.supportsGrammarTools); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 				return
@@ -89,8 +94,9 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
 			return
 		}
-		body := buildRequest(model, convCtx, opts)
+		body := buildRequest(model, convCtx, opts, transcriptPlan)
 		body.Model = requestModelID
+ if body.buildError!=nil{send(&goai.ErrorEvent{Reason:goai.StopReasonError,Err:body.buildError});return}
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
@@ -196,6 +202,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type responsesRequest struct {
+ buildError error
 	Model                string                 `json:"model"`
 	Input                json.RawMessage        `json:"input"`
 	Stream               bool                   `json:"stream"`
@@ -444,11 +451,21 @@ func responsesConfigurationEffort(model *goai.Model, opts *goai.StreamOptions) s
 	return effort
 }
 
-func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) responsesRequest {
+func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions, plans ...*responsesTranscriptPlan) responsesRequest {
 	compat := getResponsesCompat(model)
 	chatGPTSignIn := isChatGPTSignIn(model, opts)
 	configurationEffort := responsesConfigurationEffort(model, opts)
-	convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
+	var transcriptPlan *responsesTranscriptPlan
+	if len(plans) > 0 {
+		transcriptPlan = plans[0]
+	} else {
+		transcriptPlan = newResponsesTranscriptPlan(convCtx, compat)
+	}
+	if transcriptPlan != nil {
+		convCtx = transcriptPlan.context
+	} else {
+		convCtx = goai.ResolveContext(convCtx, compat.supportsMidConvoSystemMessages)
+	}
 	req := responsesRequest{
 		Model:          model.ID,
 		Stream:         true,
@@ -460,7 +477,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		if !chatGPTSignIn {
 			req.Temperature = opts.Temperature
 		}
-		if compat.supportsMaxOutputTokens && !chatGPTSignIn {
+		if compat.supportsMaxOutputTokens && !chatGPTSignIn && (transcriptPlan == nil || !transcriptPlan.needsWireBudget()) {
 			req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 		}
 	}
@@ -474,17 +491,20 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	deferredPlan := goai.PlanDeferredTools(convCtx, deferredMode != "", false)
 
 	// Convert messages to Responses API input format
-	input := convertMessagesWithDeferred(model, convCtx, deferredPlan, deferredMode, compat, configurationEffort)
+	input := convertResponsesInput(model, convCtx, deferredPlan, deferredMode, compat, configurationEffort, transcriptPlan)
 	if model.Api == goai.ApiAzureOpenAIResponses {
 		limited := goai.ApplyToolCallLimit(input, goai.DefaultToolCallLimitConfig())
 		input = limited.Messages
 	}
-	inputJSON, _ := json.Marshal(input)
+	inputJSON, inputError := json.Marshal(input)
+ req.buildError=inputError
 	req.Input = inputJSON
 
 	// Convert tools
 	activeTools := deferredPlan.Immediate
-	if len(activeTools) == 0 && !deferredPlan.HasDeferred() {
+	if transcriptPlan != nil {
+		activeTools = transcriptPlan.tools
+	} else if len(activeTools) == 0 && !deferredPlan.HasDeferred() {
 		activeTools = convCtx.Tools
 	}
 	for _, t := range activeTools {
@@ -495,6 +515,15 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			continue
 		}
 		req.Tools = append(req.Tools, tool)
+	}
+
+	if opts != nil && transcriptPlan != nil && transcriptPlan.needsWireBudget() && compat.supportsMaxOutputTokens && !chatGPTSignIn {
+		budget := &goai.Context{Messages: []goai.Message{goai.UserMessage(string(inputJSON))}}
+		if len(req.Tools) > 0 {
+			toolsJSON, _ := json.Marshal(req.Tools)
+			budget.Messages = append(budget.Messages, goai.UserMessage(string(toolsJSON)))
+		}
+		req.MaxOutputTokens = goai.ClampStreamMaxTokensPtr(model, budget, opts)
 	}
 
 	// Reasoning — match pi-ai's Responses format. Explicit reasoning requests
@@ -670,6 +699,10 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 	if len(configurationEfforts) > 0 {
 		effort = configurationEfforts[0]
 	}
+	return convertResponsesInput(model, convCtx, deferredPlan, deferredMode, compat, effort, nil)
+}
+
+func convertResponsesInput(model *goai.Model, convCtx *goai.Context, deferredPlan goai.DeferredToolPlan, deferredMode string, compat responsesCompat, effort string, transcriptPlan *responsesTranscriptPlan) []interface{} {
 	var input []interface{}
 	toolView := buildResponsesToolView(convCtx, compat.supportsGrammarTools)
 
@@ -687,22 +720,46 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 
-	for msgIndex, msg := range transformed {
+	state := responsestream.SystemToolState{}
+	if transcriptPlan != nil {
+		state.Mode = transcriptPlan.mode
+		state.Folded = transcriptPlan.folded
+	}
+	messageIndex := 0
+	for sourceIndex, msg := range transformed {
+		msgIndex := sourceIndex
+		if transcriptPlan != nil {
+			msgIndex = messageIndex
+		}
 		switch msg.Role {
 		case goai.RoleSystem:
 			role := "developer"
 			if !model.Reasoning {
 				role = "system"
 			}
-			if text := goai.RenderSystemMessageText(msg); strings.TrimSpace(text) != "" {
-				input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
-			}
-			// The legacy immediate/deferred plan already owns the initial declarations.
-			// Re-emitting that header would advertise deferred tools before their marker.
-			if msgIndex > 0 && len(msg.ToolsAdded) > 0 {
-				input = append(input, buildDeferredToolsInputItems(msgIndex, msg, msg.ToolsAdded, deferredMode, compat)...)
-			}
+			if transcriptPlan != nil {
+				text := responsestream.SystemMessageText(msg, sourceIndex != 0)
+				input = append(input, state.SystemItems(msg, role, fmt.Sprintf("system:%d", msgIndex), text, func(tools []goai.Tool, deferLoading bool) any {
+					converted := make([]toolDef, 0, len(tools))
+					for _, tool := range tools {
+						definition, err := convertResponsesToolWithDefer(tool, compat.supportsStrictMode, compat.supportsGrammarTools, deferLoading)
+						if err == nil {
+							converted = append(converted, definition)
+						}
+					}
+					return converted
+				})...)
+			} else {
+				if text := goai.RenderSystemMessageText(msg); strings.TrimSpace(text) != "" {
+					input = append(input, map[string]interface{}{"role": role, "content": goai.SanitizeSurrogates(text)})
+				}
+				// The legacy immediate/deferred plan already owns the initial declarations.
+				// Re-emitting that header would advertise deferred tools before their marker.
+				if msgIndex > 0 && len(msg.ToolsAdded) > 0 {
+					input = append(input, buildDeferredToolsInputItems(msgIndex, msg, msg.ToolsAdded, deferredMode, compat)...)
+				}
 
+			}
 		case goai.RoleUser:
 			content := buildUserContent(msg)
 			if len(content) > 0 {
@@ -738,6 +795,9 @@ func convertMessagesWithDeferred(model *goai.Model, convCtx *goai.Context, defer
 			if len(deferredTools) > 0 {
 				input = append(input, buildDeferredToolsInputItems(msgIndex, msg, deferredTools, deferredMode, compat)...)
 			}
+		}
+		if !(sourceIndex == 0 && msg.Role == goai.RoleSystem) {
+			messageIndex++
 		}
 	}
 
