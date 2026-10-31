@@ -70,4 +70,10 @@ The production payload hook checks one tool, strict require, and the nested stri
 
 The focused upstream ports pass on unchanged production. Full root normal tests, focused Mistral race tests, vet and diff checks also pass with Go 1.27.3 and GOMAXPROCS=4. Harness type/syntax errors and an unread-request-body cleanup hang were corrected before recording this result; none demonstrated a production failure. Temporary upstream copies and disposable logs were removed after analysis.
 
-The upstream cached-usage test covers the plural snake-case alias only. Alias/nullish precedence, additional partial-state behaviour and observer projection/mutation differences need separate source-derived regressions before any implementation change. Full convergence and acceptance profiling are incomplete.
+The upstream cached-usage test covers the plural snake-case alias only. Additional partial-state behaviour and observer projection/mutation differences need separate source-derived regressions before implementation changes. Full convergence and acceptance profiling are incomplete.
+
+### Source-derived usage regressions
+
+`usage_alias_main_test.go` and `testdata/usage_alias_main.json` supplement the upstream ports. Thirteen integral-count cases were checked against the actual pinned `getMistralCachedPromptTokens`: six aliases, precedence, null/missing fallthrough, explicit zero, bounds and absence. Eight failed on unchanged `b96f320` production; five passed. No implementation edits preceded that failure run.
+
+The fix uses nullable integer fields and the pinned six-alias order. All 13 now pass through production HTTP/SSE, including input/cache allocation, total-token fallback and independently calculated estimated cost. Native integer-count validation and existing bounds remain; this does not establish equivalence for fractional or malformed JavaScript number inputs. Full root normal tests, Mistral race and vet pass. Temporary reference copies and disposable logs were removed after analysis.

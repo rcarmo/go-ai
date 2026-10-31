@@ -1,0 +1,15 @@
+[
+ {"name":"snake-plural","aliases":{"prompt_tokens_details":{"cached_tokens":3}},"cacheRead":3},
+ {"name":"snake-singular","aliases":{"prompt_token_details":{"cached_tokens":4}},"cacheRead":4},
+ {"name":"snake-top","aliases":{"num_cached_tokens":5},"cacheRead":5},
+ {"name":"camel-plural","aliases":{"promptTokensDetails":{"cachedTokens":6}},"cacheRead":6},
+ {"name":"camel-singular","aliases":{"promptTokenDetails":{"cachedTokens":4}},"cacheRead":4},
+ {"name":"camel-top","aliases":{"numCachedTokens":2},"cacheRead":2},
+ {"name":"precedence","aliases":{"promptTokensDetails":{"cachedTokens":2},"prompt_tokens_details":{"cached_tokens":3},"promptTokenDetails":{"cachedTokens":4},"prompt_token_details":{"cached_tokens":5},"numCachedTokens":6,"num_cached_tokens":7},"cacheRead":2},
+ {"name":"null-and-missing-fallthrough","aliases":{"promptTokensDetails":{"cachedTokens":null},"prompt_tokens_details":{},"promptTokenDetails":{"cachedTokens":4},"prompt_token_details":{"cached_tokens":5},"numCachedTokens":6,"num_cached_tokens":7},"cacheRead":4},
+ {"name":"zero-is-present","aliases":{"promptTokensDetails":{"cachedTokens":0},"prompt_tokens_details":{"cached_tokens":3}},"cacheRead":0},
+ {"name":"snake-null-fallthrough","aliases":{"prompt_tokens_details":{"cached_tokens":null},"prompt_token_details":{"cached_tokens":4}},"cacheRead":4},
+ {"name":"upper-bound","aliases":{"numCachedTokens":30},"cacheRead":10},
+ {"name":"lower-bound","aliases":{"prompt_tokens_details":{"cached_tokens":-2}},"cacheRead":0},
+ {"name":"absent","aliases":{},"cacheRead":0}
+]

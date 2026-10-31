@@ -358,16 +358,21 @@ type sseToolCallFunc struct {
 }
 
 type sseUsage struct {
-	PromptTokens        int `json:"prompt_tokens"`
-	CompletionTokens    int `json:"completion_tokens"`
-	TotalTokens         int `json:"total_tokens"`
-	PromptTokensDetails *struct {
-		CachedTokens int `json:"cached_tokens"`
-	} `json:"prompt_tokens_details"`
-	PromptTokenDetails *struct {
-		CachedTokens int `json:"cached_tokens"`
-	} `json:"prompt_token_details"`
-	NumCachedTokens int `json:"num_cached_tokens"`
+	PromptTokens             int               `json:"prompt_tokens"`
+	CompletionTokens         int               `json:"completion_tokens"`
+	TotalTokens              int               `json:"total_tokens"`
+	PromptTokensDetails      *sseCachedDetails `json:"prompt_tokens_details"`
+	PromptTokenDetails       *sseCachedDetails `json:"prompt_token_details"`
+	PromptTokensDetailsCamel *sseCachedDetails `json:"promptTokensDetails"`
+	PromptTokenDetailsCamel  *sseCachedDetails `json:"promptTokenDetails"`
+	NumCachedTokens          *int              `json:"num_cached_tokens"`
+	NumCachedTokensCamel     *int              `json:"numCachedTokens"`
+}
+
+// Integer pointers distinguish absent/null counts from an explicitly present zero.
+type sseCachedDetails struct {
+	CachedTokens      *int `json:"cached_tokens"`
+	CachedTokensCamel *int `json:"cachedTokens"`
 }
 
 func shouldUsePromptCaching(opts *goai.StreamOptions) bool {
@@ -390,13 +395,25 @@ func getMistralCachedPromptTokens(usage *sseUsage) int {
 	if usage == nil {
 		return 0
 	}
-	cached := usage.NumCachedTokens
-	if usage.PromptTokensDetails != nil {
-		cached = usage.PromptTokensDetails.CachedTokens
-	} else if usage.PromptTokenDetails != nil {
-		cached = usage.PromptTokenDetails.CachedTokens
+	if d := usage.PromptTokensDetailsCamel; d != nil && d.CachedTokensCamel != nil {
+		return *d.CachedTokensCamel
 	}
-	return cached
+	if d := usage.PromptTokensDetails; d != nil && d.CachedTokens != nil {
+		return *d.CachedTokens
+	}
+	if d := usage.PromptTokenDetailsCamel; d != nil && d.CachedTokensCamel != nil {
+		return *d.CachedTokensCamel
+	}
+	if d := usage.PromptTokenDetails; d != nil && d.CachedTokens != nil {
+		return *d.CachedTokens
+	}
+	if usage.NumCachedTokensCamel != nil {
+		return *usage.NumCachedTokensCamel
+	}
+	if usage.NumCachedTokens != nil {
+		return *usage.NumCachedTokens
+	}
+	return 0
 }
 
 func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) {

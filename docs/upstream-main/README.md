@@ -945,3 +945,7 @@ The 4 MiB scanner bound, buffered-channel cancellation and caller-owned reader l
 ## Upstream tests before implementation
 
 The [Mistral test crosswalk](mistral-tests.md) maps all 34 cases in the four pinned test files to native assertions. They pass against unchanged production code. Provider-only option API coverage and TypeBox symbol assertions have explicit limits; two file dispositions therefore stay partial. No speculative usage change was made. AGENTS.md now requires upstream test ports and an unchanged-code baseline before implementation. Full normal tests, Mistral race and vet pass; broader convergence and acceptance are incomplete.
+
+## Cached-token alias precedence
+
+Thirteen source-derived integral usage cases expose eight failures on unchanged production: missing camel-case aliases and incorrect null/missing/zero precedence. The actual pinned helper confirms the expectations. Nullable integer counts and the six-alias lookup order fix those failures; all cases now pass through HTTP/SSE, including token allocation, total fallback and independent estimated-cost arithmetic. Native integer validation and cache bounds are unchanged. Full normal tests, Mistral race and vet pass; source copies and logs were disposed. Partial-state and observer differences still need review.
