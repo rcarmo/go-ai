@@ -26,7 +26,7 @@ packages/ai/test/azure-openai-responses-reasoning-replay.test.ts	no	pending
 packages/ai/test/azure-openai-tool-choice.test.ts	no	pending	
 packages/ai/test/azure-utils.ts	no	pending	
 packages/ai/test/baseten-models.test.ts	no	pending	
-packages/ai/test/bedrock-cache-write-1h-cost.test.ts	no	pending	
+packages/ai/test/bedrock-cache-write-1h-cost.test.ts	no	development-verified-acceptance-pending	inference/provider/bedrock/usage_main_test.go
 packages/ai/test/bedrock-convert-messages.test.ts	no	pending	
 packages/ai/test/bedrock-credentials.test.ts	no	pending	
 packages/ai/test/bedrock-custom-headers.test.ts	no	pending	

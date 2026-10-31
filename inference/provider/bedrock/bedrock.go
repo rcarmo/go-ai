@@ -1062,6 +1062,17 @@ consume:
 					Output:      int(aws.ToInt32(u.OutputTokens)),
 					TotalTokens: int(aws.ToInt32(u.TotalTokens)),
 				}
+				if partial.Usage.TotalTokens == 0 {
+					partial.Usage.TotalTokens = partial.Usage.Input + partial.Usage.Output
+				}
+				// Missing/null details omit the optional one-hour counter; an
+				// explicitly present empty list reports zero, matching optional reduce.
+				partial.Usage.CacheWrite1hSet = u.CacheDetails != nil
+				for _, detail := range u.CacheDetails {
+					if detail.Ttl == types.CacheTTLOneHour {
+						partial.Usage.CacheWrite1h += int(aws.ToInt32(detail.InputTokens))
+					}
+				}
 				// Cache tokens if available
 				if u.CacheReadInputTokens != nil {
 					partial.Usage.CacheRead = int(*u.CacheReadInputTokens)
