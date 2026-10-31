@@ -3,6 +3,7 @@ package sse
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -44,6 +45,8 @@ func ParseContext(ctx context.Context, r io.Reader) <-chan SSEEvent {
 		// Start small for ordinary token events; grow to the same hard limit
 		// for long lines such as base64 images and large JSON records.
 		scanner.Buffer(make([]byte, 0, 8*1024), 4*1024*1024)
+		scanner.Split(splitSSELine)
+		firstLine := true
 
 		var event SSEEvent
 		event.Retry = -1
@@ -55,6 +58,10 @@ func ParseContext(ctx context.Context, r io.Reader) <-chan SSEEvent {
 
 		for ctx.Err() == nil && scanner.Scan() {
 			line := scanner.Text()
+			if firstLine {
+				line = strings.TrimPrefix(line, "\ufeff")
+				firstLine = false
+			}
 
 			if line == "" {
 				// Empty line = dispatch event
@@ -112,6 +119,11 @@ func ParseContext(ctx context.Context, r io.Reader) <-chan SSEEvent {
 			return
 		}
 
+		if err := scanner.Err(); err != nil {
+			emit(SSEEvent{Event: EventError, Data: err.Error(), Retry: -1})
+			return
+		}
+
 		// Flush last event if no trailing blank line
 		if len(dataLines) > 0 {
 			event.Data = strings.Join(dataLines, "\n")
@@ -119,13 +131,37 @@ func ParseContext(ctx context.Context, r io.Reader) <-chan SSEEvent {
 			if event.Event == "" {
 				event.Event = "message"
 			}
+			if event.ID == "" {
+				event.ID = lastID
+			}
+			if event.Retry == -1 {
+				event.Retry = lastRetry
+			}
 			if !emit(event) {
 				return
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			emit(SSEEvent{Event: EventError, Data: err.Error(), Retry: -1})
-		}
 	}()
 	return ch
+}
+
+// SSE permits LF, CR and CRLF. Wait for a possible LF when a read ends in
+// CR, so a split CRLF cannot manufacture an empty line/event boundary.
+func splitSSELine(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
+		end := i + 1
+		if data[i] == '\r' {
+			if end == len(data) && !atEOF {
+				return 0, nil, nil
+			}
+			if end < len(data) && data[end] == '\n' {
+				end++
+			}
+		}
+		return end, data[:i], nil
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
