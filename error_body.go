@@ -7,8 +7,8 @@ import (
 	"math"
 	"reflect"
 	"strings"
-	"unicode"
 
+	"github.com/rcarmo/go-ai/internal/errortext"
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
@@ -63,7 +63,7 @@ func normalizeProviderErrorBody(body any, ok bool) (string, bool) {
 		}
 		text = SafeJSONStringify(v)
 	}
-	text = strings.TrimFunc(text, func(r rune) bool { return r == '\ufeff' || r != '\u0085' && unicode.IsSpace(r) })
+	text = errortext.Trim(text)
 	if text == "" {
 		return "", false
 	}

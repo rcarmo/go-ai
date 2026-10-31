@@ -12,20 +12,30 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	goai "github.com/rcarmo/go-ai"
+	"github.com/rcarmo/go-ai/internal/errortext"
 )
+
+const maxBedrockErrorBodyBytes = 4000
 
 // Keep only a bounded error prefix while leaving the SDK's body reads and close
 // ownership unchanged. The SDK otherwise consumes the body before returning it.
 type capturedBedrockErrorBody struct {
 	io.ReadCloser
-	prefix []byte
-	total  int
+	prefix   []byte
+	total    int
+	complete bool
+	failed   bool
 }
 
 func (b *capturedBedrockErrorBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	b.total += n
-	if remaining := goai.MaxProviderErrorBodyChars - len(b.prefix); remaining > 0 {
+	if err == io.EOF {
+		b.complete = true
+	} else if err != nil {
+		b.failed = true
+	}
+	if remaining := maxBedrockErrorBodyBytes - len(b.prefix); remaining > 0 {
 		b.prefix = append(b.prefix, p[:min(n, remaining)]...)
 	}
 	return n, err
@@ -60,11 +70,15 @@ func formatBedrockError(err error) string {
 		}
 	}
 	if response := bedrockRawErrorResponse(err); response != nil && response.Response != nil {
-		if capture, ok := response.Body.(*capturedBedrockErrorBody); ok {
-			body := strings.TrimSpace(string(capture.prefix))
+		if capture, ok := response.Body.(*capturedBedrockErrorBody); ok && !capture.failed {
+			body := errortext.Trim(errortext.DecodeUTF8(capture.prefix))
 			if body != "" && body != "{}" {
-				if capture.total > len(capture.prefix) {
-					body += fmt.Sprintf("... [truncated %d chars]", capture.total-len(capture.prefix))
+				if len(capture.prefix) == maxBedrockErrorBodyBytes && (capture.total > len(capture.prefix) || !capture.complete) {
+					if capture.complete {
+						body += fmt.Sprintf("\n[response body capture capped at %d bytes; %d bytes omitted]", maxBedrockErrorBodyBytes, capture.total-len(capture.prefix))
+					} else {
+						body += fmt.Sprintf("\n[response body capture capped at %d bytes; remaining length unknown]", maxBedrockErrorBodyBytes)
+					}
 				}
 				norm.Body, norm.HasBody, norm.Status, norm.HasStatus = body, true, response.StatusCode, true
 			}

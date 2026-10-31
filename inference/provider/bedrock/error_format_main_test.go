@@ -92,7 +92,7 @@ func TestBedrockHTTPErrorBodyWireMain(t *testing.T) {
 				t.Fatal("gateway HTTP context lost", message)
 			}
 			if large {
-				if len(message) > goai.MaxProviderErrorBodyChars+200 || !strings.Contains(message, "[truncated ") {
+				if len(message) > goai.MaxProviderErrorBodyChars+200 || !strings.Contains(message, "[response body capture capped at 4000 bytes;") {
 					t.Fatal("error body capture not bounded", len(message))
 				}
 			} else if !strings.Contains(message, body) {
@@ -138,12 +138,12 @@ type closeTrackedErrorBodyMain struct {
 
 func (b *closeTrackedErrorBodyMain) Close() error { b.closed++; return b.err }
 func TestBedrockErrorBodyCapturePreservesReaderMain(t *testing.T) {
-	raw := strings.Repeat("x", goai.MaxProviderErrorBodyChars+2000)
+	raw := strings.Repeat("x", maxBedrockErrorBodyBytes+2000)
 	sentinel := errors.New("close failure")
 	underlying := &closeTrackedErrorBodyMain{Reader: strings.NewReader(raw), err: sentinel}
 	capture := &capturedBedrockErrorBody{ReadCloser: underlying}
 	got, err := io.ReadAll(capture)
-	if err != nil || string(got) != raw || capture.total != len(raw) || len(capture.prefix) != goai.MaxProviderErrorBodyChars {
+	if err != nil || string(got) != raw || capture.total != len(raw) || len(capture.prefix) != maxBedrockErrorBodyBytes {
 		t.Fatal("capture altered SDK body or exceeded bound", err, capture.total, len(capture.prefix))
 	}
 	if err := capture.Close(); !errors.Is(err, sentinel) || underlying.closed != 1 {
