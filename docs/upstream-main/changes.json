@@ -423,9 +423,11 @@
       "kind": "configuration-or-documentation",
       "status": "partial",
       "native": [
-        "tests/openrouter_reasoning_main_test.go"
+        "tests/openrouter_reasoning_main_test.go",
+        "cmd/generate-models/reasoning_main_test.go",
+        "cmd/generate-models/testdata/reasoning_main.json"
       ],
-      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps."
+      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps. Pinned upstream helpers executed for ten oracle fixtures; native provider-data hydration and generated-Go AST preserve omitted maps, nulls and strings. Generator race/30 repeats/full root normal/vet and offline baseline regeneration pass. Raw fetching/derivation remains delegated to upstream catalog generation. Main inventory refresh needs a captured provenance-recorded snapshot because generated provider JSON is gitignored; existing v1.4.0 catalog remains unchanged."
     },
     {
       "change": "A",
@@ -448,9 +450,11 @@
       "kind": "configuration-or-documentation",
       "status": "partial",
       "native": [
-        "tests/openrouter_reasoning_main_test.go"
+        "tests/openrouter_reasoning_main_test.go",
+        "cmd/generate-models/reasoning_main_test.go",
+        "cmd/generate-models/testdata/reasoning_main.json"
       ],
-      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps."
+      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps. Pinned upstream helpers executed for ten oracle fixtures; native provider-data hydration and generated-Go AST preserve omitted maps, nulls and strings. Generator race/30 repeats/full root normal/vet and offline baseline regeneration pass. Raw fetching/derivation remains delegated to upstream catalog generation. Main inventory refresh needs a captured provenance-recorded snapshot because generated provider JSON is gitignored; existing v1.4.0 catalog remains unchanged."
     },
     {
       "change": "A",

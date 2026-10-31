@@ -1,0 +1,164 @@
+{
+  "upstream": "4b535d57ea8863dbba44b89872146523da271786",
+  "sources": [
+    "packages/ai/catalog/reasoning.ts",
+    "packages/ai/catalog/sources/openrouter.ts"
+  ],
+  "cases": [
+    {
+      "name": "effort-with-none",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "xhigh",
+            "max",
+            null,
+            "default"
+          ]
+        }
+      ],
+      "thinkingLevelMap": {
+        "off": "none",
+        "minimal": "minimal",
+        "low": null,
+        "medium": null,
+        "high": null,
+        "xhigh": "xhigh",
+        "max": "max"
+      }
+    },
+    {
+      "name": "effort-no-none",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "thinkingLevelMap": {
+        "off": null,
+        "minimal": null,
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "xhigh": null,
+        "max": null
+      }
+    },
+    {
+      "name": "toggle",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "toggle"
+        }
+      ]
+    },
+    {
+      "name": "budget",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "budget",
+          "min": 0,
+          "max": 32768
+        }
+      ]
+    },
+    {
+      "name": "default-only",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "effort",
+          "values": [
+            null,
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unknown-only",
+      "kind": "effort",
+      "input": [
+        {
+          "type": "effort",
+          "values": [
+            "ultra"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mandatory",
+      "kind": "openrouter",
+      "input": {
+        "mandatory": true,
+        "default_enabled": true,
+        "supported_efforts": [
+          "max",
+          "high",
+          "low"
+        ],
+        "default_effort": "max"
+      },
+      "thinkingLevelMap": {
+        "off": null,
+        "minimal": null,
+        "low": "low",
+        "medium": null,
+        "high": "high",
+        "xhigh": null,
+        "max": "max"
+      }
+    },
+    {
+      "name": "mandatory-no-efforts",
+      "kind": "openrouter",
+      "input": {
+        "mandatory": true
+      },
+      "thinkingLevelMap": {
+        "off": null
+      }
+    },
+    {
+      "name": "optional",
+      "kind": "openrouter",
+      "input": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supported_efforts": [
+          "high",
+          "low"
+        ]
+      },
+      "thinkingLevelMap": {
+        "off": "none",
+        "minimal": null,
+        "low": "low",
+        "medium": null,
+        "high": "high",
+        "xhigh": null,
+        "max": null
+      }
+    },
+    {
+      "name": "optional-no-efforts",
+      "kind": "openrouter",
+      "input": {
+        "mandatory": false
+      }
+    }
+  ]
+}
