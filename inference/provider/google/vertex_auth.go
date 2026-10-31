@@ -68,14 +68,33 @@ func applyVertexFileAuth(ctx context.Context, request *http.Request, path string
 	if err = json.Unmarshal(raw, &config); err != nil {
 		return fmt.Errorf("vertex ADC credential JSON: %w", err)
 	}
-	if config.Type != "service_account" {
+	credentialType := credentials.CredType(config.Type)
+	var scopes []string
+	switch credentialType {
+	case credentials.ServiceAccount:
+		scopes = []string{vertexCloudScope}
+	case credentials.AuthorizedUser:
+		// Node UserRefreshClient rejects missing fields before requesting a
+		// token. Validate here rather than relying on later grant failure.
+		var user struct {
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err = json.Unmarshal(raw, &user); err != nil {
+			return fmt.Errorf("vertex ADC authorized-user JSON: %w", err)
+		}
+		if user.ClientID == "" || user.ClientSecret == "" || user.RefreshToken == "" {
+			return fmt.Errorf("vertex ADC authorized-user credentials require client_id, client_secret and refresh_token")
+		}
+	default:
 		return fmt.Errorf("vertex ADC credential type is not supported")
 	}
 	if config.Universe != "" && config.Universe != "googleapis.com" {
 		return fmt.Errorf("vertex ADC non-default universe is not supported")
 	}
-	// Locked Node JWT.fromJSON ignores token_uri; internal gtoken/getToken
-	// always uses Google's canonical endpoint. Go's loader otherwise honours
+	// Locked Node JWT/UserRefreshClient ignore token_uri; internal gtoken and
+	// OAuth2Client defaults use Google's canonical endpoint. Go's JWT loader honours
 	// that file field. Preserve raw values while normalising only this field.
 	var fields map[string]json.RawMessage
 	if err = json.Unmarshal(raw, &fields); err != nil {
@@ -88,7 +107,7 @@ func applyVertexFileAuth(ctx context.Context, request *http.Request, path string
 	}
 	tokenClient := newVertexTokenClient(opts)
 	defer tokenClient.CloseIdleConnections()
-	creds, err := credentials.NewCredentialsFromJSON(credentials.ServiceAccount, raw, &credentials.DetectOptions{Scopes: []string{vertexCloudScope}, DisableAsyncRefresh: true, Client: tokenClient, Logger: vertexAuthLogger})
+	creds, err := credentials.NewCredentialsFromJSON(credentialType, raw, &credentials.DetectOptions{Scopes: scopes, DisableAsyncRefresh: true, Client: tokenClient, Logger: vertexAuthLogger})
 	if err != nil {
 		return fmt.Errorf("vertex ADC credentials: %w", err)
 	}

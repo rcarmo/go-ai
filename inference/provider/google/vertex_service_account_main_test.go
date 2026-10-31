@@ -42,7 +42,7 @@ func TestMainVertexServiceAccountAcquisition(t *testing.T) {
 			var tokenURL, inferenceURL string
 			tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				tokenCalls.Add(1)
-				tokenChecks <- checkServiceAccountAssertion(r, private, "https://oauth2.googleapis.com/token")
+				tokenChecks <- checkServiceAccountAssertion(r, private, "https://oauth2.googleapis.com/token", "fixture@example.test")
 				if name == "cancel" {
 					tokenStarted <- struct{}{}
 					<-r.Context().Done()
@@ -207,7 +207,7 @@ func mustServiceAccountPKCS8(t *testing.T, key *rsa.PrivateKey) []byte {
 	return data
 }
 
-func checkServiceAccountAssertion(r *http.Request, key *rsa.PrivateKey, audience string) error {
+func checkServiceAccountAssertion(r *http.Request, key *rsa.PrivateKey, audience, issuer string) error {
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func checkServiceAccountAssertion(r *http.Request, key *rsa.PrivateKey, audience
 	if err = json.Unmarshal(payload, &claims); err != nil {
 		return err
 	}
-	if claims.Issuer != "fixture@example.test" || claims.Audience != audience || claims.Scope != "https://www.googleapis.com/auth/cloud-platform" || claims.Expires <= time.Now().Unix() || claims.Expires <= claims.Issued || claims.Issued < time.Now().Unix()-60 || claims.Issued > time.Now().Unix()+10 {
+	if claims.Issuer != issuer || claims.Audience != audience || claims.Scope != "https://www.googleapis.com/auth/cloud-platform" || claims.Expires <= time.Now().Unix() || claims.Expires <= claims.Issued || claims.Issued < time.Now().Unix()-60 || claims.Issued > time.Now().Unix()+10 {
 		return fmt.Errorf("invalid assertion claims")
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(pieces[2])
