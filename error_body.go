@@ -120,7 +120,7 @@ func SafeJSONStringify(value any) string {
 	if !ok {
 		// JS JSON.stringify normalizes nonfinite parser-owned values to null.
 		if encoded, encodeErr := jsonparse.MarshalParsedJSONValue(value); encodeErr == nil {
-			return string(encoded)
+			return string(normalizeErrorJSONNumbers(encoded))
 		}
 		// fmt.Sprint recursively traverses cyclic containers. Use bounded JS
 		// string coercion instead of turning a diagnostic into a stack overflow.
@@ -144,7 +144,7 @@ func tryErrorJSON(value any) (encoded []byte, ok bool) {
 	}
 	// Encode adds a record delimiter; it is not part of JSON.stringify text.
 	encoded = bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})
-	return errorJSONSeparators(encoded), true
+	return normalizeErrorJSONNumbers(errorJSONSeparators(encoded)), true
 }
 
 // Go escapes these JS line separators even with EscapeHTML disabled. Preserve
