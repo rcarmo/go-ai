@@ -305,25 +305,32 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	// Thinking configuration — mirrors upstream's model-specific dispatch.
 	if model.Reasoning {
 		reasoningRequested := opts != nil && opts.Reasoning != nil && *opts.Reasoning != ""
+		clamped := goai.ModelThinkingLevel(goai.ThinkingOff)
 		if reasoningRequested {
-			level, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+			clamped = goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
+		}
+		if reasoningRequested && clamped != goai.ModelThinkingLevel(goai.ThinkingOff) {
+			level, err := resolveGoogleThinkingLevel(model, clamped)
 			if err != nil {
-				level = string(goai.ThinkingHigh)
+				return req, err
 			}
 			tc := &geminiThinkingConfig{}
 			t := true
 			tc.IncludeThoughts = &t
-			if isGemini3ProModel(model) || isGemini3FlashModel(model) || isGemma4Model(model) || isGemini4PlusModel(model) {
+			if usesGoogleThinkingLevel(model) {
 				tc.ThinkingLevel = getGoogleThinkingLevel(level, model)
 			} else {
-				budget := getGoogleBudget(model, level)
+				budget := getGoogleBudget(model, level, opts.ThinkingBudgets)
 				tc.ThinkingBudget = &budget
 			}
 			genConfig.ThinkingConfig = tc
 			hasConfig = true
 		} else {
 			// Disable thinking
-			tc := getDisabledThinkingConfig(model)
+			tc, err := getDisabledThinkingConfig(model)
+			if err != nil {
+				return req, err
+			}
 			genConfig.ThinkingConfig = tc
 			hasConfig = true
 		}
@@ -870,7 +877,9 @@ var (
 
 var gemini4PlusPattern = regexp.MustCompile(`gemini-(?:[4-9]|[1-9][0-9])`)
 
-func isGemini4PlusModel(model *goai.Model) bool { return gemini4PlusPattern.MatchString(model.ID) }
+func isGemini4PlusModel(model *goai.Model) bool {
+	return gemini4PlusPattern.MatchString(strings.ToLower(model.ID))
+}
 
 func isGemini3ProModel(model *goai.Model) bool {
 	return gemini3ProRe.MatchString(model.ID)
@@ -885,58 +894,48 @@ func isGemma4Model(model *goai.Model) bool {
 	return gemma4Re.MatchString(model.ID)
 }
 
-func getDisabledThinkingConfig(model *goai.Model) *geminiThinkingConfig {
-	if isGemini3ProModel(model) {
-		return &geminiThinkingConfig{ThinkingLevel: "LOW"}
-	}
-	if isGemini3FlashModel(model) {
-		return &geminiThinkingConfig{ThinkingLevel: "MINIMAL"}
-	}
-	if isGemma4Model(model) {
-		return &geminiThinkingConfig{ThinkingLevel: "MINIMAL"}
-	}
-	// Gemini 2.x: disable via budget=0
+func usesGoogleThinkingLevel(model *goai.Model) bool {
+	return isGemini3ProModel(model) || isGemini3FlashModel(model) || isGemma4Model(model) || isGemini4PlusModel(model)
+}
+
+func getDisabledThinkingConfig(model *goai.Model) (*geminiThinkingConfig, error) {
 	zero := 0
-	return &geminiThinkingConfig{ThinkingBudget: &zero}
+	if !usesGoogleThinkingLevel(model) {
+		return &geminiThinkingConfig{ThinkingBudget: &zero}, nil
+	}
+	fallback := goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingOff))
+	if fallback == goai.ModelThinkingLevel(goai.ThinkingOff) {
+		return &geminiThinkingConfig{ThinkingBudget: &zero}, nil
+	}
+	level, err := resolveGoogleThinkingLevel(model, fallback)
+	if err != nil {
+		return nil, err
+	}
+	return &geminiThinkingConfig{ThinkingLevel: getGoogleThinkingLevel(level, model)}, nil
 }
 
 func resolveGoogleThinkingLevel(model *goai.Model, level goai.ModelThinkingLevel) (string, error) {
-	if level == goai.ThinkingOff {
-		return string(goai.ThinkingHigh), nil
-	}
 	resolved := string(level)
+	mapping := "undefined"
 	if mapped, ok := model.ThinkingLevelMap[level]; ok {
-		if mapped == nil {
-			return "", fmt.Errorf("unsupported google thinking level %s", level)
+		mapping = "null"
+		if mapped != nil {
+			mapping = *mapped
+			resolved = strings.ToLower(*mapped)
 		}
-		resolved = strings.ToLower(*mapped)
 	}
 	switch resolved {
 	case "minimal", "low", "medium", "high":
 		return resolved, nil
 	default:
-		return "", fmt.Errorf("unsupported google thinking level mapping %s -> %s", level, resolved)
+		//lint:ignore ST1005 pinned upstream diagnostic is capitalized.
+		return "", fmt.Errorf("Unsupported Google thinking level mapping for %s/%s: %s -> %s", model.Provider, model.ID, level, mapping)
 	}
 }
 
 func getGoogleThinkingLevel(effort string, model *goai.Model) string {
-	if isGemini3ProModel(model) {
-		switch effort {
-		case "minimal", "low":
-			return "LOW"
-		case "medium", "high":
-			return "HIGH"
-		}
-	}
-	if isGemma4Model(model) {
-		switch effort {
-		case "minimal", "low":
-			return "MINIMAL"
-		case "medium", "high":
-			return "HIGH"
-		}
-	}
-	// Gemini 3 Flash
+	// Capability maps already resolve model-specific coercions.
+
 	switch effort {
 	case "minimal":
 		return "MINIMAL"
@@ -951,7 +950,23 @@ func getGoogleThinkingLevel(effort string, model *goai.Model) string {
 	}
 }
 
-func getGoogleBudget(model *goai.Model, effort string) int {
+func getGoogleBudget(model *goai.Model, effort string, custom ...*goai.ThinkingBudgets) int {
+	if len(custom) > 0 && custom[0] != nil {
+		var budget *int
+		switch effort {
+		case "minimal":
+			budget = custom[0].Minimal
+		case "low":
+			budget = custom[0].Low
+		case "medium":
+			budget = custom[0].Medium
+		case "high":
+			budget = custom[0].High
+		}
+		if budget != nil {
+			return *budget
+		}
+	}
 	id := strings.ToLower(model.ID)
 	if strings.Contains(id, "2.5-pro") {
 		switch effort {

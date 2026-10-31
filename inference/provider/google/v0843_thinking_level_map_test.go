@@ -24,8 +24,22 @@ func TestV0843GoogleThinkingLevelMapRejectsUnsupportedMappings(t *testing.T) {
 	if _, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingHigh)); err == nil {
 		t.Fatal("expected unsupported mapping error for high -> max")
 	}
-	if _, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingLow)); err == nil {
-		t.Fatal("expected unsupported nil mapping error for low")
+	// The pinned resolver accepts a standard logical level when its mapping is
+	// null. The production Simple path must clamp unsupported levels first.
+	if level, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingLow)); err != nil || level != "low" {
+		t.Fatalf("null standard mapping: %q / %v", level, err)
+	}
+	low := goai.ThinkingLow
+	req, err := buildRequest(model, &goai.Context{}, &goai.StreamOptions{Reasoning: &low})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config := requireThinkingConfig(t, req); config.ThinkingLevel != "MEDIUM" {
+		t.Fatalf("unsupported low must clamp to medium: %#v", config)
+	}
+	model.ThinkingLevelMap[goai.ModelThinkingLevel(goai.ThinkingXHigh)] = nil
+	if _, err := resolveGoogleThinkingLevel(model, goai.ModelThinkingLevel(goai.ThinkingXHigh)); err == nil {
+		t.Fatal("expected unsupported null extended mapping error for xhigh")
 	}
 }
 

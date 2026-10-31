@@ -2,7 +2,7 @@
 
 Target: `4b535d57ea8863dbba44b89872146523da271786`, observed 30 October 2026. Baseline: upstream v1.4.0 `4a080252f06caf63a525d7873c5d94d3c23887e0`, accepted by native v1.4.0 (`ee3076b`). The published release and its assets remain unchanged. This is unreleased-source convergence, not a new release or a claim of full parity. npm still publishes 1.4.0; no npm artifact is claimed to represent this main snapshot.
 
-Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full semantic alignment. Work proceeds locally in bounded slices; pushes, hosted dispatches and publication are not authorised by this scope. Intentional semantic divergences require explicit acceptance.
+Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full semantic alignment. Work proceeds in bounded slices; Rui separately authorised regular validated main checkpoint pushes on 31 October 2026. Hosted dispatch, publication and release-ref changes need separate authority. Intentional semantic divergences require explicit acceptance.
 
 ## Inventory and dispositions
 
@@ -953,3 +953,9 @@ Thirteen source-derived integral usage cases expose eight failures on unchanged 
 ## Finish reasons in partial events
 
 Three source-derived cases fail before implementation changes: partial events keep pending until EOF, and a later success loses the earlier diagnostic. The pinned consumer confirms the expected publication-time snapshots. Finish reasons now update before content events, and later success retains the earlier diagnostic as upstream does. All three cases, the upstream ports, normal tests, Mistral race and vet pass. Native event snapshots and ownership/cancellation fences are preserved. Observer, provider-option API and number-domain dispositions are still open.
+
+## Google thinking maps
+
+Google and Vertex now select disabled defaults from model capabilities, preserve native medium effort and honour mapped custom budgets. All 15 expanded cases from the pinned thinking-map suite pass, together with 14 separately labelled source-derived control-flow probes. The [Google thinking crosswalk](google-thinking-tests.md) records the failing baselines, fixture corrections, SDK/REST adaptation and validation commands.
+
+Full root normal tests, Google race tests, root vet and scoped staticcheck pass on Go 1.27.3. Root staticcheck reports 23 findings in unchanged files outside Google; that gate needs review. Live disable/signature tests, other Google source/test rows, broader convergence and acceptance profiling are unfinished.

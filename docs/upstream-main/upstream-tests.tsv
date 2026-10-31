@@ -76,7 +76,7 @@ packages/ai/test/google-shared-image-tool-result-routing.test.ts	no	development-
 packages/ai/test/google-shared-retry.test.ts	no	development-verified-acceptance-pending	inference/provider/google/google_retry_test.go; inference/provider/google/retry_main_test.go; tests/provider_retry_http_main_test.go
 packages/ai/test/google-shared-signed-empty-blocks.test.ts	no	development-verified-acceptance-pending	inference/provider/google/message_main_test.go
 packages/ai/test/google-thinking-disable.test.ts	no	pending	
-packages/ai/test/google-thinking-level-map.test.ts	no	pending	
+packages/ai/test/google-thinking-level-map.test.ts	no	development-verified-acceptance-pending	inference/provider/google/thinking_map_upstream_main_test.go; docs/upstream-main/google-thinking-tests.md
 packages/ai/test/google-thinking-signature.test.ts	no	pending	
 packages/ai/test/google-vertex-api-key-resolution.test.ts	no	pending	
 packages/ai/test/identity.test.ts	no	pending	

@@ -18,7 +18,7 @@ func TestGoogleThinkingDisableGemini25UsesZeroBudget(t *testing.T) {
 }
 
 func TestGoogleThinkingDisableGemini3FlashUsesMinimalLevel(t *testing.T) {
-	req, err := buildRequest(&goai.Model{ID: "gemini-3-flash-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{})
+	req, err := buildRequest(&goai.Model{ID: "gemini-3-flash-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true, ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{"off": nil, "minimal": upstreamGoogleString("minimal")}}, googleThinkingDisableContext(), &goai.StreamOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestGoogleThinkingDisableGemini3FlashUsesMinimalLevel(t *testing.T) {
 
 func TestGoogleThinkingDisableGemini31ProUsesMinimalLevel(t *testing.T) {
 	maxTokens := 512
-	req, err := buildRequest(&goai.Model{ID: "gemini-3.1-pro-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{MaxTokens: &maxTokens})
+	req, err := buildRequest(&goai.Model{ID: "gemini-3.1-pro-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true, ThinkingLevelMap: map[goai.ModelThinkingLevel]*string{"off": nil, "minimal": nil, "low": upstreamGoogleString("low")}}, googleThinkingDisableContext(), &goai.StreamOptions{MaxTokens: &maxTokens})
 	if err != nil {
 		t.Fatal(err)
 	}
