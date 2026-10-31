@@ -158,7 +158,7 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			return
 		}
 
-		processSSEStream(resp.Body, model, send)
+		processSSEStreamWithOptions(ctx, resp.Body, model, opts, send)
 	}()
 
 	return ch
@@ -167,15 +167,16 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 // --- Request ---
 
 type mistralRequest struct {
-	Model           string        `json:"model"`
-	Messages        []mistralMsg  `json:"messages"`
-	Stream          bool          `json:"stream"`
-	Temperature     *float64      `json:"temperature,omitempty"`
-	MaxTokens       *int          `json:"max_tokens,omitempty"`
-	Tools           []mistralTool `json:"tools,omitempty"`
-	PromptMode      string        `json:"prompt_mode,omitempty"`
-	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
-	PromptCacheKey  string        `json:"prompt_cache_key,omitempty"`
+	Model           string          `json:"model"`
+	Messages        []mistralMsg    `json:"messages"`
+	Stream          bool            `json:"stream"`
+	Temperature     *float64        `json:"temperature,omitempty"`
+	MaxTokens       *int            `json:"max_tokens,omitempty"`
+	Tools           []mistralTool   `json:"tools,omitempty"`
+	ToolChoice      goai.ToolChoice `json:"tool_choice,omitempty"`
+	PromptMode      string          `json:"prompt_mode,omitempty"`
+	ReasoningEffort string          `json:"reasoning_effort,omitempty"`
+	PromptCacheKey  string          `json:"prompt_cache_key,omitempty"`
 }
 
 type mistralMsg struct {
@@ -220,21 +221,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 
 	if opts != nil {
 		req.Temperature = opts.Temperature
+		req.ToolChoice = opts.ToolChoice
 		req.MaxTokens = goai.ClampStreamMaxTokensPtr(model, convCtx, opts)
 		if opts.SessionID != "" && opts.CacheRetention != goai.CacheRetentionNone {
 			req.PromptCacheKey = opts.SessionID
 		}
-		if opts.Reasoning != nil && *opts.Reasoning != "" && model.Reasoning {
-			level := goai.ModelThinkingLevel(*opts.Reasoning)
-			if mapped, ok := goai.MapThinkingLevel(model, level); ok && mapped != "none" {
-				if usesReasoningEffort(model) {
-					req.ReasoningEffort = mapped
-				} else {
-					req.PromptMode = "reasoning"
-				}
-			}
-		}
 	}
+	req.ReasoningEffort, req.PromptMode = mistralReasoningOptions(model, opts)
 
 	// System prompt
 	if convCtx.SystemPrompt != "" {
@@ -407,6 +400,10 @@ func getMistralCachedPromptTokens(usage *sseUsage) int {
 }
 
 func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
+	processSSEStreamWithOptions(context.Background(), body, model, nil, send)
+}
+
+func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event)) {
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -470,12 +467,15 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		}
 	}
 
-	parserContext, cancelParser := context.WithCancel(context.Background())
+	parserContext, cancelParser := context.WithCancel(ctx)
 	defer cancelParser()
 	fail := func(err error) {
 		partial.StopReason = goai.StopReasonError
+		if ctx.Err() != nil {
+			partial.StopReason = goai.StopReasonAborted
+		}
 		partial.ErrorMessage = err.Error()
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: err})
 	}
 	events := sse.ParseContext(parserContext, body)
 	for evt := range events {
@@ -500,6 +500,19 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 			return
 		}
 
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			// Observe a separate wire projection: callback mutations must not
+			// replace the lossless argument data or bypass typed validation.
+			var event map[string]any
+			if err := json.Unmarshal([]byte(data), &event); err != nil {
+				fail(fmt.Errorf("Invalid Mistral streaming event: %w", err))
+				return
+			}
+			if err := opts.OnProviderStreamEvent(event, model); err != nil {
+				fail(err)
+				return
+			}
+		}
 		if partial.ResponseID == "" && chunk.ID != "" {
 			partial.ResponseID = chunk.ID
 		}
@@ -529,7 +542,7 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		if choice == nil {
 			continue
 		}
-		if choice.FinishReason != nil {
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
 			finishReason = choice.FinishReason
 			partial.RawStopReason = *choice.FinishReason
 		}
@@ -597,6 +610,10 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		}
 	}
 
+	if ctx.Err() != nil {
+		fail(ctx.Err())
+		return
+	}
 	finishContent()
 
 	// Close tool calls
@@ -614,6 +631,10 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if ctx.Err() != nil {
+		fail(ctx.Err())
+		return
+	}
 	reason := goai.StopReasonStop
 	if finishReason != nil {
 		switch *finishReason {
@@ -638,20 +659,40 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		return
 	}
 	partial.StopReason = reason
+	if reason == goai.StopReasonError {
+		fail(fmt.Errorf("%s", partial.ErrorMessage))
+		return
+	}
 
 	send(&goai.DoneEvent{Reason: reason, Message: partial})
 }
 
-func usesReasoningEffort(model *goai.Model) bool {
-	if model == nil {
-		return false
+// Match streamSimple: declared maps select effort, not a model-ID allowlist.
+func mistralReasoningOptions(model *goai.Model, opts *goai.StreamOptions) (effort, prompt string) {
+	if model == nil || !model.Reasoning {
+		return "", ""
 	}
-	switch model.ID {
-	case "mistral-small-2603", "mistral-small-latest", "mistral-medium-3.5":
-		return true
-	default:
-		return false
+	level := goai.ModelThinkingLevel(goai.ThinkingOff)
+	if opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" {
+		level = goai.ClampThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning))
 	}
+	if model.ThinkingLevelMap != nil {
+		mapped := model.ThinkingLevelMap[level]
+		if level == goai.ModelThinkingLevel(goai.ThinkingOff) {
+			if mapped != nil {
+				return *mapped, ""
+			}
+			return "", ""
+		}
+		if mapped != nil {
+			return *mapped, ""
+		}
+		return "high", ""
+	}
+	if level != goai.ModelThinkingLevel(goai.ThinkingOff) {
+		return "", "reasoning"
+	}
+	return "", ""
 }
 
 const mistralToolCallIDLength = 9
