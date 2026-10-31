@@ -114,7 +114,9 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		}
 
 		// Create client
-		clientOpts := []func(*bedrockruntime.Options){}
+		clientOpts := []func(*bedrockruntime.Options){func(o *bedrockruntime.Options) {
+			o.APIOptions = append(o.APIOptions, awsmiddleware.AddRawResponseToMetadata)
+		}}
 		if model.BaseURL != "" && useExplicitEndpoint {
 			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
 				o.BaseEndpoint = aws.String(model.BaseURL)
@@ -205,7 +207,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		}
 
 		invokeBedrockResponseHook(opts, resp, model)
-		processConverseStream(resp, model, send, fallbackDiagnostics...)
+		processBedrockStream(ctx, resp, model, opts, send, fallbackDiagnostics...)
 	}()
 
 	return ch
@@ -215,9 +217,18 @@ func invokeBedrockResponseHook(opts *goai.StreamOptions, resp *bedrockruntime.Co
 	if resp == nil {
 		return
 	}
-	if requestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata); requestID != "" {
-		goai.InvokeOnResponse(opts, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"X-Amzn-Requestid": []string{requestID}}}, model)
+	response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}}
+	if raw, ok := awsmiddleware.GetRawResponse(resp.ResultMetadata).(*smithyhttp.Response); ok && raw != nil && raw.Response != nil {
+		response.StatusCode = raw.StatusCode
+		response.Header = raw.Header.Clone()
+		if response.Header == nil {
+			response.Header = http.Header{}
+		}
 	}
+	if requestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata); requestID != "" && response.Header.Get("X-Amzn-Requestid") == "" {
+		response.Header.Set("X-Amzn-Requestid", requestID)
+	}
+	goai.InvokeOnResponse(opts, response, model)
 }
 
 var standardBedrockEndpointRe = regexp.MustCompile(`^bedrock-runtime(?:-fips)?\.([a-z0-9-]+)\.amazonaws\.com(?:\.cn)?$`)
@@ -824,6 +835,10 @@ func finalizeBedrockThinkingBlock(block *goai.ContentBlock, redacted []byte) {
 // --- Stream processing ---
 
 func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, send func(goai.Event), diagnostics ...goai.AssistantMessageDiagnostic) {
+	processBedrockStream(context.Background(), resp, model, nil, send, diagnostics...)
+}
+
+func processBedrockStream(ctx context.Context, resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, opts *goai.StreamOptions, send func(goai.Event), diagnostics ...goai.AssistantMessageDiagnostic) {
 	responseRequestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata)
 	partial := &goai.Message{
 		Role:        goai.RoleAssistant,
@@ -843,13 +858,59 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 	}
 	blockMap := map[int]*blockState{}
 
+	fail := func(err error) {
+		reason := goai.StopReasonError
+		if ctx.Err() != nil {
+			reason = goai.StopReasonAborted
+			err = ctx.Err()
+		}
+		partial.StopReason = reason
+		partial.ErrorMessage = err.Error()
+		partial.Timestamp = time.Now().UnixMilli()
+		if reason != goai.StopReasonAborted {
+			appendBedrockFailureDiagnostic(partial, err, responseRequestID)
+		}
+		send(&goai.ErrorEvent{Reason: reason, Error: partial, Err: err})
+	}
 	stream := resp.GetStream()
-	for event := range stream.Events() {
+	if stream == nil {
+		fail(fmt.Errorf("Bedrock response missing event stream"))
+		return
+	}
+	defer stream.Close()
+	events := stream.Events()
+consume:
+	for {
+		var event types.ConverseStreamOutput
+		select {
+		case <-ctx.Done():
+			fail(ctx.Err())
+			return
+		case next, ok := <-events:
+			if !ok {
+				break consume
+			}
+			event = next
+		}
+		if ctx.Err() != nil {
+			fail(ctx.Err())
+			return
+		}
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			if err := opts.OnProviderStreamEvent(event, model); err != nil {
+				fail(err)
+				return
+			}
+		}
+		if ctx.Err() != nil {
+			fail(ctx.Err())
+			return
+		}
 		switch e := event.(type) {
 		case *types.ConverseStreamOutputMemberMessageStart:
 			if e.Value.Role != types.ConversationRoleAssistant {
 				//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Unexpected assistant message start but got user message start instead")})
+				fail(fmt.Errorf("Unexpected assistant message start but got user message start instead"))
 				return
 			}
 			send(&goai.StartEvent{Partial: partial})
@@ -997,11 +1058,12 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 		}
 	}
 
+	if ctx.Err() != nil {
+		fail(ctx.Err())
+		return
+	}
 	if err := stream.Err(); err != nil {
-		partial.StopReason = goai.StopReasonError
-		partial.ErrorMessage = err.Error()
-		appendBedrockFailureDiagnostic(partial, err, responseRequestID)
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+		fail(err)
 		return
 	}
 
@@ -1013,9 +1075,7 @@ func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goa
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == goai.StopReasonPending {
-		partial.StopReason = goai.StopReasonError
-		partial.ErrorMessage = "Bedrock stream ended without a stop reason"
-		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("bedrock stream ended without a stop reason")})
+		fail(fmt.Errorf("bedrock stream ended without a stop reason"))
 		return
 	}
 	if partial.StopReason == "" {

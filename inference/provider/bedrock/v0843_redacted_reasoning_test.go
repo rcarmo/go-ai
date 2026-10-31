@@ -65,8 +65,8 @@ func TestV0843BedrockResponseHookUsesModeledRequestID(t *testing.T) {
 		gotStatus = status
 		gotHeaders = headers
 	}}, &bedrockruntime.ConverseStreamOutput{}, model)
-	if gotStatus != 0 || gotHeaders != nil {
-		t.Fatalf("hook should not run without modeled request id: status=%d headers=%#v", gotStatus, gotHeaders)
+	if gotStatus != 200 || len(gotHeaders) != 0 {
+		t.Fatalf("hook should run with empty headers without modeled request id: status=%d headers=%#v", gotStatus, gotHeaders)
 	}
 }
 

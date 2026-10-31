@@ -35,7 +35,7 @@ packages/ai/test/bedrock-error-metadata.test.ts	no	pending
 packages/ai/test/bedrock-models.test.ts	no	pending	
 packages/ai/test/bedrock-raw-stop-reason.test.ts	no	pending	
 packages/ai/test/bedrock-redacted-reasoning.test.ts	no	pending	
-packages/ai/test/bedrock-response-headers.test.ts	no	pending	
+packages/ai/test/bedrock-response-headers.test.ts	no	development-verified-acceptance-pending	inference/provider/bedrock/stream_hooks_main_test.go; inference/provider/bedrock/v0843_redacted_reasoning_test.go
 packages/ai/test/bedrock-stream-state.test.ts	yes	pending	
 packages/ai/test/bedrock-strict-tool-fallback.test.ts	yes	development-verified-acceptance-pending	inference/provider/bedrock/strict_tools_main_test.go; inference/provider/bedrock/v0842_sanitization_test.go; internal/stricttools/limits_test.go
 packages/ai/test/bedrock-thinking-payload.test.ts	no	pending	
