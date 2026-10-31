@@ -54,10 +54,8 @@ func TestMistralArgumentShapesMain(t *testing.T) {
 					t.Fatal(event.Err)
 				}
 			})
+			// Source appends JSON.stringify(arguments || {}) even when omitted.
 			wantDeltas := 1
-			if tc.omitted {
-				wantDeltas = 0
-			}
 			if done == nil || len(done.Content) != 1 || deltas != wantDeltas {
 				t.Fatal("chunk dropped or lifecycle changed", done, deltas)
 			}

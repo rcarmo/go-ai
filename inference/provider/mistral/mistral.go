@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -341,14 +342,14 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 // Mistral uses the same SSE format as OpenAI Chat Completions
 
 type sseChunk struct {
-	ID      string      `json:"id,omitempty"`
-	Choices []sseChoice `json:"choices"`
-	Usage   *sseUsage   `json:"usage,omitempty"`
+	ID      string       `json:"id,omitempty"`
+	Choices []*sseChoice `json:"choices"`
+	Usage   *sseUsage    `json:"usage,omitempty"`
 }
 
 type sseChoice struct {
-	Delta        sseDelta `json:"delta"`
-	FinishReason *string  `json:"finish_reason"`
+	Delta        *sseDelta `json:"delta"`
+	FinishReason *string   `json:"finish_reason"`
 }
 
 type sseDelta struct {
@@ -358,9 +359,9 @@ type sseDelta struct {
 }
 
 type sseToolCall struct {
-	Index    int             `json:"index"`
-	ID       string          `json:"id,omitempty"`
-	Function sseToolCallFunc `json:"function"`
+	Index    *int             `json:"index"`
+	ID       string           `json:"id,omitempty"`
+	Function *sseToolCallFunc `json:"function"`
 }
 
 type sseToolCallFunc struct {
@@ -423,7 +424,6 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	send(&goai.StartEvent{Partial: partial})
 
 	type activeTC struct {
-		index      int
 		id         string
 		name       string
 		arguments  jsonparse.ToolCallArgumentsStream
@@ -431,6 +431,12 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	}
 	// Argument streams contain non-copyable builders; keep their addresses stable.
 	var activeTools []*activeTC
+	type toolKey struct {
+		indexed bool
+		index   int
+		id      string
+	}
+	toolsByKey := make(map[toolKey]*activeTC)
 	var finishReason *string
 
 	currentContent := -1
@@ -469,19 +475,34 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		}
 	}
 
-	events := sse.Parse(body)
+	parserContext, cancelParser := context.WithCancel(context.Background())
+	defer cancelParser()
+	fail := func(err error) {
+		partial.StopReason = goai.StopReasonError
+		partial.ErrorMessage = err.Error()
+		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+	}
+	events := sse.ParseContext(parserContext, body)
 	for evt := range events {
 		if evt.Event == sse.EventError {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
+			fail(fmt.Errorf("SSE stream error: %s", evt.Data))
 			return
 		}
-		if evt.Data == "[DONE]" {
+		data := errortext.Trim(evt.Data)
+		if data == "[DONE]" {
 			break
 		}
-
-		var chunk sseChunk
-		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
+		if data == "" {
 			continue
+		}
+		var chunk sseChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			fail(fmt.Errorf("Invalid Mistral streaming event: %w", err))
+			return
+		}
+		if chunk.Choices == nil {
+			fail(fmt.Errorf("Invalid Mistral streaming event"))
+			return
 		}
 
 		if partial.ResponseID == "" && chunk.ID != "" {
@@ -510,11 +531,17 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		}
 
 		choice := chunk.Choices[0]
-		delta := choice.Delta
-
+		if choice == nil {
+			continue
+		}
 		if choice.FinishReason != nil {
 			finishReason = choice.FinishReason
 			partial.RawStopReason = *choice.FinishReason
+		}
+		delta := choice.Delta
+		if delta == nil {
+			fail(fmt.Errorf("Invalid Mistral streaming delta"))
+			return
 		}
 
 		deltas := mistralContentDeltas(delta.Content)
@@ -531,39 +558,43 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 
 		// Tool calls
 		for _, tc := range delta.ToolCalls {
-			finishContent()
-			var at *activeTC
-			for i := range activeTools {
-				if activeTools[i].index == tc.Index || (tc.ID != "" && activeTools[i].id == tc.ID) {
-					at = activeTools[i]
-					break
-				}
+			if tc.Function == nil {
+				fail(fmt.Errorf("Invalid Mistral tool call"))
+				return
 			}
+			finishContent()
+			callID := tc.ID
+			if callID == "" || callID == "null" {
+				index := 0
+				if tc.Index != nil {
+					index = *tc.Index
+				}
+				callID = deriveMistralToolCallID("toolcall:"+strconv.Itoa(index), 0)
+			}
+			key := toolKey{id: callID}
+			if tc.Index != nil {
+				key = toolKey{indexed: true, index: *tc.Index}
+			}
+			at := toolsByKey[key]
 			if at == nil {
 				contentIdx := len(partial.Content)
 				partial.Content = append(partial.Content, goai.ContentBlock{
-					Type: "toolCall", ID: tc.ID, Name: tc.Function.Name,
+					Type: "toolCall", ID: callID, Name: tc.Function.Name,
 				})
 				activeTools = append(activeTools, &activeTC{
-					index: tc.Index, id: tc.ID, name: tc.Function.Name, contentIdx: contentIdx,
+					id: callID, name: tc.Function.Name, contentIdx: contentIdx,
 				})
 				at = activeTools[len(activeTools)-1]
+				toolsByKey[key] = at
 				partial.Content[contentIdx].SetStreamingArguments(at.arguments.Append(""), "")
 				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
+			arguments := "{}"
 			if tc.Function.Arguments.present {
-				delta := tc.Function.Arguments.text
-				partial.Content[at.contentIdx].SetStreamingArguments(at.arguments.Append(delta), "")
-				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: delta, Partial: partial})
+				arguments = tc.Function.Arguments.text
 			}
-			if tc.ID != "" {
-				at.id = tc.ID
-				partial.Content[at.contentIdx].ID = tc.ID
-			}
-			if tc.Function.Name != "" {
-				at.name = tc.Function.Name
-				partial.Content[at.contentIdx].Name = tc.Function.Name
-			}
+			partial.Content[at.contentIdx].SetStreamingArguments(at.arguments.Append(arguments), "")
+			send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: arguments, Partial: partial})
 		}
 	}
 
