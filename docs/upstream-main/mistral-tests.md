@@ -77,3 +77,9 @@ The upstream cached-usage test covers the plural snake-case alias only. Addition
 `usage_alias_main_test.go` and `testdata/usage_alias_main.json` supplement the upstream ports. Thirteen integral-count cases were checked against the actual pinned `getMistralCachedPromptTokens`: six aliases, precedence, null/missing fallthrough, explicit zero, bounds and absence. Eight failed on unchanged `b96f320` production; five passed. No implementation edits preceded that failure run.
 
 The fix uses nullable integer fields and the pinned six-alias order. All 13 now pass through production HTTP/SSE, including input/cache allocation, total-token fallback and independently calculated estimated cost. Native integer-count validation and existing bounds remain; this does not establish equivalence for fractional or malformed JavaScript number inputs. Full root normal tests, Mistral race and vet pass. Temporary reference copies and disposable logs were removed after analysis.
+
+### Source-derived partial-state regressions
+
+Three cases in `partial_state_main_test.go` and `testdata/partial_state_main.json` fail on unchanged production after their expectations are confirmed by the actual pinned consumeChatStream. Snapshots are copied at synchronous text-delta publication boundaries. Length/error reasons must be visible before EOF; an empty later reason preserves the previous state; a later successful stop preserves an earlier error diagnostic.
+
+Moving finish-reason mapping before delta publication fixes all three failures, including the final retained diagnostic. Production HTTP/SSE tests check snapshots and terminal event counts. Native detached event snapshots, cancellation, DTO/argument authority and reader ownership are unchanged. Full normal tests, Mistral race and vet pass; temporary source helpers and logs were deleted after comparison. Observer projection/mutation, provider-option API and number-domain differences still need dispositions.

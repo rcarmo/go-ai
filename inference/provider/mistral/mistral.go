@@ -562,6 +562,20 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 		if choice.FinishReason != nil && *choice.FinishReason != "" {
 			finishReason = choice.FinishReason
 			partial.RawStopReason = *choice.FinishReason
+			switch *choice.FinishReason {
+			case "stop":
+				partial.StopReason = goai.StopReasonStop
+			case "length", "model_length":
+				partial.StopReason = goai.StopReasonLength
+			case "tool_calls":
+				partial.StopReason = goai.StopReasonToolUse
+			case "error":
+				partial.StopReason = goai.StopReasonError
+				partial.ErrorMessage = "Provider stopped with: error (server error)"
+			default:
+				partial.StopReason = goai.StopReasonError
+				partial.ErrorMessage = "Provider stopped with: " + *choice.FinishReason
+			}
 		}
 		delta := choice.Delta
 		if delta == nil {
@@ -652,23 +666,7 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 		fail(ctx.Err())
 		return
 	}
-	reason := goai.StopReasonStop
-	if finishReason != nil {
-		switch *finishReason {
-		case "stop":
-			reason = goai.StopReasonStop
-		case "length", "model_length":
-			reason = goai.StopReasonLength
-		case "tool_calls":
-			reason = goai.StopReasonToolUse
-		case "error":
-			reason = goai.StopReasonError
-			partial.ErrorMessage = "Provider stopped with: error (server error)"
-		default:
-			reason = goai.StopReasonError
-			partial.ErrorMessage = "Provider stopped with: " + *finishReason
-		}
-	}
+	reason := partial.StopReason
 	if finishReason == nil {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Mistral stream ended without a finish reason"

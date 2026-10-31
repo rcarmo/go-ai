@@ -949,3 +949,7 @@ The [Mistral test crosswalk](mistral-tests.md) maps all 34 cases in the four pin
 ## Cached-token alias precedence
 
 Thirteen source-derived integral usage cases expose eight failures on unchanged production: missing camel-case aliases and incorrect null/missing/zero precedence. The actual pinned helper confirms the expectations. Nullable integer counts and the six-alias lookup order fix those failures; all cases now pass through HTTP/SSE, including token allocation, total fallback and independent estimated-cost arithmetic. Native integer validation and cache bounds are unchanged. Full normal tests, Mistral race and vet pass; source copies and logs were disposed. Partial-state and observer differences still need review.
+
+## Finish reasons in partial events
+
+Three source-derived cases fail before implementation changes: partial events keep pending until EOF, and a later success loses the earlier diagnostic. The pinned consumer confirms the expected publication-time snapshots. Finish reasons now update before content events, and later success retains the earlier diagnostic as upstream does. All three cases, the upstream ports, normal tests, Mistral race and vet pass. Native event snapshots and ownership/cancellation fences are preserved. Observer, provider-option API and number-domain dispositions are still open.
