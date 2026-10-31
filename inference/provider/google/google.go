@@ -212,6 +212,7 @@ type geminiContent struct {
 
 type geminiPart struct {
 	Text             string              `json:"text,omitempty"`
+	ForceEmptyText   bool                `json:"-"`
 	Thought          *bool               `json:"thought,omitempty"`
 	ThoughtSignature string              `json:"thoughtSignature,omitempty"`
 	InlineData       *geminiInlineData   `json:"inlineData,omitempty"`
@@ -418,6 +419,13 @@ func stripGoogleSchemaMetaValue(value any) any {
 func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 	var contents []geminiContent
 	transformed := goai.TransformMessages(convCtx.Messages, model)
+	supportsImages := false
+	for _, input := range model.Input {
+		if input == "image" {
+			supportsImages = true
+			break
+		}
+	}
 
 	for _, msg := range transformed {
 		switch msg.Role {
@@ -443,21 +451,23 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 			for _, block := range msg.Content {
 				switch block.Type {
 				case "text":
-					if block.Text == "" {
+					signature := isSameModel && isValidBase64Signature(block.TextSignature)
+					if strings.TrimSpace(block.Text) == "" && !signature {
 						continue
 					}
-					p := geminiPart{Text: goai.SanitizeSurrogates(block.Text)}
+					p := geminiPart{Text: goai.SanitizeSurrogates(block.Text), ForceEmptyText: signature && block.Text == ""}
 					if isSameModel && isValidBase64Signature(block.TextSignature) {
 						p.ThoughtSignature = block.TextSignature
 					}
 					parts = append(parts, p)
 				case "thinking":
-					if block.Thinking == "" {
+					signature := isSameModel && isValidBase64Signature(block.ThinkingSignature)
+					if strings.TrimSpace(block.Thinking) == "" && !signature {
 						continue
 					}
 					if isSameModel {
 						t := true
-						p := geminiPart{Thought: &t, Text: goai.SanitizeSurrogates(block.Thinking)}
+						p := geminiPart{Thought: &t, Text: goai.SanitizeSurrogates(block.Thinking), ForceEmptyText: signature && block.Thinking == ""}
 						if isValidBase64Signature(block.ThinkingSignature) {
 							p.ThoughtSignature = block.ThinkingSignature
 						}
@@ -471,6 +481,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 							Name: block.Name,
 							Args: block.Arguments,
 						},
+					}
+					if p.FunctionCall.Args == nil {
+						p.FunctionCall.Args = map[string]interface{}{}
 					}
 					if requiresToolCallID(model.ID) {
 						p.FunctionCall.ID = normalizeGoogleToolCallID(block.ID)
@@ -486,25 +499,30 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 			}
 
 		case goai.RoleToolResult:
-			textResult := ""
+			var textParts []string
 			var imageParts []geminiPart
 			for _, b := range msg.Content {
 				if b.Type == "text" {
-					textResult += b.Text
-				} else if b.Type == "image" && b.MimeType != "" && b.Data != "" {
+					textParts = append(textParts, b.Text)
+				} else if b.Type == "image" && supportsImages && b.MimeType != "" && b.Data != "" {
 					imageParts = append(imageParts, geminiPart{
 						InlineData: &geminiInlineData{MimeType: b.MimeType, Data: b.Data},
 					})
 				}
 			}
 			hasImages := len(imageParts) > 0
+			textResult := strings.Join(textParts, "\n")
+			value := ""
+			if strings.TrimSpace(textResult) != "" {
+				value = goai.SanitizeSurrogates(textResult)
+			} else if hasImages {
+				value = "(see attached image)"
+			}
 			resp := map[string]interface{}{}
 			if msg.IsError {
-				resp["error"] = goai.SanitizeSurrogates(textResult)
-			} else if textResult != "" {
-				resp["output"] = goai.SanitizeSurrogates(textResult)
-			} else if hasImages {
-				resp["output"] = "(see attached image)"
+				resp["error"] = value
+			} else {
+				resp["output"] = value
 			}
 
 			part := geminiPart{
@@ -544,10 +562,9 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 	return contents
 }
 
-// requiresToolCallID returns true for non-Gemini models (Claude, GPT-OSS) served via
-// the Gemini API that require explicit tool call IDs.
+// requiresToolCallID identifies Gemini 3+ and Claude/GPT-OSS models requiring IDs.
 func requiresToolCallID(modelID string) bool {
-	return strings.HasPrefix(modelID, "claude-") || strings.HasPrefix(modelID, "gpt-oss-")
+	return strings.HasPrefix(modelID, "claude-") || strings.HasPrefix(modelID, "gpt-oss-") || getGeminiMajorVersion(modelID) >= 3
 }
 
 // supportsMultimodalFunctionResponse returns true for Gemini 3+ models which
@@ -612,8 +629,12 @@ func isValidBase64Signature(sig string) bool {
 	if sig == "" || len(sig)%4 != 0 {
 		return false
 	}
-	for _, c := range sig {
-		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+	data := strings.TrimRight(sig, "=")
+	if len(data) == 0 || len(sig)-len(data) > 2 {
+		return false
+	}
+	for _, c := range data {
+		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/') {
 			return false
 		}
 	}

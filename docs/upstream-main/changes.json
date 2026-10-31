@@ -590,9 +590,11 @@
         "inference/provider/google/schema_const_main.go",
         "inference/provider/google/schema_const_main_test.go",
         "inference/provider/google/strict_mode_main.go",
-        "inference/provider/google/strict_mode_main_test.go"
+        "inference/provider/google/strict_mode_main_test.go",
+        "inference/provider/google/message_main.go",
+        "inference/provider/google/message_main_test.go"
       ],
-      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open."
+      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open. Shared-message replay now preserves signed empty blocks on wire, validates signature padding, carries Gemini3+ call/response IDs, defaults nil args and aligns tool text/image/error values and routing. Native image-downgrade and API/origin thinking/signature isolation remain. Three shared-message test crosswalks development-verified after full normal/Google+tests race/thirty repeats/vet. Stream empty-signature intake, retries and remaining provider semantics/serialization profiling still need review."
     },
     {
       "change": "M",
