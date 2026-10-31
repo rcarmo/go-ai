@@ -1,6 +1,7 @@
 package goai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -135,8 +136,47 @@ func tryErrorJSON(value any) (encoded []byte, ok bool) {
 			ok = false
 		}
 	}()
-	encoded, err := json.Marshal(value)
-	return encoded, err == nil
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, false
+	}
+	// Encode adds a record delimiter; it is not part of JSON.stringify text.
+	encoded = bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})
+	return errorJSONSeparators(encoded), true
+}
+
+// Go escapes these JS line separators even with EscapeHTML disabled. Preserve
+// their source text while leaving literal backslash-u sequences untouched.
+func errorJSONSeparators(encoded []byte) []byte {
+	if !bytes.Contains(encoded, []byte(`\u202`)) {
+		return encoded
+	}
+	var out bytes.Buffer
+	for i := 0; i < len(encoded); {
+		if encoded[i] != '\\' {
+			out.WriteByte(encoded[i])
+			i++
+			continue
+		}
+		if i+6 <= len(encoded) && (bytes.Equal(encoded[i:i+6], []byte(`\u2028`)) || bytes.Equal(encoded[i:i+6], []byte(`\u2029`))) {
+			if encoded[i+5] == '8' {
+				out.WriteString("\u2028")
+			} else {
+				out.WriteString("\u2029")
+			}
+			i += 6
+			continue
+		}
+		out.WriteByte(encoded[i])
+		i++
+		if i < len(encoded) {
+			out.WriteByte(encoded[i])
+			i++
+		}
+	}
+	return out.Bytes()
 }
 
 type errorArrayVisit struct {
