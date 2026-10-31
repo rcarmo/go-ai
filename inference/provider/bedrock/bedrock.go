@@ -115,7 +115,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		// Create client
 		clientOpts := []func(*bedrockruntime.Options){func(o *bedrockruntime.Options) {
-			o.APIOptions = append(o.APIOptions, awsmiddleware.AddRawResponseToMetadata)
+			o.APIOptions = append(o.APIOptions, awsmiddleware.AddRawResponseToMetadata, addBedrockErrorBodyCapture)
 		}}
 		if model.BaseURL != "" && useExplicitEndpoint {
 			clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
@@ -874,7 +874,7 @@ func processBedrockStream(ctx context.Context, resp *bedrockruntime.ConverseStre
 			err = ctx.Err()
 		}
 		partial.StopReason = reason
-		partial.ErrorMessage = err.Error()
+		partial.ErrorMessage = formatBedrockError(err)
 		partial.Timestamp = time.Now().UnixMilli()
 		if reason != goai.StopReasonAborted {
 			appendBedrockFailureDiagnostic(partial, err, responseRequestID)
@@ -1124,7 +1124,7 @@ func mapStopReason(reason types.StopReason) goai.StopReason {
 const maxBedrockDiagnosticValueChars = 200
 
 func bedrockErrorMessage(model *goai.Model, err error) *goai.Message {
-	msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonError, ErrorMessage: err.Error(), Timestamp: time.Now().UnixMilli()}
+	msg := &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonError, ErrorMessage: formatBedrockError(err), Timestamp: time.Now().UnixMilli()}
 	return msg
 }
 
@@ -1136,7 +1136,11 @@ func appendBedrockFailureDiagnostic(message *goai.Message, err error, fallbackRe
 	if code := extractBedrockErrorCode(err); code != "" {
 		details["errorCode"] = code
 	}
-	if requestID := normalizeBedrockDiagnosticValue(extractBedrockRequestID(err, fallbackRequestID)); requestID != "" {
+	requestID := normalizeBedrockDiagnosticValue(extractBedrockRequestID(err, ""))
+	if requestID == "" {
+		requestID = normalizeBedrockDiagnosticValue(fallbackRequestID)
+	}
+	if requestID != "" {
 		details["requestId"] = requestID
 	}
 	if len(details) == 0 {
@@ -1174,14 +1178,14 @@ func extractBedrockErrorCode(err error) string {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
 		code := normalizeBedrockDiagnosticValue(apiErr.ErrorCode())
-		if code != "" && code != "Unknown" {
+		if strings.HasSuffix(code, "Exception") {
 			return code
 		}
 	}
 	var named interface{ ErrorCode() string }
 	if errors.As(err, &named) {
 		code := normalizeBedrockDiagnosticValue(named.ErrorCode())
-		if code != "" && code != "Unknown" {
+		if strings.HasSuffix(code, "Exception") {
 			return code
 		}
 	}

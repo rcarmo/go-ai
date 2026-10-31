@@ -31,7 +31,7 @@ packages/ai/test/bedrock-convert-messages.test.ts	no	pending
 packages/ai/test/bedrock-credentials.test.ts	no	pending	
 packages/ai/test/bedrock-custom-headers.test.ts	no	pending	
 packages/ai/test/bedrock-endpoint-resolution.test.ts	no	pending	
-packages/ai/test/bedrock-error-metadata.test.ts	no	pending	
+packages/ai/test/bedrock-error-metadata.test.ts	no	development-verified-acceptance-pending	inference/provider/bedrock/error_format_main_test.go; inference/provider/bedrock/bedrock_stream_test.go; inference/provider/bedrock/stream_hooks_main_test.go
 packages/ai/test/bedrock-models.test.ts	no	pending	
 packages/ai/test/bedrock-raw-stop-reason.test.ts	no	pending	
 packages/ai/test/bedrock-redacted-reasoning.test.ts	no	pending	
