@@ -104,7 +104,10 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if err != nil {
 			if ctx.Err() != nil {
 				goai.GetLogger().Debug("request aborted", "provider", model.Provider, "model", model.ID)
-				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+				failure := newGoogleStreamMessage(model)
+				failure.StopReason = goai.StopReasonAborted
+				failure.ErrorMessage = ctx.Err().Error()
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: failure, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("network error", "provider", model.Provider, "model", model.ID, "error", err)
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
@@ -125,7 +128,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		processStream(resp.Body, model, send, opts)
+		processStreamContext(ctx, resp.Body, model, send, opts)
 	}()
 
 	return ch
@@ -670,22 +673,32 @@ type geminiUsage struct {
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 
+func newGoogleStreamMessage(model *goai.Model) *goai.Message {
+	return &goai.Message{Role: goai.RoleAssistant, Api: model.Api, Provider: model.Provider, Model: model.ID, Usage: &goai.Usage{}, StopReason: goai.StopReasonPending}
+}
+
 func processStream(body io.Reader, model *goai.Model, send func(goai.Event), options ...*goai.StreamOptions) {
 	var opts *goai.StreamOptions
 	if len(options) > 0 {
 		opts = options[0]
 	}
+	processStreamContext(context.Background(), body, model, send, opts)
+}
+
+func processStreamContext(ctx context.Context, body io.Reader, model *goai.Model, send func(goai.Event), opts *goai.StreamOptions) {
 	// Early hook rejection must also stop a parser blocked on its event channel.
 	// The transport still owns/closes the response body; caller reads are untouched.
-	parseCtx, cancel := context.WithCancel(context.Background())
+	parseCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	partial := &goai.Message{
-		Role:       goai.RoleAssistant,
-		Api:        model.Api,
-		Provider:   model.Provider,
-		Model:      model.ID,
-		Usage:      &goai.Usage{},
-		StopReason: goai.StopReasonPending,
+	partial := newGoogleStreamMessage(model)
+	fail := func(err error) {
+		reason := goai.StopReasonError
+		if ctx.Err() != nil {
+			reason = goai.StopReasonAborted
+		}
+		partial.StopReason = reason
+		partial.ErrorMessage = err.Error()
+		send(&goai.ErrorEvent{Reason: reason, Error: partial, Err: err})
 	}
 
 	send(&goai.StartEvent{Partial: partial})
@@ -698,7 +711,7 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 	// and incrementally instead of buffering the full response body.
 	for evt := range sse.ParseContext(parseCtx, body) {
 		if evt.Event == sse.EventError {
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
+			fail(fmt.Errorf("SSE stream error: %s", evt.Data))
 			return
 		}
 		if evt.Data == "" || evt.Data == "[DONE]" {
@@ -706,7 +719,13 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 		}
 
 		var chunk geminiStreamChunk
-		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
+		if err := json.Unmarshal([]byte(evt.Data), &chunk); err != nil {
+			if _, syntax := err.(*json.SyntaxError); syntax {
+				fail(err)
+				return
+			}
+			// Keep typed admission intact; SDK shape/coercion differences need
+			// their own review, not promotion of generic observer maps.
 			continue
 		}
 		if opts != nil && opts.OnProviderStreamEvent != nil {
@@ -718,9 +737,7 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 				err = opts.OnProviderStreamEvent(wire, model)
 			}
 			if err != nil {
-				partial.StopReason = goai.StopReasonError
-				partial.ErrorMessage = err.Error()
-				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+				fail(err)
 				return
 			}
 		}
@@ -846,6 +863,11 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 	}
 
 	partial.Timestamp = time.Now().UnixMilli()
+	if ctx.Err() != nil {
+		//lint:ignore ST1005 pinned upstream abort diagnostic is capitalized.
+		fail(fmt.Errorf("Request was aborted"))
+		return
+	}
 	if partial.StopReason == goai.StopReasonPending {
 		partial.StopReason = goai.StopReasonError
 		partial.ErrorMessage = "Google stream ended without a finish reason"
