@@ -3,6 +3,7 @@ package mistral
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -13,8 +14,9 @@ import (
 
 type mistralContentPart struct {
 	Type     string                `json:"type"`
-	Text     string                `json:"text,omitempty"`
+	Text     *string               `json:"text,omitempty"`
 	Thinking []mistralThinkingText `json:"thinking,omitempty"`
+	ImageURL string                `json:"image_url,omitempty"`
 }
 type mistralThinkingText struct {
 	Type string `json:"type"`
@@ -24,9 +26,9 @@ type mistralContentDelta struct{ kind, text string }
 
 // Decode UTF-16 only inside this wire boundary; publish sanitized scalar text,
 // never the parser's lossless argument representation, to ordinary content.
-func mistralContentDeltas(raw json.RawMessage) []mistralContentDelta {
+func mistralContentDeltas(raw json.RawMessage) ([]mistralContentDelta, error) {
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	var value any
 	var err error
@@ -38,14 +40,25 @@ func mistralContentDeltas(raw json.RawMessage) []mistralContentDelta {
 		value, err = jsonparse.ParseJSONValue(string(raw), false)
 	}
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("Invalid Mistral content: %w", err)
+	}
+	if value == nil {
+		return nil, nil
 	}
 	items, ok := value.([]any)
 	if !ok {
-		items = []any{value}
+		switch value.(type) {
+		case string, jsonparse.UTF16String:
+			items = []any{value}
+		default:
+			return nil, fmt.Errorf("Invalid Mistral content")
+		}
 	}
 	var out []mistralContentDelta
 	for _, item := range items {
+		if item == nil {
+			return out, fmt.Errorf("Invalid Mistral content item")
+		}
 		if text, ok := mistralScalarText(item); ok {
 			if text != "" {
 				out = append(out, mistralContentDelta{"text", text})
@@ -60,11 +73,23 @@ func mistralContentDeltas(raw json.RawMessage) []mistralContentDelta {
 		text := ""
 		switch kind {
 		case "text":
-			text, _ = mistralScalarText(object["text"])
+			if value := object["text"]; value != nil {
+				var valid bool
+				text, valid = mistralScalarText(value)
+				if !valid {
+					return out, fmt.Errorf("Invalid Mistral text content")
+				}
+			}
 		case "thinking":
-			parts, _ := object["thinking"].([]any)
+			parts, valid := object["thinking"].([]any)
+			if object["thinking"] != nil && !valid {
+				return out, fmt.Errorf("Invalid Mistral thinking content")
+			}
 			var units []uint16
 			for _, part := range parts {
+				if part == nil {
+					return out, fmt.Errorf("Invalid Mistral thinking part")
+				}
 				if object, ok := part.(map[string]any); ok {
 					switch value := object["text"].(type) {
 					case string:
@@ -96,7 +121,7 @@ func mistralContentDeltas(raw json.RawMessage) []mistralContentDelta {
 			out = append(out, mistralContentDelta{kind, text})
 		}
 	}
-	return out
+	return out, nil
 }
 func mistralScalarText(value any) (string, bool) {
 	switch v := value.(type) {

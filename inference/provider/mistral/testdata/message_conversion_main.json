@@ -1,0 +1,517 @@
+[
+  {
+    "name": "vision-mixed",
+    "supportsImages": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "one"
+          },
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          },
+          {
+            "type": "text",
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": " first "
+          },
+          {
+            "type": "text",
+            "text": "second "
+          },
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ],
+        "isError": true
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "one"
+          },
+          {
+            "type": "image_url",
+            "image_url": "data:image/png;base64,AA=="
+          },
+          {
+            "type": "text",
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "[tool error] first \nsecond"
+          },
+          {
+            "type": "image_url",
+            "image_url": "data:image/png;base64,AA=="
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "text-only-mixed",
+    "supportsImages": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "one"
+          },
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          },
+          {
+            "type": "text",
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": " first "
+          },
+          {
+            "type": "text",
+            "text": "second "
+          },
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ],
+        "isError": true
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "one"
+          },
+          {
+            "type": "text",
+            "text": "(image omitted: model does not support images)"
+          },
+          {
+            "type": "text",
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "[tool error] first \nsecond \n(tool image omitted: model does not support images)"
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "vision-images",
+    "supportsImages": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ],
+        "isError": false
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "image_url",
+            "image_url": "data:image/png;base64,AA=="
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "(see attached image)"
+          },
+          {
+            "type": "image_url",
+            "image_url": "data:image/png;base64,AA=="
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "text-only-images",
+    "supportsImages": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [
+          {
+            "type": "image",
+            "data": "AA==",
+            "mimeType": "image/png"
+          }
+        ],
+        "isError": true
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "(image omitted: model does not support images)"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "[tool error] (tool image omitted: model does not support images)"
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "empty-tool",
+    "supportsImages": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [],
+        "isError": false
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "(no tool output)"
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "empty-error-tool",
+    "supportsImages": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "call12345",
+            "name": "lookup",
+            "arguments": {}
+          }
+        ]
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "call12345",
+        "toolName": "lookup",
+        "content": [],
+        "isError": true
+      }
+    ],
+    "expected": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": ""
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "prefix": false,
+        "tool_calls": [
+          {
+            "id": "call12345",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            },
+            "index": 0
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "name": "lookup",
+        "content": [
+          {
+            "type": "text",
+            "text": "[tool error] (no tool output)"
+          }
+        ],
+        "tool_call_id": "call12345"
+      }
+    ]
+  },
+  {
+    "name": "empty-user-array",
+    "supportsImages": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": []
+      }
+    ],
+    "expected": []
+  }
+]

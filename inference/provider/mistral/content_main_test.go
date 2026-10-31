@@ -56,7 +56,8 @@ func TestMistralStructuredContentReplayMain(t *testing.T) {
 	if err = json.Unmarshal(encoded, &wire); err != nil {
 		t.Fatal(err)
 	}
-	expected := []mistralContentPart{{Type: "thinking", Thinking: []mistralThinkingText{{Type: "text", Text: "A😃B"}}}, {Type: "text", Text: " answer more"}}
+	text := " answer more"
+	expected := []mistralContentPart{{Type: "thinking", Thinking: []mistralThinkingText{{Type: "text", Text: "A😃B"}}}, {Type: "text", Text: &text}}
 	if len(wire.Messages) != 1 || wire.Messages[0].Prefix == nil || *wire.Messages[0].Prefix || !reflect.DeepEqual(wire.Messages[0].Content, expected) {
 		t.Fatal("replay flattened thinking", string(encoded))
 	}

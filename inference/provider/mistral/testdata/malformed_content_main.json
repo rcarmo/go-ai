@@ -1,0 +1,8 @@
+[
+  {"name":"object-root","content":{},"partial":"before"},
+  {"name":"number-root","content":7,"partial":"before"},
+  {"name":"null-item","content":["within",null],"partial":"beforewithin"},
+  {"name":"bad-text","content":[{"type":"text","text":1}],"partial":"before"},
+  {"name":"bad-thinking","content":[{"type":"thinking","thinking":{}}],"partial":"before"},
+  {"name":"null-thinking-part","content":[{"type":"thinking","thinking":[null]}],"partial":"before"}
+]

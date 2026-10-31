@@ -213,8 +213,9 @@ type mistralToolFuncDef struct {
 
 func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) mistralRequest {
 	req := mistralRequest{
-		Model:  model.ID,
-		Stream: true,
+		Model:    model.ID,
+		Stream:   true,
+		Messages: make([]mistralMsg, 0),
 	}
 
 	if opts != nil {
@@ -244,19 +245,19 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Messages
+	supportsImages := false
+	for _, input := range model.Input {
+		supportsImages = supportsImages || input == "image"
+	}
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 	toolCallIDMap := make(map[string]string)
 	normalizeID := newMistralToolCallIDNormalizer()
 	for _, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleUser:
-			text := ""
-			for _, b := range msg.Content {
-				if b.Type == "text" {
-					text += b.Text
-				}
+			if message, ok := mistralUserMessage(msg, supportsImages); ok {
+				req.Messages = append(req.Messages, message)
 			}
-			req.Messages = append(req.Messages, mistralMsg{Role: "user", Content: goai.SanitizeSurrogates(text)})
 
 		case goai.RoleAssistant:
 			prefix := false
@@ -266,7 +267,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				switch b.Type {
 				case "text":
 					if errortext.Trim(b.Text) != "" {
-						parts = append(parts, mistralContentPart{Type: "text", Text: goai.SanitizeSurrogates(b.Text)})
+						parts = append(parts, mistralTextPart(goai.SanitizeSurrogates(b.Text)))
 					}
 				case "thinking":
 					if errortext.Trim(b.Thinking) != "" {
@@ -293,19 +294,13 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			}
 
 		case goai.RoleToolResult:
-			text := ""
-			for _, b := range msg.Content {
-				if b.Type == "text" {
-					text += b.Text
-				}
-			}
 			tcID := msg.ToolCallID
 			if mapped, ok := toolCallIDMap[tcID]; ok {
 				tcID = mapped
 			}
 			req.Messages = append(req.Messages, mistralMsg{
 				Role:       "tool",
-				Content:    goai.SanitizeSurrogates(text),
+				Content:    mistralToolResultContent(msg, supportsImages),
 				ToolCallID: tcID,
 				Name:       msg.ToolName,
 			})
@@ -544,11 +539,15 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 			return
 		}
 
-		deltas := mistralContentDeltas(delta.Content)
+		deltas, contentErr := mistralContentDeltas(delta.Content)
 		hasThinking := false
 		for _, part := range deltas {
 			appendContent(part.kind, part.text)
 			hasThinking = hasThinking || part.kind == "thinking"
+		}
+		if contentErr != nil {
+			fail(contentErr)
+			return
 		}
 		// Preserve legacy native reasoning_content support when canonical
 		// thinking chunks are absent; canonical content is never duplicated.
