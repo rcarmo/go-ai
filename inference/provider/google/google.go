@@ -348,7 +348,7 @@ func convertTools(tools []goai.Tool, args ...bool) []geminiToolDecl {
 		if useSchemaParameters {
 			decl.Parameters = stripGoogleSchemaMeta(parameters)
 		} else {
-			decl.ParametersJsonSchema = parameters
+			decl.ParametersJsonSchema = rewriteGoogleConstSchema(parameters)
 		}
 		funcs = append(funcs, decl)
 	}
@@ -359,8 +359,8 @@ func stripGoogleSchemaMeta(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
+	value, ok := decodeGoogleToolSchema(raw)
+	if !ok {
 		return append(json.RawMessage(nil), raw...)
 	}
 	cleaned := stripGoogleSchemaMetaValue(value)
@@ -377,7 +377,7 @@ func stripGoogleSchemaMetaValue(value any) any {
 		out := make(map[string]any, len(v))
 		for key, child := range v {
 			switch key {
-			case "$schema", "$id", "$comment", "$defs", "definitions":
+			case "$schema", "$id", "$anchor", "$dynamicAnchor", "$vocabulary", "$comment", "$defs", "definitions":
 				continue
 			default:
 				out[key] = stripGoogleSchemaMetaValue(child)
@@ -385,11 +385,8 @@ func stripGoogleSchemaMetaValue(value any) any {
 		}
 		return out
 	case []any:
-		out := make([]any, len(v))
-		for i, child := range v {
-			out[i] = stripGoogleSchemaMetaValue(child)
-		}
-		return out
+		// The legacy OpenAPI sanitizer leaves arrays unchanged, including literals.
+		return v
 	default:
 		return value
 	}

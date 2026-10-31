@@ -70,7 +70,7 @@ packages/ai/test/github-copilot-anthropic.test.ts	no	pending
 packages/ai/test/github-copilot-oauth.test.ts	no	pending	
 packages/ai/test/github-copilot-request-size-overflow.test.ts	no	pending	
 packages/ai/test/google-raw-stop-reason.test.ts	no	pending	
-packages/ai/test/google-shared-convert-tools.test.ts	yes	pending	
+packages/ai/test/google-shared-convert-tools.test.ts	yes	partial-development-verified-strict-mode-pending	inference/provider/google/google_shared_upstream_test.go; inference/provider/google/schema_const_main_test.go
 packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts	no	pending	
 packages/ai/test/google-shared-image-tool-result-routing.test.ts	no	pending	
 packages/ai/test/google-shared-retry.test.ts	no	pending	
