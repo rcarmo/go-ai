@@ -212,7 +212,7 @@ type geminiContent struct {
 
 type geminiPart struct {
 	Text             string              `json:"text,omitempty"`
-	ForceEmptyText   bool                `json:"-"`
+	TextPresent      bool                `json:"-"`
 	Thought          *bool               `json:"thought,omitempty"`
 	ThoughtSignature string              `json:"thoughtSignature,omitempty"`
 	InlineData       *geminiInlineData   `json:"inlineData,omitempty"`
@@ -455,7 +455,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 					if strings.TrimSpace(block.Text) == "" && !signature {
 						continue
 					}
-					p := geminiPart{Text: goai.SanitizeSurrogates(block.Text), ForceEmptyText: signature && block.Text == ""}
+					p := geminiPart{Text: goai.SanitizeSurrogates(block.Text), TextPresent: signature && block.Text == ""}
 					if isSameModel && isValidBase64Signature(block.TextSignature) {
 						p.ThoughtSignature = block.TextSignature
 					}
@@ -467,7 +467,7 @@ func convertMessages(model *goai.Model, convCtx *goai.Context) []geminiContent {
 					}
 					if isSameModel {
 						t := true
-						p := geminiPart{Thought: &t, Text: goai.SanitizeSurrogates(block.Thinking), ForceEmptyText: signature && block.Thinking == ""}
+						p := geminiPart{Thought: &t, Text: goai.SanitizeSurrogates(block.Thinking), TextPresent: signature && block.Thinking == ""}
 						if isValidBase64Signature(block.ThinkingSignature) {
 							p.ThoughtSignature = block.ThinkingSignature
 						}
@@ -708,7 +708,7 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 					isThinking := part.Thought != nil && *part.Thought
 
 					// Text or thinking content
-					if part.Text != "" {
+					if part.TextPresent || part.Text != "" {
 						if current == nil ||
 							(isThinking && current.blockType != "thinking") ||
 							(!isThinking && current.blockType != "text") {

@@ -579,7 +579,11 @@
       "path": "packages/ai/src/api/google-generative-ai.ts",
       "kind": "source",
       "status": "pending",
-      "native": []
+      "native": [
+        "inference/provider/google/message_main.go",
+        "inference/provider/google/stream_signature_main_test.go"
+      ],
+      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences."
     },
     {
       "change": "M",
@@ -592,16 +596,21 @@
         "inference/provider/google/strict_mode_main.go",
         "inference/provider/google/strict_mode_main_test.go",
         "inference/provider/google/message_main.go",
-        "inference/provider/google/message_main_test.go"
+        "inference/provider/google/message_main_test.go",
+        "inference/provider/google/stream_signature_main_test.go"
       ],
-      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open. Shared-message replay now preserves signed empty blocks on wire, validates signature padding, carries Gemini3+ call/response IDs, defaults nil args and aligns tool text/image/error values and routing. Native image-downgrade and API/origin thinking/signature isolation remain. Three shared-message test crosswalks development-verified after full normal/Google+tests race/thirty repeats/vet. Stream empty-signature intake, retries and remaining provider semantics/serialization profiling still need review."
+      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open. Shared-message replay now preserves signed empty blocks on wire, validates signature padding, carries Gemini3+ call/response IDs, defaults nil args and aligns tool text/image/error values and routing. Native image-downgrade and API/origin thinking/signature isolation remain. Three shared-message test crosswalks development-verified after full normal/Google+tests race/thirty repeats/vet. Stream empty-signature intake now passes lifecycle/replay tests for both APIs; retries and remaining provider semantics/serialization profiling still need review. Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences."
     },
     {
       "change": "M",
       "path": "packages/ai/src/api/google-vertex.ts",
       "kind": "source",
       "status": "pending",
-      "native": []
+      "native": [
+        "inference/provider/google/message_main.go",
+        "inference/provider/google/stream_signature_main_test.go"
+      ],
+      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences."
     },
     {
       "change": "M",
