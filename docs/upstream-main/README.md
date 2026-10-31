@@ -1,6 +1,6 @@
 # Upstream main convergence
 
-Target: `4b535d57ea8863dbba44b89872146523da271786`, observed 30 October 2026. Baseline: upstream v1.4.0 `4a080252f06caf63a525d7873c5d94d3c23887e0`, accepted by native v1.4.0 (`ee3076b`). The published release and its assets remain unchanged. This is unreleased-source convergence, not a new release or a claim of full parity. npm still publishes 1.4.0; no npm artifact is claimed to represent this main snapshot.
+Current target: `81f3cd412758ebdd92324c7d63b669a189408d0a`, explicitly advanced by Rui on 31 October 2026. [Tip update and current inventories](tip-update.md) cover the 87 incremental package paths and 360-path current test corpus. The original inventories and development receipts below retain their previous pin `4b535d57ea8863dbba44b89872146523da271786`; they do not establish new-tip acceptance. Baseline: upstream v1.4.0 `4a080252f06caf63a525d7873c5d94d3c23887e0`, accepted by native v1.4.0 (`ee3076b`). The published release and its assets remain unchanged. This is unreleased-source convergence, not a new release or a claim of full parity. npm still publishes 1.4.0; no npm artifact is claimed to represent this main snapshot.
 
 Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full semantic alignment. Work proceeds in bounded slices; Rui separately authorised regular validated main checkpoint pushes on 31 October 2026. Hosted dispatch, publication and release-ref changes need separate authority. Intentional semantic divergences require explicit acceptance.
 

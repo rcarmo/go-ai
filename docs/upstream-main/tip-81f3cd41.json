@@ -1,0 +1,3824 @@
+{
+  "baseline": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+  "previousTarget": "4b535d57ea8863dbba44b89872146523da271786",
+  "target": "81f3cd412758ebdd92324c7d63b669a189408d0a",
+  "observedDate": "2026-10-31",
+  "targetCommitTime": "2026-10-31T20:06:14+00:00",
+  "commitsSincePrevious": 57,
+  "purpose": "Updated convergence pin. Inventories are unreviewed; previous-pin tests retain their historical scope. No acceptance claim.",
+  "counts": {
+    "incrementalPackagePaths": 87,
+    "baselinePackagePaths": 402,
+    "testCorpus": 360,
+    "repositorySupportDelta": 279
+  },
+  "packages": {
+    "ai": {
+      "incrementalPaths": 1,
+      "baselinePaths": 180,
+      "testCorpus": 192,
+      "previousManifest": {
+        "name": "@earendil-works/pi-ai",
+        "version": "1.4.0",
+        "description": "Unified LLM API with automatic model discovery and provider configuration",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "sideEffects": [
+          "./dist/compat.js",
+          "./dist/images.js",
+          "./dist/providers/images/register-builtins.js"
+        ],
+        "exports": {
+          ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./models": {
+            "types": "./dist/models.d.ts",
+            "import": "./dist/models.js"
+          },
+          "./compat": {
+            "types": "./dist/compat.d.ts",
+            "import": "./dist/compat.js"
+          },
+          "./providers/*": {
+            "types": "./dist/providers/*.d.ts",
+            "import": "./dist/providers/*.js"
+          },
+          "./api/*": {
+            "types": "./dist/api/*.d.ts",
+            "import": "./dist/api/*.js"
+          },
+          "./utils/*": {
+            "types": "./dist/utils/*.d.ts",
+            "import": "./dist/utils/*.js"
+          },
+          "./oauth": {
+            "types": "./dist/oauth.d.ts",
+            "import": "./dist/oauth.js"
+          },
+          "./bedrock-provider": {
+            "types": "./dist/bedrock-provider.d.ts",
+            "import": "./dist/bedrock-provider.js"
+          },
+          "./bun-oauth": {
+            "types": "./dist/bun-oauth.d.ts",
+            "import": "./dist/bun-oauth.js"
+          }
+        },
+        "bin": {
+          "pi-ai": "dist/cli.js"
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "shx rm -rf dist",
+          "generate-models": "node catalog/generate.ts --strict",
+          "hydrate-model-data": "node catalog/generate.ts --strict --data-only",
+          "generate-model-catalog": "node catalog/generate.ts --strict --json-only --json-output ../../.artifacts/model-catalog",
+          "check:model-data": "node scripts/check-model-data.ts",
+          "build": "npm run generate-models && npm run build:offline",
+          "build:offline": "npm run check:model-data && tsc -p tsconfig.build.json && shx rm -rf dist/providers/data && shx cp -r src/providers/data dist/providers/data",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "dependencies": {
+          "@anthropic-ai/sdk": "0.129.0",
+          "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@google/genai": "2.21.0",
+          "@smithy/node-http-handler": "4.12.1",
+          "http-proxy-agent": "9.1.0",
+          "https-proxy-agent": "9.1.0",
+          "openai": "7.19.0",
+          "partial-json": "0.1.7",
+          "typebox": "1.3.27"
+        },
+        "keywords": [
+          "ai",
+          "llm",
+          "openai",
+          "anthropic",
+          "gemini",
+          "bedrock",
+          "unified",
+          "api"
+        ],
+        "author": "Mario Zechner",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/ai"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "devDependencies": {
+          "@types/node": "22.19.19",
+          "canvas": "3.2.3",
+          "vitest": "4.1.12"
+        }
+      },
+      "targetManifest": {
+        "name": "@earendil-works/pi-ai",
+        "version": "1.4.0",
+        "description": "Unified LLM API with automatic model discovery and provider configuration",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "sideEffects": [
+          "./dist/compat.js",
+          "./dist/images.js",
+          "./dist/providers/images/register-builtins.js"
+        ],
+        "exports": {
+          ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./models": {
+            "types": "./dist/models.d.ts",
+            "import": "./dist/models.js"
+          },
+          "./compat": {
+            "types": "./dist/compat.d.ts",
+            "import": "./dist/compat.js"
+          },
+          "./providers/*": {
+            "types": "./dist/providers/*.d.ts",
+            "import": "./dist/providers/*.js"
+          },
+          "./api/*": {
+            "types": "./dist/api/*.d.ts",
+            "import": "./dist/api/*.js"
+          },
+          "./utils/*": {
+            "types": "./dist/utils/*.d.ts",
+            "import": "./dist/utils/*.js"
+          },
+          "./oauth": {
+            "types": "./dist/oauth.d.ts",
+            "import": "./dist/oauth.js"
+          },
+          "./bedrock-provider": {
+            "types": "./dist/bedrock-provider.d.ts",
+            "import": "./dist/bedrock-provider.js"
+          },
+          "./bun-oauth": {
+            "types": "./dist/bun-oauth.d.ts",
+            "import": "./dist/bun-oauth.js"
+          }
+        },
+        "bin": {
+          "pi-ai": "dist/cli.js"
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "generate-models": "node catalog/generate.ts --strict",
+          "hydrate-model-data": "node catalog/generate.ts --strict --data-only",
+          "generate-model-catalog": "node catalog/generate.ts --strict --json-only --json-output ../../.artifacts/model-catalog",
+          "check:model-data": "node scripts/check-model-data.ts",
+          "build": "npm run generate-models && npm run build:offline",
+          "build:offline": "npm run check:model-data && tsc -p tsconfig.build.json && node ../../scripts/package-files.mjs clean dist/providers/data && node ../../scripts/package-files.mjs copy src/providers/data dist/providers",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "dependencies": {
+          "@anthropic-ai/sdk": "0.129.0",
+          "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@google/genai": "2.21.0",
+          "@smithy/node-http-handler": "4.12.1",
+          "http-proxy-agent": "9.1.0",
+          "https-proxy-agent": "9.1.0",
+          "openai": "7.19.0",
+          "partial-json": "0.1.7",
+          "typebox": "1.3.27"
+        },
+        "keywords": [
+          "ai",
+          "llm",
+          "openai",
+          "anthropic",
+          "gemini",
+          "bedrock",
+          "unified",
+          "api"
+        ],
+        "author": "Mario Zechner",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/ai"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "devDependencies": {
+          "@types/node": "22.19.19",
+          "canvas": "3.2.3",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    "durable": {
+      "incrementalPaths": 85,
+      "baselinePaths": 220,
+      "testCorpus": 160,
+      "previousManifest": {
+        "name": "@earendil-works/pi-durable",
+        "version": "1.4.0",
+        "description": "Durable conversation, task, and document runtime for Pi",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+          },
+          "./env": {
+            "source": "./src/env/index.ts",
+            "types": "./dist/env/index.d.ts",
+            "import": "./dist/env/index.js",
+            "default": "./dist/env/index.js"
+          },
+          "./env/node": {
+            "source": "./src/env/node.ts",
+            "types": "./dist/env/node.d.ts",
+            "import": "./dist/env/node.js",
+            "default": "./dist/env/node.js"
+          },
+          "./codemode": {
+            "source": "./src/codemode/index.ts",
+            "types": "./dist/codemode/index.d.ts",
+            "import": "./dist/codemode/index.js",
+            "default": "./dist/codemode/index.js"
+          },
+          "./tool-search": {
+            "source": "./src/tool-search/index.ts",
+            "types": "./dist/tool-search/index.d.ts",
+            "import": "./dist/tool-search/index.js",
+            "default": "./dist/tool-search/index.js"
+          },
+          "./tools": {
+            "source": "./src/tools/index.ts",
+            "types": "./dist/tools/index.d.ts",
+            "import": "./dist/tools/index.js",
+            "default": "./dist/tools/index.js"
+          },
+          "./images": {
+            "source": "./src/images/index.ts",
+            "types": "./dist/images/index.d.ts",
+            "import": "./dist/images/index.js",
+            "default": "./dist/images/index.js"
+          },
+          "./images/node": {
+            "source": "./src/images/node.ts",
+            "types": "./dist/images/node.d.ts",
+            "import": "./dist/images/node.js",
+            "default": "./dist/images/node.js"
+          },
+          "./images/cloudflare": {
+            "source": "./src/images/cloudflare.ts",
+            "types": "./dist/images/cloudflare.d.ts",
+            "import": "./dist/images/cloudflare.js",
+            "default": "./dist/images/cloudflare.js"
+          },
+          "./storage/memory": {
+            "source": "./src/storage/memory.ts",
+            "types": "./dist/storage/memory.d.ts",
+            "import": "./dist/storage/memory.js",
+            "default": "./dist/storage/memory.js"
+          },
+          "./storage/indexeddb": {
+            "source": "./src/storage/indexeddb.ts",
+            "types": "./dist/storage/indexeddb.d.ts",
+            "import": "./dist/storage/indexeddb.js",
+            "default": "./dist/storage/indexeddb.js"
+          },
+          "./storage/jsonl": {
+            "source": "./src/storage/jsonl/index.ts",
+            "types": "./dist/storage/jsonl/index.d.ts",
+            "import": "./dist/storage/jsonl/index.js",
+            "default": "./dist/storage/jsonl/index.js"
+          },
+          "./storage/jsonl/node": {
+            "source": "./src/storage/jsonl/node.ts",
+            "types": "./dist/storage/jsonl/node.d.ts",
+            "import": "./dist/storage/jsonl/node.js",
+            "default": "./dist/storage/jsonl/node.js"
+          },
+          "./storage/store": {
+            "source": "./src/storage/store/index.ts",
+            "types": "./dist/storage/store/index.d.ts",
+            "import": "./dist/storage/store/index.js",
+            "default": "./dist/storage/store/index.js"
+          },
+          "./storage/sqlite": {
+            "source": "./src/storage/sqlite/index.ts",
+            "types": "./dist/storage/sqlite/index.d.ts",
+            "import": "./dist/storage/sqlite/index.js",
+            "default": "./dist/storage/sqlite/index.js"
+          },
+          "./storage/sqlite/cloudflare": {
+            "source": "./src/storage/sqlite/cloudflare.ts",
+            "types": "./dist/storage/sqlite/cloudflare.d.ts",
+            "import": "./dist/storage/sqlite/cloudflare.js",
+            "default": "./dist/storage/sqlite/cloudflare.js"
+          },
+          "./storage/sqlite/node": {
+            "source": "./src/storage/sqlite/node.ts",
+            "types": "./dist/storage/sqlite/node.d.ts",
+            "import": "./dist/storage/sqlite/node.js",
+            "default": "./dist/storage/sqlite/node.js"
+          },
+          "./testing": {
+            "source": "./src/testing/index.ts",
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js",
+            "default": "./dist/testing/index.js"
+          },
+          "./package.json": "./package.json"
+        },
+        "sideEffects": false,
+        "files": [
+          "dist",
+          "README.md",
+          "CHANGELOG.md"
+        ],
+        "scripts": {
+          "clean": "shx rm -rf dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run && PI_DURABLE_DOCUMENT_RETENTION_MS=0 vitest --run && npm run test:store && npm run test:workers",
+          "test:store": "vitest --run --config vitest.store.config.ts",
+          "test:workers": "vitest --run --config test-workers/vitest.config.ts",
+          "bench:storage": "vitest bench --config vitest.benchmark.config.ts",
+          "bench:storage:memory": "node --conditions=source --experimental-strip-types test/storage-memory.ts",
+          "bench:tool-output": "node --conditions=source --experimental-strip-types --expose-gc test/tool-output-bench.ts",
+          "bench:nested-tools": "node --conditions=source --experimental-strip-types --expose-gc test/nested-tools-bench.ts",
+          "bench:nested-images": "node --conditions=source --experimental-strip-types --expose-gc test/nested-images-bench.ts",
+          "bench:scheduler-fanout": "node --conditions=source --experimental-strip-types test/scheduler-fanout-bench.ts",
+          "bench:scheduler-memory": "node --conditions=source --experimental-strip-types test/scheduler-memory-bench.ts",
+          "bench:document-cache": "node --conditions=source --experimental-strip-types test/session-document-cache-bench.ts",
+          "bench:document-append": "node --conditions=source --experimental-strip-types test/document-append-bench.ts",
+          "bench:codemode": "node --conditions=source --experimental-strip-types test/codemode-bench.ts",
+          "bench:conversation-view": "node --conditions=source --experimental-strip-types --expose-gc test/conversation-view-bench.ts",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "durable-execution",
+          "agents",
+          "conversations",
+          "tasks"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/durable"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "@earendil-works/chord": "1.4.0",
+          "@earendil-works/pi-ai": "1.4.0",
+          "@earendil-works/pi-codemode": "1.4.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@silvia-odwyer/photon": "0.3.3",
+          "diff": "8.0.4",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@cloudflare/vitest-plugin": "1.4.4",
+          "fake-indexeddb": "6.2.6",
+          "shx": "0.3.4",
+          "vitest": "4.1.12"
+        }
+      },
+      "targetManifest": {
+        "name": "@earendil-works/pi-durable",
+        "version": "1.4.0",
+        "description": "Durable conversation, task, and document runtime for Pi",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+          },
+          "./env": {
+            "source": "./src/env/index.ts",
+            "types": "./dist/env/index.d.ts",
+            "import": "./dist/env/index.js",
+            "default": "./dist/env/index.js"
+          },
+          "./env/node": {
+            "source": "./src/env/node.ts",
+            "types": "./dist/env/node.d.ts",
+            "import": "./dist/env/node.js",
+            "default": "./dist/env/node.js"
+          },
+          "./codemode": {
+            "source": "./src/codemode/index.ts",
+            "types": "./dist/codemode/index.d.ts",
+            "import": "./dist/codemode/index.js",
+            "default": "./dist/codemode/index.js"
+          },
+          "./tool-search": {
+            "source": "./src/tool-search/index.ts",
+            "types": "./dist/tool-search/index.d.ts",
+            "import": "./dist/tool-search/index.js",
+            "default": "./dist/tool-search/index.js"
+          },
+          "./tools": {
+            "source": "./src/tools/index.ts",
+            "types": "./dist/tools/index.d.ts",
+            "import": "./dist/tools/index.js",
+            "default": "./dist/tools/index.js"
+          },
+          "./images": {
+            "source": "./src/images/index.ts",
+            "types": "./dist/images/index.d.ts",
+            "import": "./dist/images/index.js",
+            "default": "./dist/images/index.js"
+          },
+          "./images/node": {
+            "source": "./src/images/node.ts",
+            "types": "./dist/images/node.d.ts",
+            "import": "./dist/images/node.js",
+            "default": "./dist/images/node.js"
+          },
+          "./images/cloudflare": {
+            "source": "./src/images/cloudflare.ts",
+            "types": "./dist/images/cloudflare.d.ts",
+            "import": "./dist/images/cloudflare.js",
+            "default": "./dist/images/cloudflare.js"
+          },
+          "./storage/memory": {
+            "source": "./src/storage/memory.ts",
+            "types": "./dist/storage/memory.d.ts",
+            "import": "./dist/storage/memory.js",
+            "default": "./dist/storage/memory.js"
+          },
+          "./storage/indexeddb": {
+            "source": "./src/storage/indexeddb.ts",
+            "types": "./dist/storage/indexeddb.d.ts",
+            "import": "./dist/storage/indexeddb.js",
+            "default": "./dist/storage/indexeddb.js"
+          },
+          "./storage/jsonl": {
+            "source": "./src/storage/jsonl/index.ts",
+            "types": "./dist/storage/jsonl/index.d.ts",
+            "import": "./dist/storage/jsonl/index.js",
+            "default": "./dist/storage/jsonl/index.js"
+          },
+          "./storage/jsonl/node": {
+            "source": "./src/storage/jsonl/node.ts",
+            "types": "./dist/storage/jsonl/node.d.ts",
+            "import": "./dist/storage/jsonl/node.js",
+            "default": "./dist/storage/jsonl/node.js"
+          },
+          "./storage/store": {
+            "source": "./src/storage/store/index.ts",
+            "types": "./dist/storage/store/index.d.ts",
+            "import": "./dist/storage/store/index.js",
+            "default": "./dist/storage/store/index.js"
+          },
+          "./storage/sqlite": {
+            "source": "./src/storage/sqlite/index.ts",
+            "types": "./dist/storage/sqlite/index.d.ts",
+            "import": "./dist/storage/sqlite/index.js",
+            "default": "./dist/storage/sqlite/index.js"
+          },
+          "./storage/sqlite/cloudflare": {
+            "source": "./src/storage/sqlite/cloudflare.ts",
+            "types": "./dist/storage/sqlite/cloudflare.d.ts",
+            "import": "./dist/storage/sqlite/cloudflare.js",
+            "default": "./dist/storage/sqlite/cloudflare.js"
+          },
+          "./storage/sqlite/node": {
+            "source": "./src/storage/sqlite/node.ts",
+            "types": "./dist/storage/sqlite/node.d.ts",
+            "import": "./dist/storage/sqlite/node.js",
+            "default": "./dist/storage/sqlite/node.js"
+          },
+          "./testing": {
+            "source": "./src/testing/index.ts",
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js",
+            "default": "./dist/testing/index.js"
+          },
+          "./package.json": "./package.json"
+        },
+        "sideEffects": false,
+        "files": [
+          "dist",
+          "README.md",
+          "CHANGELOG.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run && PI_DURABLE_DOCUMENT_RETENTION_MS=0 vitest --run && npm run test:store && npm run test:workers",
+          "test:store": "vitest --run --config vitest.store.config.ts",
+          "test:workers": "vitest --run --config test-workers/vitest.config.ts",
+          "bench:storage": "vitest bench --config vitest.benchmark.config.ts",
+          "bench:storage:memory": "node --conditions=source --experimental-strip-types test/storage-memory.ts",
+          "bench:tool-output": "node --conditions=source --experimental-strip-types --expose-gc test/tool-output-bench.ts",
+          "bench:nested-tools": "node --conditions=source --experimental-strip-types --expose-gc test/nested-tools-bench.ts",
+          "bench:nested-images": "node --conditions=source --experimental-strip-types --expose-gc test/nested-images-bench.ts",
+          "bench:scheduler-fanout": "node --conditions=source --experimental-strip-types test/scheduler-fanout-bench.ts",
+          "bench:scheduler-memory": "node --conditions=source --experimental-strip-types test/scheduler-memory-bench.ts",
+          "bench:document-cache": "node --conditions=source --experimental-strip-types test/session-document-cache-bench.ts",
+          "bench:document-append": "node --conditions=source --experimental-strip-types test/document-append-bench.ts",
+          "bench:codemode": "node --conditions=source --experimental-strip-types test/codemode-bench.ts",
+          "bench:conversation-view": "node --conditions=source --experimental-strip-types --expose-gc test/conversation-view-bench.ts",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "durable-execution",
+          "agents",
+          "conversations",
+          "tasks"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/durable"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "@earendil-works/chord": "1.4.0",
+          "@earendil-works/pi-ai": "1.4.0",
+          "@earendil-works/pi-codemode": "1.4.0",
+          "@earendil-works/pi-telemetry": "1.4.0",
+          "@silvia-odwyer/photon": "0.3.3",
+          "diff": "8.0.4",
+          "typebox": "1.3.27"
+        },
+        "devDependencies": {
+          "@cloudflare/vitest-plugin": "1.4.10",
+          "fake-indexeddb": "6.2.6",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    "codemode": {
+      "incrementalPaths": 1,
+      "baselinePaths": 2,
+      "testCorpus": 8,
+      "previousManifest": {
+        "name": "@earendil-works/pi-codemode",
+        "version": "1.4.0",
+        "description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./declarations": {
+            "source": "./src/declarations.ts",
+            "types": "./dist/declarations.d.ts",
+            "import": "./dist/declarations.js"
+          },
+          "./source": {
+            "source": "./src/source.ts",
+            "types": "./dist/source.d.ts",
+            "import": "./dist/source.js"
+          },
+          "./portable": {
+            "source": "./src/portable.ts",
+            "types": "./dist/portable.d.ts",
+            "import": "./dist/portable.js"
+          },
+          "./cloudflare": {
+            "source": "./src/cloudflare.ts",
+            "types": "./dist/cloudflare.d.ts",
+            "import": "./dist/cloudflare.js"
+          },
+          "./worker": {
+            "source": "./src/runtime/worker.ts",
+            "types": "./dist/runtime/worker.d.ts",
+            "import": "./dist/runtime/worker.js"
+          }
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "shx rm -rf dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "pi",
+          "codemode",
+          "sandbox",
+          "quickjs",
+          "wasm",
+          "cloudflare",
+          "durable-objects"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/codemode"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "quickjs-wasi": "3.6.2"
+        },
+        "devDependencies": {
+          "shx": "0.3.4",
+          "vitest": "4.1.12"
+        }
+      },
+      "targetManifest": {
+        "name": "@earendil-works/pi-codemode",
+        "version": "1.4.0",
+        "description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./declarations": {
+            "source": "./src/declarations.ts",
+            "types": "./dist/declarations.d.ts",
+            "import": "./dist/declarations.js"
+          },
+          "./source": {
+            "source": "./src/source.ts",
+            "types": "./dist/source.d.ts",
+            "import": "./dist/source.js"
+          },
+          "./portable": {
+            "source": "./src/portable.ts",
+            "types": "./dist/portable.d.ts",
+            "import": "./dist/portable.js"
+          },
+          "./cloudflare": {
+            "source": "./src/cloudflare.ts",
+            "types": "./dist/cloudflare.d.ts",
+            "import": "./dist/cloudflare.js"
+          },
+          "./worker": {
+            "source": "./src/runtime/worker.ts",
+            "types": "./dist/runtime/worker.d.ts",
+            "import": "./dist/runtime/worker.js"
+          }
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "pi",
+          "codemode",
+          "sandbox",
+          "quickjs",
+          "wasm",
+          "cloudflare",
+          "durable-objects"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/codemode"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "quickjs-wasi": "3.6.2"
+        },
+        "devDependencies": {
+          "vitest": "4.1.12"
+        }
+      }
+    }
+  },
+  "incrementalPackageChanges": [
+    {
+      "status": "M",
+      "path": "packages/ai/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/codemode/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/README.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/docs/group-commit.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/docs/spec.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/codemode/codemode.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/context.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/generation.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/harness.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/scheduler.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/submissions.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/task-graph.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/tool.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/view.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/search.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/cached-storage.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/conversation-tails.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/keys.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/session/session.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/session/transaction.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/writer.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/indexeddb.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/jsonl/storage.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/memory.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/sqlite/storage.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/store/commit.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/store/storage.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/testing/commit-writes.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/storage-benchmark.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/storage-conformance.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/tool-search/tool-search.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/tools/read.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/codemode.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-blocked.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-cancellation-barrier.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-context-range.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-context.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-deferred-progress.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-generation.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-group-commit.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-idle-scopes.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-inbox.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-lifecycle.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-live-deltas.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-nested-tools.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-observers.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-ownership.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-restart-failure.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-scheduler-indexes.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-scheduler-retention.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-storage-failure.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-structured.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-submissions.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-task-graph.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tasks.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tool-hooks.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tools-recovery.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tools.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-view.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/indexeddb-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/jsonl-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/memory-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/nested-images-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/nested-tools-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/scheduler-fanout-bench.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/search.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-adoption.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-cached-storage.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-conversation-tails.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-document-retention.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-group-commit.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-observers.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-cloudflare.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-facade.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-migrations.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-storage.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/store-storage-commit.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/store-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/tool-output-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/tools-read-differential.test.ts"
+    }
+  ],
+  "baselinePackageChanges": [
+    {
+      "status": "M",
+      "path": "packages/ai/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/README.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/bedrock-provider.d.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/bedrock-provider.js"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/README.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/build.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/define.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/families/anthropic.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/families/deepseek.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/families/google.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/families/kimi.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/families/openai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/generate.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/amazon-bedrock.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/ant-ling.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/anthropic.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/azure.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/baseten.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/cerebras.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/cloudflare-ai-gateway.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/cloudflare-workers-ai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/deepseek.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/fireworks.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/github-copilot.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/google-vertex.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/google.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/groq.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/huggingface.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/index.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/kimi-coding.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/meta.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/minimax-cn.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/minimax.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/mistral.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/moonshotai-cn.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/moonshotai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/nvidia.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/openai-codex.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/openai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/opencode-go.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/opencode.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/openrouter.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan-cn.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan-individual.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/qwen-token-plan.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/radius.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/together.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/typesafe.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/vercel-ai-gateway.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/xai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-ams.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-cn.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/xiaomi-token-plan-sgp.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/xiaomi.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/zai-coding-cn.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/providers/zai.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/reasoning.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/sources/index.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/sources/models-dev.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/sources/openrouter.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/catalog/sources/vercel-ai-gateway.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/package.json"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/scripts/ai-gateway-pricing.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/scripts/generate-models.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/scripts/models-dev-reasoning-options.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/scripts/openrouter-catalog.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/scripts/openrouter-reasoning-options.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/anthropic-messages.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/azure-openai-responses.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/bedrock-converse-stream.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/constrained-sampling.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/google-generative-ai.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/google-shared.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/google-vertex.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/mistral-conversations.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/openai-codex-responses.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/openai-completions.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/openai-responses-shared.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/openai-responses.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/openrouter-images.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/api/pi-messages.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/auth/oauth/github-copilot.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/auth/oauth/kimi-coding.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/auth/oauth/meta.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/auth/oauth/radius.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/src/auth/oauth/trusted-url.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/auth/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/cli.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/compat/extension-oauth-types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/models.generated.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/amazon-bedrock.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/ant-ling.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/anthropic.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/azure.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/baseten.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/cerebras.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/cloudflare-ai-gateway.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/cloudflare-workers-ai.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/deepseek.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/faux.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/fireworks.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/github-copilot.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/google-vertex.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/google.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/groq.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/huggingface.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/kimi-coding.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/meta.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/minimax-cn.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/minimax.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/mistral.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/moonshotai-cn.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/moonshotai.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/nvidia.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/openai-codex.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/openai.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/opencode-go.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/opencode.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/opencode.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/openrouter.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan-cn.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan-individual.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/qwen-token-plan.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/radius-config.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/radius.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/together.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/typesafe.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/vercel-ai-gateway.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/xai.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-ams.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-cn.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/xiaomi-token-plan-sgp.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/xiaomi.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/zai-coding-cn.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/providers/zai.models.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/telemetry.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/utils/error-body.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/src/utils/openrouter-cost.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/utils/overflow.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/utils/retry.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/src/utils/streaming-json.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/src/utils/text.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/test/anthropic-adaptive-thinking-models.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/anthropic-mid-conversation-effort.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/anthropic-sse-parsing.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/bedrock-stream-state.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/bedrock-strict-tool-fallback.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/cache-retention.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/catalog-generation-utils.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/classifier-models.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/constrained-sampling.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/data/json-test-suite.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/error-body.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/faux-provider.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/fireworks-model-generation.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/generate-models-strict.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/google-shared-convert-tools.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/image-model-data.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/max-thinking.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/memory-helpers.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/model-cost-tiers.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/models-runtime.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/openai-completions-provider-stream-event.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/openai-responses-compat.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/opencode-model-generation.test.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/ai/test/openrouter-cache-control-models.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/openrouter-cost.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/openrouter-reasoning-options.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/overflow.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/pi-messages.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/radius-oauth.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/reasoning-options.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/streaming-json.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/ai/test/streaming-tool-arguments.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/supports-xhigh.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/telemetry.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/ai/test/transcript-tool-changes.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/codemode/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/codemode/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/README.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/docs/group-commit.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/docs/spec.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/codemode/codemode.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/env/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/env/node-watch.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/env/node.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/errors.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/agent.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/compaction.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/context.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/define.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/src/harness/events.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/generation.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/harness.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/inbox.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/json.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/live.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/harness/partial-changes.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/harness/registry-reader.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/scheduler.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/submissions.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/task-graph.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/telemetry.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/tool.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/harness/transcript.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/util.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/harness/view.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/search.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/cached-storage.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/conversation-tails.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/keys.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/src/session/observation.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/session/session.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/session/transaction.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/session/writer.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/indexeddb.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/jsonl/storage.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/memory.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/storage/sqlite/storage.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/commit.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/documents.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/index.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/queries.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/storage.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/storage/store/tables.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/src/testing/commit-writes.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/env-conformance.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/storage-benchmark.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/testing/storage-conformance.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/tool-search/tool-search.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/tools/read.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/src/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test-workers/storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test-workers/wake.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test-workers/worker.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/chat-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/codemode-bench.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/codemode-imports.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/codemode.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/conversation-transcript.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/conversation-view-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/env-node-conformance.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/examples/03-owned-conversations.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/04-chord-state.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/04-watches.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/05-harness.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/05-watches.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/06-configuration.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/06-harness.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/07-configuration.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/07-harness-conversations.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/08-context.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/08-harness-conversations.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/09-context.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/09-registry-reload.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/10-extension-state.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/10-registry-reload.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/11-extension-state.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/11-tasks.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/12-recovery.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/12-tasks.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/13-chat.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/13-recovery.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/14-chat.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/14-system-prompt.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/15-real-model.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/15-system-prompt.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/16-coding-tools.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/16-real-model.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/17-coding-tools.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/17-print.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/18-json.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/18-print.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/19-inbox.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/19-json.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/20-inbox.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/20-late-join.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/21-late-join.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/21-subagent-foreground.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/22-subagent-background.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/22-subagent-foreground.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/23-child-tasks.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/23-subagent-background.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/24-child-tasks.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/24-compaction.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/25-coding-agent.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/25-compaction.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/26-coding-agent.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/26-plan-mode.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/27-plan-mode.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/27-reviewer.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/28-reviewer.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/28-sandbox-per-conversation.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/29-sandbox-per-conversation.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/29-tool-override.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/30-reload-and-restart.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/30-tool-override.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/examples/31-reload-and-restart.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/31-transcript.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/32-tests-after-edits.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/33-turn-limit-and-continue.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/34-submit-in-commit.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/35-durable-on-the-store.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/36-durable-views.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/examples/37-harness-registry.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-after-run.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-blocked.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-cancellation-barrier.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-compaction.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-context-range.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-context.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-continue.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-conversations.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-deferred-progress.test.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/harness-events.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-generation-recovery.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-generation.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-group-commit.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-hook-reads.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-idle-scopes.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-inbox.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-input-entries.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-inspect.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-json.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-lifecycle.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-live-deltas.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-nested-tools-restart.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-nested-tools.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-observers.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-ownership.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-partial-changes.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-read-only.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-registry-reader.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-registry.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-reports.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-restart-failure.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-run-failure.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-scheduler-indexes.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-scheduler-retention.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-sleep.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-storage-failure.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-structured-output.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-structured.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-submissions.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-submit-in-commit.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-task-graph.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tasks-recovery.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tasks.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-telemetry.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-tool-hooks.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tools-recovery.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-tools.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-turn-limit.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/harness-view-run.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/harness-view.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/indexeddb-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/jsonl-storage.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/live-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/memory-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/nested-images-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/nested-tools-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/scheduler-fanout-bench.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/search.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-adoption.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-cached-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-checkpoints-migrations.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-conversation-tails.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-deferred-commits.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-definitions.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-document-retention.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-documents.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-forks.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-group-commit.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/session-observers.test.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/durable/test/session-states.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-tables.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/session-watches.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/spec-usage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-cloudflare.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-facade.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-migrations.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/sqlite-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/storage-memory.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/storage.bench.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/store-storage-commit.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/store-storage-node.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/store-storage-support.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/test/store-storage.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/task-support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/tool-output-bench.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/durable/test/tools-read-differential.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/durable/vitest.store.config.ts"
+    }
+  ],
+  "repositorySupportDelta": [
+    {
+      "status": "M",
+      "path": "package-lock.json"
+    },
+    {
+      "status": "M",
+      "path": "package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/agent/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/benchmarks.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/decisions.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/dependencies/model.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/design.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/book.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/index.html"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/00-front.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/01-shape.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/02-first.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/03-principals.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/04-store.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/05-documents.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/06-references.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/07-revocation.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/08-derives.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/09-natives.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/10-routines.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/11-jobs.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/12-flows.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/13-registries.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/14-agent.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/15-reload.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/16-contracts.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/17-wire.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/18-p2-core.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/19-p2-sessions.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/20-p2-machines.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/20a-compared.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/21-epilogue.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/src/22-appendix.md"
+    },
+    {
+      "status": "D",
+      "path": "packages/chord/docs/next/explainer/walkthrough.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/guide-plugins-hosts/book.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/guide-plugins-hosts/index.html"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/http-workers/book.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/http-workers/index.html"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/plugin-model/book.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/plugin-model/index.html"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/slice-10.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/slice-11.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/slice-7b.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/docs/next/slice-7c.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/slice-8.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/docs/next/slices.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/README.md"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/build.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/discover.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/evaluate.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/index.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/install.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/plugins.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/stack.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/src/next-node/plugins/watcher.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/documents/address-source.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/documents/keyed-slot.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/adapted.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/attempt.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/ctx.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/dependencies.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/destination.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/host.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/internal.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/members.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/object.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/reference-keys.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/reference.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/routines.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/staging.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/host/unbound.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/link/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/link/binary.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/link/internal.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/link/message.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/link/text.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/registries/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/registries/contribution.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/registries/internal.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/registries/record.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/registries/value.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/consumer.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/hold.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/provider.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/relay.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/remote/remote-object.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/store/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/next/store/store.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/src/output.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/esm-host.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/contracts/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/contracts/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/files/assets/data.txt"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/files/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/files/worker.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/notes/label.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/notes/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/notes/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/fixtures/plugins/notes/worker.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/build.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/discover.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/evaluate.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/install.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/plugins.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/stack.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/support.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next-node/plugins/watcher.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/bench/plugins.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/bench/store.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/documents/address-source.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/main.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/clock/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/clock/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/contracts/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/contracts/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/notes/label.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/notes/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/notes/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/35-plugins/plugins/notes/worker.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/main.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/boot/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/boot/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/cache/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/cache/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/counter/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/counter/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/forecast/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/forecast/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/greeter/label.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/greeter/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/greeter/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/prices/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/prices/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/prices/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/summary/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/summary/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/weather/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/weather/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/36-plugin-failures/plugins/weather/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/app/index.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/app/legacy.cjs"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/deps/example-greeting/index.js"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/deps/example-greeting/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/deps/example-native/index.js"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/deps/example-native/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/fake-npm.mjs"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/main.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/paths/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/paths/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/refused/other.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/refused/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/refused/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/report/data/rates.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/report/env.d.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/report/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/report/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/ruler/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/ruler/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/shapes/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/shapes/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/37-plugin-imports/plugins/shapes/units.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/app/config.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/incoming/extra/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/incoming/extra/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/main.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/contracts/contract.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/contracts/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/notes/label.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/notes/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/notes/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/notes/worker.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/old/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/old/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/tags/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/tags/server.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/38-watch-and-rollout/plugins/tags/worker.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/main.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/bad-web/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/bad-web/web.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/gallery/assets.d.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/gallery/assets/logo.svg"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/gallery/gallery.css"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/gallery/package.json"
+    },
+    {
+      "status": "A",
+      "path": "packages/chord/test/next/examples/39-browser-build/plugins/gallery/web.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/attempt.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/dependencies.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/facet.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/host.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/object.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/reference-keys.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/reference-source.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/staging.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/host/unbound.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/link/message.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/registries/record.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/registries/registry.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/remote/hold.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/remote/relay.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/remote/remote-object.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/store/store.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/next/support.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/chord/test/output.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/CHANGELOG.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/cli.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/environment-variables.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/extensions.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/mcp.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/sessions.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/settings.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/slash-commands.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/tmux.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/docs/windows.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/examples/extensions/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/examples/extensions/debug-provider.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/coding-agent/examples/extensions/sandbox/.gitignore"
+    },
+    {
+      "status": "D",
+      "path": "packages/coding-agent/examples/extensions/sandbox/index.ts"
+    },
+    {
+      "status": "D",
+      "path": "packages/coding-agent/examples/extensions/sandbox/package-lock.json"
+    },
+    {
+      "status": "D",
+      "path": "packages/coding-agent/examples/extensions/sandbox/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/install-lock/package-lock.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/schemas/settings.schema.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/cli/args.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/config.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/export-html/tool-renderer.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/extensions/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/extensions/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/mcp-servers.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/package-manager.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/settings-schema.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/skills.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/slash-commands.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/system-prompt.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/core/tools/edit.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/extensions/mcp/cli.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/extensions/mcp/oauth.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/extensions/tool-search/tool.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/components/custom-entry.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/components/custom-message.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/components/extension-editor.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/components/tool-execution.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/external-editor.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/package-manager-cli.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/utils/clipboard-command.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/src/utils/open-browser.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/clipboard-command.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/codemode-renderer.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/config.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/custom-message.test.ts"
+    },
+    {
+      "status": "A",
+      "path": "packages/coding-agent/test/extension-keybinding-hints.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/external-editor.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/git-update.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/mcp-command.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/mcp-conformance/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/mcp-conformance/baseline.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/mcp-extension.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/mcp-oauth-refresh.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/package-command-paths.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/package-manager.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/system-prompt.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/coding-agent/test/tool-search.test.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/env/daemon/src/watch.rs"
+    },
+    {
+      "status": "M",
+      "path": "packages/env/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/evals/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/mcp/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/telemetry/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/tui/package.json"
+    },
+    {
+      "status": "M",
+      "path": "scripts/check-entry-graphs.mjs"
+    },
+    {
+      "status": "M",
+      "path": "scripts/npm-audit.mjs"
+    },
+    {
+      "status": "A",
+      "path": "scripts/package-files.mjs"
+    },
+    {
+      "status": "A",
+      "path": "scripts/package-files.test.mjs"
+    },
+    {
+      "status": "M",
+      "path": "tsconfig.json"
+    }
+  ],
+  "diffMode": "--no-renames; renames are represented as delete/add paths",
+  "testCorpusScope": "All package-root test/ paths plus .test.ts cases in test-* directories, including durable/test-workers; exact match to previous-pin crosswalk scope. Worker configuration/support files remain in package path inventories."
+}
