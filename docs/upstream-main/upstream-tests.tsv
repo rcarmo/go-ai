@@ -94,10 +94,10 @@ packages/ai/test/max-thinking.test.ts	yes	pending
 packages/ai/test/memory-helpers.ts	yes	pending	
 packages/ai/test/message-types.test.ts	no	pending	
 packages/ai/test/meta-oauth.test.ts	no	pending	
-packages/ai/test/mistral-http-transport.test.ts	no	pending	
-packages/ai/test/mistral-raw-stop-reason.test.ts	no	pending	
-packages/ai/test/mistral-reasoning-mode.test.ts	no	pending	
-packages/ai/test/mistral-tool-schema.test.ts	no	pending	
+packages/ai/test/mistral-http-transport.test.ts	no	partial	inference/provider/mistral/http_transport_upstream_main_test.go TestUpstreamMainMistralHTTPTransport (11 cases; native assertions pass unchanged f84cb57; provider-only option API partial via payload hook); docs/upstream-main/mistral-tests.md
+packages/ai/test/mistral-raw-stop-reason.test.ts	no	development-verified-acceptance-pending	inference/provider/mistral/options_upstream_main_test.go TestUpstreamMainMistralRawStopReasons (all 3 cases including retry classification; production HTTP/SSE, unchanged f84cb57); docs/upstream-main/mistral-tests.md
+packages/ai/test/mistral-reasoning-mode.test.ts	no	development-verified-acceptance-pending	inference/provider/mistral/options_upstream_main_test.go TestUpstreamMainMistralReasoningMode (all 19 cases, capture before deliberate request failure; unchanged f84cb57); docs/upstream-main/mistral-tests.md
+packages/ai/test/mistral-tool-schema.test.ts	no	partial	inference/provider/mistral/options_upstream_main_test.go TestUpstreamMainMistralToolSchema (strict/nested schema/error assertions pass unchanged f84cb57; TypeBox symbols not expressible in JSON-backed Go parameters); docs/upstream-main/mistral-tests.md
 packages/ai/test/model-catalog-types.test.ts	no	pending	
 packages/ai/test/model-cost-tiers.test.ts	yes	pending	
 packages/ai/test/model-data-validation.test.ts	no	pending	

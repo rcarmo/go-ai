@@ -47,6 +47,19 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 ## Upstream semantic alignment
 
+### Test-first porting — Rui's instruction, 31 October 2026
+
+**Port the pinned upstream tests first, then verify whether the unchanged native implementation passes.** This order is mandatory for convergence work.
+
+- Read the relevant upstream tests at the pinned revision before changing production code. Translate their inputs, scenarios and assertions into native tests through the real production paths. Reuse existing coverage only after verifying that it checks the same contract; maintain the per-test crosswalk.
+- Run those tests against the unchanged implementation and record which pass or fail. A test-harness error is not a demonstrated implementation failure. If a case already passes, do not change production code for it.
+- Preserve upstream assertions. Identify language/API adaptations explicitly, including assertions that cannot be represented natively. Do not silently weaken expectations, replace the behaviour under test with a helper or stub, or label a partial port as passing the complete upstream test.
+- Fix demonstrated failures with the smallest contract-preserving change, then rerun the failing tests and applicable regression, race and validation gates. Do not implement a speculative fix first and add tests afterwards.
+- If upstream lacks a test for a concrete source delta, add a narrowly scoped source-derived regression first and distinguish it from a translated upstream test. Establish the current failure before changing production code; independent probes supplement the upstream suite and do not replace it.
+- Keep unresolved differences explicit and preserve correctness, cancellation, ownership, security, DTO authority and numerical contracts. Passing a development slice does not establish full convergence or acceptance; the pre-release profiling and cleanup rules still apply.
+
+### Scope and contracts
+
 - **Full semantic alignment is always the goal of upstream convergence.** Matching API names, selected features or happy-path outputs is not sufficient. This applies to pi-ai, pi-durable and pi-codemode together, including their interactions.
 - Cover observable behaviour and contracts: wire/event shapes, streaming and finalisation, validation/errors, ordering, cancellation, retries/timers, ownership and security boundaries, storage durability/adoption, watches, replay/checkpoints, usage accounting and worker isolation. Include relevant schemas, configuration, dependencies, generated metadata, fixtures and tests; do not silently omit changes outside production source files.
 - Go-specific implementations and API adaptations are acceptable only when their observable semantics match the pinned upstream target. Port required upstream breaking semantics and update affected callers/tests; do not preserve obsolete behaviour merely for compatibility or assume that similarly named native features are equivalent. Unrelated public compatibility and published refs/assets remain protected.
