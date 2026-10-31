@@ -26,4 +26,4 @@ Root normal tests, Google race, root vet, Google-scoped staticcheck v0.8.2, modu
 
 The fix addresses Unix FIFO replacement and descriptor admission. `O_NONBLOCK` does not impose a deadline on filesystem metadata or regular-file syscalls. Context is checked before path inspection, after open and after the bounded read; stalled kernel/network-filesystem calls can still delay cancellation. In-place writes can also race with reads. The adapter has no atomic snapshot guarantee for those writes.
 
-The SDK accepts a wider file domain than the native regular-file/4 MiB boundary; full disposition of that domain and non-Unix special-file behaviour requires review. Default ADC discovery, other credential types, broader SDK convergence, acceptance and CPU/allocation profiling are incomplete.
+The SDK accepts a wider file domain than the native regular-file/4 MiB boundary; full disposition of that domain and non-Unix special-file behaviour requires review. [Known-file ADC discovery](vertex-default-adc.md) now uses these same admission checks. Metadata/GCE and other credential types, broader SDK convergence, acceptance and CPU/allocation profiling are incomplete.

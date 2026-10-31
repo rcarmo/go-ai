@@ -67,7 +67,7 @@ func TestMainVertexADCCallerAuthHTTP(t *testing.T) {
 	}))
 	defer server.Close()
 	model := &goai.Model{ID: "gemini-3-flash-preview", Api: goai.ApiGoogleVertex, Provider: goai.ProviderGoogleVertex, BaseURL: server.URL}
-	opts := &goai.StreamOptions{APIKey: "<authenticated>", Project: "test-project", Location: "global", Env: goai.ProviderEnv{"GOOGLE_APPLICATION_CREDENTIALS": ""}, Headers: map[string]string{"Authorization": "Bearer caller-test-token"}}
+	opts := &goai.StreamOptions{APIKey: "<authenticated>", Project: "test-project", Location: "global", Env: goai.ProviderEnv{"HOME": "", "APPDATA": "", "GOOGLE_APPLICATION_CREDENTIALS": ""}, Headers: map[string]string{"Authorization": "Bearer caller-test-token"}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	done := 0

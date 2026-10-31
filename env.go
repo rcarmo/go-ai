@@ -1,7 +1,11 @@
 // Full env-var mapping for all known providers.
 package goai
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+)
 
 // providerEnvMap maps provider names to their API key environment variables.
 var providerEnvMap = map[Provider][]string{
@@ -122,16 +126,36 @@ func ResolveAPIKey(model *Model, opts *StreamOptions) string {
 	return ""
 }
 
+// VertexADCCredentialPath returns the explicit or platform-default ADC file
+// candidate without filesystem I/O. Scoped empty HOME/APPDATA values suppress
+// the default location; an explicit credential filename always takes precedence.
+func VertexADCCredentialPath(env ProviderEnv) string {
+	return vertexADCCredentialPath(runtime.GOOS, env)
+}
+
+func vertexADCCredentialPath(goos string, env ProviderEnv) string {
+	if path := GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env); path != "" {
+		return path
+	}
+	if goos == "windows" {
+		if base := GetProviderEnvValue("APPDATA", env); base != "" {
+			return filepath.Join(base, "gcloud", "application_default_credentials.json")
+		}
+		return ""
+	}
+	if home := GetProviderEnvValue("HOME", env); home != "" {
+		return filepath.Join(home, ".config", "gcloud", "application_default_credentials.json")
+	}
+	return ""
+}
+
 func hasVertexADCCredentials(env ProviderEnv) bool {
-	if p := GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env); p != "" {
-		_, err := os.Stat(p)
-		return err == nil
+	path := VertexADCCredentialPath(env)
+	if path == "" {
+		return false
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		_, err = os.Stat(home + "/.config/gcloud/application_default_credentials.json")
-		return err == nil
-	}
-	return false
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func hasBedrockCredentials(env ProviderEnv) bool {

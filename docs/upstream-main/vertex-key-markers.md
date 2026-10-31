@@ -24,7 +24,7 @@ HTTP marker cases provide synthetic caller Authorization explicitly. They verify
 
 ## Remaining credential work
 
-The subsequent [explicit service-account adapter](vertex-service-account.md) loads configured files and acquires scoped tokens with isolated authentication tests. Empty/trimmed-empty keys without an explicit file still hit the native stream's missing-key preflight; helper-level ADC URL selection does not establish the source's default-ADC stream behaviour. Default/other credential types and broader refresh/file contracts need further work before full convergence. Higher-level source credential discovery/registry wiring, full constructor/header coverage and SDK auth-header/endpoint composition also need review. The nine-case upstream file stays development-verified-partial.
+The subsequent [explicit service-account adapter](vertex-service-account.md) loads configured files and acquires scoped tokens with isolated authentication tests. Empty/trimmed-empty keys without an explicit or [known gcloud file](vertex-default-adc.md) still hit the native stream's missing-key preflight; helper-level ADC URL selection does not establish the source's full default-ADC stream behaviour. Default/other credential types and broader refresh/file contracts need further work before full convergence. Higher-level source credential discovery/registry wiring, full constructor/header coverage and SDK auth-header/endpoint composition also need review. The nine-case upstream file stays development-verified-partial.
 
 ## Development checks
 

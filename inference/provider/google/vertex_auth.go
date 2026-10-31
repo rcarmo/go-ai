@@ -30,8 +30,24 @@ var newVertexTokenClient = func(opts *goai.StreamOptions) *http.Client {
 	return client
 }
 
-// Explicit-file acquisition only. Never invoke ambient/default ADC detection:
-// that would bypass provider-scoped environment and can probe GCE metadata.
+// Resolve only a known file. Never invoke library ADC detection: it can bypass
+// provider-scoped environment and probe GCE metadata. Explicit missing paths
+// must produce their file error rather than silently falling back.
+func vertexCredentialFile(opts *goai.StreamOptions) string {
+	env := goai.ProviderEnvFromOptions(opts)
+	path := goai.VertexADCCredentialPath(env)
+	if goai.GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env) != "" {
+		return path
+	}
+	if path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+// Typed file acquisition, with no library ambient/default ADC detection.
 // Sources are request-owned, with synchronous refresh and no global token cache.
 func applyVertexFileAuth(ctx context.Context, request *http.Request, path string, opts *goai.StreamOptions) error {
 	if err := ctx.Err(); err != nil {

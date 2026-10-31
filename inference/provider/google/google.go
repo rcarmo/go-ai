@@ -56,12 +56,20 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		if model.Api == goai.ApiGoogleVertex {
 			apiKey = trimGoogleSDKSpace(apiKey)
 			if apiKey == "" || isVertexADCMarker(apiKey) {
-				credentialFile = goai.GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", goai.ProviderEnvFromOptions(opts))
+				credentialFile = vertexCredentialFile(opts)
 			}
 		}
 		if apiKey == "" && credentialFile == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
-			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
+			err := fmt.Errorf("No API key for provider: %s", model.Provider)
+			if model.Api == goai.ApiGoogleVertex {
+				failure := newGoogleStreamMessage(model)
+				failure.StopReason = goai.StopReasonError
+				failure.ErrorMessage = err.Error()
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: failure, Err: err})
+			} else {
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			}
 			return
 		}
 
