@@ -713,15 +713,17 @@ func resolveChatTemplateKwargValue(model *goai.Model, opts *goai.StreamOptions, 
 		}
 		return nil, false
 	case "thinking.budget":
-		if opts == nil || opts.Reasoning == nil || !model.Reasoning {
-			return nil, !value.OmitWhenOff
+		if opts == nil || opts.Reasoning == nil || *opts.Reasoning == "" || *opts.Reasoning == goai.ThinkingLevel(goai.ThinkingOff) || !model.Reasoning || effort == "" {
+			// An unavailable source budget is undefined and omits the key; JSON
+			// null is not equivalent, even when omitWhenOff was not requested.
+			return nil, false
 		}
 		ceiling := model.MaxTokens
 		if opts.MaxTokens != nil {
 			ceiling = goai.ClampStreamMaxTokens(model, &goai.Context{}, opts)
 		}
 		_, budget := goai.AdjustThinkingTokenBudget(ceiling, *opts.Reasoning, opts.ThinkingBudgets)
-		if budget <= 0 && value.OmitWhenOff {
+		if budget <= 0 {
 			return nil, false
 		}
 		return budget, true

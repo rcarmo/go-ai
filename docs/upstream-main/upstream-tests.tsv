@@ -122,7 +122,7 @@ packages/ai/test/openai-completions-reasoning-details.test.ts	no	pending
 packages/ai/test/openai-completions-response-model.test.ts	no	pending	
 packages/ai/test/openai-completions-retry.test.ts	no	pending	
 packages/ai/test/openai-completions-thinking-as-text.test.ts	no	pending	
-packages/ai/test/openai-completions-thinking-token-budget.test.ts	no	pending	
+packages/ai/test/openai-completions-thinking-token-budget.test.ts	no	development-verified-acceptance-pending	tests/thinking_budget_main_test.go; inference/provider/openai/openai_v0840_test.go
 packages/ai/test/openai-completions-tool-choice.test.ts	no	pending	
 packages/ai/test/openai-completions-tool-result-images.test.ts	no	pending	
 packages/ai/test/openai-completions-vllm-priority.test.ts	no	pending	
