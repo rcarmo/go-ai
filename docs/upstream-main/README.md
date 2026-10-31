@@ -627,3 +627,13 @@ Namespace helpers do not turn malformed/non-string metadata into an explicit emp
 Forty-two function/custom stream cases cover Responses SSE and Codex SSE/WebSocket: absent/empty/nonempty values, completion clearing/replacement, late values and done-only creation. Each checks start/end/final metadata and four replay provenance combinations. Shared fixtures cover manually constructed native values and absent/malformed updates. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite, Responses/Codex/responsestream race, thirty repeated namespace groups, vet and diff checks. No acceptance profiling ran.
 
 Next: strict/schema capability defaults and remaining request/accounting review, then other providers, durable/codemode and the full source/test/dependency crosswalk. Five earlier decisions and section insertion ordering remain open. No push, hosted dispatch, publication or release-ref changes occurred.
+
+## Strict capability defaults and Codex required sampling
+
+Pinned Responses defaults strict support off; Azure Responses defaults it on; Codex defaults it on. The Cloudflare gateway uses the ordinary Responses API, and its pinned provider/catalog does not add a strict-support override. Native Responses now selects the default by API rather than enabling it for the Cloudflare provider. Explicit compatibility overrides still win.
+
+Codex previously swallowed errors from required JSON-schema constrained sampling and could send a non-strict declaration. A shared Codex declaration converter now returns those errors, and request preparation validates exactly the projected request/anchored declarations before hooks or transport. Old definitions folded out of a snapshot or tool-search prefix do not reject a later valid replacement. Unsupported preferred schemas still fall back; existing non-strict payload-hook repair behavior is unchanged.
+
+Fixtures cover eighteen Responses API/provider/override combinations, the Codex support/prefer/require/schema matrix, pre-transport rejection in SSE/WebSocket/auto modes, and snapshot/change/search projection boundaries. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal suite, Responses/Codex/responsestream race, thirty repeated strict-default/sampling groups, vet and diff checks. No acceptance profiling ran.
+
+Next: compare strict schema transformations with the pinned utility, then remaining request/accounting and provider paths. Durable/codemode, full source/test/dependency dispositions, section ordering and five earlier decisions remain open. This checkpoint does not establish acceptance or authorize publication.

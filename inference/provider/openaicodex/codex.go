@@ -1786,40 +1786,13 @@ func buildCodexRequest(model *goai.Model, convCtx *goai.Context, opts *goai.Stre
 
 func buildCodexToolDeclarations(model *goai.Model, tools []goai.Tool) []codexTool {
 	var result []codexTool
-	supportsGrammar := model.ResponsesCompat != nil && model.ResponsesCompat.SupportsOpenAIGrammarTools != nil && *model.ResponsesCompat.SupportsOpenAIGrammarTools
-	supportsStrictMode := model.ResponsesCompat == nil || model.ResponsesCompat.SupportsStrictMode == nil || *model.ResponsesCompat.SupportsStrictMode
-	for _, t := range tools {
-		if supportsGrammar && t.ConstrainedSampling != nil && t.ConstrainedSampling.Type == "grammar" {
-			definition := t.ConstrainedSampling.Variants["openai_lark"]
-			syntax := "lark"
-			if strings.TrimSpace(definition) == "" {
-				definition = t.ConstrainedSampling.Variants["openai_regex"]
-				syntax = "regex"
-			}
-			if strings.TrimSpace(definition) != "" {
-				result = append(result, codexTool{Type: "custom", Name: t.Name, Description: t.Description, Format: map[string]interface{}{"type": "grammar", "syntax": syntax, "definition": definition}})
-				continue
-			}
+	for _, tool := range tools {
+		converted, err := convertCodexToolDeclaration(model, tool)
+		if err != nil {
+			return nil
 		}
-		parameters := t.Parameters
-		strictValue := false
-		if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil {
-			strictValue = *strict
-			if *strict {
-				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
-					parameters = strictParameters
-				}
-			}
-		}
-		var strictPtr *bool
-		if supportsStrictMode {
-			strictPtr = &strictValue
-		}
-		result = append(result, codexTool{
-			Type: "function", Name: t.Name, Description: t.Description, Parameters: parameters, Strict: strictPtr,
-		})
+		result = append(result, converted)
 	}
-
 	return result
 }
 

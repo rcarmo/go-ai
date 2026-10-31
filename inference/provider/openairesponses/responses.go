@@ -643,7 +643,7 @@ func getResponsesCompat(model *goai.Model) responsesCompat {
 		sessionAffinityFormat:      "openai",
 		supportsLongCacheRetention: true,
 		supportsToolSearch:         model != nil && (model.ID == "gpt-5.4" || strings.HasPrefix(model.ID, "gpt-5.4-")),
-		supportsStrictMode:         model != nil && model.Provider == goai.ProviderCloudflareAIGateway,
+		supportsStrictMode:         model != nil && model.Api == goai.ApiAzureOpenAIResponses,
 		supportsMaxOutputTokens:    true,
 	}
 	if model == nil {

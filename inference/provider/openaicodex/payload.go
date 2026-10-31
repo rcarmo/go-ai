@@ -35,6 +35,9 @@ func prepareCodexRequest(ctx context.Context, model *goai.Model, input *goai.Con
 	if err != nil {
 		return nil, &codexPayloadError{err}
 	}
+	if err := validateCodexRequestToolDeclarations(model, input); err != nil {
+		return nil, &codexPayloadError{err}
+	}
 	body := buildCodexRequest(model, input, opts, tools)
 	payload, err := goai.InvokeOnPayload(opts, body, model)
 	if err != nil {
