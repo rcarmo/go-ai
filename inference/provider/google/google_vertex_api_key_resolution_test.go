@@ -85,7 +85,8 @@ func TestGoogleVertexAPIKeyResolutionForwardsCustomBaseURLToAPIKeyClient(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(url, "https://proxy.example.com/v1/projects/test-project/locations/us-central1/") || !strings.Contains(url, "key=AIzaSyExampleRealisticLookingApiKey123456") {
+	// API-key clients omit the project/location constructor fields upstream.
+	if url != "https://proxy.example.com/v1/publishers/google/models/gemini-3-flash-preview:streamGenerateContent?alt=sse&key=AIzaSyExampleRealisticLookingApiKey123456" {
 		t.Fatalf("url=%s", url)
 	}
 }

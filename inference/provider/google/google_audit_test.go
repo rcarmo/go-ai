@@ -30,9 +30,16 @@ func TestBuildVertexStreamURLUsesProjectAndLocationOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "https://europe-west4-aiplatform.googleapis.com/v1/projects/proj-1/locations/europe-west4/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=vertex-key"
+	// The pinned real-key client omits project/location. Keep the old
+	// project-scoped assertion as an ADC-marker URL control below.
+	want := "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=vertex-key"
 	if got != want {
 		t.Fatalf("unexpected Vertex URL:\n got %q\nwant %q", got, want)
+	}
+	adc, err := buildStreamURL(model, "<authenticated>", &goai.StreamOptions{Project: "proj-1", Location: "europe-west4"})
+	adcWant := "https://europe-west4-aiplatform.googleapis.com/v1/projects/proj-1/locations/europe-west4/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
+	if err != nil || adc != adcWant {
+		t.Fatalf("ADC URL=%q err=%v want=%q", adc, err, adcWant)
 	}
 }
 

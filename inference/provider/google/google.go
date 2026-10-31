@@ -137,6 +137,19 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) (string, error) {
 	baseURL := model.BaseURL
 	if model.Api == goai.ApiGoogleVertex {
+		// The pinned API-key client omits project/location, selecting Vertex
+		// Express. ADC keeps the project-scoped path below.
+		if apiKey != "" && !isVertexADCMarker(apiKey) {
+			baseURL = strings.TrimSpace(baseURL)
+			if baseURL == "" || strings.Contains(baseURL, "{location}") {
+				baseURL = "https://aiplatform.googleapis.com"
+			}
+			baseURL = strings.TrimRight(baseURL, "/")
+			if !vertexBaseIncludesVersion(baseURL) {
+				baseURL += "/v1"
+			}
+			return fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse&key=%s", baseURL, url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+		}
 		project, location, err := resolveVertexProjectLocation(opts)
 		if err != nil {
 			return "", err
@@ -148,16 +161,10 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 		trimmedBase := strings.TrimRight(baseURL, "/")
 		if strings.Contains(trimmedBase, "/v1/projects/") {
 			endpoint := fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse", trimmedBase, url.PathEscape(model.ID))
-			if apiKey != "" && !isVertexADCMarker(apiKey) {
-				endpoint += "&key=" + url.QueryEscape(apiKey)
-			}
 			return endpoint, nil
 		}
 		endpoint := fmt.Sprintf("%s/v1/projects/%s/locations/%s/publishers/google/models/%s:streamGenerateContent?alt=sse",
 			trimmedBase, url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
-		if apiKey != "" && !isVertexADCMarker(apiKey) {
-			endpoint += "&key=" + url.QueryEscape(apiKey)
-		}
 		return endpoint, nil
 	}
 	if baseURL == "" {
@@ -166,6 +173,15 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 	// REST streaming endpoint. Escape path/query components so unusual model
 	// aliases or API keys containing reserved characters cannot corrupt the URL.
 	return fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", strings.TrimRight(baseURL, "/"), url.PathEscape(model.ID), url.QueryEscape(apiKey)), nil
+}
+
+var vertexVersionSegment = regexp.MustCompile(`(?:^|/)v\d+(?:beta\d*)?(?:/|$)`)
+
+func vertexBaseIncludesVersion(base string) bool {
+	if parsed, err := url.Parse(base); err == nil {
+		return vertexVersionSegment.MatchString(parsed.Path)
+	}
+	return vertexVersionSegment.MatchString(base)
 }
 
 func isVertexADCMarker(apiKey string) bool {

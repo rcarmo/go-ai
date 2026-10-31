@@ -979,3 +979,7 @@ Root normal tests, Google race, root vet and scoped staticcheck pass. Callback e
 ## Google SDK framing
 
 The [locked SDK reference](google-sdk-framing.md) supplies 18 wires tested in two read partitions. Twenty-four of 36 registered Google/Vertex HTTP cases fail against acfa8cc; all pass with the Google-specific framer. It rejects unfinished EOF tails and `[DONE]`, follows SDK delimiter/prefix/whitespace rules and preserves the per-line 4 MiB guard. Shared SSE/Mistral behaviour is unchanged. Root normal, focused three-package race, root vet and Google-scoped staticcheck pass. SDK shape, error-body/text-decoding coverage and broader convergence/acceptance work are incomplete.
+
+## Vertex real-key routing
+
+[Eleven real-key cases](vertex-api-key-resolution.md) expose the native project/location requirement and pass after selecting SDK-style Express collection URLs. Default/generated bases, custom versions and scoped key/header resolution are covered; five URL combinations were checked with the actual locked SDK methods. Root normal, Google race, root vet and scoped staticcheck pass. The nine-case upstream file stays partial: ADC token acquisition, marker fallback, ADC collection/host selection and SDK auth/endpoint composition need further work.
