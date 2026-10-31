@@ -20,6 +20,8 @@ const vertexCredentialLimit = 4 * 1024 * 1024
 
 var vertexAuthLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
+var openVertexCredentialFile = openVertexCredentialPath
+
 // Transport-only seam for isolated canonical-endpoint tests; auth stays real.
 var newVertexTokenClient = func(opts *goai.StreamOptions) *http.Client {
 	cfg := googleRetryConfig(opts)
@@ -42,9 +44,24 @@ func applyVertexFileAuth(ctx context.Context, request *http.Request, path string
 	if !info.Mode().IsRegular() || info.Size() > vertexCredentialLimit {
 		return fmt.Errorf("vertex ADC requires a regular credential file of at most 4 MiB")
 	}
-	file, err := os.Open(path)
+	file, err := openVertexCredentialFile(path)
 	if err != nil {
 		return fmt.Errorf("vertex ADC credentials: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	// The path may have changed after Stat. Enforce the same bounds on the
+	// descriptor we actually opened, before attempting any read.
+	opened, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return fmt.Errorf("vertex ADC credentials: %w", err)
+	}
+	if !opened.Mode().IsRegular() || opened.Size() > vertexCredentialLimit {
+		_ = file.Close()
+		return fmt.Errorf("vertex ADC requires a regular credential file of at most 4 MiB")
 	}
 	raw, readErr := io.ReadAll(io.LimitReader(file, vertexCredentialLimit+1))
 	closeErr := file.Close()
