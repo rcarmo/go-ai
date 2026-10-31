@@ -726,7 +726,7 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 		}
 
 		// Update response ID
-		if chunk.ResponseID != "" {
+		if partial.ResponseID == "" && chunk.ResponseID != "" {
 			partial.ResponseID = chunk.ResponseID
 		}
 
@@ -818,9 +818,6 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 			if cand.FinishReason != "" {
 				partial.RawStopReason = cand.FinishReason
 				partial.StopReason = mapFinishReason(cand.FinishReason)
-				if partial.StopReason == goai.StopReasonError {
-					partial.ErrorMessage = "Provider stopped with: " + cand.FinishReason
-				}
 				for _, c := range partial.Content {
 					if c.Type == "toolCall" && partial.StopReason == goai.StopReasonStop {
 						partial.StopReason = goai.StopReasonToolUse
@@ -860,6 +857,12 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event), opt
 	}
 
 	if partial.StopReason == goai.StopReasonError || partial.StopReason == goai.StopReasonAborted {
+		// Like upstream's post-stream catch, diagnostics are added only after
+		// block-end publication. Earlier error reasons may be superseded.
+		partial.ErrorMessage = "An unknown error occurred"
+		if partial.RawStopReason != "" {
+			partial.ErrorMessage = "Provider stopped with: " + partial.RawStopReason
+		}
 		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: fmt.Errorf("%s", partial.ErrorMessage)})
 		return
 	}
