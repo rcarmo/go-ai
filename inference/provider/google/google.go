@@ -52,10 +52,14 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		goai.GetLogger().Debug("stream start", "api", "google-generative-ai", "provider", model.Provider, "model", model.ID)
 
 		apiKey := goai.ResolveAPIKey(model, opts)
+		credentialFile := ""
 		if model.Api == goai.ApiGoogleVertex {
 			apiKey = trimGoogleSDKSpace(apiKey)
+			if apiKey == "" || isVertexADCMarker(apiKey) {
+				credentialFile = goai.GetProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", goai.ProviderEnvFromOptions(opts))
+			}
 		}
-		if apiKey == "" {
+		if apiKey == "" && credentialFile == "" {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
@@ -96,6 +100,20 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 		}
 		goai.ApplyDefaultHeaders(req.Header, model.Headers)
 		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
+		if credentialFile != "" {
+			if err := applyVertexFileAuth(ctx, req, credentialFile, opts); err != nil {
+				failure := newGoogleStreamMessage(model)
+				reason := goai.StopReasonError
+				if ctx.Err() != nil {
+					reason = goai.StopReasonAborted
+					err = ctx.Err()
+				}
+				failure.StopReason = reason
+				failure.ErrorMessage = err.Error()
+				send(&goai.ErrorEvent{Reason: reason, Error: failure, Err: err})
+				return
+			}
+		}
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
 		}

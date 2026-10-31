@@ -1,6 +1,6 @@
 ## Vertex ADC URL selection
 
-Vertex ADC-style routing now uses the locked SDK's global/multi-regional hosts and custom collection paths. The provider still does not acquire ADC tokens.
+Vertex ADC-style routing now uses the locked SDK's global/multi-regional hosts and custom collection paths. The later [explicit service-account increment](vertex-service-account.md) adds file-based token acquisition; the routing-only tests here do not cover it.
 
 Source: `81f3cd412758ebdd92324c7d63b669a189408d0a`, `packages/ai/src/api/google-vertex.ts` (`createClient`, `buildHttpOptions`, scope resolution), and locked `@google/genai` 2.21.0. The SDK archive was checked against the pinned lockfile integrity. Its constructor's default-host branches and exact multi-region set (`us`, `eu`) were inspected. Seven URL-method probes ran the actual SDK `getRequestUrlInternal`, `constructUrl`, `shouldPrependVertexProjectPath` and supporting methods with source-derived client options. No package import, installation, auth implementation or credential file ran.
 
@@ -24,4 +24,4 @@ The HTTP test supplies `Bearer caller-test-token` explicitly. It verifies URL/he
 
 Go 1.27.3, `GOMAXPROCS=4`: full root normal, Google race, root vet, Google-scoped staticcheck v0.8.2 and `git diff --check` pass. Raw SDK files were removed after inspection/probes. No dependencies, catalogues or release refs changed. Acceptance, CPU/allocation profiling and broader convergence are incomplete; the 23 root staticcheck findings outside Google still need review.
 
-The [nine-case Vertex crosswalk](vertex-api-key-resolution.md) stays partial. [Key trimming/classification and marker masking](vertex-key-markers.md) now have twenty-one cases. ADC acquisition/refresh, higher-level credential discovery and SDK auth-header/endpoint composition need further work. Provider-scoped credential isolation is unchanged.
+The [nine-case Vertex crosswalk](vertex-api-key-resolution.md) stays partial. [Key trimming/classification and marker masking](vertex-key-markers.md) now have twenty-one cases. Default/other credential acquisition, refresh, higher-level credential discovery and broader SDK auth-header/endpoint composition need further work. Provider-scoped credential isolation is unchanged.

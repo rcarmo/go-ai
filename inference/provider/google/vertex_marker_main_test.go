@@ -63,7 +63,7 @@ func TestMainVertexMarkerHTTPResolution(t *testing.T) {
 			}))
 			defer server.Close()
 			model := &goai.Model{ID: "gemini", Api: goai.ApiGoogleVertex, Provider: goai.ProviderGoogleVertex, BaseURL: server.URL, APIKey: tc.model}
-			opts := &goai.StreamOptions{APIKey: tc.option, Env: goai.ProviderEnv{"GOOGLE_CLOUD_API_KEY": tc.env, "GOOGLE_CLOUD_PROJECT": "", "GCLOUD_PROJECT": "", "GOOGLE_CLOUD_LOCATION": ""}}
+			opts := &goai.StreamOptions{APIKey: tc.option, Env: goai.ProviderEnv{"GOOGLE_APPLICATION_CREDENTIALS": "", "GOOGLE_CLOUD_API_KEY": tc.env, "GOOGLE_CLOUD_PROJECT": "", "GCLOUD_PROJECT": "", "GOOGLE_CLOUD_LOCATION": ""}}
 			if tc.alias {
 				model.Provider = goai.Provider("vertex-marker-alias")
 				opts.Env["GOOGLE_CLOUD_API_KEY"] = "must-not-use-global"

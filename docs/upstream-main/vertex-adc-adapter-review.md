@@ -1,6 +1,6 @@
 ## Vertex ADC adapter review
 
-Vertex ADC needs credential acquisition and SDK-compatible auth-header merging. Native currently supplies neither automatically; the routing and synthetic-header tests do not establish ADC support.
+At review checkpoint b4e601d, native supplied neither automatic credential acquisition nor SDK-compatible auth-header merging. The later [explicit service-account increment](vertex-service-account.md) adds a bounded file-based path; default/full ADC remains incomplete.
 
 Target: `81f3cd412758ebdd92324c7d63b669a189408d0a`. No native production or dependency files changed during this review.
 
@@ -34,4 +34,4 @@ Both libraries warn that even typed loading requires validation of externally so
 4. Match all returned auth headers and caller/model/options precedence. Preserve native suppression/isolation fences while reviewing any source conflict. Update synthetic routing fixtures to include isolated fake acquisition when testing the full SDK contract.
 5. Cover authorised-user/default gcloud files, empty keys, scopes, refresh, quota-related headers, explicit-invalid-path behaviour and higher-level registry discovery. Metadata/GCE, external accounts and impersonation require separate isolated fixtures; do not probe live services to fill coverage gaps.
 
-No adapter or dependency is selected yet. ADC acquisition remains an implementation gap, not an accepted divergence. Source nine-case Vertex disposition stays development-verified-partial. Full convergence, the 23 root staticcheck findings outside Google, acceptance and profiling are incomplete.
+At this review checkpoint no adapter or dependency was selected. The subsequent [import-graph comparison and seven-case acquisition baseline](vertex-service-account.md) selected cloud-auth v0.24.2 for explicit service-account files. Other ADC acquisition paths remain implementation gaps, not accepted divergences. Source nine-case Vertex disposition stays development-verified-partial. Full convergence, the 23 root staticcheck findings outside Google, acceptance and profiling are incomplete.

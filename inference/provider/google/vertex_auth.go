@@ -1,0 +1,123 @@
+package google
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"strings"
+
+	"cloud.google.com/go/auth/credentials"
+	goai "github.com/rcarmo/go-ai"
+)
+
+const vertexCloudScope = "https://www.googleapis.com/auth/cloud-platform"
+const vertexTokenURL = "https://oauth2.googleapis.com/token"
+const vertexCredentialLimit = 4 * 1024 * 1024
+
+var vertexAuthLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+// Transport-only seam for isolated canonical-endpoint tests; auth stays real.
+var newVertexTokenClient = func(opts *goai.StreamOptions) *http.Client {
+	cfg := googleRetryConfig(opts)
+	client := cfg.NewHTTPClient()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return client
+}
+
+// Explicit-file acquisition only. Never invoke ambient/default ADC detection:
+// that would bypass provider-scoped environment and can probe GCE metadata.
+// Sources are request-owned, with synchronous refresh and no global token cache.
+func applyVertexFileAuth(ctx context.Context, request *http.Request, path string, opts *goai.StreamOptions) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("vertex ADC credentials: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() > vertexCredentialLimit {
+		return fmt.Errorf("vertex ADC requires a regular credential file of at most 4 MiB")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("vertex ADC credentials: %w", err)
+	}
+	raw, readErr := io.ReadAll(io.LimitReader(file, vertexCredentialLimit+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return fmt.Errorf("vertex ADC credentials: %w", readErr)
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if len(raw) > vertexCredentialLimit {
+		return fmt.Errorf("vertex ADC credential file exceeds 4 MiB")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var config struct {
+		Type     string `json:"type"`
+		Universe string `json:"universe_domain"`
+		Quota    string `json:"quota_project_id"`
+	}
+	if err = json.Unmarshal(raw, &config); err != nil {
+		return fmt.Errorf("vertex ADC credential JSON: %w", err)
+	}
+	if config.Type != "service_account" {
+		return fmt.Errorf("vertex ADC credential type is not supported")
+	}
+	if config.Universe != "" && config.Universe != "googleapis.com" {
+		return fmt.Errorf("vertex ADC non-default universe is not supported")
+	}
+	// Locked Node JWT.fromJSON ignores token_uri; internal gtoken/getToken
+	// always uses Google's canonical endpoint. Go's loader otherwise honours
+	// that file field. Preserve raw values while normalising only this field.
+	var fields map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &fields); err != nil {
+		return fmt.Errorf("vertex ADC credential JSON: %w", err)
+	}
+	fields["token_uri"] = json.RawMessage(fmt.Sprintf("%q", vertexTokenURL))
+	raw, err = json.Marshal(fields)
+	if err != nil {
+		return fmt.Errorf("vertex ADC credential JSON: %w", err)
+	}
+	tokenClient := newVertexTokenClient(opts)
+	defer tokenClient.CloseIdleConnections()
+	creds, err := credentials.NewCredentialsFromJSON(credentials.ServiceAccount, raw, &credentials.DetectOptions{Scopes: []string{vertexCloudScope}, DisableAsyncRefresh: true, Client: tokenClient, Logger: vertexAuthLogger})
+	if err != nil {
+		return fmt.Errorf("vertex ADC credentials: %w", err)
+	}
+	token, err := creds.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("vertex ADC token: %w", err)
+	}
+	if token == nil || token.Value == "" {
+		return fmt.Errorf("vertex ADC returned an empty token")
+	}
+	kind := token.Type
+	if kind == "" {
+		kind = "Bearer"
+	}
+	if strings.ContainsAny(kind+token.Value, "\r\n") {
+		return fmt.Errorf("vertex ADC returned an invalid token header")
+	}
+	// Do not use Credentials.QuotaProjectID here: it reads process-global env
+	// even when the caller supplied a provider-scoped empty override.
+	quota := goai.GetProviderEnvValue("GOOGLE_CLOUD_QUOTA_PROJECT", goai.ProviderEnvFromOptions(opts))
+	if quota == "" {
+		quota = config.Quota
+	}
+	goai.ApplyDefaultHeaders(request.Header, map[string]string{"Authorization": kind + " " + token.Value})
+	if quota != "" {
+		if strings.ContainsAny(quota, "\r\n") {
+			return fmt.Errorf("vertex ADC invalid quota header")
+		}
+		goai.ApplyDefaultHeaders(request.Header, map[string]string{"X-Goog-User-Project": quota})
+	}
+	return nil
+}
