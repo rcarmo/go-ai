@@ -110,6 +110,8 @@ Bedrock now emits strict tool flags, validates required schemas and retries pref
 
 Bedrock forwards raw response headers and provider events, retires streams on early exit and reports cancellation as aborted. Wire/lifecycle tests, full normal, focused race, thirty repeats and vet pass: [hook evidence](docs/upstream-main/README.md#bedrock-response-headers-and-stream-hooks). Full semantic convergence and acceptance remain incomplete.
 
+Bedrock arguments now stream incrementally with private state and explicit-stop finalisation. A targeted matched-workload diagnostic reduced 250k-content allocation from about 8.173GB to 11.604MB; CPU/heap captures were analysed and disposed. Full normal, focused race, growth/lifecycle checks and vet pass: [state evidence](docs/upstream-main/README.md#bedrock-argument-stream-state-and-allocation-diagnostic). Full convergence and acceptance profiling remain incomplete.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

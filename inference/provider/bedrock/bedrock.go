@@ -852,13 +852,22 @@ func processBedrockStream(ctx context.Context, resp *bedrockruntime.ConverseStre
 
 	// Track content blocks by their Bedrock index
 	type blockState struct {
-		contentIdx  int
-		partialJSON string
-		redacted    []byte
+		contentIdx int
+		arguments  *jsonparse.ToolCallArgumentsStream
+		redacted   []byte
 	}
 	blockMap := map[int]*blockState{}
+	// Only redacted bytes need finalisation for blocks that never stopped.
+	// Unfinished tools keep their preview; EOF must not fabricate an end event.
+	flushOpenBlocks := func() {
+		for index, bs := range blockMap {
+			finalizeBedrockThinkingBlock(&partial.Content[bs.contentIdx], bs.redacted)
+			delete(blockMap, index)
+		}
+	}
 
 	fail := func(err error) {
+		flushOpenBlocks()
 		reason := goai.StopReasonError
 		if ctx.Err() != nil {
 			reason = goai.StopReasonAborted
@@ -925,12 +934,13 @@ consume:
 				switch s := start.(type) {
 				case *types.ContentBlockStartMemberToolUse:
 					partial.Content = append(partial.Content, goai.ContentBlock{
-						Type: "toolCall",
-						ID:   aws.ToString(s.Value.ToolUseId),
-						Name: aws.ToString(s.Value.Name),
+						Type:      "toolCall",
+						ID:        aws.ToString(s.Value.ToolUseId),
+						Name:      aws.ToString(s.Value.Name),
+						Arguments: map[string]any{},
 					})
 					ci := len(partial.Content) - 1
-					blockMap[idx] = &blockState{contentIdx: ci}
+					blockMap[idx] = &blockState{contentIdx: ci, arguments: &jsonparse.ToolCallArgumentsStream{}}
 					send(&goai.ToolCallStartEvent{ContentIndex: ci, Partial: partial})
 				}
 			}
@@ -953,6 +963,9 @@ consume:
 					blockMap[idx] = bs
 					send(&goai.TextStartEvent{ContentIndex: ci, Partial: partial})
 				}
+				if partial.Content[bs.contentIdx].Type != "text" {
+					continue
+				}
 				partial.Content[bs.contentIdx].Text += d.Value
 				send(&goai.TextDeltaEvent{ContentIndex: bs.contentIdx, Delta: d.Value, Partial: partial})
 
@@ -961,12 +974,11 @@ consume:
 				if !ok {
 					continue
 				}
-				input := aws.ToString(d.Value.Input)
-				bs.partialJSON += input
-				args, _ := jsonparse.ParsePartialJSON(bs.partialJSON)
-				if args != nil {
-					partial.Content[bs.contentIdx].Arguments = args
+				if partial.Content[bs.contentIdx].Type != "toolCall" || bs.arguments == nil {
+					continue
 				}
+				input := aws.ToString(d.Value.Input)
+				partial.Content[bs.contentIdx].Arguments = bs.arguments.Append(input)
 				send(&goai.ToolCallDeltaEvent{ContentIndex: bs.contentIdx, Delta: input, Partial: partial})
 
 			case *types.ContentBlockDeltaMemberReasoningContent:
@@ -977,6 +989,9 @@ consume:
 					bs = &blockState{contentIdx: ci}
 					blockMap[idx] = bs
 					send(&goai.ThinkingStartEvent{ContentIndex: ci, Partial: partial})
+				}
+				if partial.Content[bs.contentIdx].Type != "thinking" {
+					continue
 				}
 				// ReasoningContentBlockDelta is a union type
 				switch rc := d.Value.(type) {
@@ -1007,6 +1022,7 @@ consume:
 			if !ok {
 				continue
 			}
+			delete(blockMap, idx)
 			ci := bs.contentIdx
 			block := partial.Content[ci]
 			switch block.Type {
@@ -1016,7 +1032,7 @@ consume:
 				finalizeBedrockThinkingBlock(&partial.Content[ci], bs.redacted)
 				send(&goai.ThinkingEndEvent{ContentIndex: ci, Content: partial.Content[ci].Thinking, Partial: partial})
 			case "toolCall":
-				args, argumentsError := jsonparse.ParseToolCallArguments(bs.partialJSON)
+				args, argumentsError := bs.arguments.Finish()
 				if args == nil {
 					args = map[string]interface{}{}
 				}
@@ -1067,11 +1083,7 @@ consume:
 		return
 	}
 
-	for _, bs := range blockMap {
-		if bs.contentIdx >= 0 && bs.contentIdx < len(partial.Content) {
-			finalizeBedrockThinkingBlock(&partial.Content[bs.contentIdx], bs.redacted)
-		}
-	}
+	flushOpenBlocks()
 
 	partial.Timestamp = time.Now().UnixMilli()
 	if partial.StopReason == goai.StopReasonPending {

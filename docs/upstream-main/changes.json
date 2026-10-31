@@ -532,9 +532,11 @@
         "internal/stricttools/limits.go",
         "internal/stricttools/limits_test.go",
         "inference/provider/bedrock/stream_hooks_main_test.go",
-        "inference/provider/bedrock/v0843_redacted_reasoning_test.go"
+        "inference/provider/bedrock/v0843_redacted_reasoning_test.go",
+        "inference/provider/bedrock/stream_state_main_test.go",
+        "inference/provider/bedrock/argument_state_main_test.go"
       ],
-      "note": "Strict tool specifications/schema preflight, auto/required(any)/none choice and bounded preferred-strict fallback implemented. Typed ValidationException plus pinned message match only, no retry after stream creation; required strict preserved, callbacks/non-tool modifications/cancellation/diagnostics covered. Twelve wire scenarios including real AWS event-stream success, three choices, streamed diagnostics and eight matcher cases; full normal/focused race/thirty repeats/vet pass. Remaining Bedrock options/streaming/hooks/dependencies and acceptance pending. Raw Smithy status/headers forwarded, callback also runs without modeled ID. Raw provider events observed before normalization; callback errors and cancellation preserve partial state/diagnostics, cancellation is aborted, and streams close on every processing exit. Seven lifecycle cases, waiting cancellation, two HTTP cases (including disconnect/no-replay) and no-ID hook pass full normal/focused race/thirty repeats/vet. Argument stream state/open-block finalization, remaining provider options and acceptance remain pending."
+      "note": "Strict tool specifications/schema preflight, auto/required(any)/none choice and bounded preferred-strict fallback implemented. Typed ValidationException plus pinned message match only, no retry after stream creation; required strict preserved, callbacks/non-tool modifications/cancellation/diagnostics covered. Twelve wire scenarios including real AWS event-stream success, three choices, streamed diagnostics and eight matcher cases; full normal/focused race/thirty repeats/vet pass. Remaining Bedrock options/streaming/hooks/dependencies and acceptance pending. Raw Smithy status/headers forwarded, callback also runs without modeled ID. Raw provider events observed before normalization; callback errors and cancellation preserve partial state/diagnostics, cancellation is aborted, and streams close on every processing exit. Seven lifecycle cases, waiting cancellation, two HTTP cases (including disconnect/no-replay) and no-ID hook pass full normal/focused race/thirty repeats/vet. Argument stream state/open-block finalization, remaining provider options and acceptance remain pending. Incremental ToolCallArgumentsStream replaces repeated full parsing; explicit stops finalize/remove state, duplicate/late incompatible deltas ignored, and EOF/errors/abort flush redacted bytes without inventing tool ends. Two pinned state/allocation cases plus interrupted/index/snapshot tests pass full normal/Bedrock+jsonparse+tests race/thirty repeats/vet. Targeted CPU/alloc_space/alloc_objects before/after diagnostic reduced 250k-content allocation ~8.173GB to 11.604MB (99.86%) and matched 1x elapsed 5.71–5.88s to 13.29–21.12ms. Captures/binaries/source fixtures disposed. Remaining provider options/metadata/utility/full dependency review and acceptance pending."
     },
     {
       "change": "M",
@@ -1418,8 +1420,13 @@
       "change": "A",
       "path": "packages/ai/test/bedrock-stream-state.test.ts",
       "kind": "test-or-fixture",
-      "status": "pending",
-      "native": []
+      "status": "development-verified-acceptance-pending",
+      "native": [
+        "inference/provider/bedrock/bedrock.go",
+        "inference/provider/bedrock/stream_state_main_test.go",
+        "inference/provider/bedrock/argument_state_main_test.go"
+      ],
+      "note": "Both pinned cases translated: private state, exact arguments/stable prefixes, encrypted reasoning and memory-growth bounds. Diagnostic primary repeated-parser outlier fixed and remeasured; captures disposed. Extra EOF/error/abort/index cases, full normal/focused race/thirty repeats/vet pass. Acceptance pending."
     },
     {
       "change": "A",
