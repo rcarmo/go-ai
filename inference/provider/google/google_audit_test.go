@@ -36,12 +36,17 @@ func TestBuildVertexStreamURLUsesProjectAndLocationOptions(t *testing.T) {
 	}
 }
 
-func TestProcessStreamHandlesMultilineSSE(t *testing.T) {
+const auditGooglePrefixedJSON = "data: {\"responseId\":\"resp_1\",\n" +
+	"data: \"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\n" +
+	"data: \"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n"
+
+// The locked SDK accepts raw JSON newlines, not repeated SSE data: prefixes.
+// Keep the existing positive output assertions; the source-backed framing
+// corpus separately requires rejection of data-prefixed multiline JSON.
+func TestProcessStreamHandlesSDKMultilineJSON(t *testing.T) {
 	model := &goai.Model{ID: "gemini", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI}
 	ch := make(chan goai.Event, 16)
-	processStream(strings.NewReader("data: {\"responseId\":\"resp_1\",\n"+
-		"data: \"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\n"+
-		"data: \"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n"), model, goai.NewAssistantEventSender(ch))
+	processStream(strings.NewReader(strings.ReplaceAll(auditGooglePrefixedJSON, "\ndata: ", "\n")), model, goai.NewAssistantEventSender(ch))
 	close(ch)
 	var done *goai.DoneEvent
 	var sawText bool
@@ -57,5 +62,28 @@ func TestProcessStreamHandlesMultilineSSE(t *testing.T) {
 	}
 	if !sawText || done == nil || done.Message == nil || done.Message.ResponseID != "resp_1" {
 		t.Fatalf("expected multiline SSE text and done, sawText=%v done=%#v", sawText, done)
+	}
+}
+
+func TestProcessStreamRejectsOriginalPrefixedMultilineJSON(t *testing.T) {
+	for _, api := range []goai.Api{goai.ApiGoogleGenerativeAI, goai.ApiGoogleVertex} {
+		t.Run(string(api), func(t *testing.T) {
+			calls := 0
+			message, _, events := captureMainGoogleWireEvents(t, api, auditGooglePrefixedJSON, func(opts *goai.StreamOptions, _ *goai.Model) {
+				opts.OnProviderStreamEvent = func(any, *goai.Model) error { calls++; return nil }
+			})
+			failures, done := 0, 0
+			for _, event := range events {
+				switch event.(type) {
+				case *goai.ErrorEvent:
+					failures++
+				case *goai.DoneEvent:
+					done++
+				}
+			}
+			if calls != 0 || failures != 1 || done != 0 || message.StopReason != goai.StopReasonError || message.ResponseID != "" || len(message.Content) != 0 {
+				t.Errorf("hook=%d errors=%d done=%d reason=%s id=%s content=%#v", calls, failures, done, message.StopReason, message.ResponseID, message.Content)
+			}
+		})
 	}
 }

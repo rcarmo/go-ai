@@ -1,0 +1,474 @@
+{
+  "upstream": "81f3cd412758ebdd92324c7d63b669a189408d0a",
+  "sdk": "@google/genai@2.21.0",
+  "integrity": "sha512-+PDtco2/Z0ONdzCGekCoCT+O1VJS9xJQNN4XzQpXG/t3El/SWWMkCWlFRO1KmivOHPa4Q0VjUYu1HBKCZ/v33Q==",
+  "reference": "Actual ApiClient.processStreamResponse + HttpResponse.json; whole-buffer and one-byte UTF-8 reads; no SDK object transformations/auth",
+  "cases": [
+    {
+      "name": "LF complete",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "CR complete",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\r\rdata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\r\r",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "CRLF complete",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\r\n\r\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\r\n\r\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "EOF tail none",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "pending"
+    },
+    {
+      "name": "EOF tail LF",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "pending"
+    },
+    {
+      "name": "EOF tail CR",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\r",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "pending"
+    },
+    {
+      "name": "EOF tail CRLF",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\r\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "pending"
+    },
+    {
+      "name": "whitespace after complete",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n \t\r\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "unfinished comment after stop",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n: heartbeat",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "STOP"
+    },
+    {
+      "name": "complete comment after stop",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n: heartbeat\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "DONE before stop",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: [DONE]\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "json",
+      "terminal": "pending"
+    },
+    {
+      "name": "DONE after stop",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\ndata: [DONE]\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "json",
+      "terminal": "STOP"
+    },
+    {
+      "name": "mixed LF CRLF boundary",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\r\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "pending"
+    },
+    {
+      "name": "event prelude ignored",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\nevent: message\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "pending"
+    },
+    {
+      "name": "prefixed multiline JSON",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\ndata: \"candidates\":[{\"finishReason\":\"STOP\"}]\ndata: }\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "failure": "json",
+      "terminal": "pending"
+    },
+    {
+      "name": "raw multiline JSON",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\n\"candidates\":[{\"finishReason\":\"STOP\"}]\n}\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    },
+    {
+      "name": "NEL is not SDK whitespace",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "incomplete",
+      "terminal": "STOP"
+    },
+    {
+      "name": "BOM tail is SDK whitespace",
+      "wire": "data: {\"responseId\":\"first\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"helloπ🙂\"}]}}]}\n\ndata: {\"candidates\":[{\"finishReason\":\"STOP\"}]}\n\n﻿",
+      "chunks": [
+        {
+          "responseId": "first",
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "helloπ🙂"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "candidates": [
+            {
+              "finishReason": "STOP"
+            }
+          ]
+        }
+      ],
+      "failure": "",
+      "terminal": "STOP"
+    }
+  ]
+}

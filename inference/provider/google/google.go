@@ -706,18 +706,16 @@ func processStreamContext(ctx context.Context, body io.Reader, model *goai.Model
 	type currentBlock = currentBlockT
 	var current *currentBlock
 
-	// Gemini REST streaming with alt=sse returns Server-Sent Events. Use the
-	// shared parser so multi-line events and long chunks are handled correctly
-	// and incrementally instead of buffering the full response body.
-	for evt := range sse.ParseContext(parseCtx, body) {
+	// Google uses the SDK's framing rules, not the shared SSE field grammar.
+	for evt := range parseGoogleFrames(parseCtx, body) {
+		if evt.Event == googleIncompleteEOF {
+			fail(fmt.Errorf("%s", evt.Data))
+			return
+		}
 		if evt.Event == sse.EventError {
 			fail(fmt.Errorf("SSE stream error: %s", evt.Data))
 			return
 		}
-		if evt.Data == "" || evt.Data == "[DONE]" {
-			continue
-		}
-
 		var chunk geminiStreamChunk
 		if err := json.Unmarshal([]byte(evt.Data), &chunk); err != nil {
 			if _, syntax := err.(*json.SyntaxError); syntax {

@@ -974,4 +974,8 @@ Google/Vertex now retain the first nonempty response ID and create provider-erro
 
 Google/Vertex now preserve assistant state on cancellation, classify hook/read failures using the caller context and prevent successful completion after an abort. Ten cancellation/body-lifetime cases establish eight failures, then pass in twenty repetitions. Six malformed-JSON cases expose silent recovery to a later STOP; rejecting syntax errors fixes them while two valid-object controls continue to pass. The [SDK-backed checks](google-cancellation-admission.md) use the lockfile's exact Google SDK parser without installing packages or executing auth code.
 
-Root normal tests, Google race, root vet and scoped staticcheck pass. SDK EOF/sentinel framing, callback enrichment/shape, native type admission, other preflight/deadline paths and timestamps remain review work; the crosswalk keeps those limits explicit. No full-parity or acceptance claim.
+Root normal tests, Google race, root vet and scoped staticcheck pass. Callback enrichment/shape, native type admission, other preflight/deadline paths and timestamps need further review.
+
+## Google SDK framing
+
+The [locked SDK reference](google-sdk-framing.md) supplies 18 wires tested in two read partitions. Twenty-four of 36 registered Google/Vertex HTTP cases fail against acfa8cc; all pass with the Google-specific framer. It rejects unfinished EOF tails and `[DONE]`, follows SDK delimiter/prefix/whitespace rules and preserves the per-line 4 MiB guard. Shared SSE/Mistral behaviour is unchanged. Root normal, focused three-package race, root vet and Google-scoped staticcheck pass. SDK shape, error-body/text-decoding coverage and broader convergence/acceptance work are incomplete.

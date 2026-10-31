@@ -28,7 +28,7 @@ A probe extracted the actual inspected `HttpResponse` class and executed its par
 
 Valid JSON with unsupported native DTO types still follows the existing typed admission path; no generic observer map is promoted into authority. The SDK transformations are not equivalent to the raw wire projection: they select/transform fields and attach `sdkHttpResponse.headers`. Callback shape/enrichment, SDK reference identity and mutation remain unresolved. Numeric/coercion and non-object inputs need their own reference tests without weakening native domains.
 
-The inspected SDK also rejects a nonblank unfinished EOF buffer and attempts JSON parsing of a `[DONE]` data payload. Native shared SSE parsing flushes at EOF and Google currently skips `[DONE]`; these are concrete framing follow-ups requiring tests and provider-specific treatment without breaking Mistral's EOF contract. Live credentials, Vertex API-key/ADC tests, provider-only options and broader dependency/convergence review remain open.
+The [SDK framing follow-up](google-sdk-framing.md) implements the referenced EOF, `[DONE]`, delimiter and prefix rules with 36 registered HTTP cases. Shared SSE and Mistral keep their existing EOF contract. SDK read-chunk API errors, malformed UTF-8, empty-data reference coverage, live credentials, Vertex API-key/ADC tests, provider-only options and broader dependency/convergence review need further work.
 
 ## Development checks
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,6 +26,15 @@ func captureMainGoogleStream(t *testing.T, api goai.Api, chunks []string, config
 
 func captureMainGoogleStreamEvents(t *testing.T, api goai.Api, chunks []string, configure func(*goai.StreamOptions, *goai.Model)) (*goai.Message, http.Header, []goai.Event) {
 	t.Helper()
+	var wire strings.Builder
+	for _, chunk := range chunks {
+		fmt.Fprintf(&wire, "data: %s\n\n", chunk)
+	}
+	return captureMainGoogleWireEvents(t, api, wire.String(), configure)
+}
+
+func captureMainGoogleWireEvents(t *testing.T, api goai.Api, wire string, configure func(*goai.StreamOptions, *goai.Model)) (*goai.Message, http.Header, []goai.Event) {
+	t.Helper()
 	headers := make(chan http.Header, 1)
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,9 +44,7 @@ func captureMainGoogleStreamEvents(t *testing.T, api goai.Api, chunks []string, 
 		default:
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		for _, chunk := range chunks {
-			fmt.Fprintf(w, "data: %s\n\n", chunk)
-		}
+		fmt.Fprint(w, wire)
 	}))
 	defer server.Close()
 	id := "gemini-2.5-flash"
