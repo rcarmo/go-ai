@@ -593,20 +593,20 @@
       "change": "M",
       "path": "packages/ai/src/api/google-generative-ai.ts",
       "kind": "source",
-      "status": "pending",
+      "status": "partial",
       "native": [
         "inference/provider/google/message_main.go",
         "inference/provider/google/stream_signature_main_test.go",
         "inference/provider/google/retry_main.go",
         "inference/provider/google/retry_main_test.go"
       ],
-      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open."
+      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open. Complete changed-hunk review against accepted-source4a080252: shared change is prior const-to-enum conversion; direct adapters only remove catch-path index cleanup. Native public ContentBlock has no scratch index. Existing Google package passes normal/race/five shuffled repeats with full root normal/vet; broader provider/dependency/acceptance work and native/source decisions remain open."
     },
     {
       "change": "M",
       "path": "packages/ai/src/api/google-shared.ts",
       "kind": "source",
-      "status": "pending",
+      "status": "partial",
       "native": [
         "inference/provider/google/schema_const_main.go",
         "inference/provider/google/schema_const_main_test.go",
@@ -618,27 +618,30 @@
         "inference/provider/google/retry_main.go",
         "inference/provider/google/retry_main_test.go"
       ],
-      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open. Shared-message replay now preserves signed empty blocks on wire, validates signature padding, carries Gemini3+ call/response IDs, defaults nil args and aligns tool text/image/error values and routing. Native image-downgrade and API/origin thinking/signature isolation remain. Three shared-message test crosswalks development-verified after full normal/Google+tests race/thirty repeats/vet. Stream empty-signature intake now passes lifecycle/replay tests for both APIs; retries and remaining provider semantics/serialization profiling still need review. Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open."
+      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open. Shared-message replay now preserves signed empty blocks on wire, validates signature padding, carries Gemini3+ call/response IDs, defaults nil args and aligns tool text/image/error values and routing. Native image-downgrade and API/origin thinking/signature isolation remain. Three shared-message test crosswalks development-verified after full normal/Google+tests race/thirty repeats/vet. Stream empty-signature intake now passes lifecycle/replay tests for both APIs; retries and remaining provider semantics/serialization profiling still need review. Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open. Complete changed-hunk review against accepted-source4a080252: shared change is prior const-to-enum conversion; direct adapters only remove catch-path index cleanup. Native public ContentBlock has no scratch index. Existing Google package passes normal/race/five shuffled repeats with full root normal/vet; broader provider/dependency/acceptance work and native/source decisions remain open."
     },
     {
       "change": "M",
       "path": "packages/ai/src/api/google-vertex.ts",
       "kind": "source",
-      "status": "pending",
+      "status": "partial",
       "native": [
         "inference/provider/google/message_main.go",
         "inference/provider/google/stream_signature_main_test.go",
         "inference/provider/google/retry_main.go",
         "inference/provider/google/retry_main_test.go"
       ],
-      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open."
+      "note": " Stream part text presence now preserves explicit empty signature deltas without inventing text for tool/image/signature-only parts. Both API lifecycle/replay cases and decoder reuse/roundtrip checks pass full normal, Google/tests race, thirty repeats, vet/diff. Retry review found MaxRetries ignored by legacy config conversion and delay-only/status-default differences; owned next slice must preserve native RetryConfig and no-replay/cancellation fences. Public Google retry count/default/delay/status options now use shared provider retry policy; explicit native RetryConfig preserves legacy precedence/transport. 56-case dual-API matrix plus cap/cancel/non-replay checks pass full normal/root race (durable passed separately after package timeout), thirty repeats/vet/diff. Retry crosswalk development-verified. Remaining provider/utility/dependency and acceptance/profiling review stays open. Complete changed-hunk review against accepted-source4a080252: shared change is prior const-to-enum conversion; direct adapters only remove catch-path index cleanup. Native public ContentBlock has no scratch index. Existing Google package passes normal/race/five shuffled repeats with full root normal/vet; broader provider/dependency/acceptance work and native/source decisions remain open."
     },
     {
       "change": "M",
       "path": "packages/ai/src/api/mistral-conversations.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/mistral/argument_stream_main_test.go"
+      ],
+      "note": " Incremental private per-tool parser now exposes previews, preserves UTF16 and final diagnostics; stable pointer records prevent copying live builders during interleaving. Four new cases +existing indexed fragments pass full normal/Mistral+Google+tests race/30 argument repeats/5 shuffled provider repeats/vet. Shared truncation helper move has no upstream behaviour change; native non-string argument chunks and HTTP formatting/truncation still need review (common Go truncation is bytes versus JS UTF16 units). Existing HTTP read caps retained."
     },
     {
       "change": "M",
@@ -1325,7 +1328,8 @@
       "path": "packages/ai/src/utils/error-body.ts",
       "kind": "source",
       "status": "pending",
-      "native": []
+      "native": [],
+      "note": " Follow-up from Mistral review: native common TruncateErrorText counts bytes; pinned JavaScript helper counts UTF16 units. Investigate Unicode truncation and native bounded body reads without weakening resource fences before claiming full error-format parity."
     },
     {
       "change": "A",

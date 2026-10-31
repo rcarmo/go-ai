@@ -353,8 +353,8 @@ type sseToolCall struct {
 }
 
 type sseToolCallFunc struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
+	Name      string                 `json:"name,omitempty"`
+	Arguments jsonparse.ArgumentText `json:"arguments,omitempty"`
 }
 
 type sseUsage struct {
@@ -415,10 +415,11 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 		index      int
 		id         string
 		name       string
-		argsBuf    string
+		arguments  jsonparse.ToolCallArgumentsStream
 		contentIdx int
 	}
-	var activeTools []activeTC
+	// Argument streams contain non-copyable builders; keep their addresses stable.
+	var activeTools []*activeTC
 	var finishReason *string
 
 	events := sse.Parse(body)
@@ -493,7 +494,7 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 			var at *activeTC
 			for i := range activeTools {
 				if activeTools[i].index == tc.Index || (tc.ID != "" && activeTools[i].id == tc.ID) {
-					at = &activeTools[i]
+					at = activeTools[i]
 					break
 				}
 			}
@@ -502,15 +503,17 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 				partial.Content = append(partial.Content, goai.ContentBlock{
 					Type: "toolCall", ID: tc.ID, Name: tc.Function.Name,
 				})
-				activeTools = append(activeTools, activeTC{
+				activeTools = append(activeTools, &activeTC{
 					index: tc.Index, id: tc.ID, name: tc.Function.Name, contentIdx: contentIdx,
 				})
-				at = &activeTools[len(activeTools)-1]
+				at = activeTools[len(activeTools)-1]
+				partial.Content[contentIdx].SetStreamingArguments(at.arguments.Append(""), "")
 				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
 			if tc.Function.Arguments != "" {
-				at.argsBuf += tc.Function.Arguments
-				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: tc.Function.Arguments, Partial: partial})
+				delta := string(tc.Function.Arguments)
+				partial.Content[at.contentIdx].SetStreamingArguments(at.arguments.Append(delta), "")
+				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: delta, Partial: partial})
 			}
 			if tc.ID != "" {
 				at.id = tc.ID
@@ -534,19 +537,16 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 	}
 
 	// Close tool calls
-	for _, at := range activeTools {
-		args, argumentsError := jsonparse.ParseToolCallArguments(at.argsBuf)
-		if args == nil {
-			args = map[string]interface{}{}
-		}
-		partial.Content[at.contentIdx].Arguments = args
-		partial.Content[at.contentIdx].ArgumentsError = argumentsError
+	for i := range activeTools {
+		at := activeTools[i]
+		args, argumentsError := at.arguments.Finish()
+		partial.Content[at.contentIdx].SetStreamingArguments(args, argumentsError)
+		call := goai.ToolCall{Type: "toolCall", ID: at.id, Name: at.name}
+		call.SetStreamingArguments(args, argumentsError)
 		send(&goai.ToolCallEndEvent{
 			ContentIndex: at.contentIdx,
-			ToolCall: goai.ToolCall{
-				Type: "toolCall", ID: at.id, Name: at.name, Arguments: args, ArgumentsError: argumentsError,
-			},
-			Partial: partial,
+			ToolCall:     call,
+			Partial:      partial,
 		})
 	}
 
