@@ -1149,7 +1149,7 @@ readLoop:
 
 		case "response.completed", "response.incomplete", "response.done":
 			sawCompletion = true
-			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning); err != nil {
+			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning, opts); err != nil {
 				return argumentProtocolError(err, data)
 			}
 			break readLoop
@@ -1645,7 +1645,7 @@ eventsLoop:
 			return
 		case "response.completed", "response.incomplete", "response.done":
 			terminalResponseSeen = true
-			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning); err != nil {
+			if err := finalizeCodexResponse(raw.Response, partial, model, reasoning, opts); err != nil {
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 				return
 			}

@@ -6,12 +6,13 @@ import (
 	"github.com/rcarmo/go-ai/internal/responsestream"
 )
 
-func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model, reasoning responsestream.ReasoningIndex) error {
+func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model, reasoning responsestream.ReasoningIndex, options ...*goai.StreamOptions) error {
 	var response struct {
-		ID         string          `json:"id"`
-		Status     json.RawMessage `json:"status"`
-		EndTurn    *bool           `json:"end_turn"`
-		Incomplete *struct {
+		ServiceTier *string         `json:"service_tier"`
+		ID          string          `json:"id"`
+		Status      json.RawMessage `json:"status"`
+		EndTurn     *bool           `json:"end_turn"`
+		Incomplete  *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
 		Output []json.RawMessage `json:"output"`
@@ -53,6 +54,12 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model,
 			partial.Usage.ReasoningSet = true
 		}
 		partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
+		var opts *goai.StreamOptions
+		if len(options) > 0 {
+			opts = options[0]
+		}
+		tier := resolveCodexServiceTier(response.ServiceTier, opts)
+		responsestream.ApplyServiceTierMultiplier(partial.Usage, responsestream.ServiceTierMultiplier(model.ID, tier))
 	}
 	// Codex's event adapter drops unrecognised statuses before shared mapping.
 	var status string
@@ -84,4 +91,18 @@ func finalizeCodexResponse(raw []byte, partial *goai.Message, model *goai.Model,
 		}
 	}
 	return nil
+}
+
+func resolveCodexServiceTier(responseTier *string, opts *goai.StreamOptions) string {
+	requestTier := ""
+	if opts != nil {
+		requestTier = opts.ServiceTier
+	}
+	if responseTier != nil {
+		if *responseTier == "default" && (requestTier == "flex" || requestTier == "priority") {
+			return requestTier
+		}
+		return *responseTier
+	}
+	return requestTier
 }

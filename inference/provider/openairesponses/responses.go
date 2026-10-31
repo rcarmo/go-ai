@@ -1340,7 +1340,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				ID                string                   `json:"id"`
 				Status            string                   `json:"status"`
 				EndTurn           *bool                    `json:"end_turn"`
-				ServiceTier       string                   `json:"service_tier"`
+				ServiceTier       *string                  `json:"service_tier"`
 				IncompleteDetails *struct{ Reason string } `json:"incomplete_details"`
 				Output            []json.RawMessage        `json:"output"`
 				Usage             *struct {
@@ -1351,6 +1351,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 						CachedTokens     int `json:"cached_tokens"`
 						CacheWriteTokens int `json:"cache_write_tokens"`
 					} `json:"input_tokens_details"`
+					OutputDetails *struct {
+						Reasoning *int `json:"reasoning_tokens"`
+					} `json:"output_tokens_details"`
 				} `json:"usage"`
 			}
 			json.Unmarshal(raw.Response, &resp)
@@ -1379,6 +1382,10 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					CacheRead:   cached,
 					CacheWrite:  cacheWrite,
 					TotalTokens: resp.Usage.TotalTokens,
+				}
+				if resp.Usage.OutputDetails != nil && resp.Usage.OutputDetails.Reasoning != nil {
+					partial.Usage.Reasoning = *resp.Usage.OutputDetails.Reasoning
+					partial.Usage.ReasoningSet = true
 				}
 				partial.Usage.Cost = goai.CalculateCost(model, partial.Usage)
 				applyServiceTierPricing(partial.Usage, resolveServiceTier(resp.ServiceTier, opts), model)
@@ -1465,9 +1472,9 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
-func resolveServiceTier(responseTier string, opts *goai.StreamOptions) string {
-	if responseTier != "" {
-		return responseTier
+func resolveServiceTier(responseTier *string, opts *goai.StreamOptions) string {
+	if responseTier != nil {
+		return *responseTier
 	}
 	if opts != nil {
 		return opts.ServiceTier
@@ -1475,31 +1482,16 @@ func resolveServiceTier(responseTier string, opts *goai.StreamOptions) string {
 	return ""
 }
 
-func serviceTierCostMultiplier(model *goai.Model, serviceTier string) float64 {
-	switch serviceTier {
-	case "flex":
-		return 0.5
-	case "priority":
-		if model != nil && model.ID == "gpt-5.5" {
-			return 2.5
-		}
-		return 2
-	default:
-		return 1
+func serviceTierCostMultiplier(model *goai.Model, tier string) float64 {
+	if tier == "fast" {
+		tier = "priority"
 	}
+	id := ""
+	if model != nil {
+		id = model.ID
+	}
+	return responsestream.ServiceTierMultiplier(id, tier)
 }
-
-func applyServiceTierPricing(usage *goai.Usage, serviceTier string, model *goai.Model) {
-	if usage == nil {
-		return
-	}
-	multiplier := serviceTierCostMultiplier(model, serviceTier)
-	if multiplier == 1 {
-		return
-	}
-	usage.Cost.Input *= multiplier
-	usage.Cost.Output *= multiplier
-	usage.Cost.CacheRead *= multiplier
-	usage.Cost.CacheWrite *= multiplier
-	usage.Cost.Total = usage.Cost.Input + usage.Cost.Output + usage.Cost.CacheRead + usage.Cost.CacheWrite
+func applyServiceTierPricing(usage *goai.Usage, tier string, model *goai.Model) {
+	responsestream.ApplyServiceTierMultiplier(usage, serviceTierCostMultiplier(model, tier))
 }
