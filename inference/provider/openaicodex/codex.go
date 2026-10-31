@@ -882,12 +882,15 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 		var created *activeItem
 		created = nil
 		var item struct {
-			Type   string `json:"type"`
-			ID     string `json:"id"`
-			CallID string `json:"call_id"`
-			Name   string `json:"name"`
+			Type      string  `json:"type"`
+			ID        string  `json:"id"`
+			CallID    string  `json:"call_id"`
+			Name      string  `json:"name"`
+			Namespace *string `json:"namespace"`
 		}
-		json.Unmarshal(encodedItem, &item)
+		if err := json.Unmarshal(encodedItem, &item); err != nil {
+			item.Namespace = nil
+		}
 
 		switch item.Type {
 		case "reasoning":
@@ -914,6 +917,7 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			})
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: item.Type, contentIdx: idx}
+			responsestream.SetToolNamespace(&partial.Content[created.contentIdx], item.Namespace)
 			if item.Type == "custom_tool_call" {
 				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {
@@ -1102,6 +1106,9 @@ readLoop:
 				continue
 			}
 			idx := current.contentIdx
+			if current.itemType == "function_call" || current.itemType == "custom_tool_call" {
+				responsestream.ApplyToolNamespace(raw.Item, &partial.Content[idx])
+			}
 			text, thinking, hasText := responsestream.FinalText(raw.Item)
 			if hasText {
 				partial.Content[idx].Text = text
@@ -1126,7 +1133,7 @@ readLoop:
 				if delta != "" {
 					send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: delta, Partial: partial})
 				}
-				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace, NamespacePresent: partial.Content[idx].NamespacePresent}
 				call.SetStreamingArguments(current.customInput.Arguments(), "")
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			case "function_call":
@@ -1373,12 +1380,15 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 		var created *activeItem
 		created = nil
 		var item struct {
-			Type   string `json:"type"`
-			ID     string `json:"id"`
-			CallID string `json:"call_id"`
-			Name   string `json:"name"`
+			Type      string  `json:"type"`
+			ID        string  `json:"id"`
+			CallID    string  `json:"call_id"`
+			Name      string  `json:"name"`
+			Namespace *string `json:"namespace"`
 		}
-		json.Unmarshal(encodedItem, &item)
+		if err := json.Unmarshal(encodedItem, &item); err != nil {
+			item.Namespace = nil
+		}
 		switch item.Type {
 		case "reasoning":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "thinking"})
@@ -1397,6 +1407,7 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 		case "function_call", "custom_tool_call":
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 			created = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
+			responsestream.SetToolNamespace(&partial.Content[created.contentIdx], item.Namespace)
 			if item.Type == "custom_tool_call" {
 				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {
@@ -1562,6 +1573,9 @@ eventsLoop:
 				continue
 			}
 			idx := current.contentIdx
+			if current.itemType == "function_call" || current.itemType == "custom_tool_call" {
+				responsestream.ApplyToolNamespace(raw.Item, &partial.Content[idx])
+			}
 			text, thinking, hasText := responsestream.FinalText(raw.Item)
 			if hasText {
 				partial.Content[idx].Text = text
@@ -1587,7 +1601,7 @@ eventsLoop:
 				if delta != "" {
 					send(&goai.ToolCallDeltaEvent{ContentIndex: idx, Delta: delta, Partial: partial})
 				}
-				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace, NamespacePresent: partial.Content[idx].NamespacePresent}
 				call.SetStreamingArguments(current.customInput.Arguments(), "")
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			case "function_call":
@@ -1907,6 +1921,9 @@ func buildCodexAssistantItemsWithToolView(msg goai.Message, model *goai.Model, v
 				itemID = ""
 			}
 			item := map[string]interface{}{"type": "function_call", "call_id": callID, "name": block.Name}
+			if namespace, present := responsestream.ReplayToolNamespace(block, msg, model); present {
+				item["namespace"] = namespace
+			}
 			if property, selected := view.properties[block.Name]; selected {
 				input, _ := codexGrammarInput(block, property)
 				item["type"] = "custom_tool_call"

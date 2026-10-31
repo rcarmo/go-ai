@@ -96,7 +96,10 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 		body := buildRequest(model, convCtx, opts, transcriptPlan)
 		body.Model = requestModelID
- if body.buildError!=nil{send(&goai.ErrorEvent{Reason:goai.StopReasonError,Err:body.buildError});return}
+		if body.buildError != nil {
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: body.buildError})
+			return
+		}
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
@@ -202,7 +205,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 // --- Request ---
 
 type responsesRequest struct {
- buildError error
+	buildError           error
 	Model                string                 `json:"model"`
 	Input                json.RawMessage        `json:"input"`
 	Stream               bool                   `json:"stream"`
@@ -497,7 +500,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 		input = limited.Messages
 	}
 	inputJSON, inputError := json.Marshal(input)
- req.buildError=inputError
+	req.buildError = inputError
 	req.Input = inputJSON
 
 	// Convert tools
@@ -867,7 +870,6 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 	isDifferentModel := msg.Model != "" && msg.Model != model.ID &&
 		msg.Provider == model.Provider &&
 		msg.Api == model.Api
-	canReplayNamespace := msg.Model == model.ID && msg.Provider == model.Provider && msg.Api == model.Api
 
 	var items []interface{}
 	textBlockIndex := 0
@@ -950,8 +952,8 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 				customInput, _ := responsesGrammarInput(block, customInputProperty)
 				item["input"] = goai.SanitizeSurrogates(customInput)
 			}
-			if canReplayNamespace && block.Namespace != "" {
-				item["namespace"] = block.Namespace
+			if namespace, present := responsestream.ReplayToolNamespace(block, msg, model); present {
+				item["namespace"] = namespace
 			}
 			if itemID != "" {
 				item["id"] = itemID
@@ -1055,14 +1057,16 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		var created *activeItem
 		created = nil
 		var item struct {
-			Type      string `json:"type"`
-			ID        string `json:"id"`
-			CallID    string `json:"call_id"`
-			Name      string `json:"name"`
-			Args      string `json:"arguments"`
-			Namespace string `json:"namespace"`
+			Type      string  `json:"type"`
+			ID        string  `json:"id"`
+			CallID    string  `json:"call_id"`
+			Name      string  `json:"name"`
+			Args      string  `json:"arguments"`
+			Namespace *string `json:"namespace"`
 		}
-		json.Unmarshal(encodedItem, &item)
+		if err := json.Unmarshal(encodedItem, &item); err != nil {
+			item.Namespace = nil
+		}
 
 		switch item.Type {
 		case "reasoning":
@@ -1085,12 +1089,12 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 
 		case "function_call", "custom_tool_call":
 			partial.Content = append(partial.Content, goai.ContentBlock{
-				Type:      "toolCall",
-				ID:        fmt.Sprintf("%s|%s", item.CallID, item.ID),
-				Name:      item.Name,
-				Namespace: item.Namespace,
+				Type: "toolCall",
+				ID:   fmt.Sprintf("%s|%s", item.CallID, item.ID),
+				Name: item.Name,
 			})
 			idx := len(partial.Content) - 1
+			responsestream.SetToolNamespace(&partial.Content[idx], item.Namespace)
 			property, ok := toolView.grammarToolInputProperty(item.Name)
 			if !ok {
 				property = "input"
@@ -1285,9 +1289,11 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 			var doneItem struct {
 				Arguments jsonparse.ArgumentText `json:"arguments"`
 				Input     string                 `json:"input"`
-				Namespace string                 `json:"namespace"`
+				Namespace *string                `json:"namespace"`
 			}
-			_ = json.Unmarshal(raw.Item, &doneItem)
+			if err := json.Unmarshal(raw.Item, &doneItem); err != nil {
+				doneItem.Namespace = nil
+			}
 			idx := current.contentIdx
 			text, thinking, hasText := responsestream.FinalText(raw.Item)
 			if hasText {
@@ -1297,9 +1303,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				partial.Content[idx].Thinking = thinking
 			}
 
-			if doneItem.Namespace != "" {
-				partial.Content[idx].Namespace = doneItem.Namespace
-			}
+			responsestream.SetToolNamespace(&partial.Content[idx], doneItem.Namespace)
 			switch current.itemType {
 			case "reasoning":
 				// Store the full item as thinkingSignature for replay
@@ -1313,7 +1317,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 					send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
 					return
 				}
-				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace, NamespacePresent: partial.Content[idx].NamespacePresent}
 				call.SetStreamingArguments(current.customInput.Arguments(), "")
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			case "function_call":
@@ -1322,7 +1326,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				}
 				args, diagnostic := current.argumentStream.Finish()
 				partial.Content[idx].SetStreamingArguments(args, diagnostic)
-				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace}
+				call := goai.ToolCall{Type: "toolCall", ID: partial.Content[idx].ID, Name: partial.Content[idx].Name, Namespace: partial.Content[idx].Namespace, NamespacePresent: partial.Content[idx].NamespacePresent}
 				call.SetStreamingArguments(args, diagnostic)
 				send(&goai.ToolCallEndEvent{ContentIndex: idx, ToolCall: call, Partial: partial})
 			}

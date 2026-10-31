@@ -54,7 +54,7 @@ func (s *codexArgumentStream) finish(raw []byte, block *goai.ContentBlock) (goai
 	}
 	args, diagnostic := s.stream.Finish()
 	block.SetStreamingArguments(args, diagnostic)
-	call := goai.ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name}
+	call := goai.ToolCall{Type: "toolCall", ID: block.ID, Name: block.Name, Namespace: block.Namespace, NamespacePresent: block.NamespacePresent}
 	call.SetStreamingArguments(args, diagnostic)
 	return call, nil
 }
