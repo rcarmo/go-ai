@@ -428,6 +428,11 @@ func mergeSamplingParams(model *goai.Model, opts *goai.StreamOptions) map[string
 		if opts.Reasoning != nil {
 			level = goai.ModelThinkingLevel(*opts.Reasoning)
 		}
+		// Summary-only Responses requests enable medium effort; sampling defaults
+		// must use that same effective level rather than the disabled/off defaults.
+		if opts.ReasoningSummary != "" && (opts.Reasoning == nil || *opts.Reasoning == "") {
+			level = goai.ModelThinkingLevel(goai.ThinkingMedium)
+		}
 		overrides = opts.SamplingParams
 	}
 	return goai.ResolveSamplingParams(model, level, overrides)

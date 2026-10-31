@@ -162,7 +162,7 @@ packages/ai/test/radius-thinking-replay-e2e.test.ts	no	pending
 packages/ai/test/reasoning-options.test.ts	yes	pending	
 packages/ai/test/responseid.test.ts	no	pending	
 packages/ai/test/retry.test.ts	no	pending	
-packages/ai/test/sampling-options.test.ts	no	pending	
+packages/ai/test/sampling-options.test.ts	no	development-verified-acceptance-pending	tests/sampling_options_main_test.go; sampling_test.go; inference/provider/openairesponses/responses.go
 packages/ai/test/scratch.ts	no	pending	
 packages/ai/test/stream.test.ts	no	pending	
 packages/ai/test/streaming-json.test.ts	yes	partial	internal/jsonparse/streaming_main_test.go (curated core subset only; complete upstream suite and representation gaps open)
