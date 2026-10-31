@@ -104,6 +104,8 @@ Ordinary Responses now separates session affinity from disabled prompt caching a
 
 Responses now follows SDK credential-header precedence; Azure uses api-key and blocks credential-bearing redirects. Authentication/redirect wire cases, full normal, focused race, thirty repeats and vet pass: [SDK evidence](docs/upstream-main/README.md#responses-sdk-authentication-and-azure-redirects). Azure session/cache review and full convergence/acceptance remain open.
 
+Azure session/cache defaults now follow its own adapter; explicit headers and sampling overrides remain available. Forty-nine wire cases, full normal, focused race, thirty repeats and vet pass: [Azure API boundary](docs/upstream-main/README.md#azure-session-and-cache-api-boundary). A sixth native/source decision is pending: Azure cache-none key omission and explicit mode remain native behaviour until Rui decides. Full convergence and acceptance remain incomplete.
+
 ## Native 1.4.0 released
 
 Native [v1.4.0](https://github.com/rcarmo/go-ai/releases/tag/v1.4.0) published on 29 October 2026 at `ee3076b3659697f1de01b87da964396e069a4389` under Rui's conditional release authority. Rui-annotated tag object `7c5a602d965705fdb8b96cb16050901ba6d7d9bd` was verified locally and remotely. [Final CI 40777636922](https://github.com/rcarmo/go-ai/actions/runs/40777636922) passed deterministic, race, coverage, fuzz, static, regeneration/fault, SBOM, vulnerability and licence gates on Go 1.27.3. No vulnerability exceptions were added. Earlier hosted deadline and timer-fixture failures were investigated and fixed locally without weakening production or timeout gates.

@@ -40,7 +40,7 @@ packages/ai/test/bedrock-stream-state.test.ts	yes	pending
 packages/ai/test/bedrock-strict-tool-fallback.test.ts	yes	pending	
 packages/ai/test/bedrock-thinking-payload.test.ts	no	pending	
 packages/ai/test/bedrock-utils.ts	no	pending	
-packages/ai/test/cache-retention.test.ts	yes	pending	
+packages/ai/test/cache-retention.test.ts	yes	pending	inference/provider/openairesponses/azure_cache_session_main_test.go; inference/provider/openairesponses/responses_azure_test.go
 packages/ai/test/catalog-generation-utils.ts	yes	pending	
 packages/ai/test/classifier-images-live.test.ts	no	pending	
 packages/ai/test/classifier-models.test.ts	yes	pending	

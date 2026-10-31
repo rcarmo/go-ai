@@ -60,7 +60,7 @@ func TestResponsesUsesExplicitAuthHeaderWithoutAPIKey(t *testing.T) {
 	}
 }
 
-func TestAzureResponsesRequestAppliesCleanupAndSessionHeaders(t *testing.T) {
+func TestAzureResponsesRequestAppliesCleanupWithoutGeneratedSessionHeaders(t *testing.T) {
 	var rawReq responsesRequest
 	var input []map[string]interface{}
 	var gotSessionID, gotClientReqID, gotMSClientReqID string
@@ -128,8 +128,8 @@ func TestAzureResponsesRequestAppliesCleanupAndSessionHeaders(t *testing.T) {
 	for range streamResponses(context.Background(), model, convCtx, opts) {
 	}
 
-	if gotSessionID != "sess-123" || gotClientReqID != "sess-123" || gotMSClientReqID != "sess-123" {
-		t.Fatalf("missing Azure session headers: session_id=%q x-client-request-id=%q x-ms-client-request-id=%q", gotSessionID, gotClientReqID, gotMSClientReqID)
+	if gotSessionID != "" || gotClientReqID != "" || gotMSClientReqID != "" {
+		t.Fatalf("unexpected generated Azure session headers: session_id=%q x-client-request-id=%q x-ms-client-request-id=%q", gotSessionID, gotClientReqID, gotMSClientReqID)
 	}
 
 	functionCalls := 0

@@ -124,11 +124,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		req.Header.Set("Content-Type", "application/json")
 		applyResponsesAuthHeaders(req, model, apiKey)
 		req.Header.Set("Accept", "text/event-stream")
-		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
-			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
-				req.Header.Set(k, v)
-			}
-		} else if opts != nil && opts.SessionID != "" {
+		if model.Api != goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
 			compat := getResponsesCompat(model)
 			switch compat.sessionAffinityFormat {
 			case "openrouter":
@@ -565,10 +561,11 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
 		req.PromptCacheKey = goai.ClampOpenAIPromptCacheKey(opts.SessionID)
 	}
-	if cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
+	if model.Api != goai.ApiAzureOpenAIResponses && cacheRetention == goai.CacheRetentionLong && compat.supportsLongCacheRetention && !compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
 		req.PromptCacheRetention = "24h"
 	}
-	if compat.supportsExplicitPromptCacheMode && !chatGPTSignIn {
+	// Keep native cache-none handling pending the Azure source-policy decision.
+	if compat.supportsExplicitPromptCacheMode && !chatGPTSignIn && (model.Api != goai.ApiAzureOpenAIResponses || cacheRetention == goai.CacheRetentionNone) {
 		switch {
 		case cacheRetention == goai.CacheRetentionNone:
 			req.PromptCacheOptions = map[string]interface{}{"mode": "explicit"}
