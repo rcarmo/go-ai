@@ -9,7 +9,10 @@ import (
 
 func TestGoogleIgnoresAdvancedSamplingParams(t *testing.T) {
 	temp := 0.2
-	req := buildRequest(&goai.Model{ID: "gemini", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, MaxTokens: 1024}, &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, &goai.StreamOptions{Temperature: &temp, SamplingParams: map[string]any{"top_p": 0.9, "top_k": float64(40), "temperature": 0.8}})
+	req, err := buildRequest(&goai.Model{ID: "gemini", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, MaxTokens: 1024}, &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, &goai.StreamOptions{Temperature: &temp, SamplingParams: map[string]any{"top_p": 0.9, "top_k": float64(40), "temperature": 0.8}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		t.Fatal(err)

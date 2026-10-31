@@ -91,7 +91,10 @@ func TestGoogleConstRequestAPIsMain(t *testing.T) {
 	for _, api := range []goai.Api{goai.ApiGoogleGenerativeAI, goai.ApiGoogleVertex} {
 		t.Run(string(api), func(t *testing.T) {
 			model := &goai.Model{ID: "gemini-2.5-pro", Api: api, Provider: goai.ProviderGoogle}
-			request := buildRequest(model, &goai.Context{Tools: []goai.Tool{{Name: "tool", Parameters: json.RawMessage(`{"properties":{"origin":{"const":"source"}}}`)}}}, &goai.StreamOptions{})
+			request, err := buildRequest(model, &goai.Context{Tools: []goai.Tool{{Name: "tool", Parameters: json.RawMessage(`{"properties":{"origin":{"const":"source"}}}`)}}}, &goai.StreamOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
 			assertGoogleSchemaMain(t, request.Tools[0].FunctionDeclarations[0].ParametersJsonSchema, `{"properties":{"origin":{"enum":["source"]}}}`)
 		})
 	}

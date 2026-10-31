@@ -58,7 +58,11 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		body := buildRequest(model, convCtx, opts)
+		body, err := buildRequest(model, convCtx, opts)
+		if err != nil {
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			return
+		}
 		payload, err := goai.InvokeOnPayload(opts, body, model)
 		if err != nil {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
@@ -261,11 +265,19 @@ type geminiToolConfig struct {
 }
 
 type geminiFuncCallingConfig struct {
-	Mode string `json:"mode"` // AUTO, NONE, ANY
+	Mode string `json:"mode"` // AUTO, NONE, ANY, VALIDATED
 }
 
-func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) geminiRequest {
+func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOptions) (geminiRequest, error) {
 	req := geminiRequest{}
+	supportsStrictMode := supportsGoogleStrictToolSampling(model.ID)
+	// Validate every requirement, even when an explicit choice bypasses mode
+	// resolution or an earlier strict tool already selects VALIDATED.
+	for _, tool := range convCtx.Tools {
+		if _, err := goai.ResolveJSONSchemaStrictSampling(tool, supportsStrictMode); err != nil {
+			return req, err
+		}
+	}
 
 	// System prompt
 	if convCtx.SystemPrompt != "" {
@@ -321,10 +333,21 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	}
 
 	// Tools
-	supportsStrictMode := supportsGoogleStrictToolSampling(model.ID)
 	req.Tools = convertTools(convCtx.Tools, false, supportsStrictMode)
-
-	return req
+	if len(convCtx.Tools) > 0 {
+		var choice goai.ToolChoice
+		if opts != nil {
+			choice = opts.ToolChoice
+		}
+		mode, err := resolveGoogleFunctionCallingMode(convCtx.Tools, choice, supportsStrictMode)
+		if err != nil {
+			return req, err
+		}
+		if mode != "" {
+			req.ToolConfig = &geminiToolConfig{FunctionCallingConfig: &geminiFuncCallingConfig{Mode: mode}}
+		}
+	}
+	return req, nil
 }
 
 func convertTools(tools []goai.Tool, args ...bool) []geminiToolDecl {

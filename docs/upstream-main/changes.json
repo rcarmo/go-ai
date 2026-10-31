@@ -588,9 +588,11 @@
       "status": "pending",
       "native": [
         "inference/provider/google/schema_const_main.go",
-        "inference/provider/google/schema_const_main_test.go"
+        "inference/provider/google/schema_const_main_test.go",
+        "inference/provider/google/strict_mode_main.go",
+        "inference/provider/google/strict_mode_main_test.go"
       ],
-      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk partial: VALIDATED mode and strict-requirement error propagation require review; remaining shared message/provider semantics and acceptance remain open."
+      "note": "undefined Schema-only string/numeric const rewriting, name-map/literal boundaries and caller ownership now ported. Legacy metadata set/array behaviour aligned; json.Number preserves native numeric precision. Gemini/Vertex request and boundary tests pass full normal, Google/tests race, thirty repeats, vet/diff. Shared-tool crosswalk development-verified: VALIDATED mode, explicit NONE/ANY precedence and all-tool strict-requirement error propagation now pass a 60-case matrix, pre-hook rejection and Gemini/Vertex wire tests. Full normal, Google/tests race, thirty repeats, vet/diff pass. Remaining shared message/provider semantics and acceptance remain open."
     },
     {
       "change": "M",

@@ -7,7 +7,10 @@ import (
 )
 
 func TestGoogleThinkingDisableGemini25UsesZeroBudget(t *testing.T) {
-	req := buildRequest(&goai.Model{ID: "gemini-2.5-flash", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{})
+	req, err := buildRequest(&goai.Model{ID: "gemini-2.5-flash", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := requireThinkingConfig(t, req)
 	if cfg.ThinkingBudget == nil || *cfg.ThinkingBudget != 0 || cfg.IncludeThoughts != nil || cfg.ThinkingLevel != "" {
 		t.Fatalf("Gemini 2.5 disabled thinking config = %#v", cfg)
@@ -15,7 +18,10 @@ func TestGoogleThinkingDisableGemini25UsesZeroBudget(t *testing.T) {
 }
 
 func TestGoogleThinkingDisableGemini3FlashUsesMinimalLevel(t *testing.T) {
-	req := buildRequest(&goai.Model{ID: "gemini-3-flash-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{})
+	req, err := buildRequest(&goai.Model{ID: "gemini-3-flash-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := requireThinkingConfig(t, req)
 	if cfg.ThinkingLevel != "MINIMAL" || cfg.ThinkingBudget != nil || cfg.IncludeThoughts != nil {
 		t.Fatalf("Gemini 3 Flash disabled thinking config = %#v", cfg)
@@ -24,7 +30,10 @@ func TestGoogleThinkingDisableGemini3FlashUsesMinimalLevel(t *testing.T) {
 
 func TestGoogleThinkingDisableGemini31ProUsesMinimalLevel(t *testing.T) {
 	maxTokens := 512
-	req := buildRequest(&goai.Model{ID: "gemini-3.1-pro-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{MaxTokens: &maxTokens})
+	req, err := buildRequest(&goai.Model{ID: "gemini-3.1-pro-preview", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI, Reasoning: true}, googleThinkingDisableContext(), &goai.StreamOptions{MaxTokens: &maxTokens})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := requireThinkingConfig(t, req)
 	if cfg.ThinkingLevel != "LOW" || cfg.ThinkingBudget != nil || cfg.IncludeThoughts != nil {
 		t.Fatalf("Gemini 3.1 Pro disabled thinking config = %#v", cfg)
