@@ -58,7 +58,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			optHeaders = opts.Headers
 			suppressHeaders = opts.SuppressHeaders
 		}
-		if apiKey == "" && !goai.HasOpenAIAuthHeader(goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
+		if apiKey == "" && !hasResponsesAuthHeader(model, goai.MergeProviderHeaders(model.Headers, optHeaders, suppressHeaders)) {
 			//lint:ignore ST1005 upstream pi-ai exact error string starts with a capital letter.
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: fmt.Errorf("No API key for provider: %s", model.Provider)})
 			return
@@ -122,13 +122,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		if apiKey != "" {
-			if model.Provider == goai.ProviderCloudflareAIGateway {
-				req.Header.Set("cf-aig-authorization", "Bearer "+apiKey)
-			} else {
-				req.Header.Set("Authorization", "Bearer "+apiKey)
-			}
-		}
+		applyResponsesAuthHeaders(req, model, apiKey)
 		req.Header.Set("Accept", "text/event-stream")
 		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
 			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
@@ -165,6 +159,7 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
 		client := retryCfg.NewHTTPClient()
+		protectAzureAPIKeyRedirects(client, req, model)
 		goai.GetLogger().Debug("HTTP request", "url", req.URL.String(), "provider", model.Provider, "model", model.ID, "retries", retryCfg.MaxRetries)
 		resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, retryCfg)
 		if err != nil {
