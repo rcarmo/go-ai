@@ -1336,9 +1336,10 @@
       "status": "partial",
       "native": [
         "error_body.go",
-        "tests/error_truncation_main_test.go"
+        "tests/error_truncation_main_test.go",
+        "tests/error_shapes_main_test.go"
       ],
-      "note": " Follow-up from Mistral review: native common TruncateErrorText counts bytes; pinned JavaScript helper counts UTF16 units. Investigate Unicode truncation and native bounded body reads without weakening resource fences before claiming full error-format parity. UTF16 display counting now aligned for scalar boundaries; native cuts round down rather than introducing an isolated surrogate. Pinned helper execution confirms 8 matching vectors/2 boundary differences; acceptance of scalar-safe boundary policy pending Rui. Body-read limits/DTO validation unchanged. 10 vectors +4003-unit body +14256 stdlib reference comparisons pass full normal/tests+Bedrock+Mistral race/30 repeats/vet. Broader normalization/shape/format review remains open."
+      "note": " Follow-up from Mistral review: native common TruncateErrorText counts bytes; pinned JavaScript helper counts UTF16 units. Investigate Unicode truncation and native bounded body reads without weakening resource fences before claiming full error-format parity. UTF16 display counting now aligned for scalar boundaries; native cuts round down rather than introducing an isolated surrogate. Pinned helper execution confirms 8 matching vectors/2 boundary differences; acceptance of scalar-safe boundary policy pending Rui. Body-read limits/DTO validation unchanged. 10 vectors +4003-unit body +14256 stdlib reference comparisons pass full normal/tests+Bedrock+Mistral race/30 repeats/vet. Broader normalization/shape/format review remains open. Shared body filtering now preserves original errors for non-plain/stream/host wrappers; unnamed string-key maps accepted, literal string {} retained and JS whitespace matched. Cycle-safe bounded fallback avoids fmt container recursion; parser-owned nonfinite nulls and failed JSON hooks covered. 26 cases +15 pinned-helper vectors pass full normal/tests+Bedrock+Mistral race/30 repeats/vet. Serialization text/carries-body (including standard Go HTML escaping), SDK projection and Unicode boundary acceptance remain pending."
     },
     {
       "change": "A",

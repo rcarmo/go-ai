@@ -3,7 +3,12 @@ package goai
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"reflect"
 	"strings"
+	"unicode"
+
+	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
 const MaxProviderErrorBodyChars = 4000
@@ -48,16 +53,17 @@ func normalizeProviderErrorBody(body any, ok bool) (string, bool) {
 	switch v := body.(type) {
 	case string:
 		text = v
-	case map[string]any:
-		if len(v) == 0 {
+	default:
+		// Unnamed maps with built-in string keys are native plain JSON objects.
+		// Named host wrappers, arrays, scalars and streams are not error bodies.
+		value := reflect.ValueOf(v)
+		if value.Kind() != reflect.Map || value.Type().Name() != "" || value.Type().Key() != reflect.TypeOf("") || value.Len() == 0 {
 			return "", false
 		}
 		text = SafeJSONStringify(v)
-	default:
-		text = SafeJSONStringify(v)
 	}
-	text = strings.TrimSpace(text)
-	if text == "" || text == "{}" {
+	text = strings.TrimFunc(text, func(r rune) bool { return r == '\ufeff' || r != '\u0085' && unicode.IsSpace(r) })
+	if text == "" {
 		return "", false
 	}
 	return TruncateErrorText(text, MaxProviderErrorBodyChars), true
@@ -109,12 +115,100 @@ func TruncateErrorText(text string, maxChars int) string {
 }
 
 func SafeJSONStringify(value any) string {
-	b, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Sprint(value)
-	}
-	if string(b) == "" {
-		return fmt.Sprint(value)
+	b, ok := tryErrorJSON(value)
+	if !ok {
+		// JS JSON.stringify normalizes nonfinite parser-owned values to null.
+		if encoded, encodeErr := jsonparse.MarshalParsedJSONValue(value); encodeErr == nil {
+			return string(encoded)
+		}
+		// fmt.Sprint recursively traverses cyclic containers. Use bounded JS
+		// string coercion instead of turning a diagnostic into a stack overflow.
+		return errorStringFallback(value, make(map[errorArrayVisit]bool), 0)
 	}
 	return string(b)
+}
+
+func tryErrorJSON(value any) (encoded []byte, ok bool) {
+	defer func() {
+		if recover() != nil {
+			encoded = nil
+			ok = false
+		}
+	}()
+	encoded, err := json.Marshal(value)
+	return encoded, err == nil
+}
+
+type errorArrayVisit struct {
+	kind    reflect.Type
+	pointer uintptr
+	length  int
+}
+
+func errorStringFallback(value any, active map[errorArrayVisit]bool, depth int) string {
+	if value == nil {
+		return "null"
+	}
+	if depth >= 128 {
+		return ""
+	}
+	// Explicit host coercion keeps the existing Go Stringer/error behaviour.
+	if _, ok := value.(fmt.Stringer); ok {
+		return fmt.Sprint(value)
+	}
+	if _, ok := value.(error); ok {
+		return fmt.Sprint(value)
+	}
+	if number, ok := value.(float64); ok {
+		if math.IsInf(number, 1) {
+			return "Infinity"
+		}
+		if math.IsInf(number, -1) {
+			return "-Infinity"
+		}
+		if math.IsNaN(number) {
+			return "NaN"
+		}
+		if number == 0 {
+			return "0"
+		}
+		encoded, _ := json.Marshal(number)
+		return string(encoded)
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Map, reflect.Struct:
+		return "[object Object]"
+	case reflect.Pointer, reflect.Interface:
+		if v.IsNil() {
+			return "null"
+		}
+		return errorStringFallback(v.Elem().Interface(), active, depth+1)
+	case reflect.Slice, reflect.Array:
+		if v.Kind() == reflect.Slice {
+			visit := errorArrayVisit{v.Type(), v.Pointer(), v.Len()}
+			if active[visit] {
+				return ""
+			}
+			active[visit] = true
+			defer delete(active, visit)
+		}
+		parts := make([]string, v.Len())
+		for i := range parts {
+			element := v.Index(i).Interface()
+			if element != nil {
+				reflected := reflect.ValueOf(element)
+				switch reflected.Kind() {
+				case reflect.Map, reflect.Slice, reflect.Pointer, reflect.Interface:
+					if reflected.IsNil() {
+						continue
+					}
+				}
+				parts[i] = errorStringFallback(element, active, depth+1)
+			}
+		}
+		return strings.Join(parts, ",")
+	default:
+		return fmt.Sprint(value)
+	}
 }
