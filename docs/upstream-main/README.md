@@ -991,3 +991,5 @@ The [locked SDK reference](google-sdk-framing.md) supplies 18 wires tested in tw
 ## Vertex key classification
 
 [Twenty-one trimming/marker cases](vertex-key-markers.md), including fifteen baseline failures, now pass. The actual pinned helper confirms exact complete-placeholder matching and ECMAScript trimming; explicit placeholders mask environment keys. HTTP checks retain generic key precedence, caller inputs and alias-scoped isolation. Root normal, Google race, root vet and scoped staticcheck pass. Higher-level source credential discovery, empty-key/default ADC and token acquisition still need work.
+
+The [ADC adapter review](vertex-adc-adapter-review.md) traces locked SDK acquisition/header ordering and two typed Go credential-library candidates. Existing Authorization does not bypass SDK acquisition; all returned auth headers must be merged without overriding caller values. No dependency or adapter is selected yet. The next production-path tests need isolated files and fake token/inference endpoints; live credentials and metadata probes are excluded.
