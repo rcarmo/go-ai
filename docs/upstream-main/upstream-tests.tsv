@@ -73,7 +73,7 @@ packages/ai/test/google-raw-stop-reason.test.ts	no	pending
 packages/ai/test/google-shared-convert-tools.test.ts	yes	development-verified-acceptance-pending	inference/provider/google/google_shared_upstream_test.go; inference/provider/google/schema_const_main_test.go; inference/provider/google/strict_mode_main_test.go
 packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts	no	development-verified-acceptance-pending	inference/provider/google/message_main_test.go
 packages/ai/test/google-shared-image-tool-result-routing.test.ts	no	development-verified-acceptance-pending	inference/provider/google/message_main_test.go
-packages/ai/test/google-shared-retry.test.ts	no	pending	
+packages/ai/test/google-shared-retry.test.ts	no	development-verified-acceptance-pending	inference/provider/google/google_retry_test.go; inference/provider/google/retry_main_test.go; tests/provider_retry_http_main_test.go
 packages/ai/test/google-shared-signed-empty-blocks.test.ts	no	development-verified-acceptance-pending	inference/provider/google/message_main_test.go
 packages/ai/test/google-thinking-disable.test.ts	no	pending	
 packages/ai/test/google-thinking-level-map.test.ts	no	pending	

@@ -60,7 +60,11 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		if err != nil {
 			return nil, &ProviderRequestError{Status: 0, Headers: http.Header{}, Message: err.Error(), Cause: err}
 		}
-		if !isRetryableProviderStatus(resp.StatusCode, cfg) {
+		// Retry directives apply to failures, never an opened successful stream.
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return resp, nil
+		}
+		if !isRetryableProviderStatus(resp.StatusCode, resp.Header, cfg) {
 			return resp, nil
 		}
 		if attempt >= cfg.MaxRetries {
@@ -68,6 +72,14 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		}
 		attempt++
 		headers := resp.Header.Clone()
+		// Carry an explicitly allowed native status through the generic retry
+		// classifier without mutating the actual response headers.
+		if cfg.RetryableStatuses != nil {
+			if headers == nil {
+				headers = make(http.Header)
+			}
+			headers.Set("x-should-retry", "true")
+		}
 		resp.Body.Close()
 		if cfg.OnRetry != nil {
 			cfg.OnRetry(attempt-1, 0, resp.StatusCode)
@@ -109,7 +121,13 @@ func RetryProviderRequest[T any](ctx context.Context, request func() (T, error),
 	}
 }
 
-func isRetryableProviderStatus(code int, cfg RetryConfig) bool {
+func isRetryableProviderStatus(code int, headers http.Header, cfg RetryConfig) bool {
+	// Decide before closing the body: a server veto is a final response, not a
+	// retry error that discards its payload. Explicit native status lists remain
+	// authoritative over a server force-retry directive.
+	if headers.Get("x-should-retry") == "false" {
+		return false
+	}
 	if cfg.RetryableStatuses != nil {
 		for _, status := range cfg.RetryableStatuses {
 			if status == code {
@@ -118,7 +136,7 @@ func isRetryableProviderStatus(code int, cfg RetryConfig) bool {
 		}
 		return false
 	}
-	return code == 408 || code == 409 || code == 429 || code >= 500
+	return headers.Get("x-should-retry") == "true" || code == 408 || code == 409 || code == 429 || code >= 500
 }
 
 func isRetryableProviderRequestError(err *ProviderRequestError) bool {
