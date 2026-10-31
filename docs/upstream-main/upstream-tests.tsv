@@ -146,7 +146,7 @@ packages/ai/test/openrouter-cache-write-repro.test.ts	no	pending
 packages/ai/test/openrouter-cost.test.ts	yes	development-verified-acceptance-pending	internal/openroutercost/cost_test.go;inference/provider/openai/openrouter_cost_main_test.go
 packages/ai/test/openrouter-images.test.ts	no	pending	
 packages/ai/test/openrouter-oauth.test.ts	no	pending	
-packages/ai/test/openrouter-reasoning-options.test.ts	yes	pending	
+packages/ai/test/openrouter-reasoning-options.test.ts	yes	payload-consumption-verified-catalog-derivation-pending	tests/openrouter_reasoning_main_test.go
 packages/ai/test/openrouter-user-models.test.ts	no	pending	
 packages/ai/test/overflow.test.ts	yes	pending	
 packages/ai/test/pi-messages.test.ts	yes	pending	

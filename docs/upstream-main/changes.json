@@ -421,8 +421,11 @@
       "path": "packages/ai/catalog/reasoning.ts",
       "previousPath": "packages/ai/scripts/models-dev-reasoning-options.ts",
       "kind": "configuration-or-documentation",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "tests/openrouter_reasoning_main_test.go"
+      ],
+      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps."
     },
     {
       "change": "A",
@@ -443,8 +446,11 @@
       "path": "packages/ai/catalog/sources/openrouter.ts",
       "previousPath": "packages/ai/scripts/openrouter-catalog.ts",
       "kind": "configuration-or-documentation",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "tests/openrouter_reasoning_main_test.go"
+      ],
+      "note": " OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps."
     },
     {
       "change": "A",
@@ -742,9 +748,10 @@
         "inference/provider/openai/grammar_input.go",
         "inference/provider/openairesponses/custom_utf16_main_test.go",
         "inference/provider/openaicodex/tool_view_main_test.go",
-        "tests/thinking_budget_main_test.go"
+        "tests/thinking_budget_main_test.go",
+        "tests/openrouter_reasoning_main_test.go"
       ],
-      "note": "Billed accounting, nullish cache precedence, independent writes, clamped input, separate reasoning and derived totals development-tested. Other parser/stream/provider deltas pending. OpenAI custom input now uses a UTF-16-aware grammar stream, native partial/final ownership and JSON-safe deltas. Active call pointers prevent live builder copies during interleaving. Explicit native scalar replay extraction retains existing sanitization and function fallback. Remaining source/request/finalisation semantics require review. Empty required property names now survive OpenAI stream/closure/replay and Responses/Azure replay selection. Codex active blank variants reject preflight; definitions retain whitespace and lark precedence. Full normal/focused race/vet pass; malformed historical declaration handling, phase/finalisation and broader payload/semantic crosswalk remain open. Completions thinking-budget crosswalk now development-verified via20 public captures plus existing provider matrix. Unavailable/nonpositive template budgets omit rather than null/zero; native off/empty pointers excluded from budget emission. Alias precedence, answer-room and enabled/off template cases pass full normal/OpenAI+tests race/thirty repeated groups/vet. Broader enable/effort handling of explicit off/empty pointers and catalog/OpenRouter metadata remain owned next reviews; acceptance incomplete."
+      "note": "Billed accounting, nullish cache precedence, independent writes, clamped input, separate reasoning and derived totals development-tested. Other parser/stream/provider deltas pending. OpenAI custom input now uses a UTF-16-aware grammar stream, native partial/final ownership and JSON-safe deltas. Active call pointers prevent live builder copies during interleaving. Explicit native scalar replay extraction retains existing sanitization and function fallback. Remaining source/request/finalisation semantics require review. Empty required property names now survive OpenAI stream/closure/replay and Responses/Azure replay selection. Codex active blank variants reject preflight; definitions retain whitespace and lark precedence. Full normal/focused race/vet pass; malformed historical declaration handling, phase/finalisation and broader payload/semantic crosswalk remain open. Completions thinking-budget crosswalk now development-verified via20 public captures plus existing provider matrix. Unavailable/nonpositive template budgets omit rather than null/zero; native off/empty pointers excluded from budget emission. Alias precedence, answer-room and enabled/off template cases pass full normal/OpenAI+tests race/thirty repeated groups/vet. Broader enable/effort handling of explicit off/empty pointers and catalog/OpenRouter metadata remain owned next reviews; acceptance incomplete. OpenRouter payload/metadata consumption development-verified: optional missing metadata defaults none, mandatory explicit-null off omits; native empty/off pointers do not enable controls/budgets. 34 public captures, full normal/OpenAI+tests race/thirty reasoning+budget repeats/vet pass. Catalog raw-effort derivation and generated-model refresh/regeneration remain pending; native generator transcribes supplied maps."
     },
     {
       "change": "M",

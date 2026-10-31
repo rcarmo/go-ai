@@ -444,8 +444,9 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		req.Priority = compat.VLLMPriority
 	}
 
-	// Reasoning effort / thinking control. Mirror pi-ai's provider-specific formats.
-	reasoningRequested := opts != nil && opts.Reasoning != nil
+	// Reasoning effort / thinking control. Native empty/off pointers represent
+	// no requested effort, just like an absent source reasoning option.
+	reasoningRequested := opts != nil && opts.Reasoning != nil && *opts.Reasoning != "" && *opts.Reasoning != goai.ThinkingLevel(goai.ThinkingOff)
 	effort := ""
 	if reasoningRequested {
 		if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
@@ -502,8 +503,14 @@ func buildRequestBody(model *goai.Model, convCtx *goai.Context, opts *goai.Strea
 		case "openrouter":
 			if reasoningRequested && effort != "" {
 				req.Reasoning = map[string]interface{}{"effort": effort}
-			} else if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; ok && off != nil {
-				req.Reasoning = map[string]interface{}{"effort": *off}
+			} else if off, present := model.ThinkingLevelMap[goai.ThinkingOff]; !present || off != nil {
+				// Missing metadata permits explicit disabling; an explicit null
+				// marks mandatory reasoning and must leave the control absent.
+				value := "none"
+				if off != nil {
+					value = *off
+				}
+				req.Reasoning = map[string]interface{}{"effort": value}
 			}
 		case "ant-ling":
 			if reasoningRequested && effort != "" {
