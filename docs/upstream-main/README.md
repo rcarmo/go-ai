@@ -657,3 +657,13 @@ Both providers share component scaling and total recomputation. Responses now al
 Eighty-one live-wire cases cover three model IDs, missing/null/empty/default/unknown tiers, response overrides and both transports where supported. Each checks request passthrough/immutability, all counters and four component costs plus total against independently calculated rates. A sixteen-ULP allowance covers double rounding and four-component summation for this workload; no output-hash comparison is used. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal, tests/Responses/Codex/responsestream race, thirty repeated billing groups, vet and diff checks. No acceptance profiling ran.
 
 Next: remaining request options/sampling merge and reasoning compatibility review, followed by other provider, constrained-sampling utility, durable/codemode and full source/test/dependency work. Five earlier native/source decisions and section insertion ordering remain open. No publication or release-ref changes occurred.
+
+## Responses reasoning gates and sampling precedence
+
+Pinned ordinary and Azure Responses gate typed reasoning settings on model.reasoning. Native no longer emits them for non-reasoning models. Empty native reasoning pointers are treated as omission, including summary-only requests. Ordinary Responses keeps its Copilot omitted-off and xAI encrypted-include exceptions; those provider-name exceptions no longer leak into Azure, whose pinned builder has neither exception. Native abstract-level clamping remains unchanged.
+
+Sampling merge required no implementation change: ordinary/Azure Responses resolve model defaults, clamped thinking-level defaults and request overrides, then assign them after named request fields. New fixtures check nested and null overrides, typed temperature precedence, explicit stream/store choices and caller immutability. The pinned Codex body does not perform this sampling merge; its existing behavior remains unchanged rather than gaining an unsupported merge.
+
+One hundred forty-four API/provider/capability/off-map/option cases check reasoning and include projection; four additional merge cases check both APIs with reasoning enabled/disabled. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal, tests/Responses/Codex race, thirty repeated reasoning/sampling groups, vet and diff checks. No acceptance profiling ran.
+
+Next: remaining header/cache and structured-option presence review, then other providers/constrained-sampling utility, durable/codemode and complete source/test/dependency work. Five native/source decisions and section insertion ordering remain open. This is not release acceptance; no push, hosted dispatch, publication or release-ref change occurred.

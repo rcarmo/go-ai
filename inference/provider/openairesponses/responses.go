@@ -534,10 +534,10 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	// off mapping send effort:"none" while models with off explicitly unsupported
 	// omit reasoning entirely.
 	if model.Reasoning {
-		explicitReasoning := opts != nil && (opts.ReasoningSummary != "" || (opts.Reasoning != nil && *opts.Reasoning != goai.ThinkingLevel(goai.ThinkingOff)))
+		explicitReasoning := opts != nil && (opts.ReasoningSummary != "" || (opts.Reasoning != nil && *opts.Reasoning != "" && *opts.Reasoning != goai.ThinkingLevel(goai.ThinkingOff)))
 		if explicitReasoning {
 			effort := "medium"
-			if opts.Reasoning != nil {
+			if opts.Reasoning != nil && *opts.Reasoning != "" {
 				if mapped, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
 					effort = mapped
 				}
@@ -551,7 +551,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 			}
 			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
 			req.Include = []string{"reasoning.encrypted_content"}
-		} else if model.Provider != goai.ProviderGitHubCopilot {
+		} else if model.Api == goai.ApiAzureOpenAIResponses || model.Provider != goai.ProviderGitHubCopilot {
 			if off, ok := model.ThinkingLevelMap[goai.ThinkingOff]; !ok || off != nil {
 				effort := "none"
 				if off != nil {
@@ -560,18 +560,8 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 				req.Reasoning = &reasoningConfig{Effort: effort}
 			}
 		}
-	} else if opts != nil && opts.Reasoning != nil {
-		// Non-reasoning model but explicit reasoning requested — pass through if supported.
-		if effort, ok := goai.MapThinkingLevel(model, goai.ModelThinkingLevel(*opts.Reasoning)); ok {
-			summary := "auto"
-			if opts != nil && opts.ReasoningSummary != "" {
-				summary = opts.ReasoningSummary
-			}
-			req.Reasoning = &reasoningConfig{Effort: effort, Summary: summary}
-			req.Include = []string{"reasoning.encrypted_content"}
-		}
 	}
-	if model.Provider == goai.ProviderXAI && len(req.Include) == 0 {
+	if model.Api != goai.ApiAzureOpenAIResponses && model.Reasoning && model.Provider == goai.ProviderXAI && len(req.Include) == 0 {
 		req.Include = []string{"reasoning.encrypted_content"}
 	}
 
