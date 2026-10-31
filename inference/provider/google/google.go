@@ -154,17 +154,26 @@ func buildStreamURL(model *goai.Model, apiKey string, opts *goai.StreamOptions) 
 		if err != nil {
 			return "", err
 		}
-		if baseURL == "" {
-			baseURL = "https://{location}-aiplatform.googleapis.com"
+		baseURL = strings.TrimSpace(baseURL)
+		if baseURL != "" && !strings.Contains(baseURL, "{location}") {
+			// The pinned custom-base SDK options select COLLECTION scope,
+			// including ADC clients. Never append a second project prefix.
+			baseURL = strings.TrimRight(baseURL, "/")
+			if !vertexBaseIncludesVersion(baseURL) {
+				baseURL += "/v1"
+			}
+			return fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse", baseURL, url.PathEscape(model.ID)), nil
 		}
-		baseURL = strings.ReplaceAll(baseURL, "{location}", location)
-		trimmedBase := strings.TrimRight(baseURL, "/")
-		if strings.Contains(trimmedBase, "/v1/projects/") {
-			endpoint := fmt.Sprintf("%s/publishers/google/models/%s:streamGenerateContent?alt=sse", trimmedBase, url.PathEscape(model.ID))
-			return endpoint, nil
+		switch location {
+		case "global":
+			baseURL = "https://aiplatform.googleapis.com"
+		case "us", "eu":
+			baseURL = "https://aiplatform." + location + ".rep.googleapis.com"
+		default:
+			baseURL = "https://" + location + "-aiplatform.googleapis.com"
 		}
 		endpoint := fmt.Sprintf("%s/v1/projects/%s/locations/%s/publishers/google/models/%s:streamGenerateContent?alt=sse",
-			trimmedBase, url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
+			baseURL, url.PathEscape(project), url.PathEscape(location), url.PathEscape(model.ID))
 		return endpoint, nil
 	}
 	if baseURL == "" {

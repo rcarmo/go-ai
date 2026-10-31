@@ -982,4 +982,8 @@ The [locked SDK reference](google-sdk-framing.md) supplies 18 wires tested in tw
 
 ## Vertex real-key routing
 
-[Eleven real-key cases](vertex-api-key-resolution.md) expose the native project/location requirement and pass after selecting SDK-style Express collection URLs. Default/generated bases, custom versions and scoped key/header resolution are covered; five URL combinations were checked with the actual locked SDK methods. Root normal, Google race, root vet and scoped staticcheck pass. The nine-case upstream file stays partial: ADC token acquisition, marker fallback, ADC collection/host selection and SDK auth/endpoint composition need further work.
+[Eleven real-key cases](vertex-api-key-resolution.md) expose the native project/location requirement and pass after selecting SDK-style Express collection URLs. Default/generated bases, custom versions and scoped key/header resolution are covered; five URL combinations were checked with the actual locked SDK methods. Root normal, Google race, root vet and scoped staticcheck pass. The nine-case upstream file stays partial: ADC token acquisition, marker fallback and SDK auth/endpoint composition need further work.
+
+## Vertex ADC routing
+
+[Fourteen ADC-style URL/HTTP cases](vertex-adc-urls.md), including ten baseline failures, pass after selecting SDK global/multi-regional hosts and custom collection/version paths. Seven actual locked-SDK URL-method probes confirm the construction. Existing regional/missing-scope controls, real-key routing and explicit caller-header ownership are preserved. Root normal, Google race, root vet and scoped staticcheck pass. The synthetic HTTP control supplies its own header; ADC token acquisition is unimplemented.

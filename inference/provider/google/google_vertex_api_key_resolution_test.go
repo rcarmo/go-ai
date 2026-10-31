@@ -74,7 +74,8 @@ func TestGoogleVertexAPIKeyResolutionForwardsCustomBaseURLToADCClient(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(url, "https://proxy.example.com/v1/projects/test-project/locations/us-central1/") {
+	// Both ADC and key SDK clients select custom collection scope upstream.
+	if url != "https://proxy.example.com/v1/publishers/google/models/gemini-3-flash-preview:streamGenerateContent?alt=sse" {
 		t.Fatalf("url=%s", url)
 	}
 }

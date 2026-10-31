@@ -25,8 +25,8 @@ This file remains development-verified-partial. Real-key routing, generated base
 
 - The provider does not acquire ADC tokens itself. Marker-to-URL tests cannot establish ADC authentication, key-file handling, scopes or credential refresh.
 - Marker/environment fallback and exact marker classification need production-path tests. Generic native credential precedence and provider-scoped isolation are unchanged.
-- ADC custom collection URLs still use native project-scoped construction; the SDK's `ResourceScope.COLLECTION` suppresses that prefix. Default global/multi-regional ADC host selection also needs review.
-- Versioned ADC bases, the complete nine-case constructor/header crosswalk and live credentials need further verification.
+- The [ADC URL follow-up](vertex-adc-urls.md) aligns custom collection/version and global/multi-regional host selection in fourteen cases, including ten baseline failures. Its synthetic caller-header HTTP control does not acquire credentials.
+- The complete nine-case constructor/header crosswalk and live credentials need further verification.
 - Query-based key transport and model-name/path escaping are preserved native contracts; SDK auth-header and endpoint composition need their own review with existing isolation fences intact.
 
 ## Development checks
