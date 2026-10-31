@@ -918,6 +918,11 @@ func streamViaWebSocket(ctx context.Context, model *goai.Model, convCtx *goai.Co
 			idx := len(partial.Content) - 1
 			created = &activeItem{itemType: item.Type, contentIdx: idx}
 			responsestream.SetToolNamespace(&partial.Content[created.contentIdx], item.Namespace)
+			if item.Type == "function_call" {
+				if _, err := created.argumentStream.replace(encodedItem, &partial.Content[created.contentIdx]); err != nil {
+					return nil, err
+				}
+			}
 			if item.Type == "custom_tool_call" {
 				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {
@@ -1408,6 +1413,11 @@ func processCodexSSEWithOptions(ctx context.Context, body io.Reader, model *goai
 			partial.Content = append(partial.Content, goai.ContentBlock{Type: "toolCall", ID: fmt.Sprintf("%s|%s", item.CallID, item.ID), Name: item.Name})
 			created = &activeItem{itemType: item.Type, contentIdx: len(partial.Content) - 1}
 			responsestream.SetToolNamespace(&partial.Content[created.contentIdx], item.Namespace)
+			if item.Type == "function_call" {
+				if _, err := created.argumentStream.replace(encodedItem, &partial.Content[created.contentIdx]); err != nil {
+					return nil, err
+				}
+			}
 			if item.Type == "custom_tool_call" {
 				custom, err := responsestream.NewCustomInput(encodedItem, toolView.inputProperty(item.Name))
 				if err != nil {

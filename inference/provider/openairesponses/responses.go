@@ -1041,12 +1041,12 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 		var created *activeItem
 		created = nil
 		var item struct {
-			Type      string  `json:"type"`
-			ID        string  `json:"id"`
-			CallID    string  `json:"call_id"`
-			Name      string  `json:"name"`
-			Args      string  `json:"arguments"`
-			Namespace *string `json:"namespace"`
+			Type      string                 `json:"type"`
+			ID        string                 `json:"id"`
+			CallID    string                 `json:"call_id"`
+			Name      string                 `json:"name"`
+			Args      jsonparse.ArgumentText `json:"arguments"`
+			Namespace *string                `json:"namespace"`
 		}
 		if err := json.Unmarshal(encodedItem, &item); err != nil {
 			item.Namespace = nil
@@ -1084,6 +1084,11 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 				property = "input"
 			}
 			created = &activeItem{itemType: item.Type, contentIdx: idx}
+			if item.Type == "function_call" {
+				// Initial arguments are part of the same stream as later deltas.
+				// Install the parsed preview before publishing toolcall_start.
+				partial.Content[idx].SetStreamingArguments(created.argumentStream.Append(string(item.Args)), "")
+			}
 			if item.Type == "custom_tool_call" {
 				custom, err := responsestream.NewCustomInput(encodedItem, property)
 				if err != nil {
