@@ -667,3 +667,13 @@ Sampling merge required no implementation change: ordinary/Azure Responses resol
 One hundred forty-four API/provider/capability/off-map/option cases check reasoning and include projection; four additional merge cases check both APIs with reasoning enabled/disabled. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal, tests/Responses/Codex race, thirty repeated reasoning/sampling groups, vet and diff checks. No acceptance profiling ran.
 
 Next: remaining header/cache and structured-option presence review, then other providers/constrained-sampling utility, durable/codemode and complete source/test/dependency work. Five native/source decisions and section insertion ordering remain open. This is not release acceptance; no push, hosted dispatch, publication or release-ref change occurred.
+
+## Responses affinity and caller header precedence
+
+Pinned ordinary Responses emits session-affinity headers when sessionId is supplied, independently of prompt-cache retention. Native now keeps that affinity with CacheRetentionNone while still omitting prompt_cache_key and leaving store false. The old affinity-suppression fixture was updated to the pinned distinction between routing identity and cache retention; the no-cache body assertion remains. No cache key was re-enabled.
+
+Copilot dynamic headers now precede caller headers and final suppression, so explicit empty overrides and null-equivalent suppression remain authoritative. Model headers remain defaults; API-specific Copilot dynamic generation is not applied to Azure. Structured Responses tool choice is already representable through the existing last-writer SamplingParams tool_choice object, without a new public type. Pinned Codex exposes only string tool-choice options.
+
+Twenty-seven ordinary Responses wire cases cover OpenAI/OpenRouter/Copilot, none/short/long retention, default/override/suppression, declared structured function choice, body-cache separation and caller immutability. Go 1.27.3/GOMAXPROCS=4 development checks pass: full normal, tests/Responses/Codex race, thirty repeated header/cache/affinity groups, vet and diff checks. No acceptance profiling ran.
+
+Next: finish SDK-dependent authentication/header defaults and Azure cache/session API-adaptation review before declaring the header/cache paths disposed. Broader provider/constrained-sampling utility, durable/codemode and full source/test/dependency work remain open, as do five earlier decisions and section insertion ordering. Endpoint isolation and other pending fences were not changed. No publication or release-ref changes occurred.

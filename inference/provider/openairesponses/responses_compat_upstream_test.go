@@ -18,7 +18,7 @@ type capturedResponsesRequest struct {
 	Path   string
 }
 
-func captureResponsesRequest(t *testing.T, model *goai.Model, opts *goai.StreamOptions) capturedResponsesRequest {
+func captureResponsesRequest(t *testing.T, model *goai.Model, opts *goai.StreamOptions, contexts ...*goai.Context) capturedResponsesRequest {
 	t.Helper()
 	var captured capturedResponsesRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +49,11 @@ func captureResponsesRequest(t *testing.T, model *goai.Model, opts *goai.StreamO
 	if opts.APIKey == "" {
 		opts.APIKey = "test-key"
 	}
-	for range streamResponses(context.Background(), &requestModel, &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}, opts) {
+	conv := &goai.Context{Messages: []goai.Message{goai.UserMessage("hi")}}
+	if len(contexts) > 0 {
+		conv = contexts[0]
+	}
+	for range streamResponses(context.Background(), &requestModel, conv, opts) {
 	}
 	return captured
 }
@@ -112,11 +116,11 @@ func TestOpenAIResponsesCompatSessionAffinityFormats(t *testing.T) {
 	}
 }
 
-func TestOpenAIResponsesCacheRetentionNoneSuppressesGeneratedAffinityHeaders(t *testing.T) {
+func TestOpenAIResponsesCacheRetentionNonePreservesGeneratedAffinityHeaders(t *testing.T) {
 	model := &goai.Model{ID: "gpt-test", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAIResponses}
 	captured := captureResponsesRequest(t, model, &goai.StreamOptions{SessionID: "session-123", CacheRetention: goai.CacheRetentionNone})
-	if captured.Header.Get("session_id") != "" || captured.Header.Get("x-client-request-id") != "" || captured.Header.Get("x-session-id") != "" {
-		t.Fatalf("generated affinity headers should be omitted when cacheRetention none: %#v", captured.Header)
+	if captured.Header.Get("session_id") != "session-123" || captured.Header.Get("x-client-request-id") != "session-123" || captured.Header.Get("x-session-id") != "" {
+		t.Fatalf("affinity must not depend on prompt-cache retention: %#v", captured.Header)
 	}
 	if _, ok := captured.Body["prompt_cache_key"]; ok {
 		t.Fatalf("prompt_cache_key should be omitted when cacheRetention none: %#v", captured.Body)

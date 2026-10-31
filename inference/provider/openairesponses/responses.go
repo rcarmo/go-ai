@@ -130,15 +130,11 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			}
 		}
 		req.Header.Set("Accept", "text/event-stream")
-		cacheRetention := goai.CacheRetentionShort
-		if opts != nil {
-			cacheRetention = goai.ResolveCacheRetention(opts.CacheRetention, opts.Env)
-		}
 		if model.Api == goai.ApiAzureOpenAIResponses && opts != nil && opts.SessionID != "" {
 			for k, v := range goai.AzureSessionHeaders(opts.SessionID) {
 				req.Header.Set(k, v)
 			}
-		} else if opts != nil && opts.SessionID != "" && cacheRetention != goai.CacheRetentionNone {
+		} else if opts != nil && opts.SessionID != "" {
 			compat := getResponsesCompat(model)
 			switch compat.sessionAffinityFormat {
 			case "openrouter":
@@ -151,6 +147,13 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 			}
 		}
 
+		// Dynamic Copilot headers
+		if model.Api != goai.ApiAzureOpenAIResponses && model.Provider == goai.ProviderGitHubCopilot {
+			for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
+				req.Header.Set(k, v)
+			}
+		}
+
 		if opts != nil {
 			goai.ApplyHeaders(req.Header, goai.WithOpenCodeSessionHeader(model.Provider, opts.SessionID, opts.Headers))
 		}
@@ -158,12 +161,6 @@ func streamResponses(ctx context.Context, model *goai.Model, convCtx *goai.Conte
 		goai.ApplyDefaultHeaders(req.Header, goai.RequestIdentityHeaders(model, opts))
 		if opts != nil {
 			goai.SuppressHeaders(req.Header, opts.SuppressHeaders)
-		}
-		// Dynamic Copilot headers
-		if model.Provider == goai.ProviderGitHubCopilot {
-			for k, v := range goai.BuildCopilotDynamicHeaders(convCtx.Messages) {
-				req.Header.Set(k, v)
-			}
 		}
 
 		retryCfg := goai.RetryConfigFromOptions(opts)
