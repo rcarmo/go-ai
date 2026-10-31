@@ -51,7 +51,7 @@ packages/ai/test/cloudflare-workers-ai-system-one.test.ts	no	pending
 packages/ai/test/codex-websocket-cached-probe.ts	no	pending	
 packages/ai/test/compat-env.test.ts	no	pending	
 packages/ai/test/compat-schema.test.ts	no	pending	
-packages/ai/test/constrained-sampling.test.ts	yes	partial	internal/stricttools/limits_test.go; inference/provider/bedrock/strict_tools_main_test.go; tests/schema_strict_main_test.go
+packages/ai/test/constrained-sampling.test.ts	yes	development-verified-acceptance-pending	docs/upstream-main/constrained-sampling-crosswalk.tsv; inference/provider/openairesponses/grammar_convergence_main_test.go; tests/schema_strict_main_test.go
 packages/ai/test/context-estimate.test.ts	no	pending	
 packages/ai/test/context-overflow.test.ts	no	pending	
 packages/ai/test/cross-provider-handoff.test.ts	no	pending	
