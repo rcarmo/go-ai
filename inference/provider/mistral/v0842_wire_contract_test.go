@@ -217,7 +217,7 @@ func TestV0842MistralBounded403JSONBodyAndReplayableRetry(t *testing.T) {
 	if attempts.Load() != 2 {
 		t.Fatalf("expected replayable retry attempts=2, got %d", attempts.Load())
 	}
-	if gotErr == nil || !strings.Contains(gotErr.Error(), "HTTP 403") {
+	if gotErr == nil || !strings.Contains(gotErr.Error(), "Mistral API error (403)") {
 		t.Fatalf("expected bounded 403 error, got %v", gotErr)
 	}
 	if len(gotErr.Error()) > 4200 {

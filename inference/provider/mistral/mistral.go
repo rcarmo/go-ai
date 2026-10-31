@@ -145,10 +145,14 @@ func streamMistral(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		if resp.StatusCode != 200 {
 			goai.GetLogger().Warn("HTTP error response", "status", resp.StatusCode, "provider", model.Provider, "model", model.ID)
-			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			failure := readMistralHTTPError(resp)
+			reason := goai.StopReasonError
+			if ctx.Err() != nil {
+				reason = goai.StopReasonAborted
+			}
 			send(&goai.ErrorEvent{
-				Reason: goai.StopReasonError,
-				Err:    fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)),
+				Reason: reason,
+				Err:    failure,
 			})
 			return
 		}
