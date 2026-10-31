@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -243,6 +242,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 	// Messages
 	transformed := goai.TransformMessages(convCtx.Messages, model)
 	toolCallIDMap := make(map[string]string)
+	normalizeID := newMistralToolCallIDNormalizer()
 	for _, msg := range transformed {
 		switch msg.Role {
 		case goai.RoleUser:
@@ -265,7 +265,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 					texts = append(texts, b.Thinking)
 				case "toolCall":
 					argsJSON, _ := json.Marshal(b.Arguments)
-					normID := normalizeMistralToolCallID(b.ID)
+					normID := normalizeID(b.ID)
 					if normID != b.ID {
 						toolCallIDMap[b.ID] = normID
 					}
@@ -335,6 +335,7 @@ func buildRequest(model *goai.Model, convCtx *goai.Context, opts *goai.StreamOpt
 // Mistral uses the same SSE format as OpenAI Chat Completions
 
 type sseChunk struct {
+	ID      string      `json:"id,omitempty"`
 	Choices []sseChoice `json:"choices"`
 	Usage   *sseUsage   `json:"usage,omitempty"`
 }
@@ -441,6 +442,9 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 			continue
 		}
 
+		if partial.ResponseID == "" && chunk.ID != "" {
+			partial.ResponseID = chunk.ID
+		}
 		if chunk.Usage != nil {
 			cached := getMistralCachedPromptTokens(chunk.Usage)
 			if cached > chunk.Usage.PromptTokens {
@@ -596,21 +600,3 @@ func usesReasoningEffort(model *goai.Model) bool {
 }
 
 const mistralToolCallIDLength = 9
-
-var mistralNonAlphanumRe = regexp.MustCompile(`[^a-zA-Z0-9]`)
-
-// normalizeMistralToolCallID normalizes tool call IDs to 9-char alphanumeric
-// strings as required by Mistral's API.
-func normalizeMistralToolCallID(id string) string {
-	normalized := mistralNonAlphanumRe.ReplaceAllString(id, "")
-	if len(normalized) == mistralToolCallIDLength {
-		return normalized
-	}
-	// Hash to produce a stable 9-char alphanumeric ID
-	h := goai.ShortHash(id)
-	result := mistralNonAlphanumRe.ReplaceAllString(h, "")
-	if len(result) > mistralToolCallIDLength {
-		return result[:mistralToolCallIDLength]
-	}
-	return result
-}
