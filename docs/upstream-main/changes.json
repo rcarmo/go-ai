@@ -494,9 +494,12 @@
       "native": [
         "inference/provider/anthropic/anthropic.go",
         "inference/provider/anthropic/usage_main.go",
-        "inference/provider/anthropic/usage_main_test.go"
+        "inference/provider/anthropic/usage_main_test.go",
+        "inference/provider/anthropic/strict_fallback_120.go",
+        "internal/stricttools/limits.go",
+        "internal/stricttools/limits_test.go"
       ],
-      "note": "Initial/delta accounting, billed cost and optional counter presence development-tested. Other streaming/fallback/API deltas pending."
+      "note": "Initial/delta accounting, billed cost and optional counter presence development-tested. Other streaming/fallback/API deltas pending. Strict-limit message matching extracted unchanged for shared Bedrock use; Anthropic normal/race regressions pass. Other fallback/API/streaming review remains pending."
     },
     {
       "change": "M",
@@ -520,8 +523,16 @@
       "change": "M",
       "path": "packages/ai/src/api/bedrock-converse-stream.ts",
       "kind": "source",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "inference/provider/bedrock/bedrock.go",
+        "inference/provider/bedrock/strict_tools_main.go",
+        "inference/provider/bedrock/strict_tools_main_test.go",
+        "inference/provider/bedrock/v0842_sanitization_test.go",
+        "internal/stricttools/limits.go",
+        "internal/stricttools/limits_test.go"
+      ],
+      "note": "Strict tool specifications/schema preflight, auto/required(any)/none choice and bounded preferred-strict fallback implemented. Typed ValidationException plus pinned message match only, no retry after stream creation; required strict preserved, callbacks/non-tool modifications/cancellation/diagnostics covered. Twelve wire scenarios including real AWS event-stream success, three choices, streamed diagnostics and eight matcher cases; full normal/focused race/thirty repeats/vet pass. Remaining Bedrock options/streaming/hooks/dependencies and acceptance pending."
     },
     {
       "change": "M",
@@ -545,9 +556,15 @@
         "inference/provider/openairesponses/responses_grammar_replay_v100_test.go",
         "schema_strict.go",
         "tests/schema_strict_main_test.go",
-        "testdata/strict_schema_main.json"
+        "testdata/strict_schema_main.json",
+        "inference/provider/bedrock/bedrock.go",
+        "inference/provider/bedrock/strict_tools_main.go",
+        "inference/provider/bedrock/strict_tools_main_test.go",
+        "inference/provider/bedrock/v0842_sanitization_test.go",
+        "internal/stricttools/limits.go",
+        "internal/stricttools/limits_test.go"
       ],
-      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open. Strict-transform subset reviewed via 33 direct pinned TypeScript vectors/132 sampling outcomes. Fixed root unsupported/fallback classification, non-object items rejection and malformed anyOf member classification; native required-order determinism preserved with set comparison. Full normal/six-package race/thirty strict repeats/vet pass; extracted source disposed. Remaining utility/provider helpers and broader acceptance are still open."
+      "note": "Partial: native function/custom streams, initial buffering, slot reconciliation/guards, schema-aware empty property/replay/cache mapping and lossless fallback are implemented. Responses/Codex latest historical grammar definitions now validate preflight; Responses rejects missing/null/non-string custom input with scoped owned UTF-16 support. Later declarations replace invalid earlier definitions and unsupported models retain fallback. Full normal/focused race/vet pass. Phase/finalisation, broader provider/request/replay/observer fidelity, durable progress and complete source/test/dependency crosswalk/acceptance remain open. Strict-transform subset reviewed via 33 direct pinned TypeScript vectors/132 sampling outcomes. Fixed root unsupported/fallback classification, non-object items rejection and malformed anyOf member classification; native required-order determinism preserved with set comparison. Full normal/six-package race/thirty strict repeats/vet pass; extracted source disposed. Remaining utility/provider helpers and broader acceptance are still open. Shared strict-limit matcher and Bedrock preference/strict flags/fallback now covered, including original schema restoration and no downgrade of required tools. Other grammar/utility/provider paths remain partial."
     },
     {
       "change": "M",
@@ -1406,8 +1423,16 @@
       "change": "A",
       "path": "packages/ai/test/bedrock-strict-tool-fallback.test.ts",
       "kind": "test-or-fixture",
-      "status": "pending",
-      "native": []
+      "status": "development-verified-acceptance-pending",
+      "native": [
+        "inference/provider/bedrock/bedrock.go",
+        "inference/provider/bedrock/strict_tools_main.go",
+        "inference/provider/bedrock/strict_tools_main_test.go",
+        "inference/provider/bedrock/v0842_sanitization_test.go",
+        "internal/stricttools/limits.go",
+        "internal/stricttools/limits_test.go"
+      ],
+      "note": "All four pinned cases translated: preferred downgrade/required and ordinary preservation, no preferred tools, unrelated validation and one retry cap. Native extras cover wire flags/schema, real event-stream completion, hook/cancellation/metadata/diagnostic isolation. Full normal/focused race/thirty repeats/vet pass; acceptance pending."
     },
     {
       "change": "M",
@@ -1434,8 +1459,13 @@
       "change": "M",
       "path": "packages/ai/test/constrained-sampling.test.ts",
       "kind": "test-or-fixture",
-      "status": "pending",
-      "native": []
+      "status": "partial",
+      "native": [
+        "internal/stricttools/limits_test.go",
+        "inference/provider/bedrock/strict_tools_main_test.go",
+        "tests/schema_strict_main_test.go"
+      ],
+      "note": "Strict-limit classification, Bedrock preference/strict projection and earlier strict-schema reference subset covered. Complete grammar/utility corpus review and acceptance pending."
     },
     {
       "change": "A",

@@ -3,7 +3,7 @@ package anthropic
 import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
-	"strings"
+	"github.com/rcarmo/go-ai/internal/stricttools"
 )
 
 func preferredStrictTool(tool goai.Tool, supported bool) bool {
@@ -44,10 +44,5 @@ func strictLimitError(body []byte) bool {
 	if json.Unmarshal(body, &envelope) != nil || envelope.Error.Type != "invalid_request_error" {
 		return false
 	}
-	for _, phrase := range []string{"The compiled grammar is too large", "Too many strict tools (", "Schemas contains too many parameters with union types ("} {
-		if strings.Contains(envelope.Error.Message, phrase) {
-			return true
-		}
-	}
-	return false
+	return stricttools.LimitMessage(envelope.Error.Message)
 }

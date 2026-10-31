@@ -55,6 +55,16 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 
 		goai.GetLogger().Debug("stream start", "api", "bedrock-converse-stream", "provider", model.Provider, "model", model.ID)
 
+		tools := convCtx.Tools
+		if opts != nil && opts.ToolChoice == goai.ToolChoiceNone {
+			tools = nil
+		}
+		hasPreferredStrict, err := validateBedrockStrictTools(model, tools)
+		if err != nil {
+			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Err: err})
+			return
+		}
+
 		// Resolve region/config, matching upstream's precedence: ARN-embedded >
 		// scoped/process env > explicit endpoint region when pinned > us-east-1.
 		env := goai.ProviderEnvFromOptions(opts)
@@ -157,14 +167,37 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 			input = replaced
 		}
 
-		// Send
+		// Only pre-stream validation failures may downgrade preferred schemas.
+		var fallbackDiagnostics []goai.AssistantMessageDiagnostic
 		resp, err := client.ConverseStream(ctx, input)
+		if err != nil && ctx.Err() == nil && hasPreferredStrict && bedrockStrictLimit(err) {
+			fallbackDiagnostics = append(fallbackDiagnostics, goai.AssistantMessageDiagnostic{Type: "bedrock_strict_tools_fallback", Timestamp: time.Now().UnixMilli(), Error: goai.DiagnosticError{Message: err.Error()}, Details: map[string]any{"reason": "strict_tool_limits_exceeded"}})
+			retryInput := *input
+			retryInput.ToolConfig = buildBedrockToolConfig(model, convCtx.Tools, true, opts)
+			payload, hookErr := goai.InvokeOnPayload(opts, &retryInput, model)
+			if hookErr != nil {
+				msg := bedrockErrorMessage(model, hookErr)
+				msg.Diagnostics = append(msg.Diagnostics, fallbackDiagnostics...)
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: hookErr})
+				return
+			}
+			if replaced, ok := payload.(*bedrockruntime.ConverseStreamInput); ok && replaced != nil {
+				input = replaced
+			} else {
+				input = &retryInput
+			}
+			resp, err = client.ConverseStream(ctx, input)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
-				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Err: ctx.Err()})
+				msg := bedrockErrorMessage(model, ctx.Err())
+				msg.StopReason = goai.StopReasonAborted
+				msg.Diagnostics = append(msg.Diagnostics, fallbackDiagnostics...)
+				send(&goai.ErrorEvent{Reason: goai.StopReasonAborted, Error: msg, Err: ctx.Err()})
 			} else {
 				goai.GetLogger().Warn("Bedrock API error", "provider", model.Provider, "model", model.ID, "error", err)
 				msg := bedrockErrorMessage(model, err)
+				msg.Diagnostics = append(msg.Diagnostics, fallbackDiagnostics...)
 				appendBedrockFailureDiagnostic(msg, err, "")
 				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: msg, Err: fmt.Errorf("bedrock: %w", err)})
 			}
@@ -172,7 +205,7 @@ func streamBedrock(ctx context.Context, model *goai.Model, convCtx *goai.Context
 		}
 
 		invokeBedrockResponseHook(opts, resp, model)
-		processConverseStream(resp, model, send)
+		processConverseStream(resp, model, send, fallbackDiagnostics...)
 	}()
 
 	return ch
@@ -365,28 +398,8 @@ func buildConverseInput(model *goai.Model, convCtx *goai.Context, opts *goai.Str
 		input.RequestMetadata = opts.RequestMetadata
 	}
 
-	// Tools
-	if len(convCtx.Tools) > 0 {
-		toolConfig := &types.ToolConfiguration{}
-		supportsStrictMode := model != nil && model.BedrockCompat != nil && model.BedrockCompat.SupportsStrictMode != nil && *model.BedrockCompat.SupportsStrictMode
-		for _, t := range convCtx.Tools {
-			parameters := t.Parameters
-			if strict, err := goai.ResolveJSONSchemaStrictSampling(t, supportsStrictMode); err == nil && strict != nil && *strict {
-				if strictParameters, err := goai.JSONSchemaToolParameters(t, true); err == nil {
-					parameters = strictParameters
-				}
-			}
-			toolConfig.Tools = append(toolConfig.Tools, &types.ToolMemberToolSpec{
-				Value: types.ToolSpecification{
-					Name:        aws.String(t.Name),
-					Description: aws.String(t.Description),
-					InputSchema: &types.ToolInputSchemaMemberJson{
-						Value: mustDocument(parameters),
-					},
-				},
-			})
-		}
-		input.ToolConfig = toolConfig
+	if opts == nil || opts.ToolChoice != goai.ToolChoiceNone {
+		input.ToolConfig = buildBedrockToolConfig(model, convCtx.Tools, false, opts)
 	}
 
 	// Thinking config for Claude models. Newer Claude models on Bedrock support
@@ -810,15 +823,16 @@ func finalizeBedrockThinkingBlock(block *goai.ContentBlock, redacted []byte) {
 
 // --- Stream processing ---
 
-func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, send func(goai.Event)) {
+func processConverseStream(resp *bedrockruntime.ConverseStreamOutput, model *goai.Model, send func(goai.Event), diagnostics ...goai.AssistantMessageDiagnostic) {
 	responseRequestID, _ := awsmiddleware.GetRequestIDMetadata(resp.ResultMetadata)
 	partial := &goai.Message{
-		Role:       goai.RoleAssistant,
-		Api:        model.Api,
-		Provider:   model.Provider,
-		Model:      model.ID,
-		Usage:      &goai.Usage{},
-		StopReason: goai.StopReasonPending,
+		Role:        goai.RoleAssistant,
+		Api:         model.Api,
+		Provider:    model.Provider,
+		Model:       model.ID,
+		Usage:       &goai.Usage{},
+		StopReason:  goai.StopReasonPending,
+		Diagnostics: diagnostics,
 	}
 
 	// Track content blocks by their Bedrock index

@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"encoding/json"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -26,7 +27,7 @@ func TestV0842SanitizeBedrockDocumentOmitsEmptyObjectKeys(t *testing.T) {
 
 func TestV0842BedrockStrictToolSchemaConversion(t *testing.T) {
 	yes := true
-	model := &goai.Model{ID: "anthropic.claude-sonnet-4-5", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream, ResponsesCompat: &goai.OpenAIResponsesCompat{SupportsStrictMode: &yes}}
+	model := &goai.Model{ID: "anthropic.claude-sonnet-4-5", Provider: goai.ProviderAmazonBedrock, Api: goai.ApiBedrockConverseStream, BedrockCompat: &goai.BedrockCompat{SupportsStrictMode: &yes}}
 	ctx := &goai.Context{Tools: []goai.Tool{{
 		Name:                "lookup",
 		Description:         "Lookup",
@@ -37,11 +38,19 @@ func TestV0842BedrockStrictToolSchemaConversion(t *testing.T) {
 	if input.ToolConfig == nil || len(input.ToolConfig.Tools) != 1 {
 		t.Fatalf("missing tool config: %#v", input.ToolConfig)
 	}
-	strict, err := goai.MakeStrictJSONSchema(ctx.Tools[0].Parameters)
+	spec := input.ToolConfig.Tools[0].(*types.ToolMemberToolSpec).Value
+	if spec.Strict == nil || !*spec.Strict {
+		t.Fatal("emitted strict flag missing")
+	}
+	raw, err := spec.InputSchema.(*types.ToolInputSchemaMemberJson).Value.MarshalSmithyDocument()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(strict) == 0 {
-		t.Fatal("strict schema should be non-empty")
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if schema["additionalProperties"] != false || len(schema["required"].([]any)) != 2 {
+		t.Fatal("emitted schema not strict", schema)
 	}
 }
