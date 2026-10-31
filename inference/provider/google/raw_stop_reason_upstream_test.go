@@ -13,14 +13,17 @@ func TestGoogleRawStopReason(t *testing.T) {
 	processStream(body, &goai.Model{ID: "gemini-test", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
-		if done, ok := ev.(*goai.DoneEvent); ok {
-			if done.Message.RawStopReason != "MALFORMED_FUNCTION_CALL" || done.Message.StopReason != goai.StopReasonError || done.Message.ErrorMessage != "Provider stopped with: MALFORMED_FUNCTION_CALL" {
-				t.Fatalf("message=%#v", done.Message)
+		if failure, ok := ev.(*goai.ErrorEvent); ok {
+			if failure.Error == nil || failure.Err == nil {
+				t.Fatal("missing error message or diagnostic")
+			}
+			if failure.Error.RawStopReason != "MALFORMED_FUNCTION_CALL" || failure.Error.StopReason != goai.StopReasonError || failure.Error.ErrorMessage != "Provider stopped with: MALFORMED_FUNCTION_CALL" {
+				t.Fatalf("message=%#v", failure.Error)
 			}
 			return
 		}
 	}
-	t.Fatal("missing done")
+	t.Fatal("missing error event")
 }
 
 func TestGoogleRawStopReasonWithToolCallDoesNotMaskErrorFinishReason(t *testing.T) {
@@ -29,12 +32,15 @@ func TestGoogleRawStopReasonWithToolCallDoesNotMaskErrorFinishReason(t *testing.
 	processStream(body, &goai.Model{ID: "gemini-test", Provider: goai.ProviderGoogle, Api: goai.ApiGoogleGenerativeAI}, goai.NewAssistantEventSender(ch))
 	close(ch)
 	for ev := range ch {
-		if done, ok := ev.(*goai.DoneEvent); ok {
-			if done.Message.RawStopReason != "MALFORMED_FUNCTION_CALL" || done.Message.StopReason != goai.StopReasonError {
-				t.Fatalf("message=%#v", done.Message)
+		if failure, ok := ev.(*goai.ErrorEvent); ok {
+			if failure.Error == nil || failure.Err == nil {
+				t.Fatal("missing error message or diagnostic")
+			}
+			if failure.Error.RawStopReason != "MALFORMED_FUNCTION_CALL" || failure.Error.StopReason != goai.StopReasonError {
+				t.Fatalf("message=%#v", failure.Error)
 			}
 			return
 		}
 	}
-	t.Fatal("missing done")
+	t.Fatal("missing error event")
 }

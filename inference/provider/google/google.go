@@ -125,7 +125,7 @@ func streamGoogle(ctx context.Context, model *goai.Model, convCtx *goai.Context,
 			return
 		}
 
-		processStream(resp.Body, model, send)
+		processStream(resp.Body, model, send, opts)
 	}()
 
 	return ch
@@ -670,7 +670,15 @@ type geminiUsage struct {
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 
-func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
+func processStream(body io.Reader, model *goai.Model, send func(goai.Event), options ...*goai.StreamOptions) {
+	var opts *goai.StreamOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	// Early hook rejection must also stop a parser blocked on its event channel.
+	// The transport still owns/closes the response body; caller reads are untouched.
+	parseCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	partial := &goai.Message{
 		Role:       goai.RoleAssistant,
 		Api:        model.Api,
@@ -688,7 +696,7 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 	// Gemini REST streaming with alt=sse returns Server-Sent Events. Use the
 	// shared parser so multi-line events and long chunks are handled correctly
 	// and incrementally instead of buffering the full response body.
-	for evt := range sse.Parse(body) {
+	for evt := range sse.ParseContext(parseCtx, body) {
 		if evt.Event == sse.EventError {
 			send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("SSE stream error: %s", evt.Data)})
 			return
@@ -700,6 +708,21 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 		var chunk geminiStreamChunk
 		if json.Unmarshal([]byte(evt.Data), &chunk) != nil {
 			continue
+		}
+		if opts != nil && opts.OnProviderStreamEvent != nil {
+			// Retain typed/lossless stream authority. The callback sees every
+			// decoded field, but mutations cannot rewrite the typed chunk.
+			var wire map[string]interface{}
+			err := json.Unmarshal([]byte(evt.Data), &wire)
+			if err == nil {
+				err = opts.OnProviderStreamEvent(wire, model)
+			}
+			if err != nil {
+				partial.StopReason = goai.StopReasonError
+				partial.ErrorMessage = err.Error()
+				send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: err})
+				return
+			}
 		}
 
 		// Update response ID
@@ -836,6 +859,10 @@ func processStream(body io.Reader, model *goai.Model, send func(goai.Event)) {
 		partial.StopReason = goai.StopReasonStop
 	}
 
+	if partial.StopReason == goai.StopReasonError || partial.StopReason == goai.StopReasonAborted {
+		send(&goai.ErrorEvent{Reason: partial.StopReason, Error: partial, Err: fmt.Errorf("%s", partial.ErrorMessage)})
+		return
+	}
 	send(&goai.DoneEvent{Reason: partial.StopReason, Message: partial})
 }
 
@@ -967,7 +994,7 @@ func getGoogleBudget(model *goai.Model, effort string, custom ...*goai.ThinkingB
 			return *budget
 		}
 	}
-	id := strings.ToLower(model.ID)
+	id := model.ID
 	if strings.Contains(id, "2.5-pro") {
 		switch effort {
 		case "minimal":

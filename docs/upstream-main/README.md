@@ -959,3 +959,9 @@ Three source-derived cases fail before implementation changes: partial events ke
 Google and Vertex now select disabled defaults from model capabilities, preserve native medium effort and honour mapped custom budgets. All 15 expanded cases from the pinned thinking-map suite pass, together with 14 separately labelled source-derived control-flow probes. The [Google thinking crosswalk](google-thinking-tests.md) records the failing baselines, fixture corrections, SDK/REST adaptation and validation commands.
 
 Full root normal tests, Google race tests, root vet and scoped staticcheck pass on Go 1.27.3. Root staticcheck reports 23 findings in unchanged files outside Google; that gate needs review. Live disable/signature tests, other Google source/test rows, broader convergence and acceptance profiling are unfinished.
+
+## Google raw stops and observers at the updated pin
+
+Google/Vertex observers now run before chunk normalisation and can terminate the stream without losing accumulated output. Provider failures emit error instead of done, and token-budget family matching preserves the source's case sensitivity. The [current-pin Google crosswalk](google-raw-stop-tests.md) records ten translated raw-stop/header/observer cases, 34 separate source-derived cases and two native ownership cases, including their failing baselines.
+
+Eight upstream cases are complete; the two observer cases retain an explicit SDK identity/mutation gap because native callbacks receive detached projections. Root normal tests, Google race, root vet and scoped staticcheck pass. Remaining response-ID/diagnostic state, cancellation, admission, credentials and provider-only API work are listed in the crosswalk; full convergence and acceptance are open.
