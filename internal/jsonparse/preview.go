@@ -151,6 +151,13 @@ func (p *StreamingJSONParser) SnapshotJSON() ([]byte, bool, error) {
 	data, err := marshalPreview(value)
 	return data, true, err
 }
+
+// MarshalParsedJSONValue encodes parser-owned values with JS number and UTF-16
+// semantics. Unsupported Go values fail without invoking caller marshal hooks.
+func MarshalParsedJSONValue(value any) ([]byte, error) {
+	return marshalPreview(value)
+}
+
 func marshalPreview(value any) ([]byte, error) {
 	var out bytes.Buffer
 	err := writePreview(&out, value, 0, map[previewVisit]bool{})

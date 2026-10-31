@@ -353,8 +353,8 @@ type sseToolCall struct {
 }
 
 type sseToolCallFunc struct {
-	Name      string                 `json:"name,omitempty"`
-	Arguments jsonparse.ArgumentText `json:"arguments,omitempty"`
+	Name      string              `json:"name,omitempty"`
+	Arguments mistralArgumentText `json:"arguments,omitempty"`
 }
 
 type sseUsage struct {
@@ -510,8 +510,8 @@ func processSSEStream(body io.Reader, model *goai.Model, send func(goai.Event)) 
 				partial.Content[contentIdx].SetStreamingArguments(at.arguments.Append(""), "")
 				send(&goai.ToolCallStartEvent{ContentIndex: contentIdx, Partial: partial})
 			}
-			if tc.Function.Arguments != "" {
-				delta := string(tc.Function.Arguments)
+			if tc.Function.Arguments.present {
+				delta := tc.Function.Arguments.text
 				partial.Content[at.contentIdx].SetStreamingArguments(at.arguments.Append(delta), "")
 				send(&goai.ToolCallDeltaEvent{ContentIndex: at.contentIdx, Delta: delta, Partial: partial})
 			}

@@ -159,15 +159,15 @@ func TestStreamingMainPreviewWireSafety(t *testing.T) {
 	if !strings.Contains(string(wire), `"\ud800":"\udfff"`) {
 		t.Fatalf("surrogate units lost on wire: %s", wire)
 	}
-	if _, err = marshalPreview(map[string]any{"x": previewCaller{}}); err == nil {
+	if _, err = MarshalParsedJSONValue(map[string]any{"x": previewCaller{}}); err == nil {
 		t.Fatal("caller authority accepted")
 	}
-	if _, err = marshalPreview(map[string]any{string([]byte{0xff}): true}); err == nil {
+	if _, err = MarshalParsedJSONValue(map[string]any{string([]byte{0xff}): true}); err == nil {
 		t.Fatal("invalid non-WTF-8 key accepted")
 	}
 	cycle := map[string]any{}
 	cycle["self"] = cycle
-	if _, err = marshalPreview(cycle); err == nil {
+	if _, err = MarshalParsedJSONValue(cycle); err == nil {
 		t.Fatal("cycle accepted")
 	}
 	// Ordinary Go JSON still rejects nonfinite values: preview serialisation is

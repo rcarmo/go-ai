@@ -639,9 +639,12 @@
       "kind": "source",
       "status": "partial",
       "native": [
-        "inference/provider/mistral/argument_stream_main_test.go"
+        "inference/provider/mistral/argument_stream_main_test.go",
+        "inference/provider/mistral/argument_text.go",
+        "inference/provider/mistral/argument_shapes_main_test.go",
+        "internal/jsonparse/preview.go"
       ],
-      "note": " Incremental private per-tool parser now exposes previews, preserves UTF16 and final diagnostics; stable pointer records prevent copying live builders during interleaving. Four new cases +existing indexed fragments pass full normal/Mistral+Google+tests race/30 argument repeats/5 shuffled provider repeats/vet. Shared truncation helper move has no upstream behaviour change; native non-string argument chunks and HTTP formatting/truncation still need review (common Go truncation is bytes versus JS UTF16 units). Existing HTTP read caps retained."
+      "note": " Incremental private per-tool parser now exposes previews, preserves UTF16 and final diagnostics; stable pointer records prevent copying live builders during interleaving. Four new cases +existing indexed fragments pass full normal/Mistral+Google+tests race/30 argument repeats/5 shuffled provider repeats/vet. Shared truncation helper move has no upstream behaviour change; native non-string argument chunks and HTTP formatting/truncation still need review (common Go truncation is bytes versus JS UTF16 units). Existing HTTP read caps retained. JSON-valued argument conversion now locally opted in: JS falsy defaults/number rounding/nonfinite nulls/UTF16 keys and values preserved. Empty strings emit a delta; omitted-field native header-only handling retained. Other providers remain string-only. 16 semantic stream cases plus encoder hook/key/cycle safety pass full normal/Mistral+jsonparse+tests race/30 argument repeats/5 shuffled Mistral repeats/vet. HTTP error formatting/normalization still open; body read caps unchanged."
     },
     {
       "change": "M",
