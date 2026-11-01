@@ -54,7 +54,7 @@ func (t *Tx) syncGenerationStatuses() error {
 					value["tools"] = slots
 				} else {
 					delete(value, "tools")
-					if cp.Phase == "intent" || cp.Phase == "retry" || cp.Phase == "poll" || cp.Partial != nil {
+					if (cp.Phase == "intent" && cp.Attempt > 0) || cp.Phase == "retry" || cp.Phase == "poll" || cp.Partial != nil {
 						generation := JSON{"attempt": cp.Attempt}
 						if cp.Partial != nil {
 							message, err := dtoObject(*cp.Partial, t.limits)
@@ -82,10 +82,28 @@ func (t *Tx) syncGenerationStatuses() error {
 		if equalJSONValue(value, live.Value) {
 			continue
 		}
+		// Presentation fields are assigned/deleted individually upstream. A
+		// complete live-document replacement loses those mounted op boundaries.
+		var ops []Operation
+		for _, key := range []string{"generation", "tools"} {
+			before, existed := live.Value[key]
+			after, present := value[key]
+			if !present && existed {
+				ops = append(ops, Operation{"d", []any{key}})
+			} else if present && (!existed || !equalJSONValue(before, after)) {
+				ops = append(ops, Operation{"s", []any{key}, after})
+			}
+		}
+		plan := t.documentPlan(live.ID)
+		combined := append(append([]Operation{}, plan.ops...), ops...)
+		if _, err := ownOperations(combined, t.limits); err != nil {
+			return err
+		}
 		live.Value, live.DeltasSinceBase = value, 0
 		if err := t.stage(Write{Op: "put-document", Document: &live}); err != nil {
 			return err
 		}
+		plan.ops, plan.explicit = combined, true
 	}
 	return nil
 }

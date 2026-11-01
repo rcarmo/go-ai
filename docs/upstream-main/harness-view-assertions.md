@@ -5,7 +5,7 @@
 | Source line / test | Native evidence | Remaining work |
 | --- | --- | --- |
 | 113: hydrate newest entries/built-ins | `TestMainViewUpstreamTouchOracles/completed-hydration`: real hi/hello submission, complete committed entry comparison/root/before/five docs/live/inbox assertions | Native provider-event/model/system/entry-envelope and Submit API adaptations |
-| 128: one frame per touching commit/replay | Candidate: `view_test.go` | Natural frame count and exact input sequence; callback barriers do not establish JS ordering |
+| 128: one frame per touching commit/replay | `TestMainViewUpstreamGenerationValueOperations`: gated real generation, independent storage counter, replay/final view/user append/generation tuple; whole-live tuple fixed | Full executable pending oracle fails frames=4/touches=4 vs source touches+1. Deferred presentation/storage remains unresolved; native input/provider/user-envelope adaptations |
 | 160: structural sharing/unmounted silence | `/unmounted-silence`: other conversation note, partial high configuration, root note; natural two frames/exact field tuple. ConfigurePatch whole-doc publication mismatch fixed | Three unchanged-reference assertions remain unported; native API/setup adaptations |
 | 178: summary/reset head markers | `TestMainViewUpstreamHistoryOracles/summary-reset`: exact a/b/c/summary/d/reset sequence, natural three frame arrays, literal summary splice/head, replay/committed equality | Native setup/required Value/ID adaptations; see history oracles |
 | 204: inherited fork entries/head markers | `/fork-markers`: exact a/b/fork-at-b/summary, initial ordered IDs, first frame kinds/committed equality | Native setup and ownerless Fork API adaptations |
@@ -40,7 +40,7 @@ Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.50
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
 
-See [touch oracles](touch-oracles.md) for hydration/unmounted-silence inputs and the demonstrated ConfigurePatch field-tuple fix at lines 113 and 160. Line128's real-generation touching-commit/deferred-attempt assertion remains open.
+See [touch oracles](touch-oracles.md) for hydration/unmounted-silence inputs and the demonstrated ConfigurePatch field-tuple fix at lines 113 and 160. Line128's deferred-attempt count is a demonstrated known failure; see [generation oracle](generation-view-oracle.md) and the explicit pending-test fixture.
 
 See [acquisition oracles](acquisition-oracles.md) for close and queued-acquisition inputs, native tag/diagnostic differences and development checks at lines 295 and 304.
 
