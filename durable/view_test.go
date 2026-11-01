@@ -106,7 +106,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 	})
 }
 
-func TestConversationWatchOverflowReplacesWithLatestTranscriptSnapshot(t *testing.T) {
+func TestConversationWatchPendingStructuralOperations(t *testing.T) {
 	store, _ := NewMemory()
 	h := openHarness(t, store, Options{})
 	conversation, err := h.Conversation(bg, 1)
@@ -122,7 +122,7 @@ func TestConversationWatchOverflowReplacesWithLatestTranscriptSnapshot(t *testin
 		t.Fatal(err)
 	}
 	defer watch.Stop()
-	// Leave the listener unattached while overflowing its bounded commit queue.
+	// Structural sets are barriers, not leaves; keep all pending operations.
 	for i := 0; i < 105; i++ {
 		_, err = h.session.Commit(bg, func(tx *Tx) error {
 			live, err := builtin(tx, 1, "pi.live")
@@ -135,32 +135,20 @@ func TestConversationWatchOverflowReplacesWithLatestTranscriptSnapshot(t *testin
 			t.Fatal(err)
 		}
 	}
-	reset := false
-	latest := make(chan struct{}, 1)
-	if err := watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
-		if len(ops) > 0 && ops[0][0] == "r" {
-			reset = true
-		}
-		if fmt.Sprint(value.Docs["pi.live"]["step"]) == "104" {
-			select {
-			case latest <- struct{}{}:
-			default:
-			}
-		}
-		return nil
-	}); err != nil {
+	latest := make(chan []Operation, 1)
+	if err := watch.Start(func(_ context.Context, _ ConversationView, ops []Operation) error { latest <- ops; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	select {
-	case <-latest:
+	case ops := <-latest:
+		if len(ops) != 105 {
+			t.Fatal("lost structural operations", len(ops))
+		}
+		for i, op := range ops {
+			assertConversationOperations(t, []Operation{op}, []Operation{{"s", []any{"docs", "pi.live"}, JSON{"step": i}}}, h.session.limits)
+		}
 	case <-time.After(3 * time.Second):
-		end, _ := watch.End()
-		t.Fatal("latest overflow snapshot missing", end)
-	}
-	// Stop joins an active listener before reading its accumulated flags.
-	watch.Stop()
-	if !reset {
-		t.Fatal("overflow did not use a root replacement")
+		t.Fatal("missing pending structural operations")
 	}
 	value, err := watch.Value()
 	if err != nil || fmt.Sprint(value.Docs["pi.live"]["step"]) != "104" {

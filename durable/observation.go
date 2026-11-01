@@ -655,16 +655,52 @@ func (p *CommitSubscription) drain() {
 			p.mu.Unlock()
 			return
 		}
-		frame := p.pending[0]
-		p.pending[0] = PublicationFrame{} // release consumed owned projections
-		p.bytes -= p.sizes[0]
-		p.pending = p.pending[1:]
-		p.sizes = p.sizes[1:]
+		count := 1
+		if p.conversation != nil && p.pending[0].conversation != nil && p.pending[0].conversation.err == nil {
+			for count < len(p.pending) && p.pending[count].conversation != nil && p.pending[count].conversation.err == nil {
+				count++
+			}
+		}
+		frames := p.pending[:count:count]
+		for _, size := range p.sizes[:count] {
+			p.bytes -= size
+		}
+		p.pending, p.sizes = p.pending[count:], p.sizes[count:]
+		if len(p.pending) == 0 {
+			p.pending, p.sizes = nil, nil
+		}
 		fn := p.callback
 		p.mu.Unlock()
-		<-frame.ready
+		// Detach only pending calls, never the active callback. Every selected
+		// publication must release its receipt/Session-line readiness fence.
+		for _, pending := range frames {
+			if pending.ready != nil {
+				<-pending.ready
+			}
+		}
 		p.mu.Lock()
 		ended := p.ended
+		p.mu.Unlock()
+		if ended {
+			clear(frames)
+			return
+		}
+		frame := frames[0]
+		var foldErr error
+		if count > 1 {
+			w := p.conversation
+			w.mu.Lock()
+			before := w.current
+			w.mu.Unlock()
+			frame, foldErr = coalesceConversationFrames(frames, before, w.limits, p.quota)
+		}
+		clear(frames) // release all consumed projections, including folded-away values
+		if foldErr != nil {
+			p.stop(WatchEnd{Reason: "budget_exceeded"})
+			return
+		}
+		p.mu.Lock()
+		ended = p.ended
 		p.mu.Unlock()
 		if ended {
 			return
@@ -849,7 +885,10 @@ func (s *Session) enqueueSubscriptions(prepared []preparedSubscription) {
 			continue
 		}
 		frame, size := item.frame, item.size
-		if len(p.pending) >= 100 || size > p.quota-p.bytes {
+		// JSON conversation watches fold operations off-line. The 100-value
+		// threshold belongs only to raw/native-value subscription delivery.
+		foldable := frame.conversation != nil && frame.conversation.err == nil
+		if (!foldable && len(p.pending) >= 100) || size > p.quota-p.bytes {
 			p.pending = nil
 			p.sizes = nil
 			p.bytes = 0

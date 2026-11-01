@@ -18,7 +18,7 @@ type transcriptDelivery struct {
 // Source view.ts advances each window once per publication, before Watch
 // delivery. Exercise that invariant across the native overflow boundary, using
 // the same append/trim rule as harness-view.test.ts rather than rehydrating.
-func TestMainTranscriptPublicationWindowSurvivesOverflow(t *testing.T) {
+func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 	for _, blocked := range []bool{false, true} {
 		t.Run(fmt.Sprintf("blocked=%t", blocked), func(t *testing.T) {
 			utf16Backends(t, func(t *testing.T, b backend) {
@@ -94,7 +94,7 @@ func TestMainTranscriptPublicationWindowSurvivesOverflow(t *testing.T) {
 				} else if err = watch.Start(listen); err != nil {
 					t.Fatal(err)
 				}
-				root := false
+				root, calls := false, 0
 				for {
 					var frame transcriptDelivery
 					select {
@@ -103,6 +103,7 @@ func TestMainTranscriptPublicationWindowSurvivesOverflow(t *testing.T) {
 						end, _ := watch.End()
 						t.Fatal("missing window delivery", end)
 					}
+					calls++
 					v := frame.value
 					if len(v.Entries) == 0 {
 						t.Fatal("future from was reapplied during overflow")
@@ -133,8 +134,12 @@ func TestMainTranscriptPublicationWindowSurvivesOverflow(t *testing.T) {
 					}
 					replay = wire
 					if tail == last {
-						if !root {
-							t.Fatal("native overflow never replaced root")
+						wantCalls := 1
+						if blocked {
+							wantCalls++
+						}
+						if root || calls != wantCalls {
+							t.Fatal("pending transcript did not fold without a count reset", root, calls)
 						}
 						break
 					}

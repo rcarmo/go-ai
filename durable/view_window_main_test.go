@@ -261,9 +261,9 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 	})
 }
 
-// Native bounded-commit overflow probe. Source's 10,000 pending-op threshold and
-// pending-operation folding and exact tuple sequences still need alignment.
-func TestMainTranscriptWindowNativeOverflowReplay(t *testing.T) {
+// Pending publication-time windows must replay after folding, without the raw
+// subscription's 100-value reset. Native byte/operation bounds remain separate.
+func TestMainTranscriptWindowPendingReplay(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		h, c := transcriptFixture(t, b)
 		future := ID(MaxID)
@@ -305,8 +305,8 @@ func TestMainTranscriptWindowNativeOverflowReplay(t *testing.T) {
 			}
 			replay = wire
 			if len(v.Entries) > 0 && v.Entries[len(v.Entries)-1].ID == ids[len(ids)-1] {
-				if !replaced {
-					return fmt.Errorf("overflow lacked root replacement")
+				if replaced {
+					return fmt.Errorf("pending window used a count-only root replacement")
 				}
 				latest <- v
 			}

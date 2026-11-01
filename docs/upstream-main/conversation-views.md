@@ -2,6 +2,21 @@
 
 `ConversationHandle.View` and `Watch` now expose transcript history with independent windows. Model-context APIs and legacy event snapshots retain their active-head entries and receipt pairing. The target is upstream `81f3cd412758ebdd92324c7d63b669a189408d0a`.
 
+
+## Pending conversation operations — development checkpoint
+
+Exact-native conversation watches now fold contiguous pending successful projections off the Session line before each callback. Delayed Start and blocked listeners receive the latest pending value/context with Chord leaf, append, structural-barrier and root rules. An active callback keeps its own delivery. Every selected publication must release its readiness fence. Consumed projection slots clear before delivery.
+
+The source is `packages/chord/src/watch.ts` and `delta/pending.ts` at the pinned revision: `ConversationViews` uses the JSON watch. Its queue does not have the native-value watch’s 100-frame reset. Raw commit subscriptions and authoritative adapter frames retain that existing reset and their individual delivery path. Projection errors remain separate delivery boundaries.
+
+Native limits remain unchanged. Folding keeps independent value/operation DTO budgets, validates replay from the last delivered view, and falls back to a bounded latest-value root for operation/member/node/byte or intermediate-value overflow. A merged append can move bytes ahead of a later freeing set; replay validation catches that transient overflow. Source permits 10,000 folded operations; native permits 4,096. Tests cover 4,096/4,097, byte-bounded recovery, a rejected undersized root, independent node budgets and the transient append case. Source equivalence above native bounds remains open. Pre-fold frame storage still uses the existing byte quota and can reset before folding could shrink it; incremental pending storage/work bounds remain open.
+
+`durable/view_pending_main_test.go` covers delayed/blocked delivery, 102 same-path edits, latest uncancelled context, off-line re-entry, replay, detached values/operations and a successor edit across memory/journal/SQLite. `durable/view_pending_bounds_main_test.go` adds distinct readiness fences and native resource controls. Earlier 105-publication transcript tests now assert folded publication-time windows without a count-only reset; structural document replacements retain all 105 operations. Existing byte-overflow root, adapter, failure/Close, receipt, consumed-slot and definition-watch checks remain active. Shared leaf-folding logic serves both JSON watch kinds.
+
+Focused normal checks pass three repetitions, shuffle 42, CGO 0/1 (34.200s/60.093s). Focused race checks pass three repetitions (183.081s), with the named high-node control separately once across all backends (67.473s). Durable vet and staticcheck v0.8.2 pass in both CGO modes. Five mutations are rejected: no fold (6 backend leaves), count-only reset (6), last-ready-only (3), omitted transient replay (1), and joint DTO budget (1). An initial readiness probe accidentally modified the earlier definition-watch loop and passed; a unique conversation-loop anchor corrected the probe, then all three affected backends rejected it. Mutation files and logs were removed after analysis.
+
+These are focused development checks. No new full-suite/full durable race, performance or pre-release acceptance claim. Adapter window parity, bounded hydration, shared references/GC, synchronous observers and full semantic convergence remain open. The sections below retain earlier checkpoint evidence.
+
 ## Document-operation checkpoint
 
 Exact-native conversation frames now follow `packages/durable/src/harness/view.ts:340–352`. A mounted document retains its ID/version alongside the publication-time window. Matching incarnations forward the published operation log under `docs/kind`; a document root replacement becomes a set at that path. Changed IDs or versions emit whole-document sets even when the value is unchanged. Retirement removes only the mounted ID. Document operations precede entry append/trim/before operations.
