@@ -2,6 +2,12 @@
 
 The root module passes staticcheck v0.8.2 with CGO disabled and enabled on Go 1.27.3 (`GOMAXPROCS=4`). The initial run reproduced all 23 recorded findings. This closes the root static-analysis gate; semantic acceptance and pre-release profiling remain incomplete.
 
+## SQLite helper build modes
+
+CGO-disabled verification during the idle-retention work found another U1000: `lockStorageFile` was compiled on Unix without its sole caller, the CGO-only SQLite backend. Both platform helper files now use the caller's `cgo` constraint. The helper body, file-permission checks, symlink fence, lock handling and non-Unix error are unchanged. Both CGO modes pass full root tests, vet and pinned staticcheck again. No ignore was added.
+
+CGO-disabled Windows/amd64 library and Darwin/arm64 test-binary crossbuilds pass. The Windows test binary is blocked by five existing, untagged `syscall.Kill` calls in `journal_recovery_test.go`, `lifecycle_test.go` and `storage_conformance_test.go`. Neither crossbuild was executed; Windows test portability needs a separate fix. Disposable binaries were removed.
+
 ## Changes
 
 Four unused private declarations were removed: `durable.isNativeUsageType`, Mistral's `mistralToolCallIDLength`, Codex's `buildCodexInput` and OpenAI Responses' `extractText`. The production call paths already used other implementations. The same-named Anthropic text helper remains in use and is unchanged.

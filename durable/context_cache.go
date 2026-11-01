@@ -113,8 +113,8 @@ func (s *Session) contextBusy(conversation ID) bool {
 	if s.taskScheduler == nil {
 		return false
 	}
-	<-s.core.line
-	defer s.core.leave()
+	// The Session line owns these published records and host membership.
+	// A raw writer may hold a later unpublished image; it is not a read gate.
 	for _, task := range s.readImage.Tasks {
 		if s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
 			return true

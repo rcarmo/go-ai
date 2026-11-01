@@ -1318,6 +1318,9 @@ func (s *taskScheduler) reconcilePass(requireEnabled bool) error {
 		if s.sealed.Load() || requireEnabled && !s.enabled.Load() {
 			return nil
 		}
+		// A genuine pass must expire process-local idle ranges even when it
+		// stages no writes and never reaches the publication settlement hook.
+		s.h.session.expireContextRanges()
 		state := tx.state
 		// Restart abandonment is durably marked before reservation/effects. Newly
 		// created disposable tasks are not in this Open-time set.
