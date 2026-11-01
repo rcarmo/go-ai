@@ -322,7 +322,7 @@ packages/durable/test/nested-tools-bench.ts	yes	pending	pending-review
 packages/durable/test/provider-session-cache-e2e.test.ts	no	pending	pending-review	
 packages/durable/test/scheduler-fanout-bench.ts	yes	pending	pending-review	
 packages/durable/test/scheduler-memory-bench.ts	no	pending	pending-review	
-packages/durable/test/search.test.ts	yes	new-at-tip	pending-review	
+packages/durable/test/search.test.ts	yes	new-at-tip	development-verified-partial	durable/search_main_test.go; durable/search_120_test.go; docs/upstream-main/durable-search.md
 packages/durable/test/session-adoption.test.ts	yes	pending	pending-review	
 packages/durable/test/session-cached-storage.test.ts	yes	new-at-tip	pending-review	
 packages/durable/test/session-checkpoints-migrations.test.ts	yes	pending	pending-review	

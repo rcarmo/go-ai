@@ -40,7 +40,7 @@ func ToolSearchRegistration(limit int) (ToolRegistration, error) {
 			if err = json.Unmarshal(tool.Parameters, &schema); err != nil {
 				return ToolResult{}, err
 			}
-			docs = append(docs, SearchDocument{tool.Name, tool.Name + " " + strings.ReplaceAll(tool.Name, "_", " ") + " " + tool.Description + " " + schemaSearchText(schema)})
+			docs = append(docs, SearchDocument{tool.Name, tool.Description + " " + schemaSearchText(schema)})
 		}
 		ranked := RankDocuments(query, docs, limit)
 		names := make([]string, 0, len(ranked))

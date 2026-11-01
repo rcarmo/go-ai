@@ -4,6 +4,8 @@ Current target: `81f3cd412758ebdd92324c7d63b669a189408d0a`, explicitly advanced 
 
 Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full semantic alignment. Work proceeds in bounded slices; Rui separately authorised regular validated main checkpoint pushes on 31 October 2026. Hosted dispatch, publication and release-ref changes need separate authority. Intentional semantic divergences require explicit acceptance.
 
+[Durable search at the current pin](durable-search.md): ten failing baseline subcases fixed; name/text/namespace ranking and ASCII tokenisation pass native checks. Root normal, affected race, vet and module checks pass. Full durable race exceeded its suite limit; Unicode segmentation, new storage/commit tests and acceptance/profiling are incomplete.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).

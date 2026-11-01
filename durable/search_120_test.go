@@ -7,10 +7,12 @@ import (
 )
 
 func TestSearch120Tokenisation(t *testing.T) {
+	// Pinned main drops the old "us" suffix exception: status now stems to statu.
+	// The independent BM25 formula/tolerance below remains unchanged.
 	for _, tc := range []struct {
 		text string
 		want []string
-	}{{"getFiles and the directories", []string{"get", "file", "directory"}}, {"ADDRESS status class gas", []string{"address", "status", "class", "gas"}}, {"file_system/listPaths", []string{"file", "system", "list", "path"}}, {"the AND", []string{}}} {
+	}{{"getFiles and the directories", []string{"get", "file", "directory"}}, {"ADDRESS status class gas", []string{"address", "statu", "class", "gas"}}, {"file_system/listPaths", []string{"file", "system", "list", "path"}}, {"the AND", []string{}}} {
 		if got := searchTokens(tc.text); !reflect.DeepEqual(got, tc.want) {
 			t.Fatal(tc.text, got, tc.want)
 		}

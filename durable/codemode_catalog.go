@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"unicode/utf16"
@@ -208,14 +207,18 @@ func CodemodeSection(tools []CodemodeToolDescription, namespaces []CodemodeNames
 }
 func SearchCodemodeTools(query string, tools []CodemodeToolDescription, namespaces []CodemodeNamespace, namespace string, limit int) []RankedDocument {
 	docs := []SearchDocument{}
+	namespaceText := []string{}
 	for _, tool := range tools {
-		if namespace != "" {
-			ns := CodemodeNamespaceOf(tool.Name, namespaces)
-			if ns == nil || ns.Name != namespace {
-				continue
-			}
+		ns := CodemodeNamespaceOf(tool.Name, namespaces)
+		if namespace != "" && (ns == nil || ns.Name != namespace) {
+			continue
 		}
-		docs = append(docs, SearchDocument{tool.Name, fmt.Sprintf("%s %s %s", tool.Name, tool.Description, schemaSearchText(map[string]any(tool.InputSchema)))})
+		docs = append(docs, SearchDocument{tool.Name, tool.Description + " " + schemaSearchText(map[string]any(tool.InputSchema))})
+		text := ""
+		if ns != nil {
+			text = ns.Name + " " + ns.Description + " " + ns.Instructions
+		}
+		namespaceText = append(namespaceText, text)
 	}
-	return RankDocuments(query, docs, limit)
+	return rankDocuments(query, docs, namespaceText, limit)
 }
