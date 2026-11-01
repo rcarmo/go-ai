@@ -13,8 +13,8 @@
 | 234: retirement/recreation mounts whole | `TestMainViewUpstreamMountOracles/retire-recreate`: separate retire/recreate commits, exact delete/whole-set tools:[] tuples, first frame absent | Native explicit document creation adapts lazy tx.doc; setup differs |
 | 251: fold undelivered commits | `/undelivered-101`: exact 101 kind:note commits before Start, one call/non-root/replay/committed newest-50 equality | Native setup/Value/IDs; broader threshold domains remain open |
 | 274: independent watches/remount | `/independent-remount`: one/two, peer Stop/single frame, surviving delivery, last Stop/fresh watch value equality | Source rebuilt reference inequality and internal shared-mount equivalence remain unported |
-| 295: close/late acquisition | Candidate: `observation_test.go` | Exact conversation-level acquisition/end diagnostics |
-| 304: queued cancel/close acquisition | Candidate: `view_publication_main_test.go` | Exact source queued acquisition scenarios/error assertions |
+| 295: close/late acquisition | `TestMainViewUpstreamAcquisitionOracles/close-late`: close/join, retained empty-array value, late acquisition rejection | Adapted native session_closed vs source ended tag; literal diagnostic equivalence open |
+| 304: queued cancel/close acquisition | `/queued-cancel-close`: held real commits, witnessed queued admission, cancel/release/join and close/release/join sequences | Native context.Canceled loses source abort-cause diagnostic; ErrClosed vocabulary differs; explicit partial port |
 | 330: shared mount/failing listener | `TestMainViewUpstreamListenerIsolation` | Shared docs identity; source provider/chat setup adapted |
 | 351: atomic multi-entry/document commit | `TestMainViewUpstreamAtomicPublication` | Native empty Value envelope/minted IDs/setup adaptations documented |
 | 398: initial newest min/default window | `TestMainViewUpstreamHydrationOracles/newest-min-and-default` | Setup/ID adaptations documented; no identity claim |
@@ -39,6 +39,8 @@ A no-inline allocator/callback helper leaves the collection assertion without st
 Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.509s/8.121s), three race repetitions/shuffle 7 (23.732s), and combined lifetime/hydration/lifecycle race repetitions/shuffle 42 (25.655s). Durable vet/staticcheck v0.8.2 pass both modes; module verification passes. Retaining callback entry arrays and retaining old private heads each fail all six CGO-enabled backend/control leaves. Mutation files/logs and temporary source extracts were removed after analysis. No performance comparison, full-suite/full-race run or acceptance profiling was performed.
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
+
+See [acquisition oracles](acquisition-oracles.md) for close and queued-acquisition inputs, native tag/diagnostic differences and development checks at lines 295 and 304.
 
 See [mount oracles](mount-oracles.md) for retirement/recreation, undelivered folding and independent-watch/remount inputs, API adaptations and development checks at lines 234, 251 and 274.
 
