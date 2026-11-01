@@ -103,7 +103,16 @@ type sessionStorage struct {
 	s *Session
 }
 
+// Snapshot callers hold the Session line. Native projections remain detached;
+// adapters retain their complete data/error contract through the original call.
 func (g *sessionStorage) Snapshot(ctx context.Context) (Snapshot, error) {
+	if g.s.hasNativeReadImage() {
+		image, err := g.s.taskSnapshot(ctx)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		return cloneState(image, g.s.core.limits)
+	}
 	v, e := g.Storage.Snapshot(ctx)
 	e = g.s.backendResult(ctx, e, false)
 	if e != nil {
@@ -142,6 +151,13 @@ func (g *sessionStorage) Conversations(ctx context.Context, q Query) ([]Conversa
 	return v, e
 }
 func (g *sessionStorage) Entries(ctx context.Context, id ID, c EntryCursor, n int) ([]Entry, error) {
+	if g.s.hasNativeReadImage() {
+		image, err := g.Snapshot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return legacyEntries(image, id, c, n, g.s.core.limits)
+	}
 	v, e := g.Storage.Entries(ctx, id, c, n)
 	e = g.s.backendResult(ctx, e, false)
 	return v, e

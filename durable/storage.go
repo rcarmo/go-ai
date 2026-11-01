@@ -953,7 +953,13 @@ func (c *storeCore) Entries(ctx context.Context, conversation ID, after EntryCur
 	if e != nil {
 		return nil, e
 	}
-	if e = checkPage(c.limits, limit); e != nil {
+	return legacyEntries(s, conversation, after, limit, c.limits)
+}
+
+// legacyEntries consumes an already detached snapshot. Keep legacy ascending
+// seq/position cursors separate from the ordered ScanEntries cursor contract.
+func legacyEntries(s Snapshot, conversation ID, after EntryCursor, limit int, l Limits) ([]Entry, error) {
+	if e := checkPage(l, limit); e != nil {
 		return nil, e
 	}
 	if _, ok := s.Conversations[conversation]; !ok {

@@ -581,7 +581,12 @@ func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, li
 	if c.h.closing.Load() {
 		return nil, ErrClosed
 	}
-	return c.h.session.guardedStorage().Entries(ctx, c.id, cursor, limit)
+	s := c.h.session
+	if err := s.enter(ctx); err != nil {
+		return nil, err
+	}
+	defer s.leave()
+	return s.guardedStorage().Entries(ctx, c.id, cursor, limit)
 }
 
 // Commit binds task/document creation to this conversation without enabling

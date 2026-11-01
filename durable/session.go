@@ -181,14 +181,7 @@ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, e
 	}
 	defer s.leave()
-	if !s.hasNativeReadImage() {
-		return s.guardedStorage().Snapshot(ctx)
-	}
-	image, err := s.taskSnapshot(ctx)
-	if err != nil {
-		return Snapshot{}, err
-	}
-	return cloneState(image, s.core.limits)
+	return s.guardedStorage().Snapshot(ctx)
 }
 func (s *Session) MintID(ctx context.Context) (ID, error) {
 	if e := s.enter(ctx); e != nil {
