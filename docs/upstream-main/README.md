@@ -18,7 +18,7 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Queue and process lifetime](durable-group-lifetime.md): three same-core queue/read cases and six SQLite child-process exit/recovery cases pass, without weakening native locks or assuming Go FIFO ordering. Full root normal/vet pass in both CGO modes; focused scope/timer/ownership/queue/crash race/shuffle passes. No full-race, profiling or overall parity claim.
 
-[Internal publication image](durable-publication-image.md): three failing baseline reads now exclude stored-but-unpublished group data. Exact native task/context reads use a separate Session image, adopt contiguous receipted parts and fail closed on gaps. Legacy commits, allocator reservations, core health/admission and wrapped Snapshot gates are retained. Public/wrapped projection and dependency/health gates still block enabling overlap; full root normal/vet in both CGO modes and focused race checks pass.
+[Internal publication image](durable-publication-image.md): three failing baseline reads now exclude stored-but-unpublished group data. Exact native task/context reads use a separate Session image, adopt contiguous receipted parts and fail closed on gaps. Legacy commits, allocator reservations, core health/admission and wrapped Snapshot gates are retained. Native public Snapshot and all four ordered scans also use this image with detached results; new tests cover visibility before/after adoption and authoritative post-Open adapters. Legacy list/point reads, wrapped projection and dependency/health gates still block enabling overlap; fresh full root normal/vet in both CGO modes and focused race checks pass.
 
 ## Inventory and dispositions
 

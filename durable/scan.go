@@ -272,28 +272,56 @@ func (s *Session) ScanConversations(ctx context.Context, q ConversationQuery, li
 		return Page[Conversation]{}, e
 	}
 	defer s.leave()
-	return s.guardedStorage().ScanConversations(ctx, q, limit, cursor)
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().ScanConversations(ctx, q, limit, cursor)
+	}
+	image, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return Page[Conversation]{}, err
+	}
+	return scanConversations(image, q, limit, cursor, s.core.limits)
 }
 func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Entry]{}, e
 	}
 	defer s.leave()
-	return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
+	}
+	image, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return Page[Entry]{}, err
+	}
+	return scanEntries(image, q, limit, cursor, s.core.limits)
 }
 func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (Page[Task], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Task]{}, e
 	}
 	defer s.leave()
-	return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
+	}
+	image, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return Page[Task]{}, err
+	}
+	return scanTasks(image, q, limit, cursor, s.core.limits)
 }
 func (s *Session) ScanSubmissions(ctx context.Context, q SubmissionQuery, limit int, cursor Cursor) (Page[Submission], error) {
 	if e := s.enter(ctx); e != nil {
 		return Page[Submission]{}, e
 	}
 	defer s.leave()
-	return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
+	}
+	image, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return Page[Submission]{}, err
+	}
+	return scanSubmissions(image, q, limit, cursor, s.core.limits)
 }
 
 var _ OrderedStorage = (*MemoryStorage)(nil)

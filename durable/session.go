@@ -181,7 +181,14 @@ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, e
 	}
 	defer s.leave()
-	return s.guardedStorage().Snapshot(ctx)
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().Snapshot(ctx)
+	}
+	image, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	return cloneState(image, s.core.limits)
 }
 func (s *Session) MintID(ctx context.Context) (ID, error) {
 	if e := s.enter(ctx); e != nil {
@@ -422,17 +429,23 @@ func (s *Session) readTasks(ctx context.Context, read func(Snapshot) error) erro
 	return read(state)
 }
 
-// taskSnapshot is an immutable internal view while the Session line is owned.
-// Tx methods detach values before exposing them; scheduler reads never expose
-// these maps. Public Snapshot remains deeply detached. Preserve wrapped storage
-// adapters (including fault gates) rather than bypassing their Snapshot contract.
-func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
+// hasNativeReadImage recognises only concrete native stores. Adapters remain
+// authoritative, including replacements installed on the Session line after Open.
+func (s *Session) hasNativeReadImage() bool {
 	switch s.store.(type) {
 	case *MemoryStorage, *JournalStorage:
+		return true
 	default:
-		if !directSQLiteTaskSnapshot(s.store) {
-			return s.guardedStorage().Snapshot(ctx)
-		}
+		return directSQLiteTaskSnapshot(s.store)
+	}
+}
+
+// taskSnapshot is an immutable internal view while the Session line is owned.
+// Public Snapshot and scan helpers detach values before exposing them; scheduler
+// reads never expose these maps. Wrapped Snapshot contracts remain authoritative.
+func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().Snapshot(ctx)
 	}
 	if err := s.core.enter(ctx); err != nil {
 		return Snapshot{}, s.backendResult(ctx, err, false)
