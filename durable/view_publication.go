@@ -28,10 +28,10 @@ func conversationPublicationRelevant(publication CommitPublication, id ID) bool 
 	return false
 }
 
-func advanceConversationWindow(before ConversationView, publication CommitPublication, limits Limits, bounds conversationWindowBounds) (ConversationView, error) {
+func advanceConversationWindow(before ConversationView, publication CommitPublication, limits Limits, bounds conversationWindowBounds) (ConversationView, []Entry, int, error) {
 	next, err := copyConversationView(before, limits)
 	if err != nil {
-		return ConversationView{}, err
+		return ConversationView{}, nil, 0, err
 	}
 	for _, change := range publication.Documents {
 		d := change.Record
@@ -43,7 +43,7 @@ func advanceConversationWindow(before ConversationView, publication CommitPublic
 		} else {
 			next.Docs[d.Kind], err = copyObject(change.Value, limits)
 			if err != nil {
-				return ConversationView{}, err
+				return ConversationView{}, nil, 0, err
 			}
 		}
 	}
@@ -57,20 +57,73 @@ func advanceConversationWindow(before ConversationView, publication CommitPublic
 		}
 		entry, err := copyEntry(*write.Entry, limits)
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationView{}, nil, 0, err
 		}
 		appended = append(appended, entry)
 	}
 	sort.Slice(appended, func(i, j int) bool { return appended[i].ID < appended[j].ID })
 	next.Entries = append(next.Entries, appended...)
+	drop := 0
 	if len(next.Entries) > bounds.max {
-		drop := len(next.Entries) - bounds.min
+		drop = len(next.Entries) - bounds.min
 		next.Before = next.Entries[drop-1].ID
 		kept := make([]Entry, bounds.min)
 		copy(kept, next.Entries[drop:])
 		next.Entries = kept
 	}
-	return next, nil
+	return next, appended, drop, nil
+}
+
+// Keep Source's append -> trim -> before sequence, including inserted entries
+// immediately discarded by this publication. Document deltas still use the
+// existing native diff; incarnation-aware document tuple parity is separate.
+func conversationWindowOperations(before, after JSON, appended []Entry, drop int, limits Limits) ([]Operation, error) {
+	fallback := func() ([]Operation, error) { return diffOperations(before, after, limits) }
+	ops, err := diffOperations(JSON{"conversation": before["conversation"], "docs": before["docs"]}, JSON{"conversation": after["conversation"], "docs": after["docs"]}, limits)
+	if err != nil {
+		return nil, err
+	}
+	// The document-only diff can itself overflow to a root. That root lacks
+	// entries/before, so it must be rebuilt from the complete view envelope.
+	if len(ops) > 0 && ops[0][0] == "r" {
+		return fallback()
+	}
+	if len(appended) > 0 {
+		// Strict decoding requires an object root. This envelope is smaller
+		// and shallower than the actual splice tuple; it uses the record,
+		// not document, byte limit because trimmed inserts may be larger.
+		encoded, err := encodeBounded(struct {
+			Entries []Entry `json:"entries"`
+		}{appended}, limits, limits.MaxRecordBytes)
+		if err != nil {
+			return fallback()
+		}
+		var inserted struct {
+			Entries []any `json:"entries"`
+		}
+		if err = decodeStrict(encoded, limits, limits.MaxRecordBytes, &inserted); err != nil {
+			return fallback()
+		}
+		oldEntries := before["entries"].([]any)
+		ops = append(ops, Operation{"p", []any{"entries"}, len(oldEntries), 0, inserted.Entries})
+		if drop > 0 {
+			ops = append(ops, Operation{"p", []any{"entries"}, 0, drop, []any{}}, Operation{"s", []any{"before"}, after["before"]})
+		}
+	}
+	// Do not widen native DTO/operation or intermediate-document limits to
+	// represent Source's transient append. Fall back to the existing bounded
+	// final-value diff if that transient cannot be replayed under this policy.
+	if drop > 0 {
+		if _, err = ApplyOperations(before, ops, limits); err != nil {
+			return fallback()
+		}
+		return ops, nil
+	}
+	owned, err := ownOperations(ops, limits)
+	if err != nil {
+		return fallback()
+	}
+	return owned, nil
 }
 
 // Session-line preparation must never advance the head or fail its transaction
@@ -88,7 +141,7 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 		frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{err: err}}
 		return &preparedSubscription{sub: w.sub, frame: frame, reset: frame, size: 1, resetSize: 1}
 	}
-	next, err := advanceConversationWindow(before, publication, w.limits, w.window)
+	next, appended, drop, err := advanceConversationWindow(before, publication, w.limits, w.window)
 	if err != nil {
 		return failure(err)
 	}
@@ -100,7 +153,7 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 	if err != nil {
 		return failure(err)
 	}
-	ops, err := diffOperations(a, b, w.limits)
+	ops, err := conversationWindowOperations(a, b, appended, drop, w.limits)
 	if err != nil {
 		return failure(err)
 	}
@@ -163,7 +216,7 @@ func (w *ConversationWatch) deliverAuthoritative(ctx context.Context, frame Publ
 		bounds.hasFrom = false
 		next, err = buildConversationWindow(*frame.Snapshot, before.Conversation.ID, w.limits, bounds)
 	} else {
-		next, err = advanceConversationWindow(before, frame.Publication, w.limits, w.window)
+		next, _, _, err = advanceConversationWindow(before, frame.Publication, w.limits, w.window)
 	}
 	var ops []Operation
 	if err == nil {
