@@ -121,19 +121,18 @@ func TestObservationSerialCallbacksOverflowAndRetirement(t *testing.T) {
 		}
 		checkpointCommit(t, s, func(tx *Tx) error { return tx.RetireDefinition(def, 0, nil) })
 		terminal := watchReceive(t, delivered)
-		if terminal.Value != nil || terminal.Ops[0][0] != "r" {
-			t.Fatal("retirement")
+		if terminal.Value["n"].(json.Number) != "102" || len(terminal.Ops) != 0 {
+			t.Fatal("retirement must retain the last value without operations")
 		}
-		watchReceive(t, w.Closed())
-		end, _ := w.End()
-		if end.Reason != "retired" {
-			t.Fatal(end)
+		if end, ended := w.End(); ended {
+			t.Fatal("retirement closed the address watch", end)
 		}
 		checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
-		end, _ = w.End()
-		if end.Reason != "retired" {
-			t.Fatal("followed recreation")
+		recreated := watchReceive(t, delivered)
+		if recreated.Value["n"].(json.Number) != "0" || recreated.Ops[0][0] != "r" {
+			t.Fatal("watch did not follow recreation", recreated)
 		}
+		w.Stop()
 	})
 }
 func TestObservationMigrationVersionResetStateAndUnload(t *testing.T) {

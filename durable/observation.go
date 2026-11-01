@@ -24,7 +24,12 @@ type WatchEnd struct {
 	Reason string
 	Error  error
 }
+
+// WatchFrame is a detached value delivery. Retirement retains the preceding
+// value with no operations; a later incarnation replaces it at the same address.
 type WatchFrame struct {
+	Kind       string
+	Retired    bool
 	Seq        uint64
 	Value      JSON
 	Ops        []Operation
@@ -40,19 +45,19 @@ type DocumentWatch struct {
 	session      *Session
 	id           ID
 	version      uint64
-	initial      JSON
+	address      DocumentAddress
+	observed     JSON
 	current      JSON
 	pending      []WatchFrame
 	bytes        []int64
 	pendingBytes int64
 	byteLimit    int64
-	listener     func(context.Context, JSON, []Operation) error
+	listener     func(context.Context, WatchFrame) error
 	started      bool
 	running      bool
 	ended        bool
 	end          WatchEnd
 	closed       chan struct{}
-	retired      bool
 }
 
 func (w *DocumentWatch) Value() (JSON, error) {
@@ -66,7 +71,20 @@ func (w *DocumentWatch) End() (WatchEnd, bool) {
 	defer w.mu.Unlock()
 	return w.end, w.ended
 }
+
+// Start is the value/operations compatibility view of StartFrame. Use StartFrame
+// to distinguish retirement from an unchanged value; retirement does not close.
 func (w *DocumentWatch) Start(listener func(context.Context, JSON, []Operation) error) error {
+	if listener == nil {
+		return w.StartFrame(nil)
+	}
+	return w.StartFrame(func(ctx context.Context, frame WatchFrame) error {
+		return listener(ctx, frame.Value, frame.Ops)
+	})
+}
+
+// StartFrame starts serialized tagged deliveries off the Session line.
+func (w *DocumentWatch) StartFrame(listener func(context.Context, WatchFrame) error) error {
 	w.mu.Lock()
 	if w.ended {
 		w.mu.Unlock()
@@ -103,6 +121,8 @@ func (w *DocumentWatch) terminate(end WatchEnd) {
 	w.bytes = nil
 	w.pendingBytes = 0
 	w.listener = nil
+	w.observed = nil
+	w.id = 0
 	close(w.closed)
 	w.mu.Unlock()
 	w.session.observerMu.Lock()
@@ -148,6 +168,9 @@ func (w *DocumentWatch) drain() {
 		}
 		frame := w.pending[0]
 		size := w.bytes[0]
+		// A live address watch can outlast many incarnations. Do not retain a
+		// delivered incarnation through the consumed queue's backing array.
+		w.pending[0] = WatchFrame{}
 		w.pending = w.pending[1:]
 		w.bytes = w.bytes[1:]
 		w.pendingBytes -= size
@@ -166,13 +189,10 @@ func (w *DocumentWatch) drain() {
 			return
 		}
 		callbackContext = frame.Context
-		if e := callback(frame.Context, frame.Value, frame.Ops); e != nil {
+		frame.ownedValue, frame.ready = nil, nil
+		if e := callback(frame.Context, frame); e != nil {
 			w.terminate(WatchEnd{Reason: "listener_error", Error: e})
 			w.session.reportListener(frame.Context, e)
-			return
-		}
-		if frame.Value == nil {
-			w.terminate(WatchEnd{Reason: "retired"})
 			return
 		}
 	}
@@ -193,6 +213,7 @@ type preparedWatchFrame struct {
 	reset     WatchFrame
 	resetSize int64
 	version   uint64
+	id        ID
 }
 
 func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}) ([]preparedWatchFrame, error) {
@@ -205,61 +226,78 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 	result := []preparedWatchFrame{}
 	for _, w := range watchers {
 		w.mu.Lock()
-		version, ended := w.version, w.ended
+		version, incarnation, previous, ended := w.version, w.id, w.observed, w.ended
 		w.mu.Unlock()
 		if ended {
 			continue
 		}
+		var value JSON
+		var operations []Operation
+		retired, changed := false, false
 		for _, change := range publication.Documents {
-			if change.Record.ID != w.id {
+			if change.Record.ID != incarnation && documentAddress(change.Record) != w.address {
 				continue
 			}
-			if change.Source != nil {
+			if change.Record.Retired {
+				if change.Record.ID != incarnation {
+					continue
+				}
+				incarnation = 0
+				value, operations = previous, []Operation{}
+				retired, changed = true, true
 				continue
 			}
-			value, e := copyObjectNullable(change.Value, s.limits)
-			if e != nil {
-				return nil, e
+			if change.Record.ID != incarnation || version != change.Version {
+				operations = []Operation{{"r", mapOrNull(change.Value)}}
+			} else {
+				if len(change.Ops) == 0 {
+					continue
+				}
+				operations = change.Ops
 			}
-			operations := change.Ops
-			if value == nil || version != change.Version {
-				operations = []Operation{{"r", mapOrNull(value)}}
-			}
-			if len(operations) == 0 {
-				continue
-			}
-			ops, e := ownOperations(operations, s.limits)
-			if e != nil {
-				return nil, e
-			}
-			resetValue, e := copyObjectNullable(change.Value, s.limits)
-			if e != nil {
-				return nil, e
-			}
-			resetOps, e := ownOperations([]Operation{{"r", mapOrNull(resetValue)}}, s.limits)
-			if e != nil {
-				return nil, e
-			}
-			private, e := copyObjectNullable(change.Value, s.limits)
-			if e != nil {
-				return nil, e
-			}
-			resetPrivate, e := copyObjectNullable(change.Value, s.limits)
-			if e != nil {
-				return nil, e
-			}
-			frame := WatchFrame{Seq: publication.Seq, Value: value, Ops: ops, Context: context.WithoutCancel(ctx), ownedValue: private, ready: ready}
-			reset := WatchFrame{Seq: publication.Seq, Value: resetValue, Ops: resetOps, Context: context.WithoutCancel(ctx), ownedValue: resetPrivate, ready: ready}
-			encoded, e := encodeBounded(JSON{"value": value, "ops": ops}, s.limits, s.limits.MaxFramePayloadBytes)
-			if e != nil {
-				return nil, e
-			}
-			resetEncoded, e := encodeBounded(JSON{"value": resetValue, "ops": resetOps}, s.limits, s.limits.MaxFramePayloadBytes)
-			if e != nil {
-				return nil, e
-			}
-			result = append(result, preparedWatchFrame{w, frame, int64(len(encoded)), reset, int64(len(resetEncoded)), change.Version})
+			incarnation, version = change.Record.ID, change.Version
+			value, previous, changed = change.Value, change.Value, true
 		}
+		if !changed {
+			continue
+		}
+		// One address delivery per publication, including retire+recreate. All
+		// copies and byte checks precede settlement; enqueue cannot fail a commit.
+		public, e := copyObjectNullable(value, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		ops, e := ownOperations(operations, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		private, e := copyObjectNullable(value, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		resetValue, e := copyObjectNullable(value, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		resetPrivate, e := copyObjectNullable(value, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		resetOps, e := ownOperations([]Operation{{"r", mapOrNull(value)}}, s.limits)
+		if e != nil {
+			return nil, e
+		}
+		frame := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: public, Ops: ops, Context: context.WithoutCancel(ctx), ownedValue: private, ready: ready}
+		reset := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: resetValue, Ops: resetOps, Context: context.WithoutCancel(ctx), ownedValue: resetPrivate, ready: ready}
+		encoded, e := encodeBounded(JSON{"value": public, "ops": ops}, s.limits, s.limits.MaxFramePayloadBytes)
+		if e != nil {
+			return nil, e
+		}
+		resetEncoded, e := encodeBounded(JSON{"value": resetValue, "ops": resetOps}, s.limits, s.limits.MaxFramePayloadBytes)
+		if e != nil {
+			return nil, e
+		}
+		result = append(result, preparedWatchFrame{w, frame, int64(len(encoded)), reset, int64(len(resetEncoded)), version, incarnation})
 	}
 	return result, nil
 }
@@ -273,7 +311,7 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 	for _, prepared := range frames {
 		w := prepared.watch
 		w.mu.Lock()
-		if w.ended || w.retired {
+		if w.ended {
 			w.mu.Unlock()
 			continue
 		}
@@ -282,12 +320,16 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 			w.terminate(WatchEnd{Reason: "budget_exceeded"})
 			continue
 		}
-		w.version = prepared.version
-		if prepared.frame.Value == nil {
-			w.retired = true
+		w.version, w.id = prepared.version, prepared.id
+		w.observed = prepared.frame.ownedValue
+		if w.id == 0 {
+			w.observed = nil
 		}
 		frame, size := prepared.frame, prepared.size
 		if len(w.pending) >= 100 || size > w.byteLimit-w.pendingBytes {
+			for _, pending := range w.pending {
+				prepared.reset.Retired = prepared.reset.Retired || pending.Retired
+			}
 			w.pending = nil
 			w.bytes = nil
 			w.pendingBytes = 0
@@ -340,7 +382,8 @@ func (s *Session) closeWatches() {
 	}
 }
 
-// WatchDefinition atomically hydrates an existing incarnation and subscribes.
+// WatchDefinition atomically hydrates an existing document and follows its address.
+// An absent address is not created. Retirement keeps the watch open for recreation.
 // Registration budget is a native process bound: at most min(MaxPage,64)
 // watchers, each with MaxRetainedBytes/capacity encoded pending bytes. A root
 // exceeding that quota rejects acquisition or ends a later watch explicitly.
@@ -368,7 +411,7 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 	if e = ctx.Err(); e != nil {
 		return nil, false, e
 	}
-	w := &DocumentWatch{session: s, id: record.ID, version: def.options.Version, initial: value, current: value, byteLimit: quota, closed: make(chan struct{})}
+	w := &DocumentWatch{session: s, id: record.ID, version: def.options.Version, address: documentAddress(record), observed: value, current: value, byteLimit: quota, closed: make(chan struct{})}
 	s.observerMu.Lock()
 	if s.closing.Load() {
 		s.observerMu.Unlock()

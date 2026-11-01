@@ -1,5 +1,7 @@
 # Release acceptance
 
+Development checkpoint: definition watches now follow document addresses across retirement and recreation, with tagged `StartFrame` delivery and incarnation-pin transfer. Retirement keeps the compatibility callback open with its preceding value and no operations. Focused normal/race checks and durable vet pass; broader watch/source acceptance remains incomplete. See [watch addresses](docs/upstream-main/watch-addresses.md).
+
 ## Unreleased upstream main convergence (in progress)
 
 [Definition wrapper authority](docs/upstream-main/definition-wrapper-authority.md): 15 stale-value backend failures are fixed. Typed snapshots, watches, retained states and transaction acquisition now honour adapter data/errors even when sequence/token/ID are unchanged. Only native stores reuse/admit migration caches; native migration-once behaviour and detached/bounded values remain intact. New admission/error controls pass; restoring old production fails 18 backend leaves. Full root normal/vet/staticcheck pass in both CGO modes; full durable race passes in 654.749s with 4,349 named passes, zero failures/unfinished tests and seven opt-in skips. The dependency audit records implicit writes, negative lookups, scope and host-membership barriers; keyed overlap remains disabled.
