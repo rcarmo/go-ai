@@ -116,7 +116,7 @@ func (s *Session) contextBusy(conversation ID) bool {
 	<-s.core.line
 	defer s.core.leave()
 	for _, task := range s.core.state.Tasks {
-		if task.Conversation == conversation && !terminalStatus(task.Status) && !taskBackground(task) {
+		if s.taskScheduler.idleTaskInScope(s.core.state, task, conversation) {
 			return true
 		}
 	}
@@ -132,7 +132,11 @@ func (s *Session) contextRetention() int64 {
 	}
 	return *settings.ContextRetentionMs
 }
-func (s *Session) expireContextRanges() {
+func (s *Session) expireContextRanges() { s.settleContextRanges(true) }
+
+// Entry-only publications can expire ranges without rescanning task membership.
+// Other callers refresh busy scopes after task/host/settings changes or reads.
+func (s *Session) settleContextRanges(refreshBusy bool) {
 	if len(s.contextRanges) == 0 {
 		if s.contextExpiry != nil {
 			s.contextExpiry.Stop()
@@ -143,9 +147,19 @@ func (s *Session) expireContextRanges() {
 	retention := s.contextRetention()
 	now := s.now()
 	for id, r := range s.contextRanges {
-		if s.contextBusy(id) {
-			r.idleSince = nil
+		// An already-expired idle range cannot be revived by the publication
+		// that makes its scope busy, even if no host timer callback ran.
+		if r.idleSince != nil && (retention <= 0 || now >= *r.idleSince && uint64(now)-uint64(*r.idleSince) >= uint64(retention)) {
+			delete(s.contextRanges, id)
 			continue
+		}
+		if refreshBusy {
+			if s.contextBusy(id) {
+				r.idleSince = nil
+				continue
+			}
+		} else if r.idleSince == nil {
+			continue // entry-only writes cannot change a busy scope's membership
 		}
 		if r.idleSince == nil {
 			stamp := now

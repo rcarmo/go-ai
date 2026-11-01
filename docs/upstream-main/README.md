@@ -14,6 +14,10 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Internal group settlement](durable-group-settlement.md): legacy Apply now uses the tested single-batch branch of a private group primitive. SQLite accepted prefixes share one transaction and emit post-COMMIT receipts; memory/journal preserve confirmed prefixes on later failure. Full root normal/vet pass in both CGO modes; 32 group cases plus eight earlier controls pass focused race/shuffle. Session overlap/publication and the full race gate are unfinished.
 
+[Harness scopes](durable-harness-scopes.md): all three remaining new harness files are assertion-reviewed. Four retention cases failed on all three native backends and are fixed: ownership-scoped busy checks and expiry before a new publication makes an idle range busy, including entry-only commits. The context off-line-scan and harness-group rows remain reviewed-open; incremental idle/Wake indexes and the continuation boundary are unfinished.
+
+[Queue and process lifetime](durable-group-lifetime.md): three same-core queue/read cases and six SQLite child-process exit/recovery cases pass, without weakening native locks or assuming Go FIFO ordering. Full root normal/vet pass in both CGO modes; focused scope/timer/ownership/queue/crash race/shuffle passes. No full-race, profiling or overall parity claim.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).

@@ -307,6 +307,15 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 		<-s.core.line
 		s.invalidateContextRanges(s.core.state, tx.writes)
 		s.core.leave()
+		// Settle retention even without a timer callback. Entry-only writes
+		// cannot change task membership, so avoid rescanning tasks for them.
+		refreshContextScopes := false
+		for _, write := range tx.writes {
+			// Live documents can change held-generation idleness too. Only a
+			// strictly entry-only batch can reuse the previous busy witnesses.
+			refreshContextScopes = refreshContextScopes || write.Op != "append-entry"
+		}
+		s.settleContextRanges(refreshContextScopes)
 		if s.taskScheduler != nil {
 			// Storage already validated and adopted the immutable candidate. The
 			// Session owns its sole writer; scheduler bookkeeping reads this private

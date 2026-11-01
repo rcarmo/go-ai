@@ -1671,14 +1671,16 @@ func (s *taskScheduler) refreshBoundWaits(state Snapshot) {
 		}
 	}
 }
+func (s *taskScheduler) idleTaskInScope(state Snapshot, task Task, conversation ID) bool {
+	if s.heldFailedInput(state, task) {
+		return false
+	}
+	return (!terminalStatus(task.Status) || s.invocations[task.ID] != nil) && taskInScope(state, task, conversation, false)
+}
 func (s *taskScheduler) idleTargets(state Snapshot, conversation ID) []ID {
 	targets := []ID{}
 	for _, id := range ids(state.Tasks) {
-		task := state.Tasks[id]
-		if s.heldFailedInput(state, task) {
-			continue
-		}
-		if (!terminalStatus(task.Status) || s.invocations[id] != nil) && taskInScope(state, task, conversation, false) {
+		if s.idleTaskInScope(state, state.Tasks[id], conversation) {
 			targets = append(targets, id)
 		}
 	}
