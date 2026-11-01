@@ -4,6 +4,8 @@
 
 
 
+The [upstream oracle crosswalk](view-oracles.md) distinguishes exact test ports and independently captured upstream replica results from native safety checks. Identity, timing and unsupported scalar-domain assertions remain explicit gaps.
+
 ## Adapter recovery windows — development checkpoint
 
 Adapter-backed conversation watches now retain publication-time window bookkeeping for overflow recovery. The reset uses the authoritative prepared snapshot’s document bodies and retained entry bodies, rather than rehydrating only the newest minimum-sized window. A changed conversation record or a missing/relocated retained entry invalidates the old shape and triggers conservative authoritative rehydration. Initial `from` remains acquisition-only when the shape is valid.
