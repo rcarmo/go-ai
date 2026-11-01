@@ -261,7 +261,7 @@ packages/durable/test/harness-blocked.test.ts	yes	pending	pending-review
 packages/durable/test/harness-callers.test.ts	no	pending	pending-review	
 packages/durable/test/harness-cancellation-barrier.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-compaction.test.ts	yes	pending	pending-review	
-packages/durable/test/harness-context-range.test.ts	yes	new-at-tip	reviewed-open	docs/upstream-main/durable-harness-scopes.md
+packages/durable/test/harness-context-range.test.ts	yes	new-at-tip	reviewed-open	docs/upstream-main/durable-harness-scopes.md; docs/upstream-main/context-read-protocol.md
 packages/durable/test/harness-context.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-continue.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-conversations.test.ts	yes	pending	pending-review	

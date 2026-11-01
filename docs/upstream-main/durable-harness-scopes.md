@@ -1,5 +1,7 @@
 ## Harness scopes and context retention
 
+[Context head rewind and off-line protocol](context-read-protocol.md): native regression coverage now checks discarded-history recovery, historical edits and forks after forward/backward heads. Off-line read/publication races remain reviewed-open; derivation still holds the Session line.
+
 The three remaining new harness files at `81f3cd412758ebdd92324c7d63b669a189408d0a` have been reviewed through their final assertions. Four context-retention cases produced twelve native failures across memory, journal and SQLite; those failures are fixed. Scheduler overlap, ordered expiry and the off-line context-read protocol still need implementation or validation. Published membership and target enumeration use the [idle forest](idle-index.md).
 
 The lexical declarations are one in `harness-context-range.test.ts`, seventeen in `harness-group-commit.test.ts`, and fourteen direct declarations plus two tables in `harness-idle-scopes.test.ts`. Tables and internal loops expand work/cases; these counts are not executed source test counts.
