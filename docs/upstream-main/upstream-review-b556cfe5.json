@@ -1,0 +1,10 @@
+{
+  "target": "b556cfe5b0300a91f39c7bc5369a65a25fb7fcd5",
+  "tests": {
+    "packages/ai/test/validation-probes.test.ts": {
+      "disposition": "partial",
+      "evidence": "tests/upstream_validation_main_test.go ports exact round2 declared/additional/pattern optional-null probes (source735-750); additional+pattern fail unchanged production, declared passes; touched-object/array/tuple ownership supplement exposes mutation. Bounded normalisation fix only; branch+sibling conversion, recursive refs/unions, formats, enum diagnostics, schema cache/reference identity and remaining probe matrix unported. docs/upstream-main/schema-validation-oracles.md"
+    }
+  },
+  "dependencyTests": {}
+}

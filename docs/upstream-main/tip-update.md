@@ -1,3 +1,23 @@
+## Upstream tip advanced on 1 November 2026
+
+Current convergence target: `b556cfe5b0300a91f39c7bc5369a65a25fb7fcd5`, explicitly authorised by Rui's 23:10 UTC goal update to converge with upstream main Git tip using upstream tests as porting oracles. A fresh remote check still returned this SHA. The earlier check below records the decision before this authorisation. Previous-pin inventories and test receipts retain their original scope; native v1.4.0 stays at `ee3076b3659697f1de01b87da964396e069a4389`.
+
+[The current inventory](tip-b556cfe5.json) records 88 incremental target-package paths (19 AI, 67 durable, two codemode), 427 target-package paths relative to accepted upstream v1.4.0, and 543 incremental dependency/support paths. The [current test crosswalk](upstream-tests-b556cfe5.tsv) contains 362 paths: 193 AI, 161 durable and eight codemode. Exactly two are newly present and none removed; 60 paths changed since the previous pin. Current dispositions began at `pending-review`, with prior disposition/evidence preserved separately and scoped to `81f3cd41`. Current review entries live in `upstream-review-b556cfe5.json` and are applied by the generator; the first validation-probe row is explicitly partial. Unchanged test files still need reconciliation with changed dependencies.
+
+The new schema dependency has a separate [210-path test/fixture review queue](dependency-tests-b556cfe5.tsv). The support inventory includes every changed schema path; the schema package manifest is included in the JSON. Schema, Chord and repository-support changes need applicability review alongside the three target packages.
+
+Regenerate from exact Git objects, without fetching or checking out files:
+
+```sh
+. scripts/project-env.sh
+bun scripts/inventory-upstream-main.ts \
+  "$PROJECT_TMP_ROOT/cache/upstream-pi/pi-repo" \
+  docs/upstream-main/tip-81f3cd41.json \
+  b556cfe5b0300a91f39c7bc5369a65a25fb7fcd5 docs/upstream-main
+```
+
+The generator records complete no-renames package/support diffs, both manifests, every target test path and the schema test queue. It merges the checked-in current review JSON, validating its exact target and path membership; regenerate tables after updating that review file. Its counts and path lists are checked independently against Git. This pin advance does not establish runtime parity or acceptance. The first translated new-tip probes and bounded fix are recorded in [schema-validation-oracles.md](schema-validation-oracles.md).
+
 ## Upstream tip checked on 1 November 2026
 
 Remote `refs/heads/main` is `b556cfe5b0300a91f39c7bc5369a65a25fb7fcd5` (commit time `2026-11-01T15:20:46+00:00`, `docs(chord): schemas are pi-schema's in the design`). Two remote checks returned this SHA. This is an observation; the authorised convergence pin and its inventories stay at `81f3cd412758ebdd92324c7d63b669a189408d0a` until Rui requests an advance.
