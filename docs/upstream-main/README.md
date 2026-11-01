@@ -10,6 +10,8 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Commit barrier and settlement controls](durable-commit-barriers.md): two native Session gates and four real-SQLite failure/recovery subcases pass unchanged production code. Both source rows are partial; disjoint callback batching, multi-batch receipts, deferred writes and ordered publication/continuations still need implementation and verification.
 
+[Durable test portability](durable-cgo-tests.md): full root normal/vet pass with CGO both disabled and enabled; 15 generic focused cases preserved plus three SQLite cases under CGO, no skips. Full durable race remains open after a 420-second suite timeout; its then-active journal subtest passes independently.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).

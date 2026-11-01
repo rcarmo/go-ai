@@ -24,6 +24,8 @@ The raw source storage call accepts several batches, assigns each its own seq/ou
 
 Source publication yields between parts of a call so a settled promise's continuation runs before the next publication; it also supports storage-owned publication scopes. The two native barriers do not verify outcome delivery/continuation ordering. Any Go pipeline must define that host contract explicitly instead of assuming goroutine scheduling matches JavaScript microtasks/macrotasks.
 
+Further reviewed source outcome assertions (lines 390–564) distinguish callback errors, which reject only that job, from fatal storage failure. Earlier outcomes remain valid; later jobs receive SessionFailed with the first cause. Parts already received can publish even when the enclosing storage call later rejects, while their outcomes still carry that call's error. Other parts of the same rejected call retain its rejection; intervening no-write jobs beyond the failure boundary receive SessionFailed. Rejection/refusal values include null and undefined, so presence cannot use truthiness. These cases still need a native receipt/value-domain mapping and tests; no native parity is established by this review.
+
 Next implementation prerequisites:
 
 1. Review the remaining assertions in `session-group-commit.test.ts` (34 direct declarations, some inside parameter loops) and `store-storage-commit.test.ts` (16 direct declarations plus three tables).

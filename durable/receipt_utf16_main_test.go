@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"math"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"unicode/utf8"
@@ -68,28 +67,12 @@ func TestReceiptUTF16MainContributionAndStores(t *testing.T) {
 	if !equalJSONValue(receipt, again) {
 		t.Fatal("unchanged receipt failed semantic deduplication")
 	}
-	backends(t, func(t *testing.T, b backend) {
+	utf16Backends(t, func(t *testing.T, b backend) {
 		id := mint(t, b.store)
 		apply(t, b.store, entry(id, object))
 		reopened := b.reopen()
 		assertUTF16Receipt(t, snap(t, reopened).Entries[id].Value, message)
 	})
-	path := filepath.Join(t.TempDir(), "receipts.db")
-	store, err := OpenSQLite(path, SQLiteOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := mint(t, store)
-	apply(t, store, entry(id, object))
-	if err = store.Close(bg); err != nil {
-		t.Fatal(err)
-	}
-	store, err = OpenSQLite(path, SQLiteOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close(bg)
-	assertUTF16Receipt(t, snap(t, store).Entries[id].Value, message)
 	// The owned copy and persisted image never borrow caller argument maps.
 	message.Content[0].Arguments["n"] = json.Number("7")
 	if receipt.Content[0].Arguments["n"] != json.Number("9007199254740993") {

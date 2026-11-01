@@ -3,7 +3,6 @@ package durable
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,22 +11,8 @@ import (
 func TestTaskOwnershipPinnedReopenedOwnedConversationInspectionAndIdle(t *testing.T) {
 	for _, variant := range []string{"marked", "foreground-hold"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
-				checkReopenedOwnedInspectIdle(t, b.store, func() Storage { return reopenStoreAfterHarnessClose(t, b.store) }, variant)
-			})
-			t.Run("sqlite", func(t *testing.T) {
-				path := filepath.Join(t.TempDir(), "session.sqlite")
-				store, err := OpenSQLite(path, SQLiteOptions{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				checkReopenedOwnedInspectIdle(t, store, func() Storage {
-					store, err := OpenSQLite(path, SQLiteOptions{})
-					if err != nil {
-						t.Fatal(err)
-					}
-					return store
-				}, variant)
+			utf16Backends(t, func(t *testing.T, b backend) {
+				checkReopenedOwnedInspectIdle(t, b.store, func() Storage { return utf16ReopenStore(t, b.store) }, variant)
 			})
 		})
 	}
