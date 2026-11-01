@@ -73,12 +73,12 @@ func (j *JournalStorage) Reclaim(ctx context.Context) error {
 	// After rename, any acknowledgement failure is uncertain. Keep ownership and
 	// seal further operations until Close/reopen validates the adopted image.
 	if err := old.Close(); err != nil {
-		j.poisoned = true
+		j.poison()
 		return fmt.Errorf("%w: reclaimed journal close failed", ErrPoisoned)
 	}
 	if j.syncWrites {
 		if err := syncDirectory(filepath.Dir(j.path)); err != nil {
-			j.poisoned = true
+			j.poison()
 			return fmt.Errorf("%w: reclaimed journal directory sync failed", ErrPoisoned)
 		}
 	}

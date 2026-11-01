@@ -340,13 +340,13 @@ func (s *SQLiteStorage) Reclaim(ctx context.Context) error {
 	}
 	if err != nil {
 		if rollback := s.exec("ROLLBACK"); rollback != nil {
-			s.poisoned = true
+			s.poison()
 			return ErrPoisoned
 		}
 		return reject("SQLite reclaim rejected")
 	}
 	if err = s.exec("COMMIT"); err != nil {
-		s.poisoned = true
+		s.poison()
 		return ErrPoisoned
 	}
 	// A failed optional vacuum leaves the committed checkpoint valid.

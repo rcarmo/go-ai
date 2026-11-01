@@ -368,14 +368,14 @@ func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().Snapshot(ctx)
 	}
-	if err := s.core.enter(ctx); err != nil {
+	highWater, err := s.core.sessionReadAdmission(ctx)
+	if err != nil {
 		return Snapshot{}, s.backendResult(ctx, err, false)
 	}
-	defer s.core.leave()
 	image := s.readImage
 	// ID reservations are independent of publication and remain globally
 	// monotonic. Do not import raw records or its commit sequence with them.
-	image.HighWater = s.core.state.HighWater
+	image.HighWater = highWater
 	return image, nil
 }
 

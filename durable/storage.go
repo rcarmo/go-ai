@@ -19,13 +19,16 @@ type storeCore struct {
 	closeErr     error
 	poisoned     bool
 	sessionOwned bool
-	ownershipMu  sync.Mutex
-	state        Snapshot
-	limits       Limits
-	ordinal      uint64
-	appendFrame  func(byte, uint64, uint64, []byte) error
-	appendFrames func([]storageFrame) error
-	finish       func() error
+	// ownershipMu also protects poison and the reservation scalar for Session
+	// read admission. It is never held across backend work.
+	ownershipMu   sync.Mutex
+	readHighWater uint64
+	state         Snapshot
+	limits        Limits
+	ordinal       uint64
+	appendFrame   func(byte, uint64, uint64, []byte) error
+	appendFrames  func([]storageFrame) error
+	finish        func() error
 }
 
 func initialState() Snapshot {
@@ -63,6 +66,35 @@ func (c *storeCore) enter(ctx context.Context) error {
 	return nil
 }
 func (c *storeCore) leave() { c.line <- struct{}{} }
+
+// sessionReadAdmission checks native health without joining the storage writer.
+// The caller owns the Session line and reads only its immutable publication
+// image. Raw storage readers and wrappers retain ordinary writer admission.
+func (c *storeCore) sessionReadAdmission(ctx context.Context) (uint64, error) {
+	if ctx == nil {
+		return 0, reject("nil context")
+	}
+	c.ownershipMu.Lock()
+	defer c.ownershipMu.Unlock()
+	if c.closing.Load() {
+		return 0, ErrClosed
+	}
+	if c.poisoned {
+		return 0, ErrPoisoned
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.readHighWater, nil
+}
+
+// poison is called with the storage line held. Native Session read admission
+// must observe the same failure without acquiring that line.
+func (c *storeCore) poison() {
+	c.ownershipMu.Lock()
+	c.poisoned = true
+	c.ownershipMu.Unlock()
+}
 func (c *storeCore) Limits() (Limits, error) {
 	if err := c.enter(context.Background()); err != nil {
 		return Limits{}, err
@@ -84,6 +116,9 @@ func (c *storeCore) claim() error {
 		return ErrOwned
 	}
 	c.sessionOwned = true
+	// Recovery and image import finish before claim. Subsequent reservations
+	// update this scalar only after successful settlement.
+	c.readHighWater = c.state.HighWater
 	return nil
 }
 func (c *storeCore) Close(ctx context.Context) error { return c.close(ctx, false) }
@@ -135,7 +170,7 @@ func (c *storeCore) settlementError(err error) error {
 	if errors.As(err, &rejected) {
 		return err
 	}
-	c.poisoned = true
+	c.poison()
 	return fmt.Errorf("%w: append settlement failed", ErrPoisoned)
 }
 func (c *storeCore) MintID(ctx context.Context) (ID, error) { return c.mintID(ctx, false) }
@@ -158,7 +193,10 @@ func (c *storeCore) mintID(ctx context.Context, owned bool) (ID, error) {
 	if err = c.settle(1, id, p); err != nil {
 		return 0, err
 	}
+	c.ownershipMu.Lock()
 	c.state.HighWater = id
+	c.readHighWater = id
+	c.ownershipMu.Unlock()
 	return ID(id), nil
 }
 func (c *storeCore) Apply(ctx context.Context, b Batch) (uint64, error) {
