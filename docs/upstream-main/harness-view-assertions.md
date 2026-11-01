@@ -10,9 +10,9 @@
 | 178: summary/reset head markers | `TestMainViewUpstreamHistoryOracles/summary-reset`: exact a/b/c/summary/d/reset sequence, natural three frame arrays, literal summary splice/head, replay/committed equality | Native setup/required Value/ID adaptations; see history oracles |
 | 204: inherited fork entries/head markers | `/fork-markers`: exact a/b/fork-at-b/summary, initial ordered IDs, first frame kinds/committed equality | Native setup and ownerless Fork API adaptations |
 | 219: fork observes only own commits | `/fork-isolation`: first/fork/parent/child, initial kinds/parent cutoff, exactly one child frame | Flat native Parent/ParentAt representation; no JS timing equivalence |
-| 234: retirement/recreation mounts whole | Candidate: `view_document_ops_main_test.go` | Exact source inputs/operations and reference assertions |
-| 251: fold undelivered commits | Candidate: `view_pending_main_test.go` | Exact source batch/context/assertions; native quota controls are additional |
-| 274: independent watches/remount | Candidate: `view_test.go`, lifecycle oracles | Exact stop/remount sequence and shared mount/reference assertions |
+| 234: retirement/recreation mounts whole | `TestMainViewUpstreamMountOracles/retire-recreate`: separate retire/recreate commits, exact delete/whole-set tools:[] tuples, first frame absent | Native explicit document creation adapts lazy tx.doc; setup differs |
+| 251: fold undelivered commits | `/undelivered-101`: exact 101 kind:note commits before Start, one call/non-root/replay/committed newest-50 equality | Native setup/Value/IDs; broader threshold domains remain open |
+| 274: independent watches/remount | `/independent-remount`: one/two, peer Stop/single frame, surviving delivery, last Stop/fresh watch value equality | Source rebuilt reference inequality and internal shared-mount equivalence remain unported |
 | 295: close/late acquisition | Candidate: `observation_test.go` | Exact conversation-level acquisition/end diagnostics |
 | 304: queued cancel/close acquisition | Candidate: `view_publication_main_test.go` | Exact source queued acquisition scenarios/error assertions |
 | 330: shared mount/failing listener | `TestMainViewUpstreamListenerIsolation` | Shared docs identity; source provider/chat setup adapted |
@@ -39,6 +39,8 @@ A no-inline allocator/callback helper leaves the collection assertion without st
 Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.509s/8.121s), three race repetitions/shuffle 7 (23.732s), and combined lifetime/hydration/lifecycle race repetitions/shuffle 42 (25.655s). Durable vet/staticcheck v0.8.2 pass both modes; module verification passes. Retaining callback entry arrays and retaining old private heads each fail all six CGO-enabled backend/control leaves. Mutation files/logs and temporary source extracts were removed after analysis. No performance comparison, full-suite/full-race run or acceptance profiling was performed.
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
+
+See [mount oracles](mount-oracles.md) for retirement/recreation, undelivered folding and independent-watch/remount inputs, API adaptations and development checks at lines 234, 251 and 274.
 
 See [history oracles](history-oracles.md) for exact summary/reset and fork inputs, assertions and development checks at lines 178, 204 and 219.
 
