@@ -235,6 +235,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 		return nil, err
 	}
 	store.appendFrame = store.append
+	store.appendFrames = store.appendSeries
 	store.finish = func() error {
 		code := C.sqlite3_close(store.db)
 		lockErr := file.Close()
@@ -272,19 +273,32 @@ func bindSQLiteBlob(stmt *C.sqlite3_stmt, index int, data []byte) error {
 	return nil
 }
 func (s *SQLiteStorage) append(kind byte, ordinal, high uint64, payload []byte) error {
+	return s.appendSeries([]storageFrame{{kind: kind, ordinal: ordinal, high: high, payload: payload}})
+}
+
+// appendSeries makes every prepared frame durable in one transaction. It emits
+// no receipt and changes no core state: only the caller adopts after COMMIT.
+func (s *SQLiteStorage) appendSeries(frames []storageFrame) error {
 	if err := s.exec("BEGIN IMMEDIATE"); err != nil {
 		return reject("SQLite write admission unavailable")
 	}
-	stmt, err := s.statement("INSERT INTO frames(ordinal,kind,highwater,payload) VALUES(?,?,?,?)")
-	if err == nil {
-		C.sqlite3_bind_int64(stmt, 1, C.sqlite3_int64(ordinal))
-		C.sqlite3_bind_int(stmt, 2, C.int(kind))
-		C.sqlite3_bind_int64(stmt, 3, C.sqlite3_int64(high))
-		err = bindSQLiteBlob(stmt, 4, payload)
-		if err == nil && C.sqlite3_step(stmt) != C.SQLITE_DONE {
-			err = errors.New("SQLite frame insert failed")
+	var err error
+	for _, frame := range frames {
+		var stmt *C.sqlite3_stmt
+		stmt, err = s.statement("INSERT INTO frames(ordinal,kind,highwater,payload) VALUES(?,?,?,?)")
+		if err == nil {
+			C.sqlite3_bind_int64(stmt, 1, C.sqlite3_int64(frame.ordinal))
+			C.sqlite3_bind_int(stmt, 2, C.int(frame.kind))
+			C.sqlite3_bind_int64(stmt, 3, C.sqlite3_int64(frame.high))
+			err = bindSQLiteBlob(stmt, 4, frame.payload)
+			if err == nil && C.sqlite3_step(stmt) != C.SQLITE_DONE {
+				err = errors.New("SQLite frame insert failed")
+			}
+			C.sqlite3_finalize(stmt)
 		}
-		C.sqlite3_finalize(stmt)
+		if err != nil {
+			break
+		}
 	}
 	if err != nil {
 		if rollback := s.exec("ROLLBACK"); rollback != nil {

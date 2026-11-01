@@ -1,0 +1,136 @@
+package durable
+
+import "context"
+
+// These are internal control values, never durable JSON. Presence is the pointer
+// in commitGroupResult: nil/null and undefined/falsy values are still refusals.
+type commitUndefinedValue struct{}
+type commitRefusal struct{ value any }
+
+func (r *commitRefusal) Error() string { return "durable: batch refused" }
+func (r *commitRefusal) Unwrap() error {
+	err, _ := r.value.(error)
+	return err
+}
+
+type commitGroupResult struct {
+	stored  int
+	lastSeq uint64
+	refused *commitRefusal
+}
+
+// refusalError preserves legacy native diagnostics while representing a
+// present null/undefined/falsy refusal with a non-nil error at Go boundaries.
+func (r commitGroupResult) refusalError() error {
+	if r.refused == nil {
+		return nil
+	}
+	if original := r.refused.Unwrap(); original != nil {
+		return original
+	}
+	return r.refused
+}
+
+type storageFrame struct {
+	kind    byte
+	ordinal uint64
+	high    uint64
+	payload []byte
+}
+
+// prepareCommit detaches input and validates against an immutable candidate.
+// It neither writes nor changes the live image/allocator/ordinal.
+func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64) (storageFrame, Snapshot, error) {
+	if base.Seq >= MaxID || ordinal >= MaxID {
+		return storageFrame{}, Snapshot{}, reject("sequence exhausted")
+	}
+	if err := validateBatchJSON(b, c.limits); err != nil {
+		return storageFrame{}, Snapshot{}, err
+	}
+	payload, err := encodeBounded(commitRecord{Seq: base.Seq + 1, Writes: b.Writes}, c.limits, c.limits.MaxFramePayloadBytes)
+	if err != nil {
+		return storageFrame{}, Snapshot{}, err
+	}
+	var record commitRecord
+	if err := decodeStrict(payload, c.limits, c.limits.MaxFramePayloadBytes, &record); err != nil {
+		return storageFrame{}, Snapshot{}, err
+	}
+	next, err := prepare(base, record, c.limits)
+	if err != nil {
+		return storageFrame{}, Snapshot{}, err
+	}
+	return storageFrame{kind: 2, ordinal: ordinal + 1, high: base.HighWater, payload: payload}, next, nil
+}
+
+// commitBatches owns one storage admission through all settlement/receipts. The
+// receipt sink is internal, synchronous and must not reenter storage. Its error
+// rejects the call without undoing durability or earlier receipts. No Session
+// publication or optional-interface dispatch is performed here.
+//
+// SQLite can settle the prepared prefix atomically. Memory/journal settle one
+// batch at a time; an error preserves their confirmed prefix. Total encoded
+// payload is bounded by the existing per-call frame cap, and batch count by
+// MaxWrites. Once admitted, cancellation cannot abandon settlement.
+func (c *storeCore) commitBatches(ctx context.Context, batches []Batch, receive func(int, uint64) error, owned bool) (commitGroupResult, error) {
+	if err := c.enter(ctx); err != nil {
+		return commitGroupResult{}, err
+	}
+	defer c.leave()
+	if c.sessionOwned && !owned {
+		return commitGroupResult{}, ErrOwned
+	}
+	result := commitGroupResult{lastSeq: c.state.Seq}
+	if len(batches) > c.limits.MaxWrites {
+		result.refused = &commitRefusal{reject("invalid batch count")}
+		return result, nil
+	}
+	if len(batches) == 0 {
+		return result, nil
+	}
+	atomicGroup := c.appendFrames != nil && len(batches) > 1
+	base, ordinal := c.state, c.ordinal
+	var frames []storageFrame
+	var bytes int
+	for index, batch := range batches {
+		frame, next, err := c.prepareCommit(base, batch, ordinal)
+		if err == nil && len(frame.payload) > c.limits.MaxFramePayloadBytes-bytes {
+			err = reject("group payload limit exceeded")
+		}
+		if err != nil {
+			result.refused = &commitRefusal{err}
+			break
+		}
+		bytes += len(frame.payload)
+		if atomicGroup {
+			frames = append(frames, frame)
+		} else {
+			if err := c.settle(frame.kind, frame.high, frame.payload); err != nil {
+				return commitGroupResult{}, err
+			}
+			c.state = next
+			if receive != nil {
+				if err := receive(index, next.Seq); err != nil {
+					return commitGroupResult{}, err
+				}
+			}
+		}
+		base, ordinal = next, frame.ordinal
+		result.stored++
+		result.lastSeq = next.Seq
+	}
+	if atomicGroup && len(frames) != 0 {
+		if err := c.appendFrames(frames); err != nil {
+			return commitGroupResult{}, c.settlementError(err)
+		}
+		c.state, c.ordinal = base, ordinal
+		if receive != nil {
+			firstSeq := base.Seq - uint64(len(frames)) + 1
+			for index := range frames {
+				if err := receive(index, firstSeq+uint64(index)); err != nil {
+					return commitGroupResult{}, err
+				}
+			}
+		}
+	}
+	return result, nil
+}

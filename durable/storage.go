@@ -24,6 +24,7 @@ type storeCore struct {
 	limits       Limits
 	ordinal      uint64
 	appendFrame  func(byte, uint64, uint64, []byte) error
+	appendFrames func([]storageFrame) error
 	finish       func() error
 }
 
@@ -123,16 +124,19 @@ func (c *storeCore) settle(typ byte, high uint64, payload []byte) error {
 	}
 	if c.appendFrame != nil {
 		if err := c.appendFrame(typ, c.ordinal+1, high, payload); err != nil {
-			var rejected *StorageRejected
-			if errors.As(err, &rejected) {
-				return err
-			}
-			c.poisoned = true
-			return fmt.Errorf("%w: append settlement failed", ErrPoisoned)
+			return c.settlementError(err)
 		}
 	}
 	c.ordinal++
 	return nil
+}
+func (c *storeCore) settlementError(err error) error {
+	var rejected *StorageRejected
+	if errors.As(err, &rejected) {
+		return err
+	}
+	c.poisoned = true
+	return fmt.Errorf("%w: append settlement failed", ErrPoisoned)
 }
 func (c *storeCore) MintID(ctx context.Context) (ID, error) { return c.mintID(ctx, false) }
 func (c *storeCore) mintID(ctx context.Context, owned bool) (ID, error) {
@@ -161,38 +165,14 @@ func (c *storeCore) Apply(ctx context.Context, b Batch) (uint64, error) {
 	return c.apply(ctx, b, false)
 }
 func (c *storeCore) apply(ctx context.Context, b Batch, owned bool) (uint64, error) {
-	if err := c.enter(ctx); err != nil {
-		return 0, err
-	}
-	defer c.leave()
-	if c.sessionOwned && !owned {
-		return 0, ErrOwned
-	}
-	if c.state.Seq >= MaxID || c.ordinal >= MaxID {
-		return 0, reject("sequence exhausted")
-	}
-	if err := validateBatchJSON(b, c.limits); err != nil {
-		return 0, err
-	}
-	// Encoding validates/copies caller data before I/O. Decoding the encoded batch
-	// gives private immutable ownership even when DTOs contain nested caller maps.
-	p, err := encodeBounded(commitRecord{Seq: c.state.Seq + 1, Writes: b.Writes}, c.limits, c.limits.MaxFramePayloadBytes)
+	result, err := c.commitBatches(ctx, []Batch{b}, nil, owned)
 	if err != nil {
 		return 0, err
 	}
-	var record commitRecord
-	if err = decodeStrict(p, c.limits, c.limits.MaxFramePayloadBytes, &record); err != nil {
+	if err := result.refusalError(); err != nil {
 		return 0, err
 	}
-	next, err := prepare(c.state, record, c.limits)
-	if err != nil {
-		return 0, err
-	}
-	if err = c.settle(2, c.state.HighWater, p); err != nil {
-		return 0, err
-	}
-	c.state = next
-	return next.Seq, nil
+	return result.lastSeq, nil
 }
 
 type reservation struct {

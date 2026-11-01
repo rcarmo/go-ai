@@ -12,6 +12,8 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Durable test portability](durable-cgo-tests.md): full root normal/vet pass with CGO both disabled and enabled; 15 generic focused cases preserved plus three SQLite cases under CGO, no skips. Full durable race remains open after a 420-second suite timeout; its then-active journal subtest passes independently.
 
+[Internal group settlement](durable-group-settlement.md): legacy Apply now uses the tested single-batch branch of a private group primitive. SQLite accepted prefixes share one transaction and emit post-COMMIT receipts; memory/journal preserve confirmed prefixes on later failure. Full root normal/vet pass in both CGO modes; 32 group cases plus eight earlier controls pass focused race/shuffle. Session overlap/publication and the full race gate are unfinished.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).

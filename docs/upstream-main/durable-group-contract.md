@@ -1,6 +1,6 @@
 ## Group-commit implementation requirements
 
-Both pinned group-commit test files have been reviewed through their final assertions. Native storage and Session still implement single-batch settlement. This design records the requirements for replacing that path; it adds no production API.
+Both pinned group-commit test files have been reviewed through their final assertions. Native public Apply and Session retain single-batch behaviour. [Internal group settlement](durable-group-settlement.md) now implements prefix preparation, receipts and SQLite atomic frames; the requirements below also cover the unfinished Session pipeline and host contract.
 
 Source: `81f3cd412758ebdd92324c7d63b669a189408d0a`, `packages/durable/test/session-group-commit.test.ts`, `packages/durable/test/store-storage-commit.test.ts`, and `packages/durable/src/types.ts` around `CommitResult`/`Storage`. The declaration counts are lexical: 34 Session declarations and 16 store declarations plus three tables. Parameter loops expand cases; these counts are not execution results.
 
@@ -49,6 +49,6 @@ Keep the existing blocking API and fences while prototyping those alternatives. 
 
 ### Next implementation slice
 
-First build and test the receipt/refusal protocol and backend settlement behind the existing single-batch API: ordered receipts, prefix refusal, rollback, unknown outcome, ownership, queue isolation, crash/reopen and Close. Keep value presence explicit even when native backends normally produce errors. Do not let optional group dispatch bypass a wrapper's existing fault gates.
+The internal receipt/refusal protocol and backend settlement now sit behind the existing single-batch API. Ordered receipts, prefix refusal, rollback/uncertainty, ownership, reopen and Close have initial native coverage; concurrent read/export and cross-owner isolation, crash-process and collection tests need further work. Keep value presence explicit even when native backends normally produce errors. Do not let optional group dispatch bypass a wrapper's existing fault gates.
 
 Then separate preparation from the writer, adding keyed dependencies and global scan barriers before enabling overlap. Add ordered publication with tested adoption failures and an explicit continuation contract. Connect cache writes and deferred persistence only after those boundaries hold. The existing [barrier checks](durable-commit-barriers.md) and [cache-cost follow-up](durable-cache-storage.md) remain regression requirements. Full race, acceptance and CPU/allocation profiling are unfinished.
