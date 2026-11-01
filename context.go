@@ -150,24 +150,15 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 			}
 		}
 	}
-	if properties, ok := schema["properties"].(map[string]interface{}); ok {
-		for name, val := range out {
-			propSchema, ok := properties[name].(map[string]interface{})
-			if !ok {
-				continue
-			}
-			coerced, err := validateAndCoerceType(name, val, propSchema)
-			if err != nil {
-				return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
-			}
-			out[name] = coerced
-		}
+	coerced, err := coerceWithJSONSchema("arguments", out, schema)
+	if err != nil {
+		return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
 	}
-	return out, nil
-}
-
-func validateAndCoerceType(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
-	return coerceWithJSONSchema(name, value, schema)
+	result, ok := coerced.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("validation failed for tool %q: arguments must be an object", tool.Name)
+	}
+	return result, nil
 }
 
 // Return owned containers along traversed schema paths: removing a nested null
@@ -266,73 +257,133 @@ func hasStringRef(schema map[string]interface{}) bool {
 }
 
 func coerceWithJSONSchema(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
-	if schemas, ok := schemaList(schema["allOf"]); ok {
-		next := value
-		for _, nested := range schemas {
-			coerced, err := coerceWithJSONSchema(name, next, nested)
-			if err != nil {
-				return nil, err
-			}
-			next = coerced
-		}
-		value = next
+	converted := convertValidationValue(value, schema)
+	if !schemaAcceptsValue(converted, schema) {
+		return nil, fmt.Errorf("field %q: value does not match schema", name)
 	}
-	if schemas, ok := schemaList(schema["anyOf"]); ok {
-		return coerceWithUnionSchema(name, value, schemas)
-	}
-	if schemas, ok := schemaList(schema["oneOf"]); ok {
-		return coerceWithUnionSchema(name, value, schemas)
-	}
-
-	types := schemaTypes(schema["type"])
-	if len(types) == 0 {
-		return value, nil
-	}
-	matchesUnionMember := len(types) > 1 && anyMatchesJSONSchemaType(value, types)
-	if !matchesUnionMember {
-		var lastErr error
-		for _, expectedType := range types {
-			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
-				return value, nil
-			}
-			coerced, err := coerceJSONSchemaType(value, expectedType)
-			if err == nil && schemaConstraintsMatch(coerced, expectedType, schema) {
-				return coerced, nil
-			}
-			if err != nil {
-				lastErr = err
-			} else if expectedType == "string" {
-				lastErr = fmt.Errorf("field %q: value %q not in enum", name, coerced)
-			}
-		}
-		if lastErr == nil {
-			lastErr = fmt.Errorf("field %q: expected %v, got %T", name, types, value)
-		}
-		return nil, lastErr
-	}
-	return value, nil
+	return converted, nil
 }
 
-func coerceWithUnionSchema(name string, value interface{}, schemas []map[string]interface{}) (interface{}, error) {
-	for _, schema := range schemas {
-		if schemaAcceptsValue(value, schema) {
-			return value, nil
+// Conversion is separate from validation: a failed branch conversion can still
+// produce a value accepted by another branch after sibling members convert.
+// Each candidate owns changed containers; failed attempts cannot mutate input.
+func convertValidationValue(value interface{}, schema map[string]interface{}) interface{} {
+	if branches, ok := schemaList(schema["anyOf"]); ok {
+		return convertValidationUnion(value, schema, branches)
+	}
+	if branches, ok := schemaList(schema["oneOf"]); ok {
+		return convertValidationUnion(value, schema, branches)
+	}
+	if branches, ok := schemaList(schema["allOf"]); ok {
+		for _, branch := range branches {
+			value = convertValidationValue(value, branch)
+		}
+		return convertValidationMembers(value, schema)
+	}
+	types := schemaTypes(schema["type"])
+	if len(types) == 1 && types[0] == "array" {
+		if _, array := value.([]interface{}); !array {
+			_, tuple := validationTupleItems(schema)
+			if tuple {
+				return value
+			}
+			value = []interface{}{value}
+		}
+	} else if len(types) > 0 && !(len(types) > 1 && anyMatchesJSONSchemaType(value, types)) {
+		for _, expectedType := range types {
+			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+				break
+			}
+			converted, err := coerceJSONSchemaType(value, expectedType)
+			if err == nil && schemaConstraintsMatch(converted, expectedType, schema) {
+				value = converted
+				break
+			}
 		}
 	}
-	var lastErr error
-	for _, schema := range schemas {
-		coerced, err := coerceWithJSONSchema(name, cloneValidationValue(value), schema)
-		if err == nil && schemaAcceptsValue(coerced, schema) {
-			return coerced, nil
-		}
-		if err != nil {
-			lastErr = err
+	if len(types) == 1 {
+		switch types[0] {
+		case "string", "number", "integer", "boolean", "null":
+			return value
+		case "object":
+			if _, object := value.(map[string]interface{}); !object {
+				return value
+			}
 		}
 	}
-	if lastErr == nil {
-		return value, nil
+	return convertValidationMembers(value, schema)
+}
+
+func convertValidationUnion(value interface{}, schema map[string]interface{}, branches []map[string]interface{}) interface{} {
+	for _, branch := range branches {
+		if schemaAcceptsValue(value, branch) {
+			return convertValidationMembers(value, schema)
+		}
 	}
-	return nil, lastErr
+	for _, branch := range branches {
+		candidate := convertValidationMembers(convertValidationValue(value, branch), schema)
+		// Whole-node validation includes sibling properties and exact oneOf
+		// cardinality. A branch-only match cannot establish a valid candidate.
+		if schemaAcceptsValue(candidate, schema) {
+			return candidate
+		}
+	}
+	return convertValidationMembers(value, schema)
+}
+
+func convertValidationMembers(value interface{}, schema map[string]interface{}) interface{} {
+	switch value := value.(type) {
+	case map[string]interface{}:
+		properties, ok := schema["properties"].(map[string]interface{})
+		if !ok || value == nil {
+			return value
+		}
+		out := make(map[string]interface{}, len(value))
+		for key, current := range value {
+			if property, ok := properties[key].(map[string]interface{}); ok {
+				current = convertValidationValue(current, property)
+			}
+			out[key] = current
+		}
+		return out
+	case []interface{}:
+		if value == nil {
+			return value
+		}
+		out := make([]interface{}, len(value))
+		for i, current := range value {
+			if item := validationItemSchema(schema, i); item != nil {
+				current = convertValidationValue(current, item)
+			}
+			out[i] = current
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func validationTupleItems(schema map[string]interface{}) ([]interface{}, bool) {
+	if items, ok := schema["items"].([]interface{}); ok {
+		return items, true
+	}
+	items, ok := schema["prefixItems"].([]interface{})
+	return items, ok
+}
+
+func validationItemSchema(schema map[string]interface{}, index int) map[string]interface{} {
+	if items, tuple := validationTupleItems(schema); tuple {
+		if index < len(items) {
+			item, _ := items[index].(map[string]interface{})
+			return item
+		}
+		// Legacy tuple items have no homogeneous rest schema.
+		if _, legacy := schema["items"].([]interface{}); legacy {
+			return nil
+		}
+	}
+	item, _ := schema["items"].(map[string]interface{})
+	return item
 }
 
 func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
@@ -349,17 +400,62 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 	return out, len(out) > 0
 }
 
+// Membership checks never coerce: union branch selection must not count a
+// numeric string as an integer or an absent required property as a match.
 func schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
-	types := schemaTypes(schema["type"])
-	if len(types) == 0 {
-		return true
-	}
-	for _, expectedType := range types {
-		if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
-			return true
+	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+		if branches, ok := schemaList(schema[keyword]); ok {
+			matches := 0
+			for _, branch := range branches {
+				if schemaAcceptsValue(value, branch) {
+					matches++
+				}
+			}
+			if (keyword == "allOf" && matches != len(branches)) ||
+				(keyword == "anyOf" && matches == 0) || (keyword == "oneOf" && matches != 1) {
+				return false
+			}
 		}
 	}
-	return false
+	types := schemaTypes(schema["type"])
+	if len(types) > 0 {
+		matched := false
+		for _, expectedType := range types {
+			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	switch value := value.(type) {
+	case map[string]interface{}:
+		if required, ok := schema["required"].([]interface{}); ok {
+			for _, raw := range required {
+				if key, ok := raw.(string); ok {
+					if _, present := value[key]; !present {
+						return false
+					}
+				}
+			}
+		}
+		if properties, ok := schema["properties"].(map[string]interface{}); ok {
+			for key, current := range value {
+				if property, ok := properties[key].(map[string]interface{}); ok && !schemaAcceptsValue(current, property) {
+					return false
+				}
+			}
+		}
+	case []interface{}:
+		for i, current := range value {
+			if item := validationItemSchema(schema, i); item != nil && !schemaAcceptsValue(current, item) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func schemaConstraintsMatch(value interface{}, expectedType string, schema map[string]interface{}) bool {
@@ -389,18 +485,6 @@ func anyMatchesJSONSchemaType(value interface{}, types []string) bool {
 		}
 	}
 	return false
-}
-
-func cloneValidationValue(value interface{}) interface{} {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return value
-	}
-	var out interface{}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return value
-	}
-	return out
 }
 
 func schemaTypes(raw interface{}) []string {

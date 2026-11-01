@@ -1,6 +1,6 @@
-# Schema validation oracles at b556cfe5
+# Schema validation oracles
 
-Three optional-null probes from the new upstream tip pass after a bounded native normalisation fix. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
+Three optional-null probes at `b556cfe5` and two branch-plus-sibling probes at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
 
 ## Exact source port
 
@@ -35,9 +35,34 @@ Go `1.27.3`, `GOMAXPROCS=4`, with `scripts/project-env.sh` sourced:
 
 No full repository tests, full race suite or profiling ran for this checkpoint. Earlier receipts keep their original pins and workloads.
 
+## Branch-plus-sibling checkpoint at c9f4c7b9
+
+`tests/upstream_validation_union_main_test.go` ports the exact `validation-probes.test.ts:752–765` schemas, input `{a: "3", c: "2"}` and expected `{a: [3], c: 2}` for both `anyOf` and `oneOf`. Calls use public `ValidateToolArguments`; JSON-value comparisons adapt Go's decoded/coerced number representations without changing values or array structure.
+
+Both source cases fail unchanged native code: `c` converts but `a` stays a string. Native source-derived controls also expose missing branch checks, accepted absent requirements, skipped nested conversion and ambiguous `oneOf` acceptance. These controls supplement the two translated assertions; they are not additional upstream test bodies.
+
+The fix applies conversion to the root schema, separates conversion from non-coercing membership checks, converts object/array members and sibling properties, and checks each candidate against the whole union. Existing matches skip branch conversion; otherwise branches are tried in order. `oneOf` requires exactly one accepted branch. Failed candidates cannot mutate later candidates or caller input. Tuple schemas do not wrap scalars. References, unsupported keywords and complete validation remain open below.
+
+`tests/upstream_validation_union_candidates_main_test.go` adds whole-node selection controls: one candidate can match both `oneOf` branches and must be skipped for a later valid candidate; a partially invalid conversion may instead satisfy another branch after sibling conversion. These six candidate scenarios were independently checked against the actual upstream compiler/validator. Primitive-typed non-object branches must not walk object members. Native numeric controls preserve already-valid `int64`, `json.Number` and `float64` values, including MaxInt64 and 9,007,199,254,740,993. An intermediate implementation lost wide values through float64; preserving valid typed values before conversion fixes that regression. These are exact native numerical-contract controls, outside JavaScript's wide-number representation domain.
+
+Focused Go `1.27.3`/`GOMAXPROCS=4` evidence:
+
+```sh
+. scripts/project-env.sh
+export GOTOOLCHAIN=go1.27.3 GOMAXPROCS=4
+filter='^(TestUpstreamMainValidation|TestUpstreamValidation|TestTool130Argument|TestValidateTool)'
+CGO_ENABLED=0 go test ./tests -run "$filter" -count=10 -shuffle=42 -timeout=90s
+CGO_ENABLED=1 go test ./tests -run "$filter" -count=10 -shuffle=7 -timeout=90s
+CGO_ENABLED=1 go test -race ./tests -run "$filter" -count=5 -shuffle=42 -timeout=90s
+```
+
+Final runs pass in 0.024/0.020/1.095 seconds. Vet and staticcheck v0.8.2 for `.` and `./tests` pass both CGO modes; module verification and diff checks pass. Previous-production overlay fails both exact source cases. Four additional overlays are rejected: skipped sibling conversion (both source cases), branch-only candidate acceptance (`oneOf` whole-node control), borrowed candidate maps (both later-branch controls), and removed valid-number preservation (numeric control). Overlays use both logical/physical paths and were removed after analysis.
+
+The two original selected upstream bodies and helper were executed unchanged against actual pinned `validation.ts` and pi-schema sources under Bun, using only assertion shims and package-export adapters. Both pass, as do the six source-derived candidate scenarios. This is not the full Vitest suite. An initial resolver-adapter probe failed before loading the module; local package-export adapters corrected that harness issue without changing upstream code. Extracted sources, adapters and probe artifacts were disposed after each run. No full repository/full-race run, profiling or performance claim.
+
 ## Open fidelity work
 
-The source's `anyOf`/`oneOf` branch-plus-sibling conversion, recursive refs/unions and work bounds, 10,000-member enum diagnostics, formats, schema-object cache/mutation identity, non-JSON types and the rest of the probe matrix are unported here. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Existing native constraint/coercion/diagnostic limitations are unchanged outside this normalisation slice.
+Recursive refs/unions and work bounds, 10,000-member enum diagnostics, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix are unported here. Next is the source's depth-40 recursive-union rejection assertion. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas, complete pattern/additional-property validation/coercion and exact diagnostics still need source-derived coverage and implementation. The normalisation and branch/sibling slices do not establish full JSON Schema parity.
 
 The new durable argument-type test requires a native typed-tool API mapping. The schema dependency has its own 210-path review queue; inspecting its source is not a passing dependency test suite. Review sources and translate assertions before changing more production behaviour.
 
