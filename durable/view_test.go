@@ -38,7 +38,7 @@ func TestConversationWatchActiveHeadDeltasDetachedAndOffLine(t *testing.T) {
 		}
 		defer watch.Stop()
 		baseline, err := watch.Value()
-		if err != nil || len(baseline.Entries) != 2 || len(baseline.Docs) != 3 {
+		if err != nil || len(baseline.Entries) != 2 || len(baseline.Docs) != 4 || baseline.Docs["pi.provider"]["sessionId"] == nil {
 			t.Fatal(baseline, err)
 		}
 		initial, err := dtoObject(baseline, h.session.limits)

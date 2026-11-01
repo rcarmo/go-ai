@@ -1,5 +1,7 @@
 # Release acceptance
 
+Development checkpoint: conversation views now mount existing `pi.provider` documents and preserve `entries: []` in empty-view root operations and callbacks. Hydration/live/retirement/overflow tests pass across three backends; focused normal/race and durable vet pass. Provider identity/authentication/storage contracts are unchanged. Transcript windows and synchronous document observers remain open; see [view projection](docs/upstream-main/conversation-views.md) and [observer review](docs/upstream-main/synchronous-observers.md).
+
 Development checkpoint: definition watches now follow document addresses across retirement and recreation, with tagged `StartFrame` delivery and incarnation-pin transfer. Retirement keeps the compatibility callback open with its preceding value and no operations. Pending definition-watch operations now coalesce before Start and behind blocked callbacks, including repeated sets and string appends; the old 100-frame reset belongs only to native-value watches. Native byte/delta bounds remain enforced. Focused normal/race checks and durable vet pass; task-owned watches now detach at owner termination and end after final callbacks return. Exact source overflow, synchronous observers and broader watch/source acceptance remain incomplete. See [watch addresses](docs/upstream-main/watch-addresses.md).
 
 ## Unreleased upstream main convergence (in progress)

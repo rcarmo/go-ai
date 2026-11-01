@@ -310,7 +310,7 @@ packages/durable/test/harness-tools-recovery.test.ts	yes	pending	pending-review
 packages/durable/test/harness-tools.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-turn-limit.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-view-run.test.ts	yes	pending	pending-review	
-packages/durable/test/harness-view.test.ts	yes	pending	pending-review	
+packages/durable/test/harness-view.test.ts	yes	pending	development-verified-partial	durable/view_provider_main_test.go; durable/view_test.go; docs/upstream-main/conversation-views.md (provider built-in mount/empty array replay only; transcript windows/observer lifecycle/shared identities/remaining assertions open)
 packages/durable/test/heap-retained.ts	no	pending	pending-review	
 packages/durable/test/images-wasm-module.test.ts	no	pending	pending-review	
 packages/durable/test/indexeddb-storage.test.ts	yes	pending	pending-review	
@@ -334,7 +334,7 @@ packages/durable/test/session-document-retention.test.ts	yes	pending	pending-rev
 packages/durable/test/session-documents.test.ts	yes	pending	pending-review	
 packages/durable/test/session-forks.test.ts	yes	pending	pending-review	
 packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-verified-partial	durable/session_group_commit_main_test.go; durable/session_scan_barriers_main_test.go; durable/session_read_image_main_test.go; durable/session_read_image_adopt_main_test.go; docs/upstream-main/durable-commit-barriers.md; docs/upstream-main/durable-group-contract.md; docs/upstream-main/durable-publication-image.md
-packages/durable/test/session-observers.test.ts	yes	pending	pending-review	
+packages/durable/test/session-observers.test.ts	yes	pending	reviewed-open	docs/upstream-main/synchronous-observers.md (partial source review only; no native synchronous observer API; publication/re-entry/detach/error/lifetime contracts open)
 packages/durable/test/session-support.ts	yes	pending	pending-review	
 packages/durable/test/session-tables.test.ts	yes	pending	pending-review	
 packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/remaining assertions open)

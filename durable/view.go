@@ -16,7 +16,7 @@ type ConversationView struct {
 
 func mountedKind(kind string) bool {
 	switch kind {
-	case "pi.agent", "pi.live", "pi.inbox", "pi.usage":
+	case "pi.agent", "pi.live", "pi.inbox", "pi.provider", "pi.usage":
 		return true
 	}
 	return false
@@ -29,6 +29,11 @@ func buildConversationView(state Snapshot, id ID, limits Limits) (ConversationVi
 	context, err := deriveContextView(state, id, 0, limits)
 	if err != nil {
 		return ConversationView{}, err
+	}
+	// The detached callback view also uses an empty array. Keep root-replace
+	// operations identical in shape when a transcript has no entries.
+	if context.Entries == nil {
+		context.Entries = []Entry{}
 	}
 	value := ConversationView{Conversation: conversation, Entries: context.Entries, Docs: map[string]JSON{}}
 	for _, doc := range state.Documents {
