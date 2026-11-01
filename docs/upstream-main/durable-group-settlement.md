@@ -17,7 +17,7 @@ A group accepts at most MaxWrites batches and at most MaxFramePayloadBytes of en
 
 There is no exported group interface or automatic optional-interface dispatch. Legacy one-batch Apply still calls appendFrame, including wrapped fault hooks. Future Session overlap must retain wrapped Snapshot gates and cannot infer permission to bypass them from a promoted method.
 
-After a SQLite group commits, the core image already contains every stored part. It cannot serve as the Session's per-publication read image while later parts are unpublished. The existing exact-backend taskSnapshot fast path relies on the current serial Session line. Separate an adopted Session view or supply equivalent tested dependency/version gates before enabling overlap; exposing the final raw image early would invalidate that optimisation's premise.
+After a SQLite group commits, the core image already contains every stored part. It cannot serve as the Session's per-publication read image while later parts are unpublished. The existing exact-backend taskSnapshot fast path relies on the current serial Session line. The later [internal publication image](durable-publication-image.md) separates exact-backend task/context reads and rejects non-contiguous adoption. Public/wrapped read projection and the core-admission/dependency gates still need integration before overlap; exposing the final raw image early would invalidate that optimisation's premise.
 
 ### Checks
 

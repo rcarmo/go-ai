@@ -115,8 +115,8 @@ func (s *Session) contextBusy(conversation ID) bool {
 	}
 	<-s.core.line
 	defer s.core.leave()
-	for _, task := range s.core.state.Tasks {
-		if s.taskScheduler.idleTaskInScope(s.core.state, task, conversation) {
+	for _, task := range s.readImage.Tasks {
+		if s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
 			return true
 		}
 	}

@@ -16,6 +16,7 @@ type Session struct {
 	failureCause          error
 	now                   func() int64 // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
+	readImage             Snapshot // immutable published image; owned by the Session line
 	line                  chan struct{}
 	closing               atomic.Bool
 	once                  sync.Once
@@ -84,7 +85,12 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	if now == nil {
 		now = func() int64 { return time.Now().UnixMilli() }
 	}
-	s := &Session{store: store, core: core, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	if err := core.enter(context.Background()); err != nil {
+		return nil, err
+	}
+	image := core.state
+	core.leave()
+	s := &Session{store: store, core: core, readImage: image, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -305,8 +311,13 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	err = s.backendResult(ctx, err, true)
 	if err == nil {
 		<-s.core.line
-		s.invalidateContextRanges(s.core.state, tx.writes)
+		adopted := s.core.state
 		s.core.leave()
+		if imageErr := s.adoptReadImage(adopted, seq); imageErr != nil {
+			err = s.backendResult(ctx, imageErr, true)
+			return 0, err
+		}
+		s.invalidateContextRanges(adopted, tx.writes)
 		// Settle retention even without a timer callback. Entry-only writes
 		// cannot change task membership, so avoid rescanning tasks for them.
 		refreshContextScopes := false
@@ -320,9 +331,6 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 			// Storage already validated and adopted the immutable candidate. The
 			// Session owns its sole writer; scheduler bookkeeping reads this private
 			// view only. Do not replay/validate the entire history a second time.
-			<-s.core.line
-			adopted := s.core.state
-			s.core.leave()
 			tx.taskAdoptState = &adopted
 		}
 		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
@@ -430,7 +438,22 @@ func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, s.backendResult(ctx, err, false)
 	}
 	defer s.core.leave()
-	return s.core.state, nil
+	image := s.readImage
+	// ID reservations are independent of publication and remain globally
+	// monotonic. Do not import raw records or its commit sequence with them.
+	image.HighWater = s.core.state.HighWater
+	return image, nil
+}
+
+// adoptReadImage accepts only an immutable, receipted next publication image.
+// A future group publisher must supply each part, never the final raw image
+// for an earlier receipt. Callers hold the Session line and poison on error.
+func (s *Session) adoptReadImage(image Snapshot, receipt uint64) error {
+	if s.readImage.Seq >= MaxID || receipt != s.readImage.Seq+1 || image.Seq != receipt {
+		return reject("non-contiguous publication image")
+	}
+	s.readImage = image
+	return nil
 }
 
 func (s *Session) Close(ctx context.Context) error {
@@ -446,6 +469,7 @@ func (s *Session) Close(ctx context.Context) error {
 				s.contextExpiry.Stop()
 			}
 			s.contextRanges = nil
+			s.readImage = Snapshot{}
 			if s.documentExpiry != nil {
 				s.documentExpiry.Stop()
 			}

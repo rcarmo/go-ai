@@ -333,7 +333,7 @@ packages/durable/test/session-document-cache-bench.ts	no	pending	pending-review
 packages/durable/test/session-document-retention.test.ts	yes	pending	pending-review	
 packages/durable/test/session-documents.test.ts	yes	pending	pending-review	
 packages/durable/test/session-forks.test.ts	yes	pending	pending-review	
-packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-verified-partial	durable/session_group_commit_main_test.go; durable/session_scan_barriers_main_test.go; docs/upstream-main/durable-commit-barriers.md; docs/upstream-main/durable-group-contract.md
+packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-verified-partial	durable/session_group_commit_main_test.go; durable/session_scan_barriers_main_test.go; durable/session_read_image_main_test.go; durable/session_read_image_adopt_main_test.go; docs/upstream-main/durable-commit-barriers.md; docs/upstream-main/durable-group-contract.md; docs/upstream-main/durable-publication-image.md
 packages/durable/test/session-observers.test.ts	yes	pending	pending-review	
 packages/durable/test/session-support.ts	yes	pending	pending-review	
 packages/durable/test/session-tables.test.ts	yes	pending	pending-review	

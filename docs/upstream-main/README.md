@@ -18,6 +18,8 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Queue and process lifetime](durable-group-lifetime.md): three same-core queue/read cases and six SQLite child-process exit/recovery cases pass, without weakening native locks or assuming Go FIFO ordering. Full root normal/vet pass in both CGO modes; focused scope/timer/ownership/queue/crash race/shuffle passes. No full-race, profiling or overall parity claim.
 
+[Internal publication image](durable-publication-image.md): three failing baseline reads now exclude stored-but-unpublished group data. Exact native task/context reads use a separate Session image, adopt contiguous receipted parts and fail closed on gaps. Legacy commits, allocator reservations, core health/admission and wrapped Snapshot gates are retained. Public/wrapped projection and dependency/health gates still block enabling overlap; full root normal/vet in both CGO modes and focused race checks pass.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).
