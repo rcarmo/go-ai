@@ -774,7 +774,9 @@ type preparedSubscription struct {
 	size, resetSize   int64
 	overflow          bool
 	view              *ConversationView // installed only after receipted adoption
-	disableProjection bool              // a published wrapper fallback invalidates this head
+	incarnations      map[string]conversationIncarnation
+	headOnly          bool // a bounded empty diff still advances the private witness
+	disableProjection bool // a published wrapper fallback invalidates this head
 }
 
 func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}) ([]preparedSubscription, error) {
@@ -841,6 +843,10 @@ func (s *Session) enqueueSubscriptions(prepared []preparedSubscription) {
 		}
 		if p.conversation != nil {
 			p.conversation.adoptPublication(item)
+		}
+		if item.headOnly {
+			p.mu.Unlock()
+			continue
 		}
 		frame, size := item.frame, item.size
 		if len(p.pending) >= 100 || size > p.quota-p.bytes {

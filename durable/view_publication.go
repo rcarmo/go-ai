@@ -75,19 +75,26 @@ func advanceConversationWindow(before ConversationView, publication CommitPublic
 }
 
 // Keep Source's append -> trim -> before sequence, including inserted entries
-// immediately discarded by this publication. Document deltas still use the
-// existing native diff; incarnation-aware document tuple parity is separate.
-func conversationWindowOperations(before, after JSON, appended []Entry, drop int, limits Limits) ([]Operation, error) {
+// immediately discarded by this publication. Native preparation supplies the
+// incarnation-aware document log; callers without one retain the bounded diff.
+func conversationWindowOperations(before, after JSON, appended []Entry, drop int, limits Limits, documents ...[]Operation) ([]Operation, error) {
 	fallback := func() ([]Operation, error) { return diffOperations(before, after, limits) }
-	ops, err := diffOperations(JSON{"conversation": before["conversation"], "docs": before["docs"]}, JSON{"conversation": after["conversation"], "docs": after["docs"]}, limits)
-	if err != nil {
-		return nil, err
+	var ops []Operation
+	var err error
+	if len(documents) > 0 {
+		ops = documents[0]
+	} else {
+		ops, err = diffOperations(JSON{"conversation": before["conversation"], "docs": before["docs"]}, JSON{"conversation": after["conversation"], "docs": after["docs"]}, limits)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// The document-only diff can itself overflow to a root. That root lacks
 	// entries/before, so it must be rebuilt from the complete view envelope.
 	if len(ops) > 0 && ops[0][0] == "r" {
 		return fallback()
 	}
+	checkIntermediate := drop > 0 || len(ops) > 0
 	if len(appended) > 0 {
 		// Strict decoding requires an object root. This envelope is smaller
 		// and shallower than the actual splice tuple; it uses the record,
@@ -113,15 +120,14 @@ func conversationWindowOperations(before, after JSON, appended []Entry, drop int
 	// Do not widen native DTO/operation or intermediate-document limits to
 	// represent Source's transient append. Fall back to the existing bounded
 	// final-value diff if that transient cannot be replayed under this policy.
-	if drop > 0 {
-		if _, err = ApplyOperations(before, ops, limits); err != nil {
-			return fallback()
-		}
-		return ops, nil
-	}
 	owned, err := ownOperations(ops, limits)
 	if err != nil {
 		return fallback()
+	}
+	if checkIntermediate {
+		if _, err = ApplyOperations(before, owned, limits); err != nil {
+			return fallback()
+		}
 	}
 	return owned, nil
 }
@@ -131,7 +137,7 @@ func conversationWindowOperations(before, after JSON, appended []Entry, drop int
 // for this watch only, behind the same post-publication readiness fence.
 func (w *ConversationWatch) preparePublication(ctx context.Context, publication CommitPublication, ready <-chan struct{}) *preparedSubscription {
 	w.mu.Lock()
-	before, failed := w.head, w.projectionErr
+	before, mounted, failed := w.head, w.incarnations, w.projectionErr
 	w.mu.Unlock()
 	if failed != nil || !conversationPublicationRelevant(publication, before.Conversation.ID) {
 		return nil
@@ -141,10 +147,17 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 		frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{err: err}}
 		return &preparedSubscription{sub: w.sub, frame: frame, reset: frame, size: 1, resetSize: 1}
 	}
-	next, appended, drop, err := advanceConversationWindow(before, publication, w.limits, w.window)
+	docs, incarnations, documentOps, err := projectConversationDocuments(before, mounted, publication, w.limits)
 	if err != nil {
 		return failure(err)
 	}
+	entries := publication
+	entries.Documents = nil // adapter/raw delivery retains its existing projection
+	next, appended, drop, err := advanceConversationWindow(before, entries, w.limits, w.window)
+	if err != nil {
+		return failure(err)
+	}
+	next.Docs = docs
 	a, err := dtoObject(before, w.limits)
 	if err != nil {
 		return failure(err)
@@ -153,12 +166,15 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 	if err != nil {
 		return failure(err)
 	}
-	ops, err := conversationWindowOperations(a, b, appended, drop, w.limits)
+	ops, err := conversationWindowOperations(a, b, appended, drop, w.limits, documentOps)
 	if err != nil {
 		return failure(err)
 	}
 	if len(ops) == 0 {
-		return nil
+		// An unrepresentable net-zero batch may still replace incarnations.
+		// Adopt that witness after receipt without consuming a delivery slot.
+		frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{value: next}}
+		return &preparedSubscription{sub: w.sub, frame: frame, view: &next, incarnations: incarnations, headOnly: true}
 	}
 	root := []Operation{{"r", map[string]any(b)}}
 	frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{value: next, ops: ops}}
@@ -176,7 +192,7 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 	}
 	size := int64(len(valueEncoded)) + int64(len(opsEncoded))
 	resetSize := 2*int64(len(valueEncoded)) + 8
-	return &preparedSubscription{sub: w.sub, frame: frame, reset: reset, size: size, resetSize: resetSize, view: &next}
+	return &preparedSubscription{sub: w.sub, frame: frame, reset: reset, size: size, resetSize: resetSize, view: &next, incarnations: incarnations}
 }
 
 // Called only after receipt adoption, with the subscription lock held. This is
@@ -194,6 +210,7 @@ func (w *ConversationWatch) adoptPublication(item preparedSubscription) {
 	}
 	if item.view != nil {
 		w.head = *item.view
+		w.incarnations = item.incarnations
 	}
 }
 

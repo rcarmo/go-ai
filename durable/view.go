@@ -111,8 +111,9 @@ type ConversationWatch struct {
 	limits             Limits
 	window             conversationWindowBounds
 	head               ConversationView // publication-time window; current remains last delivered
-	projectionDisabled bool             // wrappers retain authoritative raw resnapshots
-	projectionErr      error            // failed projections end only this watch, after readiness
+	incarnations       map[string]conversationIncarnation
+	projectionDisabled bool  // wrappers retain authoritative raw resnapshots
+	projectionErr      error // failed projections end only this watch, after readiness
 }
 
 func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWindow) (*ConversationWatch, error) {
@@ -129,7 +130,7 @@ func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWi
 		if err != nil {
 			return err
 		}
-		watch = &ConversationWatch{current: value, head: value, sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
+		watch = &ConversationWatch{current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
 		p.conversation = watch
 		return nil
 	})
