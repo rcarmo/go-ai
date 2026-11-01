@@ -8,6 +8,8 @@ Rui authorised convergence for pi-ai, pi-durable and pi-codemode with full seman
 
 [Cached-storage and tail assertions](durable-cache-storage.md): twelve cases reviewed with native mapping open (`reviewed-open` corpus rows). A SQLite internal-read copy regression is fixed while preserving wrapped Snapshot gates and detached public records. Diagnostic median 466 µs → 139 ns, 356 KB/330 allocations → zero reported per read; this is a microbenchmark. Root normal, affected race, vet and non-CGO package build pass. Source cache/commit adoption, non-CGO test compilation and full acceptance/profiling are incomplete.
 
+[Commit barrier and settlement controls](durable-commit-barriers.md): two native Session gates and four real-SQLite failure/recovery subcases pass unchanged production code. Both source rows are partial; disjoint callback batching, multi-batch receipts, deferred writes and ordered publication/continuations still need implementation and verification.
+
 ## Inventory and dispositions
 
 [changes.json](changes.json) inventories all 354 changed paths inside the three packages: 178 AI, 174 durable and two codemode paths. [upstream-tests.tsv](upstream-tests.tsv) records the complete target test/fixture corpus (352 paths), including unchanged cases, changed markers and native evidence. A pending row is a gap, not an N/A decision or an acceptance result. The earlier accepted baseline crosswalk remains in [../v140/crosswalk.json](../v140/crosswalk.json).
