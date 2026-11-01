@@ -412,14 +412,16 @@ func (s *Session) readTasks(ctx context.Context, read func(Snapshot) error) erro
 func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
 	switch s.store.(type) {
 	case *MemoryStorage, *JournalStorage:
-		if err := s.core.enter(ctx); err != nil {
-			return Snapshot{}, s.backendResult(ctx, err, false)
-		}
-		defer s.core.leave()
-		return s.core.state, nil
 	default:
-		return s.guardedStorage().Snapshot(ctx)
+		if !directSQLiteTaskSnapshot(s.store) {
+			return s.guardedStorage().Snapshot(ctx)
+		}
 	}
+	if err := s.core.enter(ctx); err != nil {
+		return Snapshot{}, s.backendResult(ctx, err, false)
+	}
+	defer s.core.leave()
+	return s.core.state, nil
 }
 
 func (s *Session) Close(ctx context.Context) error {
