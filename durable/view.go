@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	"sort"
 	"sync"
 )
 
@@ -106,11 +105,14 @@ func (c *ConversationHandle) View(ctx context.Context, window ...ConversationWin
 // baseline is acquired atomically with registration. Overflow emits a root
 // replacement; listeners are serial and off the mutation line.
 type ConversationWatch struct {
-	mu      sync.Mutex
-	current ConversationView
-	sub     *CommitSubscription
-	limits  Limits
-	window  conversationWindowBounds
+	mu                 sync.Mutex
+	current            ConversationView
+	sub                *CommitSubscription
+	limits             Limits
+	window             conversationWindowBounds
+	head               ConversationView // publication-time window; current remains last delivered
+	projectionDisabled bool             // wrappers retain authoritative raw resnapshots
+	projectionErr      error            // failed projections end only this watch, after readiness
 }
 
 func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWindow) (*ConversationWatch, error) {
@@ -121,19 +123,24 @@ func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWi
 	if err != nil {
 		return nil, err
 	}
-	state, sub, err := c.h.session.SubscribeCommits(ctx)
+	var watch *ConversationWatch
+	_, sub, err := c.h.session.subscribeCommits(ctx, func(state Snapshot, p *CommitSubscription) error {
+		value, err := buildConversationWindow(state, c.id, c.h.session.limits, bounds)
+		if err != nil {
+			return err
+		}
+		watch = &ConversationWatch{current: value, head: value, sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
+		p.conversation = watch
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	value, err := buildConversationWindow(state, c.id, c.h.session.limits, bounds)
-	if err != nil || c.h.closing.Load() {
+	if c.h.closing.Load() {
 		sub.Stop()
-		if err == nil {
-			err = ErrClosed
-		}
-		return nil, err
+		return nil, ErrClosed
 	}
-	return &ConversationWatch{current: value, sub: sub, limits: c.h.session.limits, window: bounds}, nil
+	return watch, nil
 }
 func (w *ConversationWatch) Value() (ConversationView, error) {
 	w.mu.Lock()
@@ -148,88 +155,20 @@ func (w *ConversationWatch) Start(listener func(context.Context, ConversationVie
 		return reject("nil conversation listener")
 	}
 	return w.sub.Start(func(ctx context.Context, frame PublicationFrame) error {
-		w.mu.Lock()
-		before := w.current
-		next, err := copyConversationView(before, w.limits)
-		reset := frame.Snapshot != nil
-		if err == nil && reset {
-			bounds := w.window
-			bounds.hasFrom = false // from only constrains initial attachment
-			next, err = buildConversationWindow(*frame.Snapshot, before.Conversation.ID, w.limits, bounds)
+		if frame.conversation == nil {
+			return w.deliverAuthoritative(ctx, frame, listener)
 		}
-		if err == nil && !reset {
-			for _, change := range frame.Publication.Documents {
-				doc := change.Record
-				if doc.Scope != "conversation" || doc.Owner != before.Conversation.ID || doc.Family || !mountedKind(doc.Kind) {
-					continue
-				}
-				if change.Value == nil || doc.Retired {
-					delete(next.Docs, doc.Kind)
-				} else {
-					next.Docs[doc.Kind], err = copyObject(change.Value, w.limits)
-					if err != nil {
-						break
-					}
-				}
-			}
-			appended := []Entry{}
-			for _, write := range frame.Publication.Tables {
-				if err != nil {
-					break
-				}
-				if write.Conversation != nil && write.Conversation.ID == before.Conversation.ID {
-					next.Conversation = *write.Conversation
-				}
-				if write.Entry == nil || write.Entry.Conversation != before.Conversation.ID {
-					continue
-				}
-				entry, e := copyEntry(*write.Entry, w.limits)
-				if e != nil {
-					err = e
-					break
-				}
-				appended = append(appended, entry)
-			}
-			sort.Slice(appended, func(i, j int) bool { return appended[i].ID < appended[j].ID })
-			next.Entries = append(next.Entries, appended...)
-			if len(next.Entries) > w.window.max {
-				drop := len(next.Entries) - w.window.min
-				next.Before = next.Entries[drop-1].ID
-				kept := make([]Entry, w.window.min)
-				copy(kept, next.Entries[drop:])
-				next.Entries = kept
-			}
+		projection := frame.conversation
+		if projection.err != nil {
+			return projection.err
 		}
-		var ops []Operation
-		if err == nil {
-			a, e := dtoObject(before, w.limits)
-			err = e
-			if err == nil {
-				b, e := dtoObject(next, w.limits)
-				err = e
-				if err == nil {
-					if reset {
-						ops = []Operation{{"r", map[string]any(b)}}
-					} else {
-						ops, err = diffOperations(a, b, w.limits)
-					}
-				}
-			}
-		}
-		if err == nil {
-			w.current = next
-		}
-		detached, e := copyConversationView(next, w.limits)
-		if err == nil {
-			err = e
-		}
-		w.mu.Unlock()
+		value, err := copyConversationView(projection.value, w.limits)
 		if err != nil {
 			return err
 		}
-		if len(ops) == 0 {
-			return nil
-		}
-		return listener(ctx, detached, ops)
+		w.mu.Lock()
+		w.current = projection.value
+		w.mu.Unlock()
+		return listener(ctx, value, projection.ops)
 	})
 }

@@ -262,7 +262,7 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 }
 
 // Native bounded-commit overflow probe. Source's 10,000 pending-op threshold and
-// exact incremental window state during overflow still need separate alignment.
+// pending-operation folding and exact tuple sequences still need alignment.
 func TestMainTranscriptWindowNativeOverflowReplay(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		h, c := transcriptFixture(t, b)

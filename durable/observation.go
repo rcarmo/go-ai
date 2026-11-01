@@ -563,7 +563,8 @@ type PublicationFrame struct {
 	Snapshot     *Snapshot
 	Context      context.Context
 	ready        <-chan struct{}
-	graphRefresh bool // process-local metadata only; never a storage publication
+	graphRefresh bool                          // process-local metadata only; never a storage publication
+	conversation *conversationPublicationFrame // private bounded view projection
 }
 type CommitSubscription struct {
 	mu                      sync.Mutex
@@ -577,6 +578,7 @@ type CommitSubscription struct {
 	graph                   bool // opts this existing quota-bound subscription into graph metadata wakes
 	end                     WatchEnd
 	closed                  chan struct{}
+	conversation            *ConversationWatch // immutable after atomic registration
 }
 
 func (p *CommitSubscription) Start(fn func(context.Context, PublicationFrame) error) error {
@@ -654,6 +656,7 @@ func (p *CommitSubscription) drain() {
 			return
 		}
 		frame := p.pending[0]
+		p.pending[0] = PublicationFrame{} // release consumed owned projections
 		p.bytes -= p.sizes[0]
 		p.pending = p.pending[1:]
 		p.sizes = p.sizes[1:]
@@ -678,6 +681,11 @@ func (p *CommitSubscription) drain() {
 // SubscribeCommits returns a detached baseline plus a subscription registered on
 // the same line. Host callbacks run asynchronously and may initiate later commits.
 func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscription, error) {
+	return s.subscribeCommits(ctx, nil)
+}
+
+// attach is internal projection setup, under the same line as registration.
+func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *CommitSubscription) error) (Snapshot, *CommitSubscription, error) {
 	if e := s.enter(ctx); e != nil {
 		return Snapshot{}, nil, e
 	}
@@ -698,6 +706,11 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 		quota = baselineBytes
 	}
 	p := &CommitSubscription{session: s, quota: quota, closed: make(chan struct{})}
+	if attach != nil {
+		if err := attach(snapshot, p); err != nil {
+			return Snapshot{}, nil, err
+		}
+	}
 	s.observerMu.Lock()
 	if s.closing.Load() {
 		s.observerMu.Unlock()
@@ -755,11 +768,13 @@ func intQuota(n int64) int {
 }
 
 type preparedSubscription struct {
-	sub             *CommitSubscription
-	frame           PublicationFrame
-	reset           PublicationFrame
-	size, resetSize int64
-	overflow        bool
+	sub               *CommitSubscription
+	frame             PublicationFrame
+	reset             PublicationFrame
+	size, resetSize   int64
+	overflow          bool
+	view              *ConversationView // installed only after receipted adoption
+	disableProjection bool              // a published wrapper fallback invalidates this head
 }
 
 func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}) ([]preparedSubscription, error) {
@@ -781,6 +796,18 @@ func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPu
 	state := *tx.publicationState
 	result := []preparedSubscription{}
 	for _, p := range list {
+		if p.conversation != nil {
+			enabled, failed := p.conversation.projectionStatus()
+			if failed {
+				continue
+			}
+			if enabled && s.hasNativeReadImage() {
+				if item := p.conversation.preparePublication(ctx, publication, ready); item != nil {
+					result = append(result, *item)
+				}
+				continue
+			}
+		}
 		// Each subscription owns its independent batch and fallback snapshot, copied
 		// before storage settlement. The adopted path performs no fallible work.
 		encoded, e := encodeBounded(publication, s.limits, s.limits.MaxRetainedBytesAsInt())
@@ -799,7 +826,7 @@ func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPu
 		if e != nil {
 			return nil, e
 		}
-		result = append(result, preparedSubscription{p, PublicationFrame{Publication: copy, Context: context.WithoutCancel(ctx), ready: ready}, PublicationFrame{Snapshot: &snapshot, Context: context.WithoutCancel(ctx), ready: ready}, int64(len(encoded)), resetBytes, false})
+		result = append(result, preparedSubscription{sub: p, frame: PublicationFrame{Publication: copy, Context: context.WithoutCancel(ctx), ready: ready}, reset: PublicationFrame{Snapshot: &snapshot, Context: context.WithoutCancel(ctx), ready: ready}, size: int64(len(encoded)), resetSize: resetBytes, overflow: false, disableProjection: p.conversation != nil})
 	}
 	return result, nil
 }
@@ -811,6 +838,9 @@ func (s *Session) enqueueSubscriptions(prepared []preparedSubscription) {
 		if p.ended {
 			p.mu.Unlock()
 			continue
+		}
+		if p.conversation != nil {
+			p.conversation.adoptPublication(item)
 		}
 		frame, size := item.frame, item.size
 		if len(p.pending) >= 100 || size > p.quota-p.bytes {
