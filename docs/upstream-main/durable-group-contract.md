@@ -13,7 +13,7 @@ Source: `81f3cd412758ebdd92324c7d63b669a189408d0a`, `packages/durable/test/sessi
 - Another owner's transaction and a read cannot enter halfway through that transaction. A store export holds the queue and excludes a series queued behind it. Closing a store rejects queued calls as released while allowing its running call to settle. These store-close rules differ from Session's drain.
 - Reopening after a crash recovers every stored batch, the individual seqs, document versions and non-reused IDs. Retain no settled batch container or receipt closure after its lifetime ends.
 
-Native SQLite stores framed snapshots/metadata instead of the source schema. Its one-call transaction, per-batch frames/seqs, allocator and failure behaviour need dedicated tests. Source's five/thirteen-statement assertions require a separate format/cost disposition; a different schema does not waive atomicity or receipts. Journal crash/unknown-outcome behaviour needs its own backend tests.
+Native SQLite stores framed snapshots/metadata instead of the source schema. Its one-call transaction, per-batch frames/seqs, allocator and failure behaviour need dedicated tests. Source's five/thirteen-statement assertions require a separate format/cost disposition; a different schema does not waive atomicity or receipts. [Journal process-crash checks](durable-group-lifetime.md) now recover the confirmed prefix before adoption/receipts, after a receipt, after return and after normal refusal. Machine power loss and arbitrary device-write interruption are outside those checks.
 
 ### Preparation and publication
 
@@ -47,8 +47,14 @@ A continuation-aware API could explicitly enqueue caller continuations between p
 
 Keep the existing blocking API and fences while prototyping those alternatives. Exact legacy post-return ordering needs either a contract-preserving mechanism demonstrated by tests or Rui's acceptance of the observable difference. No scheduler-equivalence assumption closes it.
 
+### Candidate-retention constraint
+
+`prepareCommit` currently creates each validated prefix through `prepare`/`candidateTables`. Every candidate copies all six tables; unchanged nested values remain shared and immutable. `commitBatches` discards intermediate candidates. Retaining a `[]Snapshot` until SQLite COMMIT would retain a table copy for every accepted batch. The encoded frame cap bounds payload bytes, not this product of base-state table size and prefix count. No multi-candidate retention or unbounded full-image array has been added. Per-part publication needs a bounded representation before overlap is enabled. The final raw SQLite image cannot serve as an earlier receipt's image.
+
+Wrapped storage remains authoritative for its Snapshot/scan/Entries data and errors, including replacements after Open. Native-only read projection does not supply a wrapper projection protocol. Existing fault gates and serial blocking APIs stay intact.
+
 ### Next implementation slice
 
-The internal receipt/refusal protocol and backend settlement now sit behind the existing single-batch API. Ordered receipts, prefix refusal, rollback/uncertainty, ownership, reopen and Close have initial native coverage; concurrent read/export and cross-owner isolation, crash-process and collection tests need further work. Keep value presence explicit even when native backends normally produce errors. Do not let optional group dispatch bypass a wrapper's existing fault gates.
+The internal receipt/refusal protocol and backend settlement now sit behind the existing single-batch API. Ordered receipts, prefix refusal, rollback/uncertainty, ownership, reopen and Close have initial native coverage; same-core queued reads and SQLite/journal process crashes have bounded native coverage. Export/cross-owner isolation and collection tests need further work. Keep value presence explicit even when native backends normally produce errors. Do not let optional group dispatch bypass a wrapper's existing fault gates.
 
-Then separate preparation from the writer, adding keyed dependencies and global scan barriers before enabling overlap. Add ordered publication with tested adoption failures and an explicit continuation contract. Connect cache writes and deferred persistence only after those boundaries hold. The existing [barrier checks](durable-commit-barriers.md) and [cache-cost follow-up](durable-cache-storage.md) remain regression requirements. Full race, acceptance and CPU/allocation profiling are unfinished.
+Then separate preparation from the writer, adding keyed dependencies and global scan barriers before enabling overlap. Add ordered publication with tested adoption failures and an explicit continuation contract. Connect cache writes and deferred persistence only after those boundaries hold. The existing [barrier checks](durable-commit-barriers.md) and [cache-cost follow-up](durable-cache-storage.md) remain regression requirements. The full development durable race gate passes at a5dedbd (631.158 seconds, CGO enabled); acceptance and CPU/allocation profiling are unfinished.
