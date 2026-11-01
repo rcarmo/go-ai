@@ -7,9 +7,9 @@
 | 113: hydrate newest entries/built-ins | Candidate: `view_provider_main_test.go`, `view_test.go` | Exact provider/chat inputs and every source assertion |
 | 128: one frame per touching commit/replay | Candidate: `view_test.go` | Natural frame count and exact input sequence; callback barriers do not establish JS ordering |
 | 160: structural sharing/unmounted silence | `view_lifecycle_oracle_main_test.go` checks unmounted silence from the separate atomic test | Exact source sequence; shared reference assertions |
-| 178: summary/reset head markers | Candidate: `view_transcript_history_main_test.go` | Exact source inputs/assertion crosswalk |
-| 204: inherited fork entries/head markers | Candidate: `view_transcript_history_main_test.go` | Exact source fork inputs and ordered expected records |
-| 219: fork observes only own commits | Candidate: `view_transcript_history_main_test.go` | Exact follow-up commits/counts |
+| 178: summary/reset head markers | `TestMainViewUpstreamHistoryOracles/summary-reset`: exact a/b/c/summary/d/reset sequence, natural three frame arrays, literal summary splice/head, replay/committed equality | Native setup/required Value/ID adaptations; see history oracles |
+| 204: inherited fork entries/head markers | `/fork-markers`: exact a/b/fork-at-b/summary, initial ordered IDs, first frame kinds/committed equality | Native setup and ownerless Fork API adaptations |
+| 219: fork observes only own commits | `/fork-isolation`: first/fork/parent/child, initial kinds/parent cutoff, exactly one child frame | Flat native Parent/ParentAt representation; no JS timing equivalence |
 | 234: retirement/recreation mounts whole | Candidate: `view_document_ops_main_test.go` | Exact source inputs/operations and reference assertions |
 | 251: fold undelivered commits | Candidate: `view_pending_main_test.go` | Exact source batch/context/assertions; native quota controls are additional |
 | 274: independent watches/remount | Candidate: `view_test.go`, lifecycle oracles | Exact stop/remount sequence and shared mount/reference assertions |
@@ -39,5 +39,7 @@ A no-inline allocator/callback helper leaves the collection assertion without st
 Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.509s/8.121s), three race repetitions/shuffle 7 (23.732s), and combined lifetime/hydration/lifecycle race repetitions/shuffle 42 (25.655s). Durable vet/staticcheck v0.8.2 pass both modes; module verification passes. Retaining callback entry arrays and retaining old private heads each fail all six CGO-enabled backend/control leaves. Mutation files/logs and temporary source extracts were removed after analysis. No performance comparison, full-suite/full-race run or acceptance profiling was performed.
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
+
+See [history oracles](history-oracles.md) for exact summary/reset and fork inputs, assertions and development checks at lines 178, 204 and 219.
 
 See [window advancement oracles](window-advance-oracles.md) for exact inputs, assertions, adaptations and development checks for lines 412, 437, 482 and 495.
