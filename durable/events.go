@@ -91,7 +91,7 @@ type AgentEventStream struct {
 
 func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSnapshot, error) {
 	result := ConversationSnapshot{Conversation: id, Documents: map[string]JSON{}, Entries: []Entry{}, Tasks: []TaskRecord{}, Submissions: []Submission{}}
-	view, err := buildConversationView(state, id, limits)
+	view, err := buildActiveConversationView(state, id, limits)
 	if err != nil {
 		return result, err
 	}

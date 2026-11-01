@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestConversationWatchActiveHeadDeltasDetachedAndOffLine(t *testing.T) {
+func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		h := openHarness(t, b.store, Options{})
 		conversation, err := h.Conversation(bg, 1)
@@ -84,7 +84,7 @@ func TestConversationWatchActiveHeadDeltasDetachedAndOffLine(t *testing.T) {
 		}
 		select {
 		case frame := <-frames:
-			if len(frame.Entries) != 1 || frame.Entries[0].Kind != "pi.reset" || frame.Docs["pi.live"]["detail"] != "committed" {
+			if len(frame.Entries) != 3 || frame.Entries[0].Value["text"] != "first" || frame.Entries[2].Kind != "pi.reset" || frame.Docs["pi.live"]["detail"] != "committed" {
 				t.Fatal(frame)
 			}
 		case <-time.After(3 * time.Second):
@@ -106,7 +106,7 @@ func TestConversationWatchActiveHeadDeltasDetachedAndOffLine(t *testing.T) {
 	})
 }
 
-func TestConversationWatchOverflowReplacesWithLatestActiveSnapshot(t *testing.T) {
+func TestConversationWatchOverflowReplacesWithLatestTranscriptSnapshot(t *testing.T) {
 	store, _ := NewMemory()
 	h := openHarness(t, store, Options{})
 	conversation, err := h.Conversation(bg, 1)
