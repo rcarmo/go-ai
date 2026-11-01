@@ -295,93 +295,23 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
-	publication, e := tx.preparePublication(ctx)
-	if e != nil {
-		return 0, e
-	}
-	frames, e := s.prepareWatchFrames(ctx, publication, ready)
-	if e != nil {
-		return 0, e
-	}
-	subs, e := s.prepareSubscriptions(ctx, publication, tx, ready)
+	prepared, e := s.prepareSessionPublication(ctx, tx, state, ready)
 	if e != nil {
 		return 0, e
 	}
 	receipt, adopted, err := s.settleBatch(ctx, Batch{Writes: tx.writes})
 	seq = receipt.seq
 	err = s.backendResult(ctx, err, true)
-	if err == nil {
-		if imageErr := s.adoptReceipt(receipt, &adopted); imageErr != nil {
-			err = s.backendResult(ctx, imageErr, true)
-			return 0, err
-		}
-		s.invalidateContextRanges(adopted, tx.writes)
-		// Settle retention even without a timer callback. Entry-only writes
-		// cannot change task membership, so avoid rescanning tasks for them.
-		refreshContextScopes := false
-		for _, write := range tx.writes {
-			// Live documents can change held-generation idleness too. Only a
-			// strictly entry-only batch can reuse the previous busy witnesses.
-			refreshContextScopes = refreshContextScopes || write.Op != "append-entry"
-		}
-		s.settleContextRanges(refreshContextScopes)
-		if s.taskScheduler != nil {
-			// Storage already validated and adopted the immutable candidate. The
-			// Session owns its sole writer; scheduler bookkeeping reads this private
-			// view only. Do not replay/validate the entire history a second time.
-			tx.taskAdoptState = &adopted
-		}
-		if s.taskScheduler != nil && s.taskScheduler.h.options.Telemetry != nil {
-			// Capture links before terminal placeholder writes release their parents.
-			telemetryEvents = s.taskScheduler.h.captureCommitEvents(ctx, tx, state)
-			s.taskScheduler.h.noteTaskAncestry(ctx, tx, state)
-			for _, write := range tx.writes {
-				if write.Task != nil {
-					if runtime := s.taskScheduler.invocations[write.Task.ID]; runtime != nil {
-						runtime.noteTrace(*write.Task)
-					}
-				}
-			}
-		}
-		if trace := submitTraceFromContext(ctx); trace != nil {
-			for _, write := range tx.writes {
-				if write.Submission != nil {
-					trace.observe(*write.Submission)
-				}
-			}
-		}
-		s.adoptTaskEffects(seq, tx)
-		s.enqueueWatchFrames(frames)
-		s.enqueueSubscriptions(subs)
-		// Only changed incarnations invalidate migration cache entries. An
-		// unrelated commit never turns a warm migration into a cold load.
-		for _, write := range tx.writes {
-			var changed ID
-			if write.Document != nil {
-				changed = write.Document.ID
-			}
-			if write.Delta != nil {
-				changed = write.Delta.ID
-			}
-			if changed == 0 {
-				continue
-			}
-			for key, value := range s.definitionCache {
-				if key.id == changed {
-					delete(s.definitionCache, key)
-					s.definitionCacheBytes -= value.bytes
-				}
-			}
-		}
+	if err != nil {
+		return seq, err
 	}
-	if err == nil {
-		// Background expiry is optional: successful commits still evict idle
-		// values when a host declines its timer (reads also sweep on access).
-		s.sweepDocumentCache()
-		s.scheduleDocumentExpiry()
+	telemetryEvents, err = s.publishSessionPublication(&prepared, receipt, &adopted)
+	if err != nil {
+		return 0, s.backendResult(ctx, err, true)
 	}
-	return seq, err
+	return seq, nil
 }
+
 func (s *Session) finalizeTaskWrites(tx *Tx) error {
 	if s.taskScheduler != nil {
 		if err := s.taskScheduler.prepareTaskWrites(tx); err != nil {

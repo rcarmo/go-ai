@@ -51,6 +51,16 @@ Fresh full root normal tests and vet pass with CGO disabled/enabled; module veri
 
 Fresh full root normal tests/vet pass with CGO disabled/enabled; module verification passes. All group/frame/receipt/lifetime/crash tests plus Session image/failure/wrapper controls pass three race repetitions with shuffle 7/42. The earlier full durable race run predates this increment. Single-batch public API, native append hooks, wrapped read contracts, ownership, cancellation and observer/publication sequencing are unchanged. No performance gain is claimed; the serial candidate path avoids introducing frame-replay work.
 
+### Prepared publication boundary
+
+`Session.commit` now calls `prepareSessionPublication`, `settleBatch` and `publishSessionPublication` in order under its existing line. Callback execution, sealing and task/document finalisation still precede observer preparation. The prepared value holds the sealed transaction, original image and detached watch/subscription work; it creates no concurrent queue or array of prefix images.
+
+The shared publisher rechecks the first failure, adopts the receipt image, then preserves the existing order: context invalidation/retention; task-adopt state; telemetry/ancestry/trace capture; task effects; watch/subscription enqueue; changed-definition cache invalidation; document sweep/timer scheduling. Caller rollback, observer-ready release, stop dispatch and telemetry delivery stay in the outer commit defer after line release. Cancellation after admitted storage does not discard durable publication.
+
+`session_publication_failure_main_test.go` adds nine CGO/six non-CGO leaves. Failure injected during frame settlement fences the normal commit; after joined failure-driven Close, reopen retains its durable entry. Staged checks inject failure between settlement and publication and require an unchanged published image. Another staged check cancels the context after settlement, publishes once and rejects duplicate publication without adding an observer frame. Removing the publisher's failure recheck fails all three backend cases; the overlay is deleted after analysis.
+
+Fresh full root normal/vet pass with CGO disabled/enabled; module verification passes. Session/image/receipt/failure/wrapper and storage-group/frame/crash/lifetime checks pass three race repetitions with shuffle 7/42. The earlier full durable race run predates this increment. No public API, dependency, storage format, accepted asset or release ref changes; no performance gain is claimed.
+
 ### Remaining boundary
 
 Wrapped storage still uses its existing guarded paths, including authoritative adapter data, errors and post-Open replacement. The adapter regression deliberately preserves its raw seq/data contract even when the native publication image is older. Safe wrapper projection is unresolved, so Session overlap remains disabled. The core-admission gate still blocks reads behind an active backend call; this increment does not provide disjoint preparation.
