@@ -169,40 +169,65 @@ func (s *Session) settleContextRanges(refreshBusy bool) {
 			delete(s.contextRanges, id)
 		}
 	}
+	var oldest *int64
+	for _, r := range s.contextRanges {
+		if r.idleSince != nil && (oldest == nil || *r.idleSince < *oldest) {
+			oldest = r.idleSince
+		}
+	}
+	var at contextDeadline
+	if oldest != nil {
+		at = contextDeadline{
+			ms:       int64(uint64(*oldest) + uint64(retention)),
+			overflow: *oldest > math.MaxInt64-retention,
+		}
+		if s.contextExpiry != nil && s.contextExpiryAt == at && s.contextExpiry.pendingOrArmed() {
+			return
+		}
+	}
 	if s.contextExpiry != nil {
 		s.contextExpiry.Stop()
 		s.contextExpiry = nil
 	}
-	var delay time.Duration
-	for _, r := range s.contextRanges {
-		if r.idleSince == nil {
-			continue
-		}
-		elapsed := int64(0)
-		if now >= *r.idleSince {
-			difference := uint64(now) - uint64(*r.idleSince)
-			if difference > uint64(math.MaxInt64) {
-				difference = uint64(math.MaxInt64)
-			}
-			elapsed = int64(difference)
-		}
-		left := retentionDuration(max(int64(0), retention-elapsed))
-		if left <= 0 {
-			left = time.Millisecond
-		}
-		if delay == 0 || left < delay {
-			delay = left
-		}
-	}
-	if delay > 0 && !s.closing.Load() {
-		s.contextExpiry = s.newSessionTimer(contextExpiryTimer, delay, func() {
+	if oldest != nil && !s.closing.Load() {
+		delay := contextExpiryDelay(*oldest, retention, now)
+		var timer *sessionTimer
+		timer = s.newSessionTimer(contextExpiryTimer, delay, func() {
 			s.taskBookkeeping(func() {
-				if !s.closing.Load() {
+				// A callback may have passed its off-line guard before a
+				// replacement acquired the line. Never retire that replacement.
+				if !s.closing.Load() && s.contextExpiry == timer {
+					timer.Stop()
+					s.contextExpiry = nil
 					s.expireContextRanges()
 				}
 			})
 		})
+		s.contextExpiry, s.contextExpiryAt = timer, at
 	}
+}
+
+// A deadline can exceed MaxInt64 even though both inputs are signed int64.
+// Keep its overflow bit so distinct far-future alarms never alias on reuse.
+type contextDeadline struct {
+	ms       int64
+	overflow bool
+}
+
+func contextExpiryDelay(idleSince, retention, now int64) time.Duration {
+	if now < idleSince {
+		gap := uint64(idleSince) - uint64(now)
+		limit := uint64(math.MaxInt64 / int64(time.Millisecond))
+		if gap > limit || uint64(retention) > limit-gap {
+			return time.Duration(math.MaxInt64)
+		}
+		return time.Duration(gap+uint64(retention)) * time.Millisecond
+	}
+	elapsed := uint64(now) - uint64(idleSince)
+	if elapsed >= uint64(retention) {
+		return time.Millisecond
+	}
+	return retentionDuration(int64(uint64(retention) - elapsed))
 }
 func retentionDuration(ms int64) time.Duration {
 	if ms > math.MaxInt64/int64(time.Millisecond) {

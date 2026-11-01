@@ -25,6 +25,7 @@ type Session struct {
 	limits                Limits
 	contextRanges         map[ID]*contextRange
 	contextExpiry         *sessionTimer
+	contextExpiryAt       contextDeadline
 	definitionCache       map[definitionCacheKey]definitionCacheValue
 	definitionCacheBytes  int64
 	documentRetentionMs   func() int64

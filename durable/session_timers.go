@@ -20,6 +20,15 @@ type sessionTimer struct {
 	started, stopped atomic.Bool
 	mu               sync.Mutex
 	cancel           func()
+	armComplete      bool // protected by mu; nil cancellation after completion means declined
+}
+
+// Called on the Session line. An admitted host arm may still be returning;
+// preserve it, but retry an optional timer whose host already declined it.
+func (t *sessionTimer) pendingOrArmed() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return !t.stopped.Load() && (!t.armComplete || t.cancel != nil)
 }
 
 // Called on the Session line. Only the last requested arm for each of the two
@@ -65,6 +74,7 @@ func (t *sessionTimer) arm() {
 		}
 	}, t.delay, TimerOptions{Background: true})
 	t.mu.Lock()
+	t.armComplete = true
 	stopped := t.stopped.Load()
 	if !stopped {
 		t.cancel = cancel
