@@ -18,7 +18,7 @@ The acquisition and in-flight ports preserve the object-valued source inputs. Li
 
 ## Durable conversation lifecycle ports
 
-`durable/view_lifecycle_oracle_main_test.go` adds two scenarios from `packages/durable/test/harness-view.test.ts:332–392`, through unchanged production code on all three backends:
+`durable/view_lifecycle_oracle_main_test.go` adds two scenarios from `packages/durable/test/harness-view.test.ts:330–380`, through unchanged production code on all three backends:
 
 - `TestMainViewUpstreamListenerIsolation`: start two watches, update `pi.live.text` to `x`, observe the first listener's `listener failed` error and `listener_error` closure, then update to `y`; the other watch receives both frames and stays open. The source's shared-docs reference-identity assertion is unported. Native detached ownership supplies no equivalent assertion.
 - `TestMainViewUpstreamAtomicPublication`: append note data `1` and `2` and set `pi.live.text` to `done` in one commit; receive one frame, verify its two IDs, replay operations and compare with a newly acquired watch. Editing unmounted `test.view.extra.x` to `1` creates no pending/delivered frame or value change. Native entries require the empty `Value` envelope and minted IDs. The native setup initialises built-ins without executing the source's provider/chat setup.

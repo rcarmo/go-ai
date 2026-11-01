@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Pinned harness-view.test.ts:332-355: failing one listener leaves its peer
+// Pinned harness-view.test.ts:330-349: failing one listener leaves its peer
 // working. The source's docs reference-identity assertion remains unported:
 // native detached ownership is not a substitute for that assertion.
 func TestMainViewUpstreamListenerIsolation(t *testing.T) {
@@ -52,7 +52,7 @@ func TestMainViewUpstreamListenerIsolation(t *testing.T) {
 	})
 }
 
-// Pinned harness-view.test.ts:357-392: two notes plus one mounted doc edit are
+// Pinned harness-view.test.ts:351-380: two notes plus one mounted doc edit are
 // one publication; an unmounted doc edit is silent. Preserve kinds/data/text
 // inputs and replay/fresh-value/count assertions through real native commits.
 func TestMainViewUpstreamAtomicPublication(t *testing.T) {

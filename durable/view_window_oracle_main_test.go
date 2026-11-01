@@ -24,7 +24,7 @@ func upstreamViewNotes(t *testing.T, h *Harness, count int) []ID {
 	return out
 }
 
-// Port the inputs and assertions at harness-view.test.ts:397-411,448-473
+// Port the inputs and assertions at harness-view.test.ts:398-411,455-480
 // (81f3cd41). Additional backends exercise the same oracle, without replacing it.
 func TestMainViewUpstreamHydrationOracles(t *testing.T) {
 	for _, count := range []int{10, 30} {

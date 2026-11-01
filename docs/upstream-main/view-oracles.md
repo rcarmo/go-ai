@@ -27,7 +27,7 @@ That eighteenth sequence is **not ported**: its first append is an isolated high
 
 ## Exact hydration fixtures
 
-`TestMainViewUpstreamHydrationOracles` ports the relevant inputs and assertions from `packages/durable/test/harness-view.test.ts:397–411,448–473`:
+`TestMainViewUpstreamHydrationOracles` ports the relevant inputs and assertions from `packages/durable/test/harness-view.test.ts:398–411,455–480`:
 
 - Ten notes, `min: 4`: entries 6 onward and predecessor 5; default window contains all ten and omits `before` from its JSON object.
 - Thirty notes, `min: 5, max: 10`: `from` at entry 20 includes ten; entry 28 includes two; newest plus one gives an empty window; entry 19 overflows to the newest five; `min: 40` from the first entry includes all thirty and omits `before`.
@@ -41,3 +41,5 @@ The new oracle tests plus the earlier folding unit test pass five normal repetit
 The harness-view corpus remains partial. Existing frame-sequence tests with extra native callback barriers do not prove the source’s natural Promise/microtask frame-count ordering. Shared JavaScript object identity, dropped-entry GC, synchronous observer lifecycle and native detached ownership require their own dispositions. No sleeps, scheduling hints, relaxed assertions or identity substitutions were added to claim those tests passed. No hydration/scan optimisation was made without a demonstrated upstream-test requirement. Full-suite, full race, performance and pre-release acceptance remain open.
 
 The [watch lifecycle assertion crosswalk](watch-lifecycle-oracles.md) adds exact object-valued acquisition/in-flight ports and adapted stop/listener-error scenarios. It records recoverable-failure and retained-frame-context gaps separately.
+
+The [23-test assertion index](harness-view-assertions.md) records remaining exact-port work and the dropped-entry backing-array lifetime adaptation. Candidate native regressions do not establish assertion equivalence.
