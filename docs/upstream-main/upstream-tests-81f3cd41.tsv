@@ -337,7 +337,7 @@ packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-ve
 packages/durable/test/session-observers.test.ts	yes	pending	reviewed-open	docs/upstream-main/synchronous-observers.md (partial source review only; no native synchronous observer API; publication/re-entry/detach/error/lifetime contracts open)
 packages/durable/test/session-support.ts	yes	pending	pending-review	
 packages/durable/test/session-tables.test.ts	yes	pending	pending-review	
-packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/remaining assertions open)
+packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/remaining assertions open); related pinned Chord watch lifecycle assertions: durable/watch_lifecycle_oracle_main_test.go + docs/upstream-main/watch-lifecycle-oracles.md (exact object acquisition/in-flight values; scalar-envelope stop/listener-error; recoverable failure/context retention/timing/identity gaps OPEN)
 packages/durable/test/setup-document-retention.ts	no	pending	pending-review	
 packages/durable/test/spec-usage.test.ts	yes	pending	pending-review	
 packages/durable/test/sqlite-cloudflare.test.ts	yes	pending	pending-review	
