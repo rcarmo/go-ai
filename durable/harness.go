@@ -1319,7 +1319,7 @@ func (h *Harness) waitIdleAdmissionMode(ctx context.Context, conversation ID, bi
 	}()
 	for {
 		idle := true
-		err := h.session.readTasks(ctx, func(state Snapshot) error {
+		err := h.session.readTaskView(ctx, func(state Snapshot, published bool) error {
 			if h.closing.Load() {
 				return ErrClosed
 			}
@@ -1335,7 +1335,7 @@ func (h *Harness) waitIdleAdmissionMode(ctx context.Context, conversation ID, bi
 				h.scheduler.enable()
 				enable = false
 			}
-			targets := h.scheduler.idleTargets(state, conversation)
+			targets := h.scheduler.idleTargetsForView(state, conversation, published)
 			idle = len(targets) == 0
 			if idle {
 				h.scheduler.releaseWaitClaims(rootWait)

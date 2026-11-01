@@ -307,7 +307,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			// Revalidate ALL surviving dependency registrations against the
 			// unchanged confirmed state, including A -> held P -> pending B.
 			if !errors.Is(failure, ErrPoisoned) {
-				s.refreshBoundWaits(tx.state)
+				s.refreshBoundWaits(tx.state, false)
 			}
 		}
 		if s.sealed.Load() || s.h.closing.Load() || requireEnabled && !s.enabled.Load() {
@@ -702,9 +702,9 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			}
 			// Release and frontier re-ticketing share ONE line admission. Cleanup
 			// precedes the optional read: poison never loses the actual host join.
-			state, err := s.h.session.taskSnapshot(context.Background())
+			state, published, err := s.h.session.taskSnapshotView(context.Background())
 			if err == nil && !s.sealed.Load() {
-				s.refreshBoundWaits(state)
+				s.refreshBoundWaits(state, published)
 			}
 			s.notifyWaiters(err)
 			// Close observes both the actual return AND completed line bookkeeping.
@@ -1292,7 +1292,8 @@ func (s *taskScheduler) adopt(seq uint64, tx *Tx) {
 			s.epoch.Add(1)
 		}
 		if tx.taskAdoptState != nil {
-			s.refreshBoundWaits(*tx.taskAdoptState)
+			// taskAdoptState is assigned only from the receipted published image.
+			s.refreshBoundWaits(*tx.taskAdoptState, s.h.session.hasNativeReadImage())
 		}
 		s.notifyWaiters(nil)
 		s.h.notifySubmissionWaiters(tx)
@@ -1684,7 +1685,7 @@ func (s *taskScheduler) boundWaitCycle(state Snapshot, caller, target ID, seen m
 
 // refreshBoundWaits runs on adoption and actual permit release BEFORE ordinary
 // selection. One idle registration plans all current scope edges atomically.
-func (s *taskScheduler) refreshBoundWaits(state Snapshot) {
+func (s *taskScheduler) refreshBoundWaits(state Snapshot, published bool) {
 	for wait := range s.waiters {
 		if wait.binding == nil || wait.failure != nil {
 			continue
@@ -1696,7 +1697,7 @@ func (s *taskScheduler) refreshBoundWaits(state Snapshot) {
 		}
 		targets := []ID{wait.target}
 		if wait.idleScope != nil {
-			targets = s.idleTargets(state, *wait.idleScope)
+			targets = s.idleTargetsForView(state, *wait.idleScope, published)
 		}
 		if err := s.admitBoundTargets(state, wait, targets); err != nil {
 			s.signalWait(wait, err)

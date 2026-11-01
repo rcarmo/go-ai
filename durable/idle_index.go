@@ -1,5 +1,7 @@
 package durable
 
+import "slices"
+
 // idleScope separates task roots from conversation roots, including global 0.
 // The forest retains ended owners as connectors. Background tasks cut only
 // their upward edge; conversations they own still have their own busy state.
@@ -10,6 +12,7 @@ type idleScope struct {
 type idleScopeNode struct {
 	key                        idleScope
 	parent                     *idleScopeNode
+	activeChildren             map[*idleScopeNode]struct{}
 	childrenLive, childrenIdle int
 	live, idle                 int
 }
@@ -30,6 +33,7 @@ type idleIndex struct {
 	invalid             bool
 	// Actual work counters, kept private for work-bound regression tests.
 	rebuilds, work uint64
+	targetVisits   uint64
 }
 
 func (x *idleIndex) node(key idleScope) *idleScopeNode {
@@ -78,12 +82,17 @@ func (x *idleIndex) refresh(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 			}
 		}
 		dl, di := live-n.live, idle-n.idle
+		wasActive := n.idle != 0
 		n.live, n.idle = live, idle
 		if dl == 0 && di == 0 {
 			return
 		}
+		child := n
 		n = n.parent
 		if n != nil {
+			if wasActive != (idle != 0) {
+				idleActiveChild(n, child, idle != 0)
+			}
 			n.childrenLive += dl
 			n.childrenIdle += di
 		}
@@ -92,6 +101,7 @@ func (x *idleIndex) refresh(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 func (x *idleIndex) detach(n *idleScopeNode, hosts map[ID]*TaskRuntime) {
 	if p := n.parent; p != nil {
 		n.parent = nil
+		idleActiveChild(p, n, false)
 		p.childrenLive -= n.live
 		p.childrenIdle -= n.idle
 		x.refresh(p, hosts)
@@ -117,6 +127,9 @@ func (x *idleIndex) attach(n *idleScopeNode, state Snapshot, hosts map[ID]*TaskR
 		}
 	}
 	n.parent = p
+	if n.idle != 0 {
+		idleActiveChild(p, n, true)
+	}
 	p.childrenLive += n.live
 	p.childrenIdle += n.idle
 	x.refresh(p, hosts)
@@ -171,6 +184,7 @@ func (s *taskScheduler) rebuildIdleIndex() *idleIndex {
 	if s.idleIndex != nil {
 		x.rebuilds += s.idleIndex.rebuilds
 		x.work = s.idleIndex.work
+		x.targetVisits = s.idleIndex.targetVisits
 	}
 	x.node(idleScope{conversation: true})
 	for id := range x.image.Conversations {
@@ -308,4 +322,62 @@ func (s *taskScheduler) indexedContextBusy(conversation ID) (bool, bool) {
 	}
 	n := x.nodes[idleScope{id: conversation, conversation: true}]
 	return n != nil && n.idle != 0, true
+}
+
+// Only idle-relevant branches are retained here. Zero-weight historical leaves
+// never enter target traversal, and empty child maps release their allocations.
+func idleActiveChild(parent, child *idleScopeNode, active bool) {
+	if active {
+		if parent.activeChildren == nil {
+			parent.activeChildren = map[*idleScopeNode]struct{}{}
+		}
+		parent.activeChildren[child] = struct{}{}
+	} else {
+		delete(parent.activeChildren, child)
+		if len(parent.activeChildren) == 0 {
+			parent.activeChildren = nil
+		}
+	}
+}
+
+func (s *taskScheduler) indexedIdleTargets(conversation ID) ([]ID, bool) {
+	x := s.currentIdleIndex()
+	if x.invalid || x.ambiguous != 0 {
+		return nil, false
+	}
+	targets := []ID{}
+	root := x.nodes[idleScope{id: conversation, conversation: true}]
+	if root == nil || root.idle == 0 {
+		return targets, true
+	}
+	// The aggregate is the exact output cardinality. Keep the usual small
+	// traversal frontier on the stack; wide scopes can grow it normally.
+	targets = make([]ID, 0, root.idle)
+	var frontier [16]*idleScopeNode
+	stack := append(frontier[:0], root)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		x.targetVisits++
+		if !n.key.conversation && n.idle > n.childrenIdle {
+			targets = append(targets, n.key.id)
+		}
+		for child := range n.activeChildren {
+			stack = append(stack, child)
+		}
+	}
+	slices.Sort(targets)
+	return targets, true
+}
+
+// published is supplied only by a native admitted read or receipted publication.
+// Equal sequence numbers alone cannot identify a Snapshot: adapters and private
+// transaction candidates can carry different records at the same sequence.
+func (s *taskScheduler) idleTargetsForView(state Snapshot, conversation ID, published bool) []ID {
+	if published {
+		if targets, ok := s.indexedIdleTargets(conversation); ok {
+			return targets
+		}
+	}
+	return s.idleTargets(state, conversation)
 }

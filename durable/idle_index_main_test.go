@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"slices"
 	"testing"
 )
 
@@ -16,6 +17,10 @@ func checkMainIdleIndex(t *testing.T, h *Harness, want bool) {
 			scan := false
 			for _, task := range h.session.readImage.Tasks {
 				scan = scan || h.scheduler.idleTaskInScope(h.session.readImage, task, cid)
+			}
+			indexedTargets, targetsOK := h.scheduler.indexedIdleTargets(cid)
+			if !targetsOK || !slices.Equal(indexedTargets, h.scheduler.idleTargets(h.session.readImage, cid)) {
+				t.Fatalf("scope%d indexed targets=%v usable=%v", cid, indexedTargets, targetsOK)
 			}
 			if !usable || got != want || scan != want {
 				t.Fatalf("scope%d indexed=%v usable=%v scan=%v want=%v", cid, got, usable, scan, want)
@@ -247,6 +252,12 @@ func TestMainIdleIndexLegacyCycleFallback(t *testing.T) {
 			if _, usable := h.scheduler.indexedContextBusy(cid); usable {
 				t.Fatal("combined legacy cycle indexed as forest")
 			}
+			if _, usable := h.scheduler.indexedIdleTargets(cid); usable {
+				t.Fatal("cycle target index used")
+			}
+			if got := h.scheduler.idleTargetsForView(h.session.readImage, cid, true); !slices.Equal(got, []ID{id}) {
+				t.Fatal("cycle target fallback", got)
+			}
 			if !h.session.contextBusy(cid) || h.session.contextBusy(0) {
 				t.Fatal("cycle fallback changed scope semantics")
 			}
@@ -278,6 +289,9 @@ func TestMainIdleIndexAmbiguousDocumentFallback(t *testing.T) {
 		h.session.taskBookkeeping(func() {
 			if _, usable := h.scheduler.indexedContextBusy(1); usable {
 				t.Fatal("conflicting doc flags cached")
+			}
+			if _, usable := h.scheduler.indexedIdleTargets(1); usable {
+				t.Fatal("conflicting document target index used")
 			}
 		})
 		if _, err := h.Commit(bg, func(tx *Tx) error {

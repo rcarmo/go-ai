@@ -340,15 +340,20 @@ func (s *Session) taskBookkeeping(work func()) { <-s.line; defer s.leave(); work
 // readTasks runs only bounded internal bookkeeping on the line. It is not a
 // host callback API and never executes phases/migrations/provider effects.
 func (s *Session) readTasks(ctx context.Context, read func(Snapshot) error) error {
+	return s.readTaskView(ctx, func(state Snapshot, _ bool) error { return read(state) })
+}
+
+// The witness is captured by the read path, never inferred from Snapshot fields.
+func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) error) error {
 	if err := s.enter(ctx); err != nil {
 		return err
 	}
 	defer s.leave()
-	state, err := s.taskSnapshot(ctx)
+	state, published, err := s.taskSnapshotView(ctx)
 	if err != nil {
 		return err
 	}
-	return read(state)
+	return read(state, published)
 }
 
 // hasNativeReadImage recognises only concrete native stores. Adapters remain
@@ -366,18 +371,24 @@ func (s *Session) hasNativeReadImage() bool {
 // Public Snapshot and scan helpers detach values before exposing them; scheduler
 // reads never expose these maps. Wrapped Snapshot contracts remain authoritative.
 func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
+	state, _, err := s.taskSnapshotView(ctx)
+	return state, err
+}
+
+func (s *Session) taskSnapshotView(ctx context.Context) (Snapshot, bool, error) {
 	if !s.hasNativeReadImage() {
-		return s.guardedStorage().Snapshot(ctx)
+		state, err := s.guardedStorage().Snapshot(ctx)
+		return state, false, err
 	}
 	highWater, err := s.core.sessionReadAdmission(ctx)
 	if err != nil {
-		return Snapshot{}, s.backendResult(ctx, err, false)
+		return Snapshot{}, false, s.backendResult(ctx, err, false)
 	}
 	image := s.readImage
 	// ID reservations are independent of publication and remain globally
 	// monotonic. Do not import raw records or its commit sequence with them.
 	image.HighWater = highWater
-	return image, nil
+	return image, true, nil
 }
 
 // adoptReadImage accepts only an immutable, receipted next publication image.

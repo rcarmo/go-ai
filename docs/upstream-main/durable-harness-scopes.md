@@ -1,6 +1,6 @@
 ## Harness scopes and context retention
 
-The three remaining new harness files at `81f3cd412758ebdd92324c7d63b669a189408d0a` have been reviewed through their final assertions. Four context-retention cases produced twelve native failures across memory, journal and SQLite; those failures are fixed. Scheduler overlap, incremental scope indexes and the off-line context-read protocol still need implementation or validation.
+The three remaining new harness files at `81f3cd412758ebdd92324c7d63b669a189408d0a` have been reviewed through their final assertions. Four context-retention cases produced twelve native failures across memory, journal and SQLite; those failures are fixed. Scheduler overlap, ordered expiry and the off-line context-read protocol still need implementation or validation. Published membership and target enumeration use the [idle forest](idle-index.md).
 
 The lexical declarations are one in `harness-context-range.test.ts`, seventeen in `harness-group-commit.test.ts`, and fourteen direct declarations plus two tables in `harness-idle-scopes.test.ts`. Tables and internal loops expand work/cases; these counts are not executed source test counts.
 
@@ -87,7 +87,7 @@ The initial run on all three backends checked every step: 24 ownerless conversat
 
 The workload passes three normal repetitions per CGO mode and shuffle seed 7/42, plus three race repetitions per seed. Full root normal tests, vet, staticcheck v0.8.2 and module verification pass in both CGO modes. The full durable race run passes in 657.832 seconds: 4,177 named passes, zero failures, zero unfinished tests and seven opt-in Codemode process skips. Events, status and empty homes were removed after accounting. The prior 628.220-second run lacks these model tests; no suite-speed comparison was made.
 
-The [published idle index](idle-index.md) now supplies constant-time conversation/global busy queries. The model checks every indexed value, one initial build and zero node visits during warm queries. Native `idleTargets` still enumerates task records. Internal task-root pin/lifetime equivalence, ordered expiry, off-line reads and the complete Source `fullIdleChecks == 0` contract need separate work. Query-focused CPU/allocation comparisons are recorded with the index; full release acceptance profiling is incomplete.
+The [published idle index](idle-index.md) now supplies constant-time conversation/global busy queries. The model checks every indexed value, one initial build and zero node visits during warm queries. Native idle waits and bound-wait refresh use active-branch target enumeration with an explicit published-read witness. Wrapped and private candidate views retain the original `idleTargets` scan. Internal task-root pin/lifetime equivalence, ordered expiry, off-line reads and the complete Source `fullIdleChecks == 0` contract need separate work. Query-focused CPU/allocation comparisons are recorded with the index; full release acceptance profiling is incomplete.
 
 ### Earlier verification
 

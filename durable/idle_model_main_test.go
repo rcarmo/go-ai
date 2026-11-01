@@ -253,6 +253,10 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 					if !indexed || busy != (len(expected) > 0) || h.scheduler.idleIndex.work != work || h.scheduler.idleIndex.rebuilds != 1 {
 						t.Fatalf("step%d conversation%d indexed=%v busy=%v expected=%v work=%d/%d rebuilds=%d", step, cid, indexed, busy, expected, work, h.scheduler.idleIndex.work, h.scheduler.idleIndex.rebuilds)
 					}
+					indexedTargets, ok := h.scheduler.indexedIdleTargets(cid)
+					if !ok || !slices.Equal(indexedTargets, expected) {
+						t.Fatalf("step%d conversation%d indexed targets=%v want=%v usable=%v", step, cid, indexedTargets, expected, ok)
+					}
 					actual := h.scheduler.idleTargets(state, cid)
 					slices.Sort(actual)
 					if !slices.Equal(actual, expected) {
