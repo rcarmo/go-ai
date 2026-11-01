@@ -34,7 +34,28 @@ Expiry now checks an existing idle deadline before a transition to busy. Every s
 
 Source also checks no-op reconcile expiry, oldest-idle ordering with backward clocks, dynamic shorter/longer/zero retention, unchanged idle expiry on reread, immediate removal after a non-extendible head change, and a 200-step seeded comparison against a full idle recomputation. Native still scans ranges/task metadata and has no equivalent incremental-idle mismatch/full-check counters. The source's zero full-check assertion is unfinished work.
 
-The Wake table covers sleeping, abort-marked sleeping, due sleeps, waits on live work, completing owners, missing definitions, pending work and an active invocation. Native `readWake` scans all task records even while active; sleeping-only indexed work and the complete table crosswalk are open. The idle-scopes source row is development-verified-partial for the four retention cases only.
+The Wake return-value crosswalk is now complete for the seven table rows and the running-invocation case described below. Native `readWake` still scans all task records even while active. Sleeping-only indexed work remains open; these behavioural assertions do not establish its work bound. The idle-scopes source row remains development-verified-partial for the four retention cases and these Wake values.
+
+### Wake assertion crosswalk
+
+At `81f3cd412758ebdd92324c7d63b669a189408d0a`, `packages/durable/test/harness-idle-scopes.test.ts:514–590` checks seven Wake rows and a running invocation. `durable/wake_source_main_test.go` preserves their values at clock 1000:
+
+| Source case | Native expectation |
+| --- | --- |
+| Sleeping until 5000 | Inactive, at 5000 |
+| Another sleep at 3000 is abort-marked | Active, at 5000; abort work is not a future sleep |
+| Sleep at 500 is due | Active, no future deadline |
+| Task waits on the live sleeper | Inactive, at 5000 |
+| Completing owner holds a sleeping child | Inactive, at 5000 |
+| A pending task lacks a definition | Inactive, at 5000 |
+| Pending work has a definition | Active, at 5000 |
+| Real invocation runs, then returns | Active then inactive, at 5000 in both states |
+
+The native implementation already passed these values; no production fix was needed. Minted IDs, the native execution envelope and phase name `work` replace the source fixture's IDs/state shape. The completing owner uses a validated native completing outcome. Raw records are validated before opening Harness; public creation/final-owner admission fences are unchanged. Paused table cases also check that Wake neither invokes a host nor advances storage seq.
+
+The running case uses a real blocked task host. A fixture probe incorrectly used `WaitForIdle` after its outcome: native idle waiting also waits for the future sleeper, so the probe timed out. The corrected test waits for the observed inactive Wake transition after `WaitForTask`, preserving the distinction between outcome publication and host retirement. It does not advance the clock, invent an invocation or weaken idle waiting. The failed probe's remaining journal fixture was removed after confirming no durable test process was active.
+
+All twenty-four CGO/sixteen non-CGO leaves pass twenty normal repetitions per mode and shuffle seed 7/42. The new crosswalk plus existing Wake/sleep controls pass five race repetitions per seed. Removing the future deadline or treating the abort-marked sleep as a future deadline fails three backend leaves each; overlays/logs were deleted after analysis. Fresh full root normal/vet/staticcheck v0.8.2 pass in both CGO modes, and module verification passes. Empty test homes are disposed. The full durable race result at `112f451` predates this test-only increment. No API, production, dependency, format, asset or release changes; acceptance profiling and indexed Wake/idle work remain incomplete.
 
 ### Verification
 

@@ -272,7 +272,7 @@ packages/durable/test/harness-generation.test.ts	yes	pending	pending-review
 packages/durable/test/harness-group-commit.test.ts	yes	new-at-tip	reviewed-open	docs/upstream-main/durable-harness-scopes.md; docs/upstream-main/durable-group-contract.md
 packages/durable/test/harness-hook-reads.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-host-inputs.test.ts	no	pending	pending-review	
-packages/durable/test/harness-idle-scopes.test.ts	yes	new-at-tip	development-verified-partial	durable/context_scope_main_test.go; docs/upstream-main/durable-harness-scopes.md
+packages/durable/test/harness-idle-scopes.test.ts	yes	new-at-tip	development-verified-partial	durable/context_scope_main_test.go; durable/wake_source_main_test.go; docs/upstream-main/durable-harness-scopes.md
 packages/durable/test/harness-inbox.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-input-entries.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-inspect.test.ts	yes	pending	pending-review	
