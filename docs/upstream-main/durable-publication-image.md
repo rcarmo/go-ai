@@ -1,5 +1,7 @@
 ## Internal Session publication image
 
+[Definition wrapper authority](definition-wrapper-authority.md) closes a cache-projection hole: successful adapter Snapshot data can no longer be replaced by a native token/incarnation cache hit. Adapter definitions are rederived per read; native migration caching remains intact. Broader wrapper/pipeline dependency integration stays open.
+
 Native internal task/context reads now have an immutable Session-owned publication image, separate from the backend's latest image. This is groundwork for the group pipeline, not an enabled asynchronous publisher or a completed source test family.
 
 The source-derived regression settles two batches through the real private group primitive without publishing either through Session. Raw storage contains seq 2/two entries. The old internal Session read incorrectly returned those entries on memory, journal and SQLite; all three baseline leaves fail. The new read stays at seq 0. The fixture uses the private owned writer deliberately; external callers cannot bypass Session ownership this way.

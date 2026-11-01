@@ -1,5 +1,7 @@
 ## Group-commit implementation requirements
 
+[Dependency audit and wrapper correction](definition-wrapper-authority.md): the source keyed/global read mapping is cross-checked against native explicit and implicit reads/writes. Negative lookups, document scopes, current-policy forks, task/host membership and full-snapshot subscription budgets prevent a point-getter-only split. Native definition cache hits no longer override adapter Snapshot data. Keyed gating and overlap remain unimplemented; global published/raw baseline guards stay in place.
+
 Both pinned group-commit test files have been reviewed through their final assertions. Native public Apply and Session retain single-batch behaviour. [Internal group settlement](durable-group-settlement.md) now implements prefix preparation, receipts and SQLite atomic frames; the requirements below also cover the unfinished Session pipeline and host contract.
 
 Source: `81f3cd412758ebdd92324c7d63b669a189408d0a`, `packages/durable/test/session-group-commit.test.ts`, `packages/durable/test/store-storage-commit.test.ts`, and `packages/durable/src/types.ts` around `CommitResult`/`Storage`. The declaration counts are lexical: 34 Session declarations and 16 store declarations plus three tables. Parameter loops expand cases; these counts are not execution results.

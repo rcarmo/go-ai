@@ -89,16 +89,21 @@ type definitionCacheValue struct {
 	lastUsed int64
 }
 
-// definitionValue runs at most once per token/incarnation until that document
-// changes or the bounded cache unloads. Unrelated commits do not rerun migration. Stored versions remain authoritative: an older token may still read
-// its stored shape after a newer token migrated only in process memory.
+// Native definitionValue runs at most once per token/incarnation until that
+// document changes or the bounded cache unloads. Adapters own their Snapshot
+// projection; neither a token/ID nor an unchanged sequence witnesses its value.
+// Stored versions remain authoritative: an older token may still read its stored
+// shape after a newer token migrated only in process memory.
 func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, error) {
 	if err := checkDefinition(def, d); err != nil {
 		return nil, err
 	}
-	s.sweepDocumentCache()
+	cacheable := s.hasNativeReadImage()
+	if cacheable {
+		s.sweepDocumentCache()
+	}
 	key := definitionCacheKey{def, d.ID}
-	if cached, ok := s.definitionCache[key]; ok {
+	if cached, ok := s.definitionCache[key]; cacheable && ok {
 		cached.lastUsed = s.now()
 		s.definitionCache[key] = cached
 		s.scheduleDocumentExpiry()
@@ -125,7 +130,7 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	// Cache is an optimisation, never an authority or unbounded history store.
 	// A migrated value can be valid JSON yet larger than the cache's entire
 	// byte allowance. Return it detached without retaining it.
-	if int64(len(encoded)) > s.limits.MaxRetainedBytes {
+	if !cacheable || int64(len(encoded)) > s.limits.MaxRetainedBytes {
 		return copyObject(value, s.limits)
 	}
 	if len(s.definitionCache) >= s.limits.MaxPage || s.definitionCacheBytes+int64(len(encoded)) > s.limits.MaxRetainedBytes {
