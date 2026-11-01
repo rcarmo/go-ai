@@ -34,7 +34,7 @@ Expiry now checks an existing idle deadline before a transition to busy. Every s
 
 Source also checks no-op reconcile expiry, oldest-idle ordering with backward clocks, dynamic shorter/longer/zero retention, unchanged idle expiry on reread, immediate removal after a non-extendible head change, and a 200-step seeded comparison against a full idle recomputation. Native still scans ranges/task metadata and has no equivalent incremental-idle mismatch/full-check counters. The source's zero full-check assertion is unfinished work.
 
-The Wake return-value crosswalk is now complete for the seven table rows and the running-invocation case described below. Native `readWake` still scans all task records even while active. Sleeping-only indexed work remains open; these behavioural assertions do not establish its work bound. The idle-scopes source row remains development-verified-partial for the four retention cases and these Wake values.
+The Wake return-value crosswalk is now complete for the seven table rows and the running-invocation case described below. [Active native Wake indexing](durable-wake-index.md) now visits published sleepers when a real invocation already establishes activity. Without an invocation, runnable/reconciliation discovery still scans all tasks; wrapped Snapshot paths remain authoritative. Full sleeping-only work-bound parity remains open; these behavioural assertions alone do not establish it. The idle-scopes source row remains development-verified-partial for the four retention cases and these Wake values.
 
 ### Wake assertion crosswalk
 

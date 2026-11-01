@@ -13,29 +13,36 @@ import (
 // taskScheduler is the sole task reservation/cancellation/join owner. All maps
 // below belong to the Session line; off-line code only signals wake/seal flags.
 type taskScheduler struct {
-	h              *Harness
-	enabled        atomic.Bool
-	sealed         atomic.Bool
-	wake           chan struct{}
-	done           chan struct{}
-	invocations    map[ID]*TaskRuntime
-	abandoned      map[ID]bool // live restart-disposable tasks captured once at Open
-	failed         map[ID]*TaskDefinition
-	failures       map[ID]error
-	retryAfter     map[ID]uint64 // failed host admission requires a newer external epoch
-	epoch          atomic.Uint64
-	reconcileRetry *uint64 // failed pass ignores self/stale wake tokens
-	cursor         ID
-	reports        []error                   // line decision failures; delivered after leave
-	tickets        map[ID]map[*taskWait]bool // target -> individual wait registrations
-	waiters        map[*taskWait]bool
-	unsubscribe    func()
-	stopMu         sync.Mutex
-	stops          []taskStop
+	h               *Harness
+	enabled         atomic.Bool
+	sealed          atomic.Bool
+	wake            chan struct{}
+	done            chan struct{}
+	invocations     map[ID]*TaskRuntime
+	wakeSleeping    map[ID]Task // immutable published records; exact native reads only
+	wakeSleepingSeq uint64
+	abandoned       map[ID]bool // live restart-disposable tasks captured once at Open
+	failed          map[ID]*TaskDefinition
+	failures        map[ID]error
+	retryAfter      map[ID]uint64 // failed host admission requires a newer external epoch
+	epoch           atomic.Uint64
+	reconcileRetry  *uint64 // failed pass ignores self/stale wake tokens
+	cursor          ID
+	reports         []error                   // line decision failures; delivered after leave
+	tickets         map[ID]map[*taskWait]bool // target -> individual wait registrations
+	waiters         map[*taskWait]bool
+	unsubscribe     func()
+	stopMu          sync.Mutex
+	stops           []taskStop
 }
 
 func newTaskScheduler(h *Harness) *taskScheduler {
-	return &taskScheduler{h: h, wake: make(chan struct{}, 1), done: make(chan struct{}), invocations: map[ID]*TaskRuntime{}, failed: map[ID]*TaskDefinition{}, failures: map[ID]error{}, retryAfter: map[ID]uint64{}, tickets: map[ID]map[*taskWait]bool{}, waiters: map[*taskWait]bool{}}
+	s := &taskScheduler{h: h, wake: make(chan struct{}, 1), done: make(chan struct{}), invocations: map[ID]*TaskRuntime{}, failed: map[ID]*TaskDefinition{}, failures: map[ID]error{}, retryAfter: map[ID]uint64{}, tickets: map[ID]map[*taskWait]bool{}, waiters: map[*taskWait]bool{}}
+	// Construction precedes the scheduler loop and exposure of the Harness.
+	if h.session.hasNativeReadImage() {
+		s.sleepingForWake(h.session.readImage)
+	}
+	return s
 }
 func (s *taskScheduler) kick() {
 	select {
@@ -1215,7 +1222,12 @@ func (s *taskScheduler) dispatchStops() {
 		stop.runtime.cancel()
 	}
 }
-func (s *taskScheduler) adopt(_ uint64, tx *Tx) {
+func (s *taskScheduler) adopt(seq uint64, tx *Tx) {
+	updateSleeping := s.wakeSleeping != nil && s.wakeSleepingSeq+1 == seq && tx.taskAdoptState != nil
+	if s.wakeSleeping != nil && !updateSleeping {
+		// Private receipt adoption or a skipped image must rebuild before use.
+		s.wakeSleeping = nil
+	}
 	for _, stop := range tx.taskStops {
 		s.endOnLine(stop.runtime)
 	}
@@ -1225,6 +1237,16 @@ func (s *taskScheduler) adopt(_ uint64, tx *Tx) {
 	// Mark cancellation is dispatched off-line, never inline.
 	for _, write := range tx.writes {
 		if write.Task != nil {
+			if updateSleeping {
+				// Read the final adopted record, not an intermediate write or a
+				// caller-owned checkpoint. Repeated writes to one ID are harmless.
+				task, ok := tx.taskAdoptState.Tasks[write.Task.ID]
+				if ok && task.Status == "sleeping" {
+					s.wakeSleeping[task.ID] = task
+				} else {
+					delete(s.wakeSleeping, write.Task.ID)
+				}
+			}
 			if taskAborted(*write.Task) && !taskAborted(tx.state.Tasks[write.Task.ID]) {
 				s.epoch.Add(1)
 				delete(s.retryAfter, write.Task.ID)
@@ -1257,6 +1279,9 @@ func (s *taskScheduler) adopt(_ uint64, tx *Tx) {
 				}
 			}
 		}
+	}
+	if updateSleeping {
+		s.wakeSleepingSeq = seq
 	}
 	if len(tx.writes) > 0 {
 		if tx.externalTaskCommit {

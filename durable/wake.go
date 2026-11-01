@@ -42,6 +42,23 @@ func (h *Harness) Wake(ctx context.Context) (Wake, error) {
 	details, err := h.readWake(ctx)
 	return details.wake, err
 }
+
+// sleepingForWake is a native published-image index. Normal publication updates
+// it from final task writes; private receipt adoption falls back to rebuilding.
+// Wrappers never use it: their Snapshot data remains authoritative.
+func (s *taskScheduler) sleepingForWake(state Snapshot) map[ID]Task {
+	if s.wakeSleeping == nil || s.wakeSleepingSeq != state.Seq {
+		s.wakeSleeping = make(map[ID]Task)
+		for id, task := range state.Tasks {
+			if task.Status == "sleeping" {
+				s.wakeSleeping[id] = task
+			}
+		}
+		s.wakeSleepingSeq = state.Seq
+	}
+	return s.wakeSleeping
+}
+
 func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 	var details wakeDetails
 	err := h.session.readTasks(ctx, func(state Snapshot) error {
@@ -75,11 +92,15 @@ func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 			definition := registry.Task(task.Kind)
 			return definition != nil && definition.Version() >= task.Execution.Native.Version && s.failed[task.ID] != definition, nil
 		}
-		for _, task := range state.Tasks {
+		tasks := state.Tasks
+		if details.wake.Active && h.session.hasNativeReadImage() {
+			tasks = s.sleepingForWake(state)
+		}
+		for _, task := range tasks {
 			if terminalStatus(task.Status) {
 				continue
 			}
-			if s.abandoned[task.ID] || taskBelowCancelled(state, task) && (!taskAborted(task) || task.AbortReason == "restart" && restartCascadeReason(state, task) == "") || !taskAborted(task) && taskSelectedFailFastCancellation(state, task.ID) {
+			if !details.wake.Active && (s.abandoned[task.ID] || taskBelowCancelled(state, task) && (!taskAborted(task) || task.AbortReason == "restart" && restartCascadeReason(state, task) == "") || !taskAborted(task) && taskSelectedFailFastCancellation(state, task.ID)) {
 				details.wake.Active = true
 			}
 			if taskHasDecidedOutcome(task) {
@@ -96,7 +117,12 @@ func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 				}
 				if until > now {
 					earlier(&details.wake.At, until)
-					earlier(&details.alarmAt, until)
+					// The alarm minimum is at most the public future minimum:
+					// future sleeps feed both; due sleeps feed only the alarm.
+					// Reuse this immutable scalar when both minima coincide.
+					if details.alarmAt == nil || until < *details.alarmAt {
+						details.alarmAt = details.wake.At
+					}
 					continue
 				}
 			}
