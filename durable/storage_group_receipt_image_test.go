@@ -55,15 +55,14 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 				t.Fatal(r.index, r.seq)
 			}
 			previous := s.readImage
-			next, err := r.nextImage(previous, s.limits)
-			if err != nil {
+			if _, err := r.nextImage(previous, s.limits); err != nil {
 				t.Fatal(err)
 			}
 			if previous.Seq != uint64(index) || len(previous.Entries) != index {
 				t.Fatal("replay mutated base")
 			}
 			s.taskBookkeeping(func() {
-				if err := s.adoptReadImage(next, r.seq); err != nil {
+				if err := s.adoptReceipt(r, nil); err != nil {
 					t.Fatal(err)
 				}
 			})
@@ -166,10 +165,12 @@ func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
 	if _, err := store.commitParts(bg, batches, func(r commitReceipt) error { receipt = r; return nil }, false); err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []string{"sequence", "payload-sequence", "kind", "ordinal", "high", "payload", "gap"} {
+	for _, kind := range []string{"index", "sequence", "payload-sequence", "kind", "ordinal", "high", "payload", "gap"} {
 		t.Run(kind, func(t *testing.T) {
 			r, b := receipt, base
 			switch kind {
+			case "index":
+				r.index = -1
 			case "sequence":
 				r.seq++
 			case "payload-sequence":

@@ -47,13 +47,22 @@ type commitReceipt struct {
 	frame storageFrame
 }
 
+// checkNext validates the receipt header against the published prefix. Both
+// trusted native candidates and frame reconstruction must pass this check.
+func (r commitReceipt) checkNext(base Snapshot) error {
+	if r.index < 0 || base.Seq >= MaxID || r.seq != base.Seq+1 || r.frame.kind != 2 || r.frame.ordinal == 0 || r.frame.ordinal > MaxID || r.frame.high > MaxID {
+		return reject("invalid publication receipt")
+	}
+	return nil
+}
+
 // nextImage reconstructs just this prefix without entering storage (receipt
 // delivery owns the core gate). It leaves base unchanged. Replay intentionally
 // reuses strict decoding/preparation until a separately verified trusted patch
 // path can avoid that work; it does not retain all prepared prefix images.
 func (r commitReceipt) nextImage(base Snapshot, l Limits) (Snapshot, error) {
-	if base.Seq >= MaxID || r.seq != base.Seq+1 || r.frame.kind != 2 || r.frame.ordinal == 0 || r.frame.ordinal > MaxID || r.frame.high > MaxID {
-		return Snapshot{}, reject("invalid publication receipt")
+	if err := r.checkNext(base); err != nil {
+		return Snapshot{}, err
 	}
 	var record commitRecord
 	if err := decodeStrict(r.frame.payload, l, l.MaxFramePayloadBytes, &record); err != nil {

@@ -307,13 +307,11 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	if e != nil {
 		return 0, e
 	}
-	seq, err = s.core.apply(ctx, Batch{Writes: tx.writes}, true)
+	receipt, adopted, err := s.settleBatch(ctx, Batch{Writes: tx.writes})
+	seq = receipt.seq
 	err = s.backendResult(ctx, err, true)
 	if err == nil {
-		<-s.core.line
-		adopted := s.core.state
-		s.core.leave()
-		if imageErr := s.adoptReadImage(adopted, seq); imageErr != nil {
+		if imageErr := s.adoptReceipt(receipt, &adopted); imageErr != nil {
 			err = s.backendResult(ctx, imageErr, true)
 			return 0, err
 		}
