@@ -38,6 +38,36 @@ type storageFrame struct {
 	payload []byte
 }
 
+// commitReceipt carries one detached encoded part, never a later raw image.
+// Its payload is private immutable storage-owned data. Holding receipts retains
+// encoded frames, not one full set of materialised tables per prefix.
+type commitReceipt struct {
+	index int
+	seq   uint64
+	frame storageFrame
+}
+
+// nextImage reconstructs just this prefix without entering storage (receipt
+// delivery owns the core gate). It leaves base unchanged. Replay intentionally
+// reuses strict decoding/preparation until a separately verified trusted patch
+// path can avoid that work; it does not retain all prepared prefix images.
+func (r commitReceipt) nextImage(base Snapshot, l Limits) (Snapshot, error) {
+	if base.Seq >= MaxID || r.seq != base.Seq+1 || r.frame.kind != 2 || r.frame.ordinal == 0 || r.frame.ordinal > MaxID || r.frame.high > MaxID {
+		return Snapshot{}, reject("invalid publication receipt")
+	}
+	var record commitRecord
+	if err := decodeStrict(r.frame.payload, l, l.MaxFramePayloadBytes, &record); err != nil {
+		return Snapshot{}, err
+	}
+	if record.Seq != r.seq {
+		return Snapshot{}, reject("publication receipt sequence mismatch")
+	}
+	if r.frame.high > base.HighWater {
+		base.HighWater = r.frame.high
+	}
+	return prepare(base, record, l)
+}
+
 // prepareCommit detaches input and validates against an immutable candidate.
 // It neither writes nor changes the live image/allocator/ordinal.
 func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64) (storageFrame, Snapshot, error) {
@@ -72,6 +102,17 @@ func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64) (stora
 // payload is bounded by the existing per-call frame cap, and batch count by
 // MaxWrites. Once admitted, cancellation cannot abandon settlement.
 func (c *storeCore) commitBatches(ctx context.Context, batches []Batch, receive func(int, uint64) error, owned bool) (commitGroupResult, error) {
+	var sink func(commitReceipt) error
+	if receive != nil {
+		sink = func(receipt commitReceipt) error { return receive(receipt.index, receipt.seq) }
+	}
+	return c.commitParts(ctx, batches, sink, owned)
+}
+
+// commitParts is the frame-bearing internal settlement path. Legacy sinks keep
+// their index/seq contract through commitBatches; neither path is exported or
+// dispatched through wrappers. Callers must treat receipt payloads as immutable.
+func (c *storeCore) commitParts(ctx context.Context, batches []Batch, receive func(commitReceipt) error, owned bool) (commitGroupResult, error) {
 	if err := c.enter(ctx); err != nil {
 		return commitGroupResult{}, err
 	}
@@ -109,7 +150,7 @@ func (c *storeCore) commitBatches(ctx context.Context, batches []Batch, receive 
 			}
 			c.state = next
 			if receive != nil {
-				if err := receive(index, next.Seq); err != nil {
+				if err := receive(commitReceipt{index: index, seq: next.Seq, frame: frame}); err != nil {
 					return commitGroupResult{}, err
 				}
 			}
@@ -126,7 +167,7 @@ func (c *storeCore) commitBatches(ctx context.Context, batches []Batch, receive 
 		if receive != nil {
 			firstSeq := base.Seq - uint64(len(frames)) + 1
 			for index := range frames {
-				if err := receive(index, firstSeq+uint64(index)); err != nil {
+				if err := receive(commitReceipt{index: index, seq: firstSeq + uint64(index), frame: frames[index]}); err != nil {
 					return commitGroupResult{}, err
 				}
 			}
