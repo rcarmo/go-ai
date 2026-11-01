@@ -81,8 +81,8 @@ func TestObservationAtomicBaselineExactFramesOwnedAndOffLine(t *testing.T) {
 		}); e != nil {
 			t.Fatal(e)
 		}
-		if watchReceive(t, deliveries) != 1 || watchReceive(t, deliveries) != 2 {
-			t.Fatal("frame order")
+		if watchReceive(t, deliveries) != 2 {
+			t.Fatal("pending commits did not coalesce")
 		}
 		latest, _ := w.Value()
 		if latest["n"].(json.Number) != "2" {
@@ -116,7 +116,7 @@ func TestObservationSerialCallbacksOverflowAndRetirement(t *testing.T) {
 		close(release)
 		first := watchReceive(t, delivered)
 		second := watchReceive(t, delivered)
-		if first.Value["n"].(json.Number) != "1" || second.Value["n"].(json.Number) != "102" || second.Ops[0][0] != "r" {
+		if first.Value["n"].(json.Number) != "1" || second.Value["n"].(json.Number) != "102" || second.Ops[0][0] != "s" {
 			t.Fatal("overflow ordering", first, second)
 		}
 		checkpointCommit(t, s, func(tx *Tx) error { return tx.RetireDefinition(def, 0, nil) })
@@ -481,8 +481,8 @@ func TestObservationInactiveWatchAndPublicSubscriptionOverflow101(t *testing.T) 
 		}
 		values := make(chan int, 2)
 		w.Start(func(_ context.Context, v JSON, ops []Operation) error {
-			if len(ops) != 1 || ops[0][0] != "r" {
-				t.Error("inactive watch101 not reset")
+			if len(ops) != 1 || ops[0][0] != "s" {
+				t.Error("inactive watch101 not folded")
 			}
 			n, _ := v["n"].(json.Number).Int64()
 			values <- int(n)

@@ -166,28 +166,30 @@ func (w *DocumentWatch) drain() {
 			w.mu.Unlock()
 			return
 		}
-		frame := w.pending[0]
-		size := w.bytes[0]
-		// A live address watch can outlast many incarnations. Do not retain a
-		// delivered incarnation through the consumed queue's backing array.
-		w.pending[0] = WatchFrame{}
-		w.pending = w.pending[1:]
-		w.bytes = w.bytes[1:]
-		w.pendingBytes -= size
-		// Own a separate Value copy before notifying the listener: public callback
-		// mutation cannot alter Value(), another observer or any storage revision.
+		frames := w.pending
+		w.pending, w.bytes, w.pendingBytes = nil, nil, 0
+		w.mu.Unlock()
+		// Only frames still pending at this boundary fold. In-flight callbacks
+		// own their call, and later publications belong to the next delivery.
+		for _, pending := range frames {
+			if pending.ready != nil {
+				<-pending.ready
+			}
+		}
+		frame, e := coalesceWatchFrames(frames, w.session.limits, w.byteLimit)
+		clear(frames)
+		if e != nil {
+			w.terminate(WatchEnd{Reason: "budget_exceeded"})
+			return
+		}
+		w.mu.Lock()
+		if w.ended {
+			w.mu.Unlock()
+			return
+		}
 		w.current = frame.ownedValue
 		callback := w.listener
 		w.mu.Unlock()
-		if frame.ready != nil {
-			<-frame.ready
-		}
-		w.mu.Lock()
-		ended := w.ended
-		w.mu.Unlock()
-		if ended {
-			return
-		}
 		callbackContext = frame.Context
 		frame.ownedValue, frame.ready = nil, nil
 		if e := callback(frame.Context, frame); e != nil {
@@ -326,7 +328,7 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 			w.observed = nil
 		}
 		frame, size := prepared.frame, prepared.size
-		if len(w.pending) >= 100 || size > w.byteLimit-w.pendingBytes {
+		if size > w.byteLimit-w.pendingBytes {
 			for _, pending := range w.pending {
 				prepared.reset.Retired = prepared.reset.Retired || pending.Retired
 			}

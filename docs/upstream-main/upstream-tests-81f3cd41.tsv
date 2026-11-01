@@ -337,7 +337,7 @@ packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-ve
 packages/durable/test/session-observers.test.ts	yes	pending	pending-review	
 packages/durable/test/session-support.ts	yes	pending	pending-review	
 packages/durable/test/session-tables.test.ts	yes	pending	pending-review	
-packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version slice; coalescing/owner endings/remaining assertions open)
+packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/owner endings/remaining assertions open)
 packages/durable/test/setup-document-retention.ts	no	pending	pending-review	
 packages/durable/test/spec-usage.test.ts	yes	pending	pending-review	
 packages/durable/test/sqlite-cloudflare.test.ts	yes	pending	pending-review	

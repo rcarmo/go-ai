@@ -12,7 +12,21 @@ The watch stores the scope, owner, kind, family flag and key, alongside its curr
 
 Preparation still copies values and operations and checks payload bounds before storage settlement. Failed commits do not advance watches. Callbacks remain serial and off the Session line; public values do not alias watch-owned values. Queue overflow retains its bounded root-replacement policy and carries forward any pending retirement flag. Consumed queue slots are cleared so their backing arrays cannot retain earlier incarnations. The former acquisition-value field has been removed.
 
-## Source crosswalk and checks
+## Pending operation folding
+
+Definition watches now take the pending batch at the next callback boundary and fold it off the Session line. Acquisition values stay fixed until `Start`; changes made while a callback is running enter the next call. A kept-up listener receives its single frame unchanged. The folded call uses the newest value, sequence and producer context (without producer cancellation), and retains any pending retirement flag.
+
+The pinned `packages/chord/src/delta/pending.ts` rules apply: repeated primitive sets on one path replace earlier leaf operations; string appends join; appends after string sets join into the set. Structural operations clear the leaf index. Root replacement discards earlier operations. Paths use JSON-encoded arrays, so `['a.b']` cannot collide with `['a', 'b']`. Explicit operations that restore an earlier value remain operations; folding does not suppress equal-value results.
+
+The 100-value threshold belonged to upstream `NativeWatch`, not its JSON `Watch`. It no longer resets definition watches. Commit subscriptions keep their separate overflow contract. Pending frame bytes remain bounded, and folded operations are revalidated before callbacks. A folded batch exceeding native operation, DTO or byte limits becomes a bounded root replacement; an oversized root ends the watch with `budget_exceeded`. Per-commit preparation and storage settlement are unchanged; no host work is added to publication.
+
+Native limits remain a visible difference: pending operations must satisfy the existing 4,096-operation delta replay cap and configured `MaxMembers`, whereas upstream `PendingOps` switches to replacement after 10,000 folded operations. The native queue also bounds retained detached frame bytes before folding, so it can replace earlier than upstream even when later folding would shrink the operations. These limits are preserved, not accepted as full parity. Incremental pending storage and the source overflow domain remain open.
+
+`durable/watch_pending_main_test.go` covers delayed start, a blocked callback, 102 repeated sets, pending retirement and recreation, latest context without cancellation, leaf/append folding, distinct path keys, structural barriers, root replacement, independent replay, input immutability, the native operation ceiling and quota refusal. Integration cases run on memory, journal and SQLite. Existing observation tests now expect one folded set instead of ordered pre-start callbacks or a 101-frame reset.
+
+Focused normal tests (`TestMainWatchPending|TestMainWatchAddress|TestObservation|TestMainDefinitionWrapper`) pass three repetitions with shuffle 42 in CGO 0 and 1; the same focused race selection passes three repetitions with shuffle 42. An earlier selection before the final recreation test also passed race shuffle 7. Durable vet passes in both modes. Restoring the previous production drain/100-frame policy through a logical-and-physical-path overlay fails all nine pending-delivery backend cases. Raw source extracts, the diagnosed published-package probe and mutation artifacts are removed after use. No full-suite or full-race gate is claimed for this checkpoint.
+
+## Address-source crosswalk and earlier checks
 
 - `packages/durable/src/session/session.ts:1444–1537`: address matching, retirement values, version/incarnation replacement and incarnation pins.
 - `packages/durable/test/session-watches.test.ts:369–414`: suppress retiring mutations; combine retirement and recreation in one commit.
@@ -24,6 +38,6 @@ Focused normal tests for address watches, observation and adapter-definition aut
 
 ## Still open
 
-This is partial watch alignment. Pending operation folding, acquisition-to-start coalescing, source operation-count overflow rules, task-owner terminal detachment, synchronous observer semantics, transcript windows and removed state/event APIs still need review and implementation. Native detached values differ from upstream shared JavaScript references. Clearing queue references and transferring pins do not establish the upstream garbage-collection test's full lifetime contract.
+This is partial watch alignment. Exact source overflow/work bounds, task-owner terminal detachment, synchronous observer semantics, transcript windows and removed state/event APIs still need review and implementation. The pinned watch tests remain only partially mapped; native callback scheduling does not establish JavaScript microtask equivalence. Native detached values differ from upstream shared JavaScript references. Clearing queue references and transferring pins do not establish the upstream garbage-collection test's full lifetime contract.
 
 Commits remain serial; this change enables no writer overlap or grouping. The continuation prototype is excluded. Full semantic acceptance and pre-release profiling remain open. Further validation for this slice is focused under Rui's direction; no new full durable-race result is claimed.

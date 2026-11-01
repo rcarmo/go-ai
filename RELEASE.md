@@ -1,6 +1,6 @@
 # Release acceptance
 
-Development checkpoint: definition watches now follow document addresses across retirement and recreation, with tagged `StartFrame` delivery and incarnation-pin transfer. Retirement keeps the compatibility callback open with its preceding value and no operations. Focused normal/race checks and durable vet pass; broader watch/source acceptance remains incomplete. See [watch addresses](docs/upstream-main/watch-addresses.md).
+Development checkpoint: definition watches now follow document addresses across retirement and recreation, with tagged `StartFrame` delivery and incarnation-pin transfer. Retirement keeps the compatibility callback open with its preceding value and no operations. Pending definition-watch operations now coalesce before Start and behind blocked callbacks, including repeated sets and string appends; the old 100-frame reset belongs only to native-value watches. Native byte/delta bounds remain enforced. Focused normal/race checks and durable vet pass; exact source overflow, owner endings and broader watch/source acceptance remain incomplete. See [watch addresses](docs/upstream-main/watch-addresses.md).
 
 ## Unreleased upstream main convergence (in progress)
 
