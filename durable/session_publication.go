@@ -54,6 +54,9 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 		return nil, err
 	}
 	adopted := s.readImage
+	if s.taskScheduler != nil {
+		s.taskScheduler.adoptIdleImage(adopted, p.tx.writes)
+	}
 	var telemetryEvents *durableEventBatch
 	s.invalidateContextRanges(adopted, p.tx.writes)
 	// Settle retention even without a timer callback. Entry-only writes

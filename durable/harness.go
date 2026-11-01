@@ -666,6 +666,7 @@ func (h *Harness) Close(ctx context.Context) error {
 				h.scheduler.retryAfter = map[ID]uint64{}
 				h.scheduler.reconcileRetry = nil
 				h.scheduler.wakeSleeping = nil
+				h.scheduler.idleIndex = nil
 				h.scheduler.reports = nil
 				clear(h.telemetryParents)
 			})

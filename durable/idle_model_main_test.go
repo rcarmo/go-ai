@@ -87,7 +87,8 @@ func mainIdleModelTargets(state Snapshot, hosts map[ID]*TaskRuntime, conversatio
 
 // Pinned harness-idle-scopes.test.ts:436-511, seed 42 and 200 operations.
 // Actual registered hosts and public creation/completion APIs preserve native
-// owner fences. This checks values, not Source's fullIdleChecks==0 work bound.
+// owner fences. Warm indexed busy queries must not rebuild or touch nodes;
+// target enumeration and the remaining Source work bounds are separate.
 func TestMainIdleNestedWorkModel(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		var nodes sync.Map
@@ -120,6 +121,7 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 		t.Cleanup(func() {
 			nodes.Range(func(_, value any) bool { releaseTaskGate(value.(*mainIdleModelWork).gate); return true })
 		})
+		h.session.taskBookkeeping(func() { h.scheduler.currentIdleIndex() })
 		if err := h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -246,6 +248,11 @@ func TestMainIdleNestedWorkModel(t *testing.T) {
 				state := h.session.readImage
 				for _, cid := range append([]ID{0}, conversations...) {
 					expected := mainIdleModelTargets(state, h.scheduler.invocations, cid)
+					work := h.scheduler.idleIndex.work
+					busy, indexed := h.scheduler.indexedContextBusy(cid)
+					if !indexed || busy != (len(expected) > 0) || h.scheduler.idleIndex.work != work || h.scheduler.idleIndex.rebuilds != 1 {
+						t.Fatalf("step%d conversation%d indexed=%v busy=%v expected=%v work=%d/%d rebuilds=%d", step, cid, indexed, busy, expected, work, h.scheduler.idleIndex.work, h.scheduler.idleIndex.rebuilds)
+					}
 					actual := h.scheduler.idleTargets(state, cid)
 					slices.Sort(actual)
 					if !slices.Equal(actual, expected) {

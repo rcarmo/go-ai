@@ -21,6 +21,7 @@ type taskScheduler struct {
 	invocations     map[ID]*TaskRuntime
 	wakeSleeping    map[ID]Task // immutable published records; exact native reads only
 	wakeSleepingSeq uint64
+	idleIndex       *idleIndex  // published metadata, Session-line owned
 	abandoned       map[ID]bool // live restart-disposable tasks captured once at Open
 	failed          map[ID]*TaskDefinition
 	failures        map[ID]error
@@ -293,6 +294,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			for _, r := range reservations {
 				if s.invocations[r.taskID] == r {
 					delete(s.invocations, r.taskID)
+					s.refreshIdleHost(r.taskID)
 				}
 				for wait := range s.waiters {
 					if wait.claims[r.taskID] || wait.target == r.taskID {
@@ -484,6 +486,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			runtime.initTelemetry()
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
+			s.refreshIdleHost(id)
 			reservations = append(reservations, runtime)
 			s.cursor = id
 			return true, nil
@@ -688,6 +691,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		s.h.session.taskBookkeeping(func() {
 			if s.invocations[runtime.taskID] == runtime {
 				delete(s.invocations, runtime.taskID)
+				s.refreshIdleHost(runtime.taskID)
 			}
 			s.h.session.expireContextRanges()
 			if runtime.admissionFailed {

@@ -115,6 +115,9 @@ func (s *Session) contextBusy(conversation ID) bool {
 	}
 	// The Session line owns these published records and host membership.
 	// A raw writer may hold a later unpublished image; it is not a read gate.
+	if busy, indexed := s.taskScheduler.indexedContextBusy(conversation); indexed {
+		return busy
+	}
 	for _, task := range s.readImage.Tasks {
 		if s.taskScheduler.idleTaskInScope(s.readImage, task, conversation) {
 			return true
