@@ -18,7 +18,7 @@ The source-derived regression settles two batches through the real private group
 
 - Stored but unpublished group entries stay out of internal reads.
 - Only the first receipted candidate becomes visible while the raw image already has the second; wrong image seq, gaps and duplicate adoption reject without advancing the image. After the second adoption, allocator and normal legacy commits continue at seq 3.
-- Attempting a legacy commit past an unpublished prefix fails closed after storage, fences further reads and joins failure-driven Close.
+- Attempting a legacy commit past an unpublished prefix fails closed, fences further reads and joins failure-driven Close. The later global baseline check below rejects that stale append before storage; adoption still rejects gaps independently.
 - An unpublished raw task does not make a published context busy.
 
 Go 1.27.3/GOMAXPROCS=4, owned empty homes and project scratch: full root normal tests and vet pass in both CGO modes; durable elapsed 116.305/111.356 seconds. These are different workload variants, not a performance comparison. All new leaves plus context/SQLite Snapshot/Session gate controls pass three race repetitions with shuffle 7; the earlier image/adoption set also passes seed 42. Non-CGO focused checks pass three repetitions with seeds 7/42. Module verification and dependency/asset tripwires pass. Scoped staticcheck 0.8.2 reports only the existing usage_json.go:11 U1000 finding; the wider gate is open. Baseline/verification logs and fixtures are disposed after analysis.
@@ -60,6 +60,18 @@ The shared publisher rechecks the first failure, adopts the receipt image, then 
 `session_publication_failure_main_test.go` adds nine CGO/six non-CGO leaves. Failure injected during frame settlement fences the normal commit; after joined failure-driven Close, reopen retains its durable entry. Staged checks inject failure between settlement and publication and require an unchanged published image. Another staged check cancels the context after settlement, publishes once and rejects duplicate publication without adding an observer frame. Removing the publisher's failure recheck fails all three backend cases; the overlay is deleted after analysis.
 
 Fresh full root normal/vet pass with CGO disabled/enabled; module verification passes. Session/image/receipt/failure/wrapper and storage-group/frame/crash/lifetime checks pass three race repetitions with shuffle 7/42. The earlier full durable race run predates this increment. No public API, dependency, storage format, accepted asset or release ref changes; no performance gain is claimed.
+
+### Conservative preparation baseline
+
+`settlePreparedPublication` now rejects a preparation whose base seq differs from the published image. `commitPartsAt` independently checks that seq against raw storage after core admission/ownership checks and before preparation or persistence. Raw Apply/group callers retain their existing current-state semantics through a nil expected seq. The Session serial writer supplies its preparation seq. ID reservations remain independent of commit seq.
+
+The initial dependency audit found whole-state reads in `Tx.finalizeTaskWrites`: candidate tasks/new-work owners are checked and active documents of terminal task owners are retired. `Tx.current`, `currentDocument` and definition preparation also have direct immutable-image reads; point-getter instrumentation alone cannot describe this work. The baseline is deliberately global. It provides no keyed footprint or disjoint preparation, and does not retry callbacks. An internal stale preparation reaches the existing fatal Session boundary in production.
+
+`session_preparation_baseline_main_test.go` prepares two sealed jobs at seq 0. After the first is stored, with or without publication, the second rejects without a second append/receipt or recovered write. Six CGO/four non-CGO leaves cover both baselines. Removing the raw writer check fails all three stored-unpublished backend cases; the overlay is deleted after analysis. The earlier gap/failure/Close test now also reopens and verifies only the original two stored parts: stale legacy work is rejected before persistence, while the adoption gap fence remains intact.
+
+Fresh full root normal/vet pass in both CGO modes; module verification passes. The first combined focused race run exposed a pre-existing fixture race in `TestSession120HarnessFatalCauseReportedOnceOutsideLine`: unsynchronised replacement of `Session.store` raced with the running wake publisher, including publication of wrapper fields. The fixture now installs its fully initialised adapter on the Session line. It passes thirty race repetitions per shuffle seed 7/42, and the expanded Session/preparation/group/frame/crash/lifetime suite passes three race repetitions per seed. A passing retry preceded diagnosis; it did not clear the race by itself. Diagnostic JSON events/markers and mutation overlays were deleted after analysis.
+
+No API, dependency, storage format, asset or release-ref changes. The earlier full durable race run predates this increment. Keyed dependency tracking, wrapper projection and independent writer-health admission remain unfinished.
 
 ### Remaining boundary
 

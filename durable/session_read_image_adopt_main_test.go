@@ -19,7 +19,8 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A writer cannot skip the unpublished prefix merely by appending a
-		// new legacy job. Its storage write may settle, but adoption must fail.
+		// new legacy job. The global baseline gate now rejects before storage;
+		// the existing adoption fence remains a second boundary.
 		_, err = s.Commit(bg, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
@@ -38,6 +39,12 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 		defer cancel()
 		if end, err := s.Closed(ctx); err != nil || end.Reason != "failed" {
 			t.Fatalf("failure did not close: %+v err=%v", end, err)
+		}
+		reopened := utf16ReopenStore(t, b.store)
+		defer reopened.Close(bg)
+		state, err := reopened.Snapshot(bg)
+		if err != nil || state.Seq != 2 || len(state.Entries) != 2 {
+			t.Fatal("gap appended stale legacy writes", state, err)
 		}
 	})
 }

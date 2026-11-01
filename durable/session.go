@@ -299,7 +299,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	if e != nil {
 		return 0, e
 	}
-	receipt, adopted, err := s.settleBatch(ctx, Batch{Writes: tx.writes})
+	receipt, adopted, err := s.settlePreparedPublication(&prepared)
 	seq = receipt.seq
 	err = s.backendResult(ctx, err, true)
 	if err != nil {

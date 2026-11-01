@@ -286,7 +286,11 @@ func TestSession120HarnessFatalCauseReportedOnceOutsideLine(t *testing.T) {
 			reported <- err
 			panic("reporter panic must be isolated")
 		}})
-		h.session.store = &failingSnapshotGeneric120{h.session.store, cause}
+		// The scheduler is already running. Publish the replacement and its
+		// initialized fields on the same line used by scheduler reads.
+		h.session.taskBookkeeping(func() {
+			h.session.store = &failingSnapshotGeneric120{h.session.store, cause}
+		})
 		if _, err := h.Snapshot(bg); !errors.Is(err, cause) {
 			t.Fatal(err)
 		}

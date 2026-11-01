@@ -122,12 +122,22 @@ func (c *storeCore) commitBatches(ctx context.Context, batches []Batch, receive 
 // their index/seq contract through commitBatches; neither path is exported or
 // dispatched through wrappers. Callers must treat receipt payloads as immutable.
 func (c *storeCore) commitParts(ctx context.Context, batches []Batch, receive func(commitReceipt) error, owned bool) (commitGroupResult, error) {
+	return c.commitPartsAt(ctx, batches, receive, owned, nil)
+}
+
+// commitPartsAt checks a prepared caller's global baseline while owning core
+// admission, before preparation or persistence. Nil retains raw storage Apply
+// semantics. This is a conservative barrier, not keyed/disjoint admission.
+func (c *storeCore) commitPartsAt(ctx context.Context, batches []Batch, receive func(commitReceipt) error, owned bool, expectedSeq *uint64) (commitGroupResult, error) {
 	if err := c.enter(ctx); err != nil {
 		return commitGroupResult{}, err
 	}
 	defer c.leave()
 	if c.sessionOwned && !owned {
 		return commitGroupResult{}, ErrOwned
+	}
+	if expectedSeq != nil && c.state.Seq != *expectedSeq {
+		return commitGroupResult{}, reject("stale prepared storage baseline")
 	}
 	result := commitGroupResult{lastSeq: c.state.Seq}
 	if len(batches) > c.limits.MaxWrites {

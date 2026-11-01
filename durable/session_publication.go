@@ -29,6 +29,20 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	return preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, subs: subs}, nil
 }
 
+// settlePreparedPublication retains a global dependency on the preparation
+// baseline. Finalisation currently scans ownership/task/document state, so a
+// narrower footprint is not yet safe. The writer independently checks the raw
+// baseline inside its gate to exclude stored-but-unpublished changes.
+func (s *Session) settlePreparedPublication(p *preparedSessionPublication) (commitReceipt, Snapshot, error) {
+	if err := s.failure(); err != nil {
+		return commitReceipt{}, Snapshot{}, err
+	}
+	if p.base.Seq != s.readImage.Seq {
+		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
+	}
+	return s.settleBatch(p.ctx, Batch{Writes: p.tx.writes}, p.base.Seq)
+}
+
 // publishSessionPublication owns the line and rechecks the first fatal cause.
 // Cancellation after admitted storage never abandons the stored publication.
 // Receipted adoption must precede retention, task/trace effects and observers.

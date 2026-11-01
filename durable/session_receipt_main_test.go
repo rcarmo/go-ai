@@ -17,11 +17,11 @@ func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 		var firstImage, secondImage Snapshot
 		s.taskBookkeeping(func() {
 			var err error
-			first, firstImage, err = s.settleBatch(bg, batches[0])
+			first, firstImage, err = s.settleBatch(bg, batches[0], 0)
 			if err != nil {
 				t.Fatal(err)
 			}
-			second, secondImage, err = s.settleBatch(bg, batches[1])
+			second, secondImage, err = s.settleBatch(bg, batches[1], 1)
 			if err != nil {
 				t.Fatal(err)
 			}

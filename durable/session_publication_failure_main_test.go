@@ -53,7 +53,7 @@ func TestMainSessionFailureDuringSettlementPreventsPublication(t *testing.T) {
 	})
 }
 
-func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id ID, ready <-chan struct{}) (preparedSessionPublication, commitReceipt, Snapshot) {
+func mainPrepareOnlyPublication(t *testing.T, s *Session, ctx context.Context, id ID, ready <-chan struct{}) preparedSessionPublication {
 	t.Helper()
 	state, err := s.taskSnapshot(ctx)
 	if err != nil {
@@ -77,7 +77,13 @@ func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id I
 	if err != nil {
 		t.Fatal(err)
 	}
-	receipt, candidate, err := s.settleBatch(ctx, Batch{Writes: tx.writes})
+	return prepared
+}
+
+func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id ID, ready <-chan struct{}) (preparedSessionPublication, commitReceipt, Snapshot) {
+	t.Helper()
+	prepared := mainPrepareOnlyPublication(t, s, ctx, id, ready)
+	receipt, candidate, err := s.settlePreparedPublication(&prepared)
 	if err != nil {
 		t.Fatal(err)
 	}

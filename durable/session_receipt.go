@@ -6,18 +6,18 @@ import "context"
 // candidate inside receipt delivery, while the core gate still protects it.
 // Append hooks, owned admission and legacy validation/refusal errors are shared
 // with Apply; no wrapper optional-interface dispatch is introduced.
-func (s *Session) settleBatch(ctx context.Context, batch Batch) (commitReceipt, Snapshot, error) {
+func (s *Session) settleBatch(ctx context.Context, batch Batch, expectedSeq uint64) (commitReceipt, Snapshot, error) {
 	var receipt commitReceipt
 	var candidate Snapshot
 	received := 0
-	result, err := s.core.commitParts(ctx, []Batch{batch}, func(r commitReceipt) error {
+	result, err := s.core.commitPartsAt(ctx, []Batch{batch}, func(r commitReceipt) error {
 		received++
 		if received != 1 || r.index != 0 || r.seq != s.core.state.Seq {
 			return reject("invalid serial receipt")
 		}
 		receipt, candidate = r, s.core.state
 		return nil
-	}, true)
+	}, true, &expectedSeq)
 	if err != nil {
 		return commitReceipt{}, Snapshot{}, err
 	}
