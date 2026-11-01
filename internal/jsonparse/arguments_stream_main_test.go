@@ -63,6 +63,7 @@ func TestArgumentsStreamMainPinnedReference(t *testing.T) {
 				t.Fatal("diagnostic lost original text")
 			}
 			// The raw stream is private implementation state, not a serialised block.
+			//lint:ignore SA9005 Negative test: private argument-stream state must expose no JSON fields.
 			wire, err := json.Marshal(s)
 			if err != nil {
 				t.Fatal(err)

@@ -948,16 +948,6 @@ func buildAssistantItemsWithToolView(msgIndex int, msg goai.Message, model *goai
 	return items
 }
 
-func extractText(blocks []goai.ContentBlock) string {
-	var parts []string
-	for _, b := range blocks {
-		if b.Type == "text" {
-			parts = append(parts, b.Text)
-		}
-	}
-	return strings.Join(parts, "\n")
-}
-
 func mustJSON(v interface{}) string {
 	b, _ := json.Marshal(v)
 	return string(b)
@@ -1451,6 +1441,7 @@ func processStreamWithOptions(body io.Reader, model *goai.Model, opts *goai.Stre
 	}
 
 	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
+		//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Tool call arguments did not complete before stream ended")})
 		return
 	}

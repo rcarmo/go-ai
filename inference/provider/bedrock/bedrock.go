@@ -883,6 +883,7 @@ func processBedrockStream(ctx context.Context, resp *bedrockruntime.ConverseStre
 	}
 	stream := resp.GetStream()
 	if stream == nil {
+		//lint:ignore ST1005 Provider name is a proper noun; preserve the public diagnostic.
 		fail(fmt.Errorf("Bedrock response missing event stream"))
 		return
 	}

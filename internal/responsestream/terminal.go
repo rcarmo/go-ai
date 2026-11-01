@@ -22,6 +22,7 @@ func TerminalStatus(status, reason string) (goai.StopReason, string, error) {
 	case "failed", "cancelled":
 		return goai.StopReasonError, "", nil
 	default:
+		//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 		return goai.StopReasonError, "", fmt.Errorf("Unhandled stop reason: %s", status)
 	}
 }

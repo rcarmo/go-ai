@@ -95,7 +95,7 @@ func TestCodexPayloadPreparedOnceAcrossFallbackMain(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			ws.Add(1)
-			http.Error(w, "no websocket", 426)
+			http.Error(w, "no websocket", http.StatusUpgradeRequired)
 			return
 		}
 		sse.Add(1)

@@ -40,6 +40,7 @@ func mistralContentDeltas(raw json.RawMessage) ([]mistralContentDelta, error) {
 		value, err = jsonparse.ParseJSONValue(string(raw), false)
 	}
 	if err != nil {
+		//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 		return nil, fmt.Errorf("Invalid Mistral content: %w", err)
 	}
 	if value == nil {
@@ -51,12 +52,14 @@ func mistralContentDeltas(raw json.RawMessage) ([]mistralContentDelta, error) {
 		case string, jsonparse.UTF16String:
 			items = []any{value}
 		default:
+			//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 			return nil, fmt.Errorf("Invalid Mistral content")
 		}
 	}
 	var out []mistralContentDelta
 	for _, item := range items {
 		if item == nil {
+			//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 			return out, fmt.Errorf("Invalid Mistral content item")
 		}
 		if text, ok := mistralScalarText(item); ok {
@@ -77,17 +80,20 @@ func mistralContentDeltas(raw json.RawMessage) ([]mistralContentDelta, error) {
 				var valid bool
 				text, valid = mistralScalarText(value)
 				if !valid {
+					//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 					return out, fmt.Errorf("Invalid Mistral text content")
 				}
 			}
 		case "thinking":
 			parts, valid := object["thinking"].([]any)
 			if object["thinking"] != nil && !valid {
+				//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 				return out, fmt.Errorf("Invalid Mistral thinking content")
 			}
 			var units []uint16
 			for _, part := range parts {
 				if part == nil {
+					//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 					return out, fmt.Errorf("Invalid Mistral thinking part")
 				}
 				if object, ok := part.(map[string]any); ok {

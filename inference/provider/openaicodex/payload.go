@@ -55,6 +55,7 @@ func prepareCodexRequest(ctx context.Context, model *goai.Model, input *goai.Con
 		return nil, &codexPayloadError{err}
 	}
 	if envelope == nil {
+		//lint:ignore ST1005 Provider name is a proper noun; preserve the public diagnostic.
 		return nil, &codexPayloadError{fmt.Errorf("Codex request payload must be an object")}
 	}
 	requestID := codexCacheSessionID(opts)

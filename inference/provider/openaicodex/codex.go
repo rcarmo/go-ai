@@ -1226,6 +1226,7 @@ readLoop:
 	}
 
 	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
+		//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 		return argumentProtocolError(fmt.Errorf("Tool call arguments did not complete before stream ended"), nil)
 	}
 
@@ -1681,6 +1682,7 @@ eventsLoop:
 		}
 	}
 	if partial.StopReason == goai.StopReasonToolUse && len(unfinished) > 0 {
+		//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 		send(&goai.ErrorEvent{Reason: goai.StopReasonError, Error: partial, Err: fmt.Errorf("Tool call arguments did not complete before stream ended")})
 		return
 	}
@@ -1806,10 +1808,6 @@ func buildCodexToolDeclarations(model *goai.Model, tools []goai.Tool) []codexToo
 	return result
 }
 
-func buildCodexInput(model *goai.Model, convCtx *goai.Context) []interface{} {
-	view, _ := newCodexToolView(model, convCtx)
-	return buildCodexInputWithToolView(model, codexTranscriptContext(model, convCtx), view)
-}
 func buildCodexInputWithToolView(model *goai.Model, convCtx *goai.Context, view codexToolView) []interface{} {
 	input := make([]interface{}, 0)
 	var toolState codexAdditionalToolState

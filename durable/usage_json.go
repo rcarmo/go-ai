@@ -8,10 +8,6 @@ import (
 
 var nativeUsageType = reflect.TypeFor[goai.Usage]()
 
-func isNativeUsageType(t reflect.Type) bool {
-	return t == nativeUsageType || t.Kind() == reflect.Pointer && t.Elem() == nativeUsageType
-}
-
 // The bounded encoder handles this exact library type itself; it never calls
 // its marshaler (and never grants the exception to caller-defined wrappers).
 func usageZeroIsPresent(v reflect.Value, name string) bool {

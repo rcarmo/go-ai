@@ -509,10 +509,12 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 		}
 		var chunk sseChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 			fail(fmt.Errorf("Invalid Mistral streaming event: %w", err))
 			return
 		}
 		if chunk.Choices == nil {
+			//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 			fail(fmt.Errorf("Invalid Mistral streaming event"))
 			return
 		}
@@ -522,6 +524,7 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 			// replace the lossless argument data or bypass typed validation.
 			var event map[string]any
 			if err := json.Unmarshal([]byte(data), &event); err != nil {
+				//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 				fail(fmt.Errorf("Invalid Mistral streaming event: %w", err))
 				return
 			}
@@ -579,6 +582,7 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 		}
 		delta := choice.Delta
 		if delta == nil {
+			//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 			fail(fmt.Errorf("Invalid Mistral streaming delta"))
 			return
 		}
@@ -602,6 +606,7 @@ func processSSEStreamWithOptions(ctx context.Context, body io.Reader, model *goa
 		// Tool calls
 		for _, tc := range delta.ToolCalls {
 			if tc.Function == nil {
+				//lint:ignore ST1005 Preserve the existing public diagnostic text in error events.
 				fail(fmt.Errorf("Invalid Mistral tool call"))
 				return
 			}
@@ -709,5 +714,3 @@ func mistralReasoningOptions(model *goai.Model, opts *goai.StreamOptions) (effor
 	}
 	return "", ""
 }
-
-const mistralToolCallIDLength = 9
