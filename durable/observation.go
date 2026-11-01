@@ -864,7 +864,18 @@ func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPu
 		if e != nil {
 			return nil, e
 		}
-		result = append(result, preparedSubscription{sub: p, frame: PublicationFrame{Publication: copy, Context: context.WithoutCancel(ctx), ready: ready}, reset: PublicationFrame{Snapshot: &snapshot, Context: context.WithoutCancel(ctx), ready: ready}, size: int64(len(encoded)), resetSize: resetBytes, overflow: false, disableProjection: p.conversation != nil})
+		item := preparedSubscription{sub: p, frame: PublicationFrame{Publication: copy, Context: context.WithoutCancel(ctx), ready: ready}, reset: PublicationFrame{Snapshot: &snapshot, Context: context.WithoutCancel(ctx), ready: ready}, size: int64(len(encoded)), resetSize: resetBytes, overflow: false, disableProjection: p.conversation != nil}
+		if w := p.conversation; w != nil {
+			next, reset, size, err := w.prepareAuthoritativeReset(ctx, publication, snapshot, ready)
+			if err != nil {
+				// Projection failures affect only this watch, after receipt/readiness.
+				frame := PublicationFrame{Context: context.WithoutCancel(ctx), ready: ready, conversation: &conversationPublicationFrame{err: err}}
+				item.frame, item.reset, item.size, item.resetSize = frame, frame, 1, 1
+			} else {
+				item.view, item.reset, item.resetSize = &next, reset, size
+			}
+		}
+		result = append(result, item)
 	}
 	return result, nil
 }

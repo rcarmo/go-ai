@@ -202,9 +202,8 @@ func (w *ConversationWatch) adoptPublication(item preparedSubscription) {
 	defer w.mu.Unlock()
 	if item.disableProjection {
 		w.projectionDisabled = true
-		return
 	}
-	if item.frame.conversation.err != nil {
+	if item.frame.conversation != nil && item.frame.conversation.err != nil {
 		w.projectionErr = item.frame.conversation.err
 		return
 	}

@@ -3,6 +3,19 @@
 `ConversationHandle.View` and `Watch` now expose transcript history with independent windows. Model-context APIs and legacy event snapshots retain their active-head entries and receipt pairing. The target is upstream `81f3cd412758ebdd92324c7d63b669a189408d0a`.
 
 
+
+## Adapter recovery windows — development checkpoint
+
+Adapter-backed conversation watches now retain publication-time window bookkeeping for overflow recovery. The reset uses the authoritative prepared snapshot’s document bodies and retained entry bodies, rather than rehydrating only the newest minimum-sized window. A changed conversation record or a missing/relocated retained entry invalidates the old shape and triggers conservative authoritative rehydration. Initial `from` remains acquisition-only when the shape is valid.
+
+Preparation leaves the watch unchanged. Receipted adoption installs the bookkeeping head and permanently disables the exact-native witness for that watch; restoring the native store still requires a fresh watch to acquire a native witness. Recovery emits a detached, independently bounded value/root pair behind the publication readiness fence. Its quota charge covers those retained graphs; it no longer retains the full fallback snapshot in a conversation recovery frame. Raw commit subscriptions retain their full snapshot reset and existing quotas. Legacy snapshot cloning/validation still occurs before settlement, and regular adapter-watch frames retain their raw publication delivery.
+
+`durable/view_adapter_window_main_test.go` reproduces six preceding-production failures: delayed Start and a blocked callback lose the accumulated 3/6 window at the 101st pending publication. The fix preserves IDs and predecessor at every delivery, including the final window, while the reset retains that publication’s authoritative provider value. Additional controls cover changed entry/doc payloads, missing records, caller mutation, abandoned preparation, readiness/accounting and root replay across memory/journal/SQLite. Existing after-acquisition adapters and native restoration tests remain active.
+
+Focused normal checks pass three repetitions, shuffle 42, CGO 0/1 (36.089s/55.518s), with durable vet in both modes. Focused adapter/readiness/byte-quota/consumed-slot/document/pending/observation race checks pass three repetitions (117.649s). Staticcheck v0.8.2 and format/diff checks pass in both CGO modes. Three mutations are rejected: old minimum-window rehydration (6 backend leaves), stale retained entry bodies (3), and premature head installation (3). Mutation files/logs were removed after analysis. No new full-suite/full durable race, profiling or performance claim.
+
+Full adapter parity remains open. Arbitrary out-of-band insertion below an existing cursor, ancestor rewrites, generationless or sequence-derived projection changes and non-reset projection refresh require a contract/disposition. Recovery uses the authoritative candidate captured during preparation; it does not call a wrapper after settlement or infer a stable generation from equal sequence numbers. Bounded hydration/scans, adapter operation-log equivalence and JSON folding, shared references/GC and synchronous observer semantics remain open.
+
 ## Pending conversation operations — development checkpoint
 
 Exact-native conversation watches now fold contiguous pending successful projections off the Session line before each callback. Delayed Start and blocked listeners receive the latest pending value/context with Chord leaf, append, structural-barrier and root rules. An active callback keeps its own delivery. Every selected publication must release its readiness fence. Consumed projection slots clear before delivery.
