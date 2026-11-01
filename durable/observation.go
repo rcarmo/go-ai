@@ -39,7 +39,8 @@ type WatchFrame struct {
 }
 
 // DocumentWatch owns detached public views and serialises its host callback off
-// the Session line. Stop/Close never joins a caller-owned in-flight callback.
+// the Session line. A terminal task owner ends it after pending callbacks return.
+// Stop/Close never joins a caller-owned in-flight callback.
 type DocumentWatch struct {
 	mu           sync.Mutex
 	session      *Session
@@ -56,6 +57,7 @@ type DocumentWatch struct {
 	started      bool
 	running      bool
 	ended        bool
+	ending       bool
 	end          WatchEnd
 	closed       chan struct{}
 }
@@ -139,7 +141,16 @@ func (w *DocumentWatch) terminate(end WatchEnd) {
 }
 func (w *DocumentWatch) kick() {
 	w.mu.Lock()
-	if w.ended || !w.started || w.running || len(w.pending) == 0 {
+	if w.ended || w.running {
+		w.mu.Unlock()
+		return
+	}
+	if w.ending && len(w.pending) == 0 {
+		w.mu.Unlock()
+		w.terminate(WatchEnd{Reason: "ended"})
+		return
+	}
+	if !w.started || len(w.pending) == 0 {
 		w.mu.Unlock()
 		return
 	}
@@ -163,7 +174,11 @@ func (w *DocumentWatch) drain() {
 	for {
 		w.mu.Lock()
 		if w.ended || len(w.pending) == 0 {
+			finish := !w.ended && w.ending
 			w.mu.Unlock()
+			if finish {
+				w.terminate(WatchEnd{Reason: "ended"})
+			}
 			return
 		}
 		frames := w.pending
@@ -216,6 +231,7 @@ type preparedWatchFrame struct {
 	resetSize int64
 	version   uint64
 	id        ID
+	ownerEnd  bool
 }
 
 func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}) ([]preparedWatchFrame, error) {
@@ -228,10 +244,18 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 	result := []preparedWatchFrame{}
 	for _, w := range watchers {
 		w.mu.Lock()
-		version, incarnation, previous, ended := w.version, w.id, w.observed, w.ended
+		version, incarnation, previous, ended := w.version, w.id, w.observed, w.ended || w.ending
 		w.mu.Unlock()
 		if ended {
 			continue
+		}
+		ownerEnd := false
+		if w.address.Scope == "task" {
+			for _, write := range publication.Tables {
+				if write.Task != nil && write.Task.ID == w.address.Owner && terminalStatus(write.Task.Status) {
+					ownerEnd = true
+				}
+			}
 		}
 		var value JSON
 		var operations []Operation
@@ -261,6 +285,9 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 			value, previous, changed = change.Value, change.Value, true
 		}
 		if !changed {
+			if ownerEnd {
+				result = append(result, preparedWatchFrame{watch: w, ownerEnd: true})
+			}
 			continue
 		}
 		// One address delivery per publication, including retire+recreate. All
@@ -299,7 +326,7 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 		if e != nil {
 			return nil, e
 		}
-		result = append(result, preparedWatchFrame{w, frame, int64(len(encoded)), reset, int64(len(resetEncoded)), version, incarnation})
+		result = append(result, preparedWatchFrame{w, frame, int64(len(encoded)), reset, int64(len(resetEncoded)), version, incarnation, ownerEnd})
 	}
 	return result, nil
 }
@@ -313,33 +340,40 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 	for _, prepared := range frames {
 		w := prepared.watch
 		w.mu.Lock()
-		if w.ended {
+		if w.ended || w.ending {
 			w.mu.Unlock()
 			continue
 		}
-		if prepared.resetSize > w.byteLimit {
-			w.mu.Unlock()
-			w.terminate(WatchEnd{Reason: "budget_exceeded"})
-			continue
-		}
-		w.version, w.id = prepared.version, prepared.id
-		w.observed = prepared.frame.ownedValue
-		if w.id == 0 {
-			w.observed = nil
-		}
-		frame, size := prepared.frame, prepared.size
-		if size > w.byteLimit-w.pendingBytes {
-			for _, pending := range w.pending {
-				prepared.reset.Retired = prepared.reset.Retired || pending.Retired
+		if prepared.frame.Kind != "" {
+			if prepared.resetSize > w.byteLimit {
+				w.mu.Unlock()
+				w.terminate(WatchEnd{Reason: "budget_exceeded"})
+				continue
 			}
-			w.pending = nil
-			w.bytes = nil
-			w.pendingBytes = 0
-			frame, size = prepared.reset, prepared.resetSize
+			w.version, w.id = prepared.version, prepared.id
+			w.observed = prepared.frame.ownedValue
+			if w.id == 0 {
+				w.observed = nil
+			}
+			frame, size := prepared.frame, prepared.size
+			if size > w.byteLimit-w.pendingBytes {
+				for _, pending := range w.pending {
+					prepared.reset.Retired = prepared.reset.Retired || pending.Retired
+				}
+				w.pending = nil
+				w.bytes = nil
+				w.pendingBytes = 0
+				frame, size = prepared.reset, prepared.resetSize
+			}
+			w.pending = append(w.pending, frame)
+			w.bytes = append(w.bytes, size)
+			w.pendingBytes += size
 		}
-		w.pending = append(w.pending, frame)
-		w.bytes = append(w.bytes, size)
-		w.pendingBytes += size
+		if prepared.ownerEnd {
+			// Stay registered for Close/cancellation until final callbacks finish,
+			// but release the incarnation and refuse all later publications now.
+			w.ending, w.id, w.observed = true, 0, nil
+		}
 		w.mu.Unlock()
 	}
 }
@@ -385,7 +419,8 @@ func (s *Session) closeWatches() {
 }
 
 // WatchDefinition atomically hydrates an existing document and follows its address.
-// An absent address is not created. Retirement keeps the watch open for recreation.
+// An absent address is not created. Retirement keeps the watch open for recreation,
+// except when its task owner is terminal: final delivery then ends the watch.
 // Registration budget is a native process bound: at most min(MaxPage,64)
 // watchers, each with MaxRetainedBytes/capacity encoded pending bytes. A root
 // exceeding that quota rejects acquisition or ends a later watch explicitly.

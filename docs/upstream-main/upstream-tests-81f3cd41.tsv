@@ -281,7 +281,7 @@ packages/durable/test/harness-lifecycle.test.ts	yes	pending	pending-review
 packages/durable/test/harness-live-deltas.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-nested-tools-restart.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-nested-tools.test.ts	yes	pending	pending-review	
-packages/durable/test/harness-observers.test.ts	yes	pending	pending-review	
+packages/durable/test/harness-observers.test.ts	yes	pending	development-verified-partial	durable/watch_owner_main_test.go; docs/upstream-main/watch-addresses.md (task-owner watch final-delivery lifecycle only; synchronous observers/GC and remaining assertions open)
 packages/durable/test/harness-ownership.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-partial-changes.test.ts	yes	pending	pending-review	
 packages/durable/test/harness-prompt.test.ts	no	pending	pending-review	
@@ -337,7 +337,7 @@ packages/durable/test/session-group-commit.test.ts	yes	new-at-tip	development-ve
 packages/durable/test/session-observers.test.ts	yes	pending	pending-review	
 packages/durable/test/session-support.ts	yes	pending	pending-review	
 packages/durable/test/session-tables.test.ts	yes	pending	pending-review	
-packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/owner endings/remaining assertions open)
+packages/durable/test/session-watches.test.ts	yes	pending	development-verified-partial	durable/watch_address_main_test.go; durable/watch_pending_main_test.go; durable/observation_test.go; docs/upstream-main/watch-addresses.md (address retirement/recreation/version + pending-operation folding; exact overflow/work bounds/remaining assertions open)
 packages/durable/test/setup-document-retention.ts	no	pending	pending-review	
 packages/durable/test/spec-usage.test.ts	yes	pending	pending-review	
 packages/durable/test/sqlite-cloudflare.test.ts	yes	pending	pending-review	

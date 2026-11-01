@@ -26,6 +26,16 @@ Native limits remain a visible difference: pending operations must satisfy the e
 
 Focused normal tests (`TestMainWatchPending|TestMainWatchAddress|TestObservation|TestMainDefinitionWrapper`) pass three repetitions with shuffle 42 in CGO 0 and 1; the same focused race selection passes three repetitions with shuffle 42. An earlier selection before the final recreation test also passed race shuffle 7. Durable vet passes in both modes. Restoring the previous production drain/100-frame policy through a logical-and-physical-path overlay fails all nine pending-delivery backend cases. Raw source extracts, the diagnosed published-package probe and mutation artifacts are removed after use. No full-suite or full-race gate is claimed for this checkpoint.
 
+## Terminal task owners
+
+A task-scoped definition watch now stops accepting publications when the owner task becomes terminal. Preparation records that transition alongside the final document frame; only successful publication activates it. The incarnation pin is released immediately. The watch remains registered for Session close and acquisition cancellation until its final callback returns.
+
+Pending frames still fold and deliver normally, then `End` reports `Reason: "ended"`. An unstarted watch keeps its final pending value until started, stopped, cancelled or closed. An already-retired address with no pending callback ends when its owner ends. An in-flight callback and any queued final retirement finish before normal closure. Explicit stop, Session close/failure and listener errors retain precedence while final delivery is pending. Existing task-runtime watch teardown on Harness close remains unchanged.
+
+The source contracts are `packages/durable/src/session/session.ts:1444–1537,1882–1884` and `packages/durable/test/harness-observers.test.ts:290–435` at the pinned revision. `durable/watch_owner_main_test.go` runs real registered task hosts, creates task documents through their invocation authority and finishes owners through `TaskRuntime.Commit`. It covers started/unstarted watches, callbacks busy before and during retirement, already-retired documents, completed/failed/aborted owners, rollback, released pins, rejection of a fresh watch after retirement, stop/cancel/close overrides, listener errors, injected Session first-failure fencing and final registration release. Failure injection exercises the existing Session failure path; it does not establish a new backend fault/recovery contract.
+
+Focused normal tests for owner/pending/address/observation/adapter-authority and task close-order controls pass three repetitions with shuffle 42 in CGO 0 and 1. The same focused race selection passes three repetitions with shuffle 42; an earlier selection before the busy-before case passed shuffle 7. Durable vet passes in both modes. Removing activation of owner-ending state in a production-source overlay fails all nine selected started/unstarted/already-retired backend cases. Raw source extracts and mutation output are removed after analysis. Garbage-collection equivalence and synchronous document observers remain unverified.
+
 ## Address-source crosswalk and earlier checks
 
 - `packages/durable/src/session/session.ts:1444–1537`: address matching, retirement values, version/incarnation replacement and incarnation pins.
@@ -38,6 +48,6 @@ Focused normal tests for address watches, observation and adapter-definition aut
 
 ## Still open
 
-This is partial watch alignment. Exact source overflow/work bounds, task-owner terminal detachment, synchronous observer semantics, transcript windows and removed state/event APIs still need review and implementation. The pinned watch tests remain only partially mapped; native callback scheduling does not establish JavaScript microtask equivalence. Native detached values differ from upstream shared JavaScript references. Clearing queue references and transferring pins do not establish the upstream garbage-collection test's full lifetime contract.
+This is partial watch alignment. Exact source overflow/work bounds, synchronous observer semantics, transcript windows and removed state/event APIs still need review and implementation. The pinned watch tests remain only partially mapped; native callback scheduling does not establish JavaScript microtask equivalence. Native detached values differ from upstream shared JavaScript references. Clearing queue references and transferring pins do not establish the upstream garbage-collection test's full lifetime contract.
 
 Commits remain serial; this change enables no writer overlap or grouping. The continuation prototype is excluded. Full semantic acceptance and pre-release profiling remain open. Further validation for this slice is focused under Rui's direction; no new full durable-race result is claimed.
