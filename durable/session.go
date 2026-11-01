@@ -24,6 +24,7 @@ type Session struct {
 	closeErr              error
 	limits                Limits
 	contextRanges         map[ID]*contextRange
+	contextRevision       uint64 // line-owned retention/host/settings witness for off-line reads
 	contextExpiry         *sessionTimer
 	contextExpiryAt       contextDeadline
 	definitionCache       map[definitionCacheKey]definitionCacheValue
@@ -367,9 +368,10 @@ func (s *Session) hasNativeReadImage() bool {
 	}
 }
 
-// taskSnapshot is an immutable internal view while the Session line is owned.
-// Public Snapshot and scan helpers detach values before exposing them; scheduler
-// reads never expose these maps. Wrapped Snapshot contracts remain authoritative.
+// taskSnapshot is an internal view captured while the Session line is owned.
+// Native published payloads are immutable and may be retained by private off-line
+// readers with explicit installation witnesses. Public Snapshot/scans detach
+// values; scheduler reads never expose maps. Wrappers remain authoritative.
 func (s *Session) taskSnapshot(ctx context.Context) (Snapshot, error) {
 	state, _, err := s.taskSnapshotView(ctx)
 	return state, err

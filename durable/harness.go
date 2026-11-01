@@ -530,8 +530,7 @@ func (c *ConversationHandle) Context(ctx context.Context, cutoff ...ID) (*goai.C
 		return nil, ErrClosed
 	}
 	var a agentState
-	var view ContextView
-	e := c.h.session.readTasks(ctx, func(state Snapshot) error {
+	view, e := c.h.session.contextView(ctx, c.id, at, func(state Snapshot) error {
 		if _, ok := state.Conversations[c.id]; !ok {
 			return reject("unknown conversation")
 		}
@@ -540,9 +539,7 @@ func (c *ConversationHandle) Context(ctx context.Context, cutoff ...ID) (*goai.C
 				return err
 			}
 		}
-		var err error
-		view, err = c.h.session.cachedContextView(state, c.id, at)
-		return err
+		return nil
 	})
 	if e != nil {
 		return nil, e

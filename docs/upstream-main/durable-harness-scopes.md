@@ -1,14 +1,14 @@
 ## Harness scopes and context retention
 
-[Context head rewind and off-line protocol](context-read-protocol.md): native regression coverage now checks discarded-history recovery, historical edits and forks after forward/backward heads. Off-line read/publication races remain reviewed-open; derivation still holds the Session line.
+[Context head rewind and off-line protocol](context-read-protocol.md): native derivation/detachment now run off line; published-sequence, retention-revision and cache-slot witnesses prevent stale installation. Head rewind, historical edits/forks and real public commits during paused reads pass all three backends.
 
-The three remaining new harness files at `81f3cd412758ebdd92324c7d63b669a189408d0a` have been reviewed through their final assertions. Four context-retention cases produced twelve native failures across memory, journal and SQLite; those failures are fixed. Scheduler overlap, ordered expiry and the off-line context-read protocol still need implementation or validation. Published membership and target enumeration use the [idle forest](idle-index.md).
+The three remaining new harness files at `81f3cd412758ebdd92324c7d63b669a189408d0a` have been reviewed through their final assertions. Four context-retention cases produced twelve native failures across memory, journal and SQLite; those failures are fixed. Grouped scheduler overlap, ordered expiry and source context scan/work bounds still need implementation or validation. Published membership and target enumeration use the [idle forest](idle-index.md).
 
 The lexical declarations are one in `harness-context-range.test.ts`, seventeen in `harness-group-commit.test.ts`, and fourteen direct declarations plus two tables in `harness-idle-scopes.test.ts`. Tables and internal loops expand work/cases; these counts are not executed source test counts.
 
 ### Off-line context reads
 
-The 47-line context-range test pauses an entry scan after it captured a page. An intervening commit makes that range non-current. Advancing it with a later publication must leave it unchanged; the next read extends from storage and includes the missed entry. Native `Session.ContextView` takes Session admission and derives from an immutable snapshot; it has no equivalent off-line `readContextFrom` surface. A future asynchronous reader must retain a version witness and invalidate a scan raced by publication. The source row is reviewed-open.
+The 47-line context-range test pauses an entry scan after it captured a page. An intervening commit makes that range non-current. Advancing it with a later publication must leave it unchanged; the next read extends from storage and includes the missed entry. Native `Session.ContextView` and both conversation context APIs now capture admitted immutable state, derive/detach off line and guard installation after re-entry. `durable/context_read_main_test.go` reproduces the first/missed/last ordering through private stages and all three public APIs, including publication between derivation and installation. Stale candidates are discarded. Wrappers remain serial and authoritative even at equal sequence. Full durable race passes with 4,324 named passes; [protocol and limits](context-read-protocol.md). The source row is development-verified-partial because storage scan/work bounds and commit-time range advancement still differ.
 
 ### Scheduler regions and admission
 

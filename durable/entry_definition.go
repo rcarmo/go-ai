@@ -358,13 +358,5 @@ func orderContextToolResults(messages []MessageReceipt) []MessageReceipt {
 	return result
 }
 func (s *Session) ContextView(ctx context.Context, conversation, at ID) (ContextView, error) {
-	if e := s.enter(ctx); e != nil {
-		return ContextView{}, e
-	}
-	defer s.leave()
-	state, e := s.taskSnapshot(ctx)
-	if e != nil {
-		return ContextView{}, e
-	}
-	return s.cachedContextView(state, conversation, at)
+	return s.contextView(ctx, conversation, at, nil)
 }

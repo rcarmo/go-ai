@@ -40,6 +40,9 @@ func leadContextWithBaseline(messages []MessageReceipt, baseline bool) []Message
 	return messages
 }
 func detachContextView(v ContextView, l Limits) (ContextView, error) {
+	if v.Head == nil && v.Entries == nil && v.Contributions == nil && v.Messages == nil {
+		return ContextView{}, nil
+	}
 	owned := ContextView{}
 	if v.Head != nil {
 		head, e := copyEntry(*v.Head, l)
@@ -140,6 +143,9 @@ func (s *Session) expireContextRanges() { s.settleContextRanges(true) }
 // Entry-only publications can expire ranges without rescanning task membership.
 // Other callers refresh busy scopes after task/host/settings changes or reads.
 func (s *Session) settleContextRanges(refreshBusy bool) {
+	// Even an empty cache can have an off-line read pending. A settings/host
+	// transition must invalidate its installation witness too.
+	s.contextRevision++
 	if len(s.contextRanges) == 0 {
 		if s.contextExpiry != nil {
 			s.contextExpiry.Stop()
@@ -238,26 +244,28 @@ func retentionDuration(ms int64) time.Duration {
 	}
 	return time.Duration(ms) * time.Millisecond
 }
-func (s *Session) cachedContextView(state Snapshot, conversation, at ID) (ContextView, error) {
-	s.expireContextRanges()
-	if kept := s.contextRanges[conversation]; kept != nil && kept.seq == state.Seq && (at == 0 && kept.current || at != 0 && at == kept.tail) {
-		return detachContextView(kept.view, s.limits)
+
+// deriveContextRange only reads immutable payloads. previous is an owned header
+// copy: publication and expiry may concurrently change the Session's header.
+func deriveContextRange(state Snapshot, conversation, at ID, previous *contextRange, limits Limits) (ContextView, *contextRange, error) {
+	if kept := previous; kept != nil && kept.seq == state.Seq && (at == 0 && kept.current || at != 0 && at == kept.tail) {
+		return kept.view, kept, nil
 	}
 	tail, e := contextTail(state, conversation, at)
 	if e != nil {
-		return ContextView{}, e
+		return ContextView{}, nil, e
 	}
 	if tail == 0 {
-		return ContextView{}, nil
+		return ContextView{}, nil, nil
 	}
-	previous := s.contextRanges[conversation]
 	var history []Entry
 	var view ContextView
 	var settled, open []MessageReceipt
 	if previous != nil && tail == previous.tail {
-		previous.seq = state.Seq
-		previous.current = at == 0 || previous.current
-		return detachContextView(previous.view, s.limits)
+		kept := *previous
+		kept.seq = state.Seq
+		kept.current = at == 0 || previous.current
+		return kept.view, &kept, nil
 	}
 	// Older bounds are selected from a cached range when its head still covers
 	// the cutoff; never replace a newer cache with a historical read.
@@ -270,7 +278,7 @@ func (s *Session) cachedContextView(state Snapshot, conversation, at ID) (Contex
 	} else if previous != nil && tail > previous.tail {
 		added, err := visibleHistory(state, EntryQuery{Conversation: conversation, MinEntryID: previous.tail + 1, MaxEntryID: tail})
 		if err != nil {
-			return ContextView{}, err
+			return ContextView{}, nil, err
 		}
 		simple := true
 		for _, entry := range added {
@@ -283,22 +291,22 @@ func (s *Session) cachedContextView(state Snapshot, conversation, at ID) (Contex
 			history = append(added, previous.history...)
 			// Derive added contributions only; reorder the final open message suffix
 			// so later tool results can replace synthesized missing-result receipts.
-			view, settled, open, e = s.extendContextRange(previous, added)
+			view, settled, open, e = extendContextRange(previous, added, limits)
 			if e != nil {
-				return ContextView{}, e
+				return ContextView{}, nil, e
 			}
 		}
 	}
 	if history == nil {
 		history, e = visibleHistory(state, EntryQuery{Conversation: conversation, MaxEntryID: tail})
 		if e != nil {
-			return ContextView{}, e
+			return ContextView{}, nil, e
 		}
 	}
 	if view.Entries == nil {
-		view, e = deriveContextHistory(history, s.limits)
+		view, e = deriveContextHistory(history, limits)
 		if e != nil {
-			return ContextView{}, e
+			return ContextView{}, nil, e
 		}
 	}
 	if settled == nil && open == nil {
@@ -321,16 +329,9 @@ func (s *Session) cachedContextView(state Snapshot, conversation, at ID) (Contex
 	}
 	if previous == nil || tail >= previous.tail {
 		kept := &contextRange{seq: state.Seq, current: at == 0, tail: tail, head: head, history: history, view: view, settled: settled, open: open}
-		if previous != nil {
-			kept.idleSince = previous.idleSince
-		}
-		if s.contextRanges == nil {
-			s.contextRanges = map[ID]*contextRange{}
-		}
-		s.contextRanges[conversation] = kept
-		s.expireContextRanges()
+		return view, kept, nil
 	}
-	return detachContextView(view, s.limits)
+	return view, nil, nil
 }
 
 // Invalidate on out-of-order appends/fork changes. Plain newer appends keep the
@@ -358,14 +359,14 @@ func settleContext(settled, open []MessageReceipt) ([]MessageReceipt, []MessageR
 	}
 	return settled, open
 }
-func (s *Session) extendContextRange(previous *contextRange, added []Entry) (ContextView, []MessageReceipt, []MessageReceipt, error) {
+func extendContextRange(previous *contextRange, added []Entry, limits Limits) (ContextView, []MessageReceipt, []MessageReceipt, error) {
 	v := previous.view
 	v.Entries = append([]Entry(nil), v.Entries...)
 	v.Contributions = append([][]MessageReceipt(nil), v.Contributions...)
 	open := append([]MessageReceipt(nil), previous.open...)
 	for i := len(added) - 1; i >= 0; i-- {
 		entry := added[i]
-		contribution, err := deriveContextHistory([]Entry{entry}, s.limits)
+		contribution, err := deriveContextHistory([]Entry{entry}, limits)
 		if err != nil {
 			return ContextView{}, nil, nil, err
 		}
