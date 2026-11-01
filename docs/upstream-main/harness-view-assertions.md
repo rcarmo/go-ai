@@ -18,11 +18,11 @@
 | 330: shared mount/failing listener | `TestMainViewUpstreamListenerIsolation` | Shared docs identity; source provider/chat setup adapted |
 | 351: atomic multi-entry/document commit | `TestMainViewUpstreamAtomicPublication` | Native empty Value envelope/minted IDs/setup adaptations documented |
 | 398: initial newest min/default window | `TestMainViewUpstreamHydrationOracles/newest-min-and-default` | Setup/ID adaptations documented; no identity claim |
-| 412: grow to max, splice to min | Candidate: `view_window_ops_main_test.go` | Exact source note batches/operations |
-| 437: oversized commit keeps newest min | Candidate: `view_window_ops_main_test.go` | Exact source batch/expected slice |
+| 412: grow to max, splice to min | `TestMainViewUpstreamAdvanceOracles/grow-splice`: exact batches, natural lengths `[4,5,3]`, literal operations/predecessor/replay | Shared entry identity; native setup/Entry adaptations |
+| 437: oversized commit keeps newest min | `/burst`: two notes, five burst entries in one commit, one frame/newest two/predecessor/replay | Native setup/Entry adaptations |
 | 455: from/exact/short/future/overflow/start | `TestMainViewUpstreamHydrationOracles/from-exact-short-future-overflow-start` | Setup/ID adaptations documented |
-| 482: resumed window advances | Candidate: `view_window_main_test.go` | Exact source inputs and expected prefix/predecessor |
-| 495: from applies only initially | Candidate: `view_window_main_test.go` | Exact source inputs/bounds/assertions |
+| 482: resumed window advances | `/resumed`: five notes/from newest+1, two notes, final IDs/predecessor/every-frame replay | Native setup/Entry adaptations |
+| 495: from applies only initially | `/from-only-initial`: three notes/from newest+1000, empty initial array, full next record below from and predecessor | Native setup/Entry adaptations |
 | 512: invalid/equal bounds | Candidate: `view_window_bounds_main_test.go` | Integer API domain and RangeError/error diagnostics disposition |
 | 525: per-observer window/shared documents | Candidate: `view_window_main_test.go` | Exact source note sequence plus shared-doc/entry identities |
 | 548: bounded overflow root | Candidate: `view_pending_bounds_main_test.go`, `view_publication_main_test.go` | Exact 6,000-commit source threshold/input sequence; preserve native 4,096-op/DTO limits |
@@ -39,3 +39,5 @@ A no-inline allocator/callback helper leaves the collection assertion without st
 Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.509s/8.121s), three race repetitions/shuffle 7 (23.732s), and combined lifetime/hydration/lifecycle race repetitions/shuffle 42 (25.655s). Durable vet/staticcheck v0.8.2 pass both modes; module verification passes. Retaining callback entry arrays and retaining old private heads each fail all six CGO-enabled backend/control leaves. Mutation files/logs and temporary source extracts were removed after analysis. No performance comparison, full-suite/full-race run or acceptance profiling was performed.
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
+
+See [window advancement oracles](window-advance-oracles.md) for exact inputs, assertions, adaptations and development checks for lines 412, 437, 482 and 495.
