@@ -30,7 +30,17 @@ The parent waits for process termination, then opens through normal native path/
 
 The parent checks every stored entry's seq/position/value, the absent suffix, receipt-count evidence, non-reused IDs and the next appended seq. Journal's confirmed prefix differs from SQLite's atomic whole prefix; a receipt never implies that later journal batches were stored. Exiting before the second frame append in an overlay mutation fails the second-before-adoption recovery test. The overlay is deleted after analysis.
 
-These are abrupt process-exit checks. They do not simulate machine power loss, torn device writes or a crash inside COMMIT. Source cross-owner/export isolation still needs work. Native has no corresponding streaming Store export surface. Batch-container collection needs a runtime-appropriate check; Go's weak-pointer documentation does not promise eventual nil in general, so a collection probe must address object layout/liveness and include a retention mutation control instead of weakening that gate.
+These are abrupt process-exit checks. They do not simulate machine power loss, torn device writes or a crash inside COMMIT. Source cross-owner/export isolation still needs work. Native has no corresponding streaming Store export surface.
+
+### Input-container and receipt lifetime
+
+`storage_group_lifetime_test.go` checks the actual outer `[]Batch` backing array, first `[]Write` backing array, caller-owned `Entry` DTO and pointerful receipt capture. Each object escapes through `weak.Make`; allocation/call frames and weak-value checks use noinline helpers. The capture owns a slice-backed receipt counter. These pointerful objects avoid the tiny pointer-free allocation batching caveat in `weak.Pointer`.
+
+The probe follows the pinned Go 1.27.3 `src/weak/pointer_test.go`: force GC after the last strong use and check weak references from a separate frame. It covers successful settlement, prefix refusal and a receipt-sink error, with two variants per outcome. One deliberately holds all inputs/callbacks through three GCs, verifies that every weak reference stays live, then releases them. The other returns no strong holder. Both require all four objects to collect within five GCs while the native backend stays open. A final Snapshot verifies that durable entries remain intact.
+
+An overlay mutation retains the original batches and receive closure in the core after return. All eighteen CGO leaves fail; the mutation/overlay is deleted after analysis. The ordinary probe has eighteen leaves with CGO, twelve without. It passes twenty repetitions for each CGO mode and shuffle seed 7/42; focused group/lifetime race checks pass five repetitions per seed. Root vet passes in both CGO modes. No production code changes; the preceding full root normal and full durable race runs predate these new tests.
+
+Go's public weak API does not promise eventual nil on every implementation. This is a strict test of the native runtime behaviour and these pointerful layouts, supported by the positive retention control and real-core retention mutation. It has no skips or finaliser proxy. It does not establish collection during an in-flight call, arbitrary host-closure lifetime, or a future asynchronous Session pipeline.
 
 ### Checks
 
