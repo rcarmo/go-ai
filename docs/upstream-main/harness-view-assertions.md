@@ -4,9 +4,9 @@
 
 | Source line / test | Native evidence | Remaining work |
 | --- | --- | --- |
-| 113: hydrate newest entries/built-ins | Candidate: `view_provider_main_test.go`, `view_test.go` | Exact provider/chat inputs and every source assertion |
+| 113: hydrate newest entries/built-ins | `TestMainViewUpstreamTouchOracles/completed-hydration`: real hi/hello submission, complete committed entry comparison/root/before/five docs/live/inbox assertions | Native provider-event/model/system/entry-envelope and Submit API adaptations |
 | 128: one frame per touching commit/replay | Candidate: `view_test.go` | Natural frame count and exact input sequence; callback barriers do not establish JS ordering |
-| 160: structural sharing/unmounted silence | `view_lifecycle_oracle_main_test.go` checks unmounted silence from the separate atomic test | Exact source sequence; shared reference assertions |
+| 160: structural sharing/unmounted silence | `/unmounted-silence`: other conversation note, partial high configuration, root note; natural two frames/exact field tuple. ConfigurePatch whole-doc publication mismatch fixed | Three unchanged-reference assertions remain unported; native API/setup adaptations |
 | 178: summary/reset head markers | `TestMainViewUpstreamHistoryOracles/summary-reset`: exact a/b/c/summary/d/reset sequence, natural three frame arrays, literal summary splice/head, replay/committed equality | Native setup/required Value/ID adaptations; see history oracles |
 | 204: inherited fork entries/head markers | `/fork-markers`: exact a/b/fork-at-b/summary, initial ordered IDs, first frame kinds/committed equality | Native setup and ownerless Fork API adaptations |
 | 219: fork observes only own commits | `/fork-isolation`: first/fork/parent/child, initial kinds/parent cutoff, exactly one child frame | Flat native Parent/ParentAt representation; no JS timing equivalence |
@@ -39,6 +39,8 @@ A no-inline allocator/callback helper leaves the collection assertion without st
 Unchanged production passes three normal repetitions/shuffle 42 in CGO 0/1 (4.509s/8.121s), three race repetitions/shuffle 7 (23.732s), and combined lifetime/hydration/lifecycle race repetitions/shuffle 42 (25.655s). Durable vet/staticcheck v0.8.2 pass both modes; module verification passes. Retaining callback entry arrays and retaining old private heads each fail all six CGO-enabled backend/control leaves. Mutation files/logs and temporary source extracts were removed after analysis. No performance comparison, full-suite/full-race run or acceptance profiling was performed.
 
 The separate retained WatchFrame.Context payload gap remains open; see [watch lifecycle oracles](watch-lifecycle-oracles.md).
+
+See [touch oracles](touch-oracles.md) for hydration/unmounted-silence inputs and the demonstrated ConfigurePatch field-tuple fix at lines 113 and 160. Line128's real-generation touching-commit/deferred-attempt assertion remains open.
 
 See [acquisition oracles](acquisition-oracles.md) for close and queued-acquisition inputs, native tag/diagnostic differences and development checks at lines 295 and 304.
 

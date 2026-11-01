@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
+	"sort"
 )
 
 // AgentPatch changes only supplied fields. Clear removes optional stored choices;
@@ -145,7 +146,32 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 		if err != nil {
 			return err
 		}
-		return agent.Set(value)
+		// Source applyChange assigns/deletes top-level agent fields. Preserve
+		// those operation boundaries instead of replacing the mounted document.
+		keys := make([]string, 0, len(doc.Value)+len(value))
+		for key := range doc.Value {
+			keys = append(keys, key)
+		}
+		for key := range value {
+			if _, exists := doc.Value[key]; !exists {
+				keys = append(keys, key)
+			}
+		}
+		sort.Strings(keys)
+		var ops []Operation
+		for _, key := range keys {
+			before, existed := doc.Value[key]
+			after, present := value[key]
+			if !present {
+				ops = append(ops, Operation{"d", []any{key}})
+			} else if !existed || !equalJSONValue(before, after) {
+				ops = append(ops, Operation{"s", []any{key}, after})
+			}
+		}
+		if len(ops) == 0 {
+			return nil
+		}
+		return agent.ApplyOperations(ops)
 	})
 	return err
 }
