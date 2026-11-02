@@ -1,4 +1,15 @@
-## Current tip: c9f4c7b9
+## Git-tip target: 3e0eec29, 2 November 2026
+
+Rui's continued Git-tip goal now targets `3e0eec29f50e7861e9db91f2d12723267411b4f3`, observed through remote `refs/heads/main` (commit time `2026-11-02T12:20:33+00:00`). The c9 observer increment is complete as a bounded private stored-lane checkpoint; its receipts retain that tested pin. Native v1.4.0 and release assets are unchanged.
+
+The [new inventory](tip-3e0eec29.json) records 29 commits and 49 changed repository paths after c9: ten target-package paths (six AI, two durable, two codemode) and 39 dependency/support paths, including two schema release/manifest paths. Relative to accepted upstream v1.4.0 there are 429 target-package paths. The [362-path target crosswalk](upstream-tests-3e0eec29.tsv) and [210-path schema queue](dependency-tests-3e0eec29.tsv) retain earlier native pins and limits. No test paths were added or removed; one AI test changed. [Current review entries](upstream-review-3e0eec29.json) carry scoped reviews only after checking their upstream paths are unchanged; cross-package effects are unverified.
+
+Inspected functional AI deltas preserve root `$defs`/legacy `definitions` in non-strict Anthropic tool schemas while excluding root combinators, and enable OpenCode Claude mid-conversation effort/`thinking.block_binding: drop_block`. The changed Anthropic test adds both definitions-key regressions. Reconcile these assertions against existing native provider/schema coverage before new runtime edits. Version/user-agent metadata and model-catalogue regeneration also need review. The 39 support paths include Chord design changes and coding-agent branch-summary context edits; applicability has not been blanket-excluded.
+
+Exact Git comparison verifies `packages/durable/{src,test}` and `packages/schema/{src,test}` are unchanged from c9. Existing scoped oracles apply to those identical trees, without repeating completed checks or inferring full parity. No new-tip native baseline, TypeScript execution or acceptance result. Regenerate with `scripts/inventory-upstream-main.ts`, using `tip-c9f4c7b9.json` and the full new SHA; raw fetched objects are disposed after the inventory comparison.
+
+<a id="current-tip-c9f4c7b9"></a>
+## Previous tested pin: c9f4c7b9
 
 The final checkpoint remote check found `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. Rui's Git-tip convergence goal applies to this exact pin. The two commits after `b556cfe5` change only three Chord design documents: `docs/next/{decisions,design,slices}.md`. They describe source-aligned cross-plugin contracts (relative imports or copied contracts for code changing together, versioned npm contracts and provider `accepts` for independently changing plugins); the documents explicitly leave implementation work for a later plugin slice.
 

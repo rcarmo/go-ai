@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -63,7 +64,7 @@ func TestMainSyncCommitObserverFailureCause(t *testing.T) {
 				return nil
 			}
 		})
-		if err := add(); !errors.Is(err, failure) {
+		if err := add(); !errors.Is(err, failure) || !strings.Contains(err.Error(), "disk gone") {
 			t.Fatal("commit failure", err)
 		}
 		if _, err := s.Closed(bg); err != nil {
@@ -144,7 +145,7 @@ func TestMainSyncCommitObserverGuardedListenerError(t *testing.T) {
 		watchReceive(t, healthy.advanced)
 		watchReceive(t, healthy.advanced)
 		mu.Lock()
-		if thrown != 1 || len(ends) != 1 || ends[0].Reason != "listener_error" || ends[0].Error != bug || len(reports) != 1 || reports[0].err != bug || reports[0].info.Type != "listener_error" {
+		if thrown != 1 || len(ends) != 1 || ends[0].Reason != "listener_error" || ends[0].Error != bug || len(reports) != 1 || reports[0].err != bug || reports[0].info != (ReportInfo{Type: "listener_error"}) {
 			t.Error("guard/report/original error", thrown, ends, reports)
 		}
 		mu.Unlock()
