@@ -327,6 +327,11 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 			}
 			events = append(events, event)
 		}
+		toolEvents, toolErr := toolDocumentEvents(s.current, next, frame, s.conversation, s.limits)
+		if toolErr != nil {
+			return toolErr
+		}
+		events = append(events, toolEvents...)
 		for _, write := range frame.Publication.Tables {
 			switch {
 			case write.Task != nil:
@@ -353,6 +358,15 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 							return err
 						}
 					}
+					var err error
+					before, err = toolPresentation(s.current, old, before, s.limits)
+					if err != nil {
+						return err
+					}
+					after, err = toolPresentation(next, task, after, s.limits)
+					if err != nil {
+						return err
+					}
 					base := AgentEvent{Seq: next.Seq, Task: task.ID, ToolCallID: after.CallID, ToolName: after.Offer.Name}
 					if after.Started && !before.Started {
 						event := base
@@ -364,32 +378,12 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 						}
 						events = append(events, event)
 					}
-					detailsChanged := before.HasDetails != after.HasDetails || !equalJSONValue(before.Details, after.Details)
-					diagnosticsChanged := !equalJSONValue(before.Diagnostics, after.Diagnostics)
-					if after.Output != before.Output || detailsChanged || diagnosticsChanged || after.DroppedBytes != before.DroppedBytes || after.DroppedLines != before.DroppedLines {
-						event := base
-						event.Type = "tool_execution_update"
-						event.DroppedBytes, event.DroppedLines = after.DroppedBytes, after.DroppedLines
-						if diagnosticsChanged {
-							from := 0
-							if len(before.Diagnostics) <= len(after.Diagnostics) && equalJSONValue(before.Diagnostics, after.Diagnostics[:len(before.Diagnostics)]) {
-								from = len(before.Diagnostics)
-							}
-							event.Diagnostics = append([]ToolDiagnostic{}, after.Diagnostics[from:]...)
-						}
-						if after.Output != before.Output {
-							event.Output = after.Output
-							event.OutputChange = outputChange(before.Output, after.Output)
-						}
-						if detailsChanged {
-							event.HasDetails = true
-							var err error
-							event.Details, err = ownJSONValue(after.Details, s.limits)
-							if err != nil {
-								return err
-							}
-						}
-						events = append(events, event)
+					progress, err := toolProgressEvent(before, after, base, s.limits)
+					if err != nil {
+						return err
+					}
+					if progress != nil {
+						events = append(events, *progress)
 					}
 					schedulerMissing := task.Execution != nil && task.Execution.Builtin != nil && task.Execution.Builtin.Hold != nil && task.Execution.Builtin.Hold.Action == "scheduler-tool-missing"
 					ended := taskHasDecidedOutcome(task) && !taskHasDecidedOutcome(old)

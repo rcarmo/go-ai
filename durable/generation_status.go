@@ -167,6 +167,11 @@ func (t *Tx) generationToolSlots(state Snapshot, parent Task, cp generationCheck
 					slot["entry"] = task.Execution.Builtin.Hold.Entry
 				}
 			} else {
+				presentation, err := toolPresentation(state, task, tool, t.limits)
+				if err != nil {
+					return nil, err
+				}
+				tool = presentation
 				if tool.Output != "" {
 					slot["output"] = tool.Output
 				}

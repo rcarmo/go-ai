@@ -63,8 +63,8 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 			t.Fatal(err)
 		}
 		awaitTaskSignal(t, visible)
-		// Details waits for its committed batch. Pause the host until the pending
-		// firehose window and memo have both adopted; no timing-dependent sleeps.
+		// Details waits for logical progress publication. Pause the host until
+		// the live presentation and memo have both adopted; no timing sleeps.
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		defer cancel()
 		var toolID ID
@@ -79,6 +79,11 @@ func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T
 					toolID = task.ID
 					var cp toolCheckpoint
 					if err := fromObject(task.Checkpoint, &cp, h.session.limits); err != nil {
+						t.Fatal(err)
+					}
+					// Progress is now a live-document value, not invocation state.
+					cp, err = toolPresentation(snapshot, task, cp, h.session.limits)
+					if err != nil {
 						t.Fatal(err)
 					}
 					if cp.HasDetails && task.Execution != nil && task.Execution.Builtin.Memos["progress.memo"] != nil {

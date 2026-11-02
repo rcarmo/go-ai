@@ -1,9 +1,6 @@
 package durable
 
-import (
-	"context"
-	"strings"
-)
+import "strings"
 
 func copyToolProgress(to *toolCheckpoint, from toolCheckpoint) {
 	to.Output = from.Output
@@ -26,52 +23,61 @@ func (a *ToolAPI) publishProgress() (int, error) {
 		return 0, err
 	}
 	written := 0
-	_, err = a.h.session.invocationCommit(context.Background(), a.runtime.TaskID(), func(tx *Tx) error {
-		if err := a.runtime.check(); err != nil {
-			return err
-		}
-		if a.h.closing.Load() {
-			return ErrClosed
-		}
-		current, ok := tx.state.Tasks[a.runtime.TaskID()]
-		if !ok || current.Status != "running" || taskHasDecidedOutcome(current) || taskAborted(current) {
-			return ErrSealed
-		}
-		var candidate toolCheckpoint
-		if err := fromObject(current.Checkpoint, &candidate, tx.limits); err != nil {
-			return err
-		}
-		if snapshot.Output != candidate.Output {
-			if strings.HasPrefix(snapshot.Output, candidate.Output) {
-				written += len(snapshot.Output) - len(candidate.Output)
-			} else {
-				written += len(snapshot.Output)
-			}
-		}
-		if snapshot.HasDetails != candidate.HasDetails || !equalJSONValue(snapshot.Details, candidate.Details) {
-			encoded, err := encodeBounded(snapshot.Details, tx.limits, tx.limits.MaxDocumentBytes)
-			if err != nil {
-				return err
-			}
-			written += len(encoded)
-		}
-		if len(snapshot.Diagnostics) > len(candidate.Diagnostics) {
-			encoded, err := encodeBounded(snapshot.Diagnostics[len(candidate.Diagnostics):], tx.limits, tx.limits.MaxDocumentBytes)
-			if err != nil {
-				return err
-			}
-			written += len(encoded)
-		}
-		copyToolProgress(&candidate, snapshot)
-		task, err := copyTask(current, tx.limits)
-		if err != nil {
-			return err
-		}
-		task.Checkpoint, err = dtoObject(candidate, tx.limits)
-		if err != nil {
-			return err
-		}
-		return tx.stage(Write{Op: "put-task", Task: &task})
+	err = a.runtime.commitProgress(a.runtime.context, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
+		return nil, a.writeProgress(tx, snapshot, value, &written)
 	})
 	return written, err
+}
+func (a *ToolAPI) writeProgress(tx *Tx, snapshot toolCheckpoint, value JSON, written *int) error {
+	if err := a.runtime.check(); err != nil {
+		return err
+	}
+	if a.h.closing.Load() {
+		return ErrClosed
+	}
+	current, ok := tx.state.Tasks[a.runtime.TaskID()]
+	if !ok || current.Status != "running" || taskHasDecidedOutcome(current) || taskAborted(current) {
+		return ErrSealed
+	}
+	var candidate toolCheckpoint
+	if err := fromObject(current.Checkpoint, &candidate, tx.limits); err != nil {
+		return err
+	}
+	candidate, err := toolPresentation(tx.state, current, candidate, tx.limits)
+	if err != nil {
+		return err
+	}
+	if snapshot.Output != candidate.Output {
+		if strings.HasPrefix(snapshot.Output, candidate.Output) {
+			*written += len(snapshot.Output) - len(candidate.Output)
+		} else {
+			*written += len(snapshot.Output)
+		}
+	}
+	if snapshot.HasDetails != candidate.HasDetails || !equalJSONValue(snapshot.Details, candidate.Details) {
+		encoded, err := encodeBounded(snapshot.Details, tx.limits, tx.limits.MaxDocumentBytes)
+		if err != nil {
+			return err
+		}
+		*written += len(encoded)
+	}
+	if len(snapshot.Diagnostics) > len(candidate.Diagnostics) {
+		encoded, err := encodeBounded(snapshot.Diagnostics[len(candidate.Diagnostics):], tx.limits, tx.limits.MaxDocumentBytes)
+		if err != nil {
+			return err
+		}
+		*written += len(encoded)
+	}
+	live, err := builtin(tx, current.Conversation, "pi.live")
+	if err != nil {
+		return err
+	}
+	return live.Update(func(document JSON) error {
+		slot := toolPresentationSlot(document, current, candidate.CallID)
+		if slot == nil {
+			return ErrSealed
+		}
+		setToolPresentation(slot, value, snapshot.HasDetails)
+		return nil
+	})
 }

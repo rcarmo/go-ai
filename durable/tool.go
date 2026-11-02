@@ -1244,6 +1244,11 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		if err := runtime.check(); err != nil {
 			return err
 		}
+		var err error
+		cp, err = toolPresentation(state, task, cp, h.session.limits)
+		if err != nil {
+			return err
+		}
 		parent, ok := state.Tasks[task.Owner]
 		if !ok {
 			return reject("tool parent missing")
@@ -1394,6 +1399,9 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 			return err
 		}
 		if replaying {
+			if err := clearToolPresentation(tx, current, latest.CallID); err != nil {
+				return err
+			}
 			latest.DurationMs = nil
 			latest.Output = ""
 			latest.Details = nil
@@ -1681,6 +1689,11 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		result.Commit = nil
 	}
 	content := []goai.ContentBlock{{Type: "text", Text: text}}
+	if text == "" && code != "" {
+		// A harness error with no stored output has diagnostics only, not a
+		// fabricated empty text contribution (upstream fromSlot/harnessError).
+		content = nil
+	}
 	if code == "" && len(result.Blocks) > 0 {
 		blocks, err := contributionReceipt(goai.Message{Role: goai.RoleToolResult, Content: result.Blocks}, h.session.limits)
 		if err != nil {

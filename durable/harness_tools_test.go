@@ -378,6 +378,10 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 		} else {
 			var cp toolCheckpoint
 			_ = fromObject(task.Checkpoint, &cp, h.session.limits)
+			cp, e = toolPresentation(state, task, cp, h.session.limits)
+			if e != nil {
+				t.Fatal(e)
+			}
 			if !cp.Abort || cp.Output != "retained prefix" {
 				t.Fatal("abort/prefix notcommitted")
 			}
@@ -598,7 +602,7 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 	// Signal from the native append settlement barrier. Snapshot then joins
 	// the still-held session line and therefore reads the adopted revision.
 	s.appendFrame = func(typ byte, ordinal, high uint64, p []byte) error {
-		if typ == 2 && bytes.Contains(p, []byte(`"partial":`)) {
+		if typ == 2 && bytes.Contains(p, []byte(`"bounded prefix"`)) {
 			acknowledge.Do(func() { close(committed) })
 		}
 		return nil
@@ -631,7 +635,11 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 		var cp generationCheckpoint
 		_ = fromObject(task.Checkpoint, &cp, h.session.limits)
 		if cp.Submission == first.ID() {
-			partialFound = cp.Partial != nil && cp.Partial.Content[0].Text == "bounded prefix"
+			partial, err := generationPartial(state, task, cp, h.session.limits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			partialFound = partial != nil && partial.Content[0].Text == "bounded prefix"
 		}
 	}
 	if !partialFound {
@@ -928,6 +936,10 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	message := terminal("committed prefix").Message
 	s, _ := NewMemory()
 	h := &Harness{session: sessionFor(t, s)}
+	conversation, e := h.session.MintID(bg)
+	if e != nil {
+		t.Fatal(e)
+	}
 	id, e := h.session.MintID(bg)
 	if e != nil {
 		t.Fatal(e)
@@ -937,7 +949,23 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 		t.Fatal(e)
 	}
 	_, e = h.session.Commit(bg, func(tx *Tx) error {
-		return tx.PutTask(Task{ID: id, Conversation: 1, Kind: "pi.generation", Status: "running", Checkpoint: cp})
+		if err := tx.CreateConversation(Conversation{ID: conversation}); err != nil {
+			return err
+		}
+		if err := initializeBuiltins(tx, conversation); err != nil {
+			return err
+		}
+		live, err := builtin(tx, conversation, "pi.live")
+		if err != nil {
+			return err
+		}
+		if err := live.Update(func(value JSON) error {
+			value["run"] = JSON{"task": id}
+			return nil
+		}); err != nil {
+			return err
+		}
+		return tx.PutTask(Task{ID: id, Conversation: conversation, Kind: "pi.generation", Status: "running", Checkpoint: cp})
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -946,7 +974,7 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	go func() { h.drain(ch, fakeModel("partial-ownership"), id); close(done) }()
 	ch <- &goai.TextDeltaEvent{Partial: message}
 	// The next send establishes detached capture, not a checkpoint. Wait for
-	// the trailing publisher's adopted checkpoint before ending the stream.
+	// the trailing publisher's adopted live value before ending the stream.
 	ch <- &goai.StartEvent{}
 	deadline, cancel := context.WithTimeout(bg, 3*time.Second)
 	defer cancel()
@@ -959,7 +987,11 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 		if err := fromObject(state.Tasks[id].Checkpoint, &checkpoint, h.session.limits); err != nil {
 			t.Fatal(err)
 		}
-		if checkpoint.Partial != nil {
+		partial, err := generationPartial(state, state.Tasks[id], checkpoint, h.session.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if partial != nil {
 			break
 		}
 		select {
@@ -977,7 +1009,11 @@ func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 		t.Fatal(e)
 	}
 	var stored generationCheckpoint
-	if e = fromObject(state.Tasks[id].Checkpoint, &stored, h.session.limits); e != nil || stored.Partial.Content[0].Text != "committed prefix" {
+	if e = fromObject(state.Tasks[id].Checkpoint, &stored, h.session.limits); e != nil {
+		t.Fatal(e)
+	}
+	partial, e := generationPartial(state, state.Tasks[id], stored, h.session.limits)
+	if e != nil || partial == nil || partial.Content[0].Text != "committed prefix" {
 		t.Fatal("partialalias", e)
 	}
 }
