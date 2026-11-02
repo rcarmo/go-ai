@@ -12,6 +12,7 @@ require (
 	github.com/aws/smithy-go v1.28.5
 	github.com/coder/websocket v1.8.15
 	github.com/klauspost/compress v1.20.3
+	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/tetratelabs/wazero v1.12.0
 	golang.org/x/image v0.47.0
 	golang.org/x/text v0.43.0
@@ -29,7 +30,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.4 // indirect
+	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )

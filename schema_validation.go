@@ -2,7 +2,6 @@ package goai
 
 import (
 	"math"
-	"net/url"
 	"reflect"
 	"regexp"
 	"sort"
@@ -50,11 +49,13 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 	return key, true
 }
 
-type toolSchemaWork struct{ convertCalls int } // Optional structural-work witness in white-box tests.
+type toolSchemaWork struct{ convertCalls, indexNodes int } // Optional structural-work witness in white-box tests.
 
 type toolSchemaValidator struct {
 	root       map[string]interface{}
-	refs       map[string]interface{}
+	schemaRaw  []byte
+	resources  *toolSchemaResources
+	refs       map[toolSchemaRefKey]interface{}
 	converted  map[toolSchemaMemoKey]interface{}
 	converting map[toolSchemaMemoKey]bool
 	checked    map[toolSchemaMemoKey]bool
@@ -67,61 +68,21 @@ type toolSchemaValidator struct {
 	work   *toolSchemaWork
 }
 
-func newToolSchemaValidator(root map[string]interface{}) *toolSchemaValidator {
-	return &toolSchemaValidator{
-		root: root, refs: make(map[string]interface{}),
+func newToolSchemaValidator(root map[string]interface{}, raw ...[]byte) *toolSchemaValidator {
+	v := &toolSchemaValidator{
+		root: root, refs: make(map[toolSchemaRefKey]interface{}),
 		converted: make(map[toolSchemaMemoKey]interface{}), converting: make(map[toolSchemaMemoKey]bool),
 		checked: make(map[toolSchemaMemoKey]bool), checking: make(map[toolSchemaMemoKey]bool),
 		members: make(map[uintptr]*toolSchemaMembers), inputs: make(map[toolSchemaMemoKey]interface{}),
 	}
+	if len(raw) > 0 {
+		v.schemaRaw = raw[0]
+	}
+	return v
 }
 
-// Resolve document-local URI-fragment JSON pointers only. Unknown resources
-// reject locally; validation never fetches a URL, file, credential or metadata.
-func (v *toolSchemaValidator) resolve(ref string) interface{} {
-	if target, found := v.refs[ref]; found {
-		return target
-	}
-	var target interface{}
-	defer func() { v.refs[ref] = target }()
-	if !strings.HasPrefix(ref, "#") {
-		return nil
-	}
-	pointer, err := url.PathUnescape(ref[1:])
-	if err != nil || (pointer != "" && !strings.HasPrefix(pointer, "/")) {
-		return nil
-	}
-	target = v.root
-	if pointer != "" {
-		for _, segment := range strings.Split(pointer[1:], "/") {
-			segment = strings.ReplaceAll(strings.ReplaceAll(segment, "~1", "/"), "~0", "~")
-			switch current := target.(type) {
-			case map[string]interface{}:
-				target = current[segment]
-			case []interface{}:
-				index, parseErr := strconv.Atoi(segment)
-				if parseErr != nil || index < 0 || index >= len(current) || strconv.Itoa(index) != segment {
-					target = nil
-					return nil
-				}
-				target = current[index]
-			default:
-				target = nil
-				return nil
-			}
-		}
-	}
-	switch target.(type) {
-	case map[string]interface{}, bool:
-		return target
-	default:
-		target = nil
-		return nil
-	}
-}
-
-func (v *toolSchemaValidator) convertReference(value interface{}, ref string) interface{} {
-	target, ok := v.resolve(ref).(map[string]interface{})
+func (v *toolSchemaValidator) convertReference(value interface{}, ref string, from ...map[string]interface{}) interface{} {
+	target, ok := v.resolve(ref, from...).(map[string]interface{})
 	if !ok {
 		return value
 	}
@@ -149,8 +110,8 @@ func (v *toolSchemaValidator) convertReference(value interface{}, ref string) in
 	return converted
 }
 
-func (v *toolSchemaValidator) checkReference(value interface{}, ref string) bool {
-	target := v.resolve(ref)
+func (v *toolSchemaValidator) checkReference(value interface{}, ref string, from ...map[string]interface{}) bool {
+	target := v.resolve(ref, from...)
 	if literal, ok := target.(bool); ok {
 		return literal
 	}
@@ -285,8 +246,8 @@ func schemaIssuePath(parent, key string) string {
 // Reference-check memo entries hold booleans, never a path from another caller.
 func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
 	generic := &toolSchemaIssue{path, "value does not match schema"}
-	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref) {
-		if target, ok := v.resolve(ref).(map[string]interface{}); ok {
+	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
+		if target, ok := v.resolve(ref, schema).(map[string]interface{}); ok {
 			key, cacheable := toolSchemaKey(target, value)
 			if cacheable && !active[key] {
 				active[key] = true

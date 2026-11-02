@@ -38,8 +38,25 @@ THE SOFTWARE.
 
 ## JSON Schema Test Suite
 
-`tests/testdata/upstream-main/hostname.json` is copied from the pinned upstream
-JSON Schema Test Suite fixture. Its copyright and the MIT permission/disclaimer
-printed above apply to this fixture:
+`tests/testdata/upstream-main/hostname.json` and the selected reference/anchor
+assertions in `tests/testdata/upstream-main/validation-resources.json` come from
+the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
+permission/disclaimer printed above apply to these fixtures:
 
 Copyright (c) 2012 Julian Berman
+
+## pi-schema reference resolution
+
+`schema_validation_resources.go` adapts resource indexing, scope and URI fallback
+rules from `packages/schema/src/resolver.ts` at `c9f4c7b9`. The MIT permission and
+disclaimer printed above apply:
+
+Copyright (c) 2025 Mario Zechner
+
+## WHATWG URL parsing
+
+URI resolution uses `github.com/nlnwa/whatwg-url` v0.6.2, Copyright 2020 National
+Library of Norway, under the Apache License 2.0:
+<https://github.com/nlnwa/whatwg-url/blob/v0.6.2/LICENSE>.
+The dependency source and licence remain in its module; this repository imports
+the parser and adds a measured opaque-path compatibility rule.

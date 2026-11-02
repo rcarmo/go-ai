@@ -135,7 +135,7 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 	if err := json.Unmarshal(tool.Parameters, &schema); err != nil {
 		return tc.Arguments, nil
 	}
-	v := newToolSchemaValidator(schema)
+	v := newToolSchemaValidator(schema, tool.Parameters)
 	out := normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
 	if out == nil {
 		out = make(map[string]interface{})
@@ -281,7 +281,7 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 		v.work.convertCalls++
 	}
 	if ref, ok := schema["$ref"].(string); ok {
-		return v.convertReference(value, ref)
+		return v.convertReference(value, ref, schema)
 	}
 	if branches, ok := schemaList(schema["anyOf"]); ok {
 		return v.convertValidationUnion(value, schema, branches)
@@ -430,7 +430,7 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 // Membership checks never coerce: union branch selection must not count a
 // numeric string as an integer or an absent required property as a match.
 func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
-	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref) {
+	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
 		return false
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
