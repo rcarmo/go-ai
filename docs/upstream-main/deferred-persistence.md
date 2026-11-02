@@ -1,6 +1,6 @@
 # Deferred persistence: source contracts and existing native proof
 
-Internal Session persistence now covers finite/default windows and infinity in focused native scenarios. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
+Internal Session persistence now covers finite/default windows, infinity and unload/version-reload barriers in focused native scenarios. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
 
 Target: `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. The source files contain 25 `it` declarations in `session-deferred-commits.test.ts` and 11 in `harness-deferred-progress.test.ts`; these are declaration counts, not execution results. The recorded [generation oracle](generation-view-oracle.md) already fails nine backend leaves with four frames/four stored touches. Do not rerun that baseline merely to rediscover it. Tracked native `durable/` files are unchanged between its `18aa8c3` checkpoint and `a1983c6`; later root validation changes retain their own scope.
 
@@ -94,3 +94,41 @@ race   -count=3 -shuffle=7:  CGO1 221.606s
 Active later-wins, missing-stored-publication, missing-receipt-adoption, background-timer, blocking-host and clock-recheck mutations fail 3/3/3/9/3/3 backend leaves. The last mutation checks that an early host fire still stores holds. Final durable vet/Staticcheck v0.8.2 pass both CGO modes, with the same physical prototype exclusion for Staticcheck; module verification, formatting, diff and prototype-content checks pass. Comparisons use equivalent assertions; these timings are development checks, without profiling or performance claims.
 
 Close-time stored-observer delivery, unload/version reload/retirement, retention/lifetime, conversation-view memory delivery and synchronous observers still need implementation and source tests. Fractional/extreme windows, the native duration ceiling and full-width custom-clock conversion need numerical checks before public/Harness wiring. Durable task intent has not been split from later generation presentation; the recorded generation oracle is unresolved. No dependency, coalescer, release-ref or asset changes, full suite, profiling, hosted dispatch or publication. All completed source extracts, copies, overlays, mutation fixtures and logs are disposed after analysis.
+
+## Unload and version-reload barriers, 2 November 2026
+
+Runtime: `a96e05f4f97c5655ee81e82b7c9f72d829cb4a99`; base/rollback: `1dd49497aaea5036e4e5ee90d91a9d9daad2b6c6`. This increment reuses the existing native deadline fixture, manual foreground timers and reserved root. It changes no public persistence options or Harness policy.
+
+### Source-to-native assertions
+
+All references below are to `packages/durable/test/session-deferred-commits.test.ts` at c9f4c7b9. The source bodies were inspected before runtime changes; native assertions use real storage, not a simulated receipt.
+
+| Source | Native proof and result on unchanged 1dd4949 |
+| --- | --- |
+| 391: healthy Close/reopen and failed flush still closes Storage | Existing `TestMainSessionDeferredFallbackAndClose` and `TestMainSessionDeferredCloseRefusalStillCloses` reused. Added failed-end/exact-cause and original-backend-closed assertions to the refusal test; they pass unchanged. `StorageRejected` models the controlled backend refusal while preserving error identity. |
+| 410: failed Session stores nothing | Existing `TestMainSessionDeferredFailureDoesNotFlush` retained; no new baseline rerun or production fix. |
+| 420: unload stores holds, clears cache/holds, later Snapshot reloads the value | New `TestMainSessionDeferredUnloadDocuments` fails on all three backends because the stored text is empty. |
+| 429: another-version Snapshot stores one delta before migration; later commit yields `held+v2` | New `TestMainSessionDeferredDefinitionVersionReload` fails on all three backends because no delta was stored. `held`, `+`, `v2`, version 2 and `migrated: true` are preserved. |
+| 445: retiring batch contains change then retirement, with the exact held append delta; later Snapshot is absent | New `TestMainSessionDeferredRetirement` passes unchanged on all three backends. No retirement-specific production fix. Native command names adapt `document.change`/`document.retire`; the test inspects actual admitted backend payloads. |
+
+Four further test functions are labelled source-derived/native controls, not additional upstream bodies. `SessionImpl.#loadDocument` stores selected holds before dropping a tracker and calling migration. Rollback after typed acquisition, a throwing Snapshot migration and two successive version reloads inside a callback distinguish that barrier from folding everything into a later successful commit. The multiple-prefix case also stages an entry with a freshly reserved ID and an edit before the second reload, then checks final values, three contiguous receipts, stored publication count and readiness. Cancellation controls reject before admission and preserve/adopt an admitted store while returning cancellation to its reader.
+
+The first run fails 12 backend leaves (unload, version reload, rollback barrier, multiple prefixes). Migration-failure and admitted-cancellation controls add six failures; cancellation before admission already passes. A failure-count shell regex was corrected against the existing second log without rerunning or changing the tests. Source TypeScript was not executed; native typed definition/transaction calls, the internal policy entry and queued asynchronous subscription frames are explicit adaptations. Full synchronous-observer parity is not credited.
+
+### Implementation and verification
+
+`storeHeldDocuments` stores a selected set through the existing writer and contiguous receipt adoption, publishes only to stored subscriptions, removes only those holds and retargets the deadline. Unload stores all holds before clearing migrated-value caches. Current Snapshot/watch/transaction definition acquisition stores a held document before a different-version reload. Historical snapshots stay on their existing path.
+
+Once this maintenance owns the line, storage settlement uses the caller's trace values without its cancellation; caller cancellation is checked before and after the reload barrier. No admitted store/receipt is abandoned. An in-callback reload refreshes the Tx's immutable base/history and invalidates provisional candidate caches while retaining staged writes and reserved IDs. The outer commit uses that refreshed baseline. It does not rerun the callback or invent a receipt. Multiple stored prefixes share the line-release readiness channel so none remains permanently queued.
+
+Final Go 1.27.3, `GOMAXPROCS=4`, protected prototype excluded:
+
+```text
+-run '^Test(MainSession|Session|Document|Transaction|MainDefinition|Definition|MainContext|MainWatchPending|MainTranscriptPublicationWindowPendingFold|GenerationProgress|Generation104ConfiguredPartialIntervalProductionPath|Close140|Invocation.*Document|Task.*Document|Harness.*Document|Observation)'
+normal -count=3 -shuffle=42: CGO1 67.808s; CGO0 45.600s
+race   -count=3 -shuffle=7:  CGO1 248.151s
+```
+
+Active skip-unload, skip-reload, flush-all-instead-of-selected, skip-Tx-rebase, fresh-per-prefix-readiness, skip-post-store-cancellation and skip-adoption mutants fail 3/15/3/3/3/3/3 backend leaves. The rebase mutant rejects with `invalid commit sequence`; the adoption mutant rejects the stale storage baseline. Both CGO modes pass durable vet and Staticcheck v0.8.2 using the same physical prototype exclusion, plus module verification, formatting, diff and prototype-content checks. These are affected development gates, not performance measurements or a full-suite result.
+
+The canonical Session review entry and its generated TSV evidence now point to these native increments; dispositions, inherited evidence and inventories remain unchanged. Retention-zero pins, old-revision collection, conversation-view memory delivery, synchronous observers (including Close delivery) and numerical window/clock edges remain unverified before public/Harness integration. The source391 body does not itself assert Close observer delivery. Durable generation intent/presentation are still unsplit; the recorded generation failure was not rerun. No dependency/coalescer/release-ref/asset changes, profiling, hosted dispatch, publication or full-convergence claim. Completed source extracts, package copies, mutation fixtures, overlays, logs and 1.4 GB build cache are disposed after use; installed dependencies/toolchains remain.
