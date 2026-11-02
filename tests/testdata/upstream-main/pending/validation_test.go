@@ -1,5 +1,5 @@
 // Explicitly unresolved c9f4c7b9 oracles. Run with:
-// go test ./tests/testdata/upstream-main/pending -run '^(TestCyclicNamedID|TestPrimitiveConversions)$'
+// go test ./tests/testdata/upstream-main/pending -run '^TestCyclicNamedID$'
 // testdata is excluded from ./...; this is not a passing parity claim.
 package pending_test
 
@@ -15,10 +15,6 @@ import (
 
 func TestCyclicNamedID(t *testing.T) {
 	runPendingValidationFixture(t, "../validation-cyclic-pending.json", 2)
-}
-
-func TestPrimitiveConversions(t *testing.T) {
-	runPendingValidationFixture(t, "../validation-primitives-pending.json", 4)
 }
 
 func runPendingValidationFixture(t *testing.T, path string, count int) {

@@ -309,11 +309,12 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
 				break
 			}
-			converted, err := coerceJSONSchemaType(value, expectedType)
-			// TypeBox's conversion pass handles a scalar string before primitive
-			// type-array coercion: null becomes "null", not the latter's "".
-			if value == nil && schema["type"] == "string" {
-				converted, err = "null", nil
+			var converted interface{}
+			var err error
+			if kind, scalar := schema["type"].(string); scalar {
+				converted, err = convertJSONSchemaPrimitive(value, kind)
+			} else {
+				converted, err = coerceJSONSchemaType(value, expectedType)
 			}
 			if err == nil && schemaConstraintsMatch(converted, expectedType, schema) {
 				value = converted
@@ -555,10 +556,10 @@ func matchesJSONSchemaType(value interface{}, expectedType string) bool {
 		case int, int64:
 			return true
 		case float64:
-			return v == math.Trunc(v)
+			return !math.IsInf(v, 0) && v == math.Trunc(v)
 		case json.Number:
-			f, err := v.Float64()
-			return err == nil && f == math.Trunc(f)
+			_, integer, err := schemaTruncateDecimal(v)
+			return err == nil && integer
 		default:
 			return false
 		}
@@ -688,15 +689,22 @@ func coerceNumber(value interface{}, integer bool) (interface{}, error) {
 	case int64:
 		f = float64(v)
 	case json.Number:
+		if integer {
+			_, exact, err := schemaTruncateDecimal(v)
+			if err != nil || !exact {
+				return nil, fmt.Errorf("expected integer")
+			}
+			return v, nil
+		}
 		parsed, err := v.Float64()
 		if err != nil {
 			return nil, err
 		}
 		f = parsed
 	case string:
-		parsed, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return nil, err
+		parsed, ok := schemaParseNumber(v, false)
+		if !ok {
+			return nil, fmt.Errorf("expected number")
 		}
 		f = parsed
 	case bool:
@@ -710,11 +718,11 @@ func coerceNumber(value interface{}, integer bool) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("expected number, got %T", value)
 	}
-	if integer && f != math.Trunc(f) {
+	if integer && (math.IsInf(f, 0) || f != math.Trunc(f)) {
 		return nil, fmt.Errorf("expected integer, got %v", f)
 	}
 	if integer {
-		return int(f), nil
+		return schemaIntegerValue(f), nil
 	}
 	return f, nil
 }

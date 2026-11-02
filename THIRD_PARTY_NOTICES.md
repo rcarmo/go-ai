@@ -8,10 +8,11 @@ expressions from TypeBox, carried by the pinned upstream pi-schema source.
 `schema_validation_temporal.go` adapts the date, time and date-time algorithms
 from the same pinned source (`formats/typebox/{date,time,date_time}.ts`).
 `schema_validation_hostname.go` adapts its hostname/IDNA and punycode rules
-(`formats/typebox/idna/`). The string-conversion ordering in `context.go` follows
-`packages/schema/src/coerce.ts`, whose conversion pass derives from TypeBox's
-`Value.Convert`. Selected original string-conversion assertions are retained in
-`tests/testdata/upstream-main/validation-strings.json`.
+(`formats/typebox/idna/`). Primitive conversion ordering in `context.go` and
+`schema_validation_primitives.go` follows `packages/schema/src/coerce.ts`, whose
+conversion pass derives from TypeBox's `Value.Convert`. Selected original
+assertions are retained in `tests/testdata/upstream-main/validation-strings.json`
+and `tests/testdata/upstream-main/validation-primitives.json`.
 
 The MIT License (MIT)
 
