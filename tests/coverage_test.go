@@ -96,8 +96,8 @@ func TestDetectCompatProviders(t *testing.T) {
 		strict  bool
 	}{
 		{"https://api.openai.com/v1", true, true},
-		{"http://localhost:11434/v1", false, false},  // Ollama
-		{"https://api.groq.com/v1", true, true},      // Groq follows upstream's standard-compatible payload shape
+		{"http://localhost:11434/v1", false, false},   // Ollama
+		{"https://api.groq.com/v1", true, true},       // Groq follows upstream's standard-compatible payload shape
 		{"https://openrouter.ai/api/v1", false, true}, // OpenRouter generic (developer role only for anthropic/openai prefixed models)
 	}
 	for _, tt := range tests {
@@ -234,10 +234,16 @@ func TestValidateTypeChecks(t *testing.T) {
 		t.Fatal("expected error for wrong boolean")
 	}
 
-	// Wrong array
-	_, err = goai.ValidateToolCall(tools, goai.ToolCall{Name: "test", Arguments: map[string]interface{}{"n": 1.0, "a": "not array"}})
-	if err == nil {
-		t.Fatal("expected error for wrong array")
+	// Upstream c9f4c7b9 coercion wraps scalar array input. The preceding
+	// rejection expectation already failed on faef815; preserve the actual
+	// converted value here (also checked against the pinned compiler).
+	coerced, err := goai.ValidateToolCall(tools, goai.ToolCall{Name: "test", Arguments: map[string]interface{}{"n": 1.0, "a": "not array"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, ok := coerced["a"].([]interface{})
+	if !ok || len(array) != 1 || array[0] != "not array" {
+		t.Fatalf("expected wrapped scalar, got %#v", coerced["a"])
 	}
 
 	// Wrong object

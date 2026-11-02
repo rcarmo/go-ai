@@ -135,6 +135,7 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 	if err := json.Unmarshal(tool.Parameters, &schema); err != nil {
 		return tc.Arguments, nil
 	}
+	v := newToolSchemaValidator(schema)
 	out := normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
 	if out == nil {
 		out = make(map[string]interface{})
@@ -150,8 +151,16 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 			}
 		}
 	}
-	coerced, err := coerceWithJSONSchema("arguments", out, schema)
+	coerced, err := v.coerceWithJSONSchema(out, schema)
 	if err != nil {
+		if issue, ok := err.(*toolSchemaIssue); ok {
+			received, marshalErr := json.MarshalIndent(tc.Arguments, "", "  ")
+			if marshalErr != nil {
+				received = []byte("<non-JSON arguments>")
+			}
+			//lint:ignore ST1005 The upstream outcome protocol recognises this exact capitalised prefix.
+			return nil, fmt.Errorf("Validation failed for tool %q:\n  - %s\n\nReceived arguments:\n%s", tool.Name, issue, received)
+		}
 		return nil, fmt.Errorf("validation failed for tool %q: %w", tool.Name, err)
 	}
 	result, ok := coerced.(map[string]interface{})
@@ -256,10 +265,10 @@ func hasStringRef(schema map[string]interface{}) bool {
 	return ok
 }
 
-func coerceWithJSONSchema(name string, value interface{}, schema map[string]interface{}) (interface{}, error) {
-	converted := convertValidationValue(value, schema)
-	if !schemaAcceptsValue(converted, schema) {
-		return nil, fmt.Errorf("field %q: value does not match schema", name)
+func (v *toolSchemaValidator) coerceWithJSONSchema(value interface{}, schema map[string]interface{}) (interface{}, error) {
+	converted := v.convertValidationValue(value, schema)
+	if !v.schemaAcceptsValue(converted, schema) {
+		return nil, v.issue(converted, schema, "", make(map[toolSchemaMemoKey]bool))
 	}
 	return converted, nil
 }
@@ -267,18 +276,24 @@ func coerceWithJSONSchema(name string, value interface{}, schema map[string]inte
 // Conversion is separate from validation: a failed branch conversion can still
 // produce a value accepted by another branch after sibling members convert.
 // Each candidate owns changed containers; failed attempts cannot mutate input.
-func convertValidationValue(value interface{}, schema map[string]interface{}) interface{} {
+func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema map[string]interface{}) interface{} {
+	if v.work != nil {
+		v.work.convertCalls++
+	}
+	if ref, ok := schema["$ref"].(string); ok {
+		return v.convertReference(value, ref)
+	}
 	if branches, ok := schemaList(schema["anyOf"]); ok {
-		return convertValidationUnion(value, schema, branches)
+		return v.convertValidationUnion(value, schema, branches)
 	}
 	if branches, ok := schemaList(schema["oneOf"]); ok {
-		return convertValidationUnion(value, schema, branches)
+		return v.convertValidationUnion(value, schema, branches)
 	}
 	if branches, ok := schemaList(schema["allOf"]); ok {
 		for _, branch := range branches {
-			value = convertValidationValue(value, branch)
+			value = v.convertValidationValue(value, branch)
 		}
-		return convertValidationMembers(value, schema)
+		return v.convertValidationMembers(value, schema)
 	}
 	types := schemaTypes(schema["type"])
 	if len(types) == 1 && types[0] == "array" {
@@ -311,38 +326,44 @@ func convertValidationValue(value interface{}, schema map[string]interface{}) in
 			}
 		}
 	}
-	return convertValidationMembers(value, schema)
+	return v.convertValidationMembers(value, schema)
 }
 
-func convertValidationUnion(value interface{}, schema map[string]interface{}, branches []map[string]interface{}) interface{} {
+func (v *toolSchemaValidator) convertValidationUnion(value interface{}, schema map[string]interface{}, branches []map[string]interface{}) interface{} {
 	for _, branch := range branches {
-		if schemaAcceptsValue(value, branch) {
-			return convertValidationMembers(value, schema)
+		if v.schemaAcceptsValue(value, branch) {
+			return v.convertValidationMembers(value, schema)
 		}
 	}
 	for _, branch := range branches {
-		candidate := convertValidationMembers(convertValidationValue(value, branch), schema)
+		candidate := v.convertValidationMembers(v.convertValidationValue(value, branch), schema)
 		// Whole-node validation includes sibling properties and exact oneOf
 		// cardinality. A branch-only match cannot establish a valid candidate.
-		if schemaAcceptsValue(candidate, schema) {
+		if v.schemaAcceptsValue(candidate, schema) {
 			return candidate
 		}
 	}
-	return convertValidationMembers(value, schema)
+	return v.convertValidationMembers(value, schema)
 }
 
-func convertValidationMembers(value interface{}, schema map[string]interface{}) interface{} {
+func (v *toolSchemaValidator) convertValidationMembers(value interface{}, schema map[string]interface{}) interface{} {
 	switch value := value.(type) {
 	case map[string]interface{}:
-		properties, ok := schema["properties"].(map[string]interface{})
-		if !ok || value == nil {
+		if value == nil {
+			return value
+		}
+		members := v.membersFor(schema)
+		if !members.hasSchemas() {
 			return value
 		}
 		out := make(map[string]interface{}, len(value))
 		for key, current := range value {
-			if property, ok := properties[key].(map[string]interface{}); ok {
-				current = convertValidationValue(current, property)
-			}
+			members.each(key, func(raw interface{}) bool {
+				if property, ok := raw.(map[string]interface{}); ok {
+					current = v.convertValidationValue(current, property)
+				}
+				return true
+			})
 			out[key] = current
 		}
 		return out
@@ -353,7 +374,7 @@ func convertValidationMembers(value interface{}, schema map[string]interface{}) 
 		out := make([]interface{}, len(value))
 		for i, current := range value {
 			if item := validationItemSchema(schema, i); item != nil {
-				current = convertValidationValue(current, item)
+				current = v.convertValidationValue(current, item)
 			}
 			out[i] = current
 		}
@@ -402,12 +423,15 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 
 // Membership checks never coerce: union branch selection must not count a
 // numeric string as an integer or an absent required property as a match.
-func schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
+func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
+	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref) {
+		return false
+	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schemaList(schema[keyword]); ok {
 			matches := 0
 			for _, branch := range branches {
-				if schemaAcceptsValue(value, branch) {
+				if v.schemaAcceptsValue(value, branch) {
 					matches++
 				}
 			}
@@ -416,6 +440,9 @@ func schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
 				return false
 			}
 		}
+	}
+	if _, isString := value.(string); isString && !schemaConstraintsMatch(value, "string", schema) {
+		return false
 	}
 	types := schemaTypes(schema["type"])
 	if len(types) > 0 {
@@ -441,16 +468,15 @@ func schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
 				}
 			}
 		}
-		if properties, ok := schema["properties"].(map[string]interface{}); ok {
-			for key, current := range value {
-				if property, ok := properties[key].(map[string]interface{}); ok && !schemaAcceptsValue(current, property) {
-					return false
-				}
+		members := v.membersFor(schema)
+		for key, current := range value {
+			if !members.each(key, func(raw interface{}) bool { return v.acceptsRaw(current, raw) }) {
+				return false
 			}
 		}
 	case []interface{}:
 		for i, current := range value {
-			if item := validationItemSchema(schema, i); item != nil && !schemaAcceptsValue(current, item) {
+			if item := validationItemSchema(schema, i); item != nil && !v.schemaAcceptsValue(current, item) {
 				return false
 			}
 		}

@@ -1,6 +1,6 @@
 # Schema validation oracles
 
-Three optional-null probes at `b556cfe5` and two branch-plus-sibling probes at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
+Three optional-null probes at `b556cfe5`, two branch-plus-sibling probes and the depth-40 recursive-reference rejection at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
 
 ## Exact source port
 
@@ -60,9 +60,32 @@ Final runs pass in 0.024/0.020/1.095 seconds. Vet and staticcheck v0.8.2 for `.`
 
 The two original selected upstream bodies and helper were executed unchanged against actual pinned `validation.ts` and pi-schema sources under Bun, using only assertion shims and package-export adapters. Both pass, as do the six source-derived candidate scenarios. This is not the full Vitest suite. An initial resolver-adapter probe failed before loading the module; local package-export adapters corrected that harness issue without changing upstream code. Extracted sources, adapters and probe artifacts were disposed after each run. No full repository/full-race run, profiling or performance claim.
 
+## Recursive-reference checkpoint at c9f4c7b9
+
+`tests/upstream_validation_recursive_main_test.go` preserves the exact source schema, 40 nested `{c: value}` objects around `{x: 1}`, public validation call and outcome `REJECT - s.a: missing` from `validation-probes.test.ts:767`. The Go test adapts the source `outcome()` exception handling to an error return; its rejection prefix and first diagnostic remain literal. Unchanged `faef815` accepts the invalid input. Six of the initial eight source-derived reference controls also fail: four retain numeric strings and two accept invalid references. Missing optional unresolved references and true-schema targets already pass.
+
+`schema_validation.go` now resolves document-local JSON pointers, including root, array-index, URI-encoded and escaped segments. Conversion and non-coercing checks follow referenced targets. The per-call caches use schema/value identity, retain inputs against GC/address reuse, and never share results across validation calls. Conversion re-entry leaves the value unchanged; results spanning a cutoff are not memoised. Declared, matching-pattern and additional-property conversion/checking follow their applicable schemas. Supported object/reference boolean schemas and string-enum reference siblings have controls. Unknown resources reject locally without fetching files or URLs.
+
+The 16 JSON controls in `tests/upstream_validation_references_main_test.go` pass the actual pinned upstream validator/compiler as well as native code. They supplement the original source test. The original upstream depth-40 body and its helper also pass unchanged under Bun with assertion and package-export adapters; this is not the Vitest suite. An initial runtime module-resolution adapter failed before testing; package-export wrappers corrected it. A proposed rejection of literal `~2` pointer text disagreed with upstream, which preserves it; the fixture and resolver now follow the measured source result.
+
+Native supplements cover input ownership, fresh calls, exact wide-number preservation and no HTTP fetch. White-box tests count actual converter entries: depth 8 takes 50 visits and 10 cached reference pairs; depth 40 takes 210 visits and 42 pairs. Removing memo reads gives 4,093 visits at depth 8 and fails the bound. This is a structural-work witness, not CPU or allocation profiling. Additional negative overlays bypassing reference validation and dropping retained inputs are rejected. The old-production overlay fails the source oracle, 12 reference-table cases, ownership and unknown-resource rejection. These overlays and all extracted sources, adapters and disposable logs were removed after analysis.
+
+A focused caller regression, `TestValidateTypeChecks`, already failed on `faef815`: it expected scalar array input to reject. The actual pinned compiler wraps that input. Its expectation now checks the exact one-element array, with the same full schema/input independently covered by the 16-control source run. No production change was needed for that correction.
+
+Go `1.27.3`, `GOMAXPROCS=4`, with `scripts/project-env.sh` sourced:
+
+```sh
+filter='^(TestValidationReference|TestUpstreamMainValidation|TestUpstreamValidation|TestTool130Argument|TestValidateTool|TestValidateTypeChecks$|TestAgentLoopHarness$)'
+CGO_ENABLED=0 go test . ./tests -run "$filter" -count=10 -shuffle=42 -timeout=90s
+CGO_ENABLED=1 go test . ./tests -run "$filter" -count=10 -shuffle=7 -timeout=90s
+CGO_ENABLED=1 go test -race . ./tests -run "$filter" -count=5 -shuffle=42 -timeout=90s
+```
+
+Root/test-package times are 0.009/0.351 seconds, 0.006/0.362 seconds and 1.024/1.294 seconds respectively. Vet and staticcheck v0.8.2 pass for `.` and `./tests` in both CGO modes; module verification passes. Staticcheck initially flagged the capitalised diagnostic prefix; a single ST1005 directive documents the required upstream outcome protocol. No full-suite/full-race run or profiling.
+
 ## Open fidelity work
 
-Recursive refs/unions and work bounds, 10,000-member enum diagnostics, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix are unported here. Next is the source's depth-40 recursive-union rejection assertion. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas, complete pattern/additional-property validation/coercion and exact diagnostics still need source-derived coverage and implementation. The normalisation and branch/sibling slices do not establish full JSON Schema parity.
+Reference resource IDs/anchors, broader recursive-schema/value domains, 10,000-member enum diagnostics, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
 
 The new durable argument-type test requires a native typed-tool API mapping. The schema dependency has its own 210-path review queue; inspecting its source is not a passing dependency test suite. Review sources and translate assertions before changing more production behaviour.
 
