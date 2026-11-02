@@ -1,6 +1,6 @@
 # Schema validation oracles
 
-Three optional-null probes at `b556cfe5`, two branch-plus-sibling probes and the depth-40 recursive-reference rejection at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
+Three optional-null probes at `b556cfe5`, two branch-plus-sibling probes, the depth-40 recursive-reference rejection and the 10,000-value enum oracle at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
 
 ## Exact source port
 
@@ -83,9 +83,17 @@ CGO_ENABLED=1 go test -race . ./tests -run "$filter" -count=5 -shuffle=42 -timeo
 
 Root/test-package times are 0.009/0.351 seconds, 0.006/0.362 seconds and 1.024/1.294 seconds respectively. Vet and staticcheck v0.8.2 pass for `.` and `./tests` in both CGO modes; module verification passes. Staticcheck initially flagged the capitalised diagnostic prefix; a single ST1005 directive documents the required upstream outcome protocol. No full-suite/full-race run or profiling.
 
+## Large-enum checkpoint at c9f4c7b9
+
+`tests/upstream_validation_enum_main_test.go` ports both assertions in `validation-probes.test.ts:718–725`: accept `member9999` from 10,000 string choices, and reject `x` with exactly the first 20 choices followed by `... and 9980 more]`. Unchanged `826a3b1` accepts the last member but emits a generic rejection. Five source-derived controls also fail: list sizes 0, 1, 20 and 21, plus HTML/line-separator/literal-escape text.
+
+The diagnostic now serialises at most 20 entries using the existing JS-compatible `SafeJSONStringify`, then appends the exact omitted count. Validation/coercion and accepted values are unchanged. The original upstream body/helper, including both assertions, and all five controls pass actual pinned upstream code under Bun assertion/package-export adapters. This selected run does not execute Vitest. The old-production overlay and three mutations are rejected: a 19-entry limit, the total count instead of the omitted count, and Go-escaped line separators. Extracted sources, adapters, overlays and logs were removed after analysis.
+
+Focused Go `1.27.3`/`GOMAXPROCS=4` checks use the preceding recursive-checkpoint filter plus `TestProviderErrorSerializationTextMain` and `TestErrorJSONSeparatorEscapeParityMain`. Ten normal repetitions per CGO mode (shuffle 42/7) pass: root/tests 0.011/0.408 seconds and 0.007/0.413 seconds. Five race repetitions (shuffle 42) pass in 1.032/1.612 seconds. Vet/staticcheck v0.8.2 for `.` and `./tests` pass both CGO modes; module verification and diff checks pass. No full-suite/full-race run or profiling. Non-string enum validation and exact diagnostics outside these covered string cases are open.
+
 ## Open fidelity work
 
-Reference resource IDs/anchors, broader recursive-schema/value domains, 10,000-member enum diagnostics, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
+Reference resource IDs/anchors, broader recursive-schema/value domains, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
 
 The new durable argument-type test requires a native typed-tool API mapping. The schema dependency has its own 210-path review queue; inspecting its source is not a passing dependency test suite. Review sources and translate assertions before changing more production behaviour.
 

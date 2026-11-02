@@ -264,6 +264,16 @@ func (i *toolSchemaIssue) Error() string {
 	return path + ": " + i.reason
 }
 
+// Match explain.ts listValues: truncate before serializing, not after building
+// a potentially enormous message. SafeJSONStringify preserves JS string escapes.
+func schemaEnumList(values []interface{}) string {
+	const listed = 20
+	if len(values) <= listed {
+		return SafeJSONStringify(values)
+	}
+	return strings.TrimSuffix(SafeJSONStringify(values[:listed]), "]") + ", ... and " + strconv.Itoa(len(values)-listed) + " more]"
+}
+
 func schemaIssuePath(parent, key string) string {
 	if parent == "" {
 		return key
@@ -285,6 +295,10 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			}
 		}
 		return generic
+	}
+	types := schemaTypes(schema["type"])
+	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) && !schemaConstraintsMatch(value, "string", schema) {
+		return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schemaList(schema[keyword]); ok {
