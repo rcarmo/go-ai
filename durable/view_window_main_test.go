@@ -190,6 +190,9 @@ func TestMainTranscriptFromOnlyConstrainsAttachment(t *testing.T) {
 	})
 }
 
+// harness-view.test.ts:512 checks RangeError as well as rejection. Native
+// argument rejection uses StorageRejected; the integer cases already exist
+// below. Fractional min and NaN from have no int/ID value and are not credited.
 func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		_, c := transcriptFixture(t, b)
@@ -206,10 +209,14 @@ func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
 		for i, w := range tests {
 			if _, err := c.View(bg, w); err == nil {
 				t.Fatalf("View accepted invalid option %d", i)
+			} else {
+				rejected(t, err)
 			}
 			if watch, err := c.Watch(bg, w); err == nil {
 				watch.Stop()
 				t.Fatalf("Watch accepted invalid option %d", i)
+			} else {
+				rejected(t, err)
 			}
 		}
 		if _, err := c.View(bg, ConversationWindow{}, ConversationWindow{}); err == nil {
@@ -218,6 +225,10 @@ func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
 		if watch, err := c.Watch(bg, ConversationWindow{}, ConversationWindow{}); err == nil {
 			watch.Stop()
 			t.Fatal("Watch ignored extra window")
+		}
+		// Source's final assertion accepts equal bounds on the empty view.
+		if _, err := c.View(bg, transcriptBounds(3, 3)); err != nil {
+			t.Fatal(err)
 		}
 		// Rejections do not poison ordinary admitted reads/acquisition.
 		if _, err := c.View(bg); err != nil {

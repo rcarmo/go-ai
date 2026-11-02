@@ -23,10 +23,16 @@
 | 455: from/exact/short/future/overflow/start | `TestMainViewUpstreamHydrationOracles/from-exact-short-future-overflow-start` | Setup/ID adaptations documented |
 | 482: resumed window advances | `/resumed`: five notes/from newest+1, two notes, final IDs/predecessor/every-frame replay | Native setup/Entry adaptations |
 | 495: from applies only initially | `/from-only-initial`: three notes/from newest+1000, empty initial array, full next record below from and predecessor | Native setup/Entry adaptations |
-| 512: invalid/equal bounds | Candidate: `view_window_bounds_main_test.go` | Integer API domain and RangeError/error diagnostics disposition |
+| 512: invalid/equal bounds | `TestMainTranscriptWindowRejectsInvalidOptions`: source integer parameters `min:0`, `min:3,max:2`, watch `max:0`, plus equal `min:3,max:3` on an empty view; typed rejection checked | `StorageRejected` adapts JavaScript `RangeError`; fractional min and NaN cursor remain unported because native int/ID parameters cannot represent them. See current-pin check below. |
 | 525: per-observer window/shared documents | Candidate: `view_window_main_test.go` | Exact source note sequence plus shared-doc/entry identities |
 | 548: bounded overflow root | Candidate: `view_pending_bounds_main_test.go`, `view_publication_main_test.go` | Exact 6,000-commit source threshold/input sequence; preserve native 4,096-op/DTO limits |
 | 570: dropped entry collection | `TestMainViewUpstreamDroppedEntryLifetime` | Native backing-array adaptation below; JS EntryRecord identity/GC is not directly represented |
+
+## Bounds check at c9f4c7b9
+
+Reused the existing invalid-window table, adding the missing rejection-class assertion and the source's final equal-bounds call on an empty view. Native `StorageRejected` represents argument rejection; JavaScript `RangeError` identity is an explicit language adaptation. Three constructible invalid source calls and one valid source call are covered. The fractional min and NaN cursor assertions remain unported; this is a partial source body. Additional native negative/safe-integer cases and the existing populated-view equal-bound regression retain their separate scope. Production code is unchanged.
+
+Go 1.27.3/GOMAXPROCS=4: the invalid-options and existing hydration/default/from tests pass normal count3/shuffle42 in CGO1/0 (0.106s/0.068s), and race count3/shuffle7 (1.211s). Durable vet, formatting and diff checks pass. A runtime overlay preserving messages/rejection while replacing `StorageRejected` with an ordinary Go error fails the strengthened test on memory/journal/SQLite; the old test accepts that same active mutation. An initial overlay missed the logical workspace alias and was not credited; corrected overlays contain logical and canonical paths, exclude the protected prototype, and were used for every reported final gate. No source/Vitest execution, full suite or profiling was performed for this check. Disposable overlays and logs were removed after comparison.
 
 ## Dropped-entry lifetime adaptation
 
