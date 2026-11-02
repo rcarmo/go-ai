@@ -1,6 +1,6 @@
 # Deferred persistence: source contracts and existing native proof
 
-Internal Session persistence now covers finite/default windows, infinity and unload/version-reload barriers in focused native scenarios. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
+Internal Session persistence now covers finite/default windows, infinity and unload/version-reload barriers in focused native scenarios. Added retention/reopen controls pass unchanged runtime; the shared-public-value lifetime and tracker-count assertions need further work. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
 
 Target: `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. The source files contain 25 `it` declarations in `session-deferred-commits.test.ts` and 11 in `harness-deferred-progress.test.ts`; these are declaration counts, not execution results. The recorded [generation oracle](generation-view-oracle.md) already fails nine backend leaves with four frames/four stored touches. Do not rerun that baseline merely to rediscover it. Tracked native `durable/` files are unchanged between its `18aa8c3` checkpoint and `a1983c6`; later root validation changes retain their own scope.
 
@@ -132,3 +132,29 @@ race   -count=3 -shuffle=7:  CGO1 248.151s
 Active skip-unload, skip-reload, flush-all-instead-of-selected, skip-Tx-rebase, fresh-per-prefix-readiness, skip-post-store-cancellation and skip-adoption mutants fail 3/15/3/3/3/3/3 backend leaves. The rebase mutant rejects with `invalid commit sequence`; the adoption mutant rejects the stale storage baseline. Both CGO modes pass durable vet and Staticcheck v0.8.2 using the same physical prototype exclusion, plus module verification, formatting, diff and prototype-content checks. These are affected development gates, not performance measurements or a full-suite result.
 
 The canonical Session review entry and its generated TSV evidence now point to these native increments; dispositions, inherited evidence and inventories remain unchanged. Retention-zero pins, old-revision collection, conversation-view memory delivery, synchronous observers (including Close delivery) and numerical window/clock edges remain unverified before public/Harness integration. The source391 body does not itself assert Close observer delivery. Durable generation intent/presentation are still unsplit; the recorded generation failure was not rerun. No dependency/coalescer/release-ref/asset changes, profiling, hosted dispatch, publication or full-convergence claim. Completed source extracts, package copies, mutation fixtures, overlays, logs and 1.4 GB build cache are disposed after use; installed dependencies/toolchains remain.
+
+## Retention and recovery controls, 2 November 2026
+
+Three new functions in `durable/session_deferred_retention_main_test.go` pass unchanged runtime `a96e05f4f97c5655ee81e82b7c9f72d829cb4a99` (documentation head `b1df4b4`). No production fix follows from this passing baseline. Existing deadline/lifecycle gates and the recorded generation baseline were not rerun.
+
+| Source at c9f4c7b9 | New native proof and remaining assertions |
+| --- | --- |
+| 600: retention zero keeps a held document cached/attached until storage | `TestMainSessionDeferredRetentionZeroOwnedValue`: `held`, a write-free barrier, real storage unchanged before fire, hold released after fire and cold read of `held`. Native owns the held record separately from the idle migration cache. Source cached/attached tracker counts are unported; the test labels its native cache checks separately. |
+| 613: a weakly observed shared snapshot stays alive until storage, then collects | `TestMainSessionDeferredHeldOverlayLifetime`: `x` repeated 1,000 times, five GC rounds before and after storage, and cleared recorded publications. Weak pointers target the actual pointerful Session-owned `*Snapshot` overlay; a native extra-root control stays alive until released. Collection preserves the durable value. The shared public Text-object WeakRef assertion is unported: native public snapshots detach maps. This control cannot establish collection of every underlying map/value still referenced elsewhere. |
+| 638: store `a`, hold `b`/`c`, fail and reopen with `a` and no holds | `TestMainSessionDeferredCrashLastStoredMemoryState` preserves the progression, recovered `a`, membership in observed memory states and empty reopened holds. A real asynchronous native document watch replaces `followCommits`; waiting for its frames is an explicit API adaptation. Synchronous observer semantics are unverified. |
+
+The common deadline fixture accepts an optional retention value through the existing `SessionOptions.DocumentRetentionMs` constructor option. Calls without that argument retain their previous behaviour. No mock receipt, fabricated publication, scheduling yield or production acknowledgement is added.
+
+Initial focused baseline passes in 0.156s. Final Go 1.27.3, `GOMAXPROCS=4`, with the protected prototype excluded:
+
+```text
+-run '^TestMainSessionDeferred(RetentionZeroOwnedValue|HeldOverlayLifetime|CrashLastStoredMemoryState)$'
+normal -count=5 -shuffle=42: CGO1 4.416s; CGO0 1.793s
+race   -count=3 -shuffle=7:  CGO1 1.635s
+```
+
+Four active compiler-overlay faults force immediate storage at retention zero, evict held ownership, retain the old overlay after storage, or flush a failed Session. They fail 3/3/6/3 backend leaves respectively. The zero-retention and recovery-of-`abc` failures belong to these deliberate faults; the unchanged-runtime baseline has no failures. Logical and canonical overlay paths cover both workspace aliases.
+
+Durable vet and Staticcheck v0.8.2 pass in both CGO modes; formatting, diff and prototype content checks pass. Staticcheck uses a real package copy without the prototype. Its initial symlinked root embed input was rejected; copying root files physically fixes the tooling error, with no suppressed findings. Dependencies and module files are unchanged; prior module/security receipts keep their existing scope.
+
+Next work is source521-599 stored/memory observer and conversation-view delivery, including stored publication at Close. Source600 tracker counts, source613 public identity/GC, numerical window/clock edges and public/Harness integration are unresolved. A read-only object-backed snapshot boundary could preserve existing detached-map callers while representing shared identity, but its ownership, lifetime and observer integration need a tested design. No divergence is accepted here. No upstream TypeScript execution, full suite, profiling, dependency/coalescer/release/asset changes, hosted dispatch or publication. Completed raw extracts, package copies, mutations, overlays and logs are disposed after analysis; installed dependencies/toolchains are preserved.

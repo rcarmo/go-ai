@@ -248,11 +248,15 @@ type mainDeadlineSession struct {
 	defaultWindow *float64
 }
 
-func openMainDeadlineSession(t *testing.T, b backend, defaultWindow *float64) *mainDeadlineSession {
+func openMainDeadlineSession(t *testing.T, b backend, defaultWindow *float64, retentionMs ...int64) *mainDeadlineSession {
 	t.Helper()
+	var retention *int64
+	if len(retentionMs) != 0 {
+		retention = &retentionMs[0]
+	}
 	f := &mainDeadlineSession{defaultWindow: defaultWindow}
 	f.clock.Store(1000)
-	s, err := OpenSessionWithOptions(b.store, SessionOptions{Now: f.clock.Load, SetTimer: func(callback func(), delay time.Duration, mode TimerOptions) func() {
+	s, err := OpenSessionWithOptions(b.store, SessionOptions{Now: f.clock.Load, DocumentRetentionMs: retention, SetTimer: func(callback func(), delay time.Duration, mode TimerOptions) func() {
 		if mode.Background {
 			return nil
 		}
