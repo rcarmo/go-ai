@@ -1,6 +1,6 @@
 # Pending upstream-main oracles
 
-`harness_interruption_retry_test.go` is a known-failing official v1.5.0 oracle for crash backoff and disabled retries, with a passing clean-close control. [Source mapping, baseline and explicit overlay execution](../../../../docs/upstream-v1.5.0/interrupted-retry-baseline.md) cover its three selected scenarios. Default Go discovery excludes `testdata`; the fixture has no skip or relaxed expected result.
+The interruption-retry fixture now passes and lives at `durable/harness_interruption_retry_main_test.go`; poll, budget and marker controls are also ordinary tests at `46710ff8921dce0187eaa4df855e8fc5d62834b8`. See the [runtime checkpoint](../../../../docs/upstream-v1.5.0/interrupted-retry.md) and [historical failing baseline](../../../../docs/upstream-v1.5.0/interrupted-retry-baseline.md). The whole upstream restart-failure file remains `pending-review`; selected passing assertions do not establish full-body parity.
 
 Previously pending tests were promoted without weakening their assertions:
 

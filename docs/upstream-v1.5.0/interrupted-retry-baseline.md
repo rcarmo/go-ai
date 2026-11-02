@@ -1,6 +1,8 @@
-## Crash-interrupted generation retries
+## Crash-interrupted generation retries: historical baseline
 
-Native recovery resends an interrupted request without charging `settings.retry`. Two focused source-derived scenarios fail on `e7e5f0706824a763c19420438435e9b1af7a4582` (production `decbd9d4419d0580c6b84e6832b07d7893573444`). The clean-close control passes. Production has no changes in this checkpoint.
+The runtime correction and current validation are recorded in [Interrupted generation retries](interrupted-retry.md). This page retains the pre-fix evidence at its original pins.
+
+At the baseline pin, native recovery resends an interrupted request without charging `settings.retry`. Two focused source-derived scenarios fail on `e7e5f0706824a763c19420438435e9b1af7a4582` (production `decbd9d4419d0580c6b84e6832b07d7893573444`). The clean-close control passes. Production has no changes in this checkpoint.
 
 Official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`, defines the interruption path in `packages/durable/src/harness/generation.ts:497-543`: a running request or poll cut off by host loss consumes an attempt, preserves a committed partial as an aborted entry and follows the current retry policy. Exhaustion ends the run `unanswered/interrupted`; a permitted retry sleeps before the next attempt. The source uses `attempt <= maxRetries` with a one-based logical attempt. That expression alone is not an off-by-one difference from a zero-based retry count.
 
@@ -38,9 +40,11 @@ The initial fixture sampled storage before its zero-window timer had fired and f
 * Race/CGO1: the same six contract failures and three control passes,2.891s; no race report. This is a failing race baseline.
 * Pending-inclusive durable vet and Staticcheck v0.8.2 pass in both CGO modes. Staticcheck uses a physical source copy with the pending oracle included and the protected prototype omitted. Module verification, formatting, diff and prototype-content checks pass.
 
-### Explicit execution
+### Historical explicit execution
 
-Default Go discovery excludes `testdata`. Run this known-failing oracle explicitly; there is no default skip in the fixture. Use a distinct project-owned run component for concurrent work.
+This recipe applies to baseline checkpoint `ebdfa68e4ff544e975e5baacf530895f63b293b0`, not current HEAD. The passing fixture has since moved to `durable/harness_interruption_retry_main_test.go`; the other interruption controls are also in ordinary discovery.
+
+At that baseline, default Go discovery excludes `testdata`. Run its known-failing oracle explicitly; there is no default skip in the fixture. Use a distinct project-owned run component for concurrent work.
 
 ```bash
 cd /workspace/projects/go-ai
@@ -65,8 +69,8 @@ CGO_ENABLED=1 go test -overlay "$RUN/overlay.json" ./durable \
 
 Exit1 is expected until the crash-policy gap is fixed. CGO0 uses the two available backends; add `-race` with CGO1 for the failing race baseline. Analyse results, then remove the owned run scratch only after its jobs finish. Preserve the in-place prototype, installed dependencies/toolchains and durable assets.
 
-### Runtime work still required
+### Work identified by this baseline
 
-Before changing production, reconcile the source's exhausted-budget case204, already-sleeping/tools case275, interrupted poll523, backwards-clock poll574 and crash-then-clean-close case596 with native controls. Charge a crash once, persist conversion and retry/failure together, retain deferred handles through a permitted poll retry, and cancel the provider job on exhaustion. Preserve clean-close pinned resends, public immediate Commit, cancellation, restart-limit accounting and ownership fences. The nine slow fixtures will need explicit advancement of the new1ms backoff rather than an assumption of immediate resend.
+The [runtime increment](interrupted-retry.md) implements the selected charge/conversion/retry path and records the controls, limitations and remaining work below. The original next-step instruction was to reconcile the source's exhausted-budget case204, already-sleeping/tools case275, interrupted poll523, backwards-clock poll574 and crash-then-clean-close case596 with native controls. Charge a crash once, persist conversion and retry/failure together, retain deferred handles through a permitted poll retry, and cancel the provider job on exhaustion. Preserve clean-close pinned resends, public immediate Commit, cancellation, restart-limit accounting and ownership fences. The nine slow fixtures will need explicit advancement of the new1ms backoff rather than an assumption of immediate resend.
 
 The current source review keeps `pending-review` for the whole restart-failure file and records this selected failing baseline. This is not TypeScript execution, a runtime fix, whole-file parity or full v1.5.0 alignment. Broader validation/profiling needs Rui's authorisation.
