@@ -147,7 +147,8 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	return copyObject(value, s.limits)
 }
 
-// UnloadDocuments drops only process-local migrated values. It writes nothing.
+// UnloadDocuments stores pending held changes before dropping process-local
+// migrated values. With no holds it remains a write-free cache operation.
 func (s *Session) UnloadDocuments(ctx context.Context) error {
 	if err := s.enter(ctx); err != nil {
 		return err
@@ -156,6 +157,9 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 	// Poisoned storage must not appear usable even for a cache operation.
 	if _, err := s.guardedStorage().Limits(); err != nil {
 		return err
+	}
+	if err := s.storeHeldDocuments(context.Background(), ids(s.heldDocuments)); err != nil {
+		return s.backendResult(ctx, err, true)
 	}
 	s.definitionCache = nil
 	s.definitionCacheBytes = 0
@@ -180,6 +184,10 @@ func (s *Session) watchDefinitionValue(ctx context.Context, def *DocumentDefinit
 	record, ok := findDocumentState(state, address, CurrentDocumentPoint())
 	if !ok {
 		return Document{}, nil, false, nil
+	}
+	record, e = s.reloadHeldDefinition(ctx, def, record)
+	if e != nil {
+		return Document{}, nil, false, e
 	}
 	value, e := s.definitionValue(def, record)
 	return record, value, e == nil, e
@@ -209,6 +217,10 @@ func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinitio
 	d, ok := findDocumentState(state, address, CurrentDocumentPoint())
 	if !ok {
 		return nil, false, nil
+	}
+	d, err = s.reloadHeldDefinition(ctx, def, d)
+	if err != nil {
+		return nil, false, err
 	}
 	value, err := s.definitionValue(def, d)
 	return value, err == nil, err
@@ -310,6 +322,25 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 	}
 	d, found := findDocumentState(state, address, CurrentDocumentPoint())
 	if found {
+		if t.session != nil {
+			before := t.session.readImage.Seq
+			if _, err = t.session.reloadHeldDefinition(t.ctx, def, d); err != nil {
+				return nil, err
+			}
+			if before != t.session.readImage.Seq {
+				// A real prefix was stored inside this callback. Refresh the
+				// immutable base/history, not the callback or its staged intent.
+				image := t.session.memoryReadImage()
+				image.HighWater = max(image.HighWater, t.state.HighWater)
+				t.state = image
+				t.stagedState, t.stagedWrites, t.publicationState = nil, nil, nil
+				state, err = t.current()
+				if err != nil {
+					return nil, err
+				}
+				d = state.Documents[d.ID]
+			}
+		}
 		if err = checkDefinition(def, d); err != nil {
 			return nil, err
 		}

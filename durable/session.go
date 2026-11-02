@@ -315,6 +315,11 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	if tx.creationError != nil {
 		return 0, tx.creationError
 	}
+	if state.Seq != s.readImage.Seq {
+		// A typed version reload can independently store held changes while
+		// this callback runs. Its rebased Tx owns the new receipt/history.
+		state = tx.state
+	}
 	if err = tx.seal(); err != nil {
 		return 0, err
 	}

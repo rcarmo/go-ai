@@ -326,7 +326,7 @@ func (s *Session) flushFiredPersistence() error {
 		return nil
 	}
 	ctx := context.Background()
-	if err := s.storeHeldDeadline(ctx); err != nil {
+	if err := s.storeHeldDocuments(ctx, ids(s.heldDocuments)); err != nil {
 		return s.backendResult(ctx, err, true)
 	}
 	return nil
@@ -334,24 +334,33 @@ func (s *Session) flushFiredPersistence() error {
 
 // The Session line owns selection, preparation, settlement and adoption. Only
 // stored observers receive this publication: memory already contains the value.
-func (s *Session) storeHeldDeadline(ctx context.Context) error {
+func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
+	if len(selected) == 0 {
+		return nil
+	}
 	if !s.hasNativeReadImage() || s.taskScheduler != nil {
 		return ErrUnsupported
 	}
-	writes := make([]Write, 0, len(s.heldDocuments))
-	for _, id := range ids(s.heldDocuments) {
+	writes := make([]Write, 0, len(selected))
+	for _, id := range selected {
 		writes = append(writes, heldWrite(s.heldDocuments[id]))
 	}
-	highWater, err := s.core.sessionReadAdmission(ctx)
+	// This independent maintenance job owns the line. Once admitted, caller
+	// cancellation cannot abandon its storage/receipt; retain caller trace data.
+	storageContext := context.WithoutCancel(ctx)
+	highWater, err := s.core.sessionReadAdmission(storageContext)
 	if err != nil {
 		return err
 	}
-	ready := make(chan struct{})
+	ready := s.persistenceReady
+	if ready == nil {
+		ready = make(chan struct{})
+	}
 	subs, err := s.prepareHeldStorageSubscriptions(ctx, writes, highWater, ready)
 	if err != nil {
 		return err
 	}
-	receipt, candidate, err := s.settleBatch(ctx, Batch{Writes: writes}, s.readImage.Seq)
+	receipt, candidate, err := s.settleBatch(storageContext, Batch{Writes: writes}, s.readImage.Seq)
 	if err != nil {
 		return err
 	}
@@ -361,10 +370,33 @@ func (s *Session) storeHeldDeadline(ctx context.Context) error {
 	if err := s.adoptReceipt(receipt, &candidate); err != nil {
 		return err
 	}
-	s.heldDocuments, s.memoryImage = nil, nil
+	for _, id := range selected {
+		delete(s.heldDocuments, id)
+	}
+	s.memoryImage = nil
+	s.armPersistenceDeadline()
 	s.enqueueSubscriptions(subs)
 	s.persistenceReady = ready
 	return nil
+}
+
+// A different-version token reloads from storage, never from an unstored hold.
+// Run before migration/check callbacks; failure there cannot undo this barrier.
+func (s *Session) reloadHeldDefinition(ctx context.Context, def *DocumentDefinition, record Document) (Document, error) {
+	held, ok := s.heldDocuments[record.ID]
+	if !ok || held.record.Version == def.options.Version {
+		return record, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return Document{}, err
+	}
+	if err := s.storeHeldDocuments(ctx, []ID{record.ID}); err != nil {
+		return Document{}, s.backendResult(ctx, err, true)
+	}
+	if err := ctx.Err(); err != nil {
+		return Document{}, err
+	}
+	return s.readImage.Documents[record.ID], nil
 }
 
 // Close has already excluded new admissions and holds the line. A failed

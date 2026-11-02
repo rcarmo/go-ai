@@ -319,6 +319,14 @@ func TestMainSessionDeferredCloseRefusalStillCloses(t *testing.T) {
 		if err := s.Close(bg); err != refusal {
 			t.Fatal("lost close flush failure identity", err)
 		}
+		// Remaining c9 source391 assertions: failed end retains exact cause,
+		// and the original backend rejects calls until it is reopened.
+		if end, err := s.Closed(bg); err != nil || end.Reason != "failed" || end.Error != refusal {
+			t.Fatal("close refusal end/cause", end, err)
+		}
+		if _, err := b.store.Snapshot(bg); !errors.Is(err, ErrClosed) {
+			t.Fatal("close refusal left backend usable", err)
+		}
 		select {
 		case <-s.core.closeDone:
 		default:
