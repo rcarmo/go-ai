@@ -16,7 +16,9 @@ type Session struct {
 	failureCause          error
 	now                   func() int64 // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
-	readImage             Snapshot // immutable published image; owned by the Session line
+	readImage             Snapshot // immutable receipted image; owned by the Session line
+	heldDocuments         map[ID]heldDocument
+	memoryImage           *Snapshot // immutable document overlay, never a durable receipt
 	line                  chan struct{}
 	closing               atomic.Bool
 	once                  sync.Once
@@ -211,12 +213,20 @@ func (s *Session) invocationCommit(ctx context.Context, taskID ID, callback func
 // Internal scheduler/adapter admissions cannot create their own retry epoch.
 // Runtime admission identity witnesses a failed apply BEFORE storage, retaining
 // a genuine external wake that arrives while the failed storage is settling.
-func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external bool, taskID ID) (seq uint64, err error) {
+func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external bool, taskID ID) (uint64, error) {
+	return s.commitPersistence(ctx, callback, external, taskID, false)
+}
+
+func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred bool) (seq uint64, err error) {
 	if callback == nil {
 		return 0, reject("nil transaction callback")
 	}
 	if err = s.enter(ctx); err != nil {
 		return 0, err
+	}
+	if deferred && (!s.hasNativeReadImage() || s.taskScheduler != nil) {
+		s.leave()
+		return 0, ErrUnsupported
 	}
 	markAdmission := func() {
 		if s.taskScheduler != nil && taskID != 0 {
@@ -297,9 +307,19 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	if len(tx.writes) == 0 {
 		return state.Seq, nil
 	}
+	tx.memoryOnly = deferred && s.canHoldDocuments(tx)
 	prepared, e := s.prepareSessionPublication(ctx, tx, state, ready)
 	if e != nil {
 		return 0, e
+	}
+	if tx.memoryOnly {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if err := s.holdPreparedDocuments(&prepared); err != nil {
+			return 0, err
+		}
+		return state.Seq, nil
 	}
 	receipt, adopted, err := s.settlePreparedPublication(&prepared)
 	seq = receipt.seq
@@ -386,7 +406,7 @@ func (s *Session) taskSnapshotView(ctx context.Context) (Snapshot, bool, error) 
 	if err != nil {
 		return Snapshot{}, false, s.backendResult(ctx, err, false)
 	}
-	image := s.readImage
+	image := s.memoryReadImage()
 	// ID reservations are independent of publication and remain globally
 	// monotonic. Do not import raw records or its commit sequence with them.
 	image.HighWater = highWater
@@ -401,6 +421,7 @@ func (s *Session) adoptReadImage(image Snapshot, receipt uint64) error {
 		return reject("non-contiguous publication image")
 	}
 	s.readImage = image
+	s.memoryImage = nil
 	return nil
 }
 
@@ -413,6 +434,11 @@ func (s *Session) Close(ctx context.Context) error {
 		s.closeWatches()
 		go func() {
 			<-s.line
+			if s.failure() == nil {
+				s.closeErr = s.flushHeldOnClose()
+			}
+			s.heldDocuments = nil
+			s.memoryImage = nil
 			if s.contextExpiry != nil {
 				s.contextExpiry.Stop()
 			}
@@ -423,7 +449,9 @@ func (s *Session) Close(ctx context.Context) error {
 			}
 			s.definitionCache = nil
 			s.definitionCacheBytes = 0
-			s.closeErr = s.core.close(context.Background(), true)
+			if closeErr := s.core.close(context.Background(), true); s.closeErr == nil {
+				s.closeErr = closeErr
+			}
 			s.leave()
 			// Closing prevents further expiry admission. Waiting off-line allows
 			// host timer/cancel functions to make reentrant observational reads.

@@ -33,6 +33,8 @@ type Tx struct {
 	// broader than copy source IDs: new current-policy parent docs also reject.
 	forkParents   map[ID]bool
 	documentPlans map[ID]*transactionDocumentPlan
+	readDocuments map[ID]bool // actual document access, separate from preparation scans
+	memoryOnly    bool        // sealed eligible deferred-document publication
 	busy          atomic.Bool
 	sealed        atomic.Bool
 }
@@ -113,7 +115,7 @@ func (t *Tx) stage(w Write) error {
 	if _, e = encodeBounded(commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, t.limits.MaxFramePayloadBytes); e != nil {
 		return e
 	}
-	prepared, err := prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: candidate}, t.limits, false)
+	prepared, err := t.prepareCandidate(candidate, false)
 	if err != nil {
 		return err
 	}
@@ -261,9 +263,37 @@ func (t *Tx) current() (Snapshot, error) {
 		state.HighWater = t.state.HighWater
 		return state, nil
 	}
-	return prepareWithReferences(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: t.writes}, t.limits, false)
+	return t.prepareCandidate(t.writes, false)
 }
+
+// A transaction validates held values against their real durable history by
+// folding them into its provisional next candidate. It never forges a revision
+// at an already stored sequence or changes the Session's receipted image.
+func (t *Tx) prepareCandidate(writes []Write, references bool) (Snapshot, error) {
+	state := t.state
+	if t.session != nil && len(t.session.heldDocuments) > 0 {
+		selected := make(map[ID]bool, len(t.session.heldDocuments))
+		for id := range t.session.heldDocuments {
+			selected[id] = true
+		}
+		var err error
+		writes, _, err = t.session.foldSelectedHeld(writes, selected)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		state = t.session.readImage
+		state.HighWater = t.state.HighWater
+	}
+	return prepareWithReferences(state, commitRecord{Seq: t.state.Seq + 1, Writes: writes}, t.limits, references)
+}
+
 func (t *Tx) currentDocument(id ID) (Document, error) {
+	if t.session != nil && len(t.session.heldDocuments) > 0 {
+		if t.readDocuments == nil {
+			t.readDocuments = map[ID]bool{}
+		}
+		t.readDocuments[id] = true
+	}
 	var s Snapshot
 	var e error
 	changed := false
@@ -584,7 +614,7 @@ func (t *Tx) finalizeDocuments() error {
 		return nil
 	}
 	// Validate all provisional table/document references before host predicates.
-	candidate, err := prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: t.writes}, t.limits)
+	candidate, err := t.prepareCandidate(t.writes, true)
 	if err != nil {
 		return err
 	}
@@ -692,7 +722,7 @@ func (t *Tx) finalizeDocuments() error {
 		// When selection did not change the provisional writes, the candidate
 		// above already validated them. Storage still validates the final batch.
 		if len(predicates) > 0 {
-			if _, err = prepare(t.state, commitRecord{Seq: t.state.Seq + 1, Writes: selected}, t.limits); err != nil {
+			if _, err = t.prepareCandidate(selected, true); err != nil {
 				return err
 			}
 		}

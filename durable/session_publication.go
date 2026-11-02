@@ -6,11 +6,13 @@ import "context"
 // Preparation, settlement and publication still run on the same Session line.
 // Keeping the stages explicit does not enable overlap or relax wrapper gates.
 type preparedSessionPublication struct {
-	ctx    context.Context
-	tx     *Tx
-	base   Snapshot
-	frames []preparedWatchFrame
-	subs   []preparedSubscription
+	ctx           context.Context
+	tx            *Tx
+	base          Snapshot
+	frames        []preparedWatchFrame
+	subs          []preparedSubscription
+	storageWrites []Write
+	storedHeld    []ID
 }
 
 func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Snapshot, ready <-chan struct{}) (preparedSessionPublication, error) {
@@ -18,15 +20,35 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
+	if tx.memoryOnly {
+		// No durable sequence is consumed by this memory publication.
+		publication.Seq = base.Seq
+	}
 	frames, err := s.prepareWatchFrames(ctx, publication, ready)
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
-	subs, err := s.prepareSubscriptions(ctx, publication, tx, ready)
+	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames}
+	if tx.memoryOnly {
+		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
+	} else if len(s.heldDocuments) == 0 {
+		p.subs, err = s.prepareSubscriptions(ctx, publication, tx, ready)
+	} else {
+		p.storageWrites, p.storedHeld, err = s.writesWithHeld(tx)
+		if err != nil {
+			return preparedSessionPublication{}, err
+		}
+		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
+		if err == nil {
+			var stored []preparedSubscription
+			stored, err = s.prepareHeldStorageSubscriptions(ctx, p.storageWrites, tx.state.HighWater, ready)
+			p.subs = append(p.subs, stored...)
+		}
+	}
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
-	return preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, subs: subs}, nil
+	return p, nil
 }
 
 // settlePreparedPublication retains a global dependency on the preparation
@@ -40,7 +62,11 @@ func (s *Session) settlePreparedPublication(p *preparedSessionPublication) (comm
 	if p.base.Seq != s.readImage.Seq {
 		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
 	}
-	return s.settleBatch(p.ctx, Batch{Writes: p.tx.writes}, p.base.Seq)
+	writes := p.storageWrites
+	if writes == nil {
+		writes = p.tx.writes
+	}
+	return s.settleBatch(p.ctx, Batch{Writes: writes}, p.base.Seq)
 }
 
 // publishSessionPublication owns the line and rechecks the first fatal cause.
@@ -53,7 +79,11 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	if err := s.adoptReceipt(receipt, candidate); err != nil {
 		return nil, err
 	}
-	adopted := s.readImage
+	for _, id := range p.storedHeld {
+		delete(s.heldDocuments, id)
+	}
+	s.memoryImage = nil
+	adopted := s.memoryReadImage()
 	if s.taskScheduler != nil {
 		s.taskScheduler.adoptIdleImage(adopted, p.tx.writes)
 	}

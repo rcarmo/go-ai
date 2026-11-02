@@ -484,7 +484,7 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 	if len(t.writes) == 0 {
 		return publication, nil
 	}
-	state, e := prepare(t.state, commitRecord{Seq: publication.Seq, Writes: t.writes}, t.limits)
+	state, e := t.prepareCandidate(t.writes, true)
 	if e != nil {
 		return CommitPublication{}, e
 	}
@@ -816,10 +816,16 @@ type preparedSubscription struct {
 }
 
 func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}) ([]preparedSubscription, error) {
+	return s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, true)
+}
+
+func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}, memory, stored bool) ([]preparedSubscription, error) {
 	s.observerMu.Lock()
 	list := make([]*CommitSubscription, 0, len(s.subscriptions))
 	for p := range s.subscriptions {
-		list = append(list, p)
+		if (p.conversation != nil && memory) || (p.conversation == nil && stored) {
+			list = append(list, p)
+		}
 	}
 	s.observerMu.Unlock()
 	if len(list) == 0 {
