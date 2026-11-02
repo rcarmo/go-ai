@@ -3,7 +3,6 @@ package durable
 import (
 	"context"
 	"math"
-	"time"
 )
 
 // heldDocument owns a bounded fold for one existing latest/initial document.
@@ -12,7 +11,7 @@ type heldDocument struct {
 	record   Document
 	ops      []Operation
 	base     bool
-	deadline float64
+	deadline persistenceDeadline
 }
 
 // commitDeferred preserves the internal infinite-window entry. Explicit/default
@@ -120,7 +119,7 @@ func heldWrite(held heldDocument) Write {
 }
 
 func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs float64) error {
-	deadline := float64(s.now()) + withinMs
+	deadline := persistenceDeadlineAt(s.now(), withinMs)
 	next := make(map[ID]heldDocument, len(s.heldDocuments)+len(p.tx.writes))
 	for id, held := range s.heldDocuments {
 		next[id] = held
@@ -133,9 +132,9 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 		held, exists := next[id]
 		if !exists {
 			held.record = p.tx.state.Documents[id]
-			held.deadline = math.Inf(1)
+			held.deadline = persistenceDeadline{within: math.Inf(1)}
 		}
-		if deadline < held.deadline {
+		if deadline.compare(held.deadline) < 0 {
 			held.deadline = deadline
 		}
 		var err error
@@ -290,27 +289,23 @@ func (s *Session) armPersistenceDeadline() {
 	if s.closing.Load() {
 		return
 	}
-	at := math.Inf(1)
+	at := persistenceDeadline{within: math.Inf(1)}
 	for _, held := range s.heldDocuments {
-		if held.deadline < at {
+		if held.deadline.compare(at) < 0 {
 			at = held.deadline
 		}
 	}
 	if armed := s.persistenceTimer; armed != nil {
-		if armed.fired.Load() || armed.at == at {
+		if armed.fired.Load() || armed.at.compare(at) == 0 {
 			return
 		}
 		armed.Stop()
 		s.persistenceTimer = nil
 	}
-	if math.IsInf(at, 1) {
+	if at.infinite() {
 		return
 	}
-	left := math.Max(0, at-float64(s.now()))
-	delay := time.Duration(math.MaxInt64)
-	if left < float64(math.MaxInt64/int64(time.Millisecond)) {
-		delay = time.Duration(left * float64(time.Millisecond))
-	}
+	delay := at.delay(s.now())
 	var timer *sessionTimer
 	timer = s.newSessionTimer(persistenceDeadlineTimer, delay, func() {
 		if !timer.fired.CompareAndSwap(false, true) {

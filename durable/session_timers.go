@@ -19,8 +19,8 @@ type sessionTimer struct {
 	delay            time.Duration
 	callback         func()
 	started, stopped atomic.Bool
-	fired            atomic.Bool // persistence job queued; caches retain their own expiry rules
-	at               float64     // absolute persistence deadline, milliseconds
+	fired            atomic.Bool         // persistence job queued; caches retain their own expiry rules
+	at               persistenceDeadline // absolute persistence deadline, milliseconds
 	mu               sync.Mutex
 	cancel           func()
 	armComplete      bool // protected by mu; nil cancellation after completion means declined
