@@ -19,10 +19,14 @@ func (h *Harness) finishAbortedGeneration(parent Task, cp generationCheckpoint) 
 			return err
 		}
 		cp = latest
+		partial, err := generationPartial(tx.state, current, cp, tx.limits)
+		if err != nil {
+			return err
+		}
 		var entry ID
 		var value JSON
-		if cp.Partial != nil {
-			receipt := *cp.Partial
+		if partial != nil {
+			receipt := *partial
 			receipt.StopReason = goai.StopReasonAborted
 			var err error
 			value, err = dtoObject(receipt, tx.limits)

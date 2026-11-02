@@ -167,7 +167,10 @@ func (h *Harness) WatchEvents(ctx context.Context, conversation ID) (*AgentEvent
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
-	state, sub, err := h.session.SubscribeCommits(ctx)
+	state, sub, err := h.session.subscribeCommits(ctx, func(_ Snapshot, subscription *CommitSubscription) error {
+		subscription.memory = true
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +274,58 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 			doc := change.Record
 			doc.Value = change.Value
 			next.Documents[doc.ID] = doc
+		}
+		for _, change := range frame.Publication.Documents {
+			if change.Record.Kind != "pi.live" || change.Record.Owner != s.conversation {
+				continue
+			}
+			run := generationObject(change.Value["run"])
+			id, ok := exactNumber(run["task"])
+			if !ok || !id.IsInt() {
+				continue
+			}
+			task := next.Tasks[ID(id.Num().Uint64())]
+			for _, write := range frame.Publication.Tables {
+				if write.Task != nil && write.Task.ID == task.ID {
+					task = *write.Task
+				}
+			}
+			if task.Kind != "pi.generation" {
+				continue
+			}
+			var cp generationCheckpoint
+			if err := fromObject(task.Checkpoint, &cp, s.limits); err != nil {
+				return err
+			}
+			if cp.Partial != nil {
+				continue
+			} // legacy task projection below
+			after, err := generationPartial(next, task, generationCheckpoint{}, s.limits)
+			if err != nil {
+				return err
+			}
+			before, err := generationPartial(s.current, task, generationCheckpoint{}, s.limits)
+			if err != nil {
+				return err
+			}
+			if after == nil || equalJSONValue(before, after) {
+				continue
+			}
+			event := AgentEvent{Type: "message_start", Seq: next.Seq, Task: task.ID, Message: after}
+			if before != nil {
+				event.Type = "message_update"
+				event.Changes, err = partialMessageChanges(*before, *after, s.limits)
+				if err != nil {
+					return err
+				}
+				if after.Usage != nil {
+					event.Usage, err = dtoObject(after.Usage, s.limits)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			events = append(events, event)
 		}
 		for _, write := range frame.Publication.Tables {
 			switch {

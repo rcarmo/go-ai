@@ -10,7 +10,8 @@ import (
 )
 
 // Complete pinned harness-view.test.ts:128-158 oracle, with documented native
-// provider/input/entry-envelope adaptations. Persistence assertion KNOWN FAILING.
+// provider/input/entry-envelope adaptations. Promoted unchanged after binding
+// generation presentation to the runtime-owned document progress lane.
 func TestMainViewUpstreamGenerationOracle(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		release := make(chan struct{})

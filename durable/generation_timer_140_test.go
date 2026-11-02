@@ -51,12 +51,18 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 			delay time.Duration
 		}
 		armed := make(chan alarm, 16)
+		persistence := make(chan alarm, 16)
 		options.SetTimer = func(callback func(), delay time.Duration, mode TimerOptions) func() {
 			if mode.Background {
 				return nil
 			}
 			node := &capturedTimer140{fire: callback}
-			armed <- alarm{node, delay}
+			// Attempt presentation now has its independent default storage timer.
+			if delay == time.Second {
+				persistence <- alarm{node, delay}
+			} else {
+				armed <- alarm{node, delay}
+			}
 			return func() { node.cancelled.Add(1) }
 		}
 		h := openHarness(t, b.store, options)
@@ -76,6 +82,7 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 				return alarm{}
 			}
 		}
+		storageAlarm := watchReceive(t, persistence)
 		first := next()
 		if first.delay != 100*time.Millisecond {
 			t.Fatal(first.delay)
@@ -102,7 +109,14 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 				}
 				if cp.Submission == submitted.ID() {
 					taskID = task.ID
-					return cp.Partial
+					if cp.Partial != nil {
+						t.Fatal("partial leaked into durable task checkpoint")
+					}
+					message, err := generationPartial(state, task, cp, h.session.limits)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return message
 				}
 			}
 			return nil
@@ -140,6 +154,9 @@ func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.
 		}
 		if _, err := h.WaitForTask(ctx, taskID); err != nil {
 			t.Fatal(err)
+		}
+		if storageAlarm.timer.cancelled.Load() != 1 {
+			t.Fatal("terminal retained persistence timer", storageAlarm.timer.cancelled.Load())
 		}
 		if third.timer.cancelled.Load() != 1 {
 			t.Fatal("terminal drain retained timer", third.timer.cancelled.Load())

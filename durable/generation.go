@@ -159,12 +159,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			return nil
 		}
 	}
-	if cp.Partial != nil {
-		if e = h.sessionCommitInterruptedPartial(task, cp); e != nil {
-			return e
-		}
-		cp.Partial = nil
+	if e = h.sessionCommitInterruptedPartial(task, cp); e != nil {
+		return e
 	}
+	cp.Partial = nil
 	// On recovery reuse persisted model/settings/cutoff. A new logical attempt is
 	// committed before remote dispatch. Generic providers have no exactly-once
 	// billing guarantee; an interrupted request can be billed again.
@@ -197,6 +195,11 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	}
 	if h.life.Err() != nil {
 		return e
+	}
+	if cp.Phase != "poll" {
+		if e := h.commitGenerationPresentation(runtime, task.ID, nil); e != nil {
+			return e
+		}
 	}
 	if cp.Model == nil {
 		return reject("missing pinned model")
@@ -830,7 +833,9 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 		if settings := h.resolvedSettings(RequestSettings{}).Progress; settings.PartialIntervalMs != nil {
 			interval = *settings.PartialIntervalMs
 		}
-		write := func(message MessageReceipt) error { return h.commitPartial(taskID[0], message) }
+		write := func(message MessageReceipt) error {
+			return h.commitGenerationPresentation(runtime, taskID[0], &message)
+		}
 		report := func(err error) {
 			if h.closing.Load() {
 				return
@@ -1213,30 +1218,7 @@ func addModelUsage(state JSON, r messageReceipt, l Limits) error {
 }
 
 func (h *Harness) commitPartial(id ID, partial messageReceipt) error {
-	if _, e := dtoObject(partial, h.session.limits); e != nil {
-		return e
-	}
-	_, e := h.session.invocationCommit(context.Background(), id, func(tx *Tx) error {
-		task, ok := tx.state.Tasks[id]
-		if !ok || terminalStatus(task.Status) {
-			return ErrSealed
-		}
-		var cp generationCheckpoint
-		if e := fromObject(task.Checkpoint, &cp, h.session.limits); e != nil {
-			return e
-		}
-		if cp.Abort {
-			return reject("generation aborted")
-		}
-		cp.Partial = &partial
-		value, e := dtoObject(cp, h.session.limits)
-		if e != nil {
-			return e
-		}
-		task.Checkpoint = value
-		return tx.stage(Write{Op: "put-task", Task: &task})
-	})
-	return e
+	return h.commitGenerationPresentation(nil, id, &partial)
 }
 
 func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckpoint) error {
@@ -1249,10 +1231,14 @@ func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckp
 		if latest.Abort {
 			return reject("generation aborted")
 		}
-		if latest.Partial == nil {
+		partial, e := generationPartial(tx.state, current, latest, tx.limits)
+		if e != nil {
+			return e
+		}
+		if partial == nil {
 			return nil
 		}
-		receipt := *latest.Partial
+		receipt := *partial
 		receipt.StopReason = goai.StopReasonAborted
 		id, e := tx.MintID()
 		if e != nil {
@@ -1273,6 +1259,9 @@ func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckp
 			return err
 		}
 		latest.Partial = nil
+		if e := clearGenerationPresentation(tx, current.Conversation); e != nil {
+			return e
+		}
 		value, e = dtoObject(latest, h.session.limits)
 		if e != nil {
 			return e

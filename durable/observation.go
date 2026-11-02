@@ -575,6 +575,7 @@ type CommitSubscription struct {
 	quota                   int64
 	callback                func(context.Context, PublicationFrame) error
 	started, running, ended bool
+	memory                  bool // private logical-memory consumers (agent events)
 	graph                   bool // opts this existing quota-bound subscription into graph metadata wakes
 	end                     WatchEnd
 	closed                  chan struct{}
@@ -823,7 +824,8 @@ func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication Comm
 	s.observerMu.Lock()
 	list := make([]*CommitSubscription, 0, len(s.subscriptions))
 	for p := range s.subscriptions {
-		if (p.conversation != nil && memory) || (p.conversation == nil && stored) {
+		logical := p.conversation != nil || p.memory
+		if (logical && memory) || (!logical && stored) {
 			list = append(list, p)
 		}
 	}

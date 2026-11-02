@@ -38,9 +38,14 @@ func (s *Session) requeueAtClose() error {
 		}
 		// One record per atomic admission also fits hosts with tight persisted batch
 		// budgets. Do not clear restarts or retry a rejected/uncertain write.
-		_, err = s.core.apply(ctx, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}, true)
+		// Keep the Session's receipt witness contiguous even though shutdown
+		// suppresses publication. Held documents still flush after requeue.
+		receipt, candidate, err := s.settleBatch(ctx, Batch{Writes: []Write{{Op: "put-task", Task: &task}}}, s.readImage.Seq)
 		if err = s.backendResult(ctx, err, true); err != nil {
 			return err
+		}
+		if err := s.adoptReceipt(receipt, &candidate); err != nil {
+			return s.backendResult(ctx, err, true)
 		}
 	}
 	return nil

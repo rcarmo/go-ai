@@ -54,7 +54,16 @@ func (t *Tx) syncGenerationStatuses() error {
 					value["tools"] = slots
 				} else {
 					delete(value, "tools")
-					if (cp.Phase == "intent" && cp.Attempt > 0) || cp.Phase == "retry" || cp.Phase == "poll" || cp.Partial != nil {
+					if cp.Phase == "intent" && cp.Partial == nil {
+						// Request intent is durable, attempt/message presentation is
+						// not. Keep only the matching already-adopted presentation;
+						// never synthesize a stored attempt from a task checkpoint.
+						generation := generationObject(value["generation"])
+						attempt, ok := exactNumber(generation["attempt"])
+						if !ok || !attempt.IsInt() || attempt.Num().Uint64() != cp.Attempt || generation["retry"] != nil || generation["deferred"] != nil {
+							delete(value, "generation")
+						}
+					} else if cp.Phase == "retry" || cp.Phase == "poll" || cp.Partial != nil {
 						generation := JSON{"attempt": cp.Attempt}
 						if cp.Partial != nil {
 							message, err := dtoObject(*cp.Partial, t.limits)
