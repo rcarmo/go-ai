@@ -1,0 +1,1394 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "source": [
+    "packages/schema/src/coerce.ts:dropOptionalNulls",
+    "packages/schema/src/compiler.ts",
+    "packages/ai/src/utils/validation.ts"
+  ],
+  "literal": [],
+  "derived": [
+    {
+      "name": "membership-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {}
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {},
+      "valid": true
+    },
+    {
+      "name": "membership-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": true
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": true,
+      "valid": true
+    },
+    {
+      "name": "membership-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": false
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": false,
+      "valid": false
+    },
+    {
+      "name": "membership-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "format": "url"
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "format": "email"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "format": "email"
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "format": "regex"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "format": "regex"
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-6",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "format": "made-up"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "format": "made-up"
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-7",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "default": 1
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "default": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-8",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "minimum": 1
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "minimum": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-9",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "minLength": 3
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "minLength": 3
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-10",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "minItems": 1
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "minItems": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-11",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "required": [
+              "x"
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "required": [
+          "x"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-12",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "properties": {
+              "x": false
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "properties": {
+          "x": false
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-13",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "additionalProperties": false
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "additionalProperties": false
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-14",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": null
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "const": null
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-15",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": 1
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "const": 1
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-16",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": "x"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "const": "x"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-17",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": false
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "const": false
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-18",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": []
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "const": []
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-19",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "const": {}
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "const": {}
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-20",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "enum": []
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "enum": []
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-21",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "enum": [
+              null
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "enum": [
+          null
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-22",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "enum": [
+              1
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "enum": [
+          1
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-23",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "enum": [
+              null,
+              1
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "enum": [
+          null,
+          1
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-24",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "enum": [
+              "x"
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "enum": [
+          "x"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-25",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "null",
+            "const": 1
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "null",
+        "const": 1
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-26",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "x"
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": [
+          "null",
+          "string"
+        ],
+        "enum": [
+          "x"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-27",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "string"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-28",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "number"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "number"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-29",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "integer"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "integer"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-30",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "boolean"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "boolean"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-31",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "object"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "object"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-32",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "array"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "type": "array"
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-33",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-34",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": true
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "not": true
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-35",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": false
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "not": false
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-36",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "not": {
+          "type": "string"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-37",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "not": {
+          "type": "null"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-38",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": {
+              "const": 1
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "not": {
+          "const": 1
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-39",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "if": {
+              "type": "null"
+            },
+            "then": {
+              "type": "string"
+            },
+            "else": true
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "if": {
+          "type": "null"
+        },
+        "then": {
+          "type": "string"
+        },
+        "else": true
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-40",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "if": {
+              "type": "string"
+            },
+            "then": false,
+            "else": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "if": {
+          "type": "string"
+        },
+        "then": false,
+        "else": {
+          "type": "null"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-41",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "if": true,
+            "then": false
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "if": true,
+        "then": false
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-42",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "if": false,
+            "else": false
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "if": false,
+        "else": false
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-43",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "allOf": []
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "allOf": []
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-44",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "anyOf": []
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "anyOf": []
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-45",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "oneOf": []
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "oneOf": []
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-46",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "allOf": [
+              true,
+              {
+                "format": "url"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "allOf": [
+          true,
+          {
+            "format": "url"
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-47",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "allOf": [
+              true,
+              false
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "allOf": [
+          true,
+          false
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-48",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "anyOf": [
+              false,
+              {
+                "format": "url"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "anyOf": [
+          false,
+          {
+            "format": "url"
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-49",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "anyOf": [
+              false,
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "anyOf": [
+          false,
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-50",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "oneOf": [
+              true,
+              {
+                "format": "url"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "oneOf": [
+          true,
+          {
+            "format": "url"
+          }
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "membership-51",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "oneOf": [
+              false,
+              {
+                "format": "url"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "oneOf": [
+          false,
+          {
+            "format": "url"
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-52",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-53",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "not": {
+              "anyOf": [
+                {
+                  "const": 1
+                },
+                {
+                  "const": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}",
+      "member": {
+        "not": {
+          "anyOf": [
+            {
+              "const": 1
+            },
+            {
+              "const": 2
+            }
+          ]
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "membership-54",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "allOf": [
+              {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              {
+                "not": {
+                  "enum": [
+                    null
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {}",
+      "member": {
+        "allOf": [
+          {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          {
+            "not": {
+              "enum": [
+                null
+              ]
+            }
+          }
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "retention-55",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "format": "url"
+          }
+        },
+        "required": [
+          "u"
+        ],
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}"
+    },
+    {
+      "name": "retention-56",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {}
+        },
+        "required": [
+          "u"
+        ],
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":null}"
+    },
+    {
+      "name": "retention-57",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "u"
+        ],
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":\"null\"}"
+    },
+    {
+      "name": "retention-58",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "u"
+        ],
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":0}"
+    },
+    {
+      "name": "retention-59",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "$ref": "#/$defs/N"
+          }
+        },
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":0}"
+    },
+    {
+      "name": "retention-60",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "$ref": "#/$defs/S"
+          }
+        },
+        "$defs": {
+          "N": {
+            "type": "number"
+          },
+          "S": {
+            "type": "string"
+          }
+        }
+      },
+      "input": {
+        "u": null
+      },
+      "want": "ok {\"u\":\"null\"}"
+    }
+  ]
+}

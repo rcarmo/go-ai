@@ -45,6 +45,9 @@ func (v *toolSchemaValidator) stringFormatReason(value interface{}, schema map[s
 			return "regex format checker unavailable: " + result.err.Error()
 		}
 		valid = result.valid
+	case "url":
+		_, err := parseSchemaURL("", text)
+		valid = err == nil
 	case "hostname":
 		valid = schemaFormatHostname(text)
 	case "date":

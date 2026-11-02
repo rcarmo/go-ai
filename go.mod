@@ -15,6 +15,7 @@ require (
 	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/tetratelabs/wazero v1.12.0
 	golang.org/x/image v0.47.0
+	golang.org/x/net v0.62.0
 	golang.org/x/text v0.43.0
 )
 
@@ -33,6 +34,5 @@ require (
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )

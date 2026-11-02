@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	whatwg "github.com/nlnwa/whatwg-url/url"
 )
 
 const toolSchemaDefaultBase = "https://json-schema.invalid/root.json"
@@ -59,7 +57,7 @@ func schemaDocument(uri string) string {
 // Parse only: this never opens a URL or file. Preserve the source fallback for
 // opaque/invalid bases when WHATWG resolution fails.
 func resolveSchemaURI(ref, base string) string {
-	if parsed, err := whatwg.ParseRef(base, ref); err == nil {
+	if parsed, err := parseSchemaURL(base, ref); err == nil {
 		uri := parsed.Href(false)
 		// The pinned source follows the newer opaque-path rule: encode the
 		// final space before a query/fragment. The parser predates that change.

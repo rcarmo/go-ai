@@ -62,15 +62,23 @@ notice is Copyright (c) 2026 Rui Carmo. No guest asset was changed.
 `schema_validation_resources.go` adapts resource indexing, scope and URI fallback
 rules from `packages/schema/src/resolver.ts` at `c9f4c7b9`.
 `schema_validation.go` adapts the overlapping-oneOf diagnostic from
-`packages/schema/src/explain.ts` at the same pin. The MIT permission and
+`packages/schema/src/explain.ts` at the same pin. `schema_validation_null.go`
+and optional-null normalisation follow the null-domain compiler/coercion rules
+at that pin. The MIT permission and
 disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner
 
 ## WHATWG URL parsing
 
-URI resolution uses `github.com/nlnwa/whatwg-url` v0.6.2, Copyright 2020 National
+URI resolution and URL format validation use `github.com/nlnwa/whatwg-url`
+v0.6.2, Copyright 2020 National
 Library of Norway, under the Apache License 2.0:
 <https://github.com/nlnwa/whatwg-url/blob/v0.6.2/LICENSE>.
 The dependency source and licence remain in its module; this repository imports
-the parser and adds a measured opaque-path compatibility rule.
+the parser and adds a measured opaque-path compatibility rule. The URL host
+adapter directly uses `golang.org/x/net/idna` v0.62.0 (already a transitive
+dependency), Copyright 2009 The Go Authors, under its BSD-3-Clause licence:
+<https://cs.opensource.google/go/x/net/+/refs/tags/v0.62.0:LICENSE>.
+It selects the WHATWG UTS46 options and checks the mapped empty-A-label case
+before canonical hosts enter the parser.

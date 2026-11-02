@@ -1,0 +1,972 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "source": [
+    "packages/schema/src/resolver.ts:resolveUri",
+    "packages/schema/src/formats/typebox/url.ts",
+    "packages/ai/src/utils/validation.ts"
+  ],
+  "derived": [
+    {
+      "name": "host-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://XN--.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://ｘｎ－－.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://x­n--.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn͏--.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--­.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-6",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://­.example/a"
+      },
+      "want": "ok {\"u\":\"https://­.example/a\"}"
+    },
+    {
+      "name": "host-7",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--abc-.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-8",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é0_/a"
+      },
+      "want": "ok {\"u\":\"https://é0_/a\"}"
+    },
+    {
+      "name": "host-9",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--0_-9ia/a"
+      },
+      "want": "ok {\"u\":\"https://xn--0_-9ia/a\"}"
+    },
+    {
+      "name": "host-10",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é0_.0/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-11",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é0_.0xg/a"
+      },
+      "want": "ok {\"u\":\"https://é0_.0xg/a\"}"
+    },
+    {
+      "name": "host-12",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é%25.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-13",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://אב_.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-14",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://a‌.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-15",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é‍.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-16",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://a..example/a"
+      },
+      "want": "ok {\"u\":\"https://a..example/a\"}"
+    },
+    {
+      "name": "host-17",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--a.example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    },
+    {
+      "name": "host-18",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--n3h.example/a"
+      },
+      "want": "ok {\"u\":\"https://xn--n3h.example/a\"}"
+    },
+    {
+      "name": "host-19",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--ls8h.example/a"
+      },
+      "want": "ok {\"u\":\"https://xn--ls8h.example/a\"}"
+    },
+    {
+      "name": "host-20",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é_.schema-idna-1/a"
+      },
+      "want": "ok {\"u\":\"https://é_.schema-idna-1/a\"}"
+    },
+    {
+      "name": "host-21",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://schema-idna-1.é_/a"
+      },
+      "want": "ok {\"u\":\"https://schema-idna-1.é_/a\"}"
+    },
+    {
+      "name": "host-22",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://é_。example/a"
+      },
+      "want": "ok {\"u\":\"https://é_。example/a\"}"
+    },
+    {
+      "name": "host-23",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "u": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "input": {
+        "u": "https://xn--。example/a"
+      },
+      "want": "REJECT - u: expected format url"
+    }
+  ],
+  "uris": [
+    {
+      "name": "host-0-0",
+      "ref": "https://xn--.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--.example/a"
+    },
+    {
+      "name": "host-0-1",
+      "ref": "../x?y#z",
+      "base": "https://xn--.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-0-2",
+      "ref": "//xn--.example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn--.example/x"
+    },
+    {
+      "name": "host-0-3",
+      "ref": "#tag",
+      "base": "https://xn--.example/a",
+      "want": "https://xn--.example/a#tag"
+    },
+    {
+      "name": "host-1-4",
+      "ref": "https://XN--.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://XN--.example/a"
+    },
+    {
+      "name": "host-1-5",
+      "ref": "../x?y#z",
+      "base": "https://XN--.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-1-6",
+      "ref": "//XN--.example/x",
+      "base": "https://é_.example/a",
+      "want": "//XN--.example/x"
+    },
+    {
+      "name": "host-1-7",
+      "ref": "#tag",
+      "base": "https://XN--.example/a",
+      "want": "https://XN--.example/a#tag"
+    },
+    {
+      "name": "host-2-8",
+      "ref": "https://ｘｎ－－.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://ｘｎ－－.example/a"
+    },
+    {
+      "name": "host-2-9",
+      "ref": "../x?y#z",
+      "base": "https://ｘｎ－－.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-2-10",
+      "ref": "//ｘｎ－－.example/x",
+      "base": "https://é_.example/a",
+      "want": "//ｘｎ－－.example/x"
+    },
+    {
+      "name": "host-2-11",
+      "ref": "#tag",
+      "base": "https://ｘｎ－－.example/a",
+      "want": "https://ｘｎ－－.example/a#tag"
+    },
+    {
+      "name": "host-3-12",
+      "ref": "https://x­n--.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://x­n--.example/a"
+    },
+    {
+      "name": "host-3-13",
+      "ref": "../x?y#z",
+      "base": "https://x­n--.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-3-14",
+      "ref": "//x­n--.example/x",
+      "base": "https://é_.example/a",
+      "want": "//x­n--.example/x"
+    },
+    {
+      "name": "host-3-15",
+      "ref": "#tag",
+      "base": "https://x­n--.example/a",
+      "want": "https://x­n--.example/a#tag"
+    },
+    {
+      "name": "host-4-16",
+      "ref": "https://xn͏--.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn͏--.example/a"
+    },
+    {
+      "name": "host-4-17",
+      "ref": "../x?y#z",
+      "base": "https://xn͏--.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-4-18",
+      "ref": "//xn͏--.example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn͏--.example/x"
+    },
+    {
+      "name": "host-4-19",
+      "ref": "#tag",
+      "base": "https://xn͏--.example/a",
+      "want": "https://xn͏--.example/a#tag"
+    },
+    {
+      "name": "host-5-20",
+      "ref": "https://xn--­.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--­.example/a"
+    },
+    {
+      "name": "host-5-21",
+      "ref": "../x?y#z",
+      "base": "https://xn--­.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-5-22",
+      "ref": "//xn--­.example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn--­.example/x"
+    },
+    {
+      "name": "host-5-23",
+      "ref": "#tag",
+      "base": "https://xn--­.example/a",
+      "want": "https://xn--­.example/a#tag"
+    },
+    {
+      "name": "host-6-24",
+      "ref": "https://­.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://.example/a"
+    },
+    {
+      "name": "host-6-25",
+      "ref": "../x?y#z",
+      "base": "https://­.example/a/b",
+      "want": "https://.example/x?y#z"
+    },
+    {
+      "name": "host-6-26",
+      "ref": "//­.example/x",
+      "base": "https://é_.example/a",
+      "want": "https://.example/x"
+    },
+    {
+      "name": "host-6-27",
+      "ref": "#tag",
+      "base": "https://­.example/a",
+      "want": "https://.example/a#tag"
+    },
+    {
+      "name": "host-7-28",
+      "ref": "https://xn--abc-.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--abc-.example/a"
+    },
+    {
+      "name": "host-7-29",
+      "ref": "../x?y#z",
+      "base": "https://xn--abc-.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-7-30",
+      "ref": "//xn--abc-.example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn--abc-.example/x"
+    },
+    {
+      "name": "host-7-31",
+      "ref": "#tag",
+      "base": "https://xn--abc-.example/a",
+      "want": "https://xn--abc-.example/a#tag"
+    },
+    {
+      "name": "host-8-32",
+      "ref": "https://é0_/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--0_-9ia/a"
+    },
+    {
+      "name": "host-8-33",
+      "ref": "../x?y#z",
+      "base": "https://é0_/a/b",
+      "want": "https://xn--0_-9ia/x?y#z"
+    },
+    {
+      "name": "host-8-34",
+      "ref": "//é0_/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--0_-9ia/x"
+    },
+    {
+      "name": "host-8-35",
+      "ref": "#tag",
+      "base": "https://é0_/a",
+      "want": "https://xn--0_-9ia/a#tag"
+    },
+    {
+      "name": "host-9-36",
+      "ref": "https://xn--0_-9ia/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--0_-9ia/a"
+    },
+    {
+      "name": "host-9-37",
+      "ref": "../x?y#z",
+      "base": "https://xn--0_-9ia/a/b",
+      "want": "https://xn--0_-9ia/x?y#z"
+    },
+    {
+      "name": "host-9-38",
+      "ref": "//xn--0_-9ia/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--0_-9ia/x"
+    },
+    {
+      "name": "host-9-39",
+      "ref": "#tag",
+      "base": "https://xn--0_-9ia/a",
+      "want": "https://xn--0_-9ia/a#tag"
+    },
+    {
+      "name": "host-10-40",
+      "ref": "https://é0_.0/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://é0_.0/a"
+    },
+    {
+      "name": "host-10-41",
+      "ref": "../x?y#z",
+      "base": "https://é0_.0/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-10-42",
+      "ref": "//é0_.0/x",
+      "base": "https://é_.example/a",
+      "want": "//é0_.0/x"
+    },
+    {
+      "name": "host-10-43",
+      "ref": "#tag",
+      "base": "https://é0_.0/a",
+      "want": "https://é0_.0/a#tag"
+    },
+    {
+      "name": "host-11-44",
+      "ref": "https://é0_.0xg/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--0_-9ia.0xg/a"
+    },
+    {
+      "name": "host-11-45",
+      "ref": "../x?y#z",
+      "base": "https://é0_.0xg/a/b",
+      "want": "https://xn--0_-9ia.0xg/x?y#z"
+    },
+    {
+      "name": "host-11-46",
+      "ref": "//é0_.0xg/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--0_-9ia.0xg/x"
+    },
+    {
+      "name": "host-11-47",
+      "ref": "#tag",
+      "base": "https://é0_.0xg/a",
+      "want": "https://xn--0_-9ia.0xg/a#tag"
+    },
+    {
+      "name": "host-12-48",
+      "ref": "https://é%25.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://é%25.example/a"
+    },
+    {
+      "name": "host-12-49",
+      "ref": "../x?y#z",
+      "base": "https://é%25.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-12-50",
+      "ref": "//é%25.example/x",
+      "base": "https://é_.example/a",
+      "want": "//é%25.example/x"
+    },
+    {
+      "name": "host-12-51",
+      "ref": "#tag",
+      "base": "https://é%25.example/a",
+      "want": "https://é%25.example/a#tag"
+    },
+    {
+      "name": "host-13-52",
+      "ref": "https://אב_.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://אב_.example/a"
+    },
+    {
+      "name": "host-13-53",
+      "ref": "../x?y#z",
+      "base": "https://אב_.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-13-54",
+      "ref": "//אב_.example/x",
+      "base": "https://é_.example/a",
+      "want": "//אב_.example/x"
+    },
+    {
+      "name": "host-13-55",
+      "ref": "#tag",
+      "base": "https://אב_.example/a",
+      "want": "https://אב_.example/a#tag"
+    },
+    {
+      "name": "host-14-56",
+      "ref": "https://a‌.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://a‌.example/a"
+    },
+    {
+      "name": "host-14-57",
+      "ref": "../x?y#z",
+      "base": "https://a‌.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-14-58",
+      "ref": "//a‌.example/x",
+      "base": "https://é_.example/a",
+      "want": "//a‌.example/x"
+    },
+    {
+      "name": "host-14-59",
+      "ref": "#tag",
+      "base": "https://a‌.example/a",
+      "want": "https://a‌.example/a#tag"
+    },
+    {
+      "name": "host-15-60",
+      "ref": "https://é‍.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://é‍.example/a"
+    },
+    {
+      "name": "host-15-61",
+      "ref": "../x?y#z",
+      "base": "https://é‍.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-15-62",
+      "ref": "//é‍.example/x",
+      "base": "https://é_.example/a",
+      "want": "//é‍.example/x"
+    },
+    {
+      "name": "host-15-63",
+      "ref": "#tag",
+      "base": "https://é‍.example/a",
+      "want": "https://é‍.example/a#tag"
+    },
+    {
+      "name": "host-16-64",
+      "ref": "https://a..example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://a..example/a"
+    },
+    {
+      "name": "host-16-65",
+      "ref": "../x?y#z",
+      "base": "https://a..example/a/b",
+      "want": "https://a..example/x?y#z"
+    },
+    {
+      "name": "host-16-66",
+      "ref": "//a..example/x",
+      "base": "https://é_.example/a",
+      "want": "https://a..example/x"
+    },
+    {
+      "name": "host-16-67",
+      "ref": "#tag",
+      "base": "https://a..example/a",
+      "want": "https://a..example/a#tag"
+    },
+    {
+      "name": "host-17-68",
+      "ref": "https://xn--a.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--a.example/a"
+    },
+    {
+      "name": "host-17-69",
+      "ref": "../x?y#z",
+      "base": "https://xn--a.example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-17-70",
+      "ref": "//xn--a.example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn--a.example/x"
+    },
+    {
+      "name": "host-17-71",
+      "ref": "#tag",
+      "base": "https://xn--a.example/a",
+      "want": "https://xn--a.example/a#tag"
+    },
+    {
+      "name": "host-18-72",
+      "ref": "https://xn--n3h.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--n3h.example/a"
+    },
+    {
+      "name": "host-18-73",
+      "ref": "../x?y#z",
+      "base": "https://xn--n3h.example/a/b",
+      "want": "https://xn--n3h.example/x?y#z"
+    },
+    {
+      "name": "host-18-74",
+      "ref": "//xn--n3h.example/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--n3h.example/x"
+    },
+    {
+      "name": "host-18-75",
+      "ref": "#tag",
+      "base": "https://xn--n3h.example/a",
+      "want": "https://xn--n3h.example/a#tag"
+    },
+    {
+      "name": "host-19-76",
+      "ref": "https://xn--ls8h.example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--ls8h.example/a"
+    },
+    {
+      "name": "host-19-77",
+      "ref": "../x?y#z",
+      "base": "https://xn--ls8h.example/a/b",
+      "want": "https://xn--ls8h.example/x?y#z"
+    },
+    {
+      "name": "host-19-78",
+      "ref": "//xn--ls8h.example/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--ls8h.example/x"
+    },
+    {
+      "name": "host-19-79",
+      "ref": "#tag",
+      "base": "https://xn--ls8h.example/a",
+      "want": "https://xn--ls8h.example/a#tag"
+    },
+    {
+      "name": "host-20-80",
+      "ref": "https://é_.schema-idna-1/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--_-9fa.schema-idna-1/a"
+    },
+    {
+      "name": "host-20-81",
+      "ref": "../x?y#z",
+      "base": "https://é_.schema-idna-1/a/b",
+      "want": "https://xn--_-9fa.schema-idna-1/x?y#z"
+    },
+    {
+      "name": "host-20-82",
+      "ref": "//é_.schema-idna-1/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--_-9fa.schema-idna-1/x"
+    },
+    {
+      "name": "host-20-83",
+      "ref": "#tag",
+      "base": "https://é_.schema-idna-1/a",
+      "want": "https://xn--_-9fa.schema-idna-1/a#tag"
+    },
+    {
+      "name": "host-21-84",
+      "ref": "https://schema-idna-1.é_/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://schema-idna-1.xn--_-9fa/a"
+    },
+    {
+      "name": "host-21-85",
+      "ref": "../x?y#z",
+      "base": "https://schema-idna-1.é_/a/b",
+      "want": "https://schema-idna-1.xn--_-9fa/x?y#z"
+    },
+    {
+      "name": "host-21-86",
+      "ref": "//schema-idna-1.é_/x",
+      "base": "https://é_.example/a",
+      "want": "https://schema-idna-1.xn--_-9fa/x"
+    },
+    {
+      "name": "host-21-87",
+      "ref": "#tag",
+      "base": "https://schema-idna-1.é_/a",
+      "want": "https://schema-idna-1.xn--_-9fa/a#tag"
+    },
+    {
+      "name": "host-22-88",
+      "ref": "https://é_。example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--_-9fa.example/a"
+    },
+    {
+      "name": "host-22-89",
+      "ref": "../x?y#z",
+      "base": "https://é_。example/a/b",
+      "want": "https://xn--_-9fa.example/x?y#z"
+    },
+    {
+      "name": "host-22-90",
+      "ref": "//é_。example/x",
+      "base": "https://é_.example/a",
+      "want": "https://xn--_-9fa.example/x"
+    },
+    {
+      "name": "host-22-91",
+      "ref": "#tag",
+      "base": "https://é_。example/a",
+      "want": "https://xn--_-9fa.example/a#tag"
+    },
+    {
+      "name": "host-23-92",
+      "ref": "https://xn--。example/a",
+      "base": "https://json-schema.invalid/root.json",
+      "want": "https://xn--。example/a"
+    },
+    {
+      "name": "host-23-93",
+      "ref": "../x?y#z",
+      "base": "https://xn--。example/a/b",
+      "want": "../x?y#z"
+    },
+    {
+      "name": "host-23-94",
+      "ref": "//xn--。example/x",
+      "base": "https://é_.example/a",
+      "want": "//xn--。example/x"
+    },
+    {
+      "name": "host-23-95",
+      "ref": "#tag",
+      "base": "https://xn--。example/a",
+      "want": "https://xn--。example/a#tag"
+    }
+  ]
+}

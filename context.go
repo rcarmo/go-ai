@@ -136,7 +136,7 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 		return tc.Arguments, nil
 	}
 	v := newToolSchemaValidator(schema, tool.Parameters)
-	out := normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
+	out := v.normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
 	if out == nil {
 		out = make(map[string]interface{})
 	}
@@ -173,7 +173,7 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 // Return owned containers along traversed schema paths: removing a nested null
 // must not mutate the caller's arguments. Pattern/additional keys themselves
 // stay present; only their nested declared optional properties can be removed.
-func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) interface{} {
+func (validator *toolSchemaValidator) normalizeOptionalNulls(value interface{}, schema map[string]interface{}) interface{} {
 	switch v := value.(type) {
 	case []interface{}:
 		out := append([]interface{}(nil), v...)
@@ -186,12 +186,12 @@ func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) in
 					break
 				}
 				if itemSchema, ok := itemSchemas[i].(map[string]interface{}); ok {
-					out[i] = normalizeOptionalNulls(out[i], itemSchema)
+					out[i] = validator.normalizeOptionalNulls(out[i], itemSchema)
 				}
 			}
 		} else if itemSchema, ok := schema["items"].(map[string]interface{}); ok {
 			for i := range out {
-				out[i] = normalizeOptionalNulls(out[i], itemSchema)
+				out[i] = validator.normalizeOptionalNulls(out[i], itemSchema)
 			}
 		}
 		return out
@@ -213,19 +213,18 @@ func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) in
 			}
 		}
 		for key, rawProperty := range properties {
-			propertySchema, ok := rawProperty.(map[string]interface{})
-			if !ok {
-				continue
-			}
+			propertySchema, objectSchema := rawProperty.(map[string]interface{})
 			current, exists := v[key]
 			if !exists {
 				continue
 			}
-			if current == nil && !required[key] && !hasStringRef(propertySchema) && !schemaAllowsNull(propertySchema) {
+			if current == nil && !required[key] && !hasStringRef(propertySchema) && !validator.acceptsRaw(nil, rawProperty) {
 				delete(out, key)
 				continue
 			}
-			out[key] = normalizeOptionalNulls(current, propertySchema)
+			if objectSchema {
+				out[key] = validator.normalizeOptionalNulls(current, propertySchema)
+			}
 		}
 		patterns, _ := schema["patternProperties"].(map[string]interface{})
 		// Go's RE2 syntax covers these upstream probes; ECMAScript-only regex
@@ -242,7 +241,7 @@ func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) in
 			for key, current := range out {
 				if re.MatchString(key) {
 					matchedKeys[key] = true
-					out[key] = normalizeOptionalNulls(current, patternSchema)
+					out[key] = validator.normalizeOptionalNulls(current, patternSchema)
 				}
 			}
 		}
@@ -251,7 +250,7 @@ func normalizeOptionalNulls(value interface{}, schema map[string]interface{}) in
 				if _, declared := properties[key]; declared || matchedKeys[key] {
 					continue
 				}
-				out[key] = normalizeOptionalNulls(current, additional)
+				out[key] = validator.normalizeOptionalNulls(current, additional)
 			}
 		}
 		return out
@@ -430,6 +429,9 @@ func schemaList(raw interface{}) ([]map[string]interface{}, bool) {
 // Membership checks never coerce: union branch selection must not count a
 // numeric string as an integer or an absent required property as a match.
 func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[string]interface{}) bool {
+	if value == nil {
+		return v.schemaAcceptsNull(schema)
+	}
 	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
 		return false
 	}

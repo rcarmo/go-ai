@@ -62,19 +62,29 @@ func mainRunFormatFixture(t *testing.T, filename string, wantLiteral, wantDerive
 					}
 					// The shared outcome adapter calls public ValidateToolArguments
 					// and independently verifies that caller arguments stay intact.
-					got := mainNumericOutcome(t, string(schema), string(tc.Input))
-					if strings.HasPrefix(got, "ok ") && strings.HasPrefix(tc.Want, "ok ") {
-						// JSON HTML escapes differ between Go and JS; Tool values do not.
-						var value interface{}
-						if err := json.Unmarshal([]byte(got[3:]), &value); err != nil {
-							t.Fatal(err)
-						}
-						mainAssertValidationJSON(t, value, tc.Want[3:])
-					} else if got != tc.Want {
-						t.Fatalf("got %s, want %s", got, tc.Want)
-					}
+					mainAssertFormatOutcome(t, mainNumericOutcome(t, string(schema), string(tc.Input)), tc.Want)
 				})
 			}
 		})
 	}
+}
+
+// Tool JSON values are compared semantically; rejection diagnostics stay exact.
+func mainAssertFormatOutcome(t *testing.T, got, want string) {
+	t.Helper()
+	if strings.HasPrefix(got, "ok ") && strings.HasPrefix(want, "ok ") {
+		var value interface{}
+		if err := json.Unmarshal([]byte(got[3:]), &value); err != nil {
+			t.Fatal(err)
+		}
+		mainAssertValidationJSON(t, value, want[3:])
+		return
+	}
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestMainFormatOutcomeJSONEscapes(t *testing.T) {
+	mainAssertFormatOutcome(t, `ok {"v":"\u003c\u003e\u0026"}`, `ok {"v":"<>&"}`)
 }
