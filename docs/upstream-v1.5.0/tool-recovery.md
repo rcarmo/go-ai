@@ -40,6 +40,6 @@ Staticcheck found an unused second-run binding; removing the assignment did not 
 
 ### Remaining contracts
 
-Passing these recovery assertions does **not** establish tool-write deferral: `tool_progress_publish.go` still copies presentation into task checkpoints through immediate `invocationCommit`. Establish a source-derived memory-before-storage/timer/dependent-flush baseline before changing that path, preserving unsafe stored-prefix recovery, safe durable clearing, native retention/details and agent-event ordering. No persistence-policy divergence is accepted here.
+This checkpoint tested recovery while progress still used immediate task-checkpoint writes. The subsequent [tool-document integration](tool-deferral.md) establishes the separate memory-before-storage baseline and implements deferred presentation, retaining these recovery assertions. No persistence-policy divergence is accepted.
 
 Source398 summarisation crash/restart and source430 third-party task dependent reads remain next in this file. Broader shared/public identity, synchronous observers/reporting, AI/codemode/schema/support and catalogue/package correspondence remain open. No TypeScript/Vitest execution, all-eleven-body parity, full-suite, profiling, CI or release result is claimed. Full v1.5.0 alignment is unverified. Disposable source copies, overlays, packages and logs must be removed after use; installed dependencies/toolchains, continuing pinned source, protected prototype and native v1.4.0 assets remain protected.
