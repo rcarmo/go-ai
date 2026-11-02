@@ -182,6 +182,14 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 			s.definitionCacheBytes -= cached.bytes
 		}
 	}
+	if s.taskScheduler != nil {
+		// Publish the logical memory image before waking task/idle waiters.
+		// This does not consume a receipt or advance a task checkpoint.
+		adopted := s.memoryReadImage()
+		s.taskScheduler.adoptIdleImage(adopted, p.tx.writes)
+		p.tx.taskAdoptState = &adopted
+		s.adoptTaskEffects(adopted.Seq, p.tx)
+	}
 	s.enqueueWatchFrames(p.frames)
 	s.enqueueSubscriptions(p.subs)
 	if listenerFailure := s.publishLocalCommit(p.ctx, "memory", p.observed); listenerFailure != nil {
@@ -344,7 +352,7 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	if len(selected) == 0 {
 		return nil
 	}
-	if !s.hasNativeReadImage() || s.taskScheduler != nil {
+	if !s.hasNativeReadImage() {
 		return ErrUnsupported
 	}
 	writes := make([]Write, 0, len(selected))
@@ -381,6 +389,10 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	}
 	s.memoryImage = nil
 	s.armPersistenceDeadline()
+	if s.taskScheduler != nil {
+		// Storage advances, but the already-observed logical value does not.
+		s.taskScheduler.adoptIdleImage(s.memoryReadImage(), writes)
+	}
 	s.enqueueSubscriptions(stored.subscriptions)
 	s.persistenceReady = ready
 	s.publishStoredCommit(ctx, stored.publication)

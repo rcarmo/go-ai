@@ -62,6 +62,17 @@ func (r *TaskRuntime) Registry() (TaskRegistrySnapshot, error) {
 	return r.registry, nil
 }
 func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error)) error {
+	return r.commit(ctx, change, false)
+}
+
+// Private PROGRESS_COMMIT prerequisite. Runtime lifetime checks are identical
+// to Commit; only eligible document-only writes may remain in memory. Task
+// transitions, creations and other mixed writes still settle immediately.
+func (r *TaskRuntime) commitProgress(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error)) error {
+	return r.commit(ctx, change, true)
+}
+
+func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (*TaskState, error), progress bool) error {
 	if err := r.check(); err != nil {
 		return err
 	}
@@ -69,7 +80,7 @@ func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		return reject("nil runtime commit")
 	}
 	checkpointChanged := false
-	_, err := r.harness.session.invocationCommit(ctx, r.taskID, func(tx *Tx) error {
+	_, err := r.harness.session.commitPersistence(ctx, func(tx *Tx) error {
 		if err := r.check(); err != nil {
 			return err
 		}
@@ -136,7 +147,7 @@ func (r *TaskRuntime) Commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		previousPhase, _ := view.State.Checkpoint["phase"].(string)
 		checkpointChanged = state.Status == "running" && nextOK && nextPhase != previousPhase
 		return tx.stage(Write{Op: "put-task", Task: &task})
-	})
+	}, false, r.taskID, progress)
 	if err == nil && checkpointChanged {
 		r.telemetryEvent("pi.durable.checkpoint", nil)
 	}

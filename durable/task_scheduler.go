@@ -1292,7 +1292,8 @@ func (s *taskScheduler) adopt(seq uint64, tx *Tx) {
 			s.epoch.Add(1)
 		}
 		if tx.taskAdoptState != nil {
-			// taskAdoptState is assigned only from the receipted published image.
+			// taskAdoptState is assigned from the adopted logical image: a
+			// receipted commit or eligible runtime document-only memory progress.
 			s.refreshBoundWaits(*tx.taskAdoptState, s.h.session.hasNativeReadImage())
 		}
 		s.notifyWaiters(nil)

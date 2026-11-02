@@ -180,7 +180,7 @@ func (x *idleIndex) document(d Document) {
 	x.docChange(v, 1)
 }
 func (s *taskScheduler) rebuildIdleIndex() *idleIndex {
-	x := &idleIndex{image: s.h.session.readImage, nodes: map[idleScope]*idleScopeNode{}, generations: map[ID]map[ID]bool{}, documents: map[ID]idleLiveDocument{}, docCount: map[ID]int{}, heldCount: map[ID]int{}, rebuilds: 1}
+	x := &idleIndex{image: s.h.session.memoryReadImage(), nodes: map[idleScope]*idleScopeNode{}, generations: map[ID]map[ID]bool{}, documents: map[ID]idleLiveDocument{}, docCount: map[ID]int{}, heldCount: map[ID]int{}, rebuilds: 1}
 	if s.idleIndex != nil {
 		x.rebuilds += s.idleIndex.rebuilds
 		x.work = s.idleIndex.work

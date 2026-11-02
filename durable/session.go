@@ -249,7 +249,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	if err = s.enter(ctx); err != nil {
 		return 0, err
 	}
-	if deferred && (!s.hasNativeReadImage() || s.taskScheduler != nil) {
+	if deferred && (!s.hasNativeReadImage() || (s.taskScheduler != nil && taskID == 0)) {
 		s.leave()
 		return 0, ErrUnsupported
 	}
