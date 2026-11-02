@@ -1,5 +1,11 @@
 # Gated-generation view oracle
 
+## Official v1.5.0 result
+
+Native `2387014a690da8110d723067d99dfe4271ff0454` now passes the unchanged complete frames/touches, operation and idle-view assertions on memory, journal and SQLite. The fixture is promoted to `durable/view_generation_persistence_main_test.go`; [generation-deferral evidence](../upstream-v1.5.0/generation-deferral.md) records the affected normal/race/static/fault checks. The failure, paths and unresolved implementation status below are historical receipts at their stated native pins, not the current result. Full v1.5.0 alignment remains unverified.
+
+## Historical baseline
+
 The pinned `harness-view.test.ts:128–158` scenario exposed two native differences: generation status used whole-document replacements, and attempt presentation was persisted immediately. The operation shape is fixed; deferred persistence remains a demonstrated failure.
 
 ## Preserved scenario

@@ -1,5 +1,11 @@
 # Deferred persistence: source contracts and existing native proof
 
+## Official v1.5.0 integration checkpoint
+
+Native `2387014a690da8110d723067d99dfe4271ff0454` now defers production generation presentation while retaining durable request intent and legacy partial reads. The batching and stored-touch generation oracles pass and are promoted; [the current receipt](../upstream-v1.5.0/generation-deferral.md) records crash/recovery, event and close-sequencing controls. The source-case map and failures below retain their original historical inputs; they are not current failure claims or completeness evidence. Source210-onward Harness/tool/summarisation contracts and full alignment remain open.
+
+## Earlier contract review
+
 Internal Session persistence now covers finite/default windows, infinity and unload/version-reload barriers in focused native scenarios. Added retention/reopen controls pass unchanged runtime; the shared-public-value lifetime and tracker-count assertions need further work. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
 
 Target: `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. The source files contain 25 `it` declarations in `session-deferred-commits.test.ts` and 11 in `harness-deferred-progress.test.ts`; these are declaration counts, not execution results. The recorded [generation oracle](generation-view-oracle.md) already fails nine backend leaves with four frames/four stored touches. Do not rerun that baseline merely to rediscover it. Tracked native `durable/` files are unchanged between its `18aa8c3` checkpoint and `a1983c6`; later root validation changes retain their own scope.
