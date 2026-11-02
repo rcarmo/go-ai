@@ -38,8 +38,9 @@ THE SOFTWARE.
 
 ## JSON Schema Test Suite
 
-`tests/testdata/upstream-main/hostname.json` and the selected reference/anchor
-assertions in `tests/testdata/upstream-main/validation-resources.json` come from
+`tests/testdata/upstream-main/hostname.json`, the regex assertions in
+`tests/testdata/upstream-main/validation-regex-pending.json` and the selected
+reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json` come from
 the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
