@@ -1,6 +1,6 @@
 # Schema validation oracles
 
-Three optional-null probes at `b556cfe5`, two branch-plus-sibling probes, the depth-40 recursive-reference rejection and the 10,000-value enum oracle at `c9f4c7b9` pass after bounded native fixes. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
+Three optional-null probes at `b556cfe5`, two branch-plus-sibling probes, the depth-40 recursive-reference rejection and the 10,000-value enum oracle at `c9f4c7b9` pass after bounded native fixes. Selected numeric-bound probes and fresh-schema controls also pass. The rest of the new validation corpus needs review. Rui's current direction is focused tests only, fidelity first and no profiling until the baseline is established.
 
 ## Exact source port
 
@@ -91,9 +91,23 @@ The diagnostic now serialises at most 20 entries using the existing JS-compatibl
 
 Focused Go `1.27.3`/`GOMAXPROCS=4` checks use the preceding recursive-checkpoint filter plus `TestProviderErrorSerializationTextMain` and `TestErrorJSONSeparatorEscapeParityMain`. Ten normal repetitions per CGO mode (shuffle 42/7) pass: root/tests 0.011/0.408 seconds and 0.007/0.413 seconds. Five race repetitions (shuffle 42) pass in 1.032/1.612 seconds. Vet/staticcheck v0.8.2 for `.` and `./tests` pass both CGO modes; module verification and diff checks pass. No full-suite/full-race run or profiling. Non-string enum validation and exact diagnostics outside these covered string cases are open.
 
+## Numeric-bound witnesses before cache identity
+
+`tests/upstream_validation_numeric_main_test.go` ports the exact numeric `exclusiveMinimum` schema/inputs at source line 347 and literal rejection snapshots at 570–571. It also preserves the draft-04 boolean-exclusive schemas/results at 217–223 and 524–525: zero remains accepted because upstream ignores boolean exclusivity. The first assertion of the cache probe at 727–732, parsing `n: "4"` under minimum zero, passes unchanged native code; its mutation assertion is not yet ported.
+
+Fresh-schema minimum-ten controls prevent a false cache pass caused by ignored bounds. Unchanged `4ac47ff` fails eight of the 14 JSON cases: accepted invalid bounds and rejected valid bounded `oneOf`. The fix applies `minimum`, `maximum` and numeric exclusive bounds during non-coercing membership checks, including untyped schemas, then reports the source comparison diagnostic. Conversion remains independent, so an invalid branch conversion can still satisfy another union branch.
+
+Native supplements preserve `int64` and canonical integer `json.Number` values without rounding into acceptance or rewriting successful results. Rounded ties around 2^53 and ±2^63 receive exact comparisons; only larger canonical-integer ties need `math/big`. Fractional `json.Number` comparisons retain the existing float64/SDK domain. Non-finite values under numeric bounds reject. These native extensions do not establish arbitrary-precision fractional validation or full non-JSON diagnostic parity.
+
+The original numeric-exclusive entry, its two literal snapshots/helper and all 14 JSON cases pass actual pinned upstream code under Bun/package-export adapters. Plain-JSON cache/fresh-object controls independently confirm that upstream keeps the first validator after mutation but rejects a fresh minimum-ten object. Bounded NaN/infinity controls also reject upstream. This selected run does not execute Vitest. Old production and four mutations are rejected: skipped bounds, rounded int64 ties, rounded larger integer ties and premature conversion gating. All extracted sources, adapters, overlays and disposable logs were removed after analysis.
+
+Focused Go 1.27.3/GOMAXPROCS=4 checks use the preceding enum-checkpoint filter. Ten normal repetitions per CGO mode, shuffle 42/7, pass: root/tests 0.006/0.415 seconds and 0.006/0.421 seconds. Five race repetitions, shuffle 42, pass in 1.028/1.624 seconds. Vet/staticcheck v0.8.2 for `.` and `./tests` pass both CGO modes; module verification and diff checks pass. No full-suite/full-race run or profiling.
+
+Cache identity remains open: Go accepts JSON bytes rather than a mutable schema object, and reparses on every call. A same-buffer mutation witness plus an independent new-buffer control is a candidate native adaptation. It needs ownership, concurrent-call and cache-lifetime/GC tests before introducing shared cache state. The bounds controls now distinguish genuine cache behaviour from ignored constraints.
+
 ## Open fidelity work
 
-Reference resource IDs/anchors, broader recursive-schema/value domains, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Numeric bounds, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
+Reference resource IDs/anchors, broader recursive-schema/value domains, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Remaining numeric keywords such as `multipleOf`, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
 
 The new durable argument-type test requires a native typed-tool API mapping. The schema dependency has its own 210-path review queue; inspecting its source is not a passing dependency test suite. Review sources and translate assertions before changing more production behaviour.
 

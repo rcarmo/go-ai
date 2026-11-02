@@ -297,6 +297,11 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		return generic
 	}
 	types := schemaTypes(schema["type"])
+	if len(types) == 0 || anyMatchesJSONSchemaType(value, types) {
+		if reason := schemaNumericBoundsReason(value, schema); reason != "" {
+			return &toolSchemaIssue{path, reason}
+		}
+	}
 	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) && !schemaConstraintsMatch(value, "string", schema) {
 		return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
 	}

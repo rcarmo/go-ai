@@ -457,6 +457,9 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 			return false
 		}
 	}
+	if schemaNumericBoundsReason(value, schema) != "" {
+		return false
+	}
 	switch value := value.(type) {
 	case map[string]interface{}:
 		if required, ok := schema["required"].([]interface{}); ok {
