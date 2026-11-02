@@ -7,9 +7,20 @@ import (
 )
 
 // Eight of the twelve literal formats cases at validation-probes.test.ts
-// 128-152/495-506. Keep the complete original schema; date-time, hostname and
-// regex assertions remain unported, not silently credited by these witnesses.
+// 128-152/495-506. Keep the complete original schema; temporal assertions are
+// separate, and hostname/regex remain unported, not credited here.
 func TestUpstreamMainValidationSelectedFormats(t *testing.T) {
+	mainRunFormatFixture(t, "validation-formats.json", 8, 31)
+}
+
+// Two remaining matrix date-time cases plus the two lowercase/space cases at
+// source 392-394/587-588. Other rows are explicitly source-derived controls.
+func TestUpstreamMainValidationTemporalFormats(t *testing.T) {
+	mainRunFormatFixture(t, "validation-temporal.json", 4, 52)
+}
+
+func mainRunFormatFixture(t *testing.T, filename string, wantLiteral, wantDerived int) {
+	t.Helper()
 	type formatCase struct {
 		Name   string
 		Schema json.RawMessage
@@ -22,14 +33,14 @@ func TestUpstreamMainValidationSelectedFormats(t *testing.T) {
 		Literal  []formatCase
 		Derived  []formatCase
 	}
-	data, err := os.ReadFile("testdata/upstream-main/validation-formats.json")
+	data, err := os.ReadFile("testdata/upstream-main/" + filename)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Upstream != "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8" || len(fixture.Literal) != 8 || len(fixture.Derived) != 31 {
+	if fixture.Upstream != "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8" || len(fixture.Literal) != wantLiteral || len(fixture.Derived) != wantDerived {
 		t.Fatal("unexpected oracle pin or case count")
 	}
 	for _, group := range []struct {

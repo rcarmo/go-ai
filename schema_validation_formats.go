@@ -9,8 +9,22 @@ func schemaStringFormatReason(value interface{}, schema map[string]interface{}) 
 		return ""
 	}
 	name, _ := schema["format"].(string)
-	pattern := schemaFormatPatterns[name]
-	if pattern == nil || pattern.MatchString(schemaFormatASCIIToLower(text)) {
+	var valid bool
+	switch name {
+	case "date":
+		valid = schemaFormatDate(text)
+	case "time":
+		valid = schemaFormatTime(text)
+	case "date-time":
+		valid = schemaFormatDateTime(text)
+	default:
+		pattern := schemaFormatPatterns[name]
+		if pattern == nil {
+			return ""
+		}
+		valid = pattern.MatchString(schemaFormatASCIIToLower(text))
+	}
+	if valid {
 		return ""
 	}
 	return "expected format " + name

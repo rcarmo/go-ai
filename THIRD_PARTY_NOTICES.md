@@ -5,6 +5,8 @@
 `schema_formats_generated.go` adapts the email, URI, UUID and IPv4 regular
 expressions from TypeBox, carried by the pinned upstream pi-schema source.
 `scripts/generate-schema-formats.ts` records the source paths and revision.
+`schema_validation_temporal.go` adapts the date, time and date-time algorithms
+from the same pinned source (`formats/typebox/{date,time,date_time}.ts`).
 
 The MIT License (MIT)
 
