@@ -140,6 +140,15 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 		h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "setTimer"})
 	}
 	s.clockReport = func(err error) { h.report(context.Background(), err, ReportInfo{Type: "host_error", Callback: "now"}) }
+	// Source reads the current host's global durability policy at each use.
+	// This getter does not enable deferred commits for scheduler Sessions.
+	s.persistWithinMs = func() float64 {
+		settings := h.hostSettings.Load()
+		if settings != nil && settings.Progress != nil && settings.Progress.PersistWithinMs != nil {
+			return *settings.Progress.PersistWithinMs
+		}
+		return 1000
+	}
 	s.documentRetentionMs = func() int64 {
 		settings := h.resolvedSettings(RequestSettings{})
 		if settings.DocumentRetentionMs == nil {

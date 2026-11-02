@@ -241,6 +241,12 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 	}
 	var n RequestSettings
 	e = decodeStrict(p, l, l.MaxRecordBytes, &n)
+	// JSON transports nonfinite progress windows as null, as Source does.
+	// A native ownership copy must still retain its process-local number.
+	if e == nil && s.Progress != nil && s.Progress.PersistWithinMs != nil {
+		within := *s.Progress.PersistWithinMs
+		n.Progress.PersistWithinMs = &within
+	}
 	if e == nil && ((n.DocumentRetentionMs != nil && *n.DocumentRetentionMs < 0) || (n.ContextRetentionMs != nil && *n.ContextRetentionMs < 0) || (n.MaxTokens != nil && *n.MaxTokens < 1) || (n.Temperature != nil && *n.Temperature < 0)) {
 		return n, reject("invalid request settings")
 	}

@@ -1,6 +1,7 @@
 package durable
 
 import (
+	"math"
 	"reflect"
 
 	goai "github.com/rcarmo/go-ai"
@@ -16,7 +17,7 @@ func isNativeJSONType(t reflect.Type) bool {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
+	return t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
 }
 func nativeStreamingFields(v reflect.Value) bool {
 	if nativeArgumentDTO(v.Type()) {
@@ -32,6 +33,15 @@ func nativeStreamingFields(v reflect.Value) bool {
 }
 func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, error) {
 	value := v.Field(field.index)
+	// Only this library-owned policy field follows JSON.stringify's nonfinite
+	// number -> null rule. No caller marshaler is invoked and all other JSON
+	// numbers retain the finite-only validation contract.
+	if v.Type() == reflect.TypeFor[ProgressSettings]() && field.name == "persistWithinMs" && !value.IsNil() {
+		number := value.Elem().Float()
+		if math.IsNaN(number) || math.IsInf(number, 0) {
+			return reflect.ValueOf((*float64)(nil)), nil
+		}
+	}
 	if v.Type() == nativeContentBlockType {
 		block := v.Interface().(goai.ContentBlock)
 		if (block.HasToolArgumentDiagnostic() || block.HasToolArgumentTranscript()) && block.Type != "text" {
@@ -64,6 +74,9 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	if v.Type() == reflect.TypeFor[ProgressSettings]() && name == "persistWithinMs" {
+		return !v.FieldByName("PersistWithinMs").IsNil()
+	}
 	if usageZeroIsPresent(v, name) {
 		return true
 	}

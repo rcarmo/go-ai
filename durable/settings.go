@@ -1,6 +1,10 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"math"
+)
 
 // HarnessSettings supplies process-local settings over the pinned runtime
 // defaults. Pointer-valued policy fields preserve explicit zero/false overrides.
@@ -20,11 +24,31 @@ type CompactionSettings struct {
 	MaxTokens        *int                          `json:"maxTokens,omitempty"`
 }
 
-// ProgressSettings preserves explicit zero intervals. Omitted fields inherit
-// the reference 100ms defaults, independently for partials and tool output.
+// ProgressSettings preserves explicit zero intervals. Publication throttles
+// default to 100ms. PersistWithinMs is the process-wide document durability
+// window (default 1000ms); +Inf waits for a dependency or healthy Close.
+// Persistence is read from HarnessSettings.Progress, not request overrides.
 type ProgressSettings struct {
-	PartialIntervalMs *int64 `json:"partialIntervalMs,omitempty"`
-	OutputIntervalMs  *int64 `json:"outputIntervalMs,omitempty"`
+	PartialIntervalMs *int64   `json:"partialIntervalMs,omitempty"`
+	OutputIntervalMs  *int64   `json:"outputIntervalMs,omitempty"`
+	PersistWithinMs   *float64 `json:"persistWithinMs,omitempty"`
+}
+
+// Match Source JSON.stringify for nonfinite process-local settings. Typed
+// settings copies preserve the original number; JSON wire values become null.
+func (p ProgressSettings) MarshalJSON() ([]byte, error) {
+	var window any
+	if p.PersistWithinMs != nil {
+		window = *p.PersistWithinMs
+		if math.IsInf(*p.PersistWithinMs, 0) || math.IsNaN(*p.PersistWithinMs) {
+			window = (*float64)(nil)
+		}
+	}
+	return json.Marshal(struct {
+		Partial *int64 `json:"partialIntervalMs,omitempty"`
+		Output  *int64 `json:"outputIntervalMs,omitempty"`
+		Persist any    `json:"persistWithinMs,omitempty"`
+	}{p.PartialIntervalMs, p.OutputIntervalMs, window})
 }
 
 type HarnessSettings struct {
@@ -174,6 +198,11 @@ func (h *Harness) resolvedSettings(stored RequestSettings) RequestSettings {
 	settings.Progress = mergeProgress(settings.Progress, stored.Progress)
 	partial, output := int64(100), int64(100)
 	settings.Progress = mergeProgress(&ProgressSettings{PartialIntervalMs: &partial, OutputIntervalMs: &output}, settings.Progress)
+	within := float64(1000)
+	if host != nil && host.Progress != nil && host.Progress.PersistWithinMs != nil && *host.Progress.PersistWithinMs >= 0 {
+		within = *host.Progress.PersistWithinMs
+	}
+	settings.Progress.PersistWithinMs = &within
 	if stored.ToolExecution != "" {
 		settings.ToolExecution = stored.ToolExecution
 	}
@@ -302,6 +331,10 @@ func mergeProgress(base, override *ProgressSettings) *ProgressSettings {
 		if value.OutputIntervalMs != nil {
 			n := *value.OutputIntervalMs
 			result.OutputIntervalMs = &n
+		}
+		if value.PersistWithinMs != nil {
+			n := *value.PersistWithinMs
+			result.PersistWithinMs = &n
 		}
 	}
 	return result
