@@ -12,6 +12,7 @@ type preparedSessionPublication struct {
 	frames        []preparedWatchFrame
 	subs          []preparedSubscription
 	stored        CommitPublication // actual durable writes, including selected holds
+	observed      CommitPublication // this transaction's OWN changes, never folded holds
 	storageWrites []Write
 	storedHeld    []ID
 }
@@ -29,7 +30,7 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
-	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, stored: publication}
+	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, stored: publication, observed: publication}
 	if tx.memoryOnly {
 		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
 	} else if len(s.heldDocuments) == 0 {
@@ -152,6 +153,12 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	// Background expiry is optional even if the host declines its timer.
 	s.sweepDocumentCache()
 	s.scheduleDocumentExpiry()
+	// Source runs copied own listeners before the queued host callbacks. Do
+	// not latch an own error until hosts see the already-adopted publication.
+	listenerFailure := s.publishLocalCommit(p.ctx, "stored", p.observed)
 	s.publishStoredCommit(p.ctx, p.stored)
+	if listenerFailure != nil {
+		_ = s.backendResult(p.ctx, listenerFailure, true)
+	}
 	return telemetryEvents, nil
 }

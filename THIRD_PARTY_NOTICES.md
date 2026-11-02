@@ -79,6 +79,10 @@ Copyright (c) 2025 Mario Zechner
 rules from `packages/durable/src/session/session.ts` at `c9f4c7b9`. Publication
 integration and the observer/deferred tests follow that file and
 `session-observers.test.ts` / `session-deferred-commits.test.ts` at the same pin.
+`durable/session_local_observers.go` and its publication integration adapt
+`followCommits`, memory/own-change publication and listener-failure rules from
+`session/session.ts` and `session/writer.ts` at `3e0eec29`; its local-observer
+oracle follows `session-deferred-commits.test.ts:564-596` at that pin.
 The MIT permission and disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner

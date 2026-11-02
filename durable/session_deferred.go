@@ -185,6 +185,11 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 	}
 	s.enqueueWatchFrames(p.frames)
 	s.enqueueSubscriptions(p.subs)
+	if listenerFailure := s.publishLocalCommit(p.ctx, "memory", p.observed); listenerFailure != nil {
+		// Memory adoption stands; writer listener failures resolve this call
+		// before closing/dropping the failed Session's unpersisted holds.
+		_ = s.backendResult(p.ctx, listenerFailure, true)
+	}
 	return nil
 }
 

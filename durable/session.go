@@ -48,6 +48,7 @@ type Session struct {
 	watches               map[*DocumentWatch]bool
 	subscriptions         map[*CommitSubscription]bool
 	syncCommitObservers   []*sessionCommitObservation // observerMu; insertion order
+	localCommitListeners  []*sessionCommitListener    // observerMu; copied Set order
 	taskScheduler         *taskScheduler              // private line-owned Harness integration
 }
 
@@ -475,6 +476,7 @@ func (s *Session) Close(ctx context.Context) error {
 				s.closeErr = s.flushHeldOnClose()
 			}
 			s.endStoredCommitObservers()
+			s.clearLocalCommitListeners()
 			if s.persistenceTimer != nil {
 				s.persistenceTimer.Stop()
 				s.persistenceTimer = nil

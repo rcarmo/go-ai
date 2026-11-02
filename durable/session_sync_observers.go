@@ -49,7 +49,7 @@ func (s *Session) observeStoredCommits(observer sessionCommitObserver) (*session
 }
 
 func (s *Session) observerProcessCountLocked() int {
-	return len(s.watches) + len(s.subscriptions) + len(s.syncCommitObservers)
+	return len(s.watches) + len(s.subscriptions) + len(s.syncCommitObservers) + len(s.localCommitListeners)
 }
 
 // Release before end, and retain no callback/report/source from a spent handle.
