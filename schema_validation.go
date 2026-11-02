@@ -302,8 +302,13 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			return &toolSchemaIssue{path, reason}
 		}
 	}
-	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) && !schemaConstraintsMatch(value, "string", schema) {
-		return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
+	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) {
+		if !schemaConstraintsMatch(value, "string", schema) {
+			return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
+		}
+		if reason := schemaStringFormatReason(value, schema); reason != "" {
+			return &toolSchemaIssue{path, reason}
+		}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schemaList(schema[keyword]); ok {

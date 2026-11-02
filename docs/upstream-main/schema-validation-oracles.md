@@ -103,11 +103,47 @@ The original numeric-exclusive entry, its two literal snapshots/helper and all 1
 
 Focused Go 1.27.3/GOMAXPROCS=4 checks use the preceding enum-checkpoint filter. Ten normal repetitions per CGO mode, shuffle 42/7, pass: root/tests 0.006/0.415 seconds and 0.006/0.421 seconds. Five race repetitions, shuffle 42, pass in 1.028/1.624 seconds. Vet/staticcheck v0.8.2 for `.` and `./tests` pass both CGO modes; module verification and diff checks pass. No full-suite/full-race run or profiling.
 
-Cache identity remains open: Go accepts JSON bytes rather than a mutable schema object, and reparses on every call. A same-buffer mutation witness plus an independent new-buffer control is a candidate native adaptation. It needs ownership, concurrent-call and cache-lifetime/GC tests before introducing shared cache state. The bounds controls now distinguish genuine cache behaviour from ignored constraints.
+Cache identity remains open; the investigation below rules out a byte-buffer cache as a faithful representation of the full mutable-object contract. The bounds controls distinguish genuine cache behaviour from ignored constraints.
+
+## Cache identity: checks and live schema objects
+
+The exact upstream cache body/helper at 727–732 passes actual pinned validation/compiler sources with TypeBox 1.3.27 under Bun. Package-export and assertion adapters replace the runner only, not schema builders or validation. Eleven plain-JSON mutation/fresh-object sequences additionally establish:
+
+| Mutation after an initial successful parse | Cached result | Fresh-object result |
+| --- | --- | --- |
+| Number minimum zero to ten | `n: 4` | Reject: `n: expected >= 10` |
+| Add boolean property, input `flag: "true"` | `flag: true` | `flag: true` |
+| Change number property type to string | Reject: `root: invalid` | `n: "4"` |
+| In-place union child change described below | `n: 1` | `n: "1"` |
+| Replace the same union child | `n: true` | `n: "1"` |
+
+The union starts with `n: {anyOf: [{type: "number", minimum: 0}, {type: "boolean"}]}` and parses `n: "4"` once. Then either mutate the first child's type to string, or replace that child with `{type: "string", minimum: 0}`. Parse numeric `n: 1`. Independently deep-compared final JSON schema values are identical, but cached results differ as shown. The `minimum` matters: a bare-type check bypasses the compiler's node cache and does not expose this distinction.
+
+Upstream `validator.ts` keeps a compiled check, but builds a separate coercer/compiler whose node checks are cached by object identity. Conversion still reads live schema members. Freezing a complete decoded schema would incorrectly miss new-property conversion. Keying by JSON bytes, content or backing buffer cannot distinguish in-place nested mutation from replacement when their JSON values are identical.
+
+Native `Tool.Parameters` is `json.RawMessage`; its public data model loses this identity history. No approximate cache or API break was added, and the mutation assertion is not credited as ported. An additive object-backed schema boundary is the contract-preserving direction to investigate, retaining byte-schema compatibility and coherent validation/provider-wire authority. Its design must cover per-node identity, ownership, concurrent use, cache lifetime/GC and copied tools. This remains an explicit API decision, not an accepted divergence. Raw probe scripts are disposable; only these conclusions are retained.
+
+## Selected format assertions at c9f4c7b9
+
+`tests/upstream_validation_formats_main_test.go` reads `tests/testdata/upstream-main/validation-formats.json`. Eight literal inputs/snapshots from source 128–152/495–506 use the complete original schema: email, URI, UUID, IPv4 and the made-up-format control. The fixture's schema and literal inputs/expectations independently match actual TypeBox 1.3.27/source snapshots. All eight plus 31 separately labelled source-derived controls pass pinned upstream validation/compiler code under Bun runner/package-export adapters, not Vitest. The four remaining literal format cases—date-time (two), hostname and regex—are not credited.
+
+Unchanged `5b2c091` fails 19 of these 39 native assertions: four literal invalid strings are accepted, 13 derived invalid strings are accepted, oneOf wrongly rejects a valid email and anyOf leaves a numeric string unconverted. Non-coercing format membership plus `expected format <name>` diagnostics fixes them through public validation, including local references. Unknown names remain annotations and formats apply only to strings. Known upstream formats outside this selected implementation remain gaps, not unknown-format exemptions.
+
+The checked-in generator copies the four reviewed regex definitions from the exact pin; it does not substitute stricter mail/URL/IP libraries. Source-permissive bracketed IPv6 email and URI authority/reg-name cases stay accepted. ASCII-only comparison folding preserves JS non-Unicode `/i`: Kelvin sign and long s must not fold into ASCII. Successful values retain their original casing. Pattern constants compile once; Go's bounded regex engine does not perform network lookups. The original MIT notice is retained in `THIRD_PARTY_NOTICES.md`; no Go module dependency changes.
+
+Portable regeneration uses the Makefile's existing project-owned cache/temp resolution:
+
+```sh
+GOTOOLCHAIN=go1.27.3 make generate-schema-formats UPSTREAM_REPO=/path/to/upstream-git-repository
+```
+
+Four parsed pattern values match pinned source definitions and remain stable on regeneration; a changed UUID definition is rejected by the semantic-data comparator. This is not an output-file hash gate. Old-production and skipped-format overlays each fail 19 assertions; Unicode-fold, missing-ASCII-fold and wrong-diagnostic mutations fail 3, 4 and 17 respectively. The initial overlay omitted logical PWD and was detected as inactive; corrected overlays cover logical and canonical paths.
+
+Final focused filter is the recursive-checkpoint filter above. Go 1.27.3/GOMAXPROCS=4, ten normal repetitions per CGO mode, shuffle 42/7: root/tests 0.008/0.442 seconds and 0.015/0.446 seconds. Five race repetitions, shuffle 42: 1.038/1.644 seconds. Vet and staticcheck v0.8.2 for `.` and `./tests` pass both modes; module verification and diff checks pass. An initial invocation inherited Go 1.27.1; baseline and quoted verification were rerun with explicit 1.27.3. Raw source/adapters/overlays/logs and isolated dependency cache were disposed after analysis. No full-suite/full-race run or profiling.
 
 ## Open fidelity work
 
-Reference resource IDs/anchors, broader recursive-schema/value domains, formats, schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Remaining numeric keywords such as `multipleOf`, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
+Reference resource IDs/anchors, broader recursive-schema/value domains, remaining formats (including hostname/date-time/regex/url), schema-object cache/mutation identity, non-JSON types and the remaining probe matrix need source oracles. Full structured-clone equivalence, including returned aliases on unvisited paths and unsupported Go value types, is also open. Remaining numeric keywords such as `multipleOf`, const/non-string enum validation, boolean subschemas outside covered object/reference cases, complete pattern/additional-property semantics and exact multi-error diagnostics still need coverage and implementation. ECMAScript-only regexes retain the earlier conservative handling. These focused slices do not establish full JSON Schema parity.
 
 The new durable argument-type test requires a native typed-tool API mapping. The schema dependency has its own 210-path review queue; inspecting its source is not a passing dependency test suite. Review sources and translate assertions before changing more production behaviour.
 

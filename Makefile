@@ -245,6 +245,11 @@ build: ## Build the library (verify compilation)
 generate: ## Regenerate models_generated.go from pi-ai (with legacy fallback support)
 	$(GO) run ./cmd/generate-models
 
+.PHONY: generate-schema-formats
+generate-schema-formats: | project-tmp-init ## Regenerate selected format patterns; set UPSTREAM_REPO to a Git checkout
+	@test -n "$(UPSTREAM_REPO)" || { echo 'UPSTREAM_REPO is required' >&2; exit 2; }
+	GO="$(GO)" bun scripts/generate-schema-formats.ts "$(UPSTREAM_REPO)"
+
 check-model-regeneration: ## Verify models_generated.go matches exact normalized regeneration
 	GO=$(GO) GO_TMPDIR=$(GO_TMPDIR) TMPDIR=$(GO_TMPDIR) ./scripts/check-model-regeneration.sh
 
