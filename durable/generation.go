@@ -815,7 +815,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 		for _, id := range cp.Steered {
 			inputs = append(inputs, id)
 		}
-		return live.Update(func(value JSON) error { value["run"] = JSON{"task": task.ID, "inputs": inputs}; return nil })
+		return live.Update(func(value JSON) error { return startLiveRun(tx, value, *task, *cp, inputs) })
 	})
 	if e == nil {
 		h.mu.Lock()

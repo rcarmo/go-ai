@@ -163,6 +163,13 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 					if requests.Load() != 1 || polls.Load() != 1 || cancels.Load() != 1 {
 						t.Errorf("disabled interrupted poll must cancel once without fetching again: requests=%d polls=%d cancels=%d", requests.Load(), polls.Load(), cancels.Load())
 					}
+					if mode == "disabled" {
+						state, err := f.h.Snapshot(bg)
+						if err != nil {
+							t.Fatal(err)
+						}
+						mainRequireRunFailure(t, state, f.c.ID(), task.ID, sub.ID(), status.Entry, "interrupted", text, true)
+					}
 				}
 			})
 		})

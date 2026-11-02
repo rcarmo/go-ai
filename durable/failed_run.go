@@ -72,11 +72,40 @@ func (h *Harness) pinFailedRunPolicy(tx *Tx, conversation ID, cp *generationChec
 		return
 	}
 	cp.AfterFailedRun = h.AfterFailedRun()
+	if cp.AfterFailedRun == "continue" {
+		cp.FailureCut = nextRunSubmission(tx, conversation, *cp)
+		return
+	}
 	for id, sub := range tx.state.Submissions {
 		if sub.Conversation == conversation && id > cp.FailureCut {
 			cp.FailureCut = id
 		}
 	}
+}
+
+// The scheduler orders queued generations by task ID. Pin only the immediate
+// successor, excluding inputs attached to the ending run. For continue/reset,
+// FailureCut is an exact successor token; withdraw keeps its inclusive boundary.
+func nextRunSubmission(tx *Tx, conversation ID, cp generationCheckpoint) ID {
+	for _, id := range ids(tx.state.Tasks) {
+		task := tx.state.Tasks[id]
+		if task.Kind != "pi.generation" || task.Conversation != conversation || terminalStatus(task.Status) || taskAborted(task) || taskHasDecidedOutcome(task) {
+			continue
+		}
+		var queued generationCheckpoint
+		if fromObject(task.Checkpoint, &queued, tx.limits) != nil || queued.Phase != "queued" || queued.Submission == cp.Submission {
+			continue
+		}
+		attached := false
+		for _, input := range cp.Steered {
+			attached = attached || input == queued.Submission
+		}
+		sub, ok := tx.state.Submissions[queued.Submission]
+		if !attached && ok && !terminalStatus(sub.Status) && submissionEntryID(sub.Value["placedEntry"]) == 0 {
+			return queued.Submission
+		}
+	}
+	return 0
 }
 
 func (h *Harness) withdrawFailedInput(tx *Tx, failed Task, cp generationCheckpoint) (bool, error) {

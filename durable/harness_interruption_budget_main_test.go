@@ -52,18 +52,49 @@ func TestMainInterruptedBudgetAndCloseAccounting(t *testing.T) {
 					stream := mainRecoveryRetryStream(t, f, streams)
 					text := strings.Repeat("z", 64*(round+1))
 					f.partial(stream, text)
-					now := clock.Add(100)
-					var jobs []func()
-					f.timerMu.Lock()
-					for _, timer := range f.timers {
-						if !timer.cancelled && timer.due <= now {
-							timer.cancelled = true
-							jobs = append(jobs, timer.fire)
+					// partial waits for memory visibility, which can precede the
+					// off-line host timer arm. Join that actual boundary before
+					// sampling captured deadlines; foreground admission then drains
+					// the fired persistence job, including an inline zero-delay fire.
+					ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+					defer cancel()
+					for {
+						if err := f.h.session.enter(ctx); err != nil {
+							t.Fatal("fixture persistence barrier", err)
 						}
-					}
-					f.timerMu.Unlock()
-					for _, fire := range jobs {
-						fire()
+						pending := f.h.session.persistenceTimer
+						f.h.session.leave()
+						if pending == nil {
+							break
+						}
+						pending.mu.Lock()
+						armed := pending.armComplete
+						pending.mu.Unlock()
+						if !armed {
+							continue
+						}
+						var jobs []func()
+						f.timerMu.Lock()
+						var next *mainRecoveryTimer
+						for _, timer := range f.timers {
+							if !timer.cancelled && (next == nil || timer.due < next.due) {
+								next = timer
+							}
+						}
+						if next != nil {
+							now := max(clock.Load(), next.due)
+							clock.Store(now)
+							for _, timer := range f.timers {
+								if !timer.cancelled && timer.due <= now {
+									timer.cancelled = true
+									jobs = append(jobs, timer.fire)
+								}
+							}
+						}
+						f.timerMu.Unlock()
+						for _, fire := range jobs {
+							fire()
+						}
 					}
 					if _, err := f.h.Snapshot(bg); err != nil {
 						t.Fatal(err)
@@ -173,6 +204,9 @@ func TestMainInterruptedBudgetAndCloseAccounting(t *testing.T) {
 				state, err := f.h.Snapshot(bg)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if mode == "exhaust" {
+					mainRequireRunFailure(t, state, f.c.ID(), taskID, sub.ID(), status.Entry, "interrupted", "The host stopped while the model was answering, on attempt 2", true)
 				}
 				var roles, aborted []string
 				for _, id := range ids(state.Entries) {

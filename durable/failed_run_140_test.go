@@ -74,9 +74,14 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 					t.Fatal(err)
 				}
 				close(release)
-				waitSubmission(t, first)
+				failed := waitSubmission(t, first)
 				idleFailed140(t, h)
 				statusFailed140(t, first, "unanswered", "model_error")
+				state, err := h.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				mainRequireRunFailure(t, state, c.ID(), failed.Task.ID, first.ID(), failed.Record.Entry, "model_error", "Model response ended with stop reason error", policy == "" || policy == "keep")
 				switch policy {
 				case "continue":
 					statusFailed140(t, queued, "done", "")
@@ -110,6 +115,23 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 					idleFailed140(t, h)
 					statusFailed140(t, queued, "done", "")
 					statusFailed140(t, write, "done", "")
+				}
+				if policy == "continue" || policy == "withdraw" {
+					fresh, err := c.Submit(bg, Input{Content: "fresh"})
+					if err != nil {
+						t.Fatal(err)
+					}
+					waitSubmission(t, fresh)
+					idleFailed140(t, h)
+				}
+				state, err = h.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, doc := range state.Documents {
+					if doc.Kind == "pi.live" && doc.Owner == c.ID() && doc.Value["runFailure"] != nil {
+						t.Error("fresh run retained previous failure", doc.Value)
+					}
 				}
 			})
 		})

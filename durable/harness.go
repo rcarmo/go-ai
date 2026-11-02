@@ -1017,29 +1017,13 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 	if pending, err := h.prepareFailedCleanup(tx, task, hold, &checkpoint); pending || err != nil {
 		return pending, err
 	}
-	for _, id := range checkpoint.Steered {
-		steer, exists := tx.state.Submissions[id]
-		if !exists {
-			return false, reject("steered submission missing")
-		}
-		if terminalStatus(steer.Status) {
-			continue
-		}
-		steer.Status = hold.FinalStatus
-		oldValue := steer.Value
-		steer.Value = JSON{"taskId": task.ID}
-		if checkpoint.Reset {
-			steer.Status, steer.Value["errorCode"] = "aborted", "reset"
-		}
-		retainSubmissionPlacement(oldValue, steer.Value, hold.Entry)
-		if value != nil {
-			steer.Value["message"] = value
-		}
-		if err := tx.PutSubmission(steer); err != nil {
-			return false, err
-		}
+	// Input placement and steering may have happened in this same transaction.
+	// Settle the actual candidate, not an earlier baseline that loses entry IDs.
+	state, err := tx.current()
+	if err != nil {
+		return false, err
 	}
-	sub, ok := tx.state.Submissions[hold.Submission]
+	sub, ok := state.Submissions[hold.Submission]
 	if !ok {
 		return false, reject("submission unavailable")
 	}
@@ -1072,6 +1056,9 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 			}
 		} else if hold.Action == "scheduler-generation" {
 			sub.Value = JSON{"errorCode": hold.Outcome.Status, "reason": hold.Outcome.Reason}
+			if abortHandlerCutoff(hold) {
+				sub.Value = JSON{"errorCode": "aborted", "detail": hold.Outcome.Error.Message}
+			}
 			if hold.Entry != 0 {
 				sub.Value["message"] = value
 			}
@@ -1090,9 +1077,35 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 				}
 			}
 		}
+		if sub.Value["errorCode"] == "model_error" && hold.Outcome.Error != nil {
+			sub.Value["detail"] = hold.Outcome.Error.Message
+		}
 		sub.Value["taskId"] = task.ID
 		retainSubmissionPlacement(oldValue, sub.Value, hold.Entry)
 		if err := tx.PutSubmission(sub); err != nil {
+			return false, err
+		}
+	}
+	for _, id := range checkpoint.Steered {
+		steer, exists := state.Submissions[id]
+		if !exists {
+			return false, reject("steered submission missing")
+		}
+		if terminalStatus(steer.Status) {
+			continue
+		}
+		// A run has one settlement for all its inputs. Keep each input's own
+		// placed entry while sharing the terminal answer/reason/detail.
+		oldValue := steer.Value
+		steer.Status = sub.Status
+		steer.Value, err = copyObject(sub.Value, tx.limits)
+		if err != nil {
+			return false, err
+		}
+		delete(steer.Value, "placedEntry")
+		delete(steer.Value, "answerEntry")
+		retainSubmissionPlacement(oldValue, steer.Value, hold.Entry)
+		if err := tx.PutSubmission(steer); err != nil {
 			return false, err
 		}
 	}
@@ -1107,6 +1120,11 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 	run, _ := current["run"].(map[string]any)
 	if run == nil || fmt.Sprint(run["task"]) == strconv.FormatUint(uint64(task.ID), 10) {
 		if err = live.Update(func(value JSON) error {
+			if run != nil {
+				if err := recordRunFailure(value, run, *task, sub, hold); err != nil {
+					return err
+				}
+			}
 			delete(value, "run")
 			delete(value, "generation")
 			delete(value, "tools")
@@ -1190,7 +1208,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 		if hold.Outcome.Status == "orphaned" {
 			value["errorCode"] = hold.Outcome.Reason
 		}
-		if cp.Partial != nil {
+		if cp.Partial != nil && !abortHandlerCutoff(hold) {
 			receipt := *cp.Partial
 			receipt.StopReason = goai.StopReasonAborted
 			encoded, err := dtoObject(receipt, tx.limits)

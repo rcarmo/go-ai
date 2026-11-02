@@ -77,6 +77,12 @@ func TestGenerationToolHandoffCommittedReopenNoToolReplayAndTerminalSubmissionTa
 		if first == 0 || successor == 0 || state.Tasks[first].Status != "done" || state.Tasks[successor].Owner != 0 || terminalStatus(state.Submissions[sub.ID()].Status) {
 			t.Fatal("handoff not committed atomically", first, successor, state)
 		}
+		firstEntry := publicSubmission(state.Submissions[sub.ID()]).Entry
+		for _, doc := range state.Documents {
+			if doc.Kind == "pi.live" && doc.Owner == conversation.ID() && (firstEntry == 0 || submissionEntryID(generationObject(doc.Value["run"])["first"]) != firstEntry) {
+				t.Error("handoff lost its actual first input entry", doc.Value, firstEntry)
+			}
+		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
 		}

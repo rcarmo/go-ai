@@ -61,11 +61,18 @@ func (h *Harness) handoffToolGeneration(tx *Tx, current Task, cp generationCheck
 		return Task{}, generationCheckpoint{}, err
 	}
 	if err := live.Update(func(value JSON) error {
+		if submissionEntryID(generationObject(value["run"])["task"]) != current.ID {
+			return reject("generation run ownership changed")
+		}
 		inputs := []any{cp.Submission}
 		for _, steer := range cp.Steered {
 			inputs = append(inputs, steer)
 		}
-		value["run"] = JSON{"task": id, "inputs": inputs}
+		run := JSON{"task": id, "inputs": inputs}
+		if first, exists := generationObject(value["run"])["first"]; exists {
+			run["first"] = first
+		}
+		value["run"] = run
 		delete(value, "tools")
 		return nil
 	}); err != nil {

@@ -47,9 +47,30 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 				return err
 			}
 		}
+		// End this run before the failed-run boundary selects queued users.
+		// They belong to the successor, not to this no-model settlement.
 		h.pinFailedRunPolicy(tx, current.Conversation, &cp)
-		if cp.Phase == "queued" && cp.AfterFailedRun == "continue" {
-			if err := h.applyQueuedInputs(tx, current, &cp, true); err != nil {
+		// A missing model can fail before request preparation establishes live.run.
+		// Use its already placed input and attached inputs, never a synthetic ID.
+		if cp.InputEntry != 0 {
+			live, err := builtin(tx, task.Conversation, "pi.live")
+			if err != nil {
+				return err
+			}
+			if err := live.Update(func(value JSON) error {
+				run := generationObject(value["run"])
+				if len(run) != 0 {
+					if submissionEntryID(run["task"]) != task.ID {
+						return reject("generation run ownership changed")
+					}
+					return nil
+				}
+				inputs := []any{cp.Submission}
+				for _, input := range cp.Steered {
+					inputs = append(inputs, input)
+				}
+				return startLiveRun(tx, value, task, cp, inputs)
+			}); err != nil {
 				return err
 			}
 		}

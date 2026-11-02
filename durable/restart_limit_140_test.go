@@ -334,7 +334,8 @@ func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		if settled := snapshot.Submissions[submission.ID()]; settled.Status != "failed" || settled.Value["errorCode"] != "faulted" {
+		// Source1.5 separates the faulted task from the aborted run settlement.
+		if settled := publicSubmission(snapshot.Submissions[submission.ID()]); settled.Status != "unanswered" || settled.Reason != "aborted" || settled.Detail == nil || !settled.Detail.Present || settled.Detail.Value != result.State.Outcome.Error.Message {
 			t.Fatal("cutoff did not settle submission", snapshot.Submissions[submission.ID()])
 		}
 	})

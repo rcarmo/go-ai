@@ -116,6 +116,7 @@ func (h *Harness) resetToolsRun(tx *Tx, current Task, cp generationCheckpoint) e
 		return err
 	}
 	cp.Reset = true
+	cp.FailureCut = nextRunSubmission(tx, current.Conversation, cp)
 	// finishToolRound returns the committed assistant on a reset boundary;
 	// no synthetic assistant or aborted generation outcome is introduced.
 	entry, ok := tx.state.Entries[cp.AssistantEntry]
