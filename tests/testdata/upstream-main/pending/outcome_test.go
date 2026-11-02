@@ -4,7 +4,6 @@ package pending_test
 
 import (
 	"encoding/json"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,7 +11,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func regexOutcome(t *testing.T, schema, input json.RawMessage) string {
+func pendingFormatOutcome(t *testing.T, schema, input json.RawMessage) string {
 	t.Helper()
 	var args map[string]interface{}
 	if err := json.Unmarshal(input, &args); err != nil {
@@ -66,51 +65,4 @@ func assertPendingOutcome(t *testing.T, got, want string) {
 
 func TestPendingOutcomeJSONEscapes(t *testing.T) {
 	assertPendingOutcome(t, `ok {"v":"\u003c\u003e\u0026"}`, `ok {"v":"<>&"}`)
-}
-
-func TestRegexFormatOracle(t *testing.T) {
-	type row struct {
-		Name          string
-		Schema, Input json.RawMessage
-		Want          string
-		Valid         bool
-	}
-	var f struct {
-		Upstream                     string
-		Literal, Derived, Dependency []row
-	}
-	data, err := os.ReadFile("../validation-regex-pending.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(data, &f); err != nil {
-		t.Fatal(err)
-	}
-	if f.Upstream != "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8" || len(f.Literal) != 1 || len(f.Derived) != 32 || len(f.Dependency) != 18 {
-		t.Fatal("unexpected pin/count")
-	}
-	for _, group := range []struct {
-		name string
-		rows []row
-	}{{"literal", f.Literal}, {"source-derived", f.Derived}} {
-		t.Run(group.name, func(t *testing.T) {
-			for _, tc := range group.rows {
-				t.Run(tc.Name, func(t *testing.T) {
-					assertPendingOutcome(t, regexOutcome(t, tc.Schema, tc.Input), tc.Want)
-				})
-			}
-		})
-	}
-	// Exact original schema/input/validity retained; the wrapper adds no value
-	// type. Actual source check/errors AND this public wrapper were verified.
-	for _, tc := range f.Dependency {
-		t.Run("dependency/"+tc.Name, func(t *testing.T) {
-			schema := json.RawMessage(`{"type":"object","properties":{"v":` + string(tc.Schema) + `}}`)
-			input := json.RawMessage(`{"v":` + string(tc.Input) + `}`)
-			got := regexOutcome(t, schema, input)
-			if strings.HasPrefix(got, "ok ") != tc.Valid {
-				t.Fatalf("got %s, valid=%v", got, tc.Valid)
-			}
-		})
-	}
 }

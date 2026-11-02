@@ -32,7 +32,7 @@ func TestURLFormatOracle(t *testing.T) {
 	}{{"literal", f.Literal}, {"source-derived", f.Derived}} {
 		t.Run(group.name, func(t *testing.T) {
 			for _, tc := range group.rows {
-				t.Run(tc.Name, func(t *testing.T) { assertPendingOutcome(t, regexOutcome(t, tc.Schema, tc.Input), tc.Want) })
+				t.Run(tc.Name, func(t *testing.T) { assertPendingOutcome(t, pendingFormatOutcome(t, tc.Schema, tc.Input), tc.Want) })
 			}
 		})
 	}

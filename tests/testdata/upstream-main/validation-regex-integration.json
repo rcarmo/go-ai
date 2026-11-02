@@ -1,0 +1,184 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "literal": [],
+  "derived": [
+    {
+      "name": "numeric-fallback",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "regex"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "+1"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "oneOf-plain-only",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "regex"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "["
+      },
+      "want": "ok {\"v\":\"[\"}"
+    },
+    {
+      "name": "oneOf-overlap",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "regex"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "a"
+      },
+      "want": "REJECT - v: matches more than one alternative"
+    },
+    {
+      "name": "reference",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$ref": "#/$defs/R"
+          }
+        },
+        "required": [
+          "v"
+        ],
+        "$defs": {
+          "R": {
+            "type": "string",
+            "format": "regex"
+          }
+        }
+      },
+      "input": {
+        "v": "["
+      },
+      "want": "REJECT - v: expected format regex"
+    },
+    {
+      "name": "untyped-null-required",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "format": "regex"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":null}"
+    },
+    {
+      "name": "typed-null-required",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "string",
+            "format": "regex"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":\"null\"}"
+    },
+    {
+      "name": "constructor-data",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "string",
+            "format": "regex"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "x\");for(;;){}//"
+      },
+      "want": "REJECT - v: expected format regex"
+    },
+    {
+      "name": "nonstrings-annotation",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "format": "regex"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "x": 1
+        }
+      },
+      "want": "ok {\"v\":{\"x\":1}}"
+    }
+  ]
+}

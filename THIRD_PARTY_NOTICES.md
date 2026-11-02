@@ -8,7 +8,9 @@ expressions from TypeBox, carried by the pinned upstream pi-schema source.
 `schema_validation_temporal.go` adapts the date, time and date-time algorithms
 from the same pinned source (`formats/typebox/{date,time,date_time}.ts`).
 `schema_validation_hostname.go` adapts its hostname/IDNA and punycode rules
-(`formats/typebox/idna/`). Primitive conversion ordering in `context.go` and
+(`formats/typebox/idna/`). The Unicode-mode constructor rule in
+`schema_validation_formats.go` and `internal/quickjs/regexp.go` follows
+`formats/typebox/regex.ts`. Primitive conversion ordering in `context.go` and
 `schema_validation_primitives.go` follows `packages/schema/src/coerce.ts`, whose
 conversion pass derives from TypeBox's `Value.Convert`. Selected original
 assertions are retained in `tests/testdata/upstream-main/validation-strings.json`
@@ -39,17 +41,28 @@ THE SOFTWARE.
 ## JSON Schema Test Suite
 
 `tests/testdata/upstream-main/hostname.json`, the regex assertions in
-`tests/testdata/upstream-main/validation-regex-pending.json` and the selected
+`tests/testdata/upstream-main/validation-regex.json` and the selected
 reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json` come from
 the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
 Copyright (c) 2012 Julian Berman
 
-## pi-schema reference resolution
+## QuickJS syntax checks
+
+The regex format checker uses the same bundled QuickJS-WASI 3.6.2 asset and Go
+host as codemode. Asset provenance and full MIT notices are retained in
+`internal/quickjs/guest/PROVENANCE.md`, `guest/LICENSE.quickjs-wasi` and
+`internal/quickjs/LICENSE.gi` (guest paths relative to `internal/quickjs/`).
+The QuickJS-WASI notice is Copyright (c) 2026 Vercel, Inc.; the adapted Go host
+notice is Copyright (c) 2026 Rui Carmo. No guest asset was changed.
+
+## pi-schema validation and reference resolution
 
 `schema_validation_resources.go` adapts resource indexing, scope and URI fallback
-rules from `packages/schema/src/resolver.ts` at `c9f4c7b9`. The MIT permission and
+rules from `packages/schema/src/resolver.ts` at `c9f4c7b9`.
+`schema_validation.go` adapts the overlapping-oneOf diagnostic from
+`packages/schema/src/explain.ts` at the same pin. The MIT permission and
 disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner

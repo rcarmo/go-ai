@@ -463,7 +463,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 			return false
 		}
 	}
-	if schemaNumericBoundsReason(value, schema) != "" || schemaStringFormatReason(value, schema) != "" {
+	if schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" {
 		return false
 	}
 	switch value := value.(type) {

@@ -3,12 +3,13 @@ package goai_test
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
 // Eight of the twelve literal formats cases at validation-probes.test.ts
 // 128-152/495-506. Keep the complete original schema; temporal assertions are
-// separate, and hostname/regex remain unported, not credited here.
+// separate, and hostname/regex assertions are credited in their own tests.
 func TestUpstreamMainValidationSelectedFormats(t *testing.T) {
 	mainRunFormatFixture(t, "validation-formats.json", 8, 31)
 }
@@ -17,6 +18,10 @@ func TestUpstreamMainValidationSelectedFormats(t *testing.T) {
 // source 392-394/587-588. Other rows are explicitly source-derived controls.
 func TestUpstreamMainValidationTemporalFormats(t *testing.T) {
 	mainRunFormatFixture(t, "validation-temporal.json", 4, 52)
+}
+
+func TestUpstreamMainValidationRegexIntegration(t *testing.T) {
+	mainRunFormatFixture(t, "validation-regex-integration.json", 0, 8)
 }
 
 func mainRunFormatFixture(t *testing.T, filename string, wantLiteral, wantDerived int) {
@@ -57,7 +62,15 @@ func mainRunFormatFixture(t *testing.T, filename string, wantLiteral, wantDerive
 					}
 					// The shared outcome adapter calls public ValidateToolArguments
 					// and independently verifies that caller arguments stay intact.
-					if got := mainNumericOutcome(t, string(schema), string(tc.Input)); got != tc.Want {
+					got := mainNumericOutcome(t, string(schema), string(tc.Input))
+					if strings.HasPrefix(got, "ok ") && strings.HasPrefix(tc.Want, "ok ") {
+						// JSON HTML escapes differ between Go and JS; Tool values do not.
+						var value interface{}
+						if err := json.Unmarshal([]byte(got[3:]), &value); err != nil {
+							t.Fatal(err)
+						}
+						mainAssertValidationJSON(t, value, tc.Want[3:])
+					} else if got != tc.Want {
 						t.Fatalf("got %s, want %s", got, tc.Want)
 					}
 				})

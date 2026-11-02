@@ -49,13 +49,14 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 	return key, true
 }
 
-type toolSchemaWork struct{ convertCalls, indexNodes int } // Optional structural-work witness in white-box tests.
+type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks int } // Optional structural-work witness in white-box tests.
 
 type toolSchemaValidator struct {
 	root       map[string]interface{}
 	schemaRaw  []byte
 	resources  *toolSchemaResources
 	refs       map[toolSchemaRefKey]interface{}
+	regex      map[string]toolSchemaRegexResult
 	converted  map[toolSchemaMemoKey]interface{}
 	converting map[toolSchemaMemoKey]bool
 	checked    map[toolSchemaMemoKey]bool
@@ -267,12 +268,25 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		if !schemaConstraintsMatch(value, "string", schema) {
 			return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
 		}
-		if reason := schemaStringFormatReason(value, schema); reason != "" {
+		if reason := v.stringFormatReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}
 	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schemaList(schema[keyword]); ok {
+			if keyword == "oneOf" {
+				matches := 0
+				for _, branch := range branches {
+					if v.schemaAcceptsValue(value, branch) {
+						matches++
+					}
+				}
+				// explain.ts walkUnion reports overlap before inspecting
+				// failing branches, even when another alternative rejects.
+				if matches > 1 {
+					return &toolSchemaIssue{path, "matches more than one alternative"}
+				}
+			}
 			for _, branch := range branches {
 				if !v.schemaAcceptsValue(value, branch) {
 					return v.issue(value, branch, path, active)
