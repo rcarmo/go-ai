@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -9,6 +10,24 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+// Sleep is not native WaitForIdle: a submission can remain unanswered while
+// its host has yielded to a future wake. Sample the actual public wake instead.
+func mainInterruptionQuiescent(ctx context.Context, h *Harness) error {
+	for {
+		wake, err := h.Wake(ctx)
+		if err != nil {
+			return err
+		}
+		if !wake.Active {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		runtime.Gosched()
+	}
+}
 
 // Official f9a26365 harness-restart-failure.test.ts:180-202,242-273.
 // Real failed-Session/reopen replaces process killing; the scripted stream
@@ -99,7 +118,7 @@ func TestMainHarnessInterruptedRequestRetryPolicy(t *testing.T) {
 				}
 				ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 				defer cancel()
-				if err := f.h.WaitForIdle(ctx); err != nil {
+				if err := mainInterruptionQuiescent(ctx, f.h); err != nil {
 					t.Fatal("fixture did not settle its admitted work", err)
 				}
 				handle, err := f.h.Submission(bg, sub.ID())

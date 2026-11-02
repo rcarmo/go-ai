@@ -1053,6 +1053,18 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 			sub.Value = JSON{"errorCode": "no_model"}
 		} else if hold.Action == "generation-model-failure" {
 			sub.Value = JSON{"errorCode": "model_error"}
+			if hold.Outcome.Error != nil && hold.Outcome.Error.Detail != nil {
+				var reason any
+				switch detail := hold.Outcome.Error.Detail.Value.(type) {
+				case JSON:
+					reason = detail["reason"]
+				case map[string]any:
+					reason = detail["reason"]
+				}
+				if reason == "interrupted" {
+					sub.Value = JSON{"errorCode": "interrupted", "detail": hold.Outcome.Error.Message}
+				}
+			}
 		} else if hold.Action == "generation-abort" {
 			sub.Value = JSON{"errorCode": "aborted"}
 			if value != nil {

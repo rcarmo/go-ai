@@ -16,22 +16,28 @@ func (h *Harness) finishRecordedModelFailure(task Task, cp generationCheckpoint,
 		if err := fromObject(current.Checkpoint, &cp, tx.limits); err != nil {
 			return err
 		}
-		cp.Phase = "terminal"
-		cp.Partial = nil
-		value, err := dtoObject(cp, tx.limits)
-		if err != nil {
-			return err
-		}
-		current.Checkpoint, current.Status = value, "failed"
-		hold := &BuiltinTaskHold{Stage: "final", Action: "generation-model-failure", Outcome: TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message, Detail: &TaskValue{Present: true, Value: JSON{"reason": "model_error"}}}}, FinalStatus: "failed", Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
-		current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: hold}}
-		if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
-			hold.Stage, current.Status = "held", "completing"
-		}
-		if _, err := h.cleanupGeneration(tx, &current, hold, nil); err != nil {
-			return err
-		}
-		return tx.stage(Write{Op: "put-task", Task: &current})
+		return h.stageRecordedGenerationFailure(tx, current, cp, message, "model_error")
 	})
 	return err
+}
+
+// The legacy hold action denotes an already-recorded failure without another
+// assistant receipt; its outcome detail carries the specific failure reason.
+func (h *Harness) stageRecordedGenerationFailure(tx *Tx, current Task, cp generationCheckpoint, message, reason string) error {
+	cp.Phase = "terminal"
+	cp.Partial = nil
+	value, err := dtoObject(cp, tx.limits)
+	if err != nil {
+		return err
+	}
+	current.Checkpoint, current.Status = value, "failed"
+	hold := &BuiltinTaskHold{Stage: "final", Action: "generation-model-failure", Outcome: TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message, Detail: &TaskValue{Present: true, Value: JSON{"reason": reason}}}}, FinalStatus: "failed", Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
+	current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: hold}}
+	if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
+		hold.Stage, current.Status = "held", "completing"
+	}
+	if _, err := h.cleanupGeneration(tx, &current, hold, nil); err != nil {
+		return err
+	}
+	return tx.stage(Write{Op: "put-task", Task: &current})
 }

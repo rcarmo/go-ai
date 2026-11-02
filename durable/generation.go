@@ -41,6 +41,14 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		h.cancelDeferred(runtime.context, cp, runtime)
 		return h.drainAborted(task, cp)
 	}
+	// Charge only a request/fetch cut off while running, before any deadline
+	// guard (including a poll whose clock moved backwards). Sleeping retries,
+	// tool waits and clean shutdown resends are not interrupted attempts.
+	// Legacy pacing-only checkpoints have no dispatched model/attempt witness.
+	// Migrate those through their original deadline guard without charging.
+	if task.Restarts > 0 && cp.Model != nil && cp.Attempt > 0 && (cp.Phase == "intent" || cp.Phase == "poll") {
+		return h.chargeInterruptedGeneration(runtime, task, cp)
+	}
 	if cp.Phase == "tools" {
 		return h.runOwnedTools(runtime, &task, &cp)
 	}
@@ -80,6 +88,14 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		// A durable retry starts a new logical attempt from current committed
 		// agent/context/registry, unlike transport-level resends of old intent.
 		cp.Phase, cp.RetryUntil = "prepare-next", 0
+		if cp.Deferred != nil {
+			if cp.Attempt >= MaxID {
+				return reject("deferred retry attempt exhausted")
+			}
+			// A failed fetch retries the same provider job, never a new request.
+			cp.Phase, cp.PollAt = "poll", 0
+			cp.Attempt++
+		}
 		value, err := dtoObject(cp, h.session.limits)
 		if err != nil {
 			return err
@@ -1231,38 +1247,11 @@ func (h *Harness) sessionCommitInterruptedPartial(task Task, cp generationCheckp
 		if latest.Abort {
 			return reject("generation aborted")
 		}
-		partial, e := generationPartial(tx.state, current, latest, tx.limits)
-		if e != nil {
+		converted, e := recordInterruptedGenerationPartial(tx, current, &latest)
+		if e != nil || !converted {
 			return e
 		}
-		if partial == nil {
-			return nil
-		}
-		receipt := *partial
-		receipt.StopReason = goai.StopReasonAborted
-		id, e := tx.MintID()
-		if e != nil {
-			return e
-		}
-		value, e := dtoObject(receipt, h.session.limits)
-		if e != nil {
-			return e
-		}
-		if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); e != nil {
-			return e
-		}
-		usage, err := builtin(tx, task.Conversation, "pi.usage")
-		if err != nil {
-			return err
-		}
-		if err := usage.Update(func(value JSON) error { return addModelUsage(value, receipt, tx.limits) }); err != nil {
-			return err
-		}
-		latest.Partial = nil
-		if e := clearGenerationPresentation(tx, current.Conversation); e != nil {
-			return e
-		}
-		value, e = dtoObject(latest, h.session.limits)
+		value, e := dtoObject(latest, h.session.limits)
 		if e != nil {
 			return e
 		}

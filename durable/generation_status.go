@@ -73,6 +73,10 @@ func (t *Tx) syncGenerationStatuses() error {
 							generation["message"] = message
 						}
 						if cp.Phase == "retry" {
+							// Clean resends advance the dispatch fence, not this budget.
+							if cp.RetryCount > 0 {
+								generation["attempt"] = cp.RetryCount
+							}
 							generation["retry"] = JSON{"at": cp.RetryUntil, "error": cp.RetryMessage}
 						}
 						if cp.Phase == "poll" {

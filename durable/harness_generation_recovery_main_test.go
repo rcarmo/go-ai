@@ -214,7 +214,7 @@ func mainFinishRecovery(t *testing.T, f *mainRecoveryHarness, streams <-chan *ma
 	if err := f.h.Resume(bg); err != nil {
 		t.Fatal(err)
 	}
-	stream := watchReceive(t, streams)
+	stream := mainRecoveryRetryStream(t, f, streams)
 	stream.events <- terminal("answer")
 	stream.close()
 	sub, err := f.h.Submission(bg, submission)
@@ -354,7 +354,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		if err := f.h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
-		stream = watchReceive(t, streams)
+		stream = mainRecoveryRetryStream(t, f, streams)
 		f.partial(stream, strings.Repeat("d", 64))
 		store = f.crash()
 		state, err = store.Snapshot(bg)
@@ -436,8 +436,8 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 				return errors.New("process loss after conversion before next intent")
 			}
 			converts := false
+			var commit commitRecord
 			if kind == 2 {
-				var commit commitRecord
 				if err := decodeStrict(payload, f.h.session.limits, f.h.session.limits.MaxFramePayloadBytes, &commit); err != nil {
 					return err
 				}
@@ -445,6 +445,22 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 					if write.Entry != nil && write.Entry.Value["role"] == string(goai.RoleAssistant) && write.Entry.Value["stopReason"] == string(goai.StopReasonAborted) {
 						converts = true
 					}
+				}
+			}
+			if converts {
+				charged := false
+				for _, write := range commit.Writes {
+					if write.Task == nil || write.Task.Kind != "pi.generation" {
+						continue
+					}
+					var checkpoint generationCheckpoint
+					if err := fromObject(write.Task.Checkpoint, &checkpoint, f.h.session.limits); err != nil {
+						return err
+					}
+					charged = checkpoint.Phase == "retry" && checkpoint.RetryCount == 1 && checkpoint.RetryUntil == retryDeadline(clock.Load(), 2000) && checkpoint.Partial == nil && write.Task.Status == "sleeping"
+				}
+				if !charged {
+					t.Error("partial conversion and interruption charge must share one stored batch")
 				}
 			}
 			if original != nil {
@@ -462,6 +478,7 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 		defer cancel()
+		mainRecoveryStepFuture(t, f)
 		if end, err := f.h.session.Closed(ctx); err != nil || end.Reason != "failed" {
 			t.Fatal("conversion fault did not close", end, err)
 		}
