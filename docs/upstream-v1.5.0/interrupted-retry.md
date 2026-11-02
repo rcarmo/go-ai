@@ -16,7 +16,7 @@ Only interrupted intent/poll checkpoints with a persisted model and positive att
 
 ## Focused assertions
 
-The four passing fixtures are now ordinary Go tests, promoted from `testdata` without changing their assertions during the move. The whole upstream restart-failure file remains `pending-review`.
+At the pinned checkpoint, the four passing fixtures were promoted from `testdata` into ordinary Go tests without changing their assertions. The table and validation below retain that checkpoint's scope; later mappings are linked below. The whole upstream restart-failure file remains `pending-review`.
 
 | Source / control | Native test and scope |
 | --- | --- |
@@ -42,8 +42,12 @@ Go1.27.3, `GOMAXPROCS=4`, protected prototype excluded throughout:
 
 The legacy pacing regression was found before the final gates: synthetic model-less poll-running records were incorrectly charged. The witness guard fixes it without changing the original assertions. No TypeScript/Vitest, full-suite, profiling, hosted CI, release or full-alignment result is claimed.
 
+## Superseding checkpoint
+
+Runtime `6fb7c7577c7d4a7d0ae575cc14da3436fe29c768` implements the selected source204/554 live `runFailure` assertions and joined source275 retry-sleep/tool-wait oracle; see the [run-failure checkpoint](run-failure.md) and [18-declaration assertion map](restart-failure-assertions.md). The corrected 29-function selection passed normal CGO1/0 in 34.404/23.850s and race CGO1 in 183.483s. After correcting no-model grouping to end A before selecting queued B/C, its 11 affected functions passed normal/count3/shuffle42 in **10.532/9.068s**, race/count3/shuffle7 in **68.021s**, and vet/Staticcheck v0.8.2 in both CGO modes. Earlier receipts retain their original pins and scope.
+
 ## Still open
 
-Source `runFailure` projection and its lifecycle, the complete source275 retry/tool-wait body, other restart-failure declarations and full callback/record/clock equivalence remain unverified. Passing selected assertions does not accept those differences. Ordinary request/deferred presentation still uses native dispatch ownership counters; this increment does not claim all source attempt observations are identical.
+Whole-file restart-failure review remains `pending-review`. Explicit source `continue`, atomic end/start, remaining restart-limit declarations, exact interruption reports, settings-resolution work counts, first passive-write behaviour and empty-error field presence remain open, as does full callback/record/clock equivalence. Ordinary request/deferred presentation still uses native dispatch ownership counters; source attempt equivalence is unverified.
 
-Next, reconcile the native failed-run view with the source failure object and its continuation/withdrawal lifecycle before extending those fixtures. Wider Session/Harness, schema, provider, catalogue and package/source correspondence work remains open. Acceptance profiling and broader gates still require Rui's authorisation.
+Wider Session/Harness, schema, provider, catalogue and package/source correspondence work remains open. Acceptance profiling and broader gates still require Rui's authorisation.
