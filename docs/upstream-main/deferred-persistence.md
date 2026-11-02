@@ -95,6 +95,10 @@ Active later-wins, missing-stored-publication, missing-receipt-adoption, backgro
 
 Close-time stored-observer delivery, unload/version reload/retirement, retention/lifetime, conversation-view memory delivery and synchronous observers still need implementation and source tests. Fractional/extreme windows, the native duration ceiling and full-width custom-clock conversion need numerical checks before public/Harness wiring. Durable task intent has not been split from later generation presentation; the recorded generation oracle is unresolved. No dependency, coalescer, release-ref or asset changes, full suite, profiling, hosted dispatch or publication. All completed source extracts, copies, overlays, mutation fixtures and logs are disposed after analysis.
 
+## Official 1.5.0 numerical extension
+
+[Numeric deadline controls](../upstream-v1.5.0/numeric-deadlines.md) establish 12 failing backend leaves on the later `e58e0b9` runtime and fix duration saturation/full-width native clock cancellation. Runtime `b1502fb` preserves source Number rounding in its safe-integer domain, infinity and host-fire semantics. Focused deadline/view-memory regressions pass; public/Harness policy and the recorded full generation failure are unchanged. The earlier receipts above retain their original scope.
+
 ## Unload and version-reload barriers, 2 November 2026
 
 Runtime: `a96e05f4f97c5655ee81e82b7c9f72d829cb4a99`; base/rollback: `1dd49497aaea5036e4e5ee90d91a9d9daad2b6c6`. This increment reuses the existing native deadline fixture, manual foreground timers and reserved root. It changes no public persistence options or Harness policy.
