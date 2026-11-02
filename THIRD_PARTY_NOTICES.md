@@ -7,6 +7,8 @@ expressions from TypeBox, carried by the pinned upstream pi-schema source.
 `scripts/generate-schema-formats.ts` records the source paths and revision.
 `schema_validation_temporal.go` adapts the date, time and date-time algorithms
 from the same pinned source (`formats/typebox/{date,time,date_time}.ts`).
+`schema_validation_hostname.go` adapts its hostname/IDNA and punycode rules
+(`formats/typebox/idna/`).
 
 The MIT License (MIT)
 
@@ -29,3 +31,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## JSON Schema Test Suite
+
+`tests/testdata/upstream-main/hostname.json` is copied from the pinned upstream
+JSON Schema Test Suite fixture. Its copyright and the MIT permission/disclaimer
+printed above apply to this fixture:
+
+Copyright (c) 2012 Julian Berman

@@ -1,0 +1,30 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "schema": {"type":"object","properties":{"e":{"type":"string","format":"email"},"u":{"type":"string","format":"uri"},"d":{"type":"string","format":"date-time"},"x":{"type":"string","format":"made-up"},"h":{"type":"string","format":"hostname"},"r":{"type":"string","format":"regex"},"i":{"type":"string","format":"uuid"},"ip":{"type":"string","format":"ipv4"}}},
+  "literal": [{"name":"hostname-underscore","input":{"h":"under_score.example"},"want":"REJECT - h: expected format hostname"}],
+  "derived": [
+    {"name":"total-253","input":{"h":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"want":"ok {\"h\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"},
+    {"name":"total-254","input":{"h":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"want":"REJECT - h: expected format hostname"},
+    {"name":"label-63","input":{"h":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"want":"ok {\"h\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"},
+    {"name":"label-64","input":{"h":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"want":"REJECT - h: expected format hostname"},
+    {"name":"reserved-positions","input":{"h":"ab--cd"},"want":"REJECT - h: expected format hostname"},
+    {"name":"internal-hyphens","input":{"h":"a--b"},"want":"ok {\"h\":\"a--b\"}"},
+    {"name":"uppercase-ace","input":{"h":"XN--BCHER-KVA"},"want":"ok {\"h\":\"XN--BCHER-KVA\"}"},
+    {"name":"ace-kelvin","input":{"h":"xn--bcher-Kva"},"want":"ok {\"h\":\"xn--bcher-Kva\"}"},
+    {"name":"ace-dotted-i","input":{"h":"xn--bcher-İva"},"want":"REJECT - h: expected format hostname"},
+    {"name":"ace-only-ascii","input":{"h":"xn--abc-"},"want":"REJECT - h: expected format hostname"},
+    {"name":"ace-empty","input":{"h":"xn--"},"want":"REJECT - h: expected format hostname"},
+    {"name":"ace-leading-delimiter","input":{"h":"xn---9uc"},"want":"REJECT - h: expected format hostname"},
+    {"name":"ace-overflow","input":{"h":"xn--zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},"want":"REJECT - h: expected format hostname"},
+    {"name":"raw-unicode","input":{"h":"bücher.example"},"want":"REJECT - h: expected format hostname"},
+    {"name":"decomposed-not-normalized","input":{"h":"xn--e-xbb"},"want":"ok {\"h\":\"xn--e-xbb\"}"},
+    {"name":"rtl-permissive-ending","input":{"h":"xn--+-zhc"},"want":"ok {\"h\":\"xn--+-zhc\"}"},
+    {"name":"zwnj-non-virama-non-ascii","input":{"h":"xn--9ca650n"},"want":"ok {\"h\":\"xn--9ca650n\"}"},
+    {"name":"zwnj-ascii","input":{"h":"xn--a-sgn"},"want":"REJECT - h: expected format hostname"},
+    {"name":"zwj-non-virama","input":{"h":"xn--9ca850n"},"want":"REJECT - h: expected format hostname"},
+    {"name":"katakana-dot-greek","input":{"h":"xn--mxa203u"},"want":"REJECT - h: expected format hostname"},
+    {"name":"katakana-dot-han","input":{"h":"xn--vek548p"},"want":"ok {\"h\":\"xn--vek548p\"}"},
+    {"name":"ace-utf16-label-boundary","input":{"h":"xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-3K0a"},"want":"ok {\"h\":\"xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-3K0a\"}"},
+    {"name":"ace-utf16-total-boundary","input":{"h":"xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-3K0a.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"want":"ok {\"h\":\"xn--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-3K0a.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}"}
+  ]
+}

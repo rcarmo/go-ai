@@ -11,6 +11,8 @@ func schemaStringFormatReason(value interface{}, schema map[string]interface{}) 
 	name, _ := schema["format"].(string)
 	var valid bool
 	switch name {
+	case "hostname":
+		valid = schemaFormatHostname(text)
 	case "date":
 		valid = schemaFormatDate(text)
 	case "time":
