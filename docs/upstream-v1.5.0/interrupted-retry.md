@@ -46,8 +46,10 @@ The legacy pacing regression was found before the final gates: synthetic model-l
 
 Runtime `6fb7c7577c7d4a7d0ae575cc14da3436fe29c768` implements the selected source204/554 live `runFailure` assertions and joined source275 retry-sleep/tool-wait oracle; see the [run-failure checkpoint](run-failure.md) and [18-declaration assertion map](restart-failure-assertions.md). The corrected 29-function selection passed normal CGO1/0 in 34.404/23.850s and race CGO1 in 183.483s. After correcting no-model grouping to end A before selecting queued B/C, its 11 affected functions passed normal/count3/shuffle42 in **10.532/9.068s**, race/count3/shuffle7 in **68.021s**, and vet/Staticcheck v0.8.2 in both CGO modes. Earlier receipts retain their original pins and scope.
 
+[Boundary-first](boundary-first.md) subsequently closes the source-derived passive-write-first boundary while preserving each input's own `cp.InputEntry`, and selected answer/model-error/no-model atomic end/start cases. The [current pure-Go validation](run-failure.md#superseding-boundary-checkpoint) supersedes the earlier 44-function/race gates for the latest fail-fast overlay; earlier receipts above keep their original scope.
+
 ## Still open
 
-Whole-file restart-failure review remains `pending-review`. Explicit source `continue`, atomic end/start, remaining restart-limit declarations, exact interruption reports, settings-resolution work counts, first passive-write behaviour and empty-error field presence remain open, as does full callback/record/clock equivalence. Ordinary request/deferred presentation still uses native dispatch ownership counters; source attempt equivalence is unverified.
+Whole-file restart-failure review remains `pending-review`. Explicit source `continue`, upstream `afterRun`, full mixed-mode/reset coverage, full source test bodies, remaining restart-limit declarations, exact interruption reports, settings-resolution work counts and empty-error field presence remain open, as does full callback/record/clock equivalence. Ordinary request/deferred presentation still uses native dispatch ownership counters; source attempt equivalence is unverified.
 
 Wider Session/Harness, schema, provider, catalogue and package/source correspondence work remains open. Acceptance profiling and broader gates still require Rui's authorisation.

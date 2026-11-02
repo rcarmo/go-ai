@@ -2,6 +2,10 @@
 
 Runtime `6fb7c7577c7d4a7d0ae575cc14da3436fe29c768` implements this bounded failure-record slice against official upstream v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`. The 29-function checks and subsequent 11-function no-model grouping delta passed on 2 November 2026. Their separate scopes are recorded below. Whole-file restart-failure parity and full v1.5.0 alignment are unverified.
 
+## Superseding boundary checkpoint
+
+[Boundary-first](boundary-first.md) closes the source-derived passive-write-first boundary with separate `cp.InputEntry` ownership, and selected answer/model-error/no-model atomic end/start cases. The unported passive-write-first and atomic-end/start statements below describe the earlier runtime. Rui's pure-Go correction requires `CGO_ENABLED=0`: the final **45-function normal selection**, `-count=3 -shuffle=42`, passed in **31.898s**; scoped vet and Staticcheck v0.8.2 also passed with CGO disabled. Earlier 44-function and race gates predate the latest fail-fast overlay and do not validate current source. No race exception is authorised. Explicit continue, upstream `afterRun`, full mixed-mode/reset coverage, full source test bodies, logical-attempt equivalence, callback/clock equivalence and empty-error field presence remain open.
+
 ## Failure identity and lifetime
 
 Upstream [`live.ts` `endRun`][live] records `{taskId, inputs, reason, detail?, first?}` while settling every attached input and removing the ending run's presentation. `taskId` identifies the generation that owns the run **at its end**, including after a tool handoff. `first` is the source run/context boundary entry ID, never a timestamp and not universally the primary input's entry. An older run without `first` keeps that field absent; neither projection nor handoff should manufacture a boundary. A run that already answered and only waits for `afterRun` tasks records no new failure on termination; native equivalence for that case is unverified here.

@@ -4,6 +4,10 @@ Official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5` has 18 declarations i
 
 Source line numbers below use `/workspace/tmp/go-ai/runs/run-failure/20261102/source-restart.ts`, extracted from that release. Lifecycle references use the matching `source-live.ts`, `source-generation.ts` and `source-submissions.ts`. The existing [interrupted-retry checkpoint][retry-doc] and `upstream-review-f9a26365.json` retain their previous state until the main edits reconcile them.
 
+## Superseding boundary checkpoint
+
+[Boundary-first](boundary-first.md) closes the source-derived passive-write-first/own-entry boundary and selected answer/model-error/no-model atomic end/start cases; the corresponding gaps below describe the earlier runtime. The [current pure-Go validation](run-failure.md#superseding-boundary-checkpoint) supersedes the earlier 44-function/race gates for the latest fail-fast overlay. Explicit continue, upstream `afterRun`, full mixed-mode/reset coverage, full source test bodies, logical-attempt equivalence, callback/clock equivalence and empty-error field presence remain open.
+
 ## Native test names
 
 The short names in the declaration table refer to these functions in `durable/`:
@@ -85,7 +89,7 @@ After the final source-grouping correction, skipped no-model establishment was r
 
 Historical results keep their original scope: source275 passed its unchanged-runtime three-backend baseline in **0.590s**, and the preliminary lifecycle slice passed in **1.873s**. The historical 14-leaf missing-record baseline and other fixture cardinalities are preserved in [run-failure.md][run-failure]. Earlier interrupted-retry normal/race/static/mutation results are separate.
 
-Whole-file restart-failure review remains pending. Explicit continue, atomic end/start, passive-write-first boundaries, empty-error field presence, the remaining restart-limit declarations, exact interruption reports, settings-resolution work counts, full declaration bodies and callback/record/clock equivalence are unverified. Broader regression gates, acceptance profiling and the full alignment goal also require verification.
+Whole-file restart-failure review remains pending. Beyond the selected [boundary-first](boundary-first.md) cases, explicit continue, upstream `afterRun`, full mixed-mode/reset coverage, empty-error field presence, the remaining restart-limit declarations, exact interruption reports, settings-resolution work counts, full source declaration bodies and logical-attempt/callback/record/clock equivalence are unverified. Broader regression gates, acceptance profiling and the full alignment goal also require verification.
 
 [restart]: https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-restart-failure.test.ts
 [live]: https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/live.ts#L290-L318
