@@ -6,6 +6,12 @@ The complete c9 source521 oracle moved to `durable/session_deferred_observers_ma
 
 The earlier three-publication/four-batch legacy baseline stays historical at `4077631:durable/testdata/upstream-main/pending/session_deferred_observers_test.go`; it was not rerun. [Observer scope and checks](../../../../docs/upstream-main/synchronous-observers.md). The generation oracle below is still failing and outside default discovery.
 
+## Generation partial batching (official v1.5.0)
+
+`harness_deferred_progress_test.go` retains the source100-115 memory-count and stored-batch-ratio assertions from official release `f9a26365`, with a deterministic native stream/clock/watch adapter. On unchanged `4f46899`, all three backends deliver20 memory partials but store24 changed-document batches; the first partial is already durable. Production generation still uses that immediate checkpoint path after `8d8bced`; the new private runtime lane is a prerequisite. The baseline was not repeated. [Contracts, adapters and next integration](../../../../docs/upstream-v1.5.0/runtime-progress-lane.md).
+
+Use the same project-owned overlay/prototype-exclusion setup below, mapping virtual target `durable/harness_deferred_progress_main_test.go` to `durable/testdata/upstream-main/pending/harness_deferred_progress_test.go`, and select `^TestMainHarnessDeferredProgressBatching$`. Go discovers the virtual test file; vet/Staticcheck compile it without executing its known failure. Keep both ratio assertions and the raw-storage control intact when integrating generation.
+
 ## Generation stored-touch count
 
 `view_generation_persistence_test.go` preserves the full stored-touch-count assertion from pinned `harness-view.test.ts:128–158`, with documented native provider/input/entry-envelope adaptations. It is a pending executable source fixture, outside the default Go test discovery path. It must pass before that assertion can be marked converged. There is no skip or relaxed expected count inside the test.
