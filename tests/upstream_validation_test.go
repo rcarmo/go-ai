@@ -2,6 +2,7 @@ package goai_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -42,7 +43,9 @@ func TestUpstreamValidationStillValidatesWhenFunctionConstructorUnavailable(t *t
 }
 
 // Port of upstream packages/ai/test/validation.test.ts:
-// validateToolArguments / "coerces serialized plain JSON schemas with AJV-compatible primitive rules".
+// c9f4c7b9: "coerces serialized plain JSON schemas like TypeBox schemas".
+// Sixteen passing assertions; four further original assertions have explicit
+// failing oracles in testdata/upstream-main/pending (not full-test parity).
 func TestUpstreamValidationCoercesSerializedPlainJSONSchemas(t *testing.T) {
 	tests := []struct {
 		schema   map[string]interface{}
@@ -57,13 +60,14 @@ func TestUpstreamValidationCoercesSerializedPlainJSONSchemas(t *testing.T) {
 		{map[string]interface{}{"type": "boolean"}, "false", false},
 		{map[string]interface{}{"type": "boolean"}, 1, true},
 		{map[string]interface{}{"type": "boolean"}, 0, false},
-		{map[string]interface{}{"type": "string"}, nil, ""},
+		{map[string]interface{}{"type": "string"}, nil, "null"},
 		{map[string]interface{}{"type": "string"}, true, "true"},
 		{map[string]interface{}{"type": "null"}, "", nil},
 		{map[string]interface{}{"type": "null"}, 0, nil},
 		{map[string]interface{}{"type": "null"}, false, nil},
 		{map[string]interface{}{"type": []interface{}{"number", "string"}}, "1", "1"},
 		{map[string]interface{}{"type": []interface{}{"boolean", "number"}}, "1", float64(1)},
+		{map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "number"}}, "7", []interface{}{float64(7)}},
 	}
 	for _, tt := range tests {
 		tool, toolCall := upstreamCreateToolCallWithPlainSchema(t, tt.schema, tt.input)
@@ -71,7 +75,7 @@ func TestUpstreamValidationCoercesSerializedPlainJSONSchemas(t *testing.T) {
 		if err != nil {
 			t.Fatalf("schema=%#v input=%#v: %v", tt.schema, tt.input, err)
 		}
-		if got["value"] != tt.expected {
+		if !reflect.DeepEqual(got["value"], tt.expected) {
 			t.Fatalf("schema=%#v input=%#v: expected %#v, got %#v", tt.schema, tt.input, tt.expected, got["value"])
 		}
 	}
@@ -84,10 +88,10 @@ func TestUpstreamValidationRejectsInvalidCoercions(t *testing.T) {
 		schema map[string]interface{}
 		input  interface{}
 	}{
-		{map[string]interface{}{"type": "boolean"}, "1"},
-		{map[string]interface{}{"type": "boolean"}, "0"},
-		{map[string]interface{}{"type": "null"}, "null"},
-		{map[string]interface{}{"type": "integer"}, "42.1"},
+		{map[string]interface{}{"type": "boolean"}, "yes"},
+		{map[string]interface{}{"type": "number"}, "abc"},
+		{map[string]interface{}{"type": "null"}, "nil"},
+		{map[string]interface{}{"type": "integer"}, "4x"},
 	}
 	for _, tt := range tests {
 		tool, toolCall := upstreamCreateToolCallWithPlainSchema(t, tt.schema, tt.input)

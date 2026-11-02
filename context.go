@@ -310,6 +310,11 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 				break
 			}
 			converted, err := coerceJSONSchemaType(value, expectedType)
+			// TypeBox's conversion pass handles a scalar string before primitive
+			// type-array coercion: null becomes "null", not the latter's "".
+			if value == nil && schema["type"] == "string" {
+				converted, err = "null", nil
+			}
 			if err == nil && schemaConstraintsMatch(converted, expectedType, schema) {
 				value = converted
 				break
@@ -586,6 +591,14 @@ func coerceJSONSchemaType(value interface{}, expectedType string) (interface{}, 
 				return "true", nil
 			}
 			return "false", nil
+		case float64:
+			return schemaFloatString(v), nil
+		case int:
+			return strconv.FormatInt(int64(v), 10), nil
+		case int64:
+			return strconv.FormatInt(v, 10), nil
+		case json.Number:
+			return schemaDecimalString(v)
 		default:
 			return nil, fmt.Errorf("expected string, got %T", value)
 		}

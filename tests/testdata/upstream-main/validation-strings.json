@@ -1,0 +1,60 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "literal": [
+    {"name":"codec-0","schema":{"type":"object","required":["c"],"properties":{"c":{"type":"string"}}},"input":{"c":"12"},"want":"ok {\"c\":\"12\"}"},
+    {"name":"codec-1","schema":{"type":"object","required":["c"],"properties":{"c":{"type":"string"}}},"input":{"c":12},"want":"ok {\"c\":\"12\"}"}
+  ],
+  "dependency": [
+    {"name":"Value.Convert.String/Should Convert 1","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":3.14},"want":"ok {\"v\":\"3.14\"}"},
+    {"name":"Value.Convert.String/Should Convert 2","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":3},"want":"ok {\"v\":\"3\"}"},
+    {"name":"Value.Convert.String/Should Convert 3","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":true},"want":"ok {\"v\":\"true\"}"},
+    {"name":"Value.Convert.String/Should Convert 4","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":false},"want":"ok {\"v\":\"false\"}"},
+    {"name":"Value.Convert.String/Should Convert 6","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":"hello"},"want":"ok {\"v\":\"hello\"}"},
+    {"name":"Value.Convert.String/Should Convert 7","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":42},"want":"ok {\"v\":\"42\"}"},
+    {"name":"Value.Convert.String/Should Convert 9","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":true},"want":"ok {\"v\":\"true\"}"},
+    {"name":"Value.Convert.String/Should Convert 10","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":false},"want":"ok {\"v\":\"false\"}"},
+    {"name":"Value.Convert.String/Should Convert 13","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":null},"want":"ok {\"v\":\"null\"}"},
+    {"name":"coerce/pass2/string42","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":42},"want":"ok {\"v\":\"42\"}"},
+    {"name":"coerce/pass2/string-array-null","schema":{"type":"object","properties":{"v":{"type":"array","items":{"type":"string"}}},"required":["v"]},"input":{"v":null},"want":"ok {\"v\":[\"null\"]}"},
+    {"name":"coerce/pass3/string-boolean","schema":{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]},"input":{"v":true},"want":"ok {\"v\":\"true\"}"}
+  ],
+  "derived": [
+    {"name":"number-12","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":12},"want":"ok {\"h\":\"12\"}"},
+    {"name":"number--12","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":-12},"want":"ok {\"h\":\"-12\"}"},
+    {"name":"number-1e-7","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":1e-7},"want":"ok {\"h\":\"1e-7\"}"},
+    {"name":"number-0.000001","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":0.000001},"want":"ok {\"h\":\"0.000001\"}"},
+    {"name":"number-0.00001","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":0.00001},"want":"ok {\"h\":\"0.00001\"}"},
+    {"name":"number-100000000000000000000","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":100000000000000000000},"want":"ok {\"h\":\"100000000000000000000\"}"},
+    {"name":"number-1e+21","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":1e+21},"want":"ok {\"h\":\"1e+21\"}"},
+    {"name":"number-1000000000000000100","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":1000000000000000100},"want":"ok {\"h\":\"1000000000000000100\"}"},
+    {"name":"number-1.2345678901234567","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":1.2345678901234567},"want":"ok {\"h\":\"1.2345678901234567\"}"},
+    {"name":"number-5e-324","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":5e-324},"want":"ok {\"h\":\"5e-324\"}"},
+    {"name":"number-1.7976931348623157e+308","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":1.7976931348623157e+308},"want":"ok {\"h\":\"1.7976931348623157e+308\"}"},
+    {"name":"hostname-number","schema":{"type":"object","properties":{"h":{"type":"string","format":"hostname"}},"required":["h"]},"input":{"h":12},"want":"ok {\"h\":\"12\"}"},
+    {"name":"hostname-null","schema":{"type":"object","properties":{"h":{"type":"string","format":"hostname"}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"null\"}"},
+    {"name":"required-null","schema":{"type":"object","properties":{"h":{"type":"string"}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"null\"}"},
+    {"name":"optional-null","schema":{"type":"object","properties":{"h":{"type":"string"}}},"input":{"h":null},"want":"ok {}"},
+    {"name":"type-array-one-null","schema":{"type":"object","properties":{"h":{"type":["string"]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"\"}"},
+    {"name":"type-array-two-null","schema":{"type":"object","properties":{"h":{"type":["string","boolean"]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"\"}"},
+    {"name":"nullable-null","schema":{"type":"object","properties":{"h":{"type":["string","null"]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":null}"},
+    {"name":"nullable-number","schema":{"type":"object","properties":{"h":{"type":["string","number"]}},"required":["h"]},"input":{"h":12},"want":"ok {\"h\":12}"},
+    {"name":"anyOf-null","schema":{"type":"object","properties":{"h":{"anyOf":[{"type":"string"},{"type":"null"}]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":null}"},
+    {"name":"anyOf-number","schema":{"type":"object","properties":{"h":{"anyOf":[{"type":"string"},{"type":"number"}]}},"required":["h"]},"input":{"h":12},"want":"ok {\"h\":12}"},
+    {"name":"enum-number","schema":{"type":"object","properties":{"h":{"type":"string","enum":["12"]}},"required":["h"]},"input":{"h":12},"want":"ok {\"h\":\"12\"}"},
+    {"name":"enum-null","schema":{"type":"object","properties":{"h":{"type":"string","enum":["null"]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"null\"}"},
+    {"name":"array-items","schema":{"type":"object","properties":{"h":{"type":"array","items":{"type":"string"}}},"required":["h"]},"input":{"h":[12,null,true]},"want":"ok {\"h\":[\"12\",\"null\",\"true\"]}"},
+    {"name":"allOf-null","schema":{"type":"object","properties":{"h":{"allOf":[{"type":"string"},{"type":"string"}]}},"required":["h"]},"input":{"h":null},"want":"ok {\"h\":\"null\"}"},
+    {"name":"local-ref-number","schema":{"type":"object","properties":{"h":{"$ref":"#/$defs/Text"}},"required":["h"],"$defs":{"Text":{"type":"string"}}},"input":{"h":12},"want":"ok {\"h\":\"12\"}"},
+    {"name":"local-ref-null","schema":{"type":"object","properties":{"h":{"$ref":"#/$defs/Text"}},"required":["h"],"$defs":{"Text":{"type":"string"}}},"input":{"h":null},"want":"ok {\"h\":\"null\"}"}
+  ],
+  "nativeBigInt": [
+    {"name":"Value.Convert.String/Should Convert 5","input":"12345","want":"12345"},
+    {"name":"Value.Convert.String/Should Convert 8","input":"42","want":"42"}
+  ],
+  "nativeFloat": [
+    {"name":"negative-zero","want":"0"},
+    {"name":"NaN","want":"NaN"},
+    {"name":"positive-infinity","want":"Infinity"},
+    {"name":"negative-infinity","want":"-Infinity"}
+  ]
+}
