@@ -47,8 +47,8 @@ func (h *Harness) RetryTask(ctx context.Context, id ID) error {
 }
 
 // Only an invocation's own state transition can reset its count. Memos,
-// identical intent checkpoints, registry migrations and reservation writes do
-// not count as progress. JSON comparison is numeric, not spelling/byte equality.
+// identical intent checkpoints, tool presentation, registry migrations and
+// reservation writes do not count as progress. JSON comparison is numeric, not spelling/byte equality.
 func taskMadeProgress(before, after Task) bool {
 	if terminalStatus(after.Status) || taskHasDecidedOutcome(after) {
 		return true
@@ -57,5 +57,44 @@ func taskMadeProgress(before, after Task) bool {
 		a, b := before.Execution.Native.State, after.Execution.Native.State
 		return a.Status != b.Status || a.Policy != b.Policy || !reflect.DeepEqual(a.On, b.On) || !equalDeltaJSON(map[string]any(a.Checkpoint), map[string]any(b.Checkpoint))
 	}
+	if builtinToolCheckpoint(before) && builtinToolCheckpoint(after) {
+		// Native tool checkpoints also carry recoverable presentation. Updating
+		// or clearing that presentation is not an execution-state transition.
+		return before.Status != after.Status || !equalToolCheckpointState(before.Checkpoint, after.Checkpoint)
+	}
 	return before.Status != after.Status || !equalDeltaJSON(map[string]any(before.Checkpoint), map[string]any(after.Checkpoint))
+}
+
+func builtinToolCheckpoint(task Task) bool {
+	return task.Kind == "pi.tool" && (task.Execution == nil || task.Execution.Tag == builtinTaskTag && task.Execution.Builtin != nil)
+}
+
+func toolPresentationField(key string) bool {
+	switch key {
+	case "durationMs", "output", "details", "hasDetails", "droppedBytes", "droppedLines", "outputRaw", "outputFull", "outputBytes", "outputNewlines", "outputTerminated", "diagnostics":
+		return true
+	}
+	return false
+}
+
+// Keep unknown fields significant; only the builtin tool's known presentation
+// fields are excluded, without copying checkpoints or mutating caller maps.
+func equalToolCheckpointState(a, b JSON) bool {
+	for key, value := range a {
+		if toolPresentationField(key) {
+			continue
+		}
+		other, exists := b[key]
+		if !exists || !equalDeltaJSON(value, other) {
+			return false
+		}
+	}
+	for key := range b {
+		if !toolPresentationField(key) {
+			if _, exists := a[key]; !exists {
+				return false
+			}
+		}
+	}
+	return true
 }
