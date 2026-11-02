@@ -30,6 +30,10 @@ Native generation.go:174–194 charges/persists the task attempt before remote d
 
 Next implementation work is a bounded deferred-presentation path with separate publication/durability witnesses: preserve immediate task intent charging, publish attempt presentation independently, flush it on dependent live reads/writes or its deadline, and preserve Close/failure/crash recovery and receipt sequencing. Current published-image adoption requires contiguous durable receipt sequences, so volatile publication cannot simply reuse a successful durable receipt. This dependency is unresolved; no retained divergence has been accepted.
 
+## Official 1.5.0 memory prerequisites
+
+[Conversation-view memory controls](../upstream-v1.5.0/conversation-memory.md) pass unchanged native runtime `148c77b`: early view delivery, acquisition during a hold, own-only dependent flushes and stored-timer/backlog replay. These standalone Session controls do not enable Harness generation deferral. The full executable generation oracle above was not rerun; its recorded baseline and remaining intent/presentation split are unchanged.
+
 ## Development checks
 
 Go 1.27.3, GOMAXPROCS=4, project environment sourced:
