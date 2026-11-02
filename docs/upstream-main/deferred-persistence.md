@@ -45,6 +45,8 @@ Session commits remain serial. This work does not require enabling grouped overl
 
 ## Internal infinite-window increment, 2 November 2026
 
+Runtime checkpoint: `46b37396b11f48eb97250c2696e82e3e54ecd7d8`; base/rollback: `18b8b34472e835d95178b3afe42902222d673d2f`. Later receipt edits change documentation only.
+
 `durable/session_deferred.go` holds owned document values and folded operations separately from `readImage`. The internal entry accepts only standalone native Sessions; adapters and task-scheduled Sessions return `ErrUnsupported` before the callback. Ordinary public commits retain immediate persistence. Eligible writes affect existing conversation documents with latest history, initial-fork policy and unchanged version. Mixed writes and creation fall back to immediate storage.
 
 Memory publications update document watches without advancing the durable sequence or notifying stored subscriptions. Writing transactions flush only held documents they access; unrelated writes, write-free reads, callback failures and cancellation preserve the hold. A dependent write combines the pending operations and its own change into one stored delta, or a selected base. Pending operations use the existing Chord-compatible folding helper; crossing the native 4,096-operation budget replaces the tail with the final base. The source's 10,000-operation boundary is still unported. Aggregate encoded flush and retained-value bounds are checked before adopting a hold.
