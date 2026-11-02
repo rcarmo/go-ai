@@ -48,7 +48,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 		if _, err := options.Registry.RegisterTask(audit); err != nil {
 			t.Fatal(err)
 		}
-		f := mainOpenRecovery(t, b.store, ref, options, clock, math.Inf(1))
+		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -133,7 +133,7 @@ func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T)
 		if text, ok := mainRecoveryText(f.live(stored)); !ok || text != derived {
 			t.Error("crash storage differs from derived text", text, derived)
 		}
-		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, math.Inf(1))
 		mainFinishRecovery(t, f, streams, sub.ID(), []JSON{{"text": derived, "stopReason": "aborted"}, {"text": "answer", "stopReason": "stop"}})
 	})
 }

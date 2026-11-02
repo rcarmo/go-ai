@@ -45,9 +45,14 @@ type mainRecoveryHarness struct {
 
 func mainOpenRecovery(t *testing.T, store Storage, ref ModelRef, options Options, clock *atomic.Int64, window float64) *mainRecoveryHarness {
 	t.Helper()
+	return mainOpenRecoveryWithRetry(t, store, ref, options, clock, window, nil)
+}
+
+func mainOpenRecoveryWithRetry(t *testing.T, store Storage, ref ModelRef, options Options, clock *atomic.Int64, window float64, retry *RetrySettings) *mainRecoveryHarness {
+	t.Helper()
 	f := &mainRecoveryHarness{t: t, store: store, clock: clock, replicated: make(chan struct{}, 128)}
 	zero := int64(0)
-	options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}}
+	options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}, Retry: retry}
 	options.Now = clock.Load
 	options.SetTimer = func(fire func(), delay time.Duration, opts TimerOptions) func() {
 		if delay <= 0 {
@@ -254,7 +259,7 @@ func mainFinishRecovery(t *testing.T, f *mainRecoveryHarness, streams <-chan *ma
 func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		ref, options, streams, clock := mainRecoverySetup(t)
-		f := mainOpenRecovery(t, b.store, ref, options, clock, 150)
+		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -286,7 +291,7 @@ func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.replicaMatches(afterCrash)
-		f = mainOpenRecovery(t, store, ref, options, clock, 150)
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, 150)
 		mainFinishRecovery(t, f, streams, sub.ID(), []JSON{{"text": stored, "stopReason": "aborted"}, {"text": "answer", "stopReason": "stop"}})
 	})
 }
@@ -295,7 +300,7 @@ func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		ref, options, streams, clock := mainRecoverySetup(t)
-		f := mainOpenRecovery(t, b.store, ref, options, clock, math.Inf(1))
+		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -313,7 +318,7 @@ func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
 		if text, ok := mainRecoveryText(f.live(state)); ok {
 			t.Error("unstored partial survived crash", text)
 		}
-		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, math.Inf(1))
 		mainFinishRecovery(t, f, streams, sub.ID(), []JSON{{"text": "answer", "stopReason": "stop"}})
 	})
 }
@@ -323,7 +328,7 @@ func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
 func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		ref, options, streams, clock := mainRecoverySetup(t)
-		f := mainOpenRecovery(t, b.store, ref, options, clock, 150)
+		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -336,7 +341,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 			t.Fatal("missing stored partial longer than40", stored)
 		}
 		store := f.crash()
-		f = mainOpenRecovery(t, store, ref, options, clock, 150)
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, 150)
 		store = f.crash()
 		state, err := store.Snapshot(bg)
 		if err != nil {
@@ -345,7 +350,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		if text, ok := mainRecoveryText(f.live(state)); !ok || text != stored {
 			t.Error("crash before conversion lost partial", text, stored)
 		}
-		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, math.Inf(1))
 		if err := f.h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -359,7 +364,7 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		if text, ok := mainRecoveryText(f.live(state)); ok {
 			t.Error("resend's held partial survived crash", text)
 		}
-		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, math.Inf(1))
 		mainFinishRecovery(t, f, streams, sub.ID(), []JSON{{"text": stored, "stopReason": "aborted"}, {"text": "answer", "stopReason": "stop"}})
 	})
 }

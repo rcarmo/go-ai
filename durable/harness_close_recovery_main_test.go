@@ -16,7 +16,7 @@ import (
 func TestMainHarnessCleanCloseStoresHeldGeneration(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		ref, options, streams, clock := mainRecoverySetup(t)
-		f := mainOpenRecovery(t, b.store, ref, options, clock, math.Inf(1))
+		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
 		if err != nil {
 			t.Fatal(err)
@@ -55,7 +55,7 @@ func TestMainHarnessCleanCloseStoresHeldGeneration(t *testing.T) {
 		if generations != 1 {
 			t.Fatal("generation count", generations)
 		}
-		f = mainOpenRecovery(t, store, ref, options, clock, math.Inf(1))
+		f = mainOpenSlowRecovery(t, store, ref, options, clock, math.Inf(1))
 		state, err = f.h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)

@@ -50,7 +50,7 @@ func TestMainHarnessDeferredProgressBatching(t *testing.T) {
 		zero := int64(0)
 		window := float64(400)
 		options.Now = clock.Load
-		options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}}
+		options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &zero, PersistWithinMs: &window}, Retry: mainSlowRetry()}
 		options.SetTimer = func(fire func(), delay time.Duration, opts TimerOptions) func() {
 			if delay <= 0 {
 				fire()
@@ -65,6 +65,7 @@ func TestMainHarnessDeferredProgressBatching(t *testing.T) {
 			return func() { mu.Lock(); timer.cancelled = true; mu.Unlock() }
 		}
 		h := openHarness(t, b.store, options)
+		mainAssertSlowRetry(t, h)
 		c := root(t, h, ref)
 		_, frames := recordUpstreamWindow(t, c)
 		var stores atomic.Int64

@@ -1,6 +1,6 @@
 # Deferred Harness assertion reconciliation
 
-This is a static review of all11 declarations in `packages/durable/test/harness-deferred-progress.test.ts` at official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`, against the native scenarios through `a08d73b1c69fe52d287c61a980e4d011b44d6762`, plus four assertion strengthenings below. Production remains `decbd9d4419d0580c6b84e6832b07d7893573444`. It is not TypeScript execution or full-body parity acceptance.
+This is a static review of all11 declarations in `packages/durable/test/harness-deferred-progress.test.ts` at official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`, against the native scenarios through `a08d73b1c69fe52d287c61a980e4d011b44d6762`, plus four assertion strengthenings below. Production remains `decbd9d4419d0580c6b84e6832b07d7893573444`. The retry-fixture correction below follows the assertion audit at `67784795b437aeeac0177e0917f574f420d3064a`. TypeScript execution and full-body parity have not been verified.
 
 ## Declaration and assertion map
 
@@ -22,11 +22,21 @@ Function names below are in `durable/`. Related validation receipts remain at th
 
 All11 declarations now have scenario anchors. This does not establish that every literal fixture setting, callback timing, representation or whole-body effect is equivalent.
 
-## A concrete remaining fixture mismatch
+## Source retry settings
 
-Source `slowSetup` at29-35 sets retry enabled, maximum5 and base delay1ms. Native recovery helpers inherit `defaultHarnessSettings` (`durable/settings.go:74`): enabled, maximum3, base delay2000ms. `mainOpenRecovery` installs progress settings without those retry overrides. The batching fixture also installs progress settings only. The nine declarations using source `slowSetup` therefore do **not** have literal retry-configuration correspondence, even though their recorded nominal outcome assertions pass.
+Source `slowSetup` at29-35 sets retry enabled, `maxRetries: 5` and `baseDelayMs: 1`. All nine native translations using that source setup now supply those literal overrides. Eight recovery scenarios use `mainOpenSlowRecovery`, including every reopen; batching supplies `mainSlowRetry` directly. `mainAssertSlowRetry` checks each opened host's resolved policy. These helpers live in `durable/harness_retry_fixture_main_test.go`.
 
-Next: add a source-literal fixture-policy check, establish its unchanged-fixture failure, align the fixture configuration without changing production defaults, and validate only affected contracts. Only investigate a runtime change if that source-configured path demonstrates a behavior gap. No retry-policy divergence is accepted.
+Ordinary `mainOpenRecovery` calls still supply no retry override. The deferred-poll scenario at228 and native controls keep their previous settings. `TestMainHarnessRetryFixtureDefaultsUnchanged` checks both the ordinary opened fixture and production defaults: enabled, maximum3, base delay2000ms, maximum delay60000ms. Production code has no changes.
+
+The baseline retained the original effective policy through a semantics-preserving helper extraction with nil retry overrides. All27 backend leaves for the nine source scenarios failed their policy guard: maximum3/base2000ms, wanted5/1ms (CGO1,0.352s). The default-control test had no failure. Supplying the source overrides resolves those failures without a runtime fix.
+
+Go1.27.3, `GOMAXPROCS=4`, project environment, protected prototype excluded:
+
+* Nine affected scenarios, the default-control test and deferred-poll regression: normal count3/shuffle42, CGO1 7.901s; CGO0 4.761s. Race count3/shuffle7, CGO1 48.005s.
+* Separate active maximum3 and base2000ms faults each fail all three batching backend guards. A production-default maximum5 fault fails all three default-control backend guards. No compilation or timeout failure supplies this result.
+* Durable vet and Staticcheck v0.8.2 pass in both CGO modes; module verification, formatting, diff and protected-prototype checks pass. Staticcheck uses a physical source copy without the prototype.
+
+The nine source fixture policies now have literal correspondence for these three fields. Retry charging, callback timing and whole-body equivalence need their own behavioural checks; these nominal paths do not establish them. The original four-check validation receipt below keeps its earlier scope.
 
 Other adapters remain: deterministic clock steps, zero generation-publication interval, acknowledged watch delivery instead of the source's synchronous local feed, explicit Resume calls, failed-Session/join/reopen instead of in-process Session failure, synthetic ASCII prefix text for several recovery cases, command-paced tool output and native record/entry/document addressing. These are documented test boundaries, not acceptance of differing observable contracts.
 
@@ -47,4 +57,4 @@ The canonical review/generated362-row crosswalk update one evidence cell only. F
 
 ## Not accepted by this review
 
-The file stays `reviewed-open`. Literal retry configuration and callback/fixture equivalence remain open. Shared public identity, tracker/WeakRef, synchronous observer/reporting and broader abort/flush ordering require their own source contracts. Source228 is deferred polling, not abort-during-flush. Cross-package/schema/support/catalogue review and authorised acceptance CPU/allocation profiling remain unverified. No TypeScript, full-suite, profiling, dependency/storage-format, CI, release or full-v1.5.0-alignment result is claimed.
+The file stays `reviewed-open`. The three explicit source retry overrides match; callback/fixture equivalence and complete retry behaviour have not been verified. Shared public identity, tracker/WeakRef, synchronous observer/reporting and broader abort/flush ordering require their own source contracts. Source228 is deferred polling, not abort-during-flush. Cross-package/schema/support/catalogue review and authorised acceptance CPU/allocation profiling remain unverified. No TypeScript, full-suite, profiling, dependency/storage-format, CI, release or full-v1.5.0-alignment result is claimed.

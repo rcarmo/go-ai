@@ -164,7 +164,7 @@ func mainFinishToolSubmission(t *testing.T, f *mainRecoveryHarness, id ID) {
 func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		setup := mainToolRecoverySetup(t, true)
-		f := mainOpenRecovery(t, b.store, setup.ref, setup.options, setup.clock, 50)
+		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 50)
 		if _, err := f.c.Submit(bg, Input{Content: "go"}); err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +178,7 @@ func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
 			}
 			mainStoredToolPrefix(t, f, run)
 			store := f.crash()
-			f = mainOpenRecovery(t, store, setup.ref, setup.options, setup.clock, 50)
+			f = mainOpenSlowRecovery(t, store, setup.ref, setup.options, setup.clock, 50)
 			state, err := f.h.Snapshot(bg)
 			if err != nil {
 				t.Fatal(err)
@@ -206,7 +206,7 @@ func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
 func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		setup := mainToolRecoverySetup(t, false)
-		f := mainOpenRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
+		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "go"})
 		if err != nil {
 			t.Fatal(err)
@@ -221,7 +221,7 @@ func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
 		if got, ok := mainToolOutput(f.live(state)); !ok || got != stored {
 			t.Fatal("crash changed stored output", got, stored)
 		}
-		f = mainOpenRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
+		f = mainOpenSlowRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
 		mainFinishToolSubmission(t, f, sub.ID())
 		if setup.count.Load() != 1 {
 			t.Error("unsafe tool reran", setup.count.Load())
@@ -242,7 +242,7 @@ func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
 func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		setup := mainToolRecoverySetup(t, true)
-		f := mainOpenRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
+		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "go"})
 		if err != nil {
 			t.Fatal(err)
@@ -250,7 +250,7 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 		run := watchReceive(t, setup.runs)
 		mainStoredToolPrefix(t, f, run)
 		store := f.crash()
-		f = mainOpenRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
+		f = mainOpenSlowRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
 		if err := f.h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
 		if _, ok := mainToolOutput(f.live(state)); ok {
 			t.Error("cleared output reappeared after second crash")
 		}
-		f = mainOpenRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
+		f = mainOpenSlowRecovery(t, store, setup.ref, setup.options, setup.clock, 150)
 		if err := f.h.Resume(bg); err != nil {
 			t.Fatal(err)
 		}

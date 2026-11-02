@@ -40,6 +40,6 @@ The canonical release review and generated362-row crosswalk change one evidence 
 
 ## Remaining work
 
-Source398 and source430 now have native scenario translations. The subsequent [eleven-declaration assertion map](harness-deferred-assertions.md) adds four explicit checks and records a remaining literal retry-fixture mismatch. Complete TypeScript body equivalence, controlled clocks/provider pacing and document/entry/callback adaptations are not accepted by these nominal outcomes. Shared public identity, tracker/WeakRef, synchronous observer/reporting contracts and broader abort ordering remain open. Source228 remains deferred polling, not abort-during-flush.
+Source398 and source430 now have native scenario translations. The subsequent [eleven-declaration assertion map](harness-deferred-assertions.md) adds four explicit checks and now records matching literal retry overrides for the nine source slow fixtures. Complete TypeScript body equivalence, controlled clocks/provider pacing and document/entry/callback adaptations are not accepted by these nominal outcomes. Shared public identity, tracker/WeakRef, synchronous observer/reporting contracts and broader abort ordering remain open. Source228 remains deferred polling, not abort-during-flush.
 
 Cross-package/schema/support/catalogue correspondence, broader authorised acceptance and CPU/allocation profiling remain unverified. No full-suite, profiling, dependency/storage-format, CI, release or full-v1.5.0-alignment result is claimed.
