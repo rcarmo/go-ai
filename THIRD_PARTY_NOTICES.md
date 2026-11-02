@@ -42,7 +42,8 @@ THE SOFTWARE.
 
 `tests/testdata/upstream-main/hostname.json`, the regex assertions in
 `tests/testdata/upstream-main/validation-regex.json` and the selected
-reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json` come from
+reference/anchor assertions in `tests/testdata/upstream-main/validation-resources.json`,
+and `tests/testdata/upstream-main/validation-{const,enum}-fixture.json` come from
 the pinned upstream JSON Schema Test Suite. Its copyright and the MIT
 permission/disclaimer printed above apply to these fixtures:
 
@@ -64,7 +65,10 @@ rules from `packages/schema/src/resolver.ts` at `c9f4c7b9`.
 `schema_validation.go` adapts the overlapping-oneOf diagnostic from
 `packages/schema/src/explain.ts` at the same pin. `schema_validation_null.go`
 and optional-null normalisation follow the null-domain compiler/coercion rules
-at that pin. The MIT permission and
+at that pin. The literal equality, final coercion pass and diagnostic formatting
+in `schema_validation_literals.go`, `schema_validation_literal_coercion.go` and
+`schema_validation_literal_json.go` adapt `checks.ts`, `coerce.ts` and `explain.ts`
+from the same source. The MIT permission and
 disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner

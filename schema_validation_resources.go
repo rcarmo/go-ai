@@ -17,11 +17,12 @@ const toolSchemaDefaultBase = "https://json-schema.invalid/root.json"
 
 type toolSchemaRefKey struct{ base, ref string }
 type toolSchemaResources struct {
-	bases     map[uintptr]string
-	documents map[string]interface{}
-	anchors   map[string]interface{}
-	orders    map[uintptr][]string
-	work      *toolSchemaWork
+	bases         map[uintptr]string
+	documents     map[string]interface{}
+	anchors       map[string]interface{}
+	orders        map[uintptr][]string
+	literalOrders map[uintptr][]string
+	work          *toolSchemaWork
 }
 
 // Index only schema-bearing keywords, in the pinned resolver's order. An ID
@@ -91,6 +92,9 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 		}
 	}
 	r.bases[identity] = base
+	for _, keyword := range []string{"const", "enum"} {
+		r.retainLiteralOrder(node[keyword])
+	}
 	if r.work != nil {
 		r.work.indexNodes++
 	}

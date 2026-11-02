@@ -1,0 +1,4160 @@
+{
+  "upstream": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
+  "source": [
+    "packages/schema/src/checks.ts",
+    "packages/schema/src/coerce.ts",
+    "packages/schema/src/explain.ts",
+    "packages/ai/src/utils/validation.ts"
+  ],
+  "literal": [],
+  "derived": [
+    {
+      "name": "fixture-const-0-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "fixture-const-0-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 5
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "fixture-const-0-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "a"
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "fixture-const-1-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "foo": "bar",
+              "baz": "bax"
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "bar",
+          "baz": "bax"
+        }
+      },
+      "want": "ok {\"v\":{\"foo\":\"bar\",\"baz\":\"bax\"}}"
+    },
+    {
+      "name": "fixture-const-1-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "foo": "bar",
+              "baz": "bax"
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "baz": "bax",
+          "foo": "bar"
+        }
+      },
+      "want": "ok {\"v\":{\"baz\":\"bax\",\"foo\":\"bar\"}}"
+    },
+    {
+      "name": "fixture-const-1-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "foo": "bar",
+              "baz": "bax"
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "bar"
+        }
+      },
+      "want": "REJECT - v: expected {\"foo\":\"bar\",\"baz\":\"bax\"}"
+    },
+    {
+      "name": "fixture-const-1-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "foo": "bar",
+              "baz": "bax"
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1,
+          2
+        ]
+      },
+      "want": "REJECT - v: expected {\"foo\":\"bar\",\"baz\":\"bax\"}"
+    },
+    {
+      "name": "fixture-const-2-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              {
+                "foo": "bar"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          {
+            "foo": "bar"
+          }
+        ]
+      },
+      "want": "ok {\"v\":[{\"foo\":\"bar\"}]}"
+    },
+    {
+      "name": "fixture-const-2-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              {
+                "foo": "bar"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          2
+        ]
+      },
+      "want": "REJECT - v: expected [{\"foo\":\"bar\"}]"
+    },
+    {
+      "name": "fixture-const-2-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              {
+                "foo": "bar"
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1,
+          2,
+          3
+        ]
+      },
+      "want": "REJECT - v: expected [{\"foo\":\"bar\"}]"
+    },
+    {
+      "name": "fixture-const-3-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":null}"
+    },
+    {
+      "name": "fixture-const-3-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "REJECT - v: expected null"
+    },
+    {
+      "name": "fixture-const-4-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": false
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-const-4-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": false
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-const-4-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": false
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-const-5-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-const-5-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-const-5-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-const-6-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          false
+        ]
+      },
+      "want": "ok {\"v\":[false]}"
+    },
+    {
+      "name": "fixture-const-6-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "REJECT - v: expected [false]"
+    },
+    {
+      "name": "fixture-const-6-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "REJECT - v: expected [false]"
+    },
+    {
+      "name": "fixture-const-7-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          true
+        ]
+      },
+      "want": "ok {\"v\":[true]}"
+    },
+    {
+      "name": "fixture-const-7-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "REJECT - v: expected [true]"
+    },
+    {
+      "name": "fixture-const-7-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "REJECT - v: expected [true]"
+    },
+    {
+      "name": "fixture-const-8-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": false
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": false
+        }
+      },
+      "want": "ok {\"v\":{\"a\":false}}"
+    },
+    {
+      "name": "fixture-const-8-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": false
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 0
+        }
+      },
+      "want": "REJECT - v: expected {\"a\":false}"
+    },
+    {
+      "name": "fixture-const-8-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": false
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 0
+        }
+      },
+      "want": "REJECT - v: expected {\"a\":false}"
+    },
+    {
+      "name": "fixture-const-9-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": true
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": true
+        }
+      },
+      "want": "ok {\"v\":{\"a\":true}}"
+    },
+    {
+      "name": "fixture-const-9-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": true
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 1
+        }
+      },
+      "want": "REJECT - v: expected {\"a\":true}"
+    },
+    {
+      "name": "fixture-const-9-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": {
+              "a": true
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 1
+        }
+      },
+      "want": "REJECT - v: expected {\"a\":true}"
+    },
+    {
+      "name": "fixture-const-10-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-const-10-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-const-10-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-const-10-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {}
+      },
+      "want": "REJECT - v: expected 0"
+    },
+    {
+      "name": "fixture-const-10-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": []
+      },
+      "want": "REJECT - v: expected 0"
+    },
+    {
+      "name": "fixture-const-10-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 0
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": ""
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-const-11-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 1
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-const-11-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 1
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-const-11-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 1
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-const-12-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": -2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": -2
+      },
+      "want": "ok {\"v\":-2}"
+    },
+    {
+      "name": "fixture-const-12-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": -2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "REJECT - v: expected -2"
+    },
+    {
+      "name": "fixture-const-12-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": -2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": -2
+      },
+      "want": "ok {\"v\":-2}"
+    },
+    {
+      "name": "fixture-const-12-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": -2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "REJECT - v: expected -2"
+    },
+    {
+      "name": "fixture-const-12-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": -2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": -2.00001
+      },
+      "want": "REJECT - v: expected -2"
+    },
+    {
+      "name": "fixture-const-13-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 9007199254740992
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 9007199254740992
+      },
+      "want": "ok {\"v\":9007199254740992}"
+    },
+    {
+      "name": "fixture-const-13-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 9007199254740992
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 9007199254740991
+      },
+      "want": "REJECT - v: expected 9007199254740992"
+    },
+    {
+      "name": "fixture-const-13-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 9007199254740992
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 9007199254740992
+      },
+      "want": "ok {\"v\":9007199254740992}"
+    },
+    {
+      "name": "fixture-const-13-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": 9007199254740992
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 9007199254740991
+      },
+      "want": "REJECT - v: expected 9007199254740992"
+    },
+    {
+      "name": "fixture-const-14-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "hello\u0000there"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "hello\u0000there"
+      },
+      "want": "ok {\"v\":\"hello\\u0000there\"}"
+    },
+    {
+      "name": "fixture-const-14-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "hello\u0000there"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "hellothere"
+      },
+      "want": "REJECT - v: expected \"hello\\u0000there\""
+    },
+    {
+      "name": "fixture-const-15-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "μ",
+            "$comment": "U+03BC"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "μ"
+      },
+      "want": "ok {\"v\":\"μ\"}"
+    },
+    {
+      "name": "fixture-const-15-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "μ",
+            "$comment": "U+03BC"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "µ"
+      },
+      "want": "REJECT - v: expected \"μ\""
+    },
+    {
+      "name": "fixture-const-16-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "ä",
+            "$comment": "U+00E4"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "ä"
+      },
+      "want": "ok {\"v\":\"ä\"}"
+    },
+    {
+      "name": "fixture-const-16-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "const": "ä",
+            "$comment": "U+00E4"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "ä"
+      },
+      "want": "REJECT - v: expected \"ä\""
+    },
+    {
+      "name": "fixture-enum-0-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-enum-0-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 4
+      },
+      "want": "REJECT - v: expected one of [1,2,3]"
+    },
+    {
+      "name": "fixture-enum-1-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              "foo",
+              [],
+              true,
+              {
+                "foo": 12
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": []
+      },
+      "want": "ok {\"v\":[]}"
+    },
+    {
+      "name": "fixture-enum-1-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              "foo",
+              [],
+              true,
+              {
+                "foo": 12
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected one of [6,\"foo\",[],true,{\"foo\":12}]"
+    },
+    {
+      "name": "fixture-enum-1-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              "foo",
+              [],
+              true,
+              {
+                "foo": 12
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": false
+        }
+      },
+      "want": "REJECT - v: expected one of [6,\"foo\",[],true,{\"foo\":12}]"
+    },
+    {
+      "name": "fixture-enum-1-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              "foo",
+              [],
+              true,
+              {
+                "foo": 12
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": 12
+        }
+      },
+      "want": "ok {\"v\":{\"foo\":12}}"
+    },
+    {
+      "name": "fixture-enum-1-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              "foo",
+              [],
+              true,
+              {
+                "foo": 12
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": 12,
+          "boo": 42
+        }
+      },
+      "want": "REJECT - v: expected one of [6,\"foo\",[],true,{\"foo\":12}]"
+    },
+    {
+      "name": "fixture-enum-2-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":null}"
+    },
+    {
+      "name": "fixture-enum-2-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 6
+      },
+      "want": "ok {\"v\":6}"
+    },
+    {
+      "name": "fixture-enum-2-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              6,
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "test"
+      },
+      "want": "REJECT - v: expected one of [6,null]"
+    },
+    {
+      "name": "fixture-enum-3-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "foo",
+          "bar": "bar"
+        }
+      },
+      "want": "ok {\"v\":{\"foo\":\"foo\",\"bar\":\"bar\"}}"
+    },
+    {
+      "name": "fixture-enum-3-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "foot",
+          "bar": "bar"
+        }
+      },
+      "want": "REJECT - v.foo: expected one of [\"foo\"]"
+    },
+    {
+      "name": "fixture-enum-3-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "foo",
+          "bar": "bart"
+        }
+      },
+      "want": "REJECT - v.bar: expected one of [\"bar\"]"
+    },
+    {
+      "name": "fixture-enum-3-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "bar": "bar"
+        }
+      },
+      "want": "ok {\"v\":{\"bar\":\"bar\"}}"
+    },
+    {
+      "name": "fixture-enum-3-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "foo": "foo"
+        }
+      },
+      "want": "REJECT - v.bar: missing"
+    },
+    {
+      "name": "fixture-enum-3-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "foo": {
+                "enum": [
+                  "foo"
+                ]
+              },
+              "bar": {
+                "enum": [
+                  "bar"
+                ]
+              }
+            },
+            "required": [
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {}
+      },
+      "want": "REJECT - v.bar: missing"
+    },
+    {
+      "name": "fixture-enum-4-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "foo\nbar",
+              "foo\rbar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "foo\nbar"
+      },
+      "want": "ok {\"v\":\"foo\\nbar\"}"
+    },
+    {
+      "name": "fixture-enum-4-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "foo\nbar",
+              "foo\rbar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "foo\rbar"
+      },
+      "want": "ok {\"v\":\"foo\\rbar\"}"
+    },
+    {
+      "name": "fixture-enum-4-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "foo\nbar",
+              "foo\rbar"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "abc"
+      },
+      "want": "REJECT - v: expected one of [\"foo\\nbar\",\"foo\\rbar\"]"
+    },
+    {
+      "name": "fixture-enum-5-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-enum-5-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-enum-5-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "fixture-enum-6-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                false
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          false
+        ]
+      },
+      "want": "ok {\"v\":[false]}"
+    },
+    {
+      "name": "fixture-enum-6-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                false
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "REJECT - v: expected one of [[false]]"
+    },
+    {
+      "name": "fixture-enum-6-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                false
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "REJECT - v: expected one of [[false]]"
+    },
+    {
+      "name": "fixture-enum-7-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-enum-7-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-enum-7-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "fixture-enum-8-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                true
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          true
+        ]
+      },
+      "want": "ok {\"v\":[true]}"
+    },
+    {
+      "name": "fixture-enum-8-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                true
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "REJECT - v: expected one of [[true]]"
+    },
+    {
+      "name": "fixture-enum-8-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                true
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "REJECT - v: expected one of [[true]]"
+    },
+    {
+      "name": "fixture-enum-9-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-enum-9-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-enum-9-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "fixture-enum-10-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                0
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          false
+        ]
+      },
+      "want": "REJECT - v: expected one of [[0]]"
+    },
+    {
+      "name": "fixture-enum-10-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                0
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "ok {\"v\":[0]}"
+    },
+    {
+      "name": "fixture-enum-10-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                0
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          0
+        ]
+      },
+      "want": "ok {\"v\":[0]}"
+    },
+    {
+      "name": "fixture-enum-11-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-enum-11-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-enum-11-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "fixture-enum-12-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          true
+        ]
+      },
+      "want": "REJECT - v: expected one of [[1]]"
+    },
+    {
+      "name": "fixture-enum-12-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "ok {\"v\":[1]}"
+    },
+    {
+      "name": "fixture-enum-12-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "ok {\"v\":[1]}"
+    },
+    {
+      "name": "fixture-enum-13-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "hello\u0000there"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "hello\u0000there"
+      },
+      "want": "ok {\"v\":\"hello\\u0000there\"}"
+    },
+    {
+      "name": "fixture-enum-13-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "hello\u0000there"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "hellothere"
+      },
+      "want": "REJECT - v: expected one of [\"hello\\u0000there\"]"
+    },
+    {
+      "name": "fixture-enum-14-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "foo"
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-14-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 42
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-14-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-14-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {}
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-14-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": []
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-14-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": []
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "REJECT - v: expected one of []"
+    },
+    {
+      "name": "fixture-enum-15-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "ä"
+            ],
+            "$comment": "U+00E4"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "ä"
+      },
+      "want": "ok {\"v\":\"ä\"}"
+    },
+    {
+      "name": "fixture-enum-15-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+              "ä"
+            ],
+            "$comment": "U+00E4"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "ä"
+      },
+      "want": "REJECT - v: expected one of [\"ä\"]"
+    },
+    {
+      "name": "derived-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2"
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2.0"
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2.1"
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "derived-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "derived-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "derived-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-6",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "true"
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "derived-7",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "derived-8",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "derived-9",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "REJECT - v: expected true"
+    },
+    {
+      "name": "derived-10",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": true
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "REJECT - v: expected true"
+    },
+    {
+      "name": "derived-11",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": "null"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":\"null\"}"
+    },
+    {
+      "name": "derived-12",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": "null"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "REJECT - v: expected \"null\""
+    },
+    {
+      "name": "derived-13",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": "null"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "REJECT - v: expected \"null\""
+    },
+    {
+      "name": "derived-14",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": "null"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "null"
+      },
+      "want": "ok {\"v\":\"null\"}"
+    },
+    {
+      "name": "derived-15",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "null"
+      },
+      "want": "REJECT - v: expected null"
+    },
+    {
+      "name": "derived-16",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": ""
+      },
+      "want": "REJECT - v: expected null"
+    },
+    {
+      "name": "derived-17",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "REJECT - v: expected null"
+    },
+    {
+      "name": "derived-18",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": null
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":null}"
+    },
+    {
+      "name": "derived-19",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "false"
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "derived-20",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "0"
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "derived-21",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "true"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-22",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":\"1\"}"
+    },
+    {
+      "name": "derived-23",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1.0"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-24",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 0
+      },
+      "want": "ok {\"v\":false}"
+    },
+    {
+      "name": "derived-25",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-26",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              false,
+              1,
+              "1",
+              null
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "ok {\"v\":null}"
+    },
+    {
+      "name": "derived-27",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              2,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-28",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              2,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2"
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-29",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              2,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "3"
+      },
+      "want": "REJECT - v: expected one of [2,1]"
+    },
+    {
+      "name": "derived-30",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              2,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": true
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-31",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "true"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-32",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              true
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-33",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              true,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "true"
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "derived-34",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              true,
+              1
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":true}"
+    },
+    {
+      "name": "derived-35",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "enum": [
+              2
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: expected one of [2]"
+    },
+    {
+      "name": "derived-36",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "enum": [
+              2
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "REJECT - v: expected one of [2]"
+    },
+    {
+      "name": "derived-37",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "enum": [
+              2
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "REJECT - v: expected 1"
+    },
+    {
+      "name": "derived-38",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-39",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1.9"
+      },
+      "want": "REJECT - v: expected integer, got string"
+    },
+    {
+      "name": "derived-40",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1.9
+      },
+      "want": "REJECT - v: expected integer, got number"
+    },
+    {
+      "name": "derived-41",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: expected 1"
+    },
+    {
+      "name": "derived-42",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "REJECT - v: expected 1"
+    },
+    {
+      "name": "derived-43",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1.9"
+      },
+      "want": "REJECT - v: expected integer, got string"
+    },
+    {
+      "name": "derived-44",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2.9"
+      },
+      "want": "REJECT - v: expected integer, got string"
+    },
+    {
+      "name": "derived-45",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2"
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-46",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              "x"
+            ],
+            "type": "number"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "x"
+      },
+      "want": "REJECT - v: expected number, got string"
+    },
+    {
+      "name": "derived-47",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              "x"
+            ],
+            "type": "number"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: expected one of [\"x\"]"
+    },
+    {
+      "name": "derived-48",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": {
+              "b": "<>&",
+              "a": 1
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 1,
+          "b": "<>&"
+        }
+      },
+      "want": "ok {\"v\":{\"a\":1,\"b\":\"<>&\"}}"
+    },
+    {
+      "name": "derived-49",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": {
+              "b": "<>&",
+              "a": 1
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 2,
+          "b": "<>&"
+        }
+      },
+      "want": "REJECT - v: expected {\"b\":\"<>&\",\"a\":1}"
+    },
+    {
+      "name": "derived-50",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              {
+                "b": 2,
+                "a": 1
+              },
+              [
+                true
+              ],
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "a": 1,
+          "b": 2
+        }
+      },
+      "want": "ok {\"v\":{\"a\":1,\"b\":2}}"
+    },
+    {
+      "name": "derived-51",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              {
+                "b": 2,
+                "a": 1
+              },
+              [
+                true
+              ],
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": [
+          1
+        ]
+      },
+      "want": "REJECT - v: expected one of [{\"b\":2,\"a\":1},[true],0]"
+    },
+    {
+      "name": "derived-52",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              {
+                "b": 2,
+                "a": 1
+              },
+              [
+                true
+              ],
+              0
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": false
+      },
+      "want": "ok {\"v\":0}"
+    },
+    {
+      "name": "derived-53",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "anyOf": [
+              {
+                "const": 1
+              },
+              {
+                "const": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-54",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "anyOf": [
+              {
+                "const": 1
+              },
+              {
+                "const": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "true"
+      },
+      "want": "ok {\"v\":1}"
+    },
+    {
+      "name": "derived-55",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "anyOf": [
+              {
+                "const": 1
+              },
+              {
+                "const": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "other"
+      },
+      "want": "REJECT - v: expected 1"
+    },
+    {
+      "name": "derived-56",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "const": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: matches more than one alternative"
+    },
+    {
+      "name": "derived-57",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "const": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "REJECT - v: expected one of [1,2]"
+    },
+    {
+      "name": "derived-58",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "const": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "derived-59",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "oneOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "const": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 3
+      },
+      "want": "REJECT - v: expected one of [1,2]"
+    },
+    {
+      "name": "derived-60",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "allOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              }
+            ],
+            "minimum": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: expected >= 2"
+    },
+    {
+      "name": "derived-61",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "allOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              }
+            ],
+            "minimum": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "REJECT - v: expected >= 2"
+    },
+    {
+      "name": "derived-62",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "allOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ]
+              }
+            ],
+            "minimum": 2
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "interaction-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": {
+              "n": 1
+            },
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "n": "1.9"
+        }
+      },
+      "want": "REJECT - v: expected {\"n\":1}"
+    },
+    {
+      "name": "interaction-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": {
+              "n": 1
+            },
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": {
+          "n": "1"
+        }
+      },
+      "want": "ok {\"v\":{\"n\":1}}"
+    },
+    {
+      "name": "interaction-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1.9"
+      },
+      "want": "REJECT - v: expected integer or null, got string"
+    },
+    {
+      "name": "interaction-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "2"
+      },
+      "want": "ok {\"v\":2}"
+    },
+    {
+      "name": "interaction-4",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected one of [1,2]"
+    },
+    {
+      "name": "interaction-5",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "enum": [
+              "1"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 1
+      },
+      "want": "REJECT - v: expected one of [\"1\"]"
+    },
+    {
+      "name": "interaction-6",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 1,
+            "enum": [
+              "1"
+            ]
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": "1"
+      },
+      "want": "REJECT - v: expected one of [\"1\"]"
+    },
+    {
+      "name": "interaction-7",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$ref": "#/$defs/C"
+          }
+        },
+        "required": [
+          "v"
+        ],
+        "$defs": {
+          "C": {
+            "const": {
+              "1": "1",
+              "2": 2,
+              "z": "<>&",
+              "a": "  "
+            }
+          }
+        }
+      },
+      "input": {
+        "v": {
+          "a": 1
+        }
+      },
+      "want": "REJECT - v: expected {\"1\":\"1\",\"2\":2,\"z\":\"<>&\",\"a\":\"  \"}"
+    },
+    {
+      "name": "interaction-8",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$ref": "#/$defs/C"
+          }
+        },
+        "required": [
+          "v"
+        ],
+        "$defs": {
+          "C": {
+            "const": {
+              "1": "1",
+              "2": 2,
+              "z": "<>&",
+              "a": "  "
+            }
+          }
+        }
+      },
+      "input": {
+        "v": {
+          "z": "x"
+        }
+      },
+      "want": "REJECT - v: expected {\"1\":\"1\",\"2\":2,\"z\":\"<>&\",\"a\":\"  \"}"
+    },
+    {
+      "name": "interaction-9",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$ref": "#/$defs/C"
+          }
+        },
+        "required": [
+          "v"
+        ],
+        "$defs": {
+          "C": {
+            "enum": [
+              {
+                "z": 1,
+                "a": "<>&"
+              },
+              {
+                "a": 2,
+                "z": "\u0000"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "v": {}
+      },
+      "want": "REJECT - v: expected one of [{\"z\":1,\"a\":\"<>&\"},{\"a\":2,\"z\":\"\\u0000\"}]"
+    },
+    {
+      "name": "interaction-10",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "$ref": "#/$defs/C"
+          }
+        },
+        "required": [
+          "v"
+        ],
+        "$defs": {
+          "C": {
+            "enum": [
+              {
+                "z": 1,
+                "a": "<>&"
+              },
+              {
+                "a": 2,
+                "z": "\u0000"
+              }
+            ]
+          }
+        }
+      },
+      "input": {
+        "v": "x"
+      },
+      "want": "REJECT - v: expected one of [{\"z\":1,\"a\":\"<>&\"},{\"a\":2,\"z\":\"\\u0000\"}]"
+    },
+    {
+      "name": "sweep-witness-0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 2,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected 2"
+    },
+    {
+      "name": "sweep-witness-1",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              "x"
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": null
+      },
+      "want": "REJECT - v: expected one of [\"x\"]"
+    },
+    {
+      "name": "sweep-witness-2",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "const": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "REJECT - v: expected array, got integer"
+    },
+    {
+      "name": "sweep-witness-3",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "enum": [
+              1
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "v"
+        ]
+      },
+      "input": {
+        "v": 2
+      },
+      "want": "REJECT - v: expected object, got integer"
+    }
+  ]
+}

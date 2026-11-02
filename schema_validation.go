@@ -49,7 +49,7 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 	return key, true
 }
 
-type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks int } // Optional structural-work witness in white-box tests.
+type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks, literalCandidates int } // Optional structural-work witness in white-box tests.
 
 type toolSchemaValidator struct {
 	root       map[string]interface{}
@@ -226,16 +226,6 @@ func (i *toolSchemaIssue) Error() string {
 	return path + ": " + i.reason
 }
 
-// Match explain.ts listValues: truncate before serializing, not after building
-// a potentially enormous message. SafeJSONStringify preserves JS string escapes.
-func schemaEnumList(values []interface{}) string {
-	const listed = 20
-	if len(values) <= listed {
-		return SafeJSONStringify(values)
-	}
-	return strings.TrimSuffix(SafeJSONStringify(values[:listed]), "]") + ", ... and " + strconv.Itoa(len(values)-listed) + " more]"
-}
-
 func schemaIssuePath(parent, key string) string {
 	if parent == "" {
 		return key
@@ -247,6 +237,25 @@ func schemaIssuePath(parent, key string) string {
 // Reference-check memo entries hold booleans, never a path from another caller.
 func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interface{}, path string, active map[toolSchemaMemoKey]bool) *toolSchemaIssue {
 	generic := &toolSchemaIssue{path, "value does not match schema"}
+	types := schemaTypes(schema["type"])
+	if len(types) > 0 && !anyMatchesJSONSchemaType(value, types) {
+		return &toolSchemaIssue{path, "expected " + strings.Join(types, " or ") + ", got " + schemaLiteralTypeName(value)}
+	}
+	if values, ok := schema["enum"].([]interface{}); ok {
+		found := false
+		for _, member := range values {
+			if schemaLiteralEqual(value, member) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return &toolSchemaIssue{path, "expected one of " + v.literalEnumList(values)}
+		}
+	}
+	if literal, exists := schema["const"]; exists && !schemaLiteralEqual(value, literal) {
+		return &toolSchemaIssue{path, "expected " + v.literalJSON(literal)}
+	}
 	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
 		if target, ok := v.resolve(ref, schema).(map[string]interface{}); ok {
 			key, cacheable := toolSchemaKey(target, value)
@@ -258,16 +267,12 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		}
 		return generic
 	}
-	types := schemaTypes(schema["type"])
 	if len(types) == 0 || anyMatchesJSONSchemaType(value, types) {
 		if reason := schemaNumericBoundsReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}
 	}
 	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) {
-		if !schemaConstraintsMatch(value, "string", schema) {
-			return &toolSchemaIssue{path, "expected one of " + schemaEnumList(schema["enum"].([]interface{}))}
-		}
 		if reason := v.stringFormatReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}

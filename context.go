@@ -265,7 +265,7 @@ func hasStringRef(schema map[string]interface{}) bool {
 }
 
 func (v *toolSchemaValidator) coerceWithJSONSchema(value interface{}, schema map[string]interface{}) (interface{}, error) {
-	converted := v.convertValidationValue(value, schema)
+	converted := v.coerceValidationTypes(v.convertValidationValue(value, schema), schema)
 	if !v.schemaAcceptsValue(converted, schema) {
 		return nil, v.issue(converted, schema, "", make(map[toolSchemaMemoKey]bool))
 	}
@@ -282,6 +282,27 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 	if ref, ok := schema["$ref"].(string); ok {
 		return v.convertReference(value, ref, schema)
 	}
+	if literal, exists := schema["const"]; exists {
+		candidate, _ := convertSchemaLiteral(literal, value)
+		return candidate
+	}
+	if values, ok := schema["enum"].([]interface{}); ok {
+		if schemaLiteralsMatch(value, schema) {
+			return value
+		}
+		for _, literal := range values {
+			candidate, changed := convertSchemaLiteral(literal, value)
+			if changed {
+				if v.work != nil {
+					v.work.literalCandidates++
+				}
+				if v.schemaAcceptsValue(candidate, schema) {
+					return candidate
+				}
+			}
+		}
+		return value
+	}
 	if branches, ok := schemaList(schema["anyOf"]); ok {
 		return v.convertValidationUnion(value, schema, branches)
 	}
@@ -294,6 +315,10 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 		}
 		return v.convertValidationMembers(value, schema)
 	}
+	// Type arrays belong to pass 3, after the whole pass-2 conversion.
+	if _, array := schema["type"].([]interface{}); array {
+		return value
+	}
 	types := schemaTypes(schema["type"])
 	if len(types) == 1 && types[0] == "array" {
 		if _, array := value.([]interface{}); !array {
@@ -305,7 +330,7 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 		}
 	} else if len(types) > 0 && !(len(types) > 1 && anyMatchesJSONSchemaType(value, types)) {
 		for _, expectedType := range types {
-			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+			if matchesJSONSchemaType(value, expectedType) {
 				break
 			}
 			var converted interface{}
@@ -315,7 +340,7 @@ func (v *toolSchemaValidator) convertValidationValue(value interface{}, schema m
 			} else {
 				converted, err = coerceJSONSchemaType(value, expectedType)
 			}
-			if err == nil && schemaConstraintsMatch(converted, expectedType, schema) {
+			if err == nil {
 				value = converted
 				break
 			}
@@ -435,6 +460,9 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
 		return false
 	}
+	if !schemaLiteralsMatch(value, schema) {
+		return false
+	}
 	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
 		if branches, ok := schemaList(schema[keyword]); ok {
 			matches := 0
@@ -449,14 +477,11 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 			}
 		}
 	}
-	if _, isString := value.(string); isString && !schemaConstraintsMatch(value, "string", schema) {
-		return false
-	}
 	types := schemaTypes(schema["type"])
 	if len(types) > 0 {
 		matched := false
 		for _, expectedType := range types {
-			if matchesJSONSchemaType(value, expectedType) && schemaConstraintsMatch(value, expectedType, schema) {
+			if matchesJSONSchemaType(value, expectedType) {
 				matched = true
 				break
 			}
@@ -493,26 +518,6 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 		}
 	}
 	return true
-}
-
-func schemaConstraintsMatch(value interface{}, expectedType string, schema map[string]interface{}) bool {
-	if expectedType != "string" {
-		return true
-	}
-	enum, ok := schema["enum"].([]interface{})
-	if !ok {
-		return true
-	}
-	s, ok := value.(string)
-	if !ok {
-		return false
-	}
-	for _, e := range enum {
-		if e == s {
-			return true
-		}
-	}
-	return false
 }
 
 func anyMatchesJSONSchemaType(value interface{}, types []string) bool {
@@ -611,6 +616,8 @@ func coerceJSONSchemaType(value interface{}, expectedType string) (interface{}, 
 		return coerceNumber(value, true)
 	case "boolean":
 		switch v := value.(type) {
+		case nil:
+			return false, nil
 		case bool:
 			return v, nil
 		case string:
