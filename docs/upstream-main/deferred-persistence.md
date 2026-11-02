@@ -176,3 +176,9 @@ The full source521 oracle now passes in `durable/session_deferred_observers_main
 Ten new functions plus six affected regressions pass Go1.27.3/GOMAXPROCS4 normal3/shuffle42 CGO1/0 (1.190/0.529s) and race3/shuffle7 (3.225s). Six active mutations each fail three backend leaves; vet/Staticcheck v0.8.2 pass both modes, plus module/format/diff checks. The protected prototype stays excluded and unchanged. Completed retention/lifecycle/deadline gates and the recorded generation baseline were not rerun; no full suite, profiling, Source execution, dependency/coalescer change or release action.
 
 Next translate source564 memory/stored kinds and own operations before implementing local/fatal listeners, then conversation-view memory delivery. Public immutable/shared values and reporting/Harness integration, source600 tracker counts/source613 public WeakRef, JS thenables/non-error throws and numerical window/clock edges are unresolved. Public persistence/Harness generation wiring waits for those controls.
+
+## Local memory and own-operation publication, 2 November 2026
+
+Runtime `148c77b08c1d84a9cfca278380b3b872544a7ffe` separates the local listener's own publication from the stored lane's folded writes. The complete source564 progression now yields watch values `a/ab/abc/abcd`, local kinds `memory/memory/memory/stored` and literal own operations `a/b/c/d`; timer stores do not re-show holds. Local listeners run before stored hosts and finish every copied peer after a fault. The current published call succeeds; the first cause fails later admissions and triggers shutdown. [Source/native mapping, baseline failures, focused checks and private-boundary limits](session-local-observers.md).
+
+Conversation-view memory delivery, numerical extremes, public values/reporting/Harness waiter integration and generation wiring still need controls. This increment did not rerun the completed stored-observer, retention, lifecycle, deadline or generation gates.

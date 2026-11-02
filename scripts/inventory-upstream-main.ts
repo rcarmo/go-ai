@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /** Rebuild a pinned upstream inventory and test crosswalk from exact Git objects.
  * Source scripts/project-env.sh first. Usage:
- * bun scripts/inventory-upstream-main.ts <mirror> <previous-inventory.json> <target-sha> <output-dir>
+ * bun scripts/inventory-upstream-main.ts <mirror> <previous-inventory.json> <target-sha> <output-dir> [release-tag]
  * Does not fetch, check out files, run upstream code or change release refs.
  */
 import { resolve, join } from "node:path";
 
-const [mirror, previousFile, requestedTarget, output] = process.argv.slice(2);
+const [mirror, previousFile, requestedTarget, output, releaseTag] = process.argv.slice(2);
 if (!mirror || !previousFile || !/^[0-9a-f]{40}$/.test(requestedTarget ?? "") || !output) {
   throw new Error("expected mirror, previous inventory, full target SHA and output directory");
 }
@@ -21,6 +21,9 @@ const baseline: string = previous.baseline;
 const previousTarget: string = previous.target;
 const target = git("rev-parse", "--verify", `${requestedTarget}^{commit}`);
 if (target !== requestedTarget) throw new Error("target must name an exact commit");
+if (releaseTag && (!/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(releaseTag) || git("rev-parse", "--verify", `refs/tags/${releaseTag}^{commit}`) !== target)) {
+  throw new Error("release tag must resolve to the exact target commit");
+}
 git("merge-base", "--is-ancestor", previousTarget, target);
 const names = ["ai", "durable", "codemode"];
 const targetPaths = names.map(name => `packages/${name}/`);
@@ -59,7 +62,10 @@ const inventory = {
   observedDate: new Date().toISOString().slice(0, 10),
   targetCommitTime: git("show", "-s", "--format=%cI", target),
   commitsSincePrevious: Number(git("rev-list", "--count", `${previousTarget}..${target}`)),
-  purpose: "Pinned main inventories; all current dispositions require review. Inherited evidence retains its previous pin; no acceptance claim.",
+  purpose: releaseTag
+    ? `Pinned official release ${releaseTag}; scoped prior evidence retains its tested pin; no acceptance claim.`
+    : "Pinned main inventories; all current dispositions require review. Inherited evidence retains its previous pin; no acceptance claim.",
+  ...(releaseTag ? { releaseTag } : {}),
   counts: {
     incrementalRepositoryPaths: incremental.length,
     incrementalPackagePaths: incremental.filter(item => inTarget(item.path)).length,

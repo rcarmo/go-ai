@@ -1,0 +1,469 @@
+{
+  "releaseTag": "v1.5.0",
+  "releaseCommit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "baselineTag": "v1.4.0",
+  "baselineCommit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+  "observedDate": "2026-11-02",
+  "packages": [
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "1.5.0",
+      "registryMetadata": "https://registry.npmjs.org/@earendil-works%2Fpi-ai/1.5.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.0.tgz",
+      "bytes": 860536,
+      "sha256": "e320fe7bd2b927782ba9a37d356fe5837f1aa96a46432610e1b3b9ccb748ea5c",
+      "integrity": "sha512-VeWxNqTHSqRCf8AcY/6kvNwh+neRL6MPxZPePVztIQy6qqK9MR/YoCSN/ZgDnIyCD3pqEXgRyQbzk4KV4uvjbg==",
+      "registrySha1": "ccae45df1c2d6dda4697516ae0ad87d9a3bea026",
+      "gitHead": null,
+      "packedManifest": {
+        "name": "@earendil-works/pi-ai",
+        "version": "1.5.0",
+        "description": "Unified LLM API with automatic model discovery and provider configuration",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "sideEffects": [
+          "./dist/compat.js",
+          "./dist/images.js",
+          "./dist/providers/images/register-builtins.js"
+        ],
+        "exports": {
+          ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./models": {
+            "types": "./dist/models.d.ts",
+            "import": "./dist/models.js"
+          },
+          "./compat": {
+            "types": "./dist/compat.d.ts",
+            "import": "./dist/compat.js"
+          },
+          "./providers/*": {
+            "types": "./dist/providers/*.d.ts",
+            "import": "./dist/providers/*.js"
+          },
+          "./api/*": {
+            "types": "./dist/api/*.d.ts",
+            "import": "./dist/api/*.js"
+          },
+          "./utils/*": {
+            "types": "./dist/utils/*.d.ts",
+            "import": "./dist/utils/*.js"
+          },
+          "./oauth": {
+            "types": "./dist/oauth.d.ts",
+            "import": "./dist/oauth.js"
+          },
+          "./bedrock-provider": {
+            "types": "./dist/bedrock-provider.d.ts",
+            "import": "./dist/bedrock-provider.js"
+          },
+          "./bun-oauth": {
+            "types": "./dist/bun-oauth.d.ts",
+            "import": "./dist/bun-oauth.js"
+          }
+        },
+        "bin": {
+          "pi-ai": "dist/cli.js"
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "generate-models": "node catalog/generate.ts --strict",
+          "hydrate-model-data": "node catalog/generate.ts --strict --data-only",
+          "generate-model-catalog": "node catalog/generate.ts --strict --json-only --json-output ../../.artifacts/model-catalog",
+          "check:model-data": "node scripts/check-model-data.ts",
+          "build": "npm run generate-models && npm run build:offline",
+          "build:offline": "npm run check:model-data && tsc -p tsconfig.build.json && node ../../scripts/package-files.mjs clean dist/providers/data && node ../../scripts/package-files.mjs copy src/providers/data dist/providers",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "dependencies": {
+          "@anthropic-ai/sdk": "0.129.0",
+          "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+          "@earendil-works/pi-schema": "1.5.0",
+          "@earendil-works/pi-telemetry": "1.5.0",
+          "@google/genai": "2.21.0",
+          "@smithy/node-http-handler": "4.12.1",
+          "http-proxy-agent": "9.1.0",
+          "https-proxy-agent": "9.1.0",
+          "openai": "7.19.0",
+          "partial-json": "0.1.7"
+        },
+        "keywords": [
+          "ai",
+          "llm",
+          "openai",
+          "anthropic",
+          "gemini",
+          "bedrock",
+          "unified",
+          "api"
+        ],
+        "author": "Mario Zechner",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/ai"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "devDependencies": {
+          "@types/node": "22.19.19",
+          "canvas": "3.2.3",
+          "typebox": "1.3.27",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    {
+      "name": "@earendil-works/pi-durable",
+      "version": "1.5.0",
+      "registryMetadata": "https://registry.npmjs.org/@earendil-works%2Fpi-durable/1.5.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-durable/-/pi-durable-1.5.0.tgz",
+      "bytes": 1022014,
+      "sha256": "7e95b160ebebb7059dd5f5502419b85d52f1e0432a9e914e608364ae9b2b2a69",
+      "integrity": "sha512-xeBP2vIo5NvsCMQ4Y/V+Z164xQEi9JWiBWHdjn4Z15EnFqV3c0FxJAX26FqyyyintrYyk+Enre94GNcvRlBA5g==",
+      "registrySha1": "464e600ef81152dc3788e0860d273bd6c2704d11",
+      "gitHead": null,
+      "packedManifest": {
+        "name": "@earendil-works/pi-durable",
+        "version": "1.5.0",
+        "description": "Durable conversation, task, and document runtime for Pi",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+          },
+          "./env": {
+            "source": "./src/env/index.ts",
+            "types": "./dist/env/index.d.ts",
+            "import": "./dist/env/index.js",
+            "default": "./dist/env/index.js"
+          },
+          "./env/node": {
+            "source": "./src/env/node.ts",
+            "types": "./dist/env/node.d.ts",
+            "import": "./dist/env/node.js",
+            "default": "./dist/env/node.js"
+          },
+          "./codemode": {
+            "source": "./src/codemode/index.ts",
+            "types": "./dist/codemode/index.d.ts",
+            "import": "./dist/codemode/index.js",
+            "default": "./dist/codemode/index.js"
+          },
+          "./tool-search": {
+            "source": "./src/tool-search/index.ts",
+            "types": "./dist/tool-search/index.d.ts",
+            "import": "./dist/tool-search/index.js",
+            "default": "./dist/tool-search/index.js"
+          },
+          "./tools": {
+            "source": "./src/tools/index.ts",
+            "types": "./dist/tools/index.d.ts",
+            "import": "./dist/tools/index.js",
+            "default": "./dist/tools/index.js"
+          },
+          "./images": {
+            "source": "./src/images/index.ts",
+            "types": "./dist/images/index.d.ts",
+            "import": "./dist/images/index.js",
+            "default": "./dist/images/index.js"
+          },
+          "./images/node": {
+            "source": "./src/images/node.ts",
+            "types": "./dist/images/node.d.ts",
+            "import": "./dist/images/node.js",
+            "default": "./dist/images/node.js"
+          },
+          "./images/cloudflare": {
+            "source": "./src/images/cloudflare.ts",
+            "types": "./dist/images/cloudflare.d.ts",
+            "import": "./dist/images/cloudflare.js",
+            "default": "./dist/images/cloudflare.js"
+          },
+          "./storage/memory": {
+            "source": "./src/storage/memory.ts",
+            "types": "./dist/storage/memory.d.ts",
+            "import": "./dist/storage/memory.js",
+            "default": "./dist/storage/memory.js"
+          },
+          "./storage/indexeddb": {
+            "source": "./src/storage/indexeddb.ts",
+            "types": "./dist/storage/indexeddb.d.ts",
+            "import": "./dist/storage/indexeddb.js",
+            "default": "./dist/storage/indexeddb.js"
+          },
+          "./storage/jsonl": {
+            "source": "./src/storage/jsonl/index.ts",
+            "types": "./dist/storage/jsonl/index.d.ts",
+            "import": "./dist/storage/jsonl/index.js",
+            "default": "./dist/storage/jsonl/index.js"
+          },
+          "./storage/jsonl/node": {
+            "source": "./src/storage/jsonl/node.ts",
+            "types": "./dist/storage/jsonl/node.d.ts",
+            "import": "./dist/storage/jsonl/node.js",
+            "default": "./dist/storage/jsonl/node.js"
+          },
+          "./storage/store": {
+            "source": "./src/storage/store/index.ts",
+            "types": "./dist/storage/store/index.d.ts",
+            "import": "./dist/storage/store/index.js",
+            "default": "./dist/storage/store/index.js"
+          },
+          "./storage/sqlite": {
+            "source": "./src/storage/sqlite/index.ts",
+            "types": "./dist/storage/sqlite/index.d.ts",
+            "import": "./dist/storage/sqlite/index.js",
+            "default": "./dist/storage/sqlite/index.js"
+          },
+          "./storage/sqlite/cloudflare": {
+            "source": "./src/storage/sqlite/cloudflare.ts",
+            "types": "./dist/storage/sqlite/cloudflare.d.ts",
+            "import": "./dist/storage/sqlite/cloudflare.js",
+            "default": "./dist/storage/sqlite/cloudflare.js"
+          },
+          "./storage/sqlite/node": {
+            "source": "./src/storage/sqlite/node.ts",
+            "types": "./dist/storage/sqlite/node.d.ts",
+            "import": "./dist/storage/sqlite/node.js",
+            "default": "./dist/storage/sqlite/node.js"
+          },
+          "./testing": {
+            "source": "./src/testing/index.ts",
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js",
+            "default": "./dist/testing/index.js"
+          },
+          "./package.json": "./package.json"
+        },
+        "sideEffects": false,
+        "files": [
+          "dist",
+          "README.md",
+          "CHANGELOG.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run && PI_DURABLE_DOCUMENT_RETENTION_MS=0 vitest --run && npm run test:store && npm run test:workers",
+          "test:store": "vitest --run --config vitest.store.config.ts",
+          "test:workers": "vitest --run --config test-workers/vitest.config.ts",
+          "bench:storage": "vitest bench --config vitest.benchmark.config.ts",
+          "bench:storage:memory": "node --conditions=source --experimental-strip-types test/storage-memory.ts",
+          "bench:tool-output": "node --conditions=source --experimental-strip-types --expose-gc test/tool-output-bench.ts",
+          "bench:nested-tools": "node --conditions=source --experimental-strip-types --expose-gc test/nested-tools-bench.ts",
+          "bench:nested-images": "node --conditions=source --experimental-strip-types --expose-gc test/nested-images-bench.ts",
+          "bench:scheduler-fanout": "node --conditions=source --experimental-strip-types test/scheduler-fanout-bench.ts",
+          "bench:scheduler-memory": "node --conditions=source --experimental-strip-types test/scheduler-memory-bench.ts",
+          "bench:document-cache": "node --conditions=source --experimental-strip-types test/session-document-cache-bench.ts",
+          "bench:document-append": "node --conditions=source --experimental-strip-types test/document-append-bench.ts",
+          "bench:codemode": "node --conditions=source --experimental-strip-types test/codemode-bench.ts",
+          "bench:conversation-view": "node --conditions=source --experimental-strip-types --expose-gc test/conversation-view-bench.ts",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "durable-execution",
+          "agents",
+          "conversations",
+          "tasks"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/durable"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "@earendil-works/chord": "1.5.0",
+          "@earendil-works/pi-ai": "1.5.0",
+          "@earendil-works/pi-codemode": "1.5.0",
+          "@earendil-works/pi-schema": "1.5.0",
+          "@earendil-works/pi-telemetry": "1.5.0",
+          "@silvia-odwyer/photon": "0.3.3",
+          "diff": "8.0.4"
+        },
+        "devDependencies": {
+          "@cloudflare/vitest-plugin": "1.4.10",
+          "fake-indexeddb": "6.2.6",
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    {
+      "name": "@earendil-works/pi-codemode",
+      "version": "1.5.0",
+      "registryMetadata": "https://registry.npmjs.org/@earendil-works%2Fpi-codemode/1.5.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.0.tgz",
+      "bytes": 106271,
+      "sha256": "400dc754a86e85cdf5e75674d2d249a67f43579a96c322457d32dd3cdd78c6e7",
+      "integrity": "sha512-PLBJZ17AEWGzOlAAcFuOkw3PxkOti0JlFuZQyeF2GRTqbpuYo4k9t8YqUV2uOQVzrUnKdxahwaFUqc1eNS1WAg==",
+      "registrySha1": "85508ed32bb43cbb3b8f9b5d504589ca738e4caf",
+      "gitHead": null,
+      "packedManifest": {
+        "name": "@earendil-works/pi-codemode",
+        "version": "1.5.0",
+        "description": "Sandboxed JavaScript execution where the only capability is calling injected tools",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./declarations": {
+            "source": "./src/declarations.ts",
+            "types": "./dist/declarations.d.ts",
+            "import": "./dist/declarations.js"
+          },
+          "./source": {
+            "source": "./src/source.ts",
+            "types": "./dist/source.d.ts",
+            "import": "./dist/source.js"
+          },
+          "./portable": {
+            "source": "./src/portable.ts",
+            "types": "./dist/portable.d.ts",
+            "import": "./dist/portable.js"
+          },
+          "./cloudflare": {
+            "source": "./src/cloudflare.ts",
+            "types": "./dist/cloudflare.d.ts",
+            "import": "./dist/cloudflare.js"
+          },
+          "./worker": {
+            "source": "./src/runtime/worker.ts",
+            "types": "./dist/runtime/worker.d.ts",
+            "import": "./dist/runtime/worker.js"
+          }
+        },
+        "files": [
+          "dist",
+          "README.md"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "pi",
+          "codemode",
+          "sandbox",
+          "quickjs",
+          "wasm",
+          "cloudflare",
+          "durable-objects"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/codemode"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "dependencies": {
+          "quickjs-wasi": "3.6.2"
+        },
+        "devDependencies": {
+          "vitest": "4.1.12"
+        }
+      }
+    },
+    {
+      "name": "@earendil-works/pi-schema",
+      "version": "1.5.0",
+      "registryMetadata": "https://registry.npmjs.org/@earendil-works%2Fpi-schema/1.5.0",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-schema/-/pi-schema-1.5.0.tgz",
+      "bytes": 133539,
+      "sha256": "861f76dd844e90b6a5067dc2d82a29fd31c32cde8f3cb030cd8199ed9406b78f",
+      "integrity": "sha512-RW0MbT2tR65OY6xMsgB/yVBb7m/RTNwA+9hurSN1vVXfHZRVmVnXbruBPrx/PzbrQnW5yLVlMRWxErGDQtF1Hg==",
+      "registrySha1": "09e65db5dfb6d35edd124b7fc31c7c025d5da160",
+      "gitHead": null,
+      "packedManifest": {
+        "name": "@earendil-works/pi-schema",
+        "version": "1.5.0",
+        "description": "JSON Schema validation without eval: drafts 2020-12 and 7, compiled into plain closures",
+        "type": "module",
+        "main": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "exports": {
+          ".": {
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          },
+          "./formats": {
+            "source": "./src/formats/index.ts",
+            "types": "./dist/formats/index.d.ts",
+            "import": "./dist/formats/index.js"
+          }
+        },
+        "sideEffects": false,
+        "files": [
+          "dist",
+          "README.md",
+          "CHANGELOG.md",
+          "LICENSES"
+        ],
+        "scripts": {
+          "clean": "node ../../scripts/package-files.mjs clean dist",
+          "build": "tsc -p tsconfig.build.json",
+          "test": "vitest --run",
+          "bench": "node --expose-gc test/bench/all.ts",
+          "prepublishOnly": "npm run clean && npm run build"
+        },
+        "keywords": [
+          "json-schema",
+          "validation",
+          "validator",
+          "csp"
+        ],
+        "author": "Earendil Works",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/earendil-works/pi.git",
+          "directory": "packages/schema"
+        },
+        "engines": {
+          "node": ">=22.19.0"
+        },
+        "devDependencies": {
+          "@cfworker/json-schema": "4.1.1",
+          "@oh-my-pi/omptype": "18.13.3",
+          "ajv": "8.20.0",
+          "ajv-formats": "3.0.1",
+          "ata-validator": "1.61.3",
+          "typebox": "1.3.27",
+          "vitest": "4.1.12",
+          "zod": "4.6.7"
+        }
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Synchronous observers
 
-Private standalone Sessions now have a synchronous **stored-commit** lane. Runtime `3bb8baef0cb9af092e88775bc70f77f45d433038`, based on `40776312273db1100974f453a5e209aaca2f5531`, delivers stored publications after receipt adoption, including the held batch at Close, then ends attached observers. Document observers, Session-local listeners and public/Harness wiring are incomplete.
+Private standalone Sessions now have a synchronous **stored-commit** lane. Runtime `3bb8baef0cb9af092e88775bc70f77f45d433038`, based on `40776312273db1100974f453a5e209aaca2f5531`, delivers stored publications after receipt adoption, including the held batch at Close, then ends attached observers. [Private Session-local listeners](session-local-observers.md) now receive memory/own stored changes in runtime `148c77b`; synchronous document observers and public/Harness wiring are incomplete.
 
 The translated source is pinned to `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. Upstream main was subsequently observed at `3e0eec29f50e7861e9db91f2d12723267411b4f3`; exact Git comparison finds no durable source/test changes between those pins. Its AI changes and release metadata require a separate review.
 
@@ -53,6 +53,6 @@ Completed retention/lifecycle/deadline gates and the recorded generation baselin
 
 ## Next source boundary
 
-Translate source564 memory/stored kinds and **own** operations before implementing Session-local listeners. Their fatal errors must remain separate from guarded host-observer errors; timer-only storage must not duplicate memory delivery. Conversation-view memory updates and public/Harness ordering/report integration need controls too.
+[Source564 memory/stored kinds and own operations](session-local-observers.md) now pass through the private local lane, with separate fatal-error handling and no duplicate timer delivery. Conversation-view memory updates and public/Harness ordering/report integration need controls.
 
 Document observers (`observeDoc`), queued/cancelled attachment, address-following retirement/recreation and owner endings still lack a synchronous native API. Rejected JS thenables, arbitrary non-error thrown values, public immutable/shared values, source tracker counts/WeakRef lifetime, retained contexts and acquisition diagnostics are unported. Typed Go error returns currently adapt synchronous throws only. Fractional/extreme windows, duration ceilings and full-width clocks precede public persistence/Harness generation wiring. Full convergence is unverified.

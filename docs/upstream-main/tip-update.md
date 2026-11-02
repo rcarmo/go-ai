@@ -1,3 +1,7 @@
+## Retargeted to official v1.5.0
+
+Rui superseded the moving-main objective on 2 November 2026. Remaining work uses [official v1.5.0](../upstream-v1.5.0/README.md), `f9a26365568127461c47a07a37dcb42c140a3ac5`. The inventories below are historical. Post-release Anthropic definitions/OpenCode effort changes are excluded; identical release durable/schema trees allow scoped test receipts to be reused without rerunning them.
+
 ## Git-tip target: 3e0eec29, 2 November 2026
 
 Rui's continued Git-tip goal now targets `3e0eec29f50e7861e9db91f2d12723267411b4f3`, observed through remote `refs/heads/main` (commit time `2026-11-02T12:20:33+00:00`). The c9 observer increment is complete as a bounded private stored-lane checkpoint; its receipts retain that tested pin. Native v1.4.0 and release assets are unchanged.
