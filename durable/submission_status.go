@@ -305,7 +305,11 @@ func publicSubmission(sub Submission) SubmissionRecord {
 	return record
 }
 func markSubmissionEntry(tx *Tx, id, entry ID) error {
-	sub, ok := tx.state.Submissions[id]
+	state, err := tx.current()
+	if err != nil {
+		return err
+	}
+	sub, ok := state.Submissions[id]
 	if !ok {
 		return reject("submission unavailable")
 	}

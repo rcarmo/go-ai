@@ -154,6 +154,17 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				}
 				var rejected *StorageRejected
 				if h.life.Err() == nil && errors.As(preparationErr, &rejected) {
+					cancelled := false
+					if err := h.session.readTasks(context.Background(), func(state Snapshot) error {
+						current := state.Tasks[task.ID]
+						cancelled = taskAborted(current) || taskBelowCancelled(state, current) || taskSelectedFailFastCancellation(state, current.ID)
+						return nil
+					}); err != nil {
+						return err
+					}
+					if cancelled {
+						return ErrSealed
+					}
 					fallbackErr := h.finish(task, cp, errorReceipt("invalid_preparation"), false)
 					if fallbackErr == nil {
 						h.notify()
@@ -720,6 +731,19 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 		if latest.Abort {
 			return reject("generation aborted")
 		}
+		live, e := builtin(tx, task.Conversation, "pi.live")
+		if e != nil {
+			return e
+		}
+		liveValue, e := live.Get()
+		if e != nil {
+			return e
+		}
+		run := generationObject(liveValue["run"])
+		admitted := len(run) != 0
+		if admitted && submissionEntryID(run["task"]) != task.ID {
+			return reject("generation run ownership changed")
+		}
 		for _, draft := range promptEntries {
 			id, err := tx.MintID()
 			if err != nil {
@@ -747,7 +771,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				return err
 			}
 		}
-		if !continuation {
+		if !continuation && !admitted {
 			if err := h.applyQueuedInputs(tx, *task, cp, true); err != nil {
 				return err
 			}
@@ -780,7 +804,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 		if e = tx.stage(Write{Op: "put-task", Task: task}); e != nil {
 			return e
 		}
-		if continuation {
+		if continuation || admitted {
 			return nil
 		}
 		inbox, e := builtin(tx, task.Conversation, "pi.inbox")
@@ -805,10 +829,6 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			v["items"] = keep
 			return nil
 		}); e != nil {
-			return e
-		}
-		live, e := builtin(tx, task.Conversation, "pi.live")
-		if e != nil {
 			return e
 		}
 		inputs := []any{cp.Submission}

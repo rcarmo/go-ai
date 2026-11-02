@@ -196,7 +196,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 		if err != nil {
 			return err
 		}
-		busy := conversationGenerationBusy(tx.state, c.id)
+		busy := h.conversationGenerationBusy(tx.state, c.id)
 		if input.WhenBusy == "reject" && input.Type != "write" && busy && !failedQueueHeld(tx.state, c.id) {
 			return ErrConversationBusy
 		}
@@ -330,32 +330,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			}
 			cp.InputMetadata = &owned
 		}
-		if !busy {
-			entryID, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			message, err := inputReceipt(input.Content, input.Blocks, tx.limits)
-			if err != nil {
-				return err
-			}
-			wire, err := dtoObject(message, tx.limits)
-			if err != nil {
-				return err
-			}
-			by := ID(0)
-			if binding != nil {
-				by = binding.taskID
-			}
-			if err := tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, entryID, c.id, wire, message, by)); err != nil {
-				return err
-			}
-			cp.InputEntry = entryID
-			value["placedEntry"] = entryID
-			if err := tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: input.Type, Status: status, Value: value}); err != nil {
-				return err
-			}
-		}
+
 		checkpoint, err := dtoObject(cp, h.session.limits)
 		if err != nil {
 			return err
@@ -369,7 +344,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 		if err != nil {
 			return err
 		}
-		return inbox.Update(func(v JSON) error {
+		if err := inbox.Update(func(v JSON) error {
 			items, ok := v["items"].([]any)
 			if !ok {
 				return reject("inbox shape")
@@ -380,7 +355,13 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			}
 			v["items"] = append(items, JSON{"id": subID, "mode": mode, "input": value})
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
+		if !busy || failedQueueHeld(tx.state, c.id) {
+			return h.startQueuedRunBoundary(tx, c.id, 0, false)
+		}
+		return nil
 	})
 	if e != nil {
 		return nil, e
@@ -624,9 +605,20 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 	return e
 }
 
-func conversationGenerationBusy(state Snapshot, id ID) bool {
+func (h *Harness) conversationGenerationBusy(state Snapshot, id ID) bool {
+	for _, doc := range state.Documents {
+		if doc.Kind == "pi.live" && !doc.Retired && doc.Owner == id && len(generationObject(doc.Value["run"])) != 0 {
+			return true
+		}
+	}
+	// Legacy hosts can have request work without a run document. Queued work
+	// and already-decided held predecessors do not make admission busy.
 	for _, task := range state.Tasks {
-		if task.Kind == "pi.generation" && task.Conversation == id && !terminalStatus(task.Status) {
+		if task.Kind != "pi.generation" || task.Conversation != id || terminalStatus(task.Status) || taskHasDecidedOutcome(task) {
+			continue
+		}
+		var cp generationCheckpoint
+		if h.scheduler.invocations[task.ID] != nil || task.Status == "running" || fromObject(task.Checkpoint, &cp, h.session.limits) != nil || cp.Phase != "queued" {
 			return true
 		}
 	}

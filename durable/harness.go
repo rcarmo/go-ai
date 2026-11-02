@@ -1138,11 +1138,9 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 			return false, err
 		}
 	}
-	if !failurePolicyApplies(hold) || checkpoint.AfterFailedRun == "continue" {
-		if err := h.placeQueuedWrites(tx, task.Conversation); err != nil {
-			return false, err
-		}
-		if _, err := h.placeQueuedResets(tx, task.Conversation); err != nil {
+	if (run == nil || submissionEntryID(run["task"]) == task.ID) && (!failurePolicyApplies(hold) || checkpoint.AfterFailedRun == "continue") {
+		keepFailure := checkpoint.Reset || failurePolicyApplies(hold) && checkpoint.AfterFailedRun == "continue"
+		if err := h.startQueuedRunBoundary(tx, task.Conversation, task.ID, keepFailure, boundaryDecision(*task, hold)); err != nil {
 			return false, err
 		}
 	}
@@ -1432,7 +1430,7 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 		} else {
 			selected = taskBelowCancelled(state, probe)
 		}
-		if !selected {
+		if !selected || submissionEntryID(sub.Value["placedEntry"]) != 0 {
 			continue
 		}
 		queued := false
@@ -1445,7 +1443,7 @@ func (h *Harness) withdrawScopedInputBatch(tx *Tx, conversation ID, cross bool, 
 			if fromObject(task.Checkpoint, &cp, tx.limits) != nil {
 				continue
 			}
-			if cp.Submission == sub.ID && cp.Phase == "queued" {
+			if cp.Submission == sub.ID && cp.Phase == "queued" && cp.InputEntry == 0 {
 				queued = true
 				if len(h.scheduler.ownedLive(state, task.ID)) > 0 {
 					// Keep the run/submission live while real descendants join;

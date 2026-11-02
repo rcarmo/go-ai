@@ -21,12 +21,7 @@ func (c *ConversationHandle) Reset(ctx context.Context, text string) error {
 		if _, ok := tx.state.Conversations[c.id]; !ok {
 			return reject("unknown conversation")
 		}
-		busy := false
-		for _, task := range tx.state.Tasks {
-			if task.Conversation == c.id && task.Kind == "pi.generation" && !terminalStatus(task.Status) {
-				busy = true
-			}
-		}
+		busy := h.conversationGenerationBusy(tx.state, c.id)
 		if !busy {
 			return appendReset(tx, c.id, text)
 		}
@@ -49,53 +44,22 @@ func (c *ConversationHandle) Reset(ctx context.Context, text string) error {
 	return err
 }
 func appendReset(tx *Tx, conversation ID, text string) error {
+	_, err := appendResetEntry(tx, conversation, text)
+	return err
+}
+func appendResetEntry(tx *Tx, conversation ID, text string) (ID, error) {
 	id, err := tx.MintID()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	model := []MessageReceipt{}
 	if text != "" {
 		model = append(model, userReceipt(text))
 	}
-	return tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "pi.reset", Head: id, Value: JSON{}, Model: model})
-}
-func (h *Harness) placeQueuedResets(tx *Tx, conversation ID) (bool, error) {
-	inbox, err := builtin(tx, conversation, "pi.inbox")
-	if err != nil {
-		return false, err
+	if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "pi.reset", Head: id, Value: JSON{}, Model: model}); err != nil {
+		return 0, err
 	}
-	value, err := inbox.Get()
-	if err != nil {
-		return false, err
-	}
-	items, ok := value["items"].([]any)
-	if !ok {
-		return false, reject("inbox shape")
-	}
-	kept := []any{}
-	reset := false
-	for _, item := range items {
-		object, ok := item.(map[string]any)
-		if !ok {
-			return false, reject("inbox item")
-		}
-		if object["mode"] != "reset" {
-			kept = append(kept, item)
-			continue
-		}
-		text, _ := object["content"].(string)
-		if err := appendReset(tx, conversation, text); err != nil {
-			return false, err
-		}
-		reset = true
-	}
-	if reset {
-		value["items"] = kept
-		if err := inbox.Set(value); err != nil {
-			return false, err
-		}
-	}
-	return reset, nil
+	return id, nil
 }
 func (h *Harness) hasQueuedReset(state Snapshot, conversation ID) bool {
 	for _, doc := range state.Documents {
@@ -112,9 +76,6 @@ func (h *Harness) hasQueuedReset(state Snapshot, conversation ID) bool {
 	return false
 }
 func (h *Harness) resetToolsRun(tx *Tx, current Task, cp generationCheckpoint) error {
-	if _, err := h.placeQueuedResets(tx, current.Conversation); err != nil {
-		return err
-	}
 	cp.Reset = true
 	cp.FailureCut = nextRunSubmission(tx, current.Conversation, cp)
 	// finishToolRound returns the committed assistant on a reset boundary;

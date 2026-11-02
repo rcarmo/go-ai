@@ -24,27 +24,34 @@ func (h *Harness) applySteeringBoundary(tx *Tx, parent Task, cp *generationCheck
 	return h.applyQueuedInputs(tx, parent, cp, false)
 }
 
-func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoint, initial bool) error {
+func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoint, initial bool, decisions ...Task) error {
 	if err := h.placeQueuedWrites(tx, parent.Conversation); err != nil {
 		return err
 	}
-	settings := cp.Agent.Settings
-	if doc, ok := agentDocument(tx.state, parent.Conversation); ok {
+	state, err := tx.current()
+	if err != nil {
+		return err
+	}
+	settings := h.resolvedSettings(cp.Agent.Settings)
+	if doc, ok := agentDocument(state, parent.Conversation); ok {
 		var latest agentState
 		if err := fromObject(doc.Value, &latest, tx.limits); err != nil {
 			return err
 		}
 		settings = h.resolvedSettings(latest.Settings)
 	}
+	selection := boundarySelection(state, decisions)
 	selected := map[ID]bool{}
-	pickedSteer := 0
+	pickedSteer, pickedFollowUp := 0, 0
 	if initial {
-		if sub := tx.state.Submissions[cp.Submission]; sub.Type == "steer" {
+		if sub := state.Submissions[cp.Submission]; sub.Type == "steer" {
 			pickedSteer = 1
+		} else {
+			pickedFollowUp = 1
 		}
 	}
-	for _, id := range ids(tx.state.Tasks) {
-		task := tx.state.Tasks[id]
+	for _, id := range ids(state.Tasks) {
+		task := state.Tasks[id]
 		if task.ID == parent.ID || task.Kind != "pi.generation" || task.Conversation != parent.Conversation || terminalStatus(task.Status) {
 			continue
 		}
@@ -52,20 +59,20 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		if err := fromObject(task.Checkpoint, &queued, tx.limits); err != nil {
 			return err
 		}
-		sub, exists := tx.state.Submissions[queued.Submission]
-		if !exists || terminalStatus(sub.Status) || queued.Phase != "queued" {
+		sub, exists := state.Submissions[queued.Submission]
+		if !exists || terminalStatus(sub.Status) || queued.Phase != "queued" || queued.InputEntry != 0 || taskAborted(task) || taskBelowCancelled(selection, task) || taskSelectedFailFastCancellation(selection, id) || taskHasDecidedOutcome(task) {
 			continue
 		}
 		if sub.Type == "steer" {
 			if settings.SteeringMode != "all" && pickedSteer >= 1 {
 				continue
 			}
-		} else if initial && sub.Type == "follow-up" && settings.FollowUpMode == "all" {
+		} else if initial && sub.Type == "follow-up" && (settings.FollowUpMode == "all" || pickedFollowUp == 0) {
 			// Every follow-up selected at the boundary shares this run.
 		} else {
 			continue
 		}
-		if h.scheduler.invocations[id] != nil || len(h.scheduler.ownedLive(tx.state, id)) > 0 {
+		if h.scheduler.invocations[id] != nil || len(h.scheduler.ownedLive(state, id)) > 0 {
 			continue
 		}
 		entryID, err := tx.MintID()
@@ -80,7 +87,7 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		if err != nil {
 			return err
 		}
-		if err = tx.AppendEntry(inputMetadataEntry(queued.InputMetadata, entryID, parent.Conversation, value, input, parent.ID)); err != nil {
+		if err = tx.AppendEntry(inputMetadataEntry(queued.InputMetadata, entryID, parent.Conversation, value, input, tx.byTask)); err != nil {
 			return err
 		}
 		queued.Phase = "terminal"
@@ -108,6 +115,8 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		selected[sub.ID] = true
 		if sub.Type == "steer" {
 			pickedSteer++
+		} else {
+			pickedFollowUp++
 		}
 	}
 	if len(selected) == 0 {

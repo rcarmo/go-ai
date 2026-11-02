@@ -117,7 +117,14 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cp.Submission != sub.ID() || cp.InputEntry != status.Entry || submissionEntryID(run["first"]) != status.Entry || !equalJSONValue(run["inputs"], want["inputs"]) {
+			first := submissionEntryID(run["first"])
+			boundaryOK := first == status.Entry
+			if name == "B" {
+				reset, exists := state.Entries[first]
+				input := state.Entries[status.Entry]
+				boundaryOK = exists && reset.Conversation == c.ID() && reset.Kind == "pi.reset" && reset.Seq == input.Seq && reset.Position < input.Position
+			}
+			if cp.Submission != sub.ID() || cp.InputEntry != status.Entry || !boundaryOK || !equalJSONValue(run["inputs"], want["inputs"]) {
 				t.Fatalf("%s must own its actual input/first: run=%v checkpoint=%+v status=%+v", name, run, cp, status)
 			}
 			entry, ok := state.Entries[status.Entry]

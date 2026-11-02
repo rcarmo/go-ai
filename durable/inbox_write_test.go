@@ -58,10 +58,10 @@ func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var answerSeq, noteSeq, followSeq uint64
+		var answerEntry, noteEntry, followEntry Entry
 		for _, entry := range snapshot.Entries {
 			if entry.Kind == "app.note" {
-				noteSeq = entry.Seq
+				noteEntry = entry
 				continue
 			}
 			if entry.Kind == "message" {
@@ -71,16 +71,16 @@ func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
 				}
 				for _, block := range receipt.Content {
 					if block.Text == "first answer" {
-						answerSeq = entry.Seq
+						answerEntry = entry
 					}
 					if block.Text == "follow" {
-						followSeq = entry.Seq
+						followEntry = entry
 					}
 				}
 			}
 		}
-		if noteSeq != answerSeq || followSeq <= noteSeq || calls != 2 {
-			t.Fatal("passive boundary order", answerSeq, noteSeq, followSeq, calls)
+		if answerEntry.ID == 0 || noteEntry.ID == 0 || followEntry.ID == 0 || answerEntry.Seq == 0 || noteEntry.Seq != answerEntry.Seq || followEntry.Seq != answerEntry.Seq || answerEntry.Position >= noteEntry.Position || noteEntry.Position >= followEntry.Position || calls != 2 {
+			t.Fatal("passive boundary must append answer, note, then follow-up in the same commit", answerEntry, noteEntry, followEntry, calls)
 		}
 	})
 }
