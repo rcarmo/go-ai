@@ -281,6 +281,11 @@ func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 			t.Error("stored value never observed in memory")
 		}
 		store := f.crash()
+		afterCrash, err := store.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.replicaMatches(afterCrash)
 		f = mainOpenRecovery(t, store, ref, options, clock, 150)
 		mainFinishRecovery(t, f, streams, sub.ID(), []JSON{{"text": stored, "stopReason": "aborted"}, {"text": "answer", "stopReason": "stop"}})
 	})
@@ -327,8 +332,8 @@ func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
 		f.partial(stream, strings.Repeat("c", 64))
 		f.partial(stream, strings.Repeat("c", 96))
 		stored, ok := mainRecoveryText(f.live(f.stored()))
-		if !ok {
-			t.Fatal("missing stored partial")
+		if !ok || len(stored) <= 40 {
+			t.Fatal("missing stored partial longer than40", stored)
 		}
 		store := f.crash()
 		f = mainOpenRecovery(t, store, ref, options, clock, 150)

@@ -173,6 +173,9 @@ func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
 				t.Fatal(err)
 			}
 			run := watchReceive(t, setup.runs)
+			if run.number != int64(crashes) {
+				t.Fatalf("stored-own-progress run=%d want=%d", run.number, crashes)
+			}
 			mainStoredToolPrefix(t, f, run)
 			store := f.crash()
 			f = mainOpenRecovery(t, store, setup.ref, setup.options, setup.clock, 50)

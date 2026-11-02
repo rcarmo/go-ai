@@ -138,6 +138,11 @@ func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
 		if result.Submission.Status != "done" || result.Message == nil || result.Message.Content[0].Text != "deferred answer" {
 			t.Fatal("deferred recovery", result)
 		}
+		// Canonical input maps to the legacy raw follow-up representation.
+		settled, err := resumed.Status(bg)
+		if err != nil || settled.Type != "input" || settled.Status != "done" || settled.Answer == 0 {
+			t.Fatal("deferred input settlement", settled, err)
+		}
 		if requests.Load() != 1 || polls.Load() != 1 {
 			t.Error("request replayed or wrong fetch count", requests.Load(), polls.Load())
 		}
