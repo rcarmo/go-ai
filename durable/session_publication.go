@@ -82,6 +82,7 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	for _, id := range p.storedHeld {
 		delete(s.heldDocuments, id)
 	}
+	s.armPersistenceDeadline()
 	s.memoryImage = nil
 	adopted := s.memoryReadImage()
 	if s.taskScheduler != nil {

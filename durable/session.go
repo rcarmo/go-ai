@@ -19,6 +19,9 @@ type Session struct {
 	readImage             Snapshot // immutable receipted image; owned by the Session line
 	heldDocuments         map[ID]heldDocument
 	memoryImage           *Snapshot // immutable document overlay, never a durable receipt
+	persistWithinMs       func() float64
+	persistenceTimer      *sessionTimer
+	persistenceReady      chan struct{} // stored-only publication released with the line
 	line                  chan struct{}
 	closing               atomic.Bool
 	once                  sync.Once
@@ -39,7 +42,7 @@ type Session struct {
 	clockFallbackReported atomic.Bool
 	pendingClockFailure   error // Session-line owned; delivered by leave
 	timerFallbackReported atomic.Bool
-	pendingTimers         [2]sessionTimerChange // line-owned fixed slots
+	pendingTimers         [3]sessionTimerChange // line-owned fixed slots
 	timerDispatch         sync.WaitGroup
 	observerMu            sync.Mutex
 	watches               map[*DocumentWatch]bool
@@ -139,12 +142,28 @@ func (s *Session) enter(ctx context.Context) error {
 		s.leave()
 		return e
 	}
+	// A fired persistence timer was queued before this admission. Drain its
+	// stored-only job first, even if its nonblocking host worker has not run yet.
+	if timer := s.persistenceTimer; timer != nil && timer.fired.Load() {
+		if err := s.flushFiredPersistence(); err != nil {
+			s.leave()
+			return err
+		}
+		// Only maintenance can have waited since the ordinary admission check.
+		// Preserve the existing Context.Err call boundary for all other reads.
+		if err := ctx.Err(); err != nil {
+			s.leave()
+			return err
+		}
+	}
 	return nil
 }
 func (s *Session) leave() { s.leaveThen(nil) }
 func (s *Session) leaveThen(afterRelease func()) {
 	changes := s.pendingTimers
-	s.pendingTimers = [2]sessionTimerChange{}
+	s.pendingTimers = [3]sessionTimerChange{}
+	persistenceReady := s.persistenceReady
+	s.persistenceReady = nil
 	clockFailure := s.pendingClockFailure
 	s.pendingClockFailure = nil
 	hasChanges := clockFailure != nil
@@ -162,6 +181,10 @@ func (s *Session) leaveThen(afterRelease func()) {
 	s.line <- struct{}{}
 	if hasChanges {
 		defer s.timerDispatch.Done()
+	}
+	if persistenceReady != nil {
+		close(persistenceReady)
+		s.kickWatches()
 	}
 	if afterRelease != nil {
 		afterRelease()
@@ -217,7 +240,7 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	return s.commitPersistence(ctx, callback, external, taskID, false)
 }
 
-func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred bool) (seq uint64, err error) {
+func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred bool, requestedWindow ...float64) (seq uint64, err error) {
 	if callback == nil {
 		return 0, reject("nil transaction callback")
 	}
@@ -227,6 +250,14 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	if deferred && (!s.hasNativeReadImage() || s.taskScheduler != nil) {
 		s.leave()
 		return 0, ErrUnsupported
+	}
+	var withinMs float64
+	if deferred {
+		withinMs, err = s.persistenceWindow(requestedWindow)
+		if err != nil {
+			s.leave()
+			return 0, err
+		}
 	}
 	markAdmission := func() {
 		if s.taskScheduler != nil && taskID != 0 {
@@ -316,7 +347,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		if err := s.holdPreparedDocuments(&prepared); err != nil {
+		if err := s.holdPreparedDocuments(&prepared, withinMs); err != nil {
 			return 0, err
 		}
 		return state.Seq, nil
@@ -436,6 +467,10 @@ func (s *Session) Close(ctx context.Context) error {
 			<-s.line
 			if s.failure() == nil {
 				s.closeErr = s.flushHeldOnClose()
+			}
+			if s.persistenceTimer != nil {
+				s.persistenceTimer.Stop()
+				s.persistenceTimer = nil
 			}
 			s.heldDocuments = nil
 			s.memoryImage = nil

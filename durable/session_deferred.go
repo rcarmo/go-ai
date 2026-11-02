@@ -1,20 +1,24 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"math"
+	"time"
+)
 
 // heldDocument owns a bounded fold for one existing latest/initial document.
 // Its content is visible in memory; readImage and its history remain receipted.
 type heldDocument struct {
-	record Document
-	ops    []Operation
-	base   bool
+	record   Document
+	ops      []Operation
+	base     bool
+	deadline float64
 }
 
-// commitDeferred is the first internal deferred-persistence boundary: an infinite
-// window on a standalone native Session. It is deliberately not wired into the
-// Harness until finite deadlines and the remaining lifecycle gates are ported.
+// commitDeferred preserves the internal infinite-window entry. Explicit/default
+// windows use commitPersistence; Harness wiring awaits the lifecycle gates.
 func (s *Session) commitDeferred(ctx context.Context, callback func(*Tx) error) (uint64, error) {
-	return s.commitPersistence(ctx, callback, true, 0, true)
+	return s.commitPersistence(ctx, callback, true, 0, true, math.Inf(1))
 }
 
 func (s *Session) memoryReadImage() Snapshot {
@@ -115,7 +119,8 @@ func heldWrite(held heldDocument) Write {
 	return Write{Op: "delta-document", Delta: &DocumentDelta{ID: held.record.ID, Version: held.record.Version, Ops: held.ops}}
 }
 
-func (s *Session) holdPreparedDocuments(p *preparedSessionPublication) error {
+func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs float64) error {
+	deadline := float64(s.now()) + withinMs
 	next := make(map[ID]heldDocument, len(s.heldDocuments)+len(p.tx.writes))
 	for id, held := range s.heldDocuments {
 		next[id] = held
@@ -128,6 +133,10 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication) error {
 		held, exists := next[id]
 		if !exists {
 			held.record = p.tx.state.Documents[id]
+			held.deadline = math.Inf(1)
+		}
+		if deadline < held.deadline {
+			held.deadline = deadline
 		}
 		var err error
 		held, err = s.extendHeld(held, p.tx.writes)
@@ -164,6 +173,7 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication) error {
 		return err
 	}
 	s.heldDocuments, s.memoryImage = next, nil
+	s.armPersistenceDeadline()
 	// An equal durable sequence cannot witness a cached/off-line memory read.
 	s.contextRevision++
 	s.invalidateContextRanges(s.memoryReadImage(), p.tx.writes)
@@ -243,6 +253,118 @@ func (s *Session) prepareHeldStorageSubscriptions(ctx context.Context, writes []
 		return nil, err
 	}
 	return s.prepareSubscriptionKinds(ctx, publication, tx, ready, false, true)
+}
+
+func (s *Session) persistenceWindow(requested []float64) (float64, error) {
+	if len(requested) > 1 {
+		return 0, reject("invalid persistence option count")
+	}
+	if len(requested) == 1 {
+		if !(requested[0] >= 0) {
+			return 0, reject("CommitPersistence.withinMs must be a number of milliseconds, 0 or more")
+		}
+		return requested[0], nil
+	}
+	if s.persistWithinMs != nil {
+		if within := s.persistWithinMs(); within >= 0 {
+			return within, nil
+		}
+	}
+	return 1000, nil
+}
+
+// A fired foreground timer stays selected until its serialized job runs. The
+// callback only queues work; the next admission drains it before its own work.
+func (s *Session) armPersistenceDeadline() {
+	if s.closing.Load() {
+		return
+	}
+	at := math.Inf(1)
+	for _, held := range s.heldDocuments {
+		if held.deadline < at {
+			at = held.deadline
+		}
+	}
+	if armed := s.persistenceTimer; armed != nil {
+		if armed.fired.Load() || armed.at == at {
+			return
+		}
+		armed.Stop()
+		s.persistenceTimer = nil
+	}
+	if math.IsInf(at, 1) {
+		return
+	}
+	left := math.Max(0, at-float64(s.now()))
+	delay := time.Duration(math.MaxInt64)
+	if left < float64(math.MaxInt64/int64(time.Millisecond)) {
+		delay = time.Duration(left * float64(time.Millisecond))
+	}
+	var timer *sessionTimer
+	timer = s.newSessionTimer(persistenceDeadlineTimer, delay, func() {
+		if !timer.fired.CompareAndSwap(false, true) {
+			return
+		}
+		go func() {
+			if s.enter(context.Background()) == nil {
+				s.leave()
+			}
+		}()
+	})
+	timer.at = at
+	s.persistenceTimer = timer
+}
+
+func (s *Session) flushFiredPersistence() error {
+	timer := s.persistenceTimer
+	if timer == nil || !timer.fired.Load() {
+		return nil
+	}
+	s.persistenceTimer = nil
+	timer.Stop()
+	if len(s.heldDocuments) == 0 {
+		return nil
+	}
+	ctx := context.Background()
+	if err := s.storeHeldDeadline(ctx); err != nil {
+		return s.backendResult(ctx, err, true)
+	}
+	return nil
+}
+
+// The Session line owns selection, preparation, settlement and adoption. Only
+// stored observers receive this publication: memory already contains the value.
+func (s *Session) storeHeldDeadline(ctx context.Context) error {
+	if !s.hasNativeReadImage() || s.taskScheduler != nil {
+		return ErrUnsupported
+	}
+	writes := make([]Write, 0, len(s.heldDocuments))
+	for _, id := range ids(s.heldDocuments) {
+		writes = append(writes, heldWrite(s.heldDocuments[id]))
+	}
+	highWater, err := s.core.sessionReadAdmission(ctx)
+	if err != nil {
+		return err
+	}
+	ready := make(chan struct{})
+	subs, err := s.prepareHeldStorageSubscriptions(ctx, writes, highWater, ready)
+	if err != nil {
+		return err
+	}
+	receipt, candidate, err := s.settleBatch(ctx, Batch{Writes: writes}, s.readImage.Seq)
+	if err != nil {
+		return err
+	}
+	if err := s.failure(); err != nil {
+		return err
+	}
+	if err := s.adoptReceipt(receipt, &candidate); err != nil {
+		return err
+	}
+	s.heldDocuments, s.memoryImage = nil, nil
+	s.enqueueSubscriptions(subs)
+	s.persistenceReady = ready
+	return nil
 }
 
 // Close has already excluded new admissions and holds the line. A failed

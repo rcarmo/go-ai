@@ -9,6 +9,7 @@ import (
 const (
 	contextExpiryTimer = iota
 	documentExpiryTimer
+	persistenceDeadlineTimer
 )
 
 type sessionTimerChange struct{ stop, arm *sessionTimer }
@@ -18,6 +19,8 @@ type sessionTimer struct {
 	delay            time.Duration
 	callback         func()
 	started, stopped atomic.Bool
+	fired            atomic.Bool // persistence job queued; caches retain their own expiry rules
+	at               float64     // absolute persistence deadline, milliseconds
 	mu               sync.Mutex
 	cancel           func()
 	armComplete      bool // protected by mu; nil cancellation after completion means declined
@@ -31,8 +34,8 @@ func (t *sessionTimer) pendingOrArmed() bool {
 	return !t.stopped.Load() && (!t.armComplete || t.cancel != nil)
 }
 
-// Called on the Session line. Only the last requested arm for each of the two
-// cache domains is retained, regardless of the number of reads in a transaction.
+// Called on the Session line. Only the last requested arm for each cache or
+// persistence domain is retained, regardless of the number of reads/changes.
 func (s *Session) newSessionTimer(slot int, delay time.Duration, callback func()) *sessionTimer {
 	node := &sessionTimer{session: s, slot: slot, delay: delay, callback: callback}
 	s.pendingTimers[slot].arm = node
@@ -41,7 +44,7 @@ func (s *Session) newSessionTimer(slot int, delay time.Duration, callback func()
 
 // Stop invalidates callbacks immediately but defers the host cancellation until
 // leave. An unstarted replacement never needs a host call, so repeated on-line
-// reschedules occupy two fixed slots, not an unbounded action queue.
+// reschedules occupy three fixed slots, not an unbounded action queue.
 func (t *sessionTimer) Stop() {
 	if t.stopped.Swap(true) {
 		return
@@ -72,7 +75,7 @@ func (t *sessionTimer) arm() {
 		if !t.stopped.Load() && !s.closing.Load() {
 			t.callback()
 		}
-	}, t.delay, TimerOptions{Background: true})
+	}, t.delay, TimerOptions{Background: t.slot != persistenceDeadlineTimer})
 	t.mu.Lock()
 	t.armComplete = true
 	stopped := t.stopped.Load()

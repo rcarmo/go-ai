@@ -1,6 +1,6 @@
 # Deferred persistence: source contracts and existing native proof
 
-An internal infinite-window Session primitive now passes focused native scenarios. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
+Internal Session persistence now covers finite/default windows and infinity in focused native scenarios. Public persistence settings and Harness integration are unfinished. The generation oracle still has its recorded failure; the 25 Session and eleven Harness source bodies have not been executed or completely ported.
 
 Target: `c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8`. The source files contain 25 `it` declarations in `session-deferred-commits.test.ts` and 11 in `harness-deferred-progress.test.ts`; these are declaration counts, not execution results. The recorded [generation oracle](generation-view-oracle.md) already fails nine backend leaves with four frames/four stored touches. Do not rerun that baseline merely to rediscover it. Tracked native `durable/` files are unchanged between its `18aa8c3` checkpoint and `a1983c6`; later root validation changes retain their own scope.
 
@@ -70,3 +70,27 @@ race   -count=3 -shuffle=7:  CGO1 187.191s
 ```
 
 `go vet ./durable` passes in both CGO modes. Staticcheck v0.8.2 passes in both modes using a temporary exact package copy with the protected prototype physically absent and sibling dependencies linked to the unchanged source tree. An initial compiler-overlay attempt still parsed the prototype; an explicit file-list attempt lost test helpers. Those tooling failures receive no passing credit. Module verification, gofmt and diff checks pass. The prototype stayed in place and passed content comparison. No dependency, generation/coalescer, release-ref or asset changes; no full suite, profiling, hosted dispatch or publication. Disposable copies, overlays and logs are removed after analysis.
+
+## Deadline increment, 2 November 2026
+
+The internal policy now uses a 1,000 ms default, the configured default getter or an explicit per-commit window. Each held document retains its earliest deadline. The earliest document arms one foreground timer; a later commit cannot postpone it, infinity arms none, and a stored dependent write retargets or clears it. Explicit negative/NaN windows reject before the callback with `StorageRejected`, the native adaptation of source `TypeError`. The existing infinite-window test entry still selects infinity explicitly. Public options and the Harness remain unwired.
+
+The timer has a third fixed Session dispatch slot, separate from the two background cache timers. Its host callback atomically marks the job fired and returns without waiting for the line or storage. A worker requests admission; any admission that reaches the line first drains the fired job before its own work. This preserves the source test's `fire()`/on-line-read barrier without scheduling yields or observer acknowledgements. A fired callback stores every hold even if the manual clock has not advanced, matching the pinned test. Storage settlement and contiguous receipt adoption precede a stored-only publication; readiness is released off line. Failure latches the original backend cause, closes storage and drops volatile holds without retrying them.
+
+`durable/session_deferred_deadline_main_test.go` translates the c9f4c7b9 scenarios at lines 347, 365 and 378 and numeric-window rejection at 273. It preserves the two-conversation `one`/`two` values, one stored batch/two changes/one publication, 2,000 ms default, +500 ms clock move, 100 ms earlier and 60,000 ms later windows, and infinity/default/immediate-release sequence. Native adaptations use the reserved root, raw document append operations, real sequence/delta counts, queued asynchronous stored subscriptions and Snapshot as the on-line barrier. Complete synchronous observer semantics and upstream TypeScript execution are outside this increment; corpus dispositions keep their earlier scope. Two further native tests cover nonblocking host admission, stale/repeated fires, refusal/closure/reopen; arm/cancel callbacks also reenter Snapshot.
+
+Before runtime edits, the three timer scenarios failed nine backend leaves on unchanged `4856a592a3225bb9f4cf12d433c9040c2e06b47c`; numeric-window rejection failed three. The baseline adapter selected the existing real infinite-only primitive because finite/default policy did not exist. An initial cleanup-function signature error was corrected before those credited runs. The earlier generation baseline was not rerun.
+
+The expanded context regression gate caught an unnecessary second `Context.Err()` check on ordinary admission, which moved the existing off-line fixture's pause under the line. The second check now runs only after actual timer maintenance. Context tests and counters are unchanged; the focused regression passes three repetitions in both CGO modes (1.147/0.742s).
+
+Final Go 1.27.3, `GOMAXPROCS=4`, prototype excluded:
+
+```text
+-run '^Test(MainSession|Session|Document|Transaction|MainContext|MainWatchPending|MainTranscriptPublicationWindowPendingFold|GenerationProgress|Generation104ConfiguredPartialIntervalProductionPath|Close140)'
+normal -count=3 -shuffle=42: CGO1 54.750s; CGO0 41.415s
+race   -count=3 -shuffle=7:  CGO1 221.606s
+```
+
+Active later-wins, missing-stored-publication, missing-receipt-adoption, background-timer, blocking-host and clock-recheck mutations fail 3/3/3/9/3/3 backend leaves. The last mutation checks that an early host fire still stores holds. Final durable vet/Staticcheck v0.8.2 pass both CGO modes, with the same physical prototype exclusion for Staticcheck; module verification, formatting, diff and prototype-content checks pass. Comparisons use equivalent assertions; these timings are development checks, without profiling or performance claims.
+
+Close-time stored-observer delivery, unload/version reload/retirement, retention/lifetime, conversation-view memory delivery and synchronous observers still need implementation and source tests. Fractional/extreme windows, the native duration ceiling and full-width custom-clock conversion need numerical checks before public/Harness wiring. Durable task intent has not been split from later generation presentation; the recorded generation oracle is unresolved. No dependency, coalescer, release-ref or asset changes, full suite, profiling, hosted dispatch or publication. All completed source extracts, copies, overlays, mutation fixtures and logs are disposed after analysis.
