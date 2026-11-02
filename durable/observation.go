@@ -454,7 +454,7 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 		s.observerMu.Unlock()
 		return nil, false, ErrClosed
 	}
-	if len(s.watches)+len(s.subscriptions) >= capacity {
+	if s.observerProcessCountLocked() >= capacity {
 		s.observerMu.Unlock()
 		return nil, false, reject("watch process count limit")
 	}
@@ -752,7 +752,7 @@ func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *C
 		s.observerMu.Unlock()
 		return Snapshot{}, nil, ErrClosed
 	}
-	if len(s.watches)+len(s.subscriptions) >= capacity {
+	if s.observerProcessCountLocked() >= capacity {
 		s.observerMu.Unlock()
 		return Snapshot{}, nil, reject("observer process count limit")
 	}

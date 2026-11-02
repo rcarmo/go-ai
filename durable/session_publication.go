@@ -11,6 +11,7 @@ type preparedSessionPublication struct {
 	base          Snapshot
 	frames        []preparedWatchFrame
 	subs          []preparedSubscription
+	stored        CommitPublication // actual durable writes, including selected holds
 	storageWrites []Write
 	storedHeld    []ID
 }
@@ -28,7 +29,7 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
-	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames}
+	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, stored: publication}
 	if tx.memoryOnly {
 		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
 	} else if len(s.heldDocuments) == 0 {
@@ -40,9 +41,10 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 		}
 		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
 		if err == nil {
-			var stored []preparedSubscription
-			stored, err = s.prepareHeldStorageSubscriptions(ctx, p.storageWrites, tx.state.HighWater, ready)
-			p.subs = append(p.subs, stored...)
+			var stored preparedStoredPublication
+			stored, err = s.prepareHeldStoragePublication(ctx, p.storageWrites, tx.state.HighWater, ready)
+			p.stored = stored.publication
+			p.subs = append(p.subs, stored.subscriptions...)
 		}
 	}
 	if err != nil {
@@ -150,5 +152,6 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	// Background expiry is optional even if the host declines its timer.
 	s.sweepDocumentCache()
 	s.scheduleDocumentExpiry()
+	s.publishStoredCommit(p.ctx, p.stored)
 	return telemetryEvents, nil
 }

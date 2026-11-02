@@ -10,10 +10,10 @@ import (
 
 // c9f4c7b9 session-deferred-commits.test.ts:521-562. Preserve the complete
 // a/b/c-immediate/d-fire/e-dependent-entry/f-close sequence and storage/publication
-// replica assertions. The current API adapter uses real asynchronous native
-// SubscribeCommits, with callback receipt barriers for its first three stores.
-// It cannot supply Source's final Close publication or synchronous semantics.
-// KNOWN FAILING: pending fixture, explicitly overlaid into the durable package.
+// replica assertions. The adapter now registers the actual private synchronous
+// stored lane; the scenario/assertions and first-three receipt reads are intact.
+// Those reads consume real callbacks, not synthetic publications or proof of
+// synchrony (the separate observer controls verify publication-time delivery).
 func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 	utf16Backends(t, func(t *testing.T, b backend) {
 		f := openMainDeadlineSession(t, b, nil)
@@ -22,12 +22,15 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 		var mu sync.Mutex
 		var published []CommitPublication
 		arrived := make(chan struct{}, 16)
-		if err := f.stored.Start(func(_ context.Context, frame PublicationFrame) error {
-			mu.Lock()
-			published = append(published, frame.Publication)
-			mu.Unlock()
-			arrived <- struct{}{}
-			return nil
+		if _, err := f.session.observeStoredCommits(sessionCommitObserver{
+			advance: func(_ context.Context, publication CommitPublication) error {
+				mu.Lock()
+				published = append(published, publication)
+				mu.Unlock()
+				arrived <- struct{}{}
+				return nil
+			},
+			end: func(WatchEnd) error { return nil },
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +50,7 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 		appendText("a", false)
 		appendText("b", false)
 		appendText("c", true)
-		watchReceive(t, arrived) // explicit legacy asynchronous API adaptation
+		watchReceive(t, arrived) // real recorded callback; scenario unchanged
 		appendText("d", false)
 		f.fire(t)
 		watchReceive(t, arrived)

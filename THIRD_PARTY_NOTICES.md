@@ -73,6 +73,16 @@ disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner
 
+## pi-durable synchronous commit observers
+
+`durable/session_sync_observers.go` adapts the stored-observer guard and ending
+rules from `packages/durable/src/session/session.ts` at `c9f4c7b9`. Publication
+integration and the observer/deferred tests follow that file and
+`session-observers.test.ts` / `session-deferred-commits.test.ts` at the same pin.
+The MIT permission and disclaimer printed above apply:
+
+Copyright (c) 2025 Mario Zechner
+
 ## WHATWG URL parsing
 
 URI resolution and URL format validation use `github.com/nlnwa/whatwg-url`

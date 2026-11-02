@@ -236,7 +236,12 @@ func (s *Session) foldSelectedHeld(own []Write, selected map[ID]bool) ([]Write, 
 	return writes, stored, nil
 }
 
-func (s *Session) prepareHeldStorageSubscriptions(ctx context.Context, writes []Write, highWater uint64, ready <-chan struct{}) ([]preparedSubscription, error) {
+type preparedStoredPublication struct {
+	publication   CommitPublication
+	subscriptions []preparedSubscription
+}
+
+func (s *Session) prepareHeldStoragePublication(ctx context.Context, writes []Write, highWater uint64, ready <-chan struct{}) (preparedStoredPublication, error) {
 	state := s.readImage
 	// Reservations are durable independently of document commits. Include IDs
 	// minted in this callback without mutating the prior receipted image.
@@ -250,9 +255,10 @@ func (s *Session) prepareHeldStorageSubscriptions(ctx context.Context, writes []
 	}
 	publication, err := tx.preparePublication(ctx)
 	if err != nil {
-		return nil, err
+		return preparedStoredPublication{}, err
 	}
-	return s.prepareSubscriptionKinds(ctx, publication, tx, ready, false, true)
+	subscriptions, err := s.prepareSubscriptionKinds(ctx, publication, tx, ready, false, true)
+	return preparedStoredPublication{publication: publication, subscriptions: subscriptions}, err
 }
 
 func (s *Session) persistenceWindow(requested []float64) (float64, error) {
@@ -356,7 +362,7 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	if ready == nil {
 		ready = make(chan struct{})
 	}
-	subs, err := s.prepareHeldStorageSubscriptions(ctx, writes, highWater, ready)
+	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, ready)
 	if err != nil {
 		return err
 	}
@@ -375,8 +381,9 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	}
 	s.memoryImage = nil
 	s.armPersistenceDeadline()
-	s.enqueueSubscriptions(subs)
+	s.enqueueSubscriptions(stored.subscriptions)
 	s.persistenceReady = ready
+	s.publishStoredCommit(ctx, stored.publication)
 	return nil
 }
 
@@ -409,9 +416,25 @@ func (s *Session) flushHeldOnClose() error {
 	for _, id := range ids(s.heldDocuments) {
 		writes = append(writes, heldWrite(s.heldDocuments[id]))
 	}
-	receipt, candidate, err := s.settleBatch(context.Background(), Batch{Writes: writes}, s.readImage.Seq)
+	ctx := context.Background()
+	highWater, err := s.core.sessionReadAdmission(ctx)
 	if err != nil {
 		return err
 	}
-	return s.adoptReceipt(receipt, &candidate)
+	stored, err := s.prepareHeldStoragePublication(ctx, writes, highWater, nil)
+	if err != nil {
+		return err
+	}
+	receipt, candidate, err := s.settleBatch(ctx, Batch{Writes: writes}, s.readImage.Seq)
+	if err != nil {
+		return err
+	}
+	if err := s.failure(); err != nil {
+		return err
+	}
+	if err := s.adoptReceipt(receipt, &candidate); err != nil {
+		return err
+	}
+	s.publishStoredCommit(ctx, stored.publication)
+	return nil
 }
