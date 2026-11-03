@@ -11,7 +11,9 @@ import (
 	"testing"
 )
 
-func TestIdentity140HTTPProviderAndImageHeaders(t *testing.T) {
+// Retained HTTP controls reconciled with f9a26365 utils/identity.ts precedence
+// and attribution rules. Default release identity has its own exact version test.
+func TestIdentityHTTPProviderAndImageHeaders(t *testing.T) {
 	for _, tc := range []struct {
 		name, modelUA, requestUA string
 		suppress                 bool

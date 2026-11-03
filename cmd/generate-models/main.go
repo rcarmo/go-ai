@@ -142,9 +142,11 @@ type modelEntry struct {
 	Reasoning                     bool                              `json:"reasoning"`
 	ThinkingLevelMap              map[string]*string                `json:"thinkingLevelMap"`
 	Input                         []string                          `json:"input"`
+	Output                        []string                          `json:"output"`
 	InputLimits                   *inputLimitsEntry                 `json:"inputLimits"`
 	PromptCache                   *promptCacheEntry                 `json:"promptCache"`
 	Enabled                       *bool                             `json:"enabled"`
+	Free                          *bool                             `json:"free"`
 	Lab                           string                            `json:"lab"`
 	Providers                     []providerInfoEntry               `json:"providers"`
 	Cost                          costEntry                         `json:"cost"`
@@ -558,6 +560,9 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 				writeBoolField(&b, "SendImageOptInHeader", m.Compat.SendImageOptInHeader)
 				b.WriteString("},\n")
 			}
+			if kind == "image" && len(m.Output) > 0 {
+				fmt.Fprintf(&b, "\t\tOutput: %#v,\n", m.Output)
+			}
 			if kind == "chat" {
 				writeCompat(&b, m.Api, m.Compat)
 				b.WriteString(fmt.Sprintf("\t\tReasoning:     %v,\n", m.Reasoning))
@@ -585,6 +590,9 @@ func generateGoSource(models map[string]map[string]modelEntry, total int, kind s
 			writeInputLimitsField(&b, m.InputLimits)
 			writePromptCacheField(&b, m.PromptCache)
 			writeEnabledField(&b, m.Enabled)
+			if kind == "chat" {
+				writeBoolField(&b, "Free", m.Free)
+			}
 			if m.Lab != "" {
 				b.WriteString(fmt.Sprintf("\t\tLab:           %q,\n", m.Lab))
 			}
@@ -668,6 +676,7 @@ func writeCompat(b *strings.Builder, api string, c compatEntry) {
 		b.WriteString("},\n")
 	case "openai-responses", "azure-openai-responses", "openai-codex-responses":
 		b.WriteString("\t\tResponsesCompat: &OpenAIResponsesCompat{")
+		writeBoolField(b, "SupportsReasoningEffort", c.SupportsReasoningEffort)
 		writeBoolField(b, "SupportsMidConvoEffort", c.SupportsMidConvoEffort)
 		writeBoolField(b, "SendSessionIdHeader", c.SendSessionIdHeader)
 		writeBoolField(b, "SupportsMidConvoSystemMessages", c.SupportsMidConvoSystemMessages)
@@ -903,8 +912,8 @@ func readOfflineCatalog(dir string) (map[string]map[string]modelEntry, error) {
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return nil, err
 	}
-	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "68fde21cda04641d6d0b956ad5f840a7fe4adc2ebff7577fb8ccaac4e2e48a3f" {
-		return nil, fmt.Errorf("invalid v1.4.0 catalog manifest")
+	if manifest.SchemaVersion != 6 || len(manifest.Files) != 42 || manifest.StructureHash != "4a18066209dbb48dee5fc8d9ca253ea98d5e085ba8dd5e8fef4207bce0ffaa54" {
+		return nil, fmt.Errorf("invalid v1.5.0 catalog manifest")
 	}
 	if _, err := time.Parse(time.RFC3339Nano, manifest.GeneratedAt); err != nil {
 		return nil, fmt.Errorf("invalid catalog generation timestamp")

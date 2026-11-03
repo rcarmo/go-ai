@@ -77,6 +77,7 @@ func cloneImageModel(model *ImageModel) *ImageModel {
 	}
 	copy := *model
 	copy.Input = append([]string{}, model.Input...)
+	copy.Output = append([]string{}, model.Output...)
 	if model.Headers != nil {
 		copy.Headers = map[string]string{}
 		for key, value := range model.Headers {

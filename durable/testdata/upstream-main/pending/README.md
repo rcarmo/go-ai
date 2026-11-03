@@ -12,4 +12,6 @@ Previously pending tests were promoted without weakening their assertions:
 
 [Current generation integration receipt](../../../../docs/upstream-v1.5.0/generation-deferral.md) and [historical generation baseline](../../../../docs/upstream-main/generation-view-oracle.md) retain exact source/native pins, adapters and limitations. Existing scope does not establish full upstream parity.
 
+`harness_after_run_recovery_test.go` is the current f9 source429(crash portion)/757/955/983/1019 oracle. Unchanged ac5ac78 baseline:9 backend passes/6 failures,19.069s under CGO0; finish/child restart-limit dispositions remain wrong. [Recipe, assertions and adapters](../../../../docs/upstream-v1.5.0/after-run-recovery-baseline.md) exclude the prototype only in compiler input. The source429 orderly-close-in-drain portion remains unported; no complete-body credit.
+
 Future known-failing fixtures belong here only with an explicit project-owned execution recipe, prototype exclusion, retained complete assertions and a concise baseline receipt. Never use a default skip or relaxed expected count to hide a failure.

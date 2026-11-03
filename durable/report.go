@@ -13,8 +13,9 @@ type ReportTask struct {
 	ConversationID ID     `json:"conversationId"`
 }
 
-// ReportInfo follows v1.4.0's fixed report vocabulary. Optional fields are set
-// only when their provenance is known, never inferred from an error message.
+// ReportInfo carries native structured report metadata. Reconcile report kinds
+// and fields against the pinned upstream release before claiming equivalence.
+// Optional provenance is never inferred from an error message.
 type ReportInfo struct {
 	Type           string       `json:"type"`
 	Task           *ReportTask  `json:"task,omitempty"`

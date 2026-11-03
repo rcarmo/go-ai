@@ -386,6 +386,10 @@ func cloneModel(model *Model) *Model {
 		enabled := *model.Enabled
 		copy.Enabled = &enabled
 	}
+	if model.Free != nil {
+		free := *model.Free
+		copy.Free = &free
+	}
 	copy.Providers = append([]ModelProviderInfo{}, model.Providers...)
 	copy.SamplingParams = cloneSamplingParams(model.SamplingParams)
 	if model.SamplingParamsByThinkingLevel != nil {

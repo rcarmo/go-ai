@@ -1,6 +1,6 @@
 {
-  "upstream": "4a080252f06caf63a525d7873c5d94d3c23887e0",
-  "typebox": "1.3.27",
+  "upstream": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "piSchema": "1.5.0",
   "schemas": {
     "CacheRetentionSchema": {
       "enum": [
@@ -11,12 +11,6 @@
     },
     "ModelCostRatesSchema": {
       "type": "object",
-      "required": [
-        "input",
-        "output",
-        "cacheRead",
-        "cacheWrite"
-      ],
       "properties": {
         "input": {
           "type": "number",
@@ -34,16 +28,16 @@
           "type": "number",
           "description": "Cache-write cost in USD per million tokens."
         }
-      }
-    },
-    "ModelCostSchema": {
-      "type": "object",
+      },
       "required": [
         "input",
         "output",
         "cacheRead",
         "cacheWrite"
-      ],
+      ]
+    },
+    "ModelCostSchema": {
+      "type": "object",
       "properties": {
         "input": {
           "type": "number",
@@ -65,13 +59,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "inputTokensAbove",
-              "input",
-              "output",
-              "cacheRead",
-              "cacheWrite"
-            ],
             "properties": {
               "inputTokensAbove": {
                 "type": "number",
@@ -93,21 +80,27 @@
                 "type": "number",
                 "description": "Cache-write cost in USD per million tokens."
               }
-            }
+            },
+            "required": [
+              "inputTokensAbove",
+              "input",
+              "output",
+              "cacheRead",
+              "cacheWrite"
+            ]
           },
           "description": "Request-wide pricing tiers. The highest matching input threshold applies to the full request."
         }
-      }
-    },
-    "ModelCostTierSchema": {
-      "type": "object",
+      },
       "required": [
-        "inputTokensAbove",
         "input",
         "output",
         "cacheRead",
         "cacheWrite"
-      ],
+      ]
+    },
+    "ModelCostTierSchema": {
+      "type": "object",
       "properties": {
         "inputTokensAbove": {
           "type": "number",
@@ -129,7 +122,14 @@
           "type": "number",
           "description": "Cache-write cost in USD per million tokens."
         }
-      }
+      },
+      "required": [
+        "inputTokensAbove",
+        "input",
+        "output",
+        "cacheRead",
+        "cacheWrite"
+      ]
     },
     "ModelImageInputLimitsSchema": {
       "type": "object",
@@ -361,11 +361,6 @@
     },
     "AnthropicAllowedFallbackModelSchema": {
       "type": "object",
-      "required": [
-        "provider",
-        "model",
-        "cost"
-      ],
       "properties": {
         "provider": {
           "type": "string",
@@ -377,12 +372,6 @@
         },
         "cost": {
           "type": "object",
-          "required": [
-            "input",
-            "output",
-            "cacheRead",
-            "cacheWrite"
-          ],
           "properties": {
             "input": {
               "type": "number",
@@ -404,13 +393,6 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": [
-                  "inputTokensAbove",
-                  "input",
-                  "output",
-                  "cacheRead",
-                  "cacheWrite"
-                ],
                 "properties": {
                   "inputTokensAbove": {
                     "type": "number",
@@ -432,13 +414,31 @@
                     "type": "number",
                     "description": "Cache-write cost in USD per million tokens."
                   }
-                }
+                },
+                "required": [
+                  "inputTokensAbove",
+                  "input",
+                  "output",
+                  "cacheRead",
+                  "cacheWrite"
+                ]
               },
               "description": "Request-wide pricing tiers. The highest matching input threshold applies to the full request."
             }
-          }
+          },
+          "required": [
+            "input",
+            "output",
+            "cacheRead",
+            "cacheWrite"
+          ]
         }
       },
+      "required": [
+        "provider",
+        "model",
+        "cost"
+      ],
       "description": "An Anthropic server-side refusal fallback model with local pricing metadata."
     },
     "AnthropicMessagesCompatSchema": {
@@ -507,11 +507,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "provider",
-              "model",
-              "cost"
-            ],
             "properties": {
               "provider": {
                 "type": "string",
@@ -523,12 +518,6 @@
               },
               "cost": {
                 "type": "object",
-                "required": [
-                  "input",
-                  "output",
-                  "cacheRead",
-                  "cacheWrite"
-                ],
                 "properties": {
                   "input": {
                     "type": "number",
@@ -550,13 +539,6 @@
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "required": [
-                        "inputTokensAbove",
-                        "input",
-                        "output",
-                        "cacheRead",
-                        "cacheWrite"
-                      ],
                       "properties": {
                         "inputTokensAbove": {
                           "type": "number",
@@ -578,13 +560,31 @@
                           "type": "number",
                           "description": "Cache-write cost in USD per million tokens."
                         }
-                      }
+                      },
+                      "required": [
+                        "inputTokensAbove",
+                        "input",
+                        "output",
+                        "cacheRead",
+                        "cacheWrite"
+                      ]
                     },
                     "description": "Request-wide pricing tiers. The highest matching input threshold applies to the full request."
                   }
-                }
+                },
+                "required": [
+                  "input",
+                  "output",
+                  "cacheRead",
+                  "cacheWrite"
+                ]
               }
             },
+            "required": [
+              "provider",
+              "model",
+              "cost"
+            ],
             "description": "An Anthropic server-side refusal fallback model with local pricing metadata."
           },
           "maxItems": 3,
@@ -622,9 +622,6 @@
         },
         {
           "type": "object",
-          "required": [
-            "$var"
-          ],
           "properties": {
             "$var": {
               "anyOf": [
@@ -645,7 +642,10 @@
             "omitWhenOff": {
               "type": "boolean"
             }
-          }
+          },
+          "required": [
+            "$var"
+          ]
         }
       ]
     },
@@ -783,9 +783,6 @@
                 },
                 {
                   "type": "object",
-                  "required": [
-                    "$var"
-                  ],
                   "properties": {
                     "$var": {
                       "anyOf": [
@@ -806,7 +803,10 @@
                     "omitWhenOff": {
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "$var"
+                  ]
                 }
               ]
             }
@@ -832,9 +832,6 @@
                 },
                 {
                   "type": "object",
-                  "required": [
-                    "$var"
-                  ],
                   "properties": {
                     "$var": {
                       "anyOf": [
@@ -855,7 +852,10 @@
                     "omitWhenOff": {
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "$var"
+                  ]
                 }
               ]
             }
@@ -1590,9 +1590,6 @@
                 },
                 {
                   "type": "object",
-                  "required": [
-                    "$var"
-                  ],
                   "properties": {
                     "$var": {
                       "anyOf": [
@@ -1613,7 +1610,10 @@
                     "omitWhenOff": {
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "$var"
+                  ]
                 }
               ]
             }
@@ -1639,9 +1639,6 @@
                 },
                 {
                   "type": "object",
-                  "required": [
-                    "$var"
-                  ],
                   "properties": {
                     "$var": {
                       "anyOf": [
@@ -1662,7 +1659,10 @@
                     "omitWhenOff": {
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "$var"
+                  ]
                 }
               ]
             }
@@ -2047,11 +2047,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "provider",
-              "model",
-              "cost"
-            ],
             "properties": {
               "provider": {
                 "type": "string",
@@ -2063,12 +2058,6 @@
               },
               "cost": {
                 "type": "object",
-                "required": [
-                  "input",
-                  "output",
-                  "cacheRead",
-                  "cacheWrite"
-                ],
                 "properties": {
                   "input": {
                     "type": "number",
@@ -2090,13 +2079,6 @@
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "required": [
-                        "inputTokensAbove",
-                        "input",
-                        "output",
-                        "cacheRead",
-                        "cacheWrite"
-                      ],
                       "properties": {
                         "inputTokensAbove": {
                           "type": "number",
@@ -2118,13 +2100,31 @@
                           "type": "number",
                           "description": "Cache-write cost in USD per million tokens."
                         }
-                      }
+                      },
+                      "required": [
+                        "inputTokensAbove",
+                        "input",
+                        "output",
+                        "cacheRead",
+                        "cacheWrite"
+                      ]
                     },
                     "description": "Request-wide pricing tiers. The highest matching input threshold applies to the full request."
                   }
-                }
+                },
+                "required": [
+                  "input",
+                  "output",
+                  "cacheRead",
+                  "cacheWrite"
+                ]
               }
             },
+            "required": [
+              "provider",
+              "model",
+              "cost"
+            ],
             "description": "An Anthropic server-side refusal fallback model with local pricing metadata."
           },
           "maxItems": 3,

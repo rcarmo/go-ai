@@ -460,6 +460,7 @@ type Model struct {
 	InputLimits      *ModelInputLimits              `json:"inputLimits,omitempty"`
 	PromptCache      *ModelPromptCache              `json:"promptCache,omitempty"`
 	Enabled          *bool                          `json:"enabled,omitempty"`
+	Free             *bool                          `json:"free,omitempty"`
 	Lab              string                         `json:"lab,omitempty"`
 	Providers        []ModelProviderInfo            `json:"providers,omitempty"`
 	Cost             ModelCost                      `json:"cost"`
@@ -494,6 +495,7 @@ type ImageModel struct {
 	BaseURL       string            `json:"baseUrl,omitempty"`
 	Headers       map[string]string `json:"headers,omitempty"`
 	Input         []string          `json:"input,omitempty"`
+	Output        []string          `json:"output,omitempty"`
 	InputLimits   *ModelInputLimits `json:"inputLimits,omitempty"`
 	Cost          ModelCost         `json:"cost"`
 	ContextWindow int               `json:"contextWindow,omitempty"`

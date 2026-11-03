@@ -5,7 +5,11 @@ import (
 	"testing"
 )
 
-func TestModelSchemas120FixedOfficialFragments(t *testing.T) {
+// Reconciled with f9a26365 model/compat schemas and pi-schema1.5.0: sixteen
+// common-domain assertions agree with the actual source compiler. The underflow
+// cost and beyond-safe-integer decimal rows are native exact-precision controls;
+// JavaScript rounds these inputs before checking, so they confer no source parity.
+func TestModelSchemas150OfficialFragments(t *testing.T) {
 	cases := []struct {
 		name, value string
 		valid       bool
