@@ -55,13 +55,15 @@ Each overlay changed real production code, retained the prototype exclusion, ran
 | Use ordinary string-map decoding, allowing null members | 2 |
 | Omit empty carriers | 1 |
 
-### Known queued-link failure and next oracle
+### Queued-link failure at a420998 (historical)
+
+The later [task trace checkpoint](task-traces.md) replaces the collector described below with persisted task metadata and per-phase extraction/links. Its focused gate passes; these earlier failures and limits retain their original runtime scope.
 
 `TestTelemetry140QueuedBatchLinksOriginalSubmission` fails unchanged at the exact committed baseline `50df975`: four normal/panic memory/journal leaves, 0.315s, with two requests, four submit roots and **zero links instead of `[2,3]`**. The current candidate gives the same failure in each of three repetitions. This is an existing implementation gap, not a passing regression gate.
 
 `queuedInputLinks` searches for newly merged inputs only on `tx.byTask`. Atomic final boundaries can instead start a different queued generation task in the outgoing task's transaction; the collector misses that successor. Required trace links must attach to the successor's live trace, without invoking a backend under Session/Harness locks or adding links to an already-ended submit span. Simply relaxing the test or relabelling the creator would not preserve those contracts.
 
-The next bounded oracle is source run-start parent/link selection in [transaction assembly][assembly], including carrier-backed input grouping, the caller without propagation data, failed adoption, and a real reopen. Native task `trace`/`traceLinks`, root-sentinel behaviour and adapter extraction across restart are still unported. The current `Context` snapshot API closes submission storage/status only; it does not restore a backend span from persisted data. Other open work includes `afterRun`, full mixed boundaries, empty-error presence, restart-limit/report/settings, callback/clock behaviour and the complete upstream test bodies. Whole-file continue review stays `pending-review`.
+At this checkpoint, the next bounded oracle was source run-start parent/link selection in [transaction assembly][assembly], including carrier-backed input grouping, the caller without propagation data, failed adoption, and a real reopen. Native task `trace`/`traceLinks`, root-sentinel behaviour and adapter extraction across restart were unported at `a420998`; the linked task receipt records their later scoped implementation. The current `Context` snapshot API closes submission storage/status only; it does not restore a backend span from persisted data. Other open work includes `afterRun`, full mixed boundaries, empty-error presence, restart-limit/report/settings, callback/clock behaviour and the complete upstream test bodies. Whole-file continue review stays `pending-review`.
 
 After analysis, 54MB of owned source extracts, overlays, copied packages and logs plus 1.7GB of completed build cache were disposed with no active Go/compiler jobs. A temporary protected-file comparison copy is kept only until the push check finishes. The pinned source mirror, installed dependencies/toolchains, protected prototype and native v1.4.0 refs/assets are preserved.
 

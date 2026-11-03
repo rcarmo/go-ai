@@ -305,7 +305,7 @@ packages/durable/test/harness-task-graph.test.ts	yes	pending-review	pending-revi
 packages/durable/test/harness-tasks-recovery.test.ts	yes	pending-review	pending-review	-
 packages/durable/test/harness-tasks.test.ts	yes	pending-review	pending-review	-
 packages/durable/test/harness-telemetry-options.test.ts	no	pending-review	pending-review	-
-packages/durable/test/harness-telemetry.test.ts	yes	pending-review	pending-review	-
+packages/durable/test/harness-telemetry.test.ts	yes	pending-review	pending-review	Official1.5 f9a26365 scoped task traces at native2fd88f26aa88b3b57d48f5f409809e8d35ca0653: selected177/303 task-parent/root and queued prepare/request links plus source-derived transaction449-509/scheduler2150-2248 selection/per-phase extraction/first-invocation/root-fallback; nine new functions with memory/journal/pure-Go SQLite refusal/reopen/no-carrier/ownership controls. Initial three-function baseline nine backend failures, additional controls nine; draft extraction/fallback gaps three each. Final26functions count3shuffle42 CGO0:78topPass0fail0skip4.330s; SDK JSON extractor3pass. Seven active faults reject3/3/3/3/3/1/3leaves. Vet/SC0.8.2withtests/format/diff/prototype pass. Go nil/context-binding/native placeholders adapt source tokens; no TS/Vitest/fullbody/fullsuite/profiling. Other builtin task metadata, full telemetry/callback-clock and release convergence unverified. docs/upstream-v1.5.0/task-traces.md; wholefile pending-review.
 packages/durable/test/harness-tool-hooks.test.ts	yes	pending-review	pending-review	-
 packages/durable/test/harness-tools-recovery.test.ts	yes	pending-review	pending-review	-
 packages/durable/test/harness-tools.test.ts	yes	pending-review	pending-review	-
