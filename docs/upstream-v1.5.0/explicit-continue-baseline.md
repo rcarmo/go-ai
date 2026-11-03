@@ -2,6 +2,10 @@
 
 Runtime `b66619a5169405a993ea9187d44185c171385d05` adds idle, entryless `Input.Type = "continue"` admission and settlement. The focused pure-Go gate passes **29 functions, three repetitions, 87 top-level passes, zero failures/skips** in 18.493s. A real SQLite crash/reopen test also passes. Full v1.5.0 alignment and complete source-body parity are unverified.
 
+## Subsequent trace work
+
+[Submission trace carriers](submission-traces.md) supersede the missing-field and native `queued` telemetry-label limits recorded below: source356 status carriers now persist, and preparation uses the literal `prepare` label. That later affected gate reproduces an older queued-link failure at unchanged `50df975`; task trace restoration and successor link selection need further work. The results below keep their original runtime pin and scope.
+
 ## Pins and scope
 
 The target is official upstream v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. The exact [`packages/durable/test/harness-continue.test.ts`][tests] was read in full: **423 lines, 13 declarations**, supplied as `/workspace/tmp/go-ai/runs/explicit-continue/20261102/source-continue.test.ts`. The source map below gives **no full-body translation credit to any declaration**. Existing automatic continuation and boundary controls retain their separate scope in [boundary-first.md](boundary-first.md).
