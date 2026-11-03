@@ -884,7 +884,7 @@ func TestTelemetry140BuiltinToolAttributes(t *testing.T) {
 		var parents [][2]string
 		var backend func(string) *goai.TelemetrySpan
 		backend = func(parent string) *goai.TelemetrySpan {
-			return &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{Context: goai.TelemetryCarrier{"scope": parent}, StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
 				scope := name
 				if kind, ok := attrs["task.name"].(string); ok {
 					scope = kind
@@ -902,6 +902,12 @@ func TestTelemetry140BuiltinToolAttributes(t *testing.T) {
 			}}
 		}
 		opts.Telemetry = backend("root")
+		// Source task ancestry resolves persisted propagation data, rather than
+		// retaining a live creator handle. Supply both backend capabilities;
+		// a carrierless/unextractable context intentionally falls back to root.
+		opts.Telemetry.ExtractContext = func(carrier goai.TelemetryCarrier) *goai.TelemetrySpan {
+			return backend(carrier["scope"])
+		}
 		h := openHarness(t, b.store, opts)
 		conv := root(t, h, ref)
 		sub, err := conv.Submit(bg, Input{Content: "run tool"})

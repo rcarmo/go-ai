@@ -19,9 +19,11 @@ type mainTaskTraceSpan struct {
 	attrs   map[string]any
 	links   []goai.TelemetryCarrier
 	ended   bool
+	status  string
 }
 type mainTaskTraceBackend struct {
 	t     *testing.T
+	scope string
 	mu    sync.Mutex
 	spans []*mainTaskTraceSpan
 	root  *goai.TelemetrySpan
@@ -39,7 +41,7 @@ func mainTaskTraceCopy(c goai.TelemetryCarrier) goai.TelemetryCarrier {
 	return out
 }
 func newMainTaskTraceBackend(t *testing.T) *mainTaskTraceBackend {
-	b := &mainTaskTraceBackend{t: t}
+	b := &mainTaskTraceBackend{t: t, scope: t.Name()}
 	root := &goai.TelemetrySpan{}
 	root.StartSpan = func(n string, a map[string]any) *goai.TelemetrySpan { return b.create(n, nil, a, nil) }
 	root.StartRootSpan = func(n string, a map[string]any, links []*goai.TelemetrySpan) *goai.TelemetrySpan {
@@ -78,7 +80,7 @@ func (b *mainTaskTraceBackend) create(n string, parent goai.TelemetryCarrier, a 
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	s := &mainTaskTraceSpan{name: n, context: goai.TelemetryCarrier{"scope": b.t.Name(), "span": strconv.Itoa(len(b.spans) + 1)}, parent: mainTaskTraceCopy(parent), attrs: map[string]any{}}
+	s := &mainTaskTraceSpan{name: n, context: goai.TelemetryCarrier{"scope": b.scope, "span": strconv.Itoa(len(b.spans) + 1)}, parent: mainTaskTraceCopy(parent), attrs: map[string]any{}}
 	for k, v := range a {
 		s.attrs[k] = v
 	}
@@ -114,7 +116,8 @@ func (b *mainTaskTraceBackend) handle(s *mainTaskTraceSpan) *goai.TelemetrySpan 
 			}
 			s.links = append(s.links, mainTaskTraceCopy(other.Context))
 		},
-		End: func() { b.mu.Lock(); s.ended = true; b.mu.Unlock() },
+		SetStatus: func(status, _, _ string) { b.mu.Lock(); s.status = status; b.mu.Unlock() },
+		End:       func() { b.mu.Lock(); s.ended = true; b.mu.Unlock() },
 	}
 }
 func mainTaskTraceWire(t *testing.T, v any) map[string]json.RawMessage {

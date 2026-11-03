@@ -43,7 +43,11 @@ func (h *Harness) startNextSequentialTool(runtime *TaskRuntime, parent Task) err
 		if err != nil {
 			return err
 		}
-		if err := tx.PutTask(Task{ID: id, Conversation: parent.Conversation, Owner: parent.ID, Kind: "pi.tool", Status: "pending", Checkpoint: value}); err != nil {
+		child := Task{ID: id, Conversation: parent.Conversation, Owner: parent.ID, Kind: "pi.tool", Status: "pending", Checkpoint: value}
+		if err := tx.bindTaskTrace(&child, TaskOptions{}); err != nil {
+			return err
+		}
+		if err := tx.PutTask(child); err != nil {
 			return err
 		}
 		cp.PendingTools = cp.PendingTools[1:]

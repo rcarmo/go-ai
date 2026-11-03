@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -249,11 +250,20 @@ func (r *TaskRuntime) finishPhase() {
 	}
 	trace.span.Store(nil)
 	outcome := phase.state.outcome
+	// A phase owns its decision. Preserve an adopted terminal/wait/sleep
+	// result, but an ended invocation or closing host aborts an undecided
+	// phase (upstream Scheduler.#phase), rather than reporting a next step.
+	if (outcome == "interrupted" || strings.HasPrefix(outcome, "next=")) && (r.ended.Load() || r.harness.closing.Load()) {
+		outcome = "aborted"
+	}
 	if phase.span.SetAttributes != nil {
 		telemetryCall(func() { phase.span.SetAttributes(map[string]any{"outcome": outcome}) })
 	}
 	if phase.span.SetStatus != nil && (outcome == "faulted" || outcome == "failed" || outcome == "orphaned") {
 		telemetryCall(func() { phase.span.SetStatus("error", "task_"+outcome, telemetryDiagnostic(phase.state.message)) })
+	}
+	if phase.span.SetStatus != nil && outcome == "aborted" {
+		telemetryCall(func() { phase.span.SetStatus("ok", "", "") })
 	}
 	if metrics := trace.root.Metrics; metrics != nil && metrics.Histogram != nil {
 		telemetryCall(func() {

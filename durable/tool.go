@@ -1018,7 +1018,11 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 			if e != nil {
 				return e
 			}
-			if e = tx.PutTask(Task{ID: id, Conversation: parent.Conversation, Owner: parent.ID, Kind: "pi.tool", Status: "pending", Checkpoint: checkpoint}); e != nil {
+			child := Task{ID: id, Conversation: parent.Conversation, Owner: parent.ID, Kind: "pi.tool", Status: "pending", Checkpoint: checkpoint}
+			if e = tx.bindTaskTrace(&child, TaskOptions{}); e != nil {
+				return e
+			}
+			if e = tx.PutTask(child); e != nil {
 				return e
 			}
 			cp.Children = append(cp.Children, id)
