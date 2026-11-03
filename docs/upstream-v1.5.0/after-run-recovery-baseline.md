@@ -28,6 +28,8 @@ Both failing cases exhaust their explicit3s idle waits on each backend; the over
 
 The native scheduler still parks un-aborted work at the limit. Source scheduler.ts1929-1943 faults ordinary kinds at the limit, while generation.ts365/386 and974-1004 let answered finish/drain end completed, retain queued items and explicitly mark crash-caused completion for reporting. Existing legacy parking tests must be reconciled against that v1.5.0 contract, not retained as compatibility requirements. Normal completion after a host lowers the limit must remain unreported.
 
+The dispatch change must also respect the source `LIMITS_RESTARTS` set (`live.ts246`): run kinds, tool and compaction handle their own limits. `harness.ts251` passes that distinction to scheduler.ts1933; tool.ts151/206 routes its own cutoffs, and generation has separate answered/unanswered cleanup. Blindly removing native global parking would permit builtin crash loops without their source cutoff paths. Reconcile these narrowly coupled controls and the obsolete parking expectations before changing dispatch.
+
 Next: implement the source dispositions and attribution without weakening ownership/cancellation or fabricating failure on an answered run, then rerun these oracles plus narrowly affected scheduler controls. Whole-file after-run review remains `pending-review`.
 
 ## Overlay recipe

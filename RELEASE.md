@@ -8,7 +8,7 @@ The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c4
 
 [Answered-run recovery baseline](docs/upstream-v1.5.0/after-run-recovery-baseline.md) adds pending source429/757/955/983/1019 assertions against unchanged ac5ac78 runtime:3top/9backend passes,2top/6backend failures, no skips,19.069s. Crash/reask-before-child/no-reask-in-drain and both normal-completion/lowered-limit controls pass. Answered finish and child cutoffs park instead of ending completed/faulted with the required reports. Actual Session failure/join/storage reopen, no fabricated restart markers. This is a known failure, not an after-run fix. Generic legacy parking expectations must be reconciled with f9 scheduler semantics. Source429 orderly-close-in-drain and other whole-file assertions remain unported.
 
-No fullsuite/profiling/race/CI/release/publication/fullalignment. Source dependencies/toolchains and unrelated prototype remain protected; completed raw work is disposable after analysis/checkpoint checks.
+No fullsuite/profiling/race/CI/release/publication/fullalignment. Source dependencies/toolchains and unrelated prototype remain protected. Owned metadata archives/copies/logs were disposed after analysis; final316KB scratch and706MB completed Go build/test cache removed with no active Go jobs. Concise receipts and intentional test source remain.
 
 ## Selected after-run lifecycle -- 3 November 2026
 
