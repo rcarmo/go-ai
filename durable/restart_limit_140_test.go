@@ -22,8 +22,11 @@ func seedInterrupted140(t *testing.T, h *Harness, id ID) {
 		t.Fatal(err)
 	}
 }
-func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
-	for _, action := range []string{"retry", "raise", "abort"} {
+
+// Native controls for scheduler.ts1933 at f9a26365. Recovery is seeded here;
+// real host-loss coverage is in the translated after-run/builtin oracles.
+func TestRestartLimit150RecoveryDispositionAndHostControls(t *testing.T) {
+	for _, action := range []string{"retry", "raise", "abort", "fault"} {
 		t.Run(action, func(t *testing.T) {
 			backends(t, func(t *testing.T, b backend) {
 				var runs, reports atomic.Int64
@@ -52,21 +55,15 @@ func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
 						t.Fatalf("recovery: %+v", task)
 					}
 				}
-				parkedReport := awaitReport140(t, events)
-				if parkedReport.info.Type != "task_parked" || parkedReport.info.Task == nil || parkedReport.info.Task.ID != id || parkedReport.info.Task.Kind != def.Kind() || parkedReport.info.Task.ConversationID != 1 || parkedReport.info.Reason != "" {
-					t.Fatal(parkedReport)
-				}
 				limit = 999 // Open must detach live host settings.
-				if h.RestartLimit() != 2 || reports.Load() != 1 || runs.Load() != 0 {
+				if h.RestartLimit() != 2 || reports.Load() != 0 || runs.Load() != 0 {
 					t.Fatal(h.RestartLimit(), reports.Load(), runs.Load())
 				}
 				inspect, err := h.InspectTasks(bg)
-				if err != nil || len(inspect.Tasks) != 1 || inspect.Tasks[0].Reason != "restart_limit" || inspect.Tasks[0].Record.Restarts != 2 {
+				if err != nil || len(inspect.Tasks) != 1 || inspect.Tasks[0].Reason != "" || inspect.Tasks[0].Record.Restarts != 2 {
 					t.Fatalf("%+v %v", inspect, err)
 				}
-				if err = h.Resume(bg); err != nil {
-					t.Fatal(err)
-				}
+				// No permanent parking: host overrides must precede resume.
 				switch action {
 				case "retry":
 					if err = h.RetryTask(bg, id); err != nil {
@@ -82,16 +79,29 @@ func TestRestartLimit140RecoveryParkingRetryRaiseAndAbort(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				if err = h.Resume(bg); err != nil {
+					t.Fatal(err)
+				}
 				result := waitPublicTask(t, h, id)
 				want := "completed"
 				if action == "abort" {
 					want = "aborted"
 				}
+				if action == "fault" {
+					want = "faulted"
+					report := awaitReport140(t, events)
+					if report.info.Type != "task_faulted" || report.info.Reason != "restart_limit" || report.info.Task == nil || report.info.Task.ID != id || report.info.Restarts != nil {
+						t.Fatal(report)
+					}
+					if result.State.Outcome.Error == nil || result.State.Outcome.Error.Detail == nil || !equalJSONValue(result.State.Outcome.Error.Detail.Value, JSON{"reason": "restart_limit"}) {
+						t.Fatal(result)
+					}
+				}
 				if result.State.Outcome.Status != want || result.Restarts != 0 {
 					t.Fatalf("%+v", result)
 				}
 				expected := int64(1)
-				if action == "abort" {
+				if action == "abort" || action == "fault" {
 					expected = 0
 				}
 				if runs.Load() != expected {

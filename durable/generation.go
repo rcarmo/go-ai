@@ -37,6 +37,9 @@ func (h *Harness) nextTask(id ID) (Task, generationCheckpoint, bool, error) {
 // children or another generation; tools-phase continuation returns to scheduler.
 func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp generationCheckpoint) (e error) {
 	id := task.Conversation
+	if !taskAborted(task) && !cp.Abort && task.Restarts > 0 && task.Restarts >= h.RestartLimit() {
+		return h.endGenerationCutoff(runtime, task, cp)
+	}
 	if cp.Phase == "finish" || cp.Phase == "drain" {
 		return h.runAfterRun(runtime, task, cp)
 	}

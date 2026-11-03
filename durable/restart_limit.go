@@ -19,12 +19,13 @@ func (h *Harness) RestartLimit() uint64 {
 	}
 	return DefaultRestartLimit
 }
-func (s *taskScheduler) parked(task Task) bool {
+func (s *taskScheduler) retryableCutoff(task Task) bool {
 	return taskManaged(task) && task.Status != "running" && !terminalStatus(task.Status) && !taskHasDecidedOutcome(task) && !taskAborted(task) && task.Restarts >= s.h.RestartLimit()
 }
 
-// RetryTask clears a parked task's interruption count and enables scheduling.
-// Unknown tasks reject; terminal, completing and non-parked tasks are no-ops.
+// RetryTask clears an at-limit task's interruption count before scheduling it.
+// Unknown tasks reject; terminal, completing and below-limit tasks are no-ops.
+// At-limit tasks otherwise settle on resume; they are not permanently parked.
 func (h *Harness) RetryTask(ctx context.Context, id ID) error {
 	if h.closing.Load() {
 		return ErrClosed
@@ -34,7 +35,7 @@ func (h *Harness) RetryTask(ctx context.Context, id ID) error {
 		if !ok {
 			return reject("unknown task")
 		}
-		if !h.scheduler.parked(task) {
+		if !h.scheduler.retryableCutoff(task) {
 			return nil
 		}
 		task.Restarts = 0

@@ -225,6 +225,9 @@ func (h *Harness) runAfterRun(r *TaskRuntime, task Task, cp generationCheckpoint
 	return err
 }
 func (h *Harness) endAfterRun(r *TaskRuntime, task Task, cp generationCheckpoint) error {
+	return h.endAfterRunWithQueue(r, task, cp, false)
+}
+func (h *Harness) endAfterRunWithQueue(r *TaskRuntime, task Task, cp generationCheckpoint, keepQueued bool) error {
 	_, err := h.session.invocationCommit(r.context, task.ID, func(tx *Tx) error {
 		if err := r.check(); err != nil {
 			return err
@@ -249,7 +252,7 @@ func (h *Harness) endAfterRun(r *TaskRuntime, task Task, cp generationCheckpoint
 			return err
 		}
 		current.Checkpoint, current.Status = checkpoint, "done"
-		hold := &BuiltinTaskHold{Stage: "final", Action: "generation-receipt", Outcome: TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": latest.AfterRun.Answer}}}, FinalStatus: "done", Entry: latest.AfterRun.Answer, Submission: latest.Submission, Conversation: task.Conversation, Owner: task.Owner}
+		hold := &BuiltinTaskHold{Stage: "final", Action: "generation-receipt", Outcome: TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": latest.AfterRun.Answer}}}, FinalStatus: "done", Entry: latest.AfterRun.Answer, Submission: latest.Submission, Conversation: task.Conversation, Owner: task.Owner, KeepQueued: keepQueued}
 		metadata := &BuiltinTaskExecution{}
 		if current.Execution != nil && current.Execution.Builtin != nil {
 			*metadata = *current.Execution.Builtin

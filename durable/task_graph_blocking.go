@@ -8,14 +8,14 @@ import (
 // No checkpoints, inputs, memos or outcome payloads are retained for metadata
 // refreshes. These subjects are owned by the graph's serial subscription drain.
 type taskGraphSubject struct {
-	id                                ID
-	kind, status, abortReason         string
-	version, restarts                 uint64
-	native, managed, aborted, decided bool
+	id                        ID
+	kind, status, abortReason string
+	version                   uint64
+	native, aborted, decided  bool
 }
 
 func graphSubject(task Task) taskGraphSubject {
-	subject := taskGraphSubject{id: task.ID, kind: task.Kind, status: task.Status, abortReason: task.AbortReason, restarts: task.Restarts, managed: taskManaged(task), aborted: taskAborted(task), decided: taskHasDecidedOutcome(task)}
+	subject := taskGraphSubject{id: task.ID, kind: task.Kind, status: task.Status, abortReason: task.AbortReason, aborted: taskAborted(task), decided: taskHasDecidedOutcome(task)}
 	if task.Execution != nil && task.Execution.Native != nil {
 		subject.native = true
 		subject.version = task.Execution.Native.Version
@@ -42,9 +42,6 @@ func (s *taskScheduler) graphBlocked(subject taskGraphSubject, registry TaskRegi
 		if reason := s.definitionBlockedReason(subject.id, subject.kind, subject.version, registry); reason != "" {
 			return reason
 		}
-	}
-	if subject.managed && !subject.aborted && subject.restarts >= s.h.RestartLimit() {
-		return "restart_limit"
 	}
 	return ""
 }

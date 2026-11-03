@@ -23,6 +23,7 @@ type ReportInfo struct {
 	ConversationID ID           `json:"conversationId,omitempty"`
 	Callback       HostCallback `json:"callback,omitempty"`
 	Reason         string       `json:"reason,omitempty"`
+	Restarts       *uint64      `json:"restarts,omitempty"`
 }
 type HostCallback string
 

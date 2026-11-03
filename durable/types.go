@@ -205,6 +205,8 @@ type BuiltinTaskHold struct {
 	Conversation ID          `json:"conversation"`
 	Owner        ID          `json:"owner,omitempty"`
 	CallID       string      `json:"callId,omitempty"`
+	// Answered cutoff retains queued inputs without recording a run failure.
+	KeepQueued bool `json:"keepQueued,omitempty"`
 }
 
 type BuiltinTaskExecution struct {

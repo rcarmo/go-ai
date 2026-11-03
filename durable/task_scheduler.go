@@ -158,7 +158,7 @@ func taskManaged(task Task) bool {
 	return task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Execution != nil && task.Execution.Native != nil
 }
 func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
-	if !taskManaged(task) || s.parked(task) {
+	if !taskManaged(task) {
 		return false
 	}
 	if epoch, blocked := s.retryAfter[task.ID]; blocked && s.epoch.Load() <= epoch {
@@ -358,8 +358,12 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			for wait := range s.tickets[id] {
 				attemptWaits[wait] = true
 			}
-			if taskAborted(task) && task.Restarts >= s.h.RestartLimit() {
-				cause := fmt.Errorf("Abort handler of task %d (%s) was cut off %d times", task.ID, task.Kind, task.Restarts)
+			if task.Restarts > 0 && task.Restarts >= s.h.RestartLimit() && (taskAborted(task) || !selfLimitsRestarts(task)) {
+				message := fmt.Sprintf("Task %d (%s) was cut off %d times without progress", task.ID, task.Kind, task.Restarts)
+				if taskAborted(task) {
+					message = fmt.Sprintf("Abort handler of task %d (%s) was cut off %d times", task.ID, task.Kind, task.Restarts)
+				}
+				cause := errors.New(message)
 				outcome := TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: cause.Error(), Detail: &TaskValue{Present: true, Value: JSON{"reason": "restart_limit"}}}}
 				var err error
 				if task.Execution != nil && task.Execution.Native != nil {
@@ -870,16 +874,10 @@ func callTaskPhase(handler TaskPhase, ctx context.Context, task TaskRecord, runt
 // Unknown migration results remain reservation work; no host code runs here.
 func (s *taskScheduler) nativeBlockedReason(task Task, snapshot TaskRegistrySnapshot) string {
 	if task.Execution == nil || task.Execution.Native == nil {
-		if s.parked(task) {
-			return "restart_limit"
-		}
 		return ""
 	}
 	if reason := s.definitionBlockedReason(task.ID, task.Kind, task.Execution.Native.Version, snapshot); reason != "" {
 		return reason
-	}
-	if s.parked(task) {
-		return "restart_limit"
 	}
 	return ""
 }

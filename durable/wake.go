@@ -75,8 +75,8 @@ func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 			if taskAborted(task) && task.AbortReason != "restart" {
 				return true, nil
 			}
-			if s.parked(task) {
-				return false, nil
+			if task.Restarts > 0 && task.Restarts >= h.RestartLimit() && (taskAborted(task) || !selfLimitsRestarts(task)) {
+				return true, nil
 			}
 			if task.Execution == nil || task.Execution.Native == nil {
 				return taskManaged(task), nil

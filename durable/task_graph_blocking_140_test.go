@@ -23,7 +23,10 @@ func graphReason140(t *testing.T, frames <-chan TaskGraph, key, want string) {
 		}
 	}
 }
-func TestTaskGraph140BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
+
+// Native observer controls: v1.5.0 cuts off tasks on scheduling, not by
+// permanent restart_limit blocking metadata. Definition-fit metadata remains.
+func TestTaskGraph150BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		var calls atomic.Int64
 		def := taskDefinition(t, "task.graph-block-140", func(context.Context, TaskRecord, *TaskRuntime) error { calls.Add(1); return nil })
@@ -83,7 +86,11 @@ func TestTaskGraph140BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		graphReason140(t, frames, key, "restart_limit")
+		// Count-only changes leave the public graph unchanged (no callback).
+		atLimit, err := h.TaskGraph(bg)
+		if err != nil || atLimit.Tasks[key].Blocked != "" {
+			t.Fatal(atLimit, err)
+		}
 		parked, err := h.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -92,7 +99,6 @@ func TestTaskGraph140BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 		if err = h.SetSettings(bg, HarnessSettings{RestartLimit: &cap}); err != nil {
 			t.Fatal(err)
 		}
-		graphReason140(t, frames, key, "")
 		raised, err := h.Snapshot(bg)
 		if err != nil || raised.Seq != parked.Seq || calls.Load() != 0 {
 			t.Fatal("raised cap dispatched paused task or committed", err, calls.Load())
@@ -103,12 +109,16 @@ func TestTaskGraph140BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 		}
 	})
 }
-func TestTaskGraph140MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
+func TestTaskGraph150MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 	backends(t, func(t *testing.T, b backend) {
 		def := taskDefinition(t, "task.graph-coalesce-140", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		h := taskTestHarness(t, b.store, def)
+		remove, err := h.options.Registry.RegisterTask(def)
+		if err != nil {
+			t.Fatal(err)
+		}
 		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-		_, err := h.session.Commit(bg, func(tx *Tx) error {
+		_, err = h.session.Commit(bg, func(tx *Tx) error {
 			task := tx.state.Tasks[id]
 			task.Restarts = 5
 			return tx.stage(Write{Op: "put-task", Task: &task})
@@ -135,10 +145,8 @@ func TestTaskGraph140MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		cap := uint64(6)
-		if err = h.SetSettings(bg, HarnessSettings{RestartLimit: &cap}); err != nil {
-			t.Fatal(err)
-		}
+		// Change definition fit to trigger a real metadata callback while paused.
+		remove()
 		awaitTaskSignal(t, entered)
 		for n := 0; n < 100; n++ {
 			h.session.refreshTaskGraphObservers()
@@ -153,6 +161,9 @@ func TestTaskGraph140MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 		if len(watch.subjects) != 1 {
 			t.Fatal(watch.subjects)
 		}
+		if _, err = h.options.Registry.RegisterTask(def); err != nil {
+			t.Fatal(err)
+		}
 		writer, cancel := context.WithCancel(bg)
 		_, err = h.session.Commit(writer, func(tx *Tx) error {
 			task := tx.state.Tasks[id]
@@ -164,7 +175,7 @@ func TestTaskGraph140MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		close(release)
-		graphReason140(t, frames, strconv.FormatUint(uint64(id), 10), "restart_limit")
+		graphReason140(t, frames, strconv.FormatUint(uint64(id), 10), "")
 		select {
 		case <-watch.Closed():
 			t.Fatal("writer cancellation ended graph watch")

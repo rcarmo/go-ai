@@ -82,6 +82,11 @@ func (h *Harness) finishGenerationWithoutRequest(task Task, cp generationCheckpo
 				return err
 			}
 		}
+		if reason == "restart_limit" && task.Restarts <= h.RestartLimit() {
+			if _, err := recordInterruptedGenerationPartial(tx, current, &cp); err != nil {
+				return err
+			}
+		}
 		cp.Phase = "terminal"
 		cp.Partial = nil
 		value, err := dtoObject(cp, tx.limits)
@@ -92,6 +97,8 @@ func (h *Harness) finishGenerationWithoutRequest(task Task, cp generationCheckpo
 		action := "generation-no-model"
 		if reason == "nothing_to_answer" {
 			action = "generation-no-answer"
+		} else if reason == "restart_limit" {
+			action = "generation-model-failure"
 		}
 		hold := &BuiltinTaskHold{Stage: "final", Action: action, Outcome: TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message, Detail: &TaskValue{Present: true, Value: JSON{"reason": reason}}}}, FinalStatus: "failed", Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
 		current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: hold}}

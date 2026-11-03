@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"strings"
 )
@@ -68,7 +69,7 @@ func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOpti
 	return id, err
 }
 func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
-	return DefineTask(TaskDefinitionOptions{Kind: "task.pi.compaction", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "select"}, nil }, Phases: map[string]TaskPhase{
+	definition, err := DefineTask(TaskDefinitionOptions{Kind: "task.pi.compaction", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "select"}, nil }, Phases: map[string]TaskPhase{
 		"select": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			h := r.harness
 			view, err := h.session.ContextView(ctx, r.ConversationID(), 0)
@@ -410,6 +411,26 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted"}}, nil
 		})
 	}})
+	if err != nil {
+		return nil, err
+	}
+	for phase, handler := range definition.options.Phases {
+		original := handler
+		definition.options.Phases[phase] = func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+			if task.Restarts > 0 && task.Restarts >= r.harness.RestartLimit() {
+				message := fmt.Sprintf("Compaction was interrupted %s", cutoffCount(task.Restarts))
+				err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
+					return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message, Detail: &TaskValue{Present: true, Value: JSON{"reason": "restart_limit"}}}}}, nil
+				})
+				if err == nil {
+					r.reportCutoff(task.Restarts, message)
+				}
+				return err
+			}
+			return original(ctx, task, r)
+		}
+	}
+	return definition, nil
 }
 func compactionCut(view ContextView, keep int) int {
 	start := 0

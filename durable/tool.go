@@ -1283,6 +1283,15 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 	}); err != nil {
 		return err
 	}
+	if task.Restarts > 0 && task.Restarts >= h.RestartLimit() && !cp.Abort {
+		message := fmt.Sprintf("Tool %s was interrupted %s in a row; it is not run again", cp.Offer.Name, cutoffCount(task.Restarts))
+		result := ToolResult{IsError: true, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "restart_limit", Message: message}}}
+		err := h.finishTool(task, cp, result, "restart_limit")
+		if err == nil {
+			runtime.reportCutoff(task.Restarts, message)
+		}
+		return err
+	}
 	registry := runtime.registry.selection
 	if registry == nil {
 		registry = NewRegistry()
@@ -1862,6 +1871,15 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 				}
 			}
 			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+		}
+		if code == "restart_limit" {
+			for _, diagnostic := range diagnostics {
+				if diagnostic.Severity == "error" && diagnostic.Code == code {
+					outcome.Error.Message = diagnostic.Message
+					break
+				}
+			}
+			outcome.Error.Detail = &TaskValue{Present: true, Value: JSON{"reason": code}}
 		}
 		if code == "aborted" {
 			outcome = TaskOutcome{Status: "aborted", Reason: "aborted", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}

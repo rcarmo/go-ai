@@ -254,12 +254,6 @@ func Open(ctx context.Context, store Storage, options Options) (*Harness, error)
 	}
 	go h.scheduler.loop()
 	h.scheduler.kick() // Publish initial wake metadata without enabling effects.
-	for _, task := range recovered {
-		if h.scheduler.parked(task) {
-			info := ReportInfo{Type: "task_parked", Task: &ReportTask{ID: task.ID, Kind: task.Kind, ConversationID: task.Conversation}, Extension: h.options.Registry.taskInstaller(task.Kind)}
-			h.report(context.Background(), fmt.Errorf("task %d (%s) cut off %d times without progress; parked until RetryTask", task.ID, task.Kind, task.Restarts), info)
-		}
-	}
 	return h, nil
 }
 func (h *Harness) notify() {
@@ -984,9 +978,7 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 						}
 					}
 				}
-				if h.scheduler.parked(task) {
-					item.Kind, item.Reason = "blocked", h.scheduler.nativeBlockedReason(task, snapshot)
-				} else if len(item.On) > 0 {
+				if len(item.On) > 0 {
 					item.Kind = "waiting"
 				} else if task.Execution != nil && task.Execution.Native != nil {
 					if reason := h.scheduler.nativeBlockedReason(task, snapshot); reason != "" {
@@ -1051,8 +1043,8 @@ func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTas
 				case map[string]any:
 					reason = detail["reason"]
 				}
-				if reason == "interrupted" {
-					sub.Value = JSON{"errorCode": "interrupted", "detail": hold.Outcome.Error.Message}
+				if reason == "interrupted" || reason == "restart_limit" {
+					sub.Value = JSON{"errorCode": reason, "detail": hold.Outcome.Error.Message}
 				}
 			}
 		} else if hold.Action == "generation-abort" {
@@ -1151,7 +1143,7 @@ func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTas
 			delete(value, "run")
 			delete(value, "generation")
 			delete(value, "tools")
-			if failurePolicyApplies(hold) && checkpoint.AfterFailedRun == "keep" {
+			if hold.KeepQueued || failurePolicyApplies(hold) && checkpoint.AfterFailedRun == "keep" {
 				value["failedRun"] = true
 			} else {
 				delete(value, "failedRun")
@@ -1161,7 +1153,7 @@ func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTas
 			return false, err
 		}
 	}
-	if (run == nil || submissionEntryID(run["task"]) == task.ID) && (!failurePolicyApplies(hold) || checkpoint.AfterFailedRun == "continue") {
+	if !hold.KeepQueued && (run == nil || submissionEntryID(run["task"]) == task.ID) && (!failurePolicyApplies(hold) || checkpoint.AfterFailedRun == "continue") {
 		keepFailure := checkpoint.Reset || failurePolicyApplies(hold) && checkpoint.AfterFailedRun == "continue"
 		if err := h.startQueuedRunBoundary(tx, task.Conversation, task.ID, keepFailure, boundaryDecision(*task, hold)); err != nil {
 			return false, err

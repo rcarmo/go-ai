@@ -329,6 +329,9 @@ func validateTaskRecord(task Task, l Limits) error {
 }
 
 func validateBuiltinHold(task Task, hold *BuiltinTaskHold, l Limits) error {
+	if hold.KeepQueued && (task.Kind != "pi.generation" || hold.Action != "generation-receipt" || hold.Outcome.Status != "completed") {
+		return reject("invalid answered-cutoff queue hold")
+	}
 	if err := validateTaskOutcome(&hold.Outcome); err != nil {
 		return err
 	}
@@ -423,6 +426,17 @@ func toolReceiptRawStatus(outcome TaskOutcome, cp toolCheckpoint) (string, error
 			return "", reject("completed tool call error disagreement")
 		}
 		return "done", nil
+	}
+	if cp.ErrorCode == "restart_limit" {
+		if outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Detail == nil || !outcome.Error.Detail.Present || !equalJSONValue(outcome.Error.Detail.Value, JSON{"reason": "restart_limit"}) {
+			return "", reject("tool cutoff outcome")
+		}
+		for _, diagnostic := range cp.Result.Diagnostics {
+			if diagnostic.Code == "restart_limit" && diagnostic.Severity == "error" && diagnostic.Message == outcome.Error.Message {
+				return "done", nil
+			}
+		}
+		return "", reject("tool cutoff diagnostic disagreement")
 	}
 	if cp.ErrorCode != "" {
 		if outcome.Status != "failed" || outcome.Error == nil || (cp.ErrorCode != "tool_error" && outcome.Error.Message != cp.ErrorCode) {
