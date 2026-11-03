@@ -1010,6 +1010,10 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 }
 
 func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, value JSON) (bool, error) {
+	return h.cleanupAnsweredGeneration(tx, task, hold, value, nil)
+}
+
+func (h *Harness) cleanupAnsweredGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, value JSON, afterRun *RunSummary) (bool, error) {
 	var checkpoint generationCheckpoint
 	if err := fromObject(task.Checkpoint, &checkpoint, tx.limits); err != nil {
 		return false, err
@@ -1126,6 +1130,17 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 		return false, err
 	}
 	run, _ := current["run"].(map[string]any)
+	if afterRun != nil && run != nil && submissionEntryID(run["task"]) == task.ID {
+		return false, live.Update(func(value JSON) error {
+			held := generationObject(value["run"])
+			held["inputs"] = []any{}
+			held["afterRun"] = JSON{}
+			delete(value, "generation")
+			delete(value, "tools")
+			delete(value, "nestedTools")
+			return nil
+		})
+	}
 	if run == nil || fmt.Sprint(run["task"]) == strconv.FormatUint(uint64(task.ID), 10) {
 		if err = live.Update(func(value JSON) error {
 			if run != nil {

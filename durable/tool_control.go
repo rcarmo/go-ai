@@ -27,7 +27,7 @@ func validateToolControl(control *ToolControl, l Limits) error {
 	}
 	return nil
 }
-func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoint, children []Task) (bool, error) {
+func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoint, children []Task, afterRun *RunSummary) (bool, error) {
 	terminate := len(children) > 0 && len(cp.UnstartedCalls) == 0
 	var handoff *string
 	var added []string
@@ -143,8 +143,12 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 		return false, err
 	}
 	if handoff != nil {
-		if err := appendReset(tx, current.Conversation, *handoff); err != nil {
+		id, err := appendResetEntry(tx, current.Conversation, *handoff)
+		if err != nil {
 			return false, err
+		}
+		if afterRun != nil {
+			afterRun.Last = id
 		}
 	}
 	cp.Phase = "terminal"
@@ -160,17 +164,30 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 	if current.Execution != nil {
 		*metadata = *current.Execution.Builtin
 	}
-	metadata.Memos = nil
 	metadata.Hold = hold
 	current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: metadata}
-	if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
+	heldAfterRun := false
+	if afterRun != nil {
+		heldAfterRun, err = h.holdAnsweredRun(tx, &current, cp, *afterRun)
+		if err != nil {
+			return false, err
+		}
+	}
+	if !heldAfterRun {
+		metadata.Memos = nil
+	}
+	if !heldAfterRun && len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
 		hold.Stage, current.Status = "held", "completing"
 	}
 	value, err := dtoObject(receipt, tx.limits)
 	if err != nil {
 		return false, err
 	}
-	if _, err := h.cleanupGeneration(tx, &current, hold, value); err != nil {
+	var summary *RunSummary
+	if heldAfterRun {
+		summary = cp.AfterRun
+	}
+	if _, err := h.cleanupAnsweredGeneration(tx, &current, hold, value, summary); err != nil {
 		return false, err
 	}
 	if err := tx.stage(Write{Op: "put-task", Task: &current}); err != nil {

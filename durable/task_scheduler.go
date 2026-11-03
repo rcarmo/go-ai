@@ -223,6 +223,15 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 				return false
 			}
 		}
+		if cp.Phase == "drain" && cp.AfterRun != nil {
+			for _, id := range cp.AfterRunTasks {
+				child, ok := state.Tasks[id]
+				if !ok || !terminalStatus(child.Status) || s.invocations[id] != nil {
+					return false
+				}
+			}
+			return true
+		}
 		if cp.Phase == "compaction" {
 			child, exists := state.Tasks[cp.Compaction]
 			return exists && terminalStatus(child.Status) && s.invocations[child.ID] == nil && len(s.ownedLive(state, task.ID)) == 0
@@ -371,7 +380,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
 					return false, err
 				}
-				if cp.Phase != "queued" && cp.Phase != "prepare-next" && cp.Phase != "intent" && cp.Phase != "tools" && cp.Phase != "retry" && cp.Phase != "compaction" && cp.Phase != "poll" {
+				if cp.Phase != "queued" && cp.Phase != "prepare-next" && cp.Phase != "intent" && cp.Phase != "tools" && cp.Phase != "retry" && cp.Phase != "compaction" && cp.Phase != "poll" && cp.Phase != "finish" && cp.Phase != "drain" {
 					s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
 					if err := s.builtinDecision(tx, task, TaskOutcome{Status: "orphaned", Reason: "missing_builtin_phase"}); err != nil {
 						return false, err

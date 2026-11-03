@@ -37,6 +37,9 @@ func (h *Harness) nextTask(id ID) (Task, generationCheckpoint, bool, error) {
 // children or another generation; tools-phase continuation returns to scheduler.
 func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp generationCheckpoint) (e error) {
 	id := task.Conversation
+	if cp.Phase == "finish" || cp.Phase == "drain" {
+		return h.runAfterRun(runtime, task, cp)
+	}
 	if cp.Abort {
 		h.cancelDeferred(runtime.context, cp, runtime)
 		return h.drainAborted(task, cp)
@@ -570,7 +573,13 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			break
 		}
 	}
-	if e = h.finish(task, cp, receipt, success); e != nil {
+	afterRun := false
+	if success && !cp.Abort && (receipt.StopReason == goai.StopReasonStop || receipt.StopReason == goai.StopReasonLength || receipt.StopReason == goai.StopReasonToolUse) {
+		for _, hook := range hooks {
+			afterRun = afterRun || hook.AfterRun != nil
+		}
+	}
+	if e = h.finishWithAfterRun(task, cp, receipt, success, afterRun); e != nil {
 		if _, latest, ok, err := h.nextTask(id); err == nil && ok && latest.Abort {
 			return e
 		}
@@ -1075,6 +1084,10 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 	return result, success, terminal == 1
 }
 func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, success bool) error {
+	return h.finishWithAfterRun(task, cp, r, success, false)
+}
+
+func (h *Harness) finishWithAfterRun(task Task, cp generationCheckpoint, r messageReceipt, success, afterRun bool) error {
 	if cp.Model != nil {
 		r.Api = cp.Model.Api
 		r.Provider = cp.Model.Provider
@@ -1146,20 +1159,33 @@ func (h *Harness) finish(task Task, cp generationCheckpoint, r messageReceipt, s
 			*metadata = *current.Execution.Builtin
 		}
 		metadata.AbortRequested = cp.Abort || taskAborted(current)
-		metadata.Memos = nil
 		metadata.Hold = hold
 		task.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: metadata}
+		heldAfterRun := false
+		if afterRun && status == "done" {
+			heldAfterRun, e = h.holdAnsweredRun(tx, &task, &cp, RunSummary{Reason: "answer", Answer: id, Last: id})
+			if e != nil {
+				return e
+			}
+		}
+		if !heldAfterRun {
+			metadata.Memos = nil
+		}
 		candidate, err := tx.current()
 		if err != nil {
 			return err
 		}
-		if len(h.scheduler.ownedLive(candidate, task.ID)) > 0 {
+		if !heldAfterRun && len(h.scheduler.ownedLive(candidate, task.ID)) > 0 {
 			hold.Stage = "held"
 			task.Status = "completing"
 		}
 		// endRun settles inputs at the deciding commit. Owned work holds the
 		// task's terminal state, not its answer or the next run boundary.
-		if _, err := h.cleanupGeneration(tx, &task, hold, value); err != nil {
+		var summary *RunSummary
+		if heldAfterRun {
+			summary = cp.AfterRun
+		}
+		if _, err := h.cleanupAnsweredGeneration(tx, &task, hold, value, summary); err != nil {
 			return err
 		}
 		if e = tx.stage(Write{Op: "put-task", Task: &task}); e != nil {

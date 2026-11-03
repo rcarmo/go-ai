@@ -31,6 +31,8 @@ type Settlement struct {
 	Message    *messageReceipt
 }
 type generationCheckpoint struct {
+	AfterRun              *RunSummary          `json:"afterRun,omitempty"`
+	AfterRunTasks         []ID                 `json:"afterRunTasks,omitempty"`
 	AfterFailedRun        string               `json:"afterFailedRun,omitempty"`
 	FailureCut            ID                   `json:"failureCut,omitempty"`
 	Phase                 string               `json:"phase"`

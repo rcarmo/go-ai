@@ -1163,6 +1163,19 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 			}
 		}
 	}
+	var afterRun *RunSummary
+	for _, hook := range hooks {
+		if hook.AfterRun != nil {
+			last := latest.AssistantEntry
+			for _, id := range resultEntries {
+				if id > last {
+					last = id
+				}
+			}
+			afterRun = &RunSummary{Reason: "terminate", Answer: latest.AssistantEntry, Last: last}
+			break
+		}
+	}
 	_, e = h.session.invocationCommit(context.Background(), parent.ID, func(tx *Tx) error {
 		// This is a NEW continuation, never the received-result Close exception.
 		// Recheck after actual line acquisition, then use the latest full record
@@ -1203,7 +1216,7 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 		// The ordered tool tasks have drained. Work created by afterTools
 		// belongs to this generation and may hold its decided outcome while a
 		// conversation-owned successor proceeds, as in finishToolRound.
-		terminal, err := h.applyToolControls(tx, current, &latest, children)
+		terminal, err := h.applyToolControls(tx, current, &latest, children, afterRun)
 		if err != nil {
 			return err
 		}

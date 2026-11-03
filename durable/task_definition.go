@@ -101,6 +101,12 @@ func callTaskInitial(def *TaskDefinition, input any) (checkpoint JSON, err error
 // CreateTask creates a definition-backed task but never dispatches host code.
 // Owner references are judged again on the transaction's final candidate.
 func (tx *Tx) CreateTask(definition *TaskDefinition, input any, options TaskOptions) (ID, error) {
+	return tx.createTask(definition, input, options, nil)
+}
+
+// prepared is private, detached execution data checked off-line by afterRun.
+// Ordinary CreateTask keeps its existing initialization/admission semantics.
+func (tx *Tx) createTask(definition *TaskDefinition, input any, options TaskOptions, prepared *NativeTaskExecution) (ID, error) {
 	if err := tx.enter(); err != nil {
 		return 0, err
 	}
@@ -145,9 +151,12 @@ func (tx *Tx) CreateTask(definition *TaskDefinition, input any, options TaskOpti
 	if _, ok := state.Conversations[conversation]; !ok {
 		return 0, reject("task conversation required")
 	}
-	native, err := definition.initial(input, tx.limits)
-	if err != nil {
-		return 0, err
+	native := prepared
+	if native == nil {
+		native, err = definition.initial(input, tx.limits)
+		if err != nil {
+			return 0, err
+		}
 	}
 	native.Background = options.Background
 	id, err := tx.store.mintID(tx.ctx, true)

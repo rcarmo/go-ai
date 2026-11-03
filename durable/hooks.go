@@ -35,6 +35,9 @@ func (a *InvocationReader) TypedEntry(ctx context.Context, def *EntryDefinition,
 
 // Hooks run off the Session line on detached request/response data.
 type GenerationHooks struct {
+	// AfterRun observes a committed answer and may request ordinary owned tasks.
+	// The run stays busy until those tasks settle. Nil requests end it normally.
+	AfterRun      func(context.Context, RunSummary, *HookAPI) (*AfterRunResult, error)
 	BeforeRequest func(context.Context, []MessageReceipt, *HookAPI) ([]MessageReceipt, error)
 	AfterResponse func(context.Context, MessageReceipt, *HookAPI) error
 	// AfterTools retains the native detached-receipt callback.
