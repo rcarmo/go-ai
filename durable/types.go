@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 // MaxID is the exact-integer ceiling shared with upstream JavaScript records.
@@ -278,6 +280,9 @@ type Submission struct {
 	Type         string `json:"type"`
 	Status       string `json:"status"`
 	Value        JSON   `json:"value"`
+	// Trace is optional data-only propagation metadata; an empty carrier is
+	// distinct from absence. Backend span objects are never stored here.
+	Trace *goai.TelemetryCarrier `json:"trace,omitempty"`
 }
 
 // Document is a detached materialised incarnation at an exact scope/kind/key address.

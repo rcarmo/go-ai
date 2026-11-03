@@ -1,10 +1,12 @@
 package durable
 
+import goai "github.com/rcarmo/go-ai"
+
 // startExplicitContinue implements the entryless, idle-only admission. Selected
 // queued users precede the continue in live.run.inputs and share its generation.
 // The public submission type is the persisted discriminator: no new checkpoint
 // field or fabricated empty user message is needed.
-func (h *Harness) startExplicitContinue(tx *Tx, conversation, submission ID, requestID string) error {
+func (h *Harness) startExplicitContinue(tx *Tx, conversation, submission ID, requestID string, carrier *goai.TelemetryCarrier) error {
 	live, err := builtin(tx, conversation, "pi.live")
 	if err != nil {
 		return err
@@ -17,7 +19,7 @@ func (h *Harness) startExplicitContinue(tx *Tx, conversation, submission ID, req
 	if err != nil {
 		return err
 	}
-	if err := tx.PutSubmission(Submission{ID: submission, Conversation: conversation, RequestID: requestID, Type: "continue", Status: "pending", Value: JSON{}}); err != nil {
+	if err := tx.PutSubmission(Submission{ID: submission, Conversation: conversation, RequestID: requestID, Type: "continue", Status: "pending", Value: JSON{}, Trace: carrier}); err != nil {
 		return err
 	}
 	taskID, err := tx.MintID()

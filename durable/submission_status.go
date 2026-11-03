@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 // SubmissionRecord exposes the reference lifecycle while Snapshot retains
@@ -19,6 +21,7 @@ type SubmissionRecord struct {
 	Reason       string
 	Detail       *TaskValue // Optional arbitrary JSON; Present distinguishes null.
 	Value        JSON
+	Trace        *goai.TelemetryCarrier `json:"trace,omitempty"`
 }
 
 // Status reads committed lifecycle without enabling scheduling.
@@ -279,7 +282,7 @@ func submissionEntryID(value any) ID {
 	return ID(n.Num().Uint64())
 }
 func publicSubmission(sub Submission) SubmissionRecord {
-	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, Type: sub.Type, Value: sub.Value, Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
+	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, Type: sub.Type, Value: sub.Value, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
 	if sub.Type != "write" && sub.Type != "continue" {
 		record.Type = "input"
 	}

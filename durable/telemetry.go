@@ -130,6 +130,11 @@ func (r *TaskRuntime) beginPhase(checkpoint JSON) {
 		return
 	}
 	phase, _ := checkpoint["phase"].(string)
+	if r.kind == "pi.generation" && phase == "queued" {
+		// The native checkpoint spelling stays private; public builtin
+		// preparation spans use the upstream phase vocabulary.
+		phase = "prepare"
+	}
 	kind := "run"
 	if r.abortMode {
 		kind = "abort"
@@ -230,11 +235,12 @@ func (h *Harness) reportTelemetry(ctx context.Context, info ReportInfo) {
 	}
 }
 
-// submitTrace contains only scalar admission observations. It is private to one
-// submit call and is never stored in a record or used to alter admission.
+// submitTrace belongs to one admission. Only its owned data-only carrier may
+// enter a durable submission; spans, callbacks and observations stay local.
 type submitTelemetryContextKey struct{}
 type submitTrace struct {
 	span    *goai.TelemetrySpan
+	carrier *goai.TelemetryCarrier
 	results map[ID]string
 	events  durableEventBuffer
 }
@@ -277,7 +283,13 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 	if span == nil {
 		return nil
 	}
-	return &submitTrace{span: span}
+	trace := &submitTrace{span: span}
+	if span.Context != nil {
+		// Snapshot the backend's immutable carrier outside Harness/Session
+		// locks. No host callback is invoked from the admission line.
+		trace.carrier = copyTelemetryCarrier(&span.Context)
+	}
+	return trace
 }
 
 // observe runs on the admission line; no backend callbacks, content, or retained

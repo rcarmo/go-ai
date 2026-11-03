@@ -517,6 +517,11 @@ type ProviderEnv map[string]string
 // nil callbacks are no-ops. Value carries a process-local backend context for
 // provider hooks. Spans and callbacks are never persisted in request JSON.
 type TelemetrySpan struct {
+	// Context is the backend's optional, data-only propagation carrier. Populate
+	// it when creating the span and keep it immutable afterwards. Durable
+	// submissions snapshot it; Value and callbacks always remain process-local.
+	// A nil map means absent, while a non-nil empty map is an empty carrier.
+	Context   TelemetryCarrier                                            `json:"-"`
 	Value     any                                                         `json:"-"`
 	StartSpan func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
 	// StartRootSpan starts an independent trace linked to the supplied callers.

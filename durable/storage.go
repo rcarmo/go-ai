@@ -319,6 +319,7 @@ func cloneState(s Snapshot, l Limits) (Snapshot, error) {
 			return Snapshot{}, e
 		}
 		v.Value = x
+		v.Trace = copyTelemetryCarrier(v.Trace)
 		n.Submissions[id] = v
 	}
 	for id, v := range s.Documents {
@@ -749,6 +750,9 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	for _, v := range s.Submissions {
 		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write" && v.Type != "continue") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
+		}
+		if v.Trace != nil && *v.Trace == nil {
+			return reject("submission trace must be an object of strings")
 		}
 		if v.Type == "continue" {
 			if err := validateContinueSubmission(s, v, final); err != nil {

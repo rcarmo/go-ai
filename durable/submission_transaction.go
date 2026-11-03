@@ -45,7 +45,7 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 		}
 		value = owned
 	}
-	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, Value: value}
+	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, Value: value, Trace: copyTelemetryCarrier(record.Trace)}
 	switch record.Type {
 	case "input":
 		sub.Type = "follow-up"

@@ -173,6 +173,7 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
 	h := c.h
 	var subID ID
+	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
 			return ErrClosed
@@ -203,7 +204,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			if err != nil {
 				return err
 			}
-			return h.startExplicitContinue(tx, c.id, subID, input.RequestID)
+			return h.startExplicitContinue(tx, c.id, subID, input.RequestID, carrier)
 		}
 		receipt, err := inputReceipt(input.Content, input.Blocks, tx.limits)
 		if err != nil {
@@ -272,7 +273,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				value["entry"] = map[string]any(wire)
 			}
 		}
-		if err = tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: input.Type, Status: status, Value: value}); err != nil {
+		if err = tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: input.Type, Status: status, Value: value, Trace: carrier}); err != nil {
 			return err
 		}
 		if input.Type == "write" {
@@ -297,12 +298,12 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				}
 				if stale {
 					value["errorCode"] = "stale"
-					return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "failed", Value: value})
+					return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "failed", Value: value, Trace: carrier})
 				}
 				if err := appendPassiveWrite(tx, c.id, value); err != nil {
 					return err
 				}
-				return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value})
+				return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value, Trace: carrier})
 			}
 			id, err := tx.MintID()
 			if err != nil {
@@ -316,7 +317,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				return err
 			}
 			value["placedEntry"] = id
-			return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value})
+			return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value, Trace: carrier})
 		}
 		// Only a genuinely new user input releases a kept queue. Deduplication
 		// and passive writes have returned before this point.
