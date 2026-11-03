@@ -106,7 +106,7 @@ func mainSalvageCheck(t *testing.T, h *Harness, c *ConversationHandle, sub, task
 		t.Error("native live failure shape", live)
 	}
 	failure := generationObject(live["runFailure"])
-	if failure["reason"] != "restart_limit" || failure["detail"] != detail || submissionEntryID(failure["taskId"]) != task {
+	if len(failure) != 5 || failure["reason"] != "restart_limit" || failure["detail"] != detail || submissionEntryID(failure["taskId"]) != task {
 		t.Error("run failure", failure)
 	}
 	inputs, _ := failure["inputs"].([]any)
