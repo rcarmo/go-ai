@@ -14,7 +14,15 @@ func (e *generationNoModel) Error() string {
 	return fmt.Sprintf("Model %s/%s is not available", e.ref.Provider, e.ref.ID)
 }
 
+type generationNothingToAnswer struct{}
+
+func (*generationNothingToAnswer) Error() string { return "The conversation has nothing to answer" }
+
 func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, cause *generationNoModel) error {
+	return h.finishGenerationWithoutRequest(task, cp, "no_model", cause.Error())
+}
+
+func (h *Harness) finishGenerationWithoutRequest(task Task, cp generationCheckpoint, reason, message string) error {
 	_, err := h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
 		current := tx.state.Tasks[task.ID]
 		if terminalStatus(current.Status) || taskHasDecidedOutcome(current) {
@@ -26,7 +34,7 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 		if taskAborted(current) {
 			return ErrSealed
 		}
-		if cp.Phase == "queued" && cp.InputEntry == 0 {
+		if cp.Phase == "queued" && cp.InputEntry == 0 && tx.state.Submissions[cp.Submission].Type != "continue" {
 			input, err := inputReceipt(cp.Input, cp.InputBlocks, tx.limits)
 			if err != nil {
 				return err
@@ -81,7 +89,11 @@ func (h *Harness) finishGenerationNoModel(task Task, cp generationCheckpoint, ca
 			return err
 		}
 		current.Checkpoint, current.Status = value, "failed"
-		hold := &BuiltinTaskHold{Stage: "final", Action: "generation-no-model", Outcome: TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: cause.Error(), Detail: &TaskValue{Present: true, Value: JSON{"reason": "no_model"}}}}, FinalStatus: "failed", Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
+		action := "generation-no-model"
+		if reason == "nothing_to_answer" {
+			action = "generation-no-answer"
+		}
+		hold := &BuiltinTaskHold{Stage: "final", Action: action, Outcome: TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message, Detail: &TaskValue{Present: true, Value: JSON{"reason": reason}}}}, FinalStatus: "failed", Submission: cp.Submission, Conversation: current.Conversation, Owner: current.Owner}
 		current.Execution = &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: hold}}
 		if len(h.scheduler.ownedLive(tx.state, current.ID)) > 0 {
 			hold.Stage, current.Status = "held", "completing"

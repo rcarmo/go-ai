@@ -102,7 +102,7 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 			input.Type = "steer"
 		}
 	}
-	if input.Entry != nil && input.Type != "write" {
+	if input.Entry != nil && input.Type != "write" && input.Type != "continue" {
 		if err := validateInputMetadata(input.Entry); err != nil {
 			return nil, err
 		}
@@ -110,7 +110,7 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	if input.Type == "write" && input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
 		return nil, reject("passive entry and content conflict")
 	}
-	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" {
+	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" && input.Type != "continue" {
 		return nil, ErrUnsupported
 	}
 	if len(input.RequestID) > h.session.limits.MaxRequestIDBytes {
@@ -187,10 +187,23 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			tx.byTask = binding.taskID
 			tx.taskConversation = c.id
 		}
+		// A continue never queues. Reject before any IDs, documents or entries
+		// are written; the committed request-ID lookup has already returned.
+		if input.Type == "continue" && h.conversationGenerationBusy(tx.state, c.id) {
+			return ErrConversationBusy
+		}
 		// Older plain-Session conversations need runtime docs for placement, but
 		// submitting does not configure their optional agent document.
 		if err := initializeBuiltins(tx, c.id); err != nil {
 			return err
+		}
+		if input.Type == "continue" {
+			var err error
+			subID, err = tx.MintID()
+			if err != nil {
+				return err
+			}
+			return h.startExplicitContinue(tx, c.id, subID, input.RequestID)
 		}
 		receipt, err := inputReceipt(input.Content, input.Blocks, tx.limits)
 		if err != nil {
@@ -366,7 +379,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 	if e != nil {
 		return nil, e
 	}
-	if input.Type == "follow-up" || input.Type == "steer" {
+	if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
 		h.scheduleLocked(c.id)
 	}
 	return &SubmissionHandle{h, subID}, nil

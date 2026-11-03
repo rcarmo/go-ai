@@ -152,6 +152,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 				if errors.As(preparationErr, &missing) {
 					return h.finishGenerationNoModel(task, cp, missing)
 				}
+				var empty *generationNothingToAnswer
+				if errors.As(preparationErr, &empty) {
+					return h.finishGenerationWithoutRequest(task, cp, "nothing_to_answer", empty.Error())
+				}
 				var rejected *StorageRejected
 				if h.life.Err() == nil && errors.As(preparationErr, &rejected) {
 					cancelled := false
@@ -607,6 +611,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	if e != nil {
 		return e
 	}
+	entryless := s.Submissions[cp.Submission].Type == "continue"
 	cp.Agent = agentState{}
 	if d, ok := agentDocument(s, task.Conversation); ok {
 		if e = fromObject(d.Value, &cp.Agent, h.session.limits); e != nil {
@@ -653,6 +658,18 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	model.Headers = nil
 	model.BaseURL = ""
 	cp.Model = model
+	if entryless {
+		var last goai.Role
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role != goai.RoleSystem {
+				last = messages[i].Role
+				break
+			}
+		}
+		if last != goai.RoleUser && last != goai.RoleToolResult {
+			return &generationNothingToAnswer{}
+		}
+	}
 	offers, pins, selectedSections, _, e := runtime.phaseSelection().selectedGeneration(h.selectionAgent(cp.Agent), h.session.limits, runtime.reportError)
 	if e != nil {
 		return e
@@ -714,7 +731,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	if err != nil {
 		return err
 	}
-	if !continuation && cp.InputEntry == 0 {
+	if !continuation && cp.InputEntry == 0 && !entryless {
 		cp.Messages = append(cp.Messages, input)
 	}
 	value, e := dtoObject(cp, h.session.limits)
@@ -754,7 +771,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				return err
 			}
 		}
-		if !continuation && cp.InputEntry == 0 {
+		if !continuation && cp.InputEntry == 0 && !entryless {
 			id, e := tx.MintID()
 			if e != nil {
 				return e
@@ -776,7 +793,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				return err
 			}
 		}
-		if continuation || len(cp.Steered) > 0 || cp.InputEntry != 0 {
+		if continuation || entryless || len(cp.Steered) > 0 || cp.InputEntry != 0 {
 			state := tx.state
 			var err error
 			if len(tx.writes) > 0 {
@@ -978,7 +995,11 @@ func (h *Harness) drainInvocation(runtime *TaskRuntime, events <-chan goai.Event
 			}
 		}
 		switch message.StopReason {
-		case goai.StopReasonStop, goai.StopReasonLength:
+		case goai.StopReasonLength:
+			// Output-limited calls remain part of the answered transcript.
+			// They are not executed: only toolUse enters acceptTools. Context
+			// synthesis supplies their missing results to an explicit continue.
+		case goai.StopReasonStop:
 			for _, content := range r.Content {
 				if content.Type == "toolCall" {
 					ok = false

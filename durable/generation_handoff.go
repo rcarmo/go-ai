@@ -61,16 +61,35 @@ func (h *Harness) handoffToolGeneration(tx *Tx, current Task, cp generationCheck
 		return Task{}, generationCheckpoint{}, err
 	}
 	if err := live.Update(func(value JSON) error {
-		if submissionEntryID(generationObject(value["run"])["task"]) != current.ID {
+		previous := generationObject(value["run"])
+		if submissionEntryID(previous["task"]) != current.ID {
 			return reject("generation run ownership changed")
 		}
-		inputs := []any{cp.Submission}
+		ordered, ok := previous["inputs"].([]any)
+		if !ok {
+			return reject("live run inputs unavailable")
+		}
+		// The live run is authoritative: an entryless continue follows the
+		// users selected at admission. Only newly placed post-tools steers
+		// belong at the end, after that continue, not beside the older users.
+		inputs := append([]any{}, ordered...)
+		included := make(map[ID]bool, len(inputs)+len(cp.Steered))
+		for _, input := range inputs {
+			included[submissionEntryID(input)] = true
+		}
 		for _, steer := range cp.Steered {
-			inputs = append(inputs, steer)
+			if !included[steer] {
+				inputs = append(inputs, steer)
+				included[steer] = true
+			}
 		}
 		run := JSON{"task": id, "inputs": inputs}
-		if first, exists := generationObject(value["run"])["first"]; exists {
+		if first, exists := previous["first"]; exists {
 			run["first"] = first
+		} else {
+			// A continue may have no user entry at all. Its first committed
+			// contribution is this round's actual tool-calling assistant.
+			run["first"] = cp.AssistantEntry
 		}
 		value["run"] = run
 		delete(value, "tools")

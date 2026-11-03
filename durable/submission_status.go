@@ -124,7 +124,7 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 			result = "settled"
 			return nil
 		}
-		if submissionEntryID(sub.Value["placedEntry"]) != 0 {
+		if sub.Type == "continue" || submissionEntryID(sub.Value["placedEntry"]) != 0 {
 			result = "already_placed"
 			return nil
 		}
@@ -280,8 +280,12 @@ func submissionEntryID(value any) ID {
 }
 func publicSubmission(sub Submission) SubmissionRecord {
 	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, Type: sub.Type, Value: sub.Value, Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
-	if sub.Type != "write" {
+	if sub.Type != "write" && sub.Type != "continue" {
 		record.Type = "input"
+	}
+	if sub.Type == "continue" && !terminalStatus(sub.Status) {
+		record.Status = "placed"
+		return record
 	}
 	switch sub.Status {
 	case "pending", "running":

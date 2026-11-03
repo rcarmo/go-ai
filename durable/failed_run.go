@@ -26,7 +26,7 @@ func failurePolicyApplies(hold *BuiltinTaskHold) bool {
 	if hold.FinalStatus != "failed" {
 		return false
 	}
-	return hold.Action == "generation-receipt" || hold.Action == "generation-no-model" || hold.Action == "generation-model-failure"
+	return hold.Action == "generation-receipt" || hold.Action == "generation-no-model" || hold.Action == "generation-no-answer" || hold.Action == "generation-model-failure"
 }
 
 // A failed model outcome is pinned before bounded withdrawal begins. The held

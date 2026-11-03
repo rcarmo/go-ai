@@ -49,25 +49,40 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 	switch record.Type {
 	case "input":
 		sub.Type = "follow-up"
-	case "write":
-		sub.Type = "write"
+	case "write", "continue":
+		sub.Type = record.Type
 	default:
 		return Submission{}, reject("submission type")
+	}
+	if record.Type == "continue" {
+		if record.Entry != 0 {
+			return Submission{}, reject("continue submission has no entry")
+		}
+		// These fields belong to the typed lifecycle, not compatibility data.
+		// Reject rather than silently erase a caller-supplied placement/answer.
+		for _, field := range []string{"placedEntry", "entry", "answerEntry", "answer"} {
+			if _, present := value[field]; present {
+				return Submission{}, reject("continue submission lifecycle field in value")
+			}
+		}
+		if _, present := value["detail"]; present && record.Status != "unanswered" {
+			return Submission{}, reject("detail requires unanswered submission")
+		}
 	}
 	switch record.Status {
 	case "queued":
 		sub.Status = "pending"
-		if record.Entry != 0 || record.Answer != 0 || record.Reason != "" {
+		if record.Type == "continue" || record.Entry != 0 || record.Answer != 0 || record.Reason != "" {
 			return Submission{}, reject("queued submission fields")
 		}
 	case "placed":
 		sub.Status = "pending"
-		if record.Type != "input" || record.Entry == 0 || record.Answer != 0 || record.Reason != "" {
+		if record.Type == "write" || record.Type == "input" && record.Entry == 0 || record.Answer != 0 || record.Reason != "" {
 			return Submission{}, reject("placed submission fields")
 		}
 	case "done":
 		sub.Status = "done"
-		if record.Entry == 0 || record.Type == "input" && record.Answer == 0 || record.Type == "write" && record.Answer != 0 || record.Reason != "" {
+		if record.Type != "continue" && record.Entry == 0 || record.Type != "write" && record.Answer == 0 || record.Type == "write" && record.Answer != 0 || record.Reason != "" {
 			return Submission{}, reject("done submission fields")
 		}
 	case "unanswered":
@@ -124,6 +139,7 @@ func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
 }
 
 // PlaceSubmission places a queued input, or completes a queued passive write.
+// A continue is already placed and can never acquire an entry.
 func (t *Tx) PlaceSubmission(id, entry ID) error {
 	if err := t.enter(); err != nil {
 		return err
@@ -136,6 +152,9 @@ func (t *Tx) PlaceSubmission(id, entry ID) error {
 	sub, ok := state.Submissions[id]
 	if !ok {
 		return reject("submission does not exist")
+	}
+	if sub.Type == "continue" {
+		return reject("continue submission has no entry")
 	}
 	if terminalStatus(sub.Status) {
 		return nil
@@ -158,7 +177,8 @@ func (t *Tx) PlaceSubmission(id, entry ID) error {
 }
 
 // SettleSubmission preserves the first terminal receipt and rejects an answer
-// for an unplaced input or a write. It resolves earlier writes in this batch.
+// for an unplaced input or a write. Entryless continues may answer directly.
+// It resolves earlier writes in this batch.
 func (t *Tx) SettleSubmission(id ID, settlement SubmissionRecord) error {
 	if err := t.enter(); err != nil {
 		return err
@@ -175,14 +195,20 @@ func (t *Tx) SettleSubmission(id ID, settlement SubmissionRecord) error {
 	if terminalStatus(sub.Status) {
 		return nil
 	}
+	if sub.Type == "continue" && settlement.Entry != 0 {
+		return reject("continue submission has no entry")
+	}
 	sub.Value, err = copyObject(sub.Value, t.limits)
 	if err != nil {
 		return err
 	}
 	switch settlement.Status {
 	case "done":
-		if sub.Type == "write" || submissionEntryID(sub.Value["placedEntry"]) == 0 {
-			return reject("submission is not a placed input")
+		if sub.Type == "write" || sub.Type != "continue" && submissionEntryID(sub.Value["placedEntry"]) == 0 {
+			return reject("submission is not a placed input or continue")
+		}
+		if sub.Type == "continue" && (settlement.Reason != "" || settlement.Detail != nil) {
+			return reject("done submission fields")
 		}
 		if settlement.Answer == 0 || !entryVisible(state, sub.Conversation, settlement.Answer) {
 			return reject("submission answer is not visible")

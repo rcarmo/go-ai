@@ -46,7 +46,7 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 	if initial {
 		if sub := state.Submissions[cp.Submission]; sub.Type == "steer" {
 			pickedSteer = 1
-		} else {
+		} else if sub.Type != "continue" {
 			pickedFollowUp = 1
 		}
 	}

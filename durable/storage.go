@@ -747,8 +747,13 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	}
 	requests := map[requestKey]ID{}
 	for _, v := range s.Submissions {
-		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
+		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write" && v.Type != "continue") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
+		}
+		if v.Type == "continue" {
+			if err := validateContinueSubmission(s, v, final); err != nil {
+				return err
+			}
 		}
 		if raw, present := v.Value["taskId"]; present {
 			number, ok := exactNumber(raw)
@@ -948,6 +953,36 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 	candidate.retained = cache
 	return nil
 }
+
+// Continue is the only entryless placed lifecycle. Keep its narrow payload
+// checks separate from the existing input/write compatibility envelopes.
+func validateContinueSubmission(s Snapshot, sub Submission, final bool) error {
+	for _, field := range []string{"placedEntry", "entry", "answer"} {
+		if _, present := sub.Value[field]; present {
+			return reject("continue submission has no entry or legacy receipt")
+		}
+	}
+	answer, hasAnswer := sub.Value["answerEntry"]
+	if sub.Status == "done" {
+		id := submissionEntryID(answer)
+		if id == 0 || final && !entryVisible(s, sub.Conversation, id) {
+			return reject("continue submission answer is not visible")
+		}
+	} else if hasAnswer {
+		return reject("only done continue submissions have an answer")
+	}
+	reason, hasReason := sub.Value["errorCode"]
+	_, hasDetail := sub.Value["detail"]
+	if terminalStatus(sub.Status) && sub.Status != "done" {
+		if text, ok := reason.(string); !ok || text == "" {
+			return reject("unanswered continue submission requires a reason")
+		}
+	} else if hasReason || hasDetail {
+		return reject("continue submission reason/detail requires unanswered status")
+	}
+	return nil
+}
+
 func checkPage(l Limits, n int) error {
 	if n < 1 || n > l.MaxPage {
 		return storageRequest("page limit outside persisted bounds")

@@ -249,6 +249,9 @@ func submitTraceFromContext(ctx context.Context) *submitTrace {
 func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) *submitTrace {
 	parent := c.h.options.Telemetry
 	kind := "input"
+	if input.Type == "continue" {
+		kind = "continue"
+	}
 	if input.Type == "write" {
 		kind = "write"
 		if caller := TelemetryFromContext(ctx); caller != nil {
@@ -261,7 +264,7 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 	attrs := map[string]any{"submission.type": kind, "conversation.id": uint64(c.id)}
 	var span *goai.TelemetrySpan
 	telemetryCall(func() {
-		if kind == "input" && parent.StartRootSpan != nil {
+		if kind != "write" && parent.StartRootSpan != nil {
 			var links []*goai.TelemetrySpan
 			if caller := TelemetryFromContext(ctx); caller != nil {
 				links = []*goai.TelemetrySpan{caller}
@@ -283,7 +286,7 @@ func (trace *submitTrace) observe(sub Submission) {
 	result := "done"
 	if sub.Status == "pending" || sub.Status == "running" {
 		result = "queued"
-		if submissionEntryID(sub.Value["placedEntry"]) != 0 {
+		if sub.Type == "continue" || submissionEntryID(sub.Value["placedEntry"]) != 0 {
 			result = "placed"
 		}
 	}

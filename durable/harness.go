@@ -1035,6 +1035,8 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 			sub.Value = JSON{"errorCode": "reset", "message": value}
 		} else if hold.Action == "generation-no-model" {
 			sub.Value = JSON{"errorCode": "no_model"}
+		} else if hold.Action == "generation-no-answer" {
+			sub.Value = JSON{"errorCode": "nothing_to_answer"}
 		} else if hold.Action == "generation-model-failure" {
 			sub.Value = JSON{"errorCode": "model_error"}
 			if hold.Outcome.Error != nil && hold.Outcome.Error.Detail != nil {
@@ -1081,7 +1083,13 @@ func (h *Harness) cleanupGeneration(tx *Tx, task *Task, hold *BuiltinTaskHold, v
 			sub.Value["detail"] = hold.Outcome.Error.Message
 		}
 		sub.Value["taskId"] = task.ID
-		retainSubmissionPlacement(oldValue, sub.Value, hold.Entry)
+		answer := hold.Entry
+		if sub.Type == "continue" && sub.Status != "done" {
+			// A persisted failed assistant is a transcript receipt, not the
+			// answer of an unanswered entryless submission.
+			answer = 0
+		}
+		retainSubmissionPlacement(oldValue, sub.Value, answer)
 		if err := tx.PutSubmission(sub); err != nil {
 			return false, err
 		}
@@ -1177,7 +1185,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 	if hold == nil || hold.Stage != "held" {
 		return reject("builtin hold not finalisable")
 	}
-	if hold.Action == "generation-receipt" || hold.Action == "generation-no-model" || hold.Action == "generation-model-failure" {
+	if hold.Action == "generation-receipt" || hold.Action == "generation-no-model" || hold.Action == "generation-no-answer" || hold.Action == "generation-model-failure" {
 		var value JSON
 		if hold.Entry != 0 {
 			entry, ok := tx.state.Entries[hold.Entry]
