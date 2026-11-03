@@ -18,7 +18,7 @@ The earlier main tip `3e0eec29` includes **post-release** OpenCode Claude mid-co
 
 ## Pure-Go SQLite checkpoint
 
-[SQLite migration checks](pure-go-storage.md) now pass with Go 1.27.3 and CGO=0: 42 selected SQLite/group functions repeated three times, 126 top-level passes, no failures/skips. The final candidate excludes continuation WIP only in an isolated validation copy. The modernc v1.61.1 adapter preserves native WAL/FULL, schema/replay, rollback/poisoning, ownership and admitted-cancellation settlement. A private connector boundary restores Linux/mips64le package/test compilation; SQLite remains unavailable where its engine or secure locking is unsupported. Upstream storage facade/schema/migration and wider-platform acceptance remain open. Code mode retains QuickJS in wazero.
+Native runtime `526b719b13c87c92cf7d36a1eb4ea2f802ea37d6` is committed locally; preserved continuation WIP currently prevents a clean-main push. [SQLite migration checks](pure-go-storage.md) pass with Go 1.27.3 and CGO=0: 42 selected SQLite/group functions repeated three times, 126 top-level passes, no failures/skips. The final candidate excludes continuation WIP only in an isolated validation copy. The modernc v1.61.1 adapter preserves native WAL/FULL, schema/replay, rollback/poisoning, ownership and admitted-cancellation settlement. A private connector boundary restores Linux/mips64le package/test compilation; SQLite remains unavailable where its engine or secure locking is unsupported. Upstream storage facade/schema/migration and wider-platform acceptance remain open. Code mode retains QuickJS in wazero.
 
 ## Reused local-listener result
 

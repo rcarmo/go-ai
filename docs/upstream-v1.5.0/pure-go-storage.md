@@ -12,20 +12,20 @@ The driver documents 20 OS/architecture pairs. Native lifetime locking is [unsup
 
 ### Focused checks — 2–3 November 2026
 
-Used Go 1.27.3, `GOMAXPROCS=4`, `CGO_ENABLED=0` and `scripts/project-env.sh`. The candidate is based on native `375386c80475e80d879083c410b2a4e0368dc7e1`. Its final isolated source copy contains the SQLite/build-policy changes, with the four continuation runtime files restored to HEAD and continuation/prototype tests excluded **only from that copy**. The actual working-tree WIP and protected prototype were unchanged.
+Used Go 1.27.3, `GOMAXPROCS=4`, `CGO_ENABLED=0` and `scripts/project-env.sh`. Runtime checkpoint: `526b719b13c87c92cf7d36a1eb4ea2f802ea37d6`, based on native `375386c80475e80d879083c410b2a4e0368dc7e1`. Its final isolated source copy contains the SQLite/build-policy changes, with the four continuation runtime files restored to HEAD and continuation/prototype tests excluded **only from that copy**. The actual working-tree WIP and protected prototype were unchanged.
 
 | Check | Result |
 | --- | --- |
 | Recovered pre-boundary focused gate, `^(Test.*SQLite.*\|TestInternalGroup.*)$`, count 3, shuffle 42 | 42 names, 126 top-level passes, zero failures/skips; 6.960s. Recovered after interruption without rerunning. |
 | Post-boundary adapter tests, `^TestMainSQLitePureGo`, count 3, shuffle 42 | Four names, 12 top-level passes; 1.192s. |
-| Final isolated candidate, same 42-name selection, count 3, shuffle 42 | 126 top-level passes, zero failures/skips; 7.820s. |
+| Isolated runtime gate, same 42-name selection, count 3, shuffle 42; before the final child-policy helper | 126 top-level passes, zero failures/skips; 7.820s. |
 | Final three changed child/profile-configuration tests, count 3, shuffle 42 | Nine top-level passes, zero failures/skips; 0.306s. No capture path executed. |
 | Final isolated `go vet ./durable` / staticcheck v0.8.2 | Pass; 1.744s / 4.637s after the final profiling-policy change. |
 | Production `durable` dependency closure | No `CgoFiles`. |
 | `go mod tidy -diff` / `go mod verify` | No remaining differences / all modules verified. Added only tidy-required checksums beyond the selected driver graph. |
 | Linux/mips64le regression | Unconditional import failed compilation in modernc libc. Connector boundary restores package and test compilation (1.893s / 12.147s); no modernc packages enter this target's production closure. Cross-built tests were not executed. |
 
-The 42-name selection includes three direct returns from `TestGroupSQLiteCrashChild` without its activation environment. Those returns add no crash coverage. Its parent exercises six real crash cases per repeat—two prefixes across three phases—for 18 subprocess cases. Other selected tests exercise real process exit without Close, cross-process ownership, transaction rollback, uncertain commit, checkpoint/reclaim, prefix isolation, task snapshots and persistence. Group tests retain memory, journal and SQLite cases.
+The child-policy follow-up adds one configuration test and reruns the two changed subprocess tests; the entire expanded selection was not repeated. The 42-name runtime selection includes three direct returns from `TestGroupSQLiteCrashChild` without its activation environment. Those returns add no crash coverage. Its parent exercises six real crash cases per repeat—two prefixes across three phases—for 18 subprocess cases. Other selected tests exercise real process exit without Close, cross-process ownership, transaction rollback, uncertain commit, checkpoint/reclaim, prefix isolation, task snapshots and persistence. Group tests retain memory, journal and SQLite cases.
 
 The [adapter-specific tests][tests] verify literal filenames/inode ownership, WAL, `synchronous=FULL`, `busy_timeout=5000`, reclaim and reopen. Literal v1.4 schema/JSON fixtures exercise frames and checkpoint-plus-tail replay, reservations and subsequent writes. An actual old binary was not used.
 
@@ -45,7 +45,7 @@ A disposable CycloneDX v1.12.0 SBOM passed the existing guest, graph, schema, ch
 
 * Audit public `Storage` commit receipts/custom backends, upstream SQLite facade/schema/migrations, JSONL versus the native binary journal, `StoreStorage`, and IndexedDB/Cloudflare counterparts. Platform differences need explicit mappings and controls.
 * Provide or explicitly resolve SQLite/secure-locking coverage outside the current supported targets. Cross-compilation alone establishes no runtime durability or isolation evidence.
-* Finish explicit-continue and broader Session/Harness contracts separately; continuation WIP is excluded from this checkpoint.
+* Finish explicit-continue and broader Session/Harness contracts separately; continuation WIP is excluded from this checkpoint. The commit is local: that preserved dirty worktree prevents the shared clean-main push gate, so origin remains `375386c80475`.
 * Code mode continues to use `internal/quickjs` through wazero (`durable/codemode_quickjs.go`); its wider v1.5.0 contract audit is unfinished.
 * Pre-release CPU, `alloc_space` and `alloc_objects` analysis, measured-outlier tuning and broader acceptance gates await authorisation. The CGO-dependent race detector is unavailable; ordinary/profiled tests provide no substitute coverage.
 
