@@ -64,7 +64,7 @@ After analysis, 14MB of completed source extracts, mutation/overlay files, copie
 
 ### Remaining work
 
-Other builtin task-creation paths, background compaction metadata, all telemetry events/outcomes, callback/clock semantics and the complete telemetry corpus need source oracles. Continue still needs `afterRun`, full mixed boundaries, empty-error presence and restart-limit/report/settings reconciliation. Full schema, storage, provider, catalogue and codemode alignment remain open under the existing plan.
+The subsequent [builtin task checkpoint](builtin-task-traces.md) covers background-compaction metadata, parallel/sequential model-tool and nested-task carriers, active reopen parenting and Close outcome precedence. Broader telemetry events/outcomes, builtin labels/phases, callback/clock semantics and the complete telemetry corpus still need source oracles. Continue still needs `afterRun`, full mixed boundaries, empty-error presence and restart-limit/report/settings reconciliation. Full schema, storage, provider, catalogue and codemode alignment remain open under the existing plan.
 
 [transaction]: https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/transaction.ts#L449-L509
 [scheduler]: https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/scheduler.ts#L2150-L2248
