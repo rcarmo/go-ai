@@ -115,8 +115,8 @@ func (f *mainPollBoundary) crashOpen(t *testing.T) {
 func (f *mainPollBoundary) noPartial(t *testing.T, state Snapshot) {
 	t.Helper()
 	live := mainAbortFailureLive(t, state, f.c.ID())
-	if _, ok := mainRecoveryText(live); ok {
-		t.Error("poll event became harness progress", live)
+	if generationObject(live["generation"])["message"] != nil {
+		t.Error("poll created a harness partial", live)
 	}
 	for _, entry := range state.Entries {
 		if entry.Conversation == f.c.ID() && entry.Value["role"] == string(goai.RoleAssistant) {
