@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskGraphPinnedQueuedCancelledAcquisitionRegistersNothing(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		caller, cancel := context.WithCancel(bg)
 		defer cancel()

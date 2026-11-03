@@ -11,7 +11,7 @@ import (
 func TestDocument120IdleRetentionZeroExpiryAndWatchPin(t *testing.T) {
 	for _, mode := range []string{"zero", "expiry", "pinned"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var calls atomic.Int64
 				retention := int64(20)
 				if mode == "zero" {

@@ -33,7 +33,7 @@ func seedNativeRecoveryState(tx *Tx, id ID, state TaskState, marked bool) error 
 func TestTaskRecoveryPinnedStructuredInterruptedTransitions(t *testing.T) {
 	for _, variant := range []string{"all-settled", "fail-fast", "held-drained", "held-live", "abort-cascade"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var parentRuns, parentAborts, childRuns, childAborts atomic.Int64
 				var children []ID
 				release, started := make(chan struct{}), make(chan struct{})

@@ -7,7 +7,7 @@ import (
 )
 
 func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		calls := 0
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {

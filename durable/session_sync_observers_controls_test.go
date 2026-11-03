@@ -12,7 +12,7 @@ import (
 // Derived from c9 guardObserver's copied listener iteration and spent guards.
 // detach is an Observation operation, not forbidden Session reentry.
 func TestMainSyncCommitObserverOrderAndDetachLater(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		var mu sync.Mutex
 		var calls []string
@@ -63,7 +63,7 @@ func TestMainSyncCommitObserverOrderAndDetachLater(t *testing.T) {
 func TestMainSyncCommitObserverFaultContainment(t *testing.T) {
 	for _, mode := range []string{"advance-self-detach", "report-self-detach", "report-end-panic", "close-end-panic"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, add := mainSyncCounterSession(t, b)
 				bug, endBug := errors.New("advance bug"), errors.New("end bug")
 				var mu sync.Mutex
@@ -146,7 +146,7 @@ func TestMainSyncCommitObserverFaultContainment(t *testing.T) {
 // The new lane must also end on a Close-held storage refusal. Reuse fixture
 // setup, without rerunning the completed lifecycle/deadline/recovery gates.
 func TestMainSyncCommitObserverCloseRefusalEnd(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, _ := openMainDeferredSession(t, b)
 		if _, err := s.commitDeferred(bg, mainDeferredAppend(doc, "held")); err != nil {
 			t.Fatal(err)
@@ -182,7 +182,7 @@ func TestMainSyncCommitObserverCloseRefusalEnd(t *testing.T) {
 // though preparation saw none. The timeout only releases a broken adapter's
 // blocked writer; all spawned work is joined before fixture cleanup.
 func TestMainSyncCommitObserverPublicationMembership(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		entered, release := make(chan struct{}), make(chan struct{})
 		var once sync.Once

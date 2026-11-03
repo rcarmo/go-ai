@@ -11,7 +11,7 @@ import (
 func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 	for _, blocked := range []bool{false, true} {
 		t.Run(fmt.Sprint(blocked), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				state, err := h.Snapshot(bg)
 				if err != nil {
@@ -141,7 +141,7 @@ func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 func TestMainTranscriptAdapterResetPreparation(t *testing.T) {
 	for _, missing := range []bool{false, true} {
 		t.Run(fmt.Sprint(missing), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				ids := transcriptNotes(t, h, 4)
 				bounds := transcriptBounds(3, 6)

@@ -11,7 +11,7 @@ import (
 func TestTaskOwnershipPinnedReopenedOwnedConversationInspectionAndIdle(t *testing.T) {
 	for _, variant := range []string{"marked", "foreground-hold"} {
 		t.Run(variant, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				checkReopenedOwnedInspectIdle(t, b.store, func() Storage { return utf16ReopenStore(t, b.store) }, variant)
 			})
 		})

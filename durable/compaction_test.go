@@ -9,7 +9,7 @@ import (
 )
 
 func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 			calls.Add(1)
@@ -79,7 +79,7 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 }
 
 func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var summaries, requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
@@ -166,7 +166,7 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 	})
 }
 func TestQueuedCompactionHeadOlderThanResetSettlesStale(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
 	// Raw native commit proves same-commit head progression, independently of
 	// model timing: a queued summary must not bring pre-reset history back.

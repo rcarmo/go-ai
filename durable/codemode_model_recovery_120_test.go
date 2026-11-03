@@ -32,7 +32,7 @@ func TestCodemode120ModelToolUnsettledReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox := &namespaceRestartSandbox120{restartQuickJS120: &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}, t: t}
 		registry := NewRegistry()
 		var effects, requests atomic.Int64

@@ -13,7 +13,7 @@ func TestCodemode120QuickJSNumericArgumentsExactThroughJournalReopen(t *testing.
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var tools, globals atomic.Int64
 		check := func(value any) {
 			number, ok := value.(json.Number)

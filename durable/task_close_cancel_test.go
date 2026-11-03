@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskLifecyclePinnedCancelledCloseKeepsSharedShutdownAndStorageOwnership(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, signalled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		storageRead := make(chan error, 1)
 		var h *Harness

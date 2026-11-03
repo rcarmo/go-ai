@@ -10,7 +10,7 @@ import (
 )
 
 func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var summaryCalls, answerCalls atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -91,7 +91,7 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 	for _, persistent := range []bool{false, true} {
 		t.Run(fmt.Sprint(persistent), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var summaries, answers atomic.Int64
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					ch := make(chan goai.Event, 1)

@@ -12,7 +12,7 @@ func TestCodemode120RemovedToolReplaysConfirmedAndFencesFreshCall(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox := &revokeSandbox120{sandbox: engine, ready: make(chan struct{})}
 		registry := NewRegistry()
 		var effects atomic.Int64

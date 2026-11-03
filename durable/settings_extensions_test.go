@@ -13,7 +13,7 @@ func TestHostSettingsExtensionDefaultsRefreshAndExplicitAgentOverride(t *testing
 			t.Fatal(err)
 		}
 	}
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	names := []string{"first"}
 	h := openHarness(t, store, Options{Registry: registry, Settings: &HarnessSettings{Extensions: &names}})
 	conversation, err := h.CreateConversation(bg, AgentChange{})
@@ -69,7 +69,7 @@ func TestHostSettingsExtensionDefaultsConcurrentDetachedSelections(t *testing.T)
 			t.Fatal(err)
 		}
 	}
-	store, err := NewMemory()
+	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}

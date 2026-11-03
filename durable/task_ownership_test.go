@@ -34,7 +34,7 @@ func observeTaskState(t *testing.T, h *Harness, id ID, status string) TaskRecord
 func TestTaskOwnershipHeldFailureFailFastBeforeDescendantDrain(t *testing.T) {
 	for _, ending := range []string{"failed", "faulted"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				grandAbort := make(chan struct{})
 				releaseGrand := make(chan struct{})
 				siblingAbort := make(chan struct{})
@@ -193,7 +193,7 @@ func TestTaskOwnershipHeldFailureFailFastBeforeDescendantDrain(t *testing.T) {
 func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) {
 	for _, reopened := range []bool{false, true} {
 		t.Run(fmt.Sprintf("reopen-%t", reopened), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				gate := make(chan struct{})
 				started := make(chan struct{})
 				t.Cleanup(func() {
@@ -282,7 +282,7 @@ func TestTaskOwnershipBackgroundBoundaryAndTerminalOwnerNoCascade(t *testing.T) 
 }
 
 func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		childStarted := make(chan struct{})
 		release := make(chan struct{})
 		t.Cleanup(func() {
@@ -369,7 +369,7 @@ func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testi
 func TestTaskOwnershipWaitingUnionRejectsAndAllSettledForeignOrder(t *testing.T) {
 	for _, variant := range []string{"self", "missing", "direct-owner", "indirect-owner", "failFast-foreign", "foreign-order", "empty"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var parentID, rootOwner, childOwner, first, second ID
 				var outcomes []TaskOutcome
 				var rejected atomic.Bool
@@ -469,7 +469,7 @@ func TestTaskOwnershipWaitingUnionRejectsAndAllSettledForeignOrder(t *testing.T)
 }
 
 func TestTaskOwnershipAllSettledEveryOutcomeLiveBarrier(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		gates := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})}
 		started := make(chan *TaskRuntime, 4)
 		abortLog := make(chan ID, 5)
@@ -589,7 +589,7 @@ func TestTaskOwnershipAllSettledEveryOutcomeLiveBarrier(t *testing.T) {
 func TestTaskOwnershipFailFastFailedAndFaultedChildren(t *testing.T) {
 	for _, ending := range []string{"failed", "faulted"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				releaseFailure := make(chan struct{})
 				started := make(chan *TaskRuntime, 4)
 				abortLog := make(chan ID, 5)
@@ -704,7 +704,7 @@ func TestTaskOwnershipFailFastFailedAndFaultedChildren(t *testing.T) {
 }
 
 func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started := make(chan ID, 4)
 		release := make(chan struct{})
 		var aborted atomic.Int64
@@ -813,7 +813,7 @@ func TestTaskOwnershipDirectBackgroundAbortStopsAtNestedBackground(t *testing.T)
 }
 
 func TestTaskOwnershipBackgroundTrueUsesAdmissionSnapshot(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started := make(chan ID, 2)
 		oldAbortEntered, releaseOldAbort, releaseFuture := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var oldID, futureID ID
@@ -894,7 +894,7 @@ func TestTaskOwnershipBackgroundTrueUsesAdmissionSnapshot(t *testing.T) {
 func TestTaskOwnershipTaskDocumentsRetainedHeldAndSameBatchTerminalRetired(t *testing.T) {
 	for _, held := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct-final", true: "held-final"}[held], func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				childEntered, releaseChild, parentDecided := make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var taskDoc, entryID, childID ID
 				var parentRuntime *TaskRuntime
@@ -1060,7 +1060,7 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 	for _, ownerKind := range []string{"native-terminal", "builtin-terminal", "missing-task", "missing-conversation"} {
 		for _, acquisition := range []string{"raw", "typed"} {
 			t.Run(ownerKind+"/"+acquisition, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					ownerID := mint(t, b.store)
 					if ownerKind == "native-terminal" {
 						owner := foundationTask(ownerID, JSON{"kept": "input"})
@@ -1117,7 +1117,7 @@ func TestTaskOwnershipPublicRawTypedDocumentOwnerAdmission(t *testing.T) {
 }
 
 func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ownerID, committedID, newRawID, lateID := mint(t, b.store), mint(t, b.store), mint(t, b.store), mint(t, b.store)
 		owner := foundationTask(ownerID, "immutable input")
 		apply(t, b.store, Write{Op: "put-task", Task: &owner})
@@ -1288,7 +1288,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 }
 
 func TestTaskOwnershipRawAbsentExecutionTerminalDocumentPolicyPreserved(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id, doc := mint(t, b.store), mint(t, b.store)
 		owner := Task{ID: id, Conversation: 1, Kind: "legacy.document-owner", Status: "done", Checkpoint: JSON{}}
 		apply(t, b.store, Write{Op: "put-task", Task: &owner})
@@ -1308,7 +1308,7 @@ func TestTaskOwnershipRawAbsentExecutionTerminalDocumentPolicyPreserved(t *testi
 }
 
 func TestTaskOwnershipInspectMarkedOwnedAbortActualReturnPrecedence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		parentReady, childReady, abortReady := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		releaseParent, decideAbort, returnAbort := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		parentHost, childHost, abortHost := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
@@ -1375,10 +1375,10 @@ func TestTaskOwnershipInspectMarkedOwnedAbortActualReturnPrecedence(t *testing.T
 		// Pause selection at actual parent-mark adoption so the running
 		// precedence/read-only witness cannot race the child's cascade writes.
 		var core *storeCore
-		if memory, ok := b.store.(*MemoryStorage); ok {
+		if memory, ok := b.store.(*SQLiteStorage); ok {
 			core = memory.storeCore
 		} else {
-			core = b.store.(*JournalStorage).storeCore
+			core = b.store.(*SQLiteStorage).storeCore
 		}
 		var original func(byte, uint64, uint64, []byte) error
 		h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -1519,7 +1519,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 				continue
 			}
 			t.Run(origin+map[bool]string{false: "/ordinary", true: "/marked"}[marked], func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					var effects, clocks, migrations atomic.Int64
 					definition := taskDefinition(t, "task.inspect.paused", func(context.Context, TaskRecord, *TaskRuntime) error {
 						effects.Add(1)
@@ -1694,7 +1694,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 }
 
 func TestTaskOwnershipRunningPhasesWaitOnSubsetsInSequence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		gates := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 		started := make(chan *TaskRuntime, 3)
 		rounds := make(chan int, 3)

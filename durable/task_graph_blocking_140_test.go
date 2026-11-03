@@ -27,7 +27,7 @@ func graphReason140(t *testing.T, frames <-chan TaskGraph, key, want string) {
 // Native observer controls: v1.5.0 cuts off tasks on scheduling, not by
 // permanent restart_limit blocking metadata. Definition-fit metadata remains.
 func TestTaskGraph150BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		def := taskDefinition(t, "task.graph-block-140", func(context.Context, TaskRecord, *TaskRuntime) error { calls.Add(1); return nil })
 		registry := NewRegistry()
@@ -110,7 +110,7 @@ func TestTaskGraph150BlockedMetadataWithoutEffectsOrCommits(t *testing.T) {
 	})
 }
 func TestTaskGraph150MetadataWakeCoalescingAndSerialCallbacks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		def := taskDefinition(t, "task.graph-coalesce-140", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		h := taskTestHarness(t, b.store, def)
 		remove, err := h.options.Registry.RegisterTask(def)

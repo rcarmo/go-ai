@@ -62,7 +62,7 @@ func TestEditArgumentPreparationRepairsLegacyShapesWithoutMutatingProvenance(t *
 				return ch
 			}})
 			defer goai.UnregisterApi(api)
-			store, _ := durable.NewMemory()
+			store, _ := newSQLiteStore(t)
 			h, err := durable.Open(context.Background(), store, durable.Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model {
 				return &goai.Model{ID: "edit-model", Provider: goai.ProviderOpenAI, Api: api, ContextWindow: 128000, MaxTokens: 100}
 			}})

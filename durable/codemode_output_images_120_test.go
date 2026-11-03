@@ -22,7 +22,7 @@ func TestCodemode120OutputImageWriterDedupFailureAndReuse(t *testing.T) {
 	}
 	data := base64.StdEncoding.EncodeToString(encoded.Bytes())
 	for _, fail := range []bool{false, true} {
-		backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			writer := &outputWriter120{fail: fail}
 			registry := NewRegistry()
 			def := taskDefinition(t, "image-writer-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

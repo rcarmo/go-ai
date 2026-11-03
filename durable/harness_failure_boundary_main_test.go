@@ -17,7 +17,7 @@ import (
 func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 	for _, reason := range []string{"model_error", "reset"} {
 		t.Run(reason, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				toolEntered := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				toolRelease := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				failureEntered, failureRelease := make(chan struct{}), make(chan struct{})

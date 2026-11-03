@@ -15,7 +15,7 @@ import (
 // Those reads consume real callbacks, not synthetic publications or proof of
 // synchrony (the separate observer controls verify publication-time delivery).
 func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		batches := mainDeferredLifecycleBatches(t, f.session)

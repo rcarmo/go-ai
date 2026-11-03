@@ -11,7 +11,7 @@ import (
 func TestNestedTool120SettlementFailurePrefixAndSafeReplay(t *testing.T) {
 	for _, mode := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var runs atomic.Int64
 				var h *Harness
@@ -92,7 +92,7 @@ func TestNestedTool120SettlementFailurePrefixAndSafeReplay(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				_, journal := b.store.(*JournalStorage)
+				_, journal := b.store.(*SQLiteStorage)
 				confirmed := mode == "uncertain-after" && journal
 				if taskHasDecidedOutcome(state.Tasks[ID(childID.Load())]) != confirmed || runs.Load() != 1 || failures.Load() != 1 {
 					t.Fatal("confirmed settlement prefix", confirmed, runs.Load(), failures.Load())

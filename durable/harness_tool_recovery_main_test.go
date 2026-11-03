@@ -162,7 +162,7 @@ func mainFinishToolSubmission(t *testing.T, f *mainRecoveryHarness, id ID) {
 // f9a26365 harness-deferred-progress.test.ts:302-339. Commands replace the
 // source's 20ms output loop, without adding checkpoint/Details barriers.
 func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, true)
 		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 50)
 		if _, err := f.c.Submit(bg, Input{Content: "go"}); err != nil {
@@ -204,7 +204,7 @@ func TestMainToolProgressDoesNotResetCrashRestarts(t *testing.T) {
 
 // Source341-363: no unsafe replay, exact retained output and interruption text.
 func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, false)
 		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "go"})
@@ -240,7 +240,7 @@ func TestMainUnsafeToolCrashUsesStoredOutput(t *testing.T) {
 // survives another crash before emitting its own output. Existing native safe
 // replay tests use healthy Close, not this repeated failed-Session boundary.
 func TestMainSafeToolReplayClearsOutputThroughSecondCrash(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, true)
 		f := mainOpenSlowRecovery(t, b.store, setup.ref, setup.options, setup.clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "go"})

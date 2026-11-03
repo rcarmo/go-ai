@@ -8,8 +8,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
+
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -40,10 +39,8 @@ func requireHistory(t *testing.T, h HistoryStorage, q EntryQuery, limit int, cur
 	return page
 }
 
-// Official storage cases05/06/09: descending IDs, every ancestry cutoff, stable
-// cursor, inherited heads and owning commit sequence (not descendant identity).
 func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		first, cut, excluded := mint(t, s), mint(t, s), mint(t, s)
 		rootSeq := apply(t, s, entry(excluded, JSON{}), entry(first, JSON{"nested": JSON{"value": "original"}}), Write{Op: "append-entry", Entry: &Entry{ID: cut, Conversation: 1, Kind: "marker", Value: JSON{}, Head: first}})
@@ -128,7 +125,7 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 }
 
 func TestHistoryCursorStableNewCommitAndValidation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		one, two, three := mint(t, s), mint(t, s), mint(t, s)
 		apply(t, s, entry(three, JSON{}), entry(one, JSON{}), entry(two, JSON{}))
@@ -171,7 +168,7 @@ func TestHistoryCursorStableNewCommitAndValidation(t *testing.T) {
 }
 
 func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		cut := mint(t, s)
 		apply(t, s, entry(cut, JSON{}))
@@ -239,8 +236,6 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 	})
 }
 
-// Production provider proof: fork-aware context is also the input pinned by
-// prepareRequest and serialized to actual OpenAI HTTP, not a helper-only scan.
 func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 	var calls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +264,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 		fmt.Fprint(w, "data: {\"id\":\"fork-answer\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"fork answer\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"fork-answer\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 	}))
 	defer server.Close()
-	s, err := NewMemory()
+	s, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,9 +334,9 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 	}
 }
 
-func TestHistoryUncertainJournalWinnerAndCorruptAncestry(t *testing.T) {
+func TestHistoryUncertainSQLiteWinnerAndCorruptAncestry(t *testing.T) {
 	t.Run("uncertain-landed-fork", func(t *testing.T) {
-		s, dir := newJournal(t)
+		s, dir := newSQLiteTestStore(t)
 		cut := mint(t, s)
 		apply(t, s, entry(cut, JSON{}))
 		child := mint(t, s)
@@ -362,7 +357,7 @@ func TestHistoryUncertainJournalWinnerAndCorruptAncestry(t *testing.T) {
 		if err = s.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		r, err := OpenJournal(dir, JournalOptions{})
+		r, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -370,25 +365,18 @@ func TestHistoryUncertainJournalWinnerAndCorruptAncestry(t *testing.T) {
 		requireHistory(t, r, EntryQuery{Conversation: child}, 1, "", cut)
 	})
 	t.Run("valid-frame-invalid-ancestry", func(t *testing.T) {
-		s, dir := newJournal(t)
+		s, dir := newSQLiteTestStore(t)
 		cut, child := mint(t, s), mint(t, s)
 		apply(t, s, entry(cut, JSON{}))
 		ordinal, high, seq := s.ordinal, s.state.HighWater, s.state.Seq
+		payload := []byte(fmt.Sprintf(`{"seq":%d,"writes":[{"op":"create-conversation","conversation":{"id":%d,"parent":1,"parentAt":%d}}]}`, seq+1, child, child))
+		if err := s.exec("INSERT INTO frames(ordinal,kind,highwater,payload) VALUES(?,?,?,?)", int64(ordinal+1), 2, int64(high), payload); err != nil {
+			t.Fatal(err)
+		}
 		if err := s.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		payload := []byte(fmt.Sprintf(`{"seq":%d,"writes":[{"op":"create-conversation","conversation":{"id":%d,"parent":1,"parentAt":%d}}]}`, seq+1, child, child))
-		f, err := os.OpenFile(filepath.Join(dir, "journal.bin"), os.O_WRONLY|os.O_APPEND, 0600)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = f.Write(frame(2, ordinal+1, high, payload)); err != nil {
-			t.Fatal(err)
-		}
-		if err = f.Close(); err != nil {
-			t.Fatal(err)
-		}
-		r, err := OpenJournal(dir, JournalOptions{})
+		r, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if r != nil {
 			_ = r.Close(bg)
 		}

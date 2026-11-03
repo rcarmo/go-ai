@@ -35,7 +35,7 @@ func mainInterruptionQuiescent(ctx context.Context, h *Harness) error {
 func TestMainHarnessInterruptedRequestRetryPolicy(t *testing.T) {
 	for _, mode := range []string{"backoff", "disabled", "clean-close"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var calls atomic.Int64
 				first := &mainRecoveryStream{events: make(chan goai.Event, 1)}
 				ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

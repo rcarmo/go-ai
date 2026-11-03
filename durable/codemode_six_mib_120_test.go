@@ -14,7 +14,7 @@ func TestCodemode120SixMiBReturnSpillsAndReplays(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{}
 		var calls atomic.Int64
 		def := taskDefinition(t, "six-mib", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

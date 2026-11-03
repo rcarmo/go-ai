@@ -10,7 +10,7 @@ import (
 // working. The source's docs reference-identity assertion remains unported:
 // native detached ownership is not a substitute for that assertion.
 func TestMainViewUpstreamListenerIsolation(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		left, err := c.Watch(bg)
 		if err != nil {
@@ -56,7 +56,7 @@ func TestMainViewUpstreamListenerIsolation(t *testing.T) {
 // one publication; an unmounted doc edit is silent. Preserve kinds/data/text
 // inputs and replay/fresh-value/count assertions through real native commits.
 func TestMainViewUpstreamAtomicPublication(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		w, err := c.Watch(bg)
 		if err != nil {

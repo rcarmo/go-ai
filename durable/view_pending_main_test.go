@@ -13,7 +13,7 @@ import (
 func TestMainConversationPendingDelivery(t *testing.T) {
 	for _, blocked := range []bool{false, true} {
 		t.Run(fmt.Sprintf("blocked=%v", blocked), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				watch, err := c.Watch(bg)
 				if err != nil {

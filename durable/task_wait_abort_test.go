@@ -11,7 +11,7 @@ import (
 )
 
 func TestTaskSchedulerPinnedWaitingAbortFaultsBeforeForeignDependencyEnds(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)
 		dependency := taskDefinition(t, "task.wait-abort.foreign", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

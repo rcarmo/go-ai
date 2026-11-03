@@ -12,7 +12,7 @@ func TestCodemode120QuickJSAliasesAndHiddenTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		leaf := wrapRegistration("mcp.leaf")

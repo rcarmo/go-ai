@@ -10,7 +10,7 @@ import (
 )
 
 func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "reset.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
@@ -131,7 +131,7 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 	})
 }
 func TestResetAtFinalBoundaryKeepsAnswerThenCutsContext(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)

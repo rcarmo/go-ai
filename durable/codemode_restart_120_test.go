@@ -44,7 +44,7 @@ func (e *restartExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 func (e *restartExecution120) Deliver(context.Context, CodemodeDelivery) error { e.step++; return nil }
 func (e *restartExecution120) Close() error                                    { return nil }
 func TestCodemode120ActualCallerRestartRetainsJournalWithoutEffects(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("codemode_leaf")
@@ -87,7 +87,7 @@ func TestCodemode120ActualCallerRestartRetainsJournalWithoutEffects(t *testing.T
 	})
 }
 func TestCodemode120JournalMutationsRejected(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("codemode_leaf")
 		reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }

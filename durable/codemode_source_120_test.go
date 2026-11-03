@@ -39,7 +39,7 @@ func (deadlineExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 func (deadlineExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (deadlineExecution120) Close() error                                    { return nil }
 func TestCodemode120DeadlineAndReplayDoesNotReset(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "deadline-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			source := "// @options: {\"timeout_ms\":5}\nawait something()"

@@ -31,7 +31,7 @@ func mainOpenSlowRecovery(t *testing.T, store Storage, ref ModelRef, options Opt
 }
 
 func TestMainHarnessRetryFixtureDefaultsUnchanged(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			t.Error("unexpected provider call")
 			return nil

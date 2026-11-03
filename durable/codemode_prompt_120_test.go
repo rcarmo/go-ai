@@ -24,7 +24,7 @@ func testCodemodePrompt120(t *testing.T, parallel bool) {
 	if parallel {
 		guidance = "Promise.all"
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		for _, name := range []string{"script_visible", "model_secret", "deferred_secret"} {
 			tool := wrapRegistration(name)

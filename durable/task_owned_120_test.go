@@ -7,7 +7,7 @@ import (
 )
 
 func TestTask120OwnedTasksDetachedDirectAndAbortAuthority(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		childDef := taskDefinition(t, "owned-child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("child"), nil })
 		})

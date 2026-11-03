@@ -6,7 +6,7 @@ import (
 )
 
 func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
 		s, err := OpenSession(b.store)
 		if err != nil {

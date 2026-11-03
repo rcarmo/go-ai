@@ -24,7 +24,7 @@ func TestCodemode120QuickJSFailedImageOutputReopensWithoutEffectRepeat(t *testin
 		t.Fatal(err)
 	}
 	data := base64.StdEncoding.EncodeToString(encoded.Bytes())
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}
 		var effects atomic.Int64
 		registry := NewRegistry()

@@ -162,7 +162,7 @@ func TestExtensionWrapperExecuteAndRecoveryIdentity(t *testing.T) {
 				return ch
 			})
 			options.Registry = registry
-			store, dir := newJournal(t)
+			store, dir := newSQLiteTestStore(t)
 			h := openHarness(t, store, options)
 			sub, err := root(t, h, ref).Submit(bg, Input{Content: "go"})
 			if err != nil {
@@ -180,7 +180,7 @@ func TestExtensionWrapperExecuteAndRecoveryIdentity(t *testing.T) {
 				version = 2
 				install()
 			}
-			store, err = OpenJournal(dir, JournalOptions{})
+			store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

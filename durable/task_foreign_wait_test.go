@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedAllSettledTerminalAndLiveForeignAndEmptyWait(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		liveEntered, liveRelease := make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, liveRelease)
 		var resumes atomic.Int64

@@ -12,7 +12,7 @@ import (
 )
 
 func TestCodemode120ImageChunkAppendFailureReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		data := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("image", 100000)))
 		var starts atomic.Int64
 		registry := NewRegistry()

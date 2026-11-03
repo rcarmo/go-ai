@@ -33,7 +33,7 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 		return ch
 	})
 	dir := filepath.Join(t.TempDir(), "private")
-	store, e := OpenJournal(dir, JournalOptions{})
+	store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -49,14 +49,14 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 	if e = h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal(e)
 	}
-	if _, e = OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
+	if _, e = openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal("successor opened during live code", e)
 	}
 	close(release)
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	store, e = OpenJournal(dir, JournalOptions{})
+	store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -104,7 +104,7 @@ func TestM1bRejectedAndUncertainIntentNoEffect(t *testing.T) {
 	})
 	for _, mode := range []string{"rejected", "uncertain"} {
 		t.Run(mode, func(t *testing.T) {
-			store, dir := newJournal(t)
+			store, dir := newSQLiteTestStore(t)
 			h := openHarness(t, store, options)
 			r := root(t, h, ref)
 			// Admission failure during submission is discovered by request ID on reopen;
@@ -117,7 +117,7 @@ func TestM1bRejectedAndUncertainIntentNoEffect(t *testing.T) {
 				}
 				return
 			}
-			store.file = &faultFile{journalFile: store.file, writeLimit: -1, syncErr: errors.New("unknownsync")}
+			installSQLiteAcknowledgement(store, func() error { return errors.New("unknown commit acknowledgement") })
 			_, e := r.Submit(bg, Input{Content: "prompt", RequestID: "uncertain"})
 			if !errors.Is(e, ErrPoisoned) {
 				t.Fatal(e)
@@ -128,7 +128,7 @@ func TestM1bRejectedAndUncertainIntentNoEffect(t *testing.T) {
 			if e = h.Close(bg); e != nil {
 				t.Fatal(e)
 			}
-			store, e = OpenJournal(dir, JournalOptions{})
+			store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -155,11 +155,11 @@ func TestM1bCloseWaitDoesNotBlockOnAdmittedSubmit(t *testing.T) {
 		close(ch)
 		return ch
 	})
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	entered, release := make(chan struct{}), make(chan struct{})
-	s.file = &faultFile{journalFile: s.file, writeLimit: -1, syncEntered: entered, release: release}
+	blockSQLiteAcknowledgement(s, entered, release)
 	done := make(chan error, 1)
 	go func() { _, e := r.Submit(bg, Input{Content: "admitted", RequestID: "close-submit"}); done <- e }()
 	<-entered
@@ -168,7 +168,7 @@ func TestM1bCloseWaitDoesNotBlockOnAdmittedSubmit(t *testing.T) {
 	if e := h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal(e)
 	}
-	if _, e := OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
+	if _, e := openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal(e)
 	}
 	close(release)
@@ -178,7 +178,7 @@ func TestM1bCloseWaitDoesNotBlockOnAdmittedSubmit(t *testing.T) {
 	if e := h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	reopened, e := OpenJournal(dir, JournalOptions{})
+	reopened, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -200,11 +200,11 @@ func TestM1bIntentAndOutcomeFaultBarriers(t *testing.T) {
 				go func() { close(entered); <-release; ch <- terminal("answer"); close(ch) }()
 				return ch
 			})
-			s, dir := newJournal(t)
+			s, dir := newSQLiteTestStore(t)
 			h := openHarness(t, s, options)
 			r := root(t, h, ref)
 			if phase == "intent" {
-				s.file = &faultFile{journalFile: s.file, writeLimit: -1, syncErr: errors.New("sync failure")}
+				installSQLiteAcknowledgement(s, func() error { return errors.New("unknown commit acknowledgement") })
 				if _, e := r.Submit(bg, Input{Content: "intent", RequestID: "fault"}); !errors.Is(e, ErrPoisoned) {
 					t.Fatal(e)
 				}
@@ -219,7 +219,7 @@ func TestM1bIntentAndOutcomeFaultBarriers(t *testing.T) {
 				t.Fatal(e)
 			}
 			<-entered
-			s.file = &faultFile{journalFile: s.file, writeLimit: -1, syncErr: errors.New("unknown outcome")}
+			installSQLiteAcknowledgement(s, func() error { return errors.New("unknown commit acknowledgement") })
 			close(release)
 			// First outcome allocation is itself a reservation barrier. Failed ack leaves
 			// intent pending; reopen must recover through request ID rather than duplicate
@@ -231,7 +231,7 @@ func TestM1bIntentAndOutcomeFaultBarriers(t *testing.T) {
 				t.Fatal(e)
 			}
 			_ = h.Close(bg)
-			s, e = OpenJournal(dir, JournalOptions{})
+			s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -256,7 +256,7 @@ func TestM1bCloseReceivedTerminalCommitsNoReplay(t *testing.T) {
 		go func() { close(entered); <-release; ch <- terminal("actual terminal"); close(ch) }()
 		return ch
 	})
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "close-terminal", RequestID: "terminal"})
@@ -273,7 +273,7 @@ func TestM1bCloseReceivedTerminalCommitsNoReplay(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -322,7 +322,7 @@ func TestM1bPinnedModelRecoveryIgnoresRegistryBehaviorChange(t *testing.T) {
 	model := fakeModel(originalAPI)
 	model.SamplingParams = map[string]any{"top_p": 0.5}
 	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }}
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	tokens := 77
 	r, e := h.Root(bg, AgentChange{Model: ModelRef{goai.ProviderOpenAI, model.ID}, Settings: RequestSettings{MaxTokens: &tokens}})
@@ -342,7 +342,7 @@ func TestM1bPinnedModelRecoveryIgnoresRegistryBehaviorChange(t *testing.T) {
 	model = fakeModel(changedAPI)
 	model.MaxTokens = 999
 	model.SamplingParams = map[string]any{"top_p": 0.99}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -375,7 +375,7 @@ func TestM1bActualRequestProcessCrashAndRecovery(t *testing.T) {
 			_ = syscall.Kill(os.Getpid(), syscall.SIGKILL)
 			return nil
 		}})
-		s, e := OpenJournal(dir, JournalOptions{})
+		s, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if e != nil {
 			os.Exit(91)
 		}
@@ -410,7 +410,7 @@ func TestM1bActualRequestProcessCrashAndRecovery(t *testing.T) {
 		return ch
 	}})
 	defer goai.UnregisterApi(api)
-	s, e := OpenJournal(dir, JournalOptions{})
+	s, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -445,23 +445,6 @@ func TestM1bActualRequestProcessCrashAndRecovery(t *testing.T) {
 	}
 }
 
-type terminalCommitFault struct {
-	journalFile
-	fail bool
-}
-
-func (f *terminalCommitFault) Write(p []byte) (int, error) {
-	if len(p) >= 64 && p[10] == 2 {
-		f.fail = true
-	}
-	return f.journalFile.Write(p)
-}
-func (f *terminalCommitFault) Sync() error {
-	if f.fail {
-		return errors.New("terminal acknowledgment uncertain")
-	}
-	return f.journalFile.Sync()
-}
 func TestM1bFullTerminalUncertainCommitReopenWinner(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int64
@@ -471,7 +454,7 @@ func TestM1bFullTerminalUncertainCommitReopenWinner(t *testing.T) {
 		go func() { close(entered); <-release; ch <- terminal("landed outcome"); close(ch) }()
 		return ch
 	})
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "uncertainoutcome", RequestID: "outcome"})
@@ -479,7 +462,7 @@ func TestM1bFullTerminalUncertainCommitReopenWinner(t *testing.T) {
 		t.Fatal(e)
 	}
 	<-entered
-	s.file = &terminalCommitFault{journalFile: s.file}
+	installSQLiteCommitAcknowledgement(s, func() error { return errors.New("terminal commit acknowledgement lost") })
 	close(release)
 	ctx, cancel := context.WithTimeout(bg, time.Second)
 	defer cancel()
@@ -489,7 +472,7 @@ func TestM1bFullTerminalUncertainCommitReopenWinner(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}

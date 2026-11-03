@@ -39,7 +39,7 @@ func TestIdentity140DurableDefaultHostAndPinnedOverrides(t *testing.T) {
 				return ch
 			})
 			options.Identity = tc.host
-			store, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), JournalOptions{})
+			store, err := openSQLiteTestDirectory(filepath.Join(t.TempDir(), "journal"), SQLiteOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

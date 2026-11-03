@@ -11,7 +11,7 @@ import (
 // Official f9a26365 harness-continue.test.ts:187-201. Registered provider and
 // native receipts adapt Faux/AssistantEntry; every outcome/count assertion stays.
 func TestMainContinueNothingToAnswerEmptyAndAnswered(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			calls.Add(1)
@@ -63,7 +63,7 @@ func TestMainContinueNothingToAnswerEmptyAndAnswered(t *testing.T) {
 // Official f9a26365 harness-continue.test.ts:221-231: a length-limited text
 // answer is still an answer. No additional provider request is permitted.
 func TestMainContinueDoesNotResumeLengthLimitedText(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			calls.Add(1)
@@ -97,7 +97,7 @@ func TestMainContinueDoesNotResumeLengthLimitedText(t *testing.T) {
 // Source-derived no-model precedence/entrylessness control (prepare resolves
 // model availability before checking whether there is anything to answer).
 func TestMainContinueNoModelStillHasNoUserEntry(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := openHarness(t, b.store, Options{})
 		c, err := h.Root(bg, AgentChange{})
 		if err != nil {
@@ -121,7 +121,7 @@ func TestMainContinueNoModelStillHasNoUserEntry(t *testing.T) {
 // Official f9a26365 harness-continue.test.ts:204-219. An output-limit tool
 // call is not executed; its actual context contains a synthesized missing result.
 func TestMainContinueLengthLimitedToolCall(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		seen := make(chan []goai.Message, 1)
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, request *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
@@ -175,7 +175,7 @@ func TestMainContinueLengthLimitedToolCall(t *testing.T) {
 // Official f9a26365 harness-continue.test.ts:153-170. The trailing-system
 // precondition is checked on the real ContextView, not invented in a fake request.
 func TestMainContinueSkipsTrailingSystem(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -238,7 +238,7 @@ func TestMainContinueSkipsTrailingSystem(t *testing.T) {
 // replaces JS same-stack scheduling so the follow-up is demonstrably queued
 // behind the entryless run, without modifying that run or seeding storage.
 func TestMainContinueNothingStartsQueuedInput(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -298,7 +298,7 @@ func TestMainContinueNothingStartsQueuedInput(t *testing.T) {
 // Official f9a26365 harness-continue.test.ts:262-287. Reset is queued during
 // the real failed request and placed by explicit admission, never seeded.
 func TestMainContinuePlacesKeptReset(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started, release := make(chan struct{}), make(chan struct{})
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

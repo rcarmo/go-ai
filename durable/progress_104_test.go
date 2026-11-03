@@ -27,7 +27,7 @@ func TestGeneration104ConfiguredPartialIntervalProductionPath(t *testing.T) {
 				return stream
 			})
 			options.Settings = &HarnessSettings{Progress: &ProgressSettings{PartialIntervalMs: &interval}}
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			resolved := h.resolvedSettings(RequestSettings{})
 			if *resolved.Progress.PartialIntervalMs != interval {

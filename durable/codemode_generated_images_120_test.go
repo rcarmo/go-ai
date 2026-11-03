@@ -31,7 +31,7 @@ func TestCodemode120GeneratedImageNoticeUsesConfirmedReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		effects.Store(0)
 		registry := NewRegistry()
 		writer := &outputWriter120{}

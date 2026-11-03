@@ -28,7 +28,7 @@ func awaitReport140(t *testing.T, ch <-chan observedReport140) observedReport140
 	}
 }
 func TestReport140RuntimeOriginsAndPinnedInstaller(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		cause := errors.New("private diagnostic")
 		events := make(chan observedReport140, 8)
@@ -103,7 +103,7 @@ func TestReport140RuntimeOriginsAndPinnedInstaller(t *testing.T) {
 	})
 }
 func TestReport140FaultAfterAdoptionAndCallbackIsolation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		cause := errors.New("phase failed")
 		events := make(chan observedReport140, 2)
 		var legacy atomic.Int64
@@ -143,7 +143,7 @@ func TestReport140FaultAfterAdoptionAndCallbackIsolation(t *testing.T) {
 }
 
 func TestReport140FatalSessionContextAndDedup(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		type key struct{}
 		cause := errors.New("backend failed")
 		events := make(chan observedReport140, 2)
@@ -185,7 +185,7 @@ func TestReport140FatalSessionContextAndDedup(t *testing.T) {
 }
 
 func TestReport140InvocationTimerCallbackAndHostOrigins(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		events := make(chan observedReport140, 8)
 		definition := taskDefinition(t, "task.timer-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if _, err := r.SetTimer(func() { panic("callback diagnostic") }, time.Hour); err != nil {
@@ -214,7 +214,7 @@ func TestReport140InvocationTimerCallbackAndHostOrigins(t *testing.T) {
 	})
 }
 func TestReport140HostTimerFallbackAndWake(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		events := make(chan observedReport140, 8)
 		var wakeCalls atomic.Int64
 		h := openHarness(t, b.store, Options{SetTimer: func(func(), time.Duration, TimerOptions) func() { return nil }, OnWake: func(Wake) {
@@ -251,7 +251,7 @@ func TestReport140HostTimerFallbackAndWake(t *testing.T) {
 }
 
 func TestReport140EnvironmentHostAttribution(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		cause := errors.New("private environment diagnostic")
 		events := make(chan observedReport140, 4)
 		definition := taskDefinition(t, "task.env-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -275,7 +275,7 @@ func TestReport140EnvironmentHostAttribution(t *testing.T) {
 	})
 }
 func TestReport140GenerationHooksAndSectionsKeepInstaller(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		events := make(chan observedReport140, 12)
 		cause := errors.New("extension failure")
@@ -320,7 +320,7 @@ func TestReport140GenerationHooksAndSectionsKeepInstaller(t *testing.T) {
 	})
 }
 func TestReport140TaskHookAndCallerOrigins(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		cause := errors.New("handler failure")
 		own := errors.New("caller failure")
 		events := make(chan observedReport140, 8)
@@ -364,7 +364,7 @@ func TestReport140TaskHookAndCallerOrigins(t *testing.T) {
 func TestReport140ModelHostFailuresReportAfterFallbackAdoption(t *testing.T) {
 	for _, kind := range []string{"resolver", "options"} {
 		t.Run(kind, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				events := make(chan observedReport140, 4)
 				ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 					t.Error("request dispatched after host failure")
@@ -409,7 +409,7 @@ func TestReport140ModelHostFailuresReportAfterFallbackAdoption(t *testing.T) {
 func TestReport140StructuredOutputUsesCapturedProducer(t *testing.T) {
 	for _, after := range []bool{false, true} {
 		t.Run(fmt.Sprintf("after=%v", after), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				events := make(chan observedReport140, 8)
 				var expected context.Context
@@ -482,7 +482,7 @@ func TestReport140StructuredOutputUsesCapturedProducer(t *testing.T) {
 func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
 	for _, kind := range []string{"watch-error", "watch-panic", "commit-error", "commit-panic"} {
 		t.Run(kind, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				type key struct{}
 				ctx := context.WithValue(bg, key{}, "commit trace")
 				cause := errors.New("listener returned error")
@@ -539,7 +539,7 @@ func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
 }
 
 func TestReport140ClockPanicOffLineAndReentryBounded(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var bad atomic.Bool
 		var reports atomic.Int64
 		events := make(chan observedReport140, 4)
@@ -585,7 +585,7 @@ func TestReport140ClockPanicOffLineAndReentryBounded(t *testing.T) {
 	})
 }
 func TestReport140RuntimeClockPanicKeepsInvocationContext(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var bad atomic.Bool
 		events := make(chan observedReport140, 4)
 		definition := taskDefinition(t, "task.clock-report-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

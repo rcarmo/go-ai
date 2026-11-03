@@ -11,7 +11,7 @@ import (
 )
 
 func TestInboxSteerAfterToolsSharesAnswerAndFollowUpStartsNextRun(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "hold", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "steer.hold", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {

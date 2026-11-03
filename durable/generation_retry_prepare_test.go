@@ -10,7 +10,7 @@ import (
 )
 
 func TestGenerationRetryRepreparesCommittedAgentToolsPromptAfterReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var now atomic.Int64
 		now.Store(1000)
 		var calls atomic.Int64

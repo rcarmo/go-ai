@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -61,7 +60,7 @@ func mainTraceMutate(value any) {
 // session/transaction.ts createSubmission/settle/place JSON-copy behaviour.
 // Source356 additionally requires this same field on the public Submit path.
 func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		want := map[string]string{"traceparent": "opaque-parent", "tracestate": "vendor=value"}
 		var record SubmissionRecord
@@ -187,40 +186,9 @@ func TestMainSubmissionTraceRejectsNonStringCarrier(t *testing.T) {
 
 // Extend only this new carrier slice with the real required pure-Go backend;
 // the shared legacy helper's completed coverage is not changed or repeated.
-func mainTraceBackends(t *testing.T, run func(*testing.T, backend)) {
-	t.Helper()
-	backends(t, run)
-	t.Run("sqlite", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "trace.sqlite")
-		open := func() Storage {
-			s, err := OpenSQLite(path, SQLiteOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			return s
-		}
-		s := open()
-		t.Cleanup(func() { _ = s.Close(bg) })
-		run(t, backend{s, func() Storage {
-			core := s.(interface{ nativeCore() *storeCore }).nativeCore()
-			select {
-			case <-core.closeDone:
-				if core.closeErr != nil {
-					t.Fatal(core.closeErr)
-				}
-			default:
-				if err := s.Close(bg); err != nil {
-					t.Fatal(err)
-				}
-			}
-			s = open()
-			return s
-		}})
-	})
-}
 
 func TestMainSubmissionTracePublicCaptureDedupAndReopen(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
 			ch <- terminal("answer")
@@ -312,7 +280,7 @@ func TestMainSubmissionTracePublicCaptureDedupAndReopen(t *testing.T) {
 }
 
 func TestMainSubmissionTraceRollback(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		before, err := h.Snapshot(bg)
 		if err != nil {

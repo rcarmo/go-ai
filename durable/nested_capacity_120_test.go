@@ -10,7 +10,7 @@ import (
 )
 
 func TestNestedTool120BoundCapacityRejectsJoinWithoutDispatch(t *testing.T) {
-	taskLimitedBackends(t, 1, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 1, func(t *testing.T, store Storage) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("capacity_leaf")
@@ -69,7 +69,7 @@ func TestNestedTool120BoundCapacityRejectsJoinWithoutDispatch(t *testing.T) {
 	})
 }
 func TestNestedTool120DeepCallsUseBoundedPermitsAndStableKeys(t *testing.T) {
-	taskLimitedBackends(t, 3, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 3, func(t *testing.T, store Storage) {
 		registry := NewRegistry()
 		var leaves atomic.Int64
 		leaf := wrapRegistration("deep_leaf")

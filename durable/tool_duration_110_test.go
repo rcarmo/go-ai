@@ -12,7 +12,7 @@ import (
 func TestToolDuration110ExecutedErrorPanicAndUnexecuted(t *testing.T) {
 	for _, mode := range []string{"success", "error", "panic", "blocked"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var executions atomic.Int64
 				{

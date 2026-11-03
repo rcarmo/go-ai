@@ -14,7 +14,7 @@ import (
 func TestGeneration140PacingAlarmAloneResumesRetryAndPoll(t *testing.T) {
 	for _, mode := range []string{"retry", "poll"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				api := goai.Api("pacing-140-" + strings.ReplaceAll(t.Name(), "/", "-"))
 				var clock, streams, polls atomic.Int64
 				clock.Store(1000)
@@ -163,7 +163,7 @@ func TestGeneration140LegacyPacingYieldsBeforeModelAccess(t *testing.T) {
 	for _, phase := range []string{"retry", "poll"} {
 		for _, status := range []string{"pending", "running"} {
 			t.Run(phase+"-"+status, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					rootID, taskID := mint(t, b.store), mint(t, b.store)
 					cp := generationCheckpoint{Phase: phase, RetryUntil: 2000, PollAt: 2000}
 					if phase == "poll" {

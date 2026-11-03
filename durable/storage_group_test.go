@@ -25,7 +25,7 @@ func groupEntryBatches(t *testing.T, store Storage, count int) ([]Batch, []ID) {
 }
 
 func TestInternalGroupReceiptsAndReopen(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 3)
 		core := b.store.(nativeStorage).nativeCore()
 		ordinal := core.ordinal
@@ -55,7 +55,7 @@ func TestInternalGroupReceiptsAndReopen(t *testing.T) {
 
 func TestInternalGroupPrefixRefusal(t *testing.T) {
 	for _, refusedAt := range []int{0, 1, 2} {
-		utf16Backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			batches, ids := groupEntryBatches(t, b.store, 3)
 			batches[refusedAt] = Batch{} // invalid input, not a backend failure
 			core := b.store.(nativeStorage).nativeCore()
@@ -85,7 +85,7 @@ func TestInternalGroupPrefixRefusal(t *testing.T) {
 }
 
 func TestInternalGroupReceiptErrorPreservesDurability(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 3)
 		core := b.store.(nativeStorage).nativeCore()
 		failure := errors.New("receipt sink failed")
@@ -132,7 +132,7 @@ func TestInternalGroupRefusalPresence(t *testing.T) {
 }
 
 func TestInternalGroupOwnershipAndEmptyCall(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 1)
 		core := b.store.(nativeStorage).nativeCore()
 		result, err := core.commitBatches(bg, nil, nil, false)
@@ -155,7 +155,7 @@ func TestInternalGroupOwnershipAndEmptyCall(t *testing.T) {
 
 func TestInternalGroupSequentialBackendError(t *testing.T) {
 	for _, knownRollback := range []bool{false, true} {
-		backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			batches, _ := groupEntryBatches(t, b.store, 3)
 			core := b.store.(nativeStorage).nativeCore()
 			original := core.appendFrame
@@ -191,7 +191,7 @@ func TestInternalGroupBounds(t *testing.T) {
 	limits.MaxFramePayloadBytes = 1024
 	limits.MaxRecordBytes, limits.MaxDocumentBytes = 512, 512
 	limits.MaxStringBytes, limits.MaxRequestIDBytes = 256, 128
-	store, err := OpenMemory(MemoryOptions{Limits: &limits})
+	store, err := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestInternalGroupBounds(t *testing.T) {
 }
 
 func TestInternalGroupAdmissionCancelAndClose(t *testing.T) {
-	store, err := NewMemory()
+	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}

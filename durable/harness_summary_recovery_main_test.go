@@ -14,7 +14,7 @@ import (
 // compaction reopen coverage sleeps after a retry or reopens after completion;
 // this one loses the process while the summary provider is actively running.
 func TestMainHarnessSummarisationCrashResumesCheckpoint(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		requests := make(chan string, 2)
 		var calls atomic.Int64

@@ -11,7 +11,7 @@ import (
 func TestToolTruncationRemarksPinnedFallbackExplicitAndHookReplacement(t *testing.T) {
 	for _, mode := range []string{"retained", "explicit", "hook-replacement", "hook-preserve"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				limits := ToolOutputLimits{4, 10, "tail"}
 				registry := NewRegistry()
 				extension := &Extension{Name: "truncate", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "truncate", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "truncation.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {

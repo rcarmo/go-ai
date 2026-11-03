@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskGraphPinnedMemoOnlyCommitPublishesNoNodeRevision(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		runtime := make(chan *TaskRuntime, 1)
 		definition := taskDefinition(t, "task.graph-quiet", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

@@ -71,7 +71,7 @@ func mainAfterRunLive(t *testing.T, h *Harness, conversation ID) JSON {
 }
 
 func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
 		def := mainAfterRunTask(t, probe)
 		registry := NewRegistry()
@@ -207,7 +207,7 @@ func TestMainAfterRunEmptyHookEnd(t *testing.T) {
 }
 func mainAfterRunEmpty(t *testing.T, hook bool) {
 	t.Helper()
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		probe := &mainAfterRunProbe{started: make(chan struct{})}
 		def := mainAfterRunTask(t, probe)
 		hooks := GenerationHooks{}
@@ -264,7 +264,7 @@ func mainAfterRunEmpty(t *testing.T, hook bool) {
 // bad-start/valid, then a throwing hook. A non-list Tasks value cannot inhabit
 // the typed Go slice and receives no runtime/body-parity credit.
 func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		probe := &mainAfterRunProbe{started: make(chan struct{})}
 		valid := mainAfterRunTask(t, probe)
 		unknown := taskDefinition(t, "test.unknown", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
@@ -354,7 +354,7 @@ func TestMainAfterRunRejectedRequestsKeepValidSibling(t *testing.T) {
 // Source617: the installed version supplies both checkpoint and runtime; the
 // request token is only a kind reference. Initialisation must be off the line.
 func TestMainAfterRunInstalledDefinitionInitialOnce(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var installed, token atomic.Int64
 		var h *Harness
 		makeDefinition := func(version uint64, count *atomic.Int64) *TaskDefinition {
@@ -431,7 +431,7 @@ func TestMainAfterRunInstalledDefinitionInitialOnce(t *testing.T) {
 func TestMainAfterRunTerminateSummary(t *testing.T) {
 	for _, mode := range []string{"finish", "handoff"} {
 		t.Run(mode, func(t *testing.T) {
-			mainTraceBackends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				probe := &mainAfterRunProbe{started: make(chan struct{})}
 				def := mainAfterRunTask(t, probe)
 				registry := NewRegistry()
@@ -518,7 +518,7 @@ func TestMainAfterRunTerminateSummary(t *testing.T) {
 func TestMainAfterRunStopAnswered(t *testing.T) {
 	for _, stage := range []string{"hook", "task"} {
 		t.Run(stage, func(t *testing.T) {
-			mainTraceBackends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
 				def := mainAfterRunTask(t, probe)
 				hookStarted := make(chan struct{})
@@ -579,7 +579,7 @@ func TestMainAfterRunStopAnswered(t *testing.T) {
 // Native orderly-close control for source1140's finish resumption. This does
 // not claim its initial crash/held-progress stream assertions.
 func TestMainAfterRunCloseInFinishReasks(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		probe := &mainAfterRunProbe{started: make(chan struct{})}
 		def := mainAfterRunTask(t, probe)
 		entered := make(chan struct{})
@@ -653,7 +653,7 @@ func TestMainAfterRunCloseInFinishReasks(t *testing.T) {
 // per-input whenIdle=reject, and this external write is not the source child's
 // same-transaction submit; neither missing assertion is credited.
 func TestMainAfterRunQueuedBoundary(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		probe := &mainAfterRunProbe{started: make(chan struct{}), release: make(chan struct{})}
 		def := mainAfterRunTask(t, probe)
 		registry := NewRegistry()

@@ -66,7 +66,7 @@ func testQuickJSUnsettledReopen120(t *testing.T, drains, drift bool) {
 	}
 	defer engine.Close(bg)
 	engine.AcknowledgeDrains = drains
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{}), driftCount: drift}
 		registry := NewRegistry()
 		var effects atomic.Int64

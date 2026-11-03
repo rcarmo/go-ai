@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func transcriptFixture(t *testing.T, b backend) (*Harness, *ConversationHandle) {
+func transcriptFixture(t *testing.T, b sqliteFixture) (*Harness, *ConversationHandle) {
 	t.Helper()
 	h := openHarness(t, b.store, Options{})
 	c, err := h.Conversation(bg, 1)
@@ -60,7 +60,7 @@ func transcriptFrame(t *testing.T, frames <-chan ConversationView) ConversationV
 // Port of harness-view.test.ts's default newest-50 hydration assertion. The
 // wire-level predecessor check also runs against the preceding public API.
 func TestMainTranscriptDefaultHydration(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 65)
 		value, err := c.View(bg)
@@ -88,7 +88,7 @@ func TestMainTranscriptDefaultHydration(t *testing.T) {
 // Port of "keeps head markers in place". Native kind names and receipt DTOs
 // differ; the transcript sequence and summary head remain the source assertions.
 func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 3)
 		watch, err := c.Watch(bg)

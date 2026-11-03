@@ -9,7 +9,7 @@ import (
 )
 
 func TestProviderSessionIdentityPersistsAcrossRequestsForkAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		var sessions []string
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, _ *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestDeferredPollThrowFaultsTaskWithoutAssistantErrorReceipt(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("deferred-fault-" + t.Name())
 		goai.RegisterApi(&goai.ApiProvider{Api: api, Stream: func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)

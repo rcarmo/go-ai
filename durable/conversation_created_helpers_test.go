@@ -79,7 +79,7 @@ func TestConversationCreatedHelpersSeeInheritedAgentBeforeOverrideAndNilRawCompa
 }
 
 func TestHarnessRawCreationWithoutCallbackInitializesButPlainSessionAgentReadDoesNot(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)

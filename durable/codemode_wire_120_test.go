@@ -31,7 +31,7 @@ func testCodemodeRawGrammarHTTP(t *testing.T, api goai.Api, interrupted ...bool)
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var requests, effects atomic.Int64
 		followup := make(chan struct{})
 		code := `text(await tools.wire_leaf({}));`

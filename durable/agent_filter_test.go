@@ -45,7 +45,7 @@ func TestAgentFiltersPinnedLiveDefaultsAddRemoveAndToolControl(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, options)
 	c := root(t, h, ref)
 	removed := []string{"hidden", "hidden"}

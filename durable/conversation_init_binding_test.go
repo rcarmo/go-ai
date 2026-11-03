@@ -6,7 +6,7 @@ import (
 )
 
 func TestConversationInitializersBindTaskCreationToRootNewAndFork(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		definition := taskDefinition(t, "task.init-bound", func(context.Context, TaskRecord, *TaskRuntime) error { t.Error("init dispatched task"); return nil })
 		h := taskTestHarness(t, b.store, definition)
 		created := map[ID]ID{}

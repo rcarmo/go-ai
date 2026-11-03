@@ -7,7 +7,7 @@ import (
 )
 
 func TestConversationInitPinnedCreationHookThenAgentThenInitAtomicRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		order := []string{}
 		options := Options{ConversationCreated: func(tx *Tx, conversation Conversation) error {
 			state, err := tx.current()

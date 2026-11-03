@@ -67,7 +67,7 @@ func TestMainWakeSourceTable(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				a, err := b.store.MintID(bg)
 				if err != nil {
 					t.Fatal(err)
@@ -104,7 +104,7 @@ func TestMainWakeSourceTable(t *testing.T) {
 }
 
 func TestMainWakeSourceRunningInvocationRetainsEarliestSleep(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		a, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)

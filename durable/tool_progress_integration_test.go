@@ -10,7 +10,7 @@ import (
 )
 
 func TestToolProgressCoalescesFirehosePreservesMemoAndTerminalFlush(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limits := ToolOutputLimits{64, 2, "tail"}
 		registry := NewRegistry()
 		visible, release := make(chan struct{}), make(chan struct{})

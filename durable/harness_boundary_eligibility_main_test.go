@@ -22,7 +22,7 @@ import (
 // mark its conversation's parent, and inspect rejected boundary candidates.
 // This does not cover automatic abort withdrawal/cascade, model execution,
 // settlement, or scheduler-driven boundary timing/publication.
-func mainEligibilityHarness(t *testing.T, b backend, owned bool, settings *HarnessSettings) (*Harness, *ConversationHandle, ID) {
+func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings *HarnessSettings) (*Harness, *ConversationHandle, ID) {
 	t.Helper()
 	plainSession, err := OpenSession(b.store)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestMainBoundaryEligibilityInheritedCancellationBeforePlacement(t *testing.
 				name = "inherited-abort"
 			}
 			t.Run(lane+"/"+name, func(t *testing.T) {
-				utf16Backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					h, c, parent := mainEligibilityHarness(t, b, true, &HarnessSettings{FollowUpMode: "all", SteeringMode: "all"})
 					a, err := c.Submit(bg, Input{Content: "A"})
 					if err != nil {
@@ -263,7 +263,7 @@ func TestMainBoundaryEligibilityInheritedCancellationBeforePlacement(t *testing.
 }
 
 func TestMainBoundaryEligibilityAbsentAgentHostAllModes(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c, _ := mainEligibilityHarness(t, b, false, &HarnessSettings{FollowUpMode: "all", SteeringMode: "all"})
 		a, err := c.Submit(bg, Input{Content: "A"})
 		if err != nil {
@@ -378,7 +378,7 @@ func TestMainBoundaryEligibilityLocallyDecidedFailFast(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			for _, policy := range []string{"failFast", "allSettled"} {
 				t.Run(policy, func(t *testing.T) {
-					utf16Backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						aEntered, aRelease := make(chan struct{}), make(chan struct{})
 						bEntered, bRelease := make(chan struct{}), make(chan struct{})
 						requestB := make(chan []string, 1)

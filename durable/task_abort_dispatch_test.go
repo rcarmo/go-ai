@@ -11,7 +11,7 @@ import (
 // Actual adopted reservation/dispatch seam; the storage-in-flight ordering
 // variant remains separately mapped instead of assuming goroutine FIFO.
 func TestTaskSchedulerMarkedAdoptedReservationStartsNoOrdinaryHandler(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs, aborts atomic.Int64
 		definition := taskDefinition(t, "task.mark-before-dispatch", func(context.Context, TaskRecord, *TaskRuntime) error {
 			runs.Add(1)
@@ -66,7 +66,7 @@ func TestTaskSchedulerMarkedAdoptedReservationStartsNoOrdinaryHandler(t *testing
 }
 
 func TestTaskSchedulerPinnedAbortMarkWinsReturnedPhaseFault(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var aborts atomic.Int64
 		definition := taskDefinition(t, "task.abort-wins-fault", func(context.Context, TaskRecord, *TaskRuntime) error {

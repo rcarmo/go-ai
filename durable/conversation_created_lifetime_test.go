@@ -6,7 +6,7 @@ import (
 )
 
 func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		options := Options{ConversationCreated: func(*Tx, Conversation) error { calls.Add(1); return nil }}
 		h := openHarness(t, b.store, options)
@@ -49,7 +49,7 @@ func TestConversationCreatedNeverReplaysForRetiredAgentOrNilHistoryReopen(t *tes
 			t.Fatal("metadata retirement replayed creation", calls.Load())
 		}
 	})
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var raw ID
 		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {

@@ -20,7 +20,7 @@ func sessionFor(t *testing.T, s Storage) *Session {
 	return session
 }
 func TestTransactionImmediateCopyAndSealed(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := sessionFor(t, b.store)
 		doc, e := s.MintID(bg)
 		if e != nil {
@@ -98,7 +98,7 @@ func TestTransactionImmediateCopyAndSealed(t *testing.T) {
 }
 
 func TestTransactionCallbackInvalidAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := sessionFor(t, b.store)
 		id, e := s.MintID(bg)
 		if e != nil {
@@ -184,7 +184,7 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 			t.Fatal("caller marshaler invoked")
 		}
 	}
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := sessionFor(t, s)
 	id, _ := h.MintID(bg)
 	_, e := h.Commit(bg, func(tx *Tx) error {
@@ -210,7 +210,7 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 }
 
 func TestRetainedStoreCannotBypassSession(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := sessionFor(t, b.store)
 		if _, e := b.store.MintID(bg); !errors.Is(e, ErrOwned) {
 			t.Fatal(e)
@@ -252,14 +252,14 @@ func TestRetainedStoreCannotBypassSession(t *testing.T) {
 }
 
 func TestAdmittedCancellationAndCloseFence(t *testing.T) {
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := sessionFor(t, s)
 	id, e := h.MintID(bg)
 	if e != nil {
 		t.Fatal(e)
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
-	s.file = &faultFile{journalFile: s.file, writeLimit: -1, syncEntered: entered, release: release}
+	blockSQLiteAcknowledgement(s, entered, release)
 	ctx, cancel := context.WithCancel(bg)
 	commit := make(chan error, 1)
 	go func() {
@@ -281,7 +281,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	if e = h.Close(closeCtx); !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal("close failed to wait", e)
 	}
-	if _, e = OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
+	if _, e = openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal("premature successor", e)
 	}
 	close(release)
@@ -291,7 +291,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	r, e := OpenJournal(dir, JournalOptions{})
+	r, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -302,7 +302,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 }
 
 func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := sessionFor(t, b.store)
 		conversation, _ := s.MintID(bg)
 		task, _ := s.MintID(bg)
@@ -344,10 +344,10 @@ func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
 }
 
 func TestStorageCloseSealsBeforeAdmittedWriteDrain(t *testing.T) {
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	id := mint(t, s)
 	entered, release := make(chan struct{}), make(chan struct{})
-	s.file = &faultFile{journalFile: s.file, writeLimit: -1, syncEntered: entered, release: release}
+	blockSQLiteAcknowledgement(s, entered, release)
 	done := make(chan error, 1)
 	go func() { _, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{})}}); done <- e }()
 	<-entered
@@ -364,7 +364,7 @@ func TestStorageCloseSealsBeforeAdmittedWriteDrain(t *testing.T) {
 	if _, e := s.MintID(bg); !errors.Is(e, ErrClosed) {
 		t.Fatal("lateMint admitted", e)
 	}
-	if _, e := OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
+	if _, e := openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal("premature file successor", e)
 	}
 	close(release)
@@ -374,7 +374,7 @@ func TestStorageCloseSealsBeforeAdmittedWriteDrain(t *testing.T) {
 	if e := s.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	r, e := OpenJournal(dir, JournalOptions{})
+	r, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -20,7 +20,7 @@ func testQuickJSUnsupportedParallel120(t *testing.T, drains bool) {
 	defer sandbox.Close(bg)
 	sandbox.AcknowledgeDrains = drains
 	sandbox.ParallelCalls = false
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		leaf := wrapRegistration("codemode_leaf")

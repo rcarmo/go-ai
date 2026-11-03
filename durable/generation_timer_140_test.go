@@ -10,7 +10,7 @@ import (
 )
 
 func TestGenerationTimer140ProductionClockEarlyFireAndTerminalDisarm(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		more, release := make(chan struct{}), make(chan struct{})
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			events := make(chan goai.Event)

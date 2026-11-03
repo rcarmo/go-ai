@@ -21,7 +21,7 @@ type transcriptDelivery struct {
 func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 	for _, blocked := range []bool{false, true} {
 		t.Run(fmt.Sprintf("blocked=%t", blocked), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				future := ID(MaxID)
 				window := transcriptBounds(3, 6)
@@ -150,7 +150,7 @@ func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 }
 
 func TestMainTranscriptPreparationDoesNotPublishWindow(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 2)
 		watch, err := c.Watch(bg, transcriptBounds(3, 6))
@@ -188,7 +188,7 @@ func TestMainTranscriptPreparationDoesNotPublishWindow(t *testing.T) {
 }
 
 func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		reports := make(chan error, 4)
 		var h *Harness
 		h = openHarness(t, b.store, Options{OnReport: func(err error) {
@@ -284,7 +284,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 }
 
 func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		watch, err := c.Watch(bg, transcriptBounds(1, 3))
 		if err != nil {
@@ -319,7 +319,7 @@ func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 }
 
 func TestMainTranscriptConsumedProjectionSlotReleased(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		watch, err := c.Watch(bg, transcriptBounds(1, 3))
 		if err != nil {
@@ -353,7 +353,7 @@ func TestMainTranscriptConsumedProjectionSlotReleased(t *testing.T) {
 }
 
 func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		watch, err := c.Watch(bg, transcriptBounds(50, 100))
 		if err != nil {
@@ -398,7 +398,7 @@ func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T
 func TestMainTranscriptPreparedDeliveryReadinessAndEnd(t *testing.T) {
 	for _, mode := range []string{"ready", "stop", "cancel", "close", "failure"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				watchCtx, cancelWatch := context.WithCancel(bg)
 				defer cancelWatch()
@@ -516,7 +516,7 @@ func TestMainTranscriptPreparedDeliveryReadinessAndEnd(t *testing.T) {
 func TestMainTranscriptProjectionPreservesAdapterResnapshot(t *testing.T) {
 	for _, install := range []string{"at-acquire", "after-acquire"} {
 		t.Run(install, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				state, err := h.Snapshot(bg)
 				if err != nil {

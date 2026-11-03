@@ -21,7 +21,7 @@ func TestSQLiteNativeConformance(t *testing.T) {
 	}
 	current = open()
 	t.Cleanup(func() { current.Close(bg) })
-	runStorageConformance(t, backend{store: current, reopen: func() Storage {
+	runStorageConformance(t, sqliteFixture{store: current, reopen: func() Storage {
 		if err := current.Close(bg); err != nil {
 			t.Fatal(err)
 		}

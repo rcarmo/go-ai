@@ -11,7 +11,7 @@ import (
 // use the reserved root, raw document handles, an internal infinite-window entry
 // and channel observation of asynchronous watches. Backend writes are real.
 func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, other := openMainDeferredSession(t, b)
 		baseline := mainDeferredSnapshot(t, b.store).Seq
 		_, stored, err := s.SubscribeCommits(bg)
@@ -159,7 +159,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 }
 
 func TestMainSessionDeferredFallbackAndClose(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, other := openMainDeferredSession(t, b)
 		// Mixed document/entry writes are immediately durable, not eligible holds.
 		if _, err := s.commitDeferred(bg, func(tx *Tx) error {
@@ -197,7 +197,7 @@ func TestMainSessionDeferredFallbackAndClose(t *testing.T) {
 }
 
 func TestMainSessionDeferredFailureDoesNotFlush(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, _ := openMainDeferredSession(t, b)
 		if _, err := s.commitDeferred(bg, mainDeferredSet(doc, "not durable")); err != nil {
 			t.Fatal(err)
@@ -219,7 +219,7 @@ func TestMainSessionDeferredFailureDoesNotFlush(t *testing.T) {
 // Source-derived control: creation remains immediate even with an unrelated
 // hold, and the stored publication must include the callback's minted IDs.
 func TestMainSessionDeferredCreationIsImmediate(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, _ := openMainDeferredSession(t, b)
 		if _, err := s.commitDeferred(bg, mainDeferredAppend(doc, "a")); err != nil {
 			t.Fatal(err)
@@ -251,7 +251,7 @@ func TestMainSessionDeferredCreationIsImmediate(t *testing.T) {
 // Native-budget control, not a port of the source's 10,000-operation boundary.
 // Non-primitive sets are folding barriers, so the tail really exceeds 4,096.
 func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, other := openMainDeferredSession(t, b)
 		total := 0
 		for _, count := range []int{maxDeltaOperations / 2, maxDeltaOperations / 2, 1} {
@@ -293,7 +293,7 @@ func TestMainSessionDeferredOperationOverflowStoresBase(t *testing.T) {
 }
 
 func TestMainSessionDeferredCloseRefusalStillCloses(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, _ := openMainDeferredSession(t, b)
 		if _, err := s.commitDeferred(bg, mainDeferredAppend(doc, "held")); err != nil {
 			t.Fatal(err)
@@ -342,7 +342,7 @@ func TestMainSessionDeferredCloseRefusalStillCloses(t *testing.T) {
 }
 
 func TestMainSessionDeferredCancellationAndAdapterAdmission(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, doc, _ := openMainDeferredSession(t, b)
 		if _, err := s.commitDeferred(bg, mainDeferredAppend(doc, "a")); err != nil {
 			t.Fatal(err)
@@ -379,7 +379,7 @@ type mainDeferredAdapter struct{ Storage }
 
 func (a *mainDeferredAdapter) nativeCore() *storeCore { return a.Storage.(nativeStorage).nativeCore() }
 
-func openMainDeferredSession(t *testing.T, b backend) (*Session, ID, ID) {
+func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 	t.Helper()
 	s, err := OpenSession(b.store)
 	if err != nil {

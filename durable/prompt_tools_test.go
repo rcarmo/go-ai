@@ -36,7 +36,7 @@ func TestSystemToolPlanningReplayOrderSchemaChangeAndHeadBaseline(t *testing.T) 
 	}
 }
 func TestToolLoadoutHistoryPersistsSelectedChangesAndReopens(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		register := func(description string) {
 			t.Helper()

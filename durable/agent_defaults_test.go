@@ -34,7 +34,7 @@ func TestAgentHostDefaultsFilterExplicitOverrideAndLateInstall(t *testing.T) {
 	defaults := []string{"coding", "skills", "missing"}
 	options.Registry = registry
 	options.Extensions = &defaults
-	store, dir := newJournal(t)
+	store, dir := newSQLiteTestStore(t)
 	h := openHarness(t, store, options)
 	defaults[0] = "reviewer"
 	conv := root(t, h, ref)
@@ -81,7 +81,7 @@ func TestAgentHostDefaultsFilterExplicitOverrideAndLateInstall(t *testing.T) {
 	// Reopening changes host defaults without changing the stored agent.
 	defaults = []string{"reviewer"}
 	options.Extensions = &defaults
-	store, err = OpenJournal(dir, JournalOptions{})
+	store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

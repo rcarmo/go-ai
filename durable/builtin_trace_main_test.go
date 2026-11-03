@@ -15,7 +15,7 @@ import (
 // task.pi.compaction is the registered compaction adapter token; source uses
 // pi.compaction. The stored background flag/carrier and phase parent are exact.
 func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
 		var requests, hooks atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
@@ -139,7 +139,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 	for _, mode := range []string{"parallel", "sequential"} {
 		t.Run(mode, func(t *testing.T) {
-			mainTraceBackends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				backend := newMainTaskTraceBackend(t)
 				registry := NewRegistry()
 				var calls atomic.Int64
@@ -245,7 +245,7 @@ func TestMainBuiltinTraceToolMetadata(t *testing.T) {
 // Selected harness-telemetry.test.ts:479-544: a real active invocation closes,
 // then reopens with a different backend retaining only its stored data carrier.
 func TestMainBuiltinTraceActiveReopenParent(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var recover atomic.Bool
 		reached := make(chan struct{})
 		definition, err := DefineTask(TaskDefinitionOptions{Kind: "task.trace-active-reopen", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "hold"}, nil }, Phases: map[string]TaskPhase{

@@ -9,7 +9,7 @@ import (
 )
 
 func TestCodemode120StoreAndResultSettlementRejectAtomically(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		sandbox := &storeSandbox120{value: "adopted"}
 		def := taskDefinition(t, "store-fault-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

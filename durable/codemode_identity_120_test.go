@@ -18,7 +18,7 @@ func (s *identitySandbox120) Start(ctx context.Context, code string, start Codem
 	return s.sandbox.Start(ctx, code, start)
 }
 func TestCodemode120RuntimeIdentityFencesSettledReuse(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		first := &identitySandbox120{identity: "engine-one", sandbox: &storeSandbox120{value: 1}}
 		changed := &identitySandbox120{identity: "engine-two", sandbox: &storeSandbox120{value: 2}}

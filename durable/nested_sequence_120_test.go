@@ -8,7 +8,7 @@ import (
 )
 
 func TestNestedTool120AutoKeysReplayOrder(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("auto_leaf")
@@ -67,7 +67,7 @@ func TestNestedTool120AutoKeysReplayOrder(t *testing.T) {
 	})
 }
 func TestNestedTool120ConcurrentAutoAdmissionUniqueAndKeyedCoalescence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("concurrent_leaf")

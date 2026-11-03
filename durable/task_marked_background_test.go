@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started := make(chan ID, 3)
 		releaseBackground := make(chan struct{})
 		parentAbortStarted := make(chan struct{})
@@ -19,7 +19,9 @@ func TestTaskOwnershipAncestorCascadeIncludesAlreadyMarkedBackgroundSubtree(t *t
 		})
 		options := live.options
 		options.Abort = func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			if task.ID == parentID { close(parentAbortStarted) }
+			if task.ID == parentID {
+				close(parentAbortStarted)
+			}
 			if task.ID == backgroundID {
 				<-releaseBackground
 			}

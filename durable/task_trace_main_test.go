@@ -168,7 +168,7 @@ func mainTaskTraceOptions(t *testing.T, data string) TaskOptions {
 // Native legacy placeholder tasks are selected by actual submission ID instead
 // of the source facade's second scan row; no task count assertion is removed.
 func TestMainTaskTraceQueuedFirstInvocation(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		telemetry := newMainTaskTraceBackend(t)
 		entered, release := make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)
@@ -273,7 +273,7 @@ func TestMainTaskTraceQueuedFirstInvocation(t *testing.T) {
 // Source177-214: omitted/undefined inherit the creator; explicit root stores no
 // carrier and creates a phase under the harness root. Go nil adapts undefined.
 func TestMainTaskTraceInheritedAndExplicitRoot(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		telemetry := newMainTaskTraceBackend(t)
 		def := taskDefinition(t, "task.trace-inheritance", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
@@ -334,7 +334,7 @@ func TestMainTaskTraceInheritedAndExplicitRoot(t *testing.T) {
 // Source-derived transaction.ts449-471: only the first ID supplies the parent;
 // later available carriers supply links, regardless of explicit trace options.
 func TestMainTaskTraceSubmissionSelectionNoCarrier(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		telemetry := newMainTaskTraceBackend(t)
 		def := taskDefinition(t, "task.trace-selection", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })

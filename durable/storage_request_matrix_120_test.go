@@ -79,5 +79,5 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 	}
 }
 func TestStorage120DirectRequestMatrix(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) { storageRequestMatrix120(t, b.store) })
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) { storageRequestMatrix120(t, b.store) })
 }

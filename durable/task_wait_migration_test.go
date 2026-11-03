@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedWaitingMissingDefinitionMigratesOnRegistration(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release, committed := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var dependencyID ID
 		var migrations, runs atomic.Int64

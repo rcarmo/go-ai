@@ -10,7 +10,7 @@ import (
 // Source-derived lifecycle controls for official f9a26365. These exercise raw
 // Session/Harness transactions only, not continue admission or generation.
 func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id, answer ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
@@ -88,7 +88,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 }
 
 func TestMainSubmissionContinueCreateValidation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var entryID, foreign ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
@@ -191,7 +191,7 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 }
 
 func TestMainSubmissionContinueStorageUnion(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		answer := mint(t, s)
 		apply(t, s, entry(answer, JSON{}))
@@ -281,7 +281,7 @@ func TestMainSubmissionContinueStorageUnion(t *testing.T) {
 }
 
 func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id, answer, foreign ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
@@ -375,7 +375,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 }
 
 func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		value := JSON{"nested": []any{"kept"}}
 		detail := JSON{"nested": []any{"detail"}}
@@ -470,7 +470,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 
 // Regression controls for the ordinary paths whose predicates gained continue.
 func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var input, write, answer ID
 		_, err := h.Commit(bg, func(tx *Tx) error {

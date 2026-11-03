@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedLateOwnedConversationWorkExtendsCompletedHold(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		earlyEntered, earlyRelease, lateEntered, lateRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		early := taskDefinition(t, "task.late-hold.early", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			close(earlyEntered)
@@ -93,7 +93,7 @@ func TestTaskOwnershipPinnedLateOwnedConversationWorkExtendsCompletedHold(t *tes
 }
 
 func TestTaskOwnershipPinnedFinishingBatchOwnedConversationWorkHoldsParent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var childID ID
 		child := taskDefinition(t, "task.finishing-conversation.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

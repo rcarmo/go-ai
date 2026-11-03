@@ -9,7 +9,7 @@ import (
 )
 
 func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		releaseChild, releaseLate := make(chan struct{}), make(chan struct{})
 		childStarted, lateStarted := make(chan struct{}), make(chan struct{})
 		var first, late, owner ID
@@ -161,7 +161,7 @@ func TestTaskGraphCommittedWatchFamilyAndDetachedRebuild(t *testing.T) {
 }
 
 func TestTaskGraphPausedCancellationAndClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		def := taskDefinition(t, "task.graph.paused", func(context.Context, TaskRecord, *TaskRuntime) error { t.Error("graph read ran host"); return nil })
 		h := taskTestHarness(t, b.store, def)
 		id := createPublicTask(t, h, def, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}, Background: true})

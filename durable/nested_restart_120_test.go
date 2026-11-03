@@ -14,7 +14,7 @@ func TestNestedTool120RestartKeyAndReplayPolicy(t *testing.T) {
 			name = "safe"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				cleanupTaskGates(t, release)
 				var effects atomic.Int64
@@ -111,7 +111,7 @@ func TestNestedTool120RestartKeyAndReplayPolicy(t *testing.T) {
 	}
 }
 func TestNestedTool120InvalidArgumentsDoNotExecute(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_invalid")
 		reg.Definition.Parameters = json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)

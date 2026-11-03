@@ -6,7 +6,7 @@ import (
 )
 
 func TestTaskTablesPinnedStagedOwnerSameBatchDocumentsAndLegacyReplacement(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		definition := taskDefinition(t, "task.table-new", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		var owner, conversation, document ID

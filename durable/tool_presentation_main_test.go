@@ -64,7 +64,7 @@ func TestMainToolPresentationLegacyAndOwnerFence(t *testing.T) {
 // An unrelated tool's immediate completion rebuilds pi.live.tools. It must not
 // replace its sibling's held memory progress with an empty durable checkpoint.
 func TestMainToolProgressSiblingCompletionKeepsHeldOutput(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestModels110TaskHookCapabilityCatalogIsolationAndLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := goai.NewModelRuntime(nil)
 		catalog.SetProvider(goai.StaticModelProvider{Provider: "scoped", Models: []*goai.Model{{ID: "only", Provider: "scoped", Api: goai.ApiOpenAIResponses, Name: "Scoped", ContextWindow: 1000, MaxTokens: 100, BaseURL: "https://private.invalid", APIKey: "secret"}}})
 		var access *ModelAccess

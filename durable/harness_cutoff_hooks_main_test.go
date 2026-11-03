@@ -161,7 +161,7 @@ func mainCutoffHooksDone(t *testing.T, h *Harness, c *ConversationHandle, submis
 	return task
 }
 func TestMainCutoffHooksAtLimitNotPastLimit(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{}, 4)
 		var mu sync.Mutex
 		var seen [][]string
@@ -210,7 +210,7 @@ func TestMainCutoffHooksAtLimitNotPastLimit(t *testing.T) {
 // Source-derived: tool.ts758 applies the hook replacement, current output limits,
 // drops structuredOutput and records usage; failed ending remains independent.
 func TestMainCutoffHooksNormalizeReplacement(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		f := mainCutoffHooksSetup(t, func(_ context.Context, _ goai.ToolCall, result ToolResult, _ *HookAPI) (*ToolResult, error) {
 			calls.Add(1)
@@ -260,7 +260,7 @@ func TestMainCutoffHooksNormalizeReplacement(t *testing.T) {
 	})
 }
 func TestMainCutoffHooksThrowReportsAndRetainsSlot(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		failure := errors.New("cutoff hook failed")
 		var calls atomic.Int64
 		f := mainCutoffHooksSetup(t, func(context.Context, goai.ToolCall, ToolResult, *HookAPI) (*ToolResult, error) {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRichInputBlocksOwnedQueuedAndPersistedThroughReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			images := 0
 			for _, message := range input.Messages {
@@ -85,7 +85,7 @@ func TestRichInputBlocksOwnedQueuedAndPersistedThroughReopen(t *testing.T) {
 	})
 }
 func TestInvalidRichInputRejectsBeforeReservation(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
 	conversation, err := h.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "unused"}})
 	if err != nil {

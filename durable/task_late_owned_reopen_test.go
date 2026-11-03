@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskOwnershipCancelledOwnerLateChildConversationWorkAfterReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		checkCancelledOwnerLateWorkReopen(t, b.store, func() Storage { return reopenStoreAfterHarnessClose(t, b.store) })
 	})
 }

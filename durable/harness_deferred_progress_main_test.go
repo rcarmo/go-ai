@@ -16,7 +16,7 @@ import (
 // publication windows. The scripted provider waits for real watch delivery;
 // no publication or stored receipt is fabricated by the test.
 func TestMainHarnessDeferredProgressBatching(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock atomic.Int64
 		clock.Store(1000)
 		type timer struct {

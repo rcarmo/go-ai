@@ -102,7 +102,7 @@ func TestMainConversationPendingIndependentDTOBudgets(t *testing.T) {
 func TestMainConversationPendingReadiness(t *testing.T) {
 	for _, first := range []int{0, 1} {
 		t.Run(fmt.Sprint(first), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				watch, err := c.Watch(bg)
 				if err != nil {

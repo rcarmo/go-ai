@@ -10,7 +10,7 @@ import (
 )
 
 func TestGenerationToolHandoffCommittedReopenNoToolReplayAndTerminalSubmissionTask(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var tools, calls atomic.Int64
 		registration := wrapRegistration("handoff")

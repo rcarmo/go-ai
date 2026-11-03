@@ -122,7 +122,7 @@ func TestMainIdleTargetsWideAndDeep(t *testing.T) {
 			name = "chain"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				tasks := make([]Task, 64)
 				want := []ID{}
 				for i := range tasks {

@@ -102,7 +102,7 @@ func TestRead120InvocationModelLimitsAndNonvision(t *testing.T) {
 			if vision {
 				input = append(input, "image")
 			}
-			store, e := durable.NewMemory()
+			store, e := newSQLiteStore(t)
 			if e != nil {
 				t.Fatal(e)
 			}

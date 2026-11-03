@@ -8,7 +8,7 @@ import (
 )
 
 func TestTask120AbandonOnRestartMissingDefinitionWaitsForCleanup(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs, aborts atomic.Int64
 		definition, e := DefineTask(TaskDefinitionOptions{Kind: "restart-disposable", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "work"}, nil }, Phases: map[string]TaskPhase{"work": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			runs.Add(1)
@@ -67,7 +67,7 @@ func TestTask120AbandonOnRestartMissingDefinitionWaitsForCleanup(t *testing.T) {
 	})
 }
 func TestTask120DisposableDoesNotAbandonNewTasks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		definition := taskDefinition(t, "restart-new", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("normal"), nil })
 		})

@@ -17,7 +17,7 @@ func TestMainTranscriptWindowEntryOperationSequence(t *testing.T) {
 		min, max int
 	}{{"grow-trim", 2, 4}, {"equal", 2, 2}, {"single", 1, 1}} {
 		t.Run(bounds.name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				watch, err := c.Watch(bg, transcriptBounds(bounds.min, bounds.max))
 				if err != nil {

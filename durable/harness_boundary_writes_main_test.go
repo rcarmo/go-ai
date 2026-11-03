@@ -43,7 +43,7 @@ func TestMainBoundaryWritesFirstAndSequentialHeads(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{})
 				c := root(t, h, ModelRef{})
 				entries, submissions := map[string]ID{}, map[string]ID{}

@@ -14,7 +14,7 @@ func TestCodemode120QuickJSImageGlobalScopedAndSettledReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var effects atomic.Int64
 		images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: "codemode-image-120", GenerateImages: func(model *images.ImagesModel, input images.ImagesContext, opts *images.ImagesOptions) (*images.AssistantImages, error) {
 			effects.Add(1)
@@ -65,7 +65,7 @@ func TestCodemode120QuickJSPaidGlobalsAbsentWithoutOptIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "paid-optout-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			result, err := r.RunCodemode(ctx, "run", `return typeof models;`, sandbox)

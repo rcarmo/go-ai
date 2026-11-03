@@ -11,7 +11,7 @@ import (
 // native task, not Harness.Commit, reads progress through public Runtime.Commit.
 // The Go document-ID and object-valued Entry.Value adapters are explicit below.
 func TestMainHarnessThirdPartyCommitStoresDerivedPartialAtomically(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		audit := taskDefinition(t, "test.audit", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			input, ok := task.Input.Value.(map[string]any)

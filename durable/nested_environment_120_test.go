@@ -14,7 +14,7 @@ func TestNestedTool120EnvironmentResolvedBeforeExecutionOnce(t *testing.T) {
 			name = "fail"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var environments, runs atomic.Int64
 				registry := NewRegistry()
 				reg := wrapRegistration("env_nested")

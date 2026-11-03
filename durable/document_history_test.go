@@ -37,7 +37,7 @@ func putDocument(d Document) Write    { return Write{Op: "put-document", Documen
 func retireDocument(d Document) Write { return Write{Op: "retire-document", Document: &d} }
 
 func TestDocumentHistoryLifetimeVersionDetachedAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		id := mint(t, s)
 		d := historyDocument(id, 1, "notes", "initial", "rewindable", "asOf")
@@ -99,7 +99,7 @@ func TestDocumentHistoryLifetimeVersionDetachedAndReopen(t *testing.T) {
 }
 
 func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		ws := []Write{}
 		want := map[DocumentAddress]ID{}
@@ -186,7 +186,7 @@ func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing
 }
 
 func TestDocumentHistoryCopyIndependentPreBatchAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		firstChild, secondChild := mint(t, s), mint(t, s)
 		apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: firstChild}}, Write{Op: "create-conversation", Conversation: &Conversation{ID: secondChild}})
@@ -259,7 +259,7 @@ func TestDocumentHistoryCopyIndependentPreBatchAndRollback(t *testing.T) {
 }
 
 func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		cut := mint(t, s)
 		asOf := historyDocument(mint(t, s), 1, "fork.asof", "root-at-entry", "rewindable", "asOf")
@@ -374,7 +374,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 
 func TestDocumentHistoryUncertainCopyAndRevisionBudget(t *testing.T) {
 	t.Run("landed-copy", func(t *testing.T) {
-		s, dir := newJournal(t)
+		s, dir := newSQLiteTestStore(t)
 		source := historyDocument(mint(t, s), 1, "copy", "source", "rewindable", "asOf")
 		child := mint(t, s)
 		apply(t, s, putDocument(source), Write{Op: "create-conversation", Conversation: &Conversation{ID: child}})
@@ -397,7 +397,7 @@ func TestDocumentHistoryUncertainCopyAndRevisionBudget(t *testing.T) {
 		if err = s.Close(bg); err != nil {
 			t.Fatal(err)
 		}
-		r, err := OpenJournal(dir, JournalOptions{})
+		r, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -407,7 +407,7 @@ func TestDocumentHistoryUncertainCopyAndRevisionBudget(t *testing.T) {
 	t.Run("revision-record-budget", func(t *testing.T) {
 		limits := DefaultLimits()
 		limits.MaxRecords = 4
-		s, err := OpenMemory(MemoryOptions{Limits: &limits})
+		s, err := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -442,7 +442,7 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 		fmt.Fprint(w, "data: {\"id\":\"fork\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"copied answer\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"fork\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 	}))
 	defer server.Close()
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	model := fakeModel(goai.ApiOpenAICompletions)
 	model.BaseURL = server.URL
 	options := Options{Models: func(goai.Provider, string) *goai.Model { return model }, RequestOptions: func(context.Context, ModelRef) (*goai.StreamOptions, error) {
@@ -500,7 +500,7 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 	if err = h.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	s, err = OpenJournal(dir, JournalOptions{})
+	s, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -528,7 +528,7 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 }
 
 func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		cut := mint(t, s)
 		apply(t, s, entry(cut, JSON{}))
@@ -565,7 +565,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		limits := DefaultLimits()
 		limits.MaxWrites = 512
 		limits.MaxPage = 2
-		s, err := OpenMemory(MemoryOptions{Limits: &limits})
+		s, err := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -626,7 +626,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 	})
 	t.Run("duplicate-asof-current", func(t *testing.T) {
-		s, err := NewMemory()
+		s, err := newTestSQLite(t)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -653,7 +653,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 }
 
 func TestDocumentHistoryLegacyAgentRejectsUnprovableHistoricalFork(t *testing.T) {
-	s, err := NewMemory()
+	s, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,7 +686,7 @@ func TestDocumentHistoryCopyExpandedBatchLimitAndInvalidPolicy(t *testing.T) {
 	limits.MaxRecordBytes = 1024
 	limits.MaxDocumentBytes = 768
 	limits.MaxStringBytes = 512
-	s, err := OpenMemory(MemoryOptions{Limits: &limits})
+	s, err := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -736,7 +736,7 @@ func TestDocumentHistoryCopyExpandedBatchLimitAndInvalidPolicy(t *testing.T) {
 // The high-level Session fork fence covers current-policy parent documents that
 // do not yet exist in storage; the low-level copy-source ID fence cannot see them.
 func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		cut, other := mint(t, s), mint(t, s)
 		unselectedSource := historyDocument(mint(t, s), other, "copy.unselected", "committed-source", "latest", "current")
@@ -829,7 +829,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 }
 
 func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		cut, other := mint(t, s), mint(t, s)
 		d := historyDocument(mint(t, s), 1, "ancestor.current", "root", "latest", "current")

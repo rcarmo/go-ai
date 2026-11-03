@@ -13,7 +13,7 @@ import (
 // sleeping deadline; setup is outside the benchmark's measured interval.
 func mainWakeIndexFixture(tb testing.TB, history int) (*Harness, ID, ID) {
 	tb.Helper()
-	store, err := NewMemory()
+	store, err := newTestSQLite(tb)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func BenchmarkMainWakeActiveHistory(b *testing.B) {
 }
 
 func TestMainWakeSleepingIndexPublication(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -247,7 +247,7 @@ func TestMainWakeSleepingIndexPreservesActiveWrapper(t *testing.T) {
 }
 
 func TestMainWakeDueAlarmDoesNotReplaceFutureDeadline(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		first, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)

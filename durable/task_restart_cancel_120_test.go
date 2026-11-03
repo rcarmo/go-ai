@@ -7,7 +7,7 @@ import (
 )
 
 func TestTask120ExplicitAbortSupersedesRestartBlockedChild(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var parent, child ID
 		parentDef := taskDefinition(t, "restart-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {

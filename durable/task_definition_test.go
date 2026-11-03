@@ -177,7 +177,7 @@ func TestTaskDefinitionCodecStrictValuesAndUnions(t *testing.T) {
 }
 
 func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -230,8 +230,8 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 			t.Fatal("Tx/snapshot envelope detached", err)
 		}
 	})
-	image := &MemoryImage{}
-	store, err := OpenMemory(MemoryOptions{Image: image})
+	image := &sqliteFixtureFile{}
+	store, err := openTestSQLite(t, sqliteFixtureOptions{File: image})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 		t.Fatal(err)
 	}
 	task.Execution.Native.Input.Value.([]any)[0].(JSON)["label"] = "after-close"
-	reopened, err := OpenMemory(MemoryOptions{Image: image})
+	reopened, err := openTestSQLite(t, sqliteFixtureOptions{File: image})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 }
 
 func TestTaskDefinitionFoundationCombinedForwardOwnershipAndHeldImmutable(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		childID, _ := b.store.MintID(bg)
 		ownerID, _ := b.store.MintID(bg)
 		child, owner := foundationTask(childID, nil), foundationTask(ownerID, nil)
@@ -309,7 +309,7 @@ func TestTaskDefinitionPublicCreateTaskBoundOwnershipAndSealed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -373,7 +373,7 @@ func TestTaskDefinitionOptionalFailedAbortedResultAndRawForgery(t *testing.T) {
 			t.Fatal("valid optional result rejected", err)
 		}
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -421,7 +421,7 @@ func TestTaskDefinitionFoundationBudgetsAndNilRemainStrict(t *testing.T) {
 }
 
 func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
-	for _, name := range []string{"memory", "journal"} {
+	for _, name := range []string{"sqlite"} {
 		t.Run(name, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxStringBytes = 512 << 10
@@ -430,11 +430,9 @@ func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
 			l.MaxDepth = 64
 			var store Storage
 			var err error
-			if name == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -506,7 +504,7 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 					continue
 				}
 				t.Run(kind+"/"+status+"/"+mark, func(t *testing.T) {
-					backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						id := mint(t, b.store)
 						var subID ID
 						if kind == "builtin" {
@@ -652,7 +650,7 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 
 func TestTaskDefinitionLegacyMarkFirstBuiltinMetadataAttachment(t *testing.T) {
 	for _, initiallyMarked := range []bool{false, true} {
-		backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			id := mint(t, b.store)
 			raw := Task{ID: id, Conversation: 1, Kind: "pi.generation", Status: "pending", Checkpoint: JSON{"phase": "queued", "input": "legacy"}}
 			if initiallyMarked {
@@ -685,7 +683,7 @@ func TestTaskDefinitionLegacyMarkFirstBuiltinMetadataAttachment(t *testing.T) {
 			}
 		})
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		raw := Task{ID: id, Conversation: 1, Kind: "legacy.rawmark", Status: "pending", Checkpoint: JSON{"abort": true}}
 		apply(t, b.store, Write{Op: "put-task", Task: &raw})
@@ -700,7 +698,7 @@ func TestTaskDefinitionLegacyMarkFirstBuiltinMetadataAttachment(t *testing.T) {
 func TestTaskDefinitionBuiltinReceiptAbortMarksSurviveHeldAndFinalReplacement(t *testing.T) {
 	for _, mark := range []string{"metadata", "checkpoint", "both"} {
 		t.Run(mark, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				ownerID, id, entryID := mint(t, b.store), mint(t, b.store), mint(t, b.store)
 				owner := Task{ID: ownerID, Conversation: 1, Kind: "legacy.receipt-parent", Status: "pending", Checkpoint: JSON{}}
 				cp := toolCheckpoint{Offer: toolOffer{Name: "fixture", Implementation: "fixture.tool", Version: 1, Schema: JSON{"type": "object"}}, CallID: "fixture-call", Arguments: JSON{}, Abort: mark != "metadata"}

@@ -13,7 +13,7 @@ func TestCodemode120CustomGlobalSpreadPanicAndJournalIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls, panics atomic.Int64
 		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}
 		registry := NewRegistry()

@@ -33,7 +33,7 @@ func (e *storeExecution120) Next(context.Context) (CodemodeEvent, error) {
 func (e *storeExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (e *storeExecution120) Close() error                                    { return nil }
 func TestCodemode120StoreSnapshotSuccessfulOnlyAndIdempotent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "store-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			first := &storeSandbox120{value: JSON{"n": 1}}

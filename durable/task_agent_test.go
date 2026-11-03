@@ -144,9 +144,9 @@ func TestTaskAgentCancelledCallerThenIndependentSuccess(t *testing.T) {
 	}
 }
 
-func mustMemory(t *testing.T) *MemoryStorage {
+func mustMemory(t *testing.T) *SQLiteStorage {
 	t.Helper()
-	store, err := NewMemory()
+	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ func (*wallExecution120) Next(context.Context) (CodemodeEvent, error) {
 func (*wallExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (*wallExecution120) Close() error                                    { return nil }
 func TestCodemode120WallTimeHostOwnedAndSettledReuse(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock atomic.Int64
 		clock.Store(1000)
 		registry := NewRegistry()

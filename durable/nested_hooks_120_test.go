@@ -16,7 +16,7 @@ func TestNestedTool120HooksRewriteBlockAndReplaceDetachedResults(t *testing.T) {
 			name = "block"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var before, after, runs atomic.Int64
 				reg := wrapRegistration("nested_hook")

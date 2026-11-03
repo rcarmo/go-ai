@@ -3,7 +3,7 @@ package durable
 import "testing"
 
 func TestHostStreamRuntimePoliciesModesPreservedAndTopLevelWins(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		disabled := false
 		all := "all"
 		host := HarnessSettings{Stream: RequestSettings{Retry: RetryPolicy{Enabled: true, MaxRetries: 2, BaseDelayMs: 7, MaxDelayMs: 20}, Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 200, KeepRecentTokens: 50, BackgroundTokens: 10}, ToolExecution: "sequential", SteeringMode: all, FollowUpMode: all}}

@@ -13,7 +13,7 @@ type capturedTimer140 struct {
 }
 
 func TestTimer140InvocationScopeAndOffLineHost(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var fired atomic.Int64
 		captured := make(chan *capturedTimer140, 4)
 		hosts := make(chan *TaskRuntime, 1)
@@ -68,7 +68,7 @@ func TestTimer140InvocationScopeAndOffLineHost(t *testing.T) {
 	})
 }
 func TestTimer140DeclinedForegroundFallbackAndBackground(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var reports, fired atomic.Int64
 		options := Options{SetTimer: func(func(), time.Duration, TimerOptions) func() { return nil }, OnReport: func(error) { reports.Add(1) }}
 		def := taskDefinition(t, "task.timer-fallback-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

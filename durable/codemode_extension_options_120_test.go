@@ -20,7 +20,7 @@ func TestCodemode120ExtensionInlineBudgetCapturedAndZeroDiscovery(t *testing.T) 
 			name = "deferred"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				leaf := wrapRegistration("budget_leaf")
 				leaf.Deferred = deferred

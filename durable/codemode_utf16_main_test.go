@@ -12,7 +12,7 @@ func TestCodemodeUTF16MainQuickJSExecutionReopen(t *testing.T) {
 	for _, name := range []string{"serial", "parallel", "remote"} {
 		parallel := name != "serial"
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				high := toolUTF16Scalar(t, `"\ud800"`)
 				key := high.WTF8()
 				var effects atomic.Int64

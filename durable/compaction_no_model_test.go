@@ -7,7 +7,7 @@ import (
 )
 
 func TestCompactionMissingModelFailsBeforeNoCutOrHooks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			t.Error("missing model dispatched")
 			return nil

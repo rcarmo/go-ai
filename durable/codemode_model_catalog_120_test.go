@@ -12,7 +12,7 @@ func TestCodemode120QuickJSModelCatalogScopedSanitizedAndReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), classifier: &goai.ClassifierModel{Provider: "scoped", ID: "judge", Type: "classifier", BaseURL: "https://private.invalid", Headers: map[string]string{"Authorization": "private"}}}
 		registry := NewRegistry()
 		def := taskDefinition(t, "catalog-global-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

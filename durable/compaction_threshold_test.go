@@ -11,7 +11,7 @@ import (
 func TestAutomaticCompactionStrictBlockingAndBackgroundThresholds(t *testing.T) {
 	for _, background := range []bool{false, true} {
 		for _, above := range []bool{false, true} {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var summaries atomic.Int64
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					ch := make(chan goai.Event, 1)

@@ -12,7 +12,7 @@ func contextEntry(id, conversation ID, role goai.Role, text string) Entry {
 	return Entry{ID: id, Conversation: conversation, Kind: "contribution", Value: JSON{}, Model: []MessageReceipt{{Role: role, Content: []goai.ContentBlock{{Type: "text", Text: text}}}}}
 }
 func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		s, e := OpenSession(b.store)
@@ -133,7 +133,7 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 	})
 }
 func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		zero := int64(0)
 		h := openHarness(t, b.store, Options{Settings: &HarnessSettings{ContextRetentionMs: &zero}})
 		c, e := h.Root(bg, AgentChange{})

@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedRejectedFinalizationRetriesOnNextCommit(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release, reported := make(chan struct{}), make(chan struct{}), make(chan struct{}, 1)
 		var parentRuns atomic.Int64
 		child := taskDefinition(t, "task.final-retry.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

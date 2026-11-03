@@ -3,34 +3,24 @@ package durable
 import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
-	"path/filepath"
+
 	"strings"
 	"testing"
 )
 
 func reopenStoreAfterHarnessClose(t *testing.T, store Storage) Storage {
 	t.Helper()
-	switch native := store.(type) {
-	case *MemoryStorage:
-		reopened, err := OpenMemory(MemoryOptions{Image: native.image})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return reopened
-	case *JournalStorage:
-		reopened, err := OpenJournal(filepath.Dir(native.path), JournalOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return reopened
-	default:
+	native, ok := store.(*SQLiteStorage)
+	if !ok {
 		t.Fatalf("unsupported storage %T", store)
-		return nil
 	}
+	reopened, err := OpenSQLite(native.path, SQLiteOptions{Prefix: native.prefix})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reopened
 }
 
-// These literal old DTOs are supplementary synthetic fixtures. A genuine
-// f2c75-produced journal requires its separate named generation/validation slot.
 func TestTaskLegacyFoundationAbsentExecutionDoesNotInferTask(t *testing.T) {
 	l := DefaultLimits()
 	for _, text := range []string{
@@ -230,10 +220,8 @@ func TestTaskLegacyFoundationBuiltinHoldUnionAndReceiptReference(t *testing.T) {
 	}
 }
 
-// Supplementary synthetic old DTO, NOT the separately gated f2c75 journal
-// producer fixture: that producer deliberately omitted receipt ByTask.
 func TestTaskLegacyHistoricalUnattributedToolRoundAndCorruptSuffix(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		parentID, childID, entryID := mint(t, b.store), mint(t, b.store), mint(t, b.store)
 		receipt := MessageReceipt{Role: goai.RoleToolResult, ToolCallID: "historical-call", ToolName: "historical", Content: []goai.ContentBlock{{Type: "text", Text: "old result"}}, Details: JSON{}}
 		cp := toolCheckpoint{Offer: toolOffer{Name: "historical", Implementation: "legacy", Version: 1}, CallID: receipt.ToolCallID, Arguments: JSON{}, Started: true, Output: "old result", Result: &receipt}
@@ -295,7 +283,7 @@ func TestTaskLegacyHistoricalUnattributedToolRoundAndCorruptSuffix(t *testing.T)
 }
 
 func TestTaskLegacyAbortMarkedUnknownRemainsBlocked(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		task := Task{ID: id, Conversation: 1, Kind: "legacy.raw", Status: "pending", Checkpoint: JSON{"abort": true}}
 		apply(t, b.store, Write{Op: "put-task", Task: &task})
@@ -334,14 +322,11 @@ func TestTaskLegacyAbortMarkedUnknownRemainsBlocked(t *testing.T) {
 	})
 }
 
-// Supplementary private scheduler disposition seam: this validates deterministic
-// stored-prefix cleanup only. It does NOT establish a production scheduler-tool
-// fault/orphan creator, which is tracked separately in the concrete ledger.
 func TestTaskLegacySchedulerToolFinalPrefixBoundAndNoReplay(t *testing.T) {
 	for _, outcome := range []string{"faulted", "orphaned"} {
 		for _, prefix := range []string{"prefix", "at-bound"} {
 			t.Run(outcome+"/"+prefix, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					h := taskTestHarness(t, b.store)
 					var parentID, toolID ID
 					text := "confirmed prefix"

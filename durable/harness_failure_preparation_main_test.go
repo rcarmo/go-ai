@@ -68,7 +68,7 @@ func TestMainRunFailureNoModelBeforeRequest(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			for _, policy := range []string{"keep", "withdraw", "continue"} {
 				t.Run(policy, func(t *testing.T) {
-					utf16Backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						var calls, resolutions atomic.Int64
 						_, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 							calls.Add(1)
@@ -155,7 +155,7 @@ func TestMainRunFailureNoModelBeforeRequest(t *testing.T) {
 // then records the newest run. Native failedRun must not preserve stale public
 // metadata merely because the new run fails before prepareRequest's intent.
 func TestMainRunFailureNoModelReplacesPreviousModelError(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, calls, entered, release := failedRunProvider140(t)
 		h := openHarness(t, b.store, options)
 		cleanupTaskGates(t, release)
@@ -406,7 +406,7 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 // active, but A's final boundary places it and starts B before B resolves a model.
 // A real successful provider run precedes it; no live/checkpoint data is seeded.
 func TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		providerEntered, providerRelease := make(chan struct{}), make(chan struct{})
 		resolverEntered, resolverRelease := make(chan struct{}), make(chan struct{})
 		var calls, missingResolutions atomic.Int64
@@ -500,7 +500,7 @@ func TestMainRunFailureQueuedFollowUpNoModelRetainsDecisionPlacement(t *testing.
 func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) {
 	for _, mode := range []string{"all", "one-at-a-time"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				resolverEntered := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				resolverRelease := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				providerEntered := []chan struct{}{make(chan struct{}), make(chan struct{})}

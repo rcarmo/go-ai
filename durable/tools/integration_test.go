@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func TestCodingToolsProductionHTTPJournalAndReopen(t *testing.T) {
+func TestCodingToolsProductionHTTPSQLiteAndReopen(t *testing.T) {
 	directory := t.TempDir()
 	env := LocalEnv(directory)
 	registry := durable.NewRegistry()
@@ -71,7 +71,7 @@ func TestCodingToolsProductionHTTPJournalAndReopen(t *testing.T) {
 		return &goai.StreamOptions{APIKey: "local-test"}, nil
 	}}
 	path := filepath.Join(directory, "journal")
-	store, err := durable.OpenJournal(path, durable.JournalOptions{})
+	store, err := durable.OpenSQLite(filepath.Join(path, "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestCodingToolsProductionHTTPJournalAndReopen(t *testing.T) {
 	if err := h.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := durable.OpenJournal(path, durable.JournalOptions{})
+	reopened, err := durable.OpenSQLite(filepath.Join(path, "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

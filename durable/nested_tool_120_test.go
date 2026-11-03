@@ -9,7 +9,7 @@ import (
 )
 
 func TestNestedTool120KeyReuseResultOwnershipAndAuthority(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs atomic.Int64
 		var escaped *NestedToolHandle
 		var apiEscaped *ToolAPI

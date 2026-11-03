@@ -14,7 +14,7 @@ func TestCodemode120ModelToolExecutesRealVMAndNestedTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects, requests atomic.Int64
 		leaf := wrapRegistration("codemode_leaf")

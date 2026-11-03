@@ -12,7 +12,7 @@ import (
 )
 
 func TestTool120GrammarConstraintDurableHTTPAndIntent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		observed := make(chan map[string]any, 1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any

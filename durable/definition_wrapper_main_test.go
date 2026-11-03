@@ -38,7 +38,7 @@ func (a *mainDefinitionProjection) Snapshot(ctx context.Context) (Snapshot, erro
 func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 	for _, api := range []string{"snapshot", "watch", "state", "acquire"} {
 		t.Run(api, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				id := mint(t, b.store)
 				apply(t, b.store, Write{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "test.wrapper-definition", Version: 1, Value: JSON{"origin": "native"}}})
 				s, err := OpenSession(b.store)
@@ -152,7 +152,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 }
 
 func TestMainDefinitionWrapperUnmigratedProjection(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		apply(t, b.store, Write{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "test.wrapper-plain", Version: 1, Value: JSON{"origin": "native"}}})
 		s, err := OpenSession(b.store)
@@ -181,7 +181,7 @@ func TestMainDefinitionWrapperUnmigratedProjection(t *testing.T) {
 }
 
 func TestMainDefinitionWrapperNeverAdmitsMigrationCache(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		apply(t, b.store, Write{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "test.wrapper-uncached", Version: 1, Value: JSON{"origin": "native"}}})
 		adapter := &mainDefinitionProjection{nativeStorage: b.store.(nativeStorage), id: id, origin: "projected"}

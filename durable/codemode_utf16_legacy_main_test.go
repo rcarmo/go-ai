@@ -41,7 +41,7 @@ func (e *legacyUTF8Execution) AcknowledgeDrain(ctx context.Context, d CodemodeDr
 }
 
 func TestCodemodeUTF16MainLegacyUTF8Reopen(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		base, err := NewQuickJSSandbox(bg)
 		if err != nil {
 			t.Fatal(err)

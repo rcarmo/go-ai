@@ -44,7 +44,7 @@ func TestCodemode120FilesystemDefaultWriterPersistsAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		fs := &codemodeFS120{id: "owned-fs"}
 		registry := NewRegistry()
 		def := taskDefinition(t, "filesystem-output", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -101,7 +101,7 @@ func TestCodemode120FilesystemAdmissionRejectsBeforeAllocationAndContainsPanic(t
 	defer engine.Close(bg)
 	for _, mode := range []string{"empty-id", "oversized-id", "newline-id", "panic-id", "panic-create"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				fs := &brokenCodemodeFS120{codemodeFS120: &codemodeFS120{id: "valid"}}
 				switch mode {
 				case "empty-id":

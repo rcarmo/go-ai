@@ -30,7 +30,7 @@ func TestMainSessionDeferredNumericWindow(t *testing.T) {
 		{"largest-finite", math.MaxFloat64, time.Duration(math.MaxInt64)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				f.clock.Store(0)
 				before := mainDeferredSnapshot(t, b.store).Seq
@@ -54,7 +54,7 @@ func TestMainSessionDeferredNumericWindow(t *testing.T) {
 func TestMainSessionDeferredNumericClock(t *testing.T) {
 	for _, clock := range []int64{1<<53 + 1, math.MaxInt64 - 1, math.MinInt64} {
 		t.Run(strconv.FormatInt(clock, 10), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				f.clock.Store(clock)
 				if err := f.append(f.doc, "a", 1.25); err != nil {
@@ -94,7 +94,7 @@ func TestMainSessionDeferredNumericSourceNumber(t *testing.T) {
 		{1000, math.SmallestNonzeroFloat64, 0},
 	} {
 		t.Run(strconv.FormatInt(tc.clock, 10), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				f.clock.Store(tc.clock)
 				if err := f.append(f.doc, "a", tc.window); err != nil {
@@ -107,7 +107,7 @@ func TestMainSessionDeferredNumericSourceNumber(t *testing.T) {
 }
 
 func TestMainSessionDeferredNumericPolicy(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		window := .125
 		f := openMainDeadlineSession(t, b, &window)
 		if err := f.append(f.doc, "a"); err != nil {

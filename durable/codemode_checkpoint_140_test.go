@@ -3,7 +3,7 @@ package durable
 import "testing"
 
 func TestCodemode140StoreCheckpointThresholdAndHistory(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		var id ID
 		definition := codemodeStoreDefinition()
 		checkpointCommit(t, s, func(tx *Tx) error {

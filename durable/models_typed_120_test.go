@@ -33,7 +33,7 @@ func (c *typedCatalog120) GetTypedModels(kind goai.ModelType, provider goai.Prov
 	return nil
 }
 func TestModels120TypedScopedDetachedAndLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "scoped", ID: "image", Name: "image", Type: "image", BaseURL: "private", Headers: map[string]string{"Authorization": "secret"}, Input: []string{"text"}}, classifier: &goai.ClassifierModel{Provider: "scoped", ID: "classifier", Type: "classifier", BaseURL: "private", Headers: map[string]string{"Authorization": "secret"}}}
 		var escaped *ModelAccess
 		def := taskDefinition(t, "typed-models", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -80,7 +80,7 @@ func TestModels120TypedScopedDetachedAndLifetime(t *testing.T) {
 	})
 }
 func TestModels120ChatOnlyScopeDoesNotFallBackToGlobalTypedRegistry(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		def := taskDefinition(t, "typed-empty-scope", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			access, e := r.Models()
 			if e != nil {

@@ -14,7 +14,7 @@ import (
 func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 	for _, kind := range []string{"global-conversations", "new-conversation-entries"} {
 		t.Run(kind, func(t *testing.T) {
-			store, err := NewMemory()
+			store, err := newTestSQLite(t)
 			if err != nil {
 				t.Fatal(err)
 			}

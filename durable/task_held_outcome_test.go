@@ -10,7 +10,7 @@ import (
 func TestTaskOwnershipPinnedHeldFailureAndSchedulerFaultDrainBeforeParent(t *testing.T) {
 	for _, ending := range []string{"failed", "faulted"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				runEntered, runRelease, abortEntered, abortRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				cleanupTaskGates(t, runRelease, abortRelease)
 				var childID ID

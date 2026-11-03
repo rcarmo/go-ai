@@ -36,7 +36,7 @@ func (c *authCatalog120) GetAvailableModels(ctx context.Context, kind goai.Model
 	return c.GetTypedModels(kind, provider), nil
 }
 func TestModels120UnconfiguredAuthCapabilityDoesNotGuess(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := goai.NewModelRuntime(nil)
 		catalog.SetProvider(goai.StaticModelProvider{Provider: "scoped", Models: []*goai.Model{{Provider: "scoped", ID: "chat"}}})
 		def := taskDefinition(t, "unsupported-auth", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -65,7 +65,7 @@ func TestModels120UnconfiguredAuthCapabilityDoesNotGuess(t *testing.T) {
 }
 
 func TestModels120AuthScopeDetachmentErrorsAndLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := &authCatalog120{typedCatalog120: &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "scoped", ID: "image", BaseURL: "private", Headers: map[string]string{"Authorization": "secret"}}, classifier: &goai.ClassifierModel{Provider: "scoped", ID: "classifier"}}}
 		var escaped *ModelAccess
 		def := taskDefinition(t, "auth-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

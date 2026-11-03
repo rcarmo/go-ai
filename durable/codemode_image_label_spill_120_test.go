@@ -21,7 +21,7 @@ func TestCodemode120ImageLabelsTriggerCompleteSpill(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := base64.StdEncoding.EncodeToString(encoded.Bytes())
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{}
 		registry := NewRegistry()
 		def := taskDefinition(t, "label-spill-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

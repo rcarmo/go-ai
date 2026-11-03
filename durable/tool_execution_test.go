@@ -14,7 +14,7 @@ import (
 func TestToolExecutionParallelAndSequentialRounds(t *testing.T) {
 	for _, mode := range []string{"parallel", "sequential", "tool-sequential", "legacy"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				firstEntered, secondEntered, releaseFirst := make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var firstReturned atomic.Bool

@@ -79,7 +79,7 @@ func TestM1bProductionHTTPPersistentGeneration(t *testing.T) {
 	}))
 	defer server.Close()
 	dir := filepath.Join(t.TempDir(), "private")
-	store, e := OpenJournal(dir, JournalOptions{})
+	store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -117,7 +117,7 @@ func TestM1bProductionHTTPPersistentGeneration(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	journal, e := os.ReadFile(filepath.Join(dir, "journal.bin"))
+	journal, e := os.ReadFile(filepath.Join(dir, "store.sqlite"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -126,7 +126,7 @@ func TestM1bProductionHTTPPersistentGeneration(t *testing.T) {
 			t.Fatalf("persisted process-local secret/endpoint %s", sentinel)
 		}
 	}
-	store, e = OpenJournal(dir, JournalOptions{})
+	store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -178,7 +178,7 @@ func TestM1bTerminalAndExplicitUnsupported(t *testing.T) {
 				close(ch)
 				return ch
 			})
-			s, _ := NewMemory()
+			s, _ := newTestSQLite(t)
 			h := openHarness(t, s, options)
 			r := root(t, h, ref)
 			sub, e := r.Submit(bg, Input{Content: "prompt", RequestID: mode})
@@ -238,7 +238,7 @@ func TestM1bIntentBeforeDispatchAndPinnedContext(t *testing.T) {
 		go func() { <-release; ch <- terminal("answer"); close(ch) }()
 		return ch
 	})
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h = openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "first"})
@@ -294,7 +294,7 @@ func TestM1bUnpinnedBehaviorOptionsRejectBeforeEffects(t *testing.T) {
 				}
 				return o, nil
 			}
-			s, _ := NewMemory()
+			s, _ := newTestSQLite(t)
 			h := openHarness(t, s, options)
 			r := root(t, h, ref)
 			sub, e := r.Submit(bg, Input{Content: "options"})
@@ -319,7 +319,7 @@ func TestM1bPayloadMutationHookUnsupported(t *testing.T) {
 	options.RequestOptions = func(context.Context, ModelRef) (*goai.StreamOptions, error) {
 		return &goai.StreamOptions{OnPayload: func(any, *goai.Model) (any, error) { hooks.Add(1); return map[string]any{"model": "changed"}, nil }}, nil
 	}
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "pin"})
@@ -343,7 +343,7 @@ func TestM1bCommittedBuiltinsQueueAndUsage(t *testing.T) {
 		close(ch)
 		return ch
 	})
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	for k := 0; k < 2; k++ {
@@ -424,7 +424,7 @@ func TestM1bPinnedTerminalIdentityUsageAndReopen(t *testing.T) {
 				return ch
 			})
 			dir := filepath.Join(t.TempDir(), "private")
-			store, e := OpenJournal(dir, JournalOptions{})
+			store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -482,7 +482,7 @@ func TestM1bPinnedTerminalIdentityUsageAndReopen(t *testing.T) {
 			if e = h.Close(bg); e != nil {
 				t.Fatal(e)
 			}
-			store, e = OpenJournal(dir, JournalOptions{})
+			store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -535,7 +535,7 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 	server.Start()
 	defer server.Close()
 	dir := filepath.Join(t.TempDir(), "private")
-	store, e := OpenJournal(dir, JournalOptions{})
+	store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -593,7 +593,7 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	journal, e := os.ReadFile(filepath.Join(dir, "journal.bin"))
+	journal, e := os.ReadFile(filepath.Join(dir, "store.sqlite"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -602,7 +602,7 @@ func TestM1bLargeLocalModelAuthorizationHTTP(t *testing.T) {
 			t.Fatal("local transport/auth leaked")
 		}
 	}
-	store, e = OpenJournal(dir, JournalOptions{})
+	store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}

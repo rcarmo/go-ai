@@ -32,7 +32,7 @@ func TestCodemode120ReopenRejectsCallStreamDivergenceBeforeEffects(t *testing.T)
 		{"early-end", `return "drift";`, "codemode drain replay count divergence"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				sandbox := &driftSandbox120{restartQuickJS120: &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}, replayCode: tc.code}
 				registry := NewRegistry()
 				var effects atomic.Int64

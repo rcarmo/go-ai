@@ -8,7 +8,7 @@ import (
 )
 
 func TestModels110CompleteUsesHostRequestBoundaryAndLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("model-access-" + t.Name())
 		requests := 0
 		goai.RegisterApi(&goai.ApiProvider{Api: api, Stream: func(_ context.Context, _ *goai.Model, _ *goai.Context, options *goai.StreamOptions) <-chan goai.Event {

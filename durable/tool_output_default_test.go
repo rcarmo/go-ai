@@ -11,7 +11,7 @@ import (
 func TestToolDefaultOutputLimitsTruncateAndReturnedContentReplacesProgress(t *testing.T) {
 	for _, mode := range []string{"bytes", "lines", "returned"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				reg := wrapRegistration("default-output")
 				reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {

@@ -6,7 +6,7 @@ import (
 )
 
 func TestCodemode120RuntimePersistsQuickJSDrains(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox, err := NewQuickJSSandbox(context.Background())
 		if err != nil {
 			t.Fatal(err)

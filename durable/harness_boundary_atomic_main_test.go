@@ -64,7 +64,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 		{"model_error", "one-at-a-time"}, {"no_model", "one-at-a-time"},
 	} {
 		t.Run(scenario.ending+"/"+scenario.mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, backend backend) {
+			sqliteStore(t, func(t *testing.T, backend sqliteFixture) {
 				aEntered, aRelease := make(chan struct{}), make(chan struct{})
 				bEntered, bRelease := make(chan struct{}), make(chan struct{})
 				requestB := make(chan []string, 1)

@@ -13,7 +13,7 @@ import (
 func TestModels120PaidClassifierSettlementFailureNeverRepeatsPaidEffect(t *testing.T) {
 	for _, mode := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				const api goai.ClassifierApi = "paid-classifier-settlement-test"
 				var runs atomic.Int64
 				goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: api, Classify: func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
@@ -91,7 +91,7 @@ func TestModels120PaidClassifierSettlementFailureNeverRepeatsPaidEffect(t *testi
 				if e != nil {
 					t.Fatal(e)
 				}
-				_, journal := b.store.(*JournalStorage)
+				_, journal := b.store.(*SQLiteStorage)
 				confirmed := mode == "uncertain-after" && journal
 				for _, doc := range state.Documents {
 					if doc.Kind == nestedCallDocument {

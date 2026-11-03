@@ -8,7 +8,7 @@ import (
 func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) {
 	for _, advance := range []string{"published", "stored-unpublished"} {
 		t.Run(advance, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)

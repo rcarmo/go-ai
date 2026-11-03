@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedOwnerMarkWinsDependencyCompletionSameCommit(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ownerEntered, dependencyEntered, dependencyRelease, waitingCommitted := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var joins, aborts atomic.Int64
 		var dependencyID ID

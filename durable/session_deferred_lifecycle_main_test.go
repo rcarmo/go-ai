@@ -11,7 +11,7 @@ import (
 // c9f4c7b9 session-deferred-commits.test.ts:420. Reuse the real native
 // deadline fixture (reserved root, manual foreground timers, raw initial doc).
 func TestMainSessionDeferredUnloadDocuments(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
@@ -38,7 +38,7 @@ func TestMainSessionDeferredUnloadDocuments(t *testing.T) {
 // c9f4c7b9:429. Snapshot reload stores a delta, not a migration base. The
 // later typed commit migrates and edits the held value through the public Tx API.
 func TestMainSessionDeferredDefinitionVersionReload(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, next := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
@@ -76,7 +76,7 @@ func TestMainSessionDeferredDefinitionVersionReload(t *testing.T) {
 // c9f4c7b9:445. Native write names adapt document.change/document.retire;
 // inspect actual backend-admitted commands rather than inferring from a callback.
 func TestMainSessionDeferredRetirement(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
@@ -106,7 +106,7 @@ func TestMainSessionDeferredRetirement(t *testing.T) {
 // barrier before migration/user callback failure, not only a dependency folded
 // into a later successful outer commit.
 func TestMainSessionDeferredReloadRollbackBarrier(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, next := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
@@ -137,7 +137,7 @@ func TestMainSessionDeferredReloadRollbackBarrier(t *testing.T) {
 // Native composition control: two independent source reload barriers must not
 // lose earlier staged writes, reserved IDs, receipt history or publication readiness.
 func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, next := mainDeferredLifecycleDefinitions(t)
 		var peer, peerDoc ID
@@ -215,7 +215,7 @@ func TestMainSessionDeferredMultipleReloadPrefixes(t *testing.T) {
 
 // Source #loadDocument stores before materializeDocument invokes migration.
 func TestMainSessionDeferredReloadMigrationFailure(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, next := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
@@ -235,7 +235,7 @@ func TestMainSessionDeferredReloadMigrationFailure(t *testing.T) {
 func TestMainSessionDeferredReloadCancellation(t *testing.T) {
 	for _, admitted := range []bool{false, true} {
 		t.Run(map[bool]string{false: "before-admission", true: "after-admission"}[admitted], func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				old, next := mainDeferredLifecycleDefinitions(t)
 				mainDeferredLifecycleAppend(t, f.session, old, 1, "held")

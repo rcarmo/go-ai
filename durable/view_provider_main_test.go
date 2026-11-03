@@ -11,7 +11,7 @@ import (
 func TestMainConversationViewProviderProjection(t *testing.T) {
 	for _, mode := range []string{"hydrated", "live", "overflow"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{})
 				conversation, e := h.Conversation(bg, 1)
 				if e != nil {

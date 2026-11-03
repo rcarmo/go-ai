@@ -11,7 +11,7 @@ func TestNestedTool120CommittedLifecycleEvents(t *testing.T) { testNestedLifecyc
 func TestNestedTool120BlockedLifecycleEvents(t *testing.T)   { testNestedLifecycle120(t, true, false) }
 func TestNestedTool120RewrittenArgumentEvents(t *testing.T)  { testNestedLifecycle120(t, false, true) }
 func testNestedLifecycle120(t *testing.T, blocked, rewrite bool) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("event_leaf")
 		leaf.Execute = func(ctx context.Context, arguments JSON, api *ToolAPI) (ToolResult, error) {

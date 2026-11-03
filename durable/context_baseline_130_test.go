@@ -7,7 +7,7 @@ import (
 )
 
 func TestContext130BaselineLeadsImportedAssistantHistory(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := openHarness(t, b.store, Options{})
 		conv, err := h.Root(bg, AgentChange{})
 		if err != nil {

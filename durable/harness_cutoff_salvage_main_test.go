@@ -13,7 +13,7 @@ import (
 
 // f9a26365 harness-restart-failure.test.ts621/648. Real streaming progress and
 // failed-host reopen; only source648 explicitly seeds restarts=2 in raw storage.
-func mainSalvageCrash(t *testing.T, b backend, limit uint64) (*mainRecoveryHarness, Options, ModelRef, ID, ID, Storage, chan *mainRecoveryStream) {
+func mainSalvageCrash(t *testing.T, b sqliteFixture, limit uint64) (*mainRecoveryHarness, Options, ModelRef, ID, ID, Storage, chan *mainRecoveryStream) {
 	t.Helper()
 	ref, options, streams, clock := mainRecoverySetup(t)
 	zero := int64(0)
@@ -115,7 +115,7 @@ func mainSalvageCheck(t *testing.T, h *Harness, c *ConversationHandle, sub, task
 	}
 }
 func TestMainCutoffKeepsCommittedPartialAtLimit(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f, options, _, sub, task, store, streams := mainSalvageCrash(t, b, 1)
 		h, c := mainSalvageOpen(t, store, options, f.c.ID())
 		state, err := h.Snapshot(bg)
@@ -132,7 +132,7 @@ func TestMainCutoffKeepsCommittedPartialAtLimit(t *testing.T) {
 	})
 }
 func TestMainCutoffDropsPartialPastLimit(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f, options, _, sub, id, store, streams := mainSalvageCrash(t, b, 2)
 		state, err := store.Snapshot(bg)
 		if err != nil {
@@ -159,7 +159,7 @@ func TestMainCutoffDropsPartialPastLimit(t *testing.T) {
 // callback; holding its read-lock dependency makes premature snapshots visible.
 // A seeded cutoff must fault without waiting for definition/snapshot resolution.
 func TestMainCutoffBeforeRegistrySnapshotDerived(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs atomic.Int64
 		def := taskDefinition(t, "task.cutoff-order", func(context.Context, TaskRecord, *TaskRuntime) error { runs.Add(1); return nil })
 		limit := uint64(1)
@@ -211,7 +211,7 @@ func TestMainCutoffDeferredSalvagePhasesDerived(t *testing.T) {
 	for _, phase := range []string{"poll", "retry"} {
 		for _, past := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/past=%v", phase, past), func(t *testing.T) {
-				mainTraceBackends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					f, options, ref, sub, id, store, _ := mainSalvageCrash(t, b, 1)
 					var cancels atomic.Int64
 					api := options.Models(ref.Provider, ref.ID).Api

@@ -19,7 +19,7 @@ type mainFailureOwnershipFixture struct {
 	live    ID
 }
 
-func mainFailureOwnershipSeed(t *testing.T, b backend, handoff, placed bool, owner string) mainFailureOwnershipFixture {
+func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed bool, owner string) mainFailureOwnershipFixture {
 	t.Helper()
 	h := openHarness(t, b.store, Options{Settings: &HarnessSettings{AfterFailedRun: "keep"}})
 	c := root(t, h, ModelRef{})
@@ -133,7 +133,7 @@ func mainFailureOwnershipSeed(t *testing.T, b backend, handoff, placed bool, own
 	return mainFailureOwnershipFixture{h: h, current: state.Tasks[tasks[0]], foreign: state.Tasks[tasks[1]], cp: checkpoints[0], live: liveID}
 }
 
-func mainFailureOwnershipUnchanged(t *testing.T, f mainFailureOwnershipFixture, b backend, before Snapshot, err error) {
+func mainFailureOwnershipUnchanged(t *testing.T, f mainFailureOwnershipFixture, b sqliteFixture, before Snapshot, err error) {
 	t.Helper()
 	var rejected *StorageRejected
 	if !errors.As(err, &rejected) || rejected.Reason != "generation run ownership changed" {
@@ -169,7 +169,7 @@ func mainFailureOwnershipUnchanged(t *testing.T, f mainFailureOwnershipFixture, 
 func TestMainRunFailureNoModelOwnershipFence(t *testing.T) {
 	for _, mode := range []string{"foreign-unplaced", "foreign-placed", "owned-placed", "absent-unplaced"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				owner, placed := "foreign", mode == "foreign-placed" || mode == "owned-placed"
 				if mode == "owned-placed" {
 					owner = "owned"
@@ -203,7 +203,7 @@ func TestMainRunFailureNoModelOwnershipFence(t *testing.T) {
 func TestMainRunFailureToolHandoffOwnershipFence(t *testing.T) {
 	for _, owner := range []string{"foreign", "owned"} {
 		t.Run(owner, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := mainFailureOwnershipSeed(t, b, true, true, owner)
 				before := snap(t, b.store)
 				var successor Task

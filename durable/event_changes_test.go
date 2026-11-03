@@ -37,7 +37,7 @@ func TestPartialMessageChangesPreserveBlocksAndNestedToolArgumentAppends(t *test
 	}
 }
 func TestAgentEventsActualPartialsAndToolEndAdjacentToResult(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "event.echo", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Content: "tool receipt"}, nil

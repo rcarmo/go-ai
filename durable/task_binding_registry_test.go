@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskLifecyclePinnedRegistryReplacementBeforeResumeAndConversationBinding(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var oldRuns, newRuns atomic.Int64
 		original := taskDefinition(t, "task.before-resume", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			oldRuns.Add(1)

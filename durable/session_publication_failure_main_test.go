@@ -7,7 +7,7 @@ import (
 )
 
 func TestMainSessionFailureDuringSettlementPreventsPublication(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -93,7 +93,7 @@ func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id I
 func TestMainSessionPublicationStageFailureAndCancellation(t *testing.T) {
 	for _, mode := range []string{"failure", "cancel-and-duplicate"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)

@@ -13,7 +13,7 @@ import (
 // migrated-value cache replace neither Source's cached/attached tracker counts
 // nor its public snapshot identity. Those assertions remain explicitly unported.
 func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil, 0)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
@@ -69,7 +69,7 @@ func TestMainSessionDeferredHeldOverlayLifetime(t *testing.T) {
 			name = "native-retention-control"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil, 0)
 				old, _ := mainDeferredLifecycleDefinitions(t)
 				text := strings.Repeat("x", 1000)
@@ -120,7 +120,7 @@ func TestMainSessionDeferredHeldOverlayLifetime(t *testing.T) {
 // a. A native asynchronous document watch replaces followCommits; receiving its
 // real frames is an explicit API adaptation, not synchronous-observer proof.
 func TestMainSessionDeferredCrashLastStoredMemoryState(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		watch, ok, err := f.session.WatchDefinition(bg, old, 1, nil)

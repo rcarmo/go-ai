@@ -7,7 +7,7 @@ import (
 )
 
 func TestGenerationStopReportingRequiresControlErrorAndCancellationIntent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		definition := taskDefinition(t, "task.stop.reporting", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		h := taskTestHarness(t, b.store, definition)
 		id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})

@@ -8,7 +8,7 @@ import (
 )
 
 func TestBusyRejectIsAtomicAndDedupPrecedesBusyCheck(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -43,7 +43,7 @@ func TestBusyRejectIsAtomicAndDedupPrecedesBusyCheck(t *testing.T) {
 	})
 }
 func TestIdlePassiveEntryRetainsPayloadAndRejectsStaleHead(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
 	// Passive writes require an agent even though they never dispatch a model.
 	conversation, err := h.Root(bg, AgentChange{Model: ModelRef{Provider: goai.ProviderOpenAI, ID: "unused"}})

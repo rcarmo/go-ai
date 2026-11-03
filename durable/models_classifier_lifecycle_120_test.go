@@ -15,7 +15,7 @@ func paidClassifierCatalog120(api goai.ClassifierApi) *typedCatalog120 {
 	return &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "scoped", ID: "image"}, classifier: &goai.ClassifierModel{Provider: "scoped", ID: "classifier", Api: api}}
 }
 func TestModels120PaidClassifierUnsafeRestartAndProviderJoin(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		const api goai.ClassifierApi = "paid-classifier-restart"
 		entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var calls, optionsCalls, attempts atomic.Int64
@@ -82,7 +82,7 @@ func TestModels120PaidClassifierBilledErrorAndMalformedAnswer(t *testing.T) {
 			name = "malformed"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				const api goai.ClassifierApi = "paid-classifier-bill"
 				var calls atomic.Int64
 				goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: api, Classify: func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error) {

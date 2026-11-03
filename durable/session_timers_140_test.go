@@ -30,7 +30,7 @@ func documentTimerFixture140(t *testing.T, s *Session, calls *atomic.Int64) *Doc
 }
 func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 	for _, panics := range []bool{false, true} {
-		backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			var clock, calls, arms, reports atomic.Int64
 			clock.Store(1000)
 			retention := int64(20)
@@ -98,7 +98,7 @@ func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 	}
 }
 func TestSessionTimer140DocumentEarlyFireAndClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, calls atomic.Int64
 		clock.Store(1000)
 		retention := int64(20)
@@ -175,7 +175,7 @@ func TestSessionTimer140DocumentEarlyFireAndClose(t *testing.T) {
 	})
 }
 func TestSessionTimer140CloseJoinsInFlightArm(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var cancelled, calls atomic.Int64
 		s, err := OpenSessionWithOptions(b.store, SessionOptions{SetTimer: func(func(), time.Duration, TimerOptions) func() {
@@ -231,7 +231,7 @@ func TestSessionTimer140CloseJoinsInFlightArm(t *testing.T) {
 	})
 }
 func TestSessionTimer140HarnessContextExpiryUsesHost(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		var clock atomic.Int64
@@ -275,7 +275,7 @@ func TestSessionTimer140HarnessContextExpiryUsesHost(t *testing.T) {
 }
 
 func TestSessionTimer140CoalescesOnLineReschedules(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var arms, cancels, reports, callbacks atomic.Int64
 		s, err := OpenSessionWithOptions(b.store, SessionOptions{SetTimer: func(func(), time.Duration, TimerOptions) func() {
 			arms.Add(1)

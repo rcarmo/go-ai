@@ -82,7 +82,7 @@ func TestCodemode120ParallelMidflightDivergence(t *testing.T) {
 }
 func testParallelMidflight120(t *testing.T, acknowledged bool, mode string) {
 	diverge := mode != ""
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		engine, err := NewQuickJSSandbox(bg)
 		if err != nil {
 			t.Fatal(err)

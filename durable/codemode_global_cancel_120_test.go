@@ -12,7 +12,7 @@ func TestCodemode120CustomGlobalCloseJoinsCallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		defer releaseTaskGate(release)
 		registry := NewRegistry()

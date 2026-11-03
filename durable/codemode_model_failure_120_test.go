@@ -15,7 +15,7 @@ func TestCodemode120ModelFailureHeaderAndTranscript(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		extension, err := NewCodemodeExtension(engine)
 		if err != nil {

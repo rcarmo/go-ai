@@ -13,7 +13,7 @@ import (
 // provider/input/entry-envelope adaptations. Promoted unchanged after binding
 // generation presentation to the runtime-owned document progress lane.
 func TestMainViewUpstreamGenerationOracle(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		release := make(chan struct{})
 		var once sync.Once
 		unblock := func() { once.Do(func() { close(release) }) }

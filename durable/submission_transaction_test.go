@@ -3,7 +3,7 @@ package durable
 import "testing"
 
 func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var entry, input, write, placed ID
 		_, err := h.Commit(bg, func(tx *Tx) error {

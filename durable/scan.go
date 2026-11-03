@@ -323,6 +323,3 @@ func (s *Session) ScanSubmissions(ctx context.Context, q SubmissionQuery, limit 
 	}
 	return scanSubmissions(image, q, limit, cursor, s.core.limits)
 }
-
-var _ OrderedStorage = (*MemoryStorage)(nil)
-var _ OrderedStorage = (*JournalStorage)(nil)

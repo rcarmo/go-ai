@@ -10,7 +10,7 @@ import (
 func TestToolOutput104SkippedTailCountersAndWindow(t *testing.T) {
 	for _, retention := range []string{"tail", "head"} {
 		t.Run(retention, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				reg := wrapRegistration("skip")
 				reg.OutputLimits = &ToolOutputLimits{MaxBytes: 100, MaxLines: 10, Retain: retention}

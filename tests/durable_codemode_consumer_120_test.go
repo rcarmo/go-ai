@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/durable"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -76,7 +77,7 @@ for(let i=0;i<4;i++)text("x".repeat(700000));`
 		return ch
 	}})
 	defer goai.UnregisterApi(api)
-	storage, err := durable.NewMemory()
+	storage, err := durable.OpenSQLite(filepath.Join(t.TempDir(), "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

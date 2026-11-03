@@ -53,7 +53,7 @@ func transcriptListener(t *testing.T, w *ConversationWatch, limits Limits) <-cha
 }
 
 func TestMainTranscriptWindowHydration(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 10)
 		future := ids[9] + 1000
@@ -97,7 +97,7 @@ func TestMainTranscriptWindowHydration(t *testing.T) {
 }
 
 func TestMainTranscriptWindowShortBeginningAndDefaults(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 2)
 		for _, from := range []ID{0, 1, ids[0]} {
@@ -131,7 +131,7 @@ func TestMainTranscriptWindowShortBeginningAndDefaults(t *testing.T) {
 }
 
 func TestMainTranscriptIndependentWindowGrowthAndTrim(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 10)
 		small, err := c.Watch(bg, transcriptBounds(2, 3))
@@ -159,7 +159,7 @@ func TestMainTranscriptIndependentWindowGrowthAndTrim(t *testing.T) {
 }
 
 func TestMainTranscriptFromOnlyConstrainsAttachment(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 5)
 		from := ids[4] + 1000
@@ -194,7 +194,7 @@ func TestMainTranscriptFromOnlyConstrainsAttachment(t *testing.T) {
 // argument rejection uses StorageRejected; the integer cases already exist
 // below. Fractional min and NaN from have no int/ID value and are not credited.
 func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		_, c := transcriptFixture(t, b)
 		tooLarge := int(^uint(0) >> 1)
 		invalidID := ID(MaxID + 1)
@@ -238,7 +238,7 @@ func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
 }
 
 func TestMainTranscriptWindowForkHistory(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 3)
 		fork, err := c.Fork(bg, ids[1])
@@ -275,7 +275,7 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 // Pending publication-time windows must replay after folding, without the raw
 // subscription's 100-value reset. Native byte/operation bounds remain separate.
 func TestMainTranscriptWindowPendingReplay(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		future := ID(MaxID)
 		window := transcriptBounds(3, 6)

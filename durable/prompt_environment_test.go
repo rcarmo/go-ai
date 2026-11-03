@@ -7,7 +7,7 @@ import (
 )
 
 func TestPromptRendererInvocationEnvironmentShownAndCommittedReader(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		renders := 0
 		var escaped *InvocationReader
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

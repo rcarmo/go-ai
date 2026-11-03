@@ -7,7 +7,7 @@ import (
 )
 
 func TestAssistantProtocolFieldsSignaturesPresenceContextAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		message := goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonToolUse, ResponseID: "response-id", ResponseModel: "actual-model", ProviderThinkingLevel: "provider-low", ThinkingLevel: "low", RawStopReason: "raw", Content: []goai.ContentBlock{{Type: "text", Text: "text", TextSignature: "signature", TextSignaturePresent: true}, {Type: "thinking", Thinking: "thought", ThinkingSignaturePresent: true, RedactedPresent: true}, {Type: "toolCall", ID: "call", Name: "missing", Arguments: map[string]any{}, ThoughtSignature: "signed", ThoughtSignaturePresent: true, NamespacePresent: true}}}
 		calls := 0
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

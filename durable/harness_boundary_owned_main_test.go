@@ -13,7 +13,7 @@ import (
 )
 
 func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release, submitted := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var requests atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -118,7 +118,7 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 	for _, mode := range []string{"reject", "input", "passive-write", "reset"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				childEntered, releaseChild := make(chan struct{}), make(chan struct{})
 				bEntered, releaseB := make(chan struct{}), make(chan struct{})
 				child := taskDefinition(t, "task.boundary.response.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

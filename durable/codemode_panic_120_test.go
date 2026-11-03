@@ -30,7 +30,7 @@ func (e panicExecution120) Close() error { panic("private close data") }
 func TestCodemode120HostPanicContainmentAndAdmissionRelease(t *testing.T) {
 	for _, mode := range []string{"start", "next", "deliver"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				reg := wrapRegistration("codemode_leaf")
 				reg.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }

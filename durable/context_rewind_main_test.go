@@ -11,7 +11,7 @@ import (
 // IDs and messages are explicit: deriving a second view would share the cache's
 // head-selection implementation and could conceal the same defect.
 func TestContextMainHeadRewindRestoresDiscardedHistory(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		s, err := OpenSession(b.store)

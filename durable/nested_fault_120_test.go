@@ -9,7 +9,7 @@ import (
 )
 
 func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		cause := reject("nested progress rejected")
 		reported := make(chan error, 2)

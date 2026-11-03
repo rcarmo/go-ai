@@ -10,7 +10,7 @@ import (
 func TestCodemode120ParallelFinishAbortsNestedCalls(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "error"}[fail], func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				sandbox, err := NewQuickJSSandbox(bg)
 				if err != nil {
 					t.Fatal(err)

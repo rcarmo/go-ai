@@ -12,7 +12,7 @@ import (
 func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing.T) {
 	for _, mode := range []string{"terminate", "one-terminate", "handoff", "add-tools"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var effects atomic.Int64
 				for index, name := range []string{"first", "second", "extra"} {

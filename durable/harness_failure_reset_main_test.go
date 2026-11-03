@@ -16,7 +16,7 @@ import (
 // Native adaptation: live.run.task names the actual generation task; failure
 // uses source taskId. All IDs below come from placed submissions/live tasks.
 func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		toolEntered, toolRelease := make(chan struct{}), make(chan struct{})
 		entered := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		release := []chan struct{}{make(chan struct{}), make(chan struct{})}

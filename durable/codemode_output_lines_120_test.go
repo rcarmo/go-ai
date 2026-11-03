@@ -12,7 +12,7 @@ func TestCodemode120OutputLineLimitSpillsFullText(t *testing.T) {
 	if strings.Count(projection, "\n")+1 >= MaxCodemodeOutputLines || !strings.HasPrefix(projection, "START") || !strings.HasSuffix(projection, "FINISH") || !strings.Contains(projection, "truncated") {
 		t.Fatal("line projection", len(projection), strings.Count(projection, "\n"))
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{}
 		registry := NewRegistry()
 		def := taskDefinition(t, "line-output", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

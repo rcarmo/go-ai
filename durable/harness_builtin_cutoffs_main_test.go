@@ -78,7 +78,7 @@ func mainCutoffStatus(t *testing.T, h *Harness, id ID) SubmissionRecord {
 	return status
 }
 func TestMainCutoffGenerationDuringPreparation(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{}, 4)
 		var rendered, requests atomic.Int64
 		registry := NewRegistry()
@@ -151,7 +151,7 @@ func TestMainCutoffGenerationDuringPreparation(t *testing.T) {
 }
 
 func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, true)
 		limit := uint64(2)
 		zero := int64(0)
@@ -265,7 +265,7 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 }
 
 func TestMainCutoffCompactionPublishesFailure(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started := make(chan struct{}, 4)
 		var requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

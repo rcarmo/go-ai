@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskSchedulerPinnedAbortTerminalOutcomeWinsLateThrow(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var aborts atomic.Int64
 		definition := taskDefinition(t, "task.abort-late-throw", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {

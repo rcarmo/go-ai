@@ -12,7 +12,7 @@ func TestSQLiteWaitingTwoChildrenCloseReopenOrderedOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close(bg) })
-	checkWaitingChildrenReopen(t, backend{store: store}, func() Storage {
+	checkWaitingChildrenReopen(t, sqliteFixture{store: store}, func() Storage {
 		reopened, err := OpenSQLite(path, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)

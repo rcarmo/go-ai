@@ -9,7 +9,7 @@ import (
 )
 
 func TestProgress140RuntimeClockEarlyTimersAndStop(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, writes atomic.Int64
 		clock.Store(1000)
 		type alarm struct {

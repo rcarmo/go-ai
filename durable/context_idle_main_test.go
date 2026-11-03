@@ -16,7 +16,7 @@ import (
 func TestMainContextIdleExpiryBoundaries(t *testing.T) {
 	for _, mode := range []string{"no-op", "backwards-order", "zero-backwards", "shorter", "longer", "reread"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				other, entry, otherEntry := mint(t, b.store), mint(t, b.store), mint(t, b.store)
 				first := contextEntry(entry, 1, goai.RoleUser, "first")
 				second := contextEntry(otherEntry, other, goai.RoleUser, "second")
@@ -112,7 +112,7 @@ func TestMainContextIdleExpiryBoundaries(t *testing.T) {
 }
 
 func TestMainContextBusyDoesNotJoinUnpublishedWriter(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 1)
 		var clock atomic.Int64
 		clock.Store(1000)

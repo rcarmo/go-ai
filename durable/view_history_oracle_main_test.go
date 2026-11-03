@@ -37,7 +37,7 @@ func assertUpstreamKinds(t *testing.T, value ConversationView, want ...string) {
 func TestMainViewUpstreamHistoryOracles(t *testing.T) {
 	for _, mode := range []string{"summary-reset", "fork-markers", "fork-isolation"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				switch mode {
 				case "summary-reset":

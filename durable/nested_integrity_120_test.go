@@ -6,7 +6,7 @@ import (
 )
 
 func TestNestedTool120RejectsRetargetForgedResultAndInputMutation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("integrity_child")
 		if e := registry.Register(reg); e != nil {

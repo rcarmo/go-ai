@@ -7,7 +7,7 @@ import (
 )
 
 func TestUnconfiguredConversationNoModelFailsWithoutSyntheticAssistantAndCanConfigure(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		calls := 0
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			calls++

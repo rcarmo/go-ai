@@ -13,7 +13,7 @@ func TestCodemode120QuickJSClassifierGlobalOptInAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var effects atomic.Int64
 		api := goai.ClassifierApi("codemode-classifier-120")
 		goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: api, Classify: func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error) {

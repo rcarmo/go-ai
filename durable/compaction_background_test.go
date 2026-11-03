@@ -10,7 +10,7 @@ import (
 )
 
 func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var summaries, requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

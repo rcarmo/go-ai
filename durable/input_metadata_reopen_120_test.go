@@ -8,7 +8,7 @@ import (
 )
 
 func TestInputMetadata120QueuedReopenBeforePlacement(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{}, 1)
 		var resumed atomic.Bool
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

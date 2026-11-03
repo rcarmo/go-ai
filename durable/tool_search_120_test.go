@@ -39,7 +39,7 @@ func toolNames120(tools []goai.Tool) string {
 	return strings.Join(names, ",")
 }
 func TestToolSearch120DeferredSelectionAndDetachedAgent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		r := NewRegistry()
 		registerSearchFixture120(t, r)
 		h := openHarness(t, b.store, Options{Registry: r})
@@ -82,7 +82,7 @@ func TestToolSearch120DeferredSelectionAndDetachedAgent(t *testing.T) {
 	})
 }
 func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		failure := make(chan string, 8)
 		var summaries atomic.Int64

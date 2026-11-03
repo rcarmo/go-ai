@@ -31,7 +31,7 @@ func (e *gatedExecution120) Next(ctx context.Context) (CodemodeEvent, error) {
 func (e *gatedExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (e *gatedExecution120) Close() error                                    { return nil }
 func TestCodemode120ConcurrentKeyRejectsSecondDriver(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		sandbox := &gatedSandbox120{entered: make(chan struct{}), release: make(chan struct{})}
 		def := taskDefinition(t, "concurrent-codemode-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

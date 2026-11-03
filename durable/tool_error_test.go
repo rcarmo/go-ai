@@ -10,7 +10,7 @@ import (
 )
 
 func TestThrownToolErrorRetainsPartialAndOriginalDiagnosticAndFailedOutcome(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("throws")
 		reg.Execute = func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {

@@ -9,7 +9,7 @@ import (
 )
 
 func TestTaskGraph140MigrationFailureMetadataWithoutCommit(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var migrations, phases atomic.Int64
 		def := taskDefinition(t, "task.graph-migrate-140", func(context.Context, TaskRecord, *TaskRuntime) error { phases.Add(1); return nil })
 		reported := make(chan struct{}, 1)

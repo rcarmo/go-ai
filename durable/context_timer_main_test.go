@@ -83,7 +83,7 @@ func TestMainContextTimerDelayArithmetic(t *testing.T) {
 func TestMainContextTimerDeadlines(t *testing.T) {
 	for _, mode := range []string{"unchanged", "rollback-fire", "same-deadline", "settings-fire", "decline-retry", "overflow", "stale-admitted", "reentrant-arm"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				other, entry, otherEntry := mint(t, b.store), mint(t, b.store), mint(t, b.store)
 				a := contextEntry(entry, 1, goai.RoleUser, "first")
 				z := contextEntry(otherEntry, other, goai.RoleUser, "second")

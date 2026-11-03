@@ -23,7 +23,7 @@ func awaitWake140(t *testing.T, events <-chan Wake, active bool, at *int64) Wake
 	}
 }
 func TestWake140PausedObservationCallbacksAndNoSleepTimer(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, after, timers atomic.Int64
 		clock.Store(1000)
 		hosts := make(chan *TaskRuntime, 1)
@@ -94,7 +94,7 @@ func TestWake140PausedObservationCallbacksAndNoSleepTimer(t *testing.T) {
 	})
 }
 func TestWake140FailedDeliveryReofferedAndResumeReentrancy(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, after atomic.Int64
 		clock.Store(1000)
 		var current atomic.Pointer[Harness]
@@ -142,7 +142,7 @@ func TestWake140FailedDeliveryReofferedAndResumeReentrancy(t *testing.T) {
 	})
 }
 func TestWake140AlarmDedupEarlyFireAndClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, after atomic.Int64
 		clock.Store(1000)
 		hosts := make(chan *TaskRuntime, 1)
@@ -221,7 +221,7 @@ func TestWake140AlarmDedupEarlyFireAndClose(t *testing.T) {
 }
 func TestWake140WaitsAndHeldOutcomesFollowSleepingWork(t *testing.T) {
 	for _, hold := range []bool{false, true} {
-		backends(t, func(t *testing.T, b backend) {
+		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 			var after atomic.Int64
 			events := make(chan Wake, 128)
 			hosts := make(chan *TaskRuntime, 1)
@@ -260,7 +260,7 @@ func TestWake140WaitsAndHeldOutcomesFollowSleepingWork(t *testing.T) {
 }
 
 func TestWake140UnavailableDefinitionIsInactive(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var after atomic.Int64
 		hosts := make(chan *TaskRuntime, 1)
 		def := sleepDefinition140(t, 2000, &after, hosts, nil)

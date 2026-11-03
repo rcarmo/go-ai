@@ -16,7 +16,7 @@ func TestModels140PaidTelemetryInheritanceAndOverride(t *testing.T) {
 			name = "override"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				phase := &goai.TelemetrySpan{Value: "phase"}
 				phase.StartSpan = func(string, map[string]any) *goai.TelemetrySpan { return phase }
 				override := &goai.TelemetrySpan{Value: "override"}

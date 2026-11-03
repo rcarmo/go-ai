@@ -90,7 +90,7 @@ func mainIdleModelTargets(state Snapshot, hosts map[ID]*TaskRuntime, conversatio
 // owner fences. Warm indexed busy queries must not rebuild or touch nodes;
 // target enumeration and the remaining Source work bounds are separate.
 func TestMainIdleNestedWorkModel(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var nodes sync.Map
 		def := taskDefinition(t, "idle.model", func(ctx context.Context, record TaskRecord, r *TaskRuntime) error {
 			name, ok := record.Input.Value.(string)

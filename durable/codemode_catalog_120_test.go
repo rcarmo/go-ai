@@ -36,7 +36,7 @@ func TestCodemode120IdentifierNamespaceBudgetAndSchema(t *testing.T) {
 	}
 }
 func TestCodemode120CatalogueCallerIsolationAndCollision(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		work := wrapRegistration("callable")
 		work.Deferred = true

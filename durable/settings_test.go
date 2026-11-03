@@ -10,7 +10,7 @@ func TestHarnessSettingsReferenceDefaultsPartialZeroFalseAndRuntimeGetter(t *tes
 	if !defaults.Retry.Enabled || defaults.Retry.MaxRetries != 3 || defaults.Retry.BaseDelayMs != 2000 || defaults.Retry.MaxDelayMs != 60000 || !defaults.Compaction.Enabled || defaults.Compaction.ReserveTokens != 16384 || defaults.Compaction.KeepRecentTokens != 20000 || defaults.Compaction.BackgroundTokens != 32768 || defaults.ToolExecution != "parallel" || defaults.SteeringMode != "one-at-a-time" || defaults.FollowUpMode != "one-at-a-time" {
 		t.Fatal(defaults)
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		disabled, zero, delay := false, 0, int64(0)
 		options := Options{Settings: &HarnessSettings{Retry: &RetrySettings{Enabled: &disabled, MaxRetries: &zero, BaseDelayMs: &delay}, Compaction: &CompactionSettings{BackgroundTokens: &zero}, SteeringMode: "all"}}
 		var seen RequestSettings

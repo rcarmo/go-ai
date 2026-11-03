@@ -3,7 +3,7 @@ package durable
 import "testing"
 
 func TestRegistryBuiltinCompactionCannotReplaceOrRemoveAcrossReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		h := openHarness(t, b.store, Options{Registry: registry})
 		before, err := registry.taskSnapshot(DefaultLimits())

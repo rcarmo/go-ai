@@ -6,7 +6,7 @@ import "testing"
 // applyChange in pinned harness/agent.ts assigns objects as whole top-level
 // fields and deletes cleared fields; ConfigurePatch retains native validation.
 func TestMainAgentPatchFieldOperationBoundaries(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := upstreamCompletedChat(t, b, "unused")
 		cwd := "/before"
 		if err := c.ConfigurePatch(bg, AgentPatch{Cwd: &cwd}); err != nil {

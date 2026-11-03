@@ -52,7 +52,7 @@ func (e *serialExecution120) Deliver(_ context.Context, d CodemodeDelivery) erro
 }
 func (e *serialExecution120) Close() error { return nil }
 func TestCodemode120SerialJournalAcknowledgedBeforeVMReplay(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("codemode_leaf")
@@ -110,7 +110,7 @@ func TestCodemode120SerialJournalAcknowledgedBeforeVMReplay(t *testing.T) {
 	})
 }
 func TestCodemode120RejectsSandboxAuthorityDivergence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "bad-sandbox-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if _, e := r.RunCodemode(ctx, "key", "source", &serialSandbox120{diverge: true}); e == nil {

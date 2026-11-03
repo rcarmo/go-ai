@@ -13,7 +13,7 @@ import (
 func TestMainWatchUpstreamValueOracles(t *testing.T) {
 	for _, mode := range []string{"acquisition", "inflight"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)
@@ -109,7 +109,7 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 func TestMainWatchUpstreamLifecycleOracles(t *testing.T) {
 	for _, mode := range []string{"stop", "listener-error"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				reports := make(chan error, 4)
 				h := taskTestHarnessOptions(t, b.store, Options{OnReport: func(err error) { reports <- err }})
 				s := h.session

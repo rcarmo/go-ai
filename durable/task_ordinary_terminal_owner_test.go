@@ -6,7 +6,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedTerminalOrdinaryOwnerDoesNotRecascadeNewConversationWork(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		owner := taskDefinition(t, "task.terminal-owner.parent", func(context.Context, TaskRecord, *TaskRuntime) error {
 			t.Error("marked owner ran ordinary phase")
 			return nil

@@ -8,7 +8,7 @@ import (
 )
 
 func TestHostSettingsAtomicRefreshCurrentRetryDecisionAndDetachedInputs(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)
 		var calls atomic.Int64

@@ -10,7 +10,7 @@ import (
 )
 
 func TestToolOutputBytesProductionFlushAndSealedReceipt(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limits := ToolOutputLimits{100, 10, "head"}
 		registry := NewRegistry()
 		var escaped *ToolAPI

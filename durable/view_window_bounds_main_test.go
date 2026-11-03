@@ -5,7 +5,7 @@ import "testing"
 // A large declared window is still valid when the actual transcript is small.
 // Native JSON limits apply to actual values, not the requested window numbers.
 func TestMainTranscriptWindowLargeDeclaration(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 2)
 		min := h.session.limits.MaxMembers + 1

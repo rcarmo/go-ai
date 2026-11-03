@@ -10,7 +10,7 @@ import (
 )
 
 func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("durable-deferred-" + strings.ReplaceAll(t.Name(), "/", "-"))
 		var streams, polls atomic.Int64
 		var clock atomic.Int64
@@ -96,7 +96,7 @@ func TestDeferredGenerationPollCheckpointReopenNoRedispatch(t *testing.T) {
 }
 
 func TestDeferredRepollKeepsRequestAttemptAndSkipsRequestHooks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("durable-repoll-" + strings.ReplaceAll(t.Name(), "/", "-"))
 		var streams, polls, before, after atomic.Int64
 		var clock atomic.Int64
@@ -145,7 +145,7 @@ func TestDeferredRepollKeepsRequestAttemptAndSkipsRequestHooks(t *testing.T) {
 	})
 }
 func TestDeferredExpiryOnReopenStillPollsProvider(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("durable-expiry-" + strings.ReplaceAll(t.Name(), "/", "-"))
 		var streams, polls atomic.Int64
 		var clock atomic.Int64

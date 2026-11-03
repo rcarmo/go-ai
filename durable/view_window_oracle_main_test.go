@@ -33,7 +33,7 @@ func TestMainViewUpstreamHydrationOracles(t *testing.T) {
 			name = "from-exact-short-future-overflow-start"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				written := upstreamViewNotes(t, h, count)
 				fresh := func(options ...ConversationWindow) ConversationView {

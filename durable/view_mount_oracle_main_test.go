@@ -23,7 +23,7 @@ func startUpstreamMountRecord(t *testing.T, w *ConversationWatch) <-chan upstrea
 func TestMainViewUpstreamMountOracles(t *testing.T) {
 	for _, mode := range []string{"retire-recreate", "undelivered-101", "independent-remount"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				switch mode {
 				case "retire-recreate":

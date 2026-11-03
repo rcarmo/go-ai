@@ -11,7 +11,7 @@ import (
 func TestNestedTool120StructuredSchemaPresenceValidationAndIsolation(t *testing.T) {
 	for _, mode := range []string{"valid", "invalid", "missing", "null", "undeclared", "text"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var callbacks atomic.Int64
 				reg := wrapRegistration("structured_nested")

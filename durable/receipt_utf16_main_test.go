@@ -67,7 +67,7 @@ func TestReceiptUTF16MainContributionAndStores(t *testing.T) {
 	if !equalJSONValue(receipt, again) {
 		t.Fatal("unchanged receipt failed semantic deduplication")
 	}
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		apply(t, b.store, entry(id, object))
 		reopened := b.reopen()

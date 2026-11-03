@@ -10,7 +10,7 @@ import (
 )
 
 func TestSequentialRoundAbortHasNoLaterTaskAndOneUnstartedResult(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
 		var effects atomic.Int64

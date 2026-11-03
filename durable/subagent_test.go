@@ -11,7 +11,7 @@ import (
 )
 
 func TestBackgroundSubagentIdleBoundaryAndReopenDedup(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var calls atomic.Int64
 		var complete atomic.Bool
@@ -83,7 +83,7 @@ func TestBackgroundSubagentIdleBoundaryAndReopenDedup(t *testing.T) {
 }
 
 func TestBackgroundReporterRecoversDeliveryAndReportsOnce(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var complete atomic.Bool
 		var childCalls, parentCalls atomic.Int64
@@ -176,7 +176,7 @@ func TestBackgroundReporterRecoversDeliveryAndReportsOnce(t *testing.T) {
 }
 
 func TestBackgroundReportersCoalescedSteersReportSharedAnswerOnce(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "pause", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "reporter.pause", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
@@ -279,7 +279,7 @@ func TestBackgroundReportersCoalescedSteersReportSharedAnswerOnce(t *testing.T) 
 }
 
 func TestStopBackgroundSuppressesReportAndChildStaysUsable(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	entered := make(chan struct{})
 	var calls atomic.Int64
 	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

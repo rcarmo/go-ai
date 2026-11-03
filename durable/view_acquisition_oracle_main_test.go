@@ -39,7 +39,7 @@ func holdUpstreamSession(t *testing.T, s *Session) (func(), <-chan error) {
 func TestMainViewUpstreamAcquisitionOracles(t *testing.T) {
 	for _, mode := range []string{"close-late", "queued-cancel-close"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				if mode == "close-late" {
 					w, err := c.Watch(bg)

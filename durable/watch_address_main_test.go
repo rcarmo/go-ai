@@ -21,7 +21,7 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 				name += "-new-version"
 			}
 			t.Run(name, func(t *testing.T) {
-				utf16Backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					s, err := OpenSession(b.store)
 					if err != nil {
 						t.Fatal(err)
@@ -144,7 +144,7 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 }
 
 func TestMainWatchAddressAbsentIsolationAndRollback(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)

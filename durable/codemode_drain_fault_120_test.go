@@ -19,7 +19,7 @@ func TestCodemode120ParallelRejectedDrainCommitReopen(t *testing.T) {
 	}
 }
 func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects atomic.Int64
 		reg := wrapRegistration("codemode_leaf")

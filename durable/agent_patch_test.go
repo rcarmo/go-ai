@@ -9,7 +9,7 @@ import (
 )
 
 func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		order := []string{}
 		for _, name := range []string{"first", "second"} {

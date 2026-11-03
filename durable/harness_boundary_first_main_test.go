@@ -18,7 +18,7 @@ import (
 func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 	for _, scenario := range []string{"answerA", "keptfailureA"} {
 		t.Run(scenario, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				release := []chan struct{}{make(chan struct{}), make(chan struct{})}
 				requestB := make(chan []string, 1)

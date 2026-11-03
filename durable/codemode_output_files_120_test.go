@@ -34,7 +34,7 @@ func TestCodemode120OutputSpillCapabilitySettledReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{}
 		registry := NewRegistry()
 		def := taskDefinition(t, "spill-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -81,7 +81,7 @@ func (*panicOutputWriter120) WriteCodemodeOutput(context.Context, ID, string, st
 }
 
 func TestCodemode120TextSpillFailureIsVisibleAndBounded(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{fail: true}
 		registry := NewRegistry()
 		def := taskDefinition(t, "spill-failure-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

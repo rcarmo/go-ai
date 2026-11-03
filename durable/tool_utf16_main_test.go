@@ -102,7 +102,7 @@ func TestToolUTF16MainCheckpointOwnership(t *testing.T) {
 }
 
 func TestToolUTF16MainExecutionReopenHooks(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		original := toolUTF16Scalar(t, `"\ud800"`)
 		prepared := toolUTF16Scalar(t, `"\udfff"`)
 		rewritten := toolUTF16Scalar(t, `"\ud801"`)

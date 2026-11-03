@@ -47,7 +47,7 @@ func watchSet(t *testing.T, s *Session, def *DocumentDefinition, n int) {
 	})
 }
 func TestObservationAtomicBaselineExactFramesOwnedAndOffLine(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		def := watchDoc(t, s)
 		w := watchAcquire(t, s, def)
 		defer w.Stop()
@@ -91,7 +91,7 @@ func TestObservationAtomicBaselineExactFramesOwnedAndOffLine(t *testing.T) {
 	})
 }
 func TestObservationSerialCallbacksOverflowAndRetirement(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		def := watchDoc(t, s)
 		w := watchAcquire(t, s, def)
 		entered := make(chan struct{})
@@ -136,7 +136,7 @@ func TestObservationSerialCallbacksOverflowAndRetirement(t *testing.T) {
 	})
 }
 func TestObservationMigrationVersionResetStateAndUnload(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		old := watchDoc(t, s)
 		oldWatch := watchAcquire(t, s, old)
 		defer oldWatch.Stop()
@@ -184,7 +184,7 @@ func TestObservationMigrationVersionResetStateAndUnload(t *testing.T) {
 	})
 }
 func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
-	store, e := OpenMemory(MemoryOptions{})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -234,7 +234,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	if e = w.Start(func(context.Context, JSON, []Operation) error { return nil }); !errors.Is(e, ErrClosed) {
 		t.Fatal("late start", e)
 	}
-	store, _ = OpenMemory(MemoryOptions{})
+	store, _ = openTestSQLite(t, sqliteFixtureOptions{})
 	s, _ = OpenSession(store)
 	defer s.Close(bg)
 	def = watchDoc(t, s)
@@ -264,7 +264,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	}
 }
 func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
-	store, e := OpenMemory(MemoryOptions{})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -330,7 +330,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	w = watchAcquire(t, s, def)
 	defer w.Stop()
 	w.Start(func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
-	reopened.(*MemoryStorage).appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
+	reopened.(*SQLiteStorage).appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
 	if _, e = s.Commit(bg, func(tx *Tx) error {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
 		if e != nil {
@@ -347,7 +347,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	}
 }
 func TestObservationPublicationSubscriptionAndProcessBounds(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		def := watchDoc(t, s)
 		baseline, p, e := s.SubscribeCommits(bg)
 		if e != nil {
@@ -387,7 +387,7 @@ func TestObservationPublicationSubscriptionAndProcessBounds(t *testing.T) {
 	})
 }
 func TestObservationCallbackInitiatesCommitAndStructuralFrame(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		def := watchDoc(t, s)
 		w := watchAcquire(t, s, def)
 		defer w.Stop()
@@ -422,7 +422,7 @@ func TestObservationCallbackInitiatesCommitAndStructuralFrame(t *testing.T) {
 }
 
 func TestObservationAbsentAndStateIncarnationAfterReopen(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "watch.absent", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }})
 		before := checkpointSnapshot(t, s)
 		if w, ok, e := s.WatchDefinition(bg, def, 0, nil); e != nil || ok || w != nil {
@@ -467,7 +467,7 @@ func TestObservationAbsentAndStateIncarnationAfterReopen(t *testing.T) {
 	})
 }
 func TestObservationInactiveWatchAndPublicSubscriptionOverflow101(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		def := watchDoc(t, s)
 		w := watchAcquire(t, s, def)
 		defer w.Stop()
@@ -508,7 +508,7 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 	l := DefaultLimits()
 	l.MaxRetainedBytes = 64 << 10
 	l.MaxPage = 4
-	store, e := OpenMemory(MemoryOptions{Limits: &l})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &l})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -565,7 +565,7 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 }
 
 func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
-	store, e := OpenMemory(MemoryOptions{})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -627,7 +627,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	}
 	_ = old
 	// A cancelled acquisition during the same migration barrier registers none.
-	another, e := OpenMemory(MemoryOptions{})
+	another, e := openTestSQLite(t, sqliteFixtureOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -658,7 +658,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 }
 
 func TestObservationPublicationCompleteAdoptedTablePlacementAndReopen(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		def := watchDoc(t, s)
 		_, sub, e := s.SubscribeCommits(bg)
 		if e != nil {

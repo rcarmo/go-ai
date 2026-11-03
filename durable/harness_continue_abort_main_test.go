@@ -13,7 +13,7 @@ import (
 // waits for cancellation; the real conversation abort supplies its terminal
 // result. The next provider request, not a fabricated context, must answer it.
 func TestMainContinueAfterAbortedToolRound(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started := make(chan struct{})
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{

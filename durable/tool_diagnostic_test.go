@@ -12,7 +12,7 @@ import (
 )
 
 func TestToolDiagnosticsCommittedDetachedAndRenderedOutsideDetails(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var escaped *ToolAPI
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "diagnostic", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "diagnostic.test", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
@@ -142,7 +142,7 @@ func TestToolDiagnosticsInvalidReturnRejectsAppMutation(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, options)
 	c := root(t, h, ref)
 	sub, err := c.Submit(bg, Input{Content: "go"})

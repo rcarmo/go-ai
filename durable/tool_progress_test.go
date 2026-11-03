@@ -12,7 +12,7 @@ import (
 )
 
 func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var escaped *ToolAPI
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "progress", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "progress.test", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{}, nil }}); err != nil {
@@ -147,7 +147,7 @@ func TestToolProgressDetailsWindowAndSealedWrites(t *testing.T) {
 }
 
 func TestSafeToolReplayClearsInterruptedOutputAndDetails(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, replayed, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
 		var effects atomic.Int64

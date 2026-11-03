@@ -20,7 +20,7 @@ func TestTool120LargeImagePublicReconnectWithinQuota(t *testing.T) {
 }
 
 func checkTool120ErrorImage(t *testing.T, reconnect bool) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		if reconnect {
 			// More bytes per observer without changing total retained memory:
 			// reduce observer/task/page capacity using a persisted supported limit.
@@ -30,10 +30,10 @@ func checkTool120ErrorImage(t *testing.T, reconnect bool) {
 				t.Fatal(err)
 			}
 			var err error
-			if _, ok := b.store.(*MemoryStorage); ok {
-				b.store, err = OpenMemory(MemoryOptions{Limits: &limits})
+			if _, ok := b.store.(*SQLiteStorage); ok {
+				b.store, err = openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 			} else {
-				b.store, err = OpenJournal(t.TempDir()+"/reconnect", JournalOptions{Limits: &limits})
+				b.store, err = openSQLiteTestDirectory(t.TempDir()+"/reconnect", SQLiteOptions{Limits: &limits})
 			}
 			if err != nil {
 				t.Fatal(err)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestForegroundSubagentOwnedConversationAndAnswer(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var childID ID
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "subagent", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "subagent.foreground", Version: 1, ReplaySafe: true, Execute: func(ctx context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {

@@ -41,7 +41,7 @@ func mainRequireRunFailure(t *testing.T, state Snapshot, conversation, task, inp
 // boundary (unlike an explicit source continue submission, still unported).
 // A second failure replaces the first; reopen retains it; fresh work clears it.
 func TestMainRunFailureContinuationAndReopen(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		entered, release := make(chan struct{}), make(chan struct{})
 		secondEntered, secondRelease := make(chan struct{}), make(chan struct{})

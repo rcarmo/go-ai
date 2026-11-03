@@ -19,7 +19,7 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 		for _, late := range []bool{false, true} {
 			for _, fail := range []bool{false, true} {
 				t.Run(fmt.Sprintf("queued=%t/late=%t/failure=%t", queued, late, fail), func(t *testing.T) {
-					backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						entered := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 						release := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 						afterTools, releaseTools := make(chan struct{}), make(chan struct{})

@@ -8,7 +8,7 @@ import (
 // Native controls for f9 scheduler.ts1933's before-definition cutoff ordering
 // and its wake signal, through actual host loss and a missing reopened definition.
 func TestRestartLimit150MissingDefinitionCutoffWakesAndFaults(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{}, 1)
 		definition := taskDefinition(t, "task.cutoff-missing-150", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
 			entered <- struct{}{}

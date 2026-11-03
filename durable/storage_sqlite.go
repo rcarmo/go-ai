@@ -50,8 +50,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	if err := limits.validate(); err != nil {
 		return nil, err
 	}
-	// An unavailable engine must not prevent memory/journal consumers from
-	// importing durable, or create files before reporting its platform limit.
+	// Reject unsupported targets before creating files.
 	if !sqliteEngineAvailable {
 		return nil, ErrUnsupported
 	}
@@ -122,7 +121,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	err = store.db.QueryRowContext(context.Background(), store.schemaSQL("SELECT value FROM config WHERE id=1")).Scan(&data)
 	switch {
 	case err == nil:
-		var config journalConfig
+		var config sqliteConfig
 		if decodeStrict(data, DefaultLimits(), 16<<10, &config) != nil || config.Version != 1 || config.Limits.validate() != nil {
 			return nil, ErrCorrupt
 		}
@@ -131,7 +130,7 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 		}
 		store.limits = config.Limits
 	case errors.Is(err, sql.ErrNoRows):
-		data, err = encodeBounded(journalConfig{Version: 1, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
+		data, err = encodeBounded(sqliteConfig{Version: 1, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
 		if err != nil {
 			return nil, err
 		}

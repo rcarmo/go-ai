@@ -9,7 +9,7 @@ import (
 )
 
 func TestTaskRecoveryIntentEffectOutcomeIdempotencyCloseReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		applied := map[string]int{}
 		var calls atomic.Int64
 		started, release := make(chan struct{}), make(chan struct{})
@@ -79,7 +79,7 @@ func TestTaskRecoveryIntentEffectOutcomeIdempotencyCloseReopen(t *testing.T) {
 }
 
 func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		oldAbort, releaseAbort, ownerHeld := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var ownedConversation ID
 		var normal, aborted atomic.Int64
@@ -181,7 +181,7 @@ func TestTaskOwnershipLiveFailedOwnerAbortsNewWorkWhileOldChildDrains(t *testing
 }
 
 func TestTaskOwnershipActiveBackgroundOwnerStopsRootIdleButOwnedScopeRemainsBusy(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started, release := make(chan struct{}), make(chan struct{})
 		var conversation, childID ID
 		child := taskDefinition(t, "task.reference.background.scope.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

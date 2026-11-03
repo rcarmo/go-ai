@@ -22,7 +22,7 @@ func (metadataExecution120) Next(context.Context) (CodemodeEvent, error) {
 func (metadataExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (metadataExecution120) Close() error                                    { return nil }
 func TestCodemode120GlobalMetadataDetachedAtOpenAndRun(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		schema := JSON{"type": "string"}
 		globals := []CodemodeGlobal{{Name: "host.lookup", Version: 1, Description: "Look up.", InputSchema: schema, OutputSchema: JSON{"type": "boolean"}, Execute: func(context.Context, any) (any, error) { return true, nil }}}
 		sandbox := &metadataSandbox120{}

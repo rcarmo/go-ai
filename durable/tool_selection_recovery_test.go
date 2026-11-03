@@ -51,7 +51,7 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			options.Env = func(_ context.Context, target EnvTarget) (ExecutionEnvironment, error) {
 				return recoveryEnvironment(target.Cwd), nil
 			}
-			store, dir := newJournal(t)
+			store, dir := newSQLiteTestStore(t)
 			h := openHarness(t, store, options)
 			conversation := root(t, h, ref)
 			cwd := "/one"
@@ -97,7 +97,7 @@ func TestToolRecoveryPinnedCurrentAgentCwdAndDeselection(t *testing.T) {
 			if err := <-closed; err != nil {
 				t.Fatal(err)
 			}
-			store, err = OpenJournal(dir, JournalOptions{})
+			store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -15,7 +15,7 @@ import (
 // upstream's absent restarts. Both non-running states come from real work,
 // never seeded task records or a healthy Close substituted for either crash.
 func TestMainHarnessRetrySleepAndToolWaitDoNotChargeGenerationRestarts(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, requests, executions atomic.Int64
 		clock.Store(1000)
 		gate := make(chan struct{})

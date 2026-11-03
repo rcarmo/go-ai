@@ -7,7 +7,7 @@ import (
 )
 
 func TestCodemode120LargeOutputSpillsWithinUnchangedStorageLimits(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		full := strings.Repeat("large line\n", (MaxCodemodeFullOutputBytes/11)-1)
 		writer := &outputWriter120{}
 		registry := NewRegistry()

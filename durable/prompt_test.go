@@ -50,7 +50,7 @@ func TestPromptSectionReplayPlanOrderAndFailure(t *testing.T) {
 	}
 }
 func TestPromptSectionsPersistProductionRequestAndKeepTextOnError(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var renders, requests, reports atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			requests.Add(1)

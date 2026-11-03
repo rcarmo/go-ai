@@ -26,7 +26,7 @@ func TestCodemode120MixedToolTextProjectionAndReplay(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var effects atomic.Int64
 				tool := wrapRegistration("mixed")

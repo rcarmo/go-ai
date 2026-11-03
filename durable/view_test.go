@@ -8,7 +8,7 @@ import (
 )
 
 func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := openHarness(t, b.store, Options{})
 		conversation, err := h.Conversation(bg, 1)
 		if err != nil {
@@ -107,7 +107,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 }
 
 func TestConversationWatchPendingStructuralOperations(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
 	conversation, err := h.Conversation(bg, 1)
 	if err != nil {

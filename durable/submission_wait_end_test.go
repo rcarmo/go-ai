@@ -9,7 +9,7 @@ import (
 func TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations(t *testing.T) {
 	for _, ending := range []string{"close", "poison"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := taskTestHarness(t, b.store)
 				var id ID
 				_, err := h.Commit(bg, func(tx *Tx) error {

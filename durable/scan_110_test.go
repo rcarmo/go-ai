@@ -14,7 +14,7 @@ func scanEntry(id, conversation ID) Write {
 }
 
 func TestScan110OrderForksCursorsAndLegacy(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		one, two := mint(t, b.store), mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}}, scanEntry(one, root), scanEntry(two, root))
@@ -111,7 +111,7 @@ func hAfterReopen(t *testing.T, s Storage, q EntryQuery) (Page[Entry], error) {
 }
 
 func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		task1, task2 := mint(t, b.store), mint(t, b.store)

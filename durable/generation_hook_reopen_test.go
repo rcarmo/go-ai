@@ -10,7 +10,7 @@ import (
 )
 
 func TestGenerationHookHeldHandoffReopenDoesNotReplayHooksOrRequests(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var childRuns, hookCalls, requests atomic.Int64
 		var owner, childID ID

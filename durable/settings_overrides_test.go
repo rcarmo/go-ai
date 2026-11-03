@@ -7,7 +7,7 @@ import (
 )
 
 func TestConversationSettingsPartialOverridePresenceLiveDefaultsAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		zero, disabled := 0, false
 		delay := int64(321)
 		h := taskTestHarnessOptions(t, b.store, Options{Settings: &HarnessSettings{Retry: &RetrySettings{BaseDelayMs: &delay}}})

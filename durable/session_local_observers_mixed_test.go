@@ -16,7 +16,7 @@ func TestMainSessionLocalMixedOwnChanges(t *testing.T) {
 			name = "changed-dependent"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				def, _ := mainDeferredLifecycleDefinitions(t)
 				var mu sync.Mutex

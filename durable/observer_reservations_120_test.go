@@ -9,7 +9,7 @@ func TestObservation120LargeBaselineSharesTotalReservation(t *testing.T) {
 	limits := DefaultLimits()
 	limits.MaxRetainedBytes = 64 << 10
 	limits.MaxPage = 4
-	store, err := OpenMemory(MemoryOptions{Limits: &limits})
+	store, err := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 	if err != nil {
 		t.Fatal(err)
 	}

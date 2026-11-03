@@ -12,7 +12,7 @@ import (
 )
 
 func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var before, after, afterTools, afterEntries, beforeTool, afterTool atomic.Int64
 		var escaped *HookAPI
@@ -210,7 +210,7 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 				return ch
 			})
 			options.Registry = registry
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			conversation := root(t, h, ref)
 			sub, err := conversation.Submit(bg, Input{Content: "run"})
@@ -296,7 +296,7 @@ func TestOnYieldContinuationUsesSameRunButQueuedUserWins(t *testing.T) {
 				return ch
 			})
 			options.Registry = registry
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			cleanupTaskGates(t, release)
 			conversation := root(t, h, ref)
@@ -380,7 +380,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 			})
 			options.Registry = registry
 			options.OnReport = func(error) { reports.Add(1) }
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			conversation := root(t, h, ref)
 			_, err := conversation.Commit(bg, func(tx *Tx) error {
@@ -447,7 +447,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 	}
 }
 func TestBeforeToolIntentSurvivesReopenWithoutHookReplay(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var before, effects atomic.Int64
 		entered := make(chan struct{})
@@ -505,7 +505,7 @@ func TestBeforeToolIntentSurvivesReopenWithoutHookReplay(t *testing.T) {
 }
 
 func TestBeforeRequestRecoveryRunsAgainWithoutPersistingRewrite(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var hooks, requests atomic.Int64
 		entered := make(chan struct{})
@@ -572,7 +572,7 @@ func TestBeforeRequestRecoveryRunsAgainWithoutPersistingRewrite(t *testing.T) {
 }
 
 func TestPostToolsRefreshesAgentLoadoutAndPromptWithoutDuplicatingInput(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
 		tool := ToolRegistration{Definition: goai.Tool{Name: "held", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "hooks.refresh", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {

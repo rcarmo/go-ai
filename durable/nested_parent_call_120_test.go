@@ -7,7 +7,7 @@ import (
 )
 
 func TestNestedTool120ParentCallAttribution(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("leaf")
 		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }
@@ -92,7 +92,7 @@ func TestNestedTool120ParentCallAttribution(t *testing.T) {
 }
 
 func TestNestedTool120ModelParentCallAttribution(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		leaf := wrapRegistration("leaf")
 		leaf.Execute = func(context.Context, JSON, *ToolAPI) (ToolResult, error) { return ToolResult{Content: "leaf"}, nil }

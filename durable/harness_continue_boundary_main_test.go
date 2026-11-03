@@ -83,7 +83,7 @@ func mainContinueBoundaryAdmission(t *testing.T, h *Harness, conversation ID, re
 
 func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 	t.Helper()
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		release := []chan struct{}{make(chan struct{}), make(chan struct{})}
 		seen := make(chan []goai.Message, 1)

@@ -28,7 +28,7 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 		}()
 		return ch
 	})
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	cleanupTaskGates(t, release)
 	r := root(t, h, ref)
@@ -60,7 +60,9 @@ func TestM1bRequestDedupQueueAndWrite(t *testing.T) {
 	if _, e = r.Commit(bg, func(*Tx) error { committed = true; return nil }); e != nil || !committed {
 		t.Fatal("live passive commit rejected", e)
 	}
-	if calls.Load() != 1 { t.Fatal("passive commit dispatched queued provider work", calls.Load()) }
+	if calls.Load() != 1 {
+		t.Fatal("passive commit dispatched queued provider work", calls.Load())
+	}
 	close(release)
 	if waitSubmission(t, first).Submission.Status != "done" || waitSubmission(t, second).Submission.Status != "done" || calls.Load() != 2 {
 		t.Fatal("queue discarded")
@@ -94,7 +96,7 @@ func TestM1bManySequentialAdmissionsNoStrandedQueue(t *testing.T) {
 		close(ch)
 		return ch
 	})
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	for k := 0; k < 20; k++ {
@@ -134,7 +136,7 @@ func TestSequentialAdmissionAtTerminalDrainAndEmptyWorker(t *testing.T) {
 		close(ch)
 		return ch
 	})
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -94,7 +94,7 @@ func assertUpstreamWindowFresh(t *testing.T, s *Session, c *ConversationHandle, 
 func TestMainViewUpstreamAdvanceOracles(t *testing.T) {
 	for _, mode := range []string{"grow-splice", "burst", "resumed", "from-only-initial"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				switch mode {
 				case "grow-splice":

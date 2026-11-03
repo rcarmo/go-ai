@@ -13,7 +13,7 @@ func (s *budgetCaptureSandbox120) Start(_ context.Context, _ string, start Codem
 }
 
 func TestCodemode120DefaultAndExplicitZeroBudget(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		sandbox := &budgetCaptureSandbox120{}
 		def := taskDefinition(t, "default-budget-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

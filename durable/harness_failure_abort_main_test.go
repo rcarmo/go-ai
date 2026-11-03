@@ -95,7 +95,7 @@ func mainRequireAbortFailure(t *testing.T, state Snapshot, conversation, task, i
 func TestMainRunFailureOrdinaryAbortProjection(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		t.Run(fmt.Sprintf("errorPartial=%v", partial), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered := make(chan struct{})
 				ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					events := make(chan goai.Event)
@@ -147,7 +147,7 @@ func TestMainRunFailureOrdinaryAbortProjection(t *testing.T) {
 // recovery, scheduler cutoff, report, and harness cleanup must keep run-aborted
 // distinct from task-faulted/restart_limit. A cutoff must not convert a partial.
 func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

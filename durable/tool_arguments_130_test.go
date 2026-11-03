@@ -10,7 +10,7 @@ import (
 )
 
 func TestTool130MalformedArgumentsNeverExecute(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		var effects, requests atomic.Int64
 		reg := wrapRegistration("bad_args")

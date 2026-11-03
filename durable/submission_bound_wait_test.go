@@ -9,7 +9,7 @@ import (
 )
 
 func TestInvocationSubmissionWaitQueuedPassiveWriteUsesSettlementPublication(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -86,7 +86,7 @@ func TestInvocationSubmissionWaitQueuedPassiveWriteUsesSettlementPublication(t *
 func TestInvocationSubmissionQueuedStatusAbortAndWaitRejectAfterSeal(t *testing.T) {
 	for _, operation := range []string{"status", "abort", "wait"} {
 		t.Run(operation, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				var runtime *TaskRuntime
 				owner := taskDefinition(t, "task.bound.queued.operations", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {

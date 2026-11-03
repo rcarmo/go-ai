@@ -9,7 +9,7 @@ import (
 func TestTaskOwnershipFailedOwnerCascadesButCompletedOwnerDrainsNormally(t *testing.T) {
 	for _, ending := range []string{"failed", "completed"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				childStarted, decide, complete := make(chan struct{}), make(chan struct{}), make(chan struct{})
 				cleanupTaskGates(t, decide, complete)
 				var childID ID

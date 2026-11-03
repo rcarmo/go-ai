@@ -13,7 +13,7 @@ import (
 func TestMainWatchPendingDelivery(t *testing.T) {
 	for _, mode := range []string{"before-start", "blocked", "retired"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, e := OpenSession(b.store)
 				if e != nil {
 					t.Fatal(e)
@@ -213,7 +213,7 @@ func TestMainWatchPendingNativeBounds(t *testing.T) {
 }
 
 func TestMainWatchPendingRecreation(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)

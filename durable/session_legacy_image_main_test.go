@@ -7,7 +7,7 @@ import (
 )
 
 func TestMainSessionLegacyReadsExcludeUnpublishedGroup(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 2)
 		doc := mint(t, b.store)
 		batches[0].Writes = append(batches[0].Writes, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "legacy.image", Version: 1, Value: JSON{"x": 1}}})
@@ -58,7 +58,7 @@ func TestMainSessionLegacyReadsExcludeUnpublishedGroup(t *testing.T) {
 }
 
 func TestMainDocumentStateKeepsPublishedValue(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		record := Document{ID: id, Scope: "session", Kind: "legacy.state", Version: 1, Value: JSON{"x": 1}}
 		apply(t, b.store, Write{Op: "put-document", Document: &record})
@@ -90,7 +90,7 @@ func TestMainDocumentStateKeepsPublishedValue(t *testing.T) {
 }
 
 func TestMainLegacyEntriesPagingAdmissionAndAdapter(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
 		for _, batch := range batches {
 			if _, err := b.store.Apply(bg, batch); err != nil {

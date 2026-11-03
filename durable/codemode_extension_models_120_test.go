@@ -19,7 +19,7 @@ func TestCodemode120ExtensionModelsCannotExpandHostAuthority(t *testing.T) {
 		host, extension bool
 	}{{"opt-out", true, false}, {"no-grant", false, true}} {
 		t.Run(tc.name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				models := tc.extension
 				extension, err := NewCodemodeExtension(engine, CodemodeExtensionOptions{Models: &models})

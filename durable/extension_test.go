@@ -63,7 +63,7 @@ func TestExtensionAtomicReplacementTaskAndToolSnapshots(t *testing.T) {
 	}
 }
 func TestExtensionTaskActuallyRunsAndPromptParticipates(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		task := taskDefinition(t, "task.extension.actual", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("extension"), nil })
 		})

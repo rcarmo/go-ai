@@ -12,7 +12,7 @@ import (
 )
 
 func TestCodemode120LargeImageTranscriptProviderAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		data := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("large-image", 40000)))
 		var starts, requests, seen, hookSeen atomic.Int64
 		registry := NewRegistry()

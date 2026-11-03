@@ -179,7 +179,7 @@ func TestToolOutputFinalHeadBoundsCombinedTextOnce(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, options)
 	c := root(t, h, ref)
 	sub, err := c.Submit(bg, Input{Content: "go"})
@@ -190,7 +190,7 @@ func TestToolOutputFinalHeadBoundsCombinedTextOnce(t *testing.T) {
 }
 
 func TestToolOutputPolicyPinsCopiesFinalTextAndNonTextBlocks(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limits := ToolOutputLimits{12, 2, "tail"}
 		registry := NewRegistry()
 		reg := ToolRegistration{Definition: goai.Tool{Name: "bounded", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "bounded.test", Version: 1, OutputLimits: &limits, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {

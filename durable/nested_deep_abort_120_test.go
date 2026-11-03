@@ -7,7 +7,7 @@ import (
 )
 
 func TestNestedTool120DeepCancellationJoinsLeafBeforeParentSettlement(t *testing.T) {
-	taskLimitedBackends(t, 3, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 3, func(t *testing.T, store Storage) {
 		registry := NewRegistry()
 		entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)

@@ -11,7 +11,7 @@ import (
 func TestGenerationResponseHookOwnedWorkSettlesAtDecisionForSuccessAndFailure(t *testing.T) {
 	for _, failed := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "failure"}[failed], func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				child := taskDefinition(t, "task.response-hook.owned", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 					close(entered)

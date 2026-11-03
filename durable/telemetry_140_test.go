@@ -23,7 +23,7 @@ type phaseObservation140 struct {
 }
 
 func TestTelemetry140NativePhaseBoundariesAndReportPrivacy(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		var phases []*phaseObservation140
 		var histograms, counters, activeCalls, checkpoints int
@@ -211,7 +211,7 @@ func TestTelemetry140BackendPanicsCannotReplaceTaskOutcome(t *testing.T) {
 }
 
 func TestTelemetry140ReopenResumesOnlyFirstPhase(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock atomic.Int64
 		clock.Store(1000)
 		sleeping := make(chan struct{})
@@ -288,7 +288,7 @@ func TestTelemetry140DiagnosticBoundAndDisabled(t *testing.T) {
 }
 
 func TestTelemetry140SubmitAdmissionDedupAndPrivacy(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var h *Harness
 		var starts, ends []map[string]any
 		var statuses []string
@@ -415,7 +415,7 @@ func TestTelemetry140SubmitBackendPanicsAndCallerParent(t *testing.T) {
 }
 
 func TestTelemetry140SubmitInputUsesCommittedAdmissionResult(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		var results []string
 		ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
@@ -505,7 +505,7 @@ func TestTelemetry140InputRootsLinkCallersAndWritesRemainChildren(t *testing.T) 
 }
 
 func TestTelemetry140NestedTasksInheritCreatingPhaseAndReleaseParents(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		ancestry := map[string]string{}
 		var backend func(string) *goai.TelemetrySpan
@@ -571,7 +571,7 @@ func TestTelemetry140NestedTasksInheritCreatingPhaseAndReleaseParents(t *testing
 }
 
 func TestTelemetry140ActiveInvocationBalancedOnClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var h *Harness
 		var mu sync.Mutex
 		var values []float64
@@ -620,7 +620,7 @@ func TestTelemetry140ActiveInvocationBalancedOnClose(t *testing.T) {
 }
 
 func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var h *Harness
 		var conv *ConversationHandle
 		var mu sync.Mutex
@@ -707,7 +707,7 @@ func TestTelemetry140AdoptedEntryAndSettlementEvents(t *testing.T) {
 }
 
 func TestTelemetry140GenerationCommitEvents(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		var entries int
 		var settled []map[string]any
@@ -775,7 +775,7 @@ func TestTelemetry140EventBufferConcurrentDrain(t *testing.T) {
 }
 
 func TestTelemetry140NestedReplayAndToolAttributes(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		var replays, checkpoints atomic.Int64
 		var mu sync.Mutex
@@ -862,7 +862,7 @@ func TestTelemetry140NestedReplayAndToolAttributes(t *testing.T) {
 }
 
 func TestTelemetry140BuiltinToolAttributes(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var rounds atomic.Int64
 		ref, opts := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
@@ -945,7 +945,7 @@ func TestTelemetry140QueuedBatchLinksOriginalSubmission(t *testing.T) {
 			name = "panic"
 		}
 		t.Run(name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var requests, roots atomic.Int64
 				entered, release := make(chan struct{}), make(chan struct{})
 				defer close(release)

@@ -12,7 +12,7 @@ import (
 // adoption, using own changes, and harness-view.test.ts:128-158 replays frames.
 // A standalone Session behind a ConversationHandle exercises the actual Watch
 // path without enabling deferred writes in the as-yet unported Harness scheduler.
-func mainMemoryConversation(t *testing.T, b backend) (*mainDeadlineSession, *ConversationHandle, ID) {
+func mainMemoryConversation(t *testing.T, b sqliteFixture) (*mainDeadlineSession, *ConversationHandle, ID) {
 	t.Helper()
 	f := openMainDeadlineSession(t, b, nil)
 	if _, err := f.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
@@ -71,7 +71,7 @@ func mainMemoryViewDrained(t *testing.T, watch *ConversationWatch) {
 func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 	for _, flush := range []string{"timer", "read-dependent", "changed-dependent"} {
 		t.Run(flush, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f, c, live := mainMemoryConversation(t, b)
 				watch, err := c.Watch(bg)
 				if err != nil {
@@ -203,7 +203,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 }
 
 func TestMainSessionConversationMemoryBacklog(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f, c, live := mainMemoryConversation(t, b)
 		// A string append detects accidental reapplication of already seen holds.
 		if _, err := f.session.Commit(bg, func(tx *Tx) error {

@@ -14,7 +14,7 @@ import (
 // #publish/#notifyHosts: locals execute before the queued host callbacks.
 // An object pointer represents Go callback identity; no unsafe function keys.
 func TestMainSessionLocalListenerSetAndHostOrder(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		var mu sync.Mutex
 		var calls []string
@@ -73,7 +73,7 @@ func TestMainSessionLocalListenerSetAndHostOrder(t *testing.T) {
 // Source-derived: unlike the literal564 fire after an immediate store, this
 // timer really stores a hold. Only host observers see that storage publication.
 func TestMainSessionLocalTimerNoDuplicate(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		var mu sync.Mutex
 		var kinds []string
@@ -124,7 +124,7 @@ func TestMainSessionLocalListenerFatalAfterPublication(t *testing.T) {
 			name = "memory"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f := openMainDeadlineSession(t, b, nil)
 				s := f.session
 				first, second := errors.New("first local bug"), errors.New("second local bug")
@@ -206,7 +206,7 @@ func TestMainSessionLocalListenerFatalAfterPublication(t *testing.T) {
 // Source followCommits asserts usability, without acquiring the storage line.
 // All writers are released/joined before cleanup even for a blocked old adapter.
 func TestMainSessionLocalPublicationMembership(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		entered, release := make(chan struct{}), make(chan struct{})
 		var once sync.Once
@@ -271,7 +271,7 @@ func TestMainSessionLocalPublicationMembership(t *testing.T) {
 // membership consumes no extra slot; native watches/subscriptions/host guards
 // and local listeners share the pre-existing bounded process capacity.
 func TestMainSessionLocalListenerAdmissionAndClose(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, _ := mainSyncCounterSession(t, b)
 		if _, err := s.followSessionCommits(nil); err == nil {
 			t.Fatal("nil listener admitted")

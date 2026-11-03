@@ -11,7 +11,7 @@ import (
 )
 
 func TestNestedUTF16MainReopenHooksAndReaders(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		original := toolUTF16Scalar(t, `"\ud800"`)
 		prepared := toolUTF16Scalar(t, `"\udfff"`)
 		rewrite := toolUTF16Scalar(t, `"\ud801"`)

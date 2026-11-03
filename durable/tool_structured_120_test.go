@@ -10,7 +10,7 @@ import (
 )
 
 func TestTool120ModelStructuredValidationReportsWithoutTranscriptField(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var commits atomic.Int64
 		reports := make(chan error, 8)
 		registry := NewRegistry()

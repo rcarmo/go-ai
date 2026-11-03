@@ -23,7 +23,7 @@ func TestCodemode120AvailableCatalogueReopenReusesSanitizedDelivery(t *testing.T
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		catalog := &countedAuthCatalog120{authCatalog120: &authCatalog120{typedCatalog120: &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "scoped", ID: "image", Type: "image", Headers: map[string]string{"Authorization": "private"}, BaseURL: "https://private.invalid"}}}}
 		catalog.ModelRuntime.SetProvider(goai.StaticModelProvider{Provider: "scoped", Models: []*goai.Model{{Provider: "scoped", ID: "chat", Headers: map[string]string{"Authorization": "private"}, APIKey: "private", BaseURL: "https://private.invalid"}}})
 		sandbox := &restartQuickJS120{sandbox: engine, ready: make(chan struct{})}

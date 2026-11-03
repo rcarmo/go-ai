@@ -11,7 +11,7 @@ import (
 )
 
 func TestDiagnosticUTF16MainInvalidArgumentsLifecycle(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		scalar := toolUTF16Scalar(t, `"\ud800"`)
 		diagnostic := "bad arguments: " + scalar.WTF8()
 		var effects, requests atomic.Int64

@@ -53,7 +53,7 @@ func TestTool120CallerMetadataSnapshotAndWrapperIsolation(t *testing.T) {
 func TestTool120ModelCannotInvokeInternalOrDeferredTools(t *testing.T) {
 	for _, mode := range []string{"internal", "deferred", "neither"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				runs := 0
 				r := NewRegistry()
 				reg := wrapRegistration("private")

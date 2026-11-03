@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var requests atomic.Int64
 		var clock atomic.Int64
 		clock.Store(1000)

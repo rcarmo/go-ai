@@ -9,7 +9,7 @@ import (
 )
 
 func TestNestedTool120BlockDiagnosticAndArbitraryDetailsFidelity(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_blocks")
 		reg.OutputLimits = &ToolOutputLimits{MaxBytes: 8, MaxLines: 10, Retain: "head"}
@@ -52,7 +52,7 @@ func TestNestedTool120BlockDiagnosticAndArbitraryDetailsFidelity(t *testing.T) {
 	})
 }
 func TestNestedTool120InvalidDiagnosticsDiscardApplicationCallback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		commits := 0
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_bad_diagnostics")

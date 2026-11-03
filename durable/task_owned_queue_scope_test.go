@@ -54,7 +54,7 @@ func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID
 func TestTaskOwnershipPinnedQueuedInputScopePreservesWritesAndBackground(t *testing.T) {
 	for _, scope := range []string{"task", "conversation", "held-failure"} {
 		t.Run(scope, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				started := make(chan ID, 4)
 				releaseAbort := make(chan struct{})
 				cleanupTaskGates(t, releaseAbort)

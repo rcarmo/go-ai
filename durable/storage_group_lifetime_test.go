@@ -81,7 +81,7 @@ func checkGroupInputsRetained(t *testing.T, refs groupInputWeak, hold *groupInpu
 }
 
 func TestInternalGroupReleasesInputContainersAndReceipt(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		for _, outcome := range []string{"success", "refusal", "receipt-error"} {
 			t.Run(outcome, func(t *testing.T) {
 				refs, hold := runGroupInputLifetime(t, b.store, outcome, true)

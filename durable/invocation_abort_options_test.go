@@ -7,7 +7,7 @@ import (
 )
 
 func TestInvocationConversationAbortBackgroundOptionsUsesBoundAuthority(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ownerEntered, releaseOwner, targetEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var runtime *TaskRuntime
 		owner := taskDefinition(t, "task.bound.abort.owner", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {

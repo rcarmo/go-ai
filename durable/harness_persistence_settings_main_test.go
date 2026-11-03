@@ -28,7 +28,7 @@ func mainHarnessWindow(t *testing.T, h *Harness, want float64) {
 }
 
 func TestMainHarnessPersistencePolicyDynamic(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		// The new finite field must also pass through the public JSON shape.
 		var progress ProgressSettings
 		if err := json.Unmarshal([]byte(`{"persistWithinMs":400,"partialIntervalMs":25}`), &progress); err != nil {
@@ -85,7 +85,7 @@ func TestMainHarnessPersistencePolicyValues(t *testing.T) {
 		{"negative-default", func() *float64 { v := float64(-1); return &v }(), 1000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{Settings: &HarnessSettings{Progress: mainPersistenceProgress(tc.value)}})
 				mainHarnessWindow(t, h, tc.want)
 				resolved := h.resolvedSettings(RequestSettings{})
@@ -102,7 +102,7 @@ func TestMainHarnessPersistencePolicyValues(t *testing.T) {
 }
 
 func TestMainHarnessPersistenceRuntimeAndJSON(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		window := math.Inf(1)
 		progress := mainPersistenceProgress(&window)
 		for _, v := range []float64{math.Inf(1), math.Inf(-1), math.NaN()} {

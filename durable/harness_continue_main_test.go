@@ -101,7 +101,7 @@ func mainContinueOracleOneUser(t *testing.T, state Snapshot, conversation ID) {
 }
 
 func TestMainContinueFailedRunWithoutNewUserEntry(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := mainContinueOracleSetup(t, b.store)
 		c := f.c
 		resumed, err := c.Submit(bg, Input{Type: "continue", RequestID: "resume-1"})
@@ -164,7 +164,7 @@ func TestMainContinueFailedRunWithoutNewUserEntry(t *testing.T) {
 }
 
 func TestMainContinueBusyRejectAndRequestIDDedup(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := mainContinueOracleSetup(t, b.store)
 		c := f.c
 		resumed, err := c.Submit(bg, Input{Type: "continue", RequestID: "resume-1"})

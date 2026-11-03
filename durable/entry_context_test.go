@@ -23,7 +23,7 @@ func entryToken(t *testing.T, kind string) *EntryDefinition {
 	return d
 }
 func TestEntryContextTypedOwnedDataAndNarrowing(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		d := entryToken(t, "entry.data")
 		input := map[string]any{"x": []any{1}}
 		var id ID
@@ -57,7 +57,7 @@ func TestEntryContextTypedOwnedDataAndNarrowing(t *testing.T) {
 	})
 }
 func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		d := entryToken(t, "entry.context")
 		var first, cutoff ID
 		checkpointCommit(t, s, func(tx *Tx) error {
@@ -111,7 +111,7 @@ func TestEntryContextHeadEditsToolPairsAndAncestor(t *testing.T) {
 	})
 }
 func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
-	store, e := OpenMemory(MemoryOptions{})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -169,7 +169,7 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 		return &goai.StreamOptions{APIKey: "AUTH_SECRET_ONLY"}, nil
 	}}
 	open := func() *Harness {
-		store, e := OpenJournal(dir, JournalOptions{})
+		store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -245,7 +245,7 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 	if len(tools) != 1 || tools[0].(map[string]any)["function"].(map[string]any)["name"] != "keep" {
 		t.Fatal("real provider tools", tools)
 	}
-	journal, e := os.ReadFile(filepath.Join(dir, "journal.bin"))
+	journal, e := os.ReadFile(filepath.Join(dir, "store.sqlite"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -255,7 +255,7 @@ func TestEntryContextActualHTTPSystemToolsEditedAncestorReopen(t *testing.T) {
 }
 
 func TestEntryContextPendingPreservedAndExactExcludedStops(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		token := entryToken(t, "entry.pending")
 		checkpointCommit(t, s, func(tx *Tx) error {
 			for _, stop := range []goai.StopReason{goai.StopReasonAborted, goai.StopReasonError, goai.StopReasonDeferred} {
@@ -277,7 +277,7 @@ func TestEntryContextPendingPreservedAndExactExcludedStops(t *testing.T) {
 }
 
 func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		token := entryToken(t, "entry.empty.args")
 		empty := map[string]any{}
 		nonempty := map[string]any{"nested": []any{"owned"}}
@@ -344,7 +344,7 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 	dir := filepath.Join(t.TempDir(), "private")
 	model := &goai.Model{ID: "empty-http", Api: goai.ApiOpenAICompletions, Provider: goai.ProviderOpenAI, BaseURL: server.URL, ContextWindow: 128000, MaxTokens: 128, Input: []string{"text"}}
 	open := func() *Harness {
-		store, e := OpenJournal(dir, JournalOptions{})
+		store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 		if e != nil {
 			t.Fatal(e)
 		}

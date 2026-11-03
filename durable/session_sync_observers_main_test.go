@@ -13,7 +13,7 @@ import (
 // c9f4c7b9 session-observers.test.ts:389. Private standalone observer entry;
 // source advance callbacks only record, never block/reenter/mutate publication.
 func TestMainSyncCommitObserverCloseAfterLastPublication(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		r := newMainSyncRecorder()
 		if _, err := s.observeStoredCommits(r.observer()); err != nil {
@@ -43,7 +43,7 @@ func TestMainSyncCommitObserverCloseAfterLastPublication(t *testing.T) {
 // native confirmed-refusal error is StorageRejected{Reason:"disk gone"}; a raw
 // append I/O error intentionally becomes sanitized uncertainty, a separate case.
 func TestMainSyncCommitObserverFailureCause(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		r := newMainSyncRecorder()
 		if _, err := s.observeStoredCommits(r.observer()); err != nil {
@@ -80,7 +80,7 @@ func TestMainSyncCommitObserverFailureCause(t *testing.T) {
 // Source414 includes flush before detach. The native channel receives the real
 // first callback; it adds no production acknowledgement or scheduling yield.
 func TestMainSyncCommitObserverDetachNoEnd(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		r := newMainSyncRecorder()
 		observation, err := s.observeStoredCommits(r.observer())
@@ -108,7 +108,7 @@ func TestMainSyncCommitObserverDetachNoEnd(t *testing.T) {
 // Source427. The private report hook adapts ReportingSession.report: it only
 // records the emitted error/info. Generic/Harness reporter reentry stays unwired.
 func TestMainSyncCommitObserverGuardedListenerError(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		bug := errors.New("commit observer bug")
 		var mu sync.Mutex
@@ -198,7 +198,7 @@ func (r *mainSyncRecorder) callsCopy() []mainSyncCall {
 	defer r.mu.Unlock()
 	return append([]mainSyncCall(nil), r.calls...)
 }
-func mainSyncCounterSession(t *testing.T, b backend) (*Session, func() error) {
+func mainSyncCounterSession(t *testing.T, b sqliteFixture) (*Session, func() error) {
 	t.Helper()
 	s, err := OpenSession(b.store)
 	if err != nil {

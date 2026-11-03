@@ -10,7 +10,7 @@ import (
 func TestTaskSchedulerPinnedCloseJoinsStorageSettlingRunAndAbortReservations(t *testing.T) {
 	for _, mode := range []string{"run", "abort"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var runs, aborts atomic.Int64
 				definition := taskDefinition(t, "task.close-reservation", func(context.Context, TaskRecord, *TaskRuntime) error { runs.Add(1); return nil })
 				definition.options.Abort = func(context.Context, TaskRecord, *TaskRuntime) error { aborts.Add(1); return nil }
@@ -89,9 +89,7 @@ func TestTaskSchedulerPinnedCloseJoinsStorageSettlingRunAndAbortReservations(t *
 func taskBackendCore(t *testing.T, store Storage) *storeCore {
 	t.Helper()
 	switch s := store.(type) {
-	case *MemoryStorage:
-		return s.storeCore
-	case *JournalStorage:
+	case *SQLiteStorage:
 		return s.storeCore
 	default:
 		t.Fatal("test backend unavailable")
@@ -100,7 +98,7 @@ func taskBackendCore(t *testing.T, store Storage) *storeCore {
 }
 
 func TestTaskSchedulerPinnedCloseRejectsRuntimeCommitQueuedAtAdmission(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		captured := make(chan *TaskRuntime, 1)
 		definition := taskDefinition(t, "task.close-queued-commit", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {

@@ -14,7 +14,7 @@ import (
 func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 	for _, mode := range []string{"timer", "dependent", "close"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				setup := mainToolRecoverySetup(t, false)
 				window := math.Inf(1)
 				if mode == "timer" {
@@ -97,7 +97,7 @@ func TestMainToolProgressDeferredMemoryAndPersistence(t *testing.T) {
 }
 
 func TestMainToolProgressCrashBeforeFirstStore(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, false)
 		f := mainOpenRecovery(t, b.store, setup.ref, setup.options, setup.clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "go"})
@@ -131,7 +131,7 @@ func TestMainToolProgressCrashBeforeFirstStore(t *testing.T) {
 }
 
 func TestMainToolProgressMemoryEventsNotStorageReplay(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		setup := mainToolRecoverySetup(t, false)
 		f := mainOpenRecovery(t, b.store, setup.ref, setup.options, setup.clock, math.Inf(1))
 		events := make(chan string, 16)

@@ -12,7 +12,7 @@ import (
 func TestMainWatchTaskOwnerEnd(t *testing.T) {
 	for _, mode := range []string{"started", "unstarted", "busy-final", "busy-before", "already-retired", "close", "cancel", "stop", "listener-error", "failure", "failed-owner", "aborted-owner"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				hostRelease := make(chan struct{})
 				runtimeReady := make(chan *TaskRuntime, 1)
 				work := taskDefinition(t, "watch.owner", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

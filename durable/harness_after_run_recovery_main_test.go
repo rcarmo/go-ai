@@ -146,7 +146,7 @@ func mainAfterRecoveryReports(t *testing.T, p *mainAfterRecoveryProbe, kind, rea
 }
 
 func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, map[int64]chan struct{}{1: make(chan struct{})}, nil)
 		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
 		awaitTaskSignal(t, p.hookEntered)
@@ -194,7 +194,7 @@ func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
 }
 
 func TestMainAfterRunAnsweredFinishRestartLimit(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limit := uint64(1)
 		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{})}, nil, &limit)
 		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
@@ -236,7 +236,7 @@ func TestMainAfterRunAnsweredFinishRestartLimit(t *testing.T) {
 }
 
 func TestMainAfterRunChildRestartLimitCompletesGeneration(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		limit := uint64(1)
 		p := mainAfterRecoverySetup(t, nil, map[int64]chan struct{}{1: make(chan struct{})}, &limit)
 		h, c, settled := mainAfterRecoveryStart(t, p, b.store)
@@ -262,7 +262,7 @@ func TestMainAfterRunChildRestartLimitCompletesGeneration(t *testing.T) {
 }
 
 func TestMainAfterRunLoweredLimitNormalFinishNoInterrupted(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		release := make(chan struct{})
 		p := mainAfterRecoverySetup(t, map[int64]chan struct{}{1: make(chan struct{}), 2: release}, nil, nil)
 		h, c, _ := mainAfterRecoveryStart(t, p, b.store)
@@ -293,7 +293,7 @@ func TestMainAfterRunLoweredLimitNormalFinishNoInterrupted(t *testing.T) {
 }
 
 func TestMainAfterRunLoweredLimitNormalWorkerNoInterrupted(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		p := mainAfterRecoverySetup(t, nil, nil, nil)
 		started := make(chan struct{}, 2)
 		var runs atomic.Int64

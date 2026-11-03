@@ -6,7 +6,7 @@ import (
 )
 
 func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 2)
 		s, err := OpenSession(b.store)
 		if err != nil {
@@ -42,7 +42,7 @@ func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 }
 
 func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ids := []ID{mint(t, b.store), mint(t, b.store), mint(t, b.store)}
 		s, err := OpenSession(b.store)
 		if err != nil {
@@ -115,7 +115,7 @@ func (a *mainPublicImageAdapter) ScanEntries(ctx context.Context, q EntryQuery, 
 	return a.Storage.ScanEntries(ctx, q, n, c)
 }
 func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
 		s, err := OpenSession(b.store)
 		if err != nil {

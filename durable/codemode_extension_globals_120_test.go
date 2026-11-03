@@ -14,7 +14,7 @@ func TestCodemode120ExtensionGlobalsCapturedAndExecuted(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		schema := JSON{"type": "string"}
 		globals := []CodemodeGlobal{{Name: "host.lookup", Version: 1, InputSchema: schema, OutputSchema: JSON{"type": "string"}, Execute: func(context.Context, any) (any, error) { return "captured", nil }}}

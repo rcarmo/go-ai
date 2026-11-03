@@ -3,78 +3,90 @@ package durable
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
+
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+
 	"math"
 	"os"
-	"os/exec"
+
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
+
 	"testing"
 )
 
 var bg = context.Background()
 
-type backend struct {
+type sqliteFixture struct {
 	store  Storage
 	reopen func() Storage
 }
 
-func backends(t *testing.T, fn func(*testing.T, backend), configured ...Limits) {
+type sqliteFixtureFile struct{ path string }
+type sqliteFixtureOptions struct {
+	Limits *Limits
+	File   *sqliteFixtureFile
+}
+
+func openTestSQLite(t testing.TB, options sqliteFixtureOptions) (*SQLiteStorage, error) {
+	t.Helper()
+	path := ""
+	if options.File != nil {
+		path = options.File.path
+	}
+	if path == "" {
+		path = filepath.Join(t.TempDir(), "store.sqlite")
+		if options.File != nil {
+			options.File.path = path
+		}
+	}
+	return OpenSQLite(path, SQLiteOptions{Limits: options.Limits})
+}
+func newTestSQLite(t testing.TB) (*SQLiteStorage, error) {
+	t.Helper()
+	return openTestSQLite(t, sqliteFixtureOptions{})
+}
+func openSQLiteTestDirectory(dir string, options SQLiteOptions) (*SQLiteStorage, error) {
+	return OpenSQLite(filepath.Join(dir, "store.sqlite"), options)
+}
+
+func sqliteStore(t *testing.T, fn func(*testing.T, sqliteFixture), configured ...Limits) {
 	t.Helper()
 	if len(configured) > 1 {
-		t.Fatal("multiple backend limits")
+		t.Fatal("multiple SQLite limit profiles")
 	}
 	var limits *Limits
 	if len(configured) == 1 {
 		limits = &configured[0]
 	}
-	for _, name := range []string{"memory", "journal"} {
-		t.Run(name, func(t *testing.T) {
-			var open func() Storage
-			if name == "memory" {
-				image := &MemoryImage{}
-				open = func() Storage {
-					s, e := OpenMemory(MemoryOptions{Image: image, Limits: limits})
-					if e != nil {
-						t.Fatal(e)
-					}
-					return s
+	t.Run("sqlite", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "store.sqlite")
+		open := func() *SQLiteStorage {
+			s, e := OpenSQLite(path, SQLiteOptions{Limits: limits})
+			if e != nil {
+				t.Fatal(e)
+			}
+			return s
+		}
+		store := open()
+		closeStore := func() {
+			select {
+			case <-store.closeDone:
+				if store.closeErr != nil {
+					t.Fatal(store.closeErr)
 				}
-			} else {
-				dir := filepath.Join(t.TempDir(), "private")
-				open = func() Storage {
-					s, e := OpenJournal(dir, JournalOptions{Limits: limits})
-					if e != nil {
-						t.Fatal(e)
-					}
-					return s
+			default:
+				if e := store.Close(bg); e != nil {
+					t.Fatal(e)
 				}
 			}
-			s := open()
-			t.Cleanup(func() { _ = s.Close(bg) })
-			fn(t, backend{s, func() Storage {
-				core := s.(interface{ nativeCore() *storeCore }).nativeCore()
-				select {
-				case <-core.closeDone: // Session/Harness already closed its owned store.
-					if core.closeErr != nil {
-						t.Fatal(core.closeErr)
-					}
-				default:
-					if e := s.Close(bg); e != nil {
-						t.Fatal(e)
-					}
-				}
-				s = open()
-				return s
-			}})
-		})
-	}
+		}
+		t.Cleanup(closeStore)
+		fn(t, sqliteFixture{store: store, reopen: func() Storage { closeStore(); store = open(); return store }})
+	})
 }
 func mint(t *testing.T, s Storage) ID {
 	t.Helper()
@@ -112,9 +124,9 @@ func rejected(t *testing.T, e error) {
 }
 
 func TestStorageConformance(t *testing.T) {
-	backends(t, runStorageConformance)
+	sqliteStore(t, runStorageConformance)
 }
-func runStorageConformance(t *testing.T, b backend) {
+func runStorageConformance(t *testing.T, b sqliteFixture) {
 	s := b.store
 	t.Run("01_reserved_root_immutable", func(t *testing.T) {
 		v := snap(t, s)
@@ -304,7 +316,7 @@ func TestStrictJSONAndBudgets(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			s, _ := NewMemory()
+			s, _ := newTestSQLite(t)
 			_, e = s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &c}}})
 			_ = s.Close(bg)
 		}
@@ -312,242 +324,10 @@ func TestStrictJSONAndBudgets(t *testing.T) {
 	}
 }
 
-type faultFile struct {
-	journalFile
-	writeLimit  int
-	writeErr    error
-	syncErr     error
-	syncEntered chan struct{}
-	release     chan struct{}
-}
-
-func (f *faultFile) Write(p []byte) (int, error) {
-	if f.writeLimit >= 0 && f.writeLimit < len(p) {
-		n, e := f.journalFile.Write(p[:f.writeLimit])
-		if e != nil {
-			return n, e
-		}
-		return n, f.writeErr
-	}
-	n, e := f.journalFile.Write(p)
-	if f.writeErr != nil {
-		return n, f.writeErr
-	}
-	return n, e
-}
-func (f *faultFile) Sync() error {
-	if f.syncEntered != nil {
-		close(f.syncEntered)
-		<-f.release
-		f.syncEntered = nil
-	}
-	if f.syncErr != nil {
-		return f.syncErr
-	}
-	return f.journalFile.Sync()
-}
-func newJournal(t *testing.T) (*JournalStorage, string) {
-	t.Helper()
-	dir := filepath.Join(t.TempDir(), "private")
-	s, e := OpenJournal(dir, JournalOptions{})
-	if e != nil {
-		t.Fatal(e)
-	}
-	t.Cleanup(func() { _ = s.Close(bg) })
-	return s, dir
-}
-func TestJournalWriteSyncUncertain(t *testing.T) {
-	for _, mode := range []string{"short", "enospc", "full-error", "sync"} {
-		t.Run(mode, func(t *testing.T) {
-			s, dir := newJournal(t)
-			id := mint(t, s)
-			f := &faultFile{journalFile: s.file, writeLimit: -1}
-			switch mode {
-			case "short":
-				f.writeLimit = 17
-			case "enospc":
-				f.writeLimit = 0
-				f.writeErr = syscall.ENOSPC
-			case "full-error":
-				f.writeErr = io.ErrUnexpectedEOF
-			case "sync":
-				f.syncErr = errors.New("sync failure")
-			}
-			s.file = f
-			_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{"landed": true})}})
-			if !errors.Is(e, ErrPoisoned) {
-				t.Fatal(e)
-			}
-			if _, e = s.Snapshot(bg); !errors.Is(e, ErrPoisoned) {
-				t.Fatal("poison exposed read", e)
-			}
-			if _, e = s.MintID(bg); !errors.Is(e, ErrPoisoned) {
-				t.Fatal(e)
-			}
-			if e = s.Close(bg); e != nil {
-				t.Fatal(e)
-			}
-			r, e := OpenJournal(dir, JournalOptions{})
-			if e != nil {
-				t.Fatal(e)
-			}
-			defer r.Close(bg)
-			v := snap(t, r)
-			want := 0
-			if mode == "full-error" || mode == "sync" {
-				want = 1
-			}
-			if len(v.Entries) != want || v.HighWater != uint64(id) {
-				t.Fatal("uncertain reopen", v)
-			}
-		})
-	}
-}
-func TestJournalEveryTornByteAndCorruption(t *testing.T) {
-	s, dir := newJournal(t)
-	id := mint(t, s)
-	prefix, e := os.ReadFile(filepath.Join(dir, "journal.bin"))
-	if e != nil {
-		t.Fatal(e)
-	}
-	apply(t, s, entry(id, JSON{"text": "bounded"}))
-	all, e := os.ReadFile(filepath.Join(dir, "journal.bin"))
-	if e != nil {
-		t.Fatal(e)
-	}
-	tail := all[len(prefix):]
-	_ = s.Close(bg)
-	for cut := 0; cut < len(tail); cut++ {
-		testDir := filepath.Join(t.TempDir(), "private")
-		if e = os.Mkdir(testDir, 0700); e != nil {
-			t.Fatal(e)
-		}
-		p := append(append([]byte{}, prefix...), tail[:cut]...)
-		if e = os.WriteFile(filepath.Join(testDir, "journal.bin"), p, 0600); e != nil {
-			t.Fatal(e)
-		}
-		r, e := OpenJournal(testDir, JournalOptions{})
-		if e != nil {
-			t.Fatalf("legal final cut%d %v", cut, e)
-		}
-		if len(snap(t, r).Entries) != 0 {
-			t.Fatal("torn adopted")
-		}
-		next := mint(t, r)
-		if next != id+1 {
-			t.Fatal("reservation reused")
-		}
-		_ = r.Close(bg)
-	}
-	for _, offset := range []int{0, 8, 10, 11, 16, 24, 32, 64, len(tail) - 1} {
-		testDir := filepath.Join(t.TempDir(), "private")
-		_ = os.Mkdir(testDir, 0700)
-		p := append([]byte{}, all...)
-		p[len(prefix)+offset] ^= 0xff
-		_ = os.WriteFile(filepath.Join(testDir, "journal.bin"), p, 0600)
-		r, e := OpenJournal(testDir, JournalOptions{})
-		if r != nil {
-			_ = r.Close(bg)
-		}
-		if !errors.Is(e, ErrCorrupt) {
-			t.Fatalf("corruptionoffset%d %v", offset, e)
-		}
-	}
-	// A mismatched legal-tail prefix and partial terminator fail closed.
-	for _, tail := range [][]byte{[]byte("BAD"), append(append([]byte{}, all[len(prefix):len(all)-7]...), byte('X'))} {
-		testDir := filepath.Join(t.TempDir(), "private")
-		_ = os.Mkdir(testDir, 0700)
-		_ = os.WriteFile(filepath.Join(testDir, "journal.bin"), append(append([]byte{}, prefix...), tail...), 0600)
-		_, e := OpenJournal(testDir, JournalOptions{})
-		if !errors.Is(e, ErrCorrupt) {
-			t.Fatal(e)
-		}
-	}
-}
-func TestJournalStrictReplayAndRelations(t *testing.T) {
-	cases := []struct {
-		name          string
-		typ           byte
-		ordinal, high uint64
-		payload       string
-	}{{"duplicate", 1, 2, 2, `{"first":2,"last":2,"last":2}`}, {"fraction", 1, 2, 2, `{"first":2.0,"last":2}`}, {"unreserved", 2, 2, 1, `{"seq":1,"writes":[{"op":"append-entry","entry":{"id":2,"conversation":1,"kind":"message","value":{}}}]}`}, {"unknown", 1, 2, 2, `{"first":2,"last":2,"secret":"ignored?"}`}, {"seqgap", 2, 2, 1, `{"seq":2,"writes":[]}`}, {"reservationgap", 1, 2, 3, `{"first":3,"last":3}`}, {"maxplus", 1, 2, MaxID + 1, `{"first":2,"last":9007199254740992}`}}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			s, dir := newJournal(t)
-			_ = s.Close(bg)
-			f, e := os.OpenFile(filepath.Join(dir, "journal.bin"), os.O_WRONLY|os.O_APPEND, 0600)
-			if e != nil {
-				t.Fatal(e)
-			}
-			_, e = f.Write(frame(tc.typ, tc.ordinal, tc.high, []byte(tc.payload)))
-			if e != nil {
-				t.Fatal(e)
-			}
-			_ = f.Close()
-			_, e = OpenJournal(dir, JournalOptions{})
-			if !errors.Is(e, ErrCorrupt) {
-				t.Fatal(e)
-			}
-		})
-	}
-}
-func TestJournalNumericAndPolicyBounds(t *testing.T) {
-	s, dir := newJournal(t)
-	if _, e := OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
-		t.Fatal(e)
-	}
-	s.state.HighWater = MaxID - 1
-	s.ordinal = MaxID - 1
-	id, e := s.MintID(bg)
-	if e != nil || uint64(id) != MaxID {
-		t.Fatal(id, e)
-	}
-	before := s.size
-	_, e = s.MintID(bg)
-	rejected(t, e)
-	if s.size != before || s.poisoned {
-		t.Fatal("exhaustion admitted")
-	}
-	_ = s.Close(bg)
-	s, dir = newJournal(t)
-	_ = s.Close(bg)
-	syncFalse := false
-	_, e = OpenJournal(dir, JournalOptions{Sync: &syncFalse})
-	rejected(t, e)
-	limits := DefaultLimits()
-	limits.MaxDepth--
-	_, e = OpenJournal(dir, JournalOptions{Limits: &limits})
-	rejected(t, e)
-	limits = DefaultLimits()
-	limits.MaxFramePayloadBytes = 16<<20 + 1
-	_, e = OpenMemory(MemoryOptions{Limits: &limits})
-	rejected(t, e)
-	// Invalid length is rejected from header before allocating payload bytes.
-	testDir := filepath.Join(t.TempDir(), "private")
-	_ = os.Mkdir(testDir, 0700)
-	h := frame(0, 1, 1, []byte(`{}`))
-	binary.LittleEndian.PutUint32(h[12:16], ^uint32(0))
-	_ = os.WriteFile(filepath.Join(testDir, "journal.bin"), h[:64], 0600)
-	_, e = OpenJournal(testDir, JournalOptions{})
-	if !errors.Is(e, ErrCorrupt) {
-		t.Fatal(e)
-	}
-}
-func TestJournalParentDirectorySyncFailure(t *testing.T) {
-	old := syncDirectory
-	defer func() { syncDirectory = old }()
-	calls := 0
-	syncDirectory = func(string) error { calls++; return errors.New("directory sync failure") }
-	_, e := OpenJournal(filepath.Join(t.TempDir(), "new", "nested"), JournalOptions{})
-	if !errors.Is(e, ErrPoisoned) || calls != 1 {
-		t.Fatal(e, calls)
-	}
-}
-
-func TestLimitsPreAdmissionBothBackends(t *testing.T) {
-	for _, name := range []string{"MaxDocumentBytes", "MaxRecordBytes", "MaxFramePayloadBytes", "MaxStringBytes", "MaxRequestIDBytes", "MaxDepth", "MaxMembers", "MaxNodes", "MaxWrites", "MaxPage", "MaxRecords", "MaxRetainedBytes", "MaxJournalBytes"} {
+func TestLimitsPreAdmissionSQLite(t *testing.T) {
+	for _, name := range []string{"MaxDocumentBytes", "MaxRecordBytes", "MaxFramePayloadBytes", "MaxStringBytes", "MaxRequestIDBytes", "MaxDepth", "MaxMembers", "MaxNodes", "MaxWrites", "MaxPage", "MaxRecords", "MaxRetainedBytes"} {
 		t.Run(name, func(t *testing.T) {
-			for _, kind := range []string{"memory", "journal"} {
+			for _, kind := range []string{"sqlite"} {
 				t.Run(kind, func(t *testing.T) {
 					l := DefaultLimits()
 					switch name {
@@ -583,23 +363,14 @@ func TestLimitsPreAdmissionBothBackends(t *testing.T) {
 						l.MaxRecords = 1
 					case "MaxRetainedBytes":
 						l.MaxRetainedBytes = 100
-					case "MaxJournalBytes":
-						l.MaxFramePayloadBytes = 512
-						l.MaxRecordBytes = 256
-						l.MaxDocumentBytes = 128
-						l.MaxStringBytes = 128
-						l.MaxRequestIDBytes = 32
-						l.MaxJournalBytes = 1100
 					}
 					var s Storage
 					var e error
-					var j *JournalStorage
-					if kind == "memory" {
-						s, e = OpenMemory(MemoryOptions{Limits: &l})
-					} else {
-						j, e = OpenJournal(filepath.Join(t.TempDir(), "private"), JournalOptions{Limits: &l})
-						s = j
-					}
+					var j *SQLiteStorage
+
+					j, e = openSQLiteTestDirectory(filepath.Join(t.TempDir(), "private"), SQLiteOptions{Limits: &l})
+					s = j
+
 					if e != nil {
 						t.Fatal(e)
 					}
@@ -633,156 +404,18 @@ func TestLimitsPreAdmissionBothBackends(t *testing.T) {
 						return
 					case "MaxRetainedBytes":
 						ws = []Write{entry(id, JSON{"v": strings.Repeat("x", 128)})}
-					case "MaxJournalBytes":
-						if j == nil {
-							return
-						}
-						j.size = l.MaxJournalBytes - 73
 					}
 					before := snap(t, s)
-					size := int64(0)
-					if j != nil {
-						size = j.size
-					}
 					_, e = s.Apply(bg, Batch{ws})
 					rejected(t, e)
 					after := snap(t, s)
 					if !equalSnapshot(before, after) {
 						t.Fatal("rejected limit changed state")
 					}
-					if j != nil && (j.size != size || j.poisoned) {
+					if j != nil && j.poisoned {
 						t.Fatal("limit admitted or poisoned")
 					}
 				})
-			}
-		})
-	}
-}
-
-func TestJournalCreationSyncTailAndFirstPrefix(t *testing.T) {
-	t.Run("config_file_sync_failure_uncertain", func(t *testing.T) {
-		old := openJournalFile
-		defer func() { openJournalFile = old }()
-		openJournalFile = func(path string) (journalFile, error) {
-			f, e := old(path)
-			if e != nil {
-				return nil, e
-			}
-			return &faultFile{journalFile: f, writeLimit: -1, syncErr: errors.New("sync failure")}, nil
-		}
-		dir := filepath.Join(t.TempDir(), "private")
-		_, e := OpenJournal(dir, JournalOptions{})
-		if !errors.Is(e, ErrPoisoned) {
-			t.Fatal(e)
-		}
-		openJournalFile = old
-		s, e := OpenJournal(dir, JournalOptions{})
-		if e != nil {
-			t.Fatal(e)
-		}
-		defer s.Close(bg)
-		if snap(t, s).Seq != 0 {
-			t.Fatal("creation invented commit")
-		}
-	})
-	t.Run("new_file_directory_sync_failure", func(t *testing.T) {
-		dir := filepath.Join(t.TempDir(), "private")
-		_ = os.Mkdir(dir, 0700)
-		old := syncDirectory
-		defer func() { syncDirectory = old }()
-		syncDirectory = func(string) error { return errors.New("leaf sync failure") }
-		_, e := OpenJournal(dir, JournalOptions{})
-		if !errors.Is(e, ErrPoisoned) {
-			t.Fatal(e)
-		}
-	})
-	t.Run("all_legal_first_header_prefixes", func(t *testing.T) {
-		payload, e := encodeBounded(journalConfig{Version: 1, Sync: true, Limits: DefaultLimits()}, DefaultLimits(), 16384)
-		if e != nil {
-			t.Fatal(e)
-		}
-		f := frame(0, 1, 1, payload)
-		for cut := 1; cut < 64; cut++ {
-			dir := filepath.Join(t.TempDir(), "private")
-			_ = os.Mkdir(dir, 0700)
-			_ = os.WriteFile(filepath.Join(dir, "journal.bin"), f[:cut], 0600)
-			s, e := OpenJournal(dir, JournalOptions{})
-			if e != nil {
-				t.Fatalf("firstcut%d: %v", cut, e)
-			}
-			_ = s.Close(bg)
-		}
-	})
-	t.Run("sync_false_persisted_default_reopen", func(t *testing.T) {
-		flag := false
-		dir := filepath.Join(t.TempDir(), "private")
-		s, e := OpenJournal(dir, JournalOptions{Sync: &flag})
-		if e != nil {
-			t.Fatal(e)
-		}
-		mint(t, s)
-		_ = s.Close(bg)
-		s, e = OpenJournal(dir, JournalOptions{})
-		if e != nil {
-			t.Fatal(e)
-		}
-		defer s.Close(bg)
-		if s.syncWrites {
-			t.Fatal("policy changed")
-		}
-	})
-}
-
-// Actual child-process death validates the reservation/complete-frame/torn-tail
-// boundaries. Model/tool effect crash points belong to M1b/c, not this kernel.
-func TestJournalProcessCrash(t *testing.T) {
-	if dir := os.Getenv("GOAI_M1A_CRASH_DIR"); dir != "" {
-		s, e := OpenJournal(dir, JournalOptions{})
-		if e != nil {
-			os.Exit(91)
-		}
-		id, e := s.MintID(bg)
-		if e != nil {
-			os.Exit(92)
-		}
-		switch os.Getenv("GOAI_M1A_CRASH_PHASE") {
-		case "reserved":
-		case "committed":
-			if _, e = s.Apply(bg, Batch{[]Write{entry(id, JSON{"process": "winner"})}}); e != nil {
-				os.Exit(93)
-			}
-		case "torn":
-			p, _ := encodeBounded(commitRecord{Seq: 1, Writes: []Write{entry(id, JSON{})}}, s.limits, s.limits.MaxFramePayloadBytes)
-			f := frame(2, 3, uint64(id), p)
-			_, _ = s.file.Write(f[:70])
-			_ = s.file.Sync()
-		}
-		_ = syscall.Kill(os.Getpid(), syscall.SIGKILL)
-		os.Exit(94)
-	}
-	for _, phase := range []string{"reserved", "committed", "torn"} {
-		t.Run(phase, func(t *testing.T) {
-			dir := filepath.Join(t.TempDir(), "private")
-			cmd := exec.Command(os.Args[0], "-test.run=^TestJournalProcessCrash$")
-			cmd.Env = append(os.Environ(), "GOAI_M1A_CRASH_DIR="+dir, "GOAI_M1A_CRASH_PHASE="+phase)
-			if e := cmd.Run(); e == nil {
-				t.Fatal("child did not crash")
-			}
-			s, e := OpenJournal(dir, JournalOptions{})
-			if e != nil {
-				t.Fatal(e)
-			}
-			defer s.Close(bg)
-			v := snap(t, s)
-			want := 0
-			if phase == "committed" {
-				want = 1
-			}
-			if v.HighWater != 2 || len(v.Entries) != want {
-				t.Fatal(v)
-			}
-			if mint(t, s) != 3 {
-				t.Fatal("reservation reused after process death")
 			}
 		})
 	}
@@ -794,14 +427,14 @@ func TestBootstrapIndependentDataBudgets(t *testing.T) {
 	l.MaxNodes = 2
 	l.MaxDepth = 1
 	dir := filepath.Join(t.TempDir(), "private")
-	s, e := OpenJournal(dir, JournalOptions{Limits: &l})
+	s, e := openSQLiteTestDirectory(dir, SQLiteOptions{Limits: &l})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if e = s.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -816,7 +449,7 @@ func TestBootstrapIndependentDataBudgets(t *testing.T) {
 	invalid := DefaultLimits()
 	invalid.MaxJournalBytes = 1
 	notCreated := filepath.Join(t.TempDir(), "must-not-create")
-	_, e = OpenJournal(notCreated, JournalOptions{Limits: &invalid})
+	_, e = openSQLiteTestDirectory(notCreated, SQLiteOptions{Limits: &invalid})
 	rejected(t, e)
 	if _, e = os.Stat(notCreated); !errors.Is(e, os.ErrNotExist) {
 		t.Fatal("invalid profile created directory")
@@ -826,7 +459,7 @@ func TestBootstrapIndependentDataBudgets(t *testing.T) {
 func TestSequenceAndOrdinalExhaustionBeforeIO(t *testing.T) {
 	for _, kind := range []string{"seq", "ordinal"} {
 		t.Run(kind, func(t *testing.T) {
-			s, dir := newJournal(t)
+			s, dir := newSQLiteTestStore(t)
 			_ = dir
 			id := mint(t, s)
 			if kind == "seq" {
@@ -837,10 +470,10 @@ func TestSequenceAndOrdinalExhaustionBeforeIO(t *testing.T) {
 			if _, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{})}}); e != nil {
 				t.Fatal(e)
 			}
-			before := s.size
+			before := sqliteFrameCount(s)
 			_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{})}})
 			rejected(t, e)
-			if s.size != before || s.poisoned {
+			if sqliteFrameCount(s) != before || s.poisoned {
 				t.Fatal("exhaustion admitted")
 			}
 		})
@@ -848,7 +481,7 @@ func TestSequenceAndOrdinalExhaustionBeforeIO(t *testing.T) {
 }
 
 func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		id := mint(t, s)
 		marshalCalls.Store(0)
@@ -867,7 +500,7 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 	l.MaxDocumentBytes = 256
 	l.MaxStringBytes = 128
 	l.MaxRequestIDBytes = 16
-	s, e := OpenMemory(MemoryOptions{Limits: &l})
+	s, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &l})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -884,7 +517,7 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 }
 
 func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		doc, task, sub, ent := mint(t, s), mint(t, s), mint(t, s), mint(t, s)
 		value := JSON{"nested": JSON{"v": "base"}, "items": []any{JSON{"v": "base"}}}
@@ -996,19 +629,10 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 		if e = h.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		var reopened Storage
-		switch native := s.(type) {
-		case *MemoryStorage:
-			reopened, e = OpenMemory(MemoryOptions{Image: native.image})
-		case *JournalStorage:
-			reopened, e = OpenJournal(filepath.Dir(native.path), JournalOptions{})
-		}
-		if e != nil {
-			t.Fatal(e)
-		}
+		reopened := reopenStoreAfterHarnessClose(t, s)
 		defer reopened.Close(bg)
 		if !equalSnapshot(authoritative, snap(t, reopened)) {
-			t.Fatal("memory image/journal ownership changed")
+			t.Fatal("SQLite reopen changed committed ownership")
 		}
 	})
 }
@@ -1050,7 +674,7 @@ func TestPrivateCandidateTablesNeverModifyBaseTables(t *testing.T) {
 }
 
 func TestIncrementalValidationMatchesColdValidationAndRetainedBudget(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		store := b.store
 		id := mint(t, store)
 		doc := historyDocument(id, 1, "cache.validation", "", "rewindable", "asOf")
@@ -1060,10 +684,10 @@ func TestIncrementalValidationMatchesColdValidationAndRetainedBudget(t *testing.
 			apply(t, store, deltaWrite(id, 1, Operation{"p", []any{"xs"}, i, 0, []any{i}}))
 		}
 		var core *storeCore
-		if memory, ok := store.(*MemoryStorage); ok {
+		if memory, ok := store.(*SQLiteStorage); ok {
 			core = memory.storeCore
 		} else {
-			core = store.(*JournalStorage).storeCore
+			core = store.(*SQLiteStorage).storeCore
 		}
 		<-core.line
 		warm := core.state
@@ -1128,4 +752,14 @@ func TestIncrementalValidationMatchesColdValidationAndRetainedBudget(t *testing.
 			t.Fatal("cold malformed history accepted")
 		}
 	})
+}
+
+func newSQLiteTestStore(t *testing.T) (*SQLiteStorage, string) {
+	t.Helper()
+	dir := t.TempDir()
+	store, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, dir
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var summaries, answers atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

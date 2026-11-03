@@ -15,7 +15,7 @@ import (
 func TestMainInterruptedPollRetryEdges(t *testing.T) {
 	for _, mode := range []string{"retry", "disabled", "backwards"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				api := goai.Api("main-interrupted-poll-" + strings.ReplaceAll(t.Name(), "/", "-"))
 				var requests, polls, cancels atomic.Int64
 				clock := new(atomic.Int64)

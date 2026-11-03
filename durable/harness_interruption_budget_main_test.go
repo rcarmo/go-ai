@@ -16,7 +16,7 @@ import (
 func TestMainInterruptedBudgetAndCloseAccounting(t *testing.T) {
 	for _, mode := range []string{"exhaust", "charge-once", "sleeping", "clean-resend"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				crashes, maximum, delay := 1, 3, int64(1)
 				if mode == "exhaust" || mode == "clean-resend" {
 					crashes, maximum = 2, 1

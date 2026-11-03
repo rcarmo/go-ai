@@ -8,7 +8,7 @@ import (
 )
 
 func TestConversationCreatedPinnedRawOwnedForkOrderAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		seen := []string{}
 		failure := false
 		panicNext := false

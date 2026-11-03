@@ -9,7 +9,7 @@ import (
 )
 
 type failingSnapshot120 struct {
-	*MemoryStorage
+	*SQLiteStorage
 	fail error
 }
 
@@ -17,14 +17,14 @@ func (s *failingSnapshot120) Snapshot(ctx context.Context) (Snapshot, error) {
 	if s.fail != nil {
 		return Snapshot{}, s.fail
 	}
-	return s.MemoryStorage.Snapshot(ctx)
+	return s.SQLiteStorage.Snapshot(ctx)
 }
 func TestSession120FatalReadLatchedAndClosed(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
-	wrapper := &failingSnapshot120{MemoryStorage: store}
+	wrapper := &failingSnapshot120{SQLiteStorage: store}
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)
@@ -58,7 +58,7 @@ func TestSession120FatalReadLatchedAndClosed(t *testing.T) {
 func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 	for _, operation := range []string{"commit", "mint", "caught-mint"} {
 		t.Run(operation, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				s, e := OpenSession(b.store)
 				if e != nil {
 					t.Fatal(e)
@@ -114,7 +114,7 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 	}
 }
 func TestSession120HarnessFailureJoinsActualHostBeforeStorageClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		started, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)
 		def := taskDefinition(t, "fatal-stubborn", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
@@ -164,7 +164,7 @@ func TestSession120HarnessFailureJoinsActualHostBeforeStorageClose(t *testing.T)
 }
 
 func TestSession120LocalValidationDoesNotFailBackend(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -192,11 +192,11 @@ func TestSession120LocalValidationDoesNotFailBackend(t *testing.T) {
 	}
 }
 func TestSession120CallerCancelledBackendReadDoesNotFailSession(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
-	wrapper := &cancelRead120{MemoryStorage: store}
+	wrapper := &cancelRead120{SQLiteStorage: store}
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)
@@ -214,7 +214,7 @@ func TestSession120CallerCancelledBackendReadDoesNotFailSession(t *testing.T) {
 }
 
 type cancelRead120 struct {
-	*MemoryStorage
+	*SQLiteStorage
 	cancel context.CancelFunc
 }
 
@@ -223,7 +223,7 @@ func (s *cancelRead120) Snapshot(ctx context.Context) (Snapshot, error) {
 		s.cancel()
 		return Snapshot{}, ctx.Err()
 	}
-	return s.MemoryStorage.Snapshot(ctx)
+	return s.SQLiteStorage.Snapshot(ctx)
 }
 
 type failingSnapshotGeneric120 struct {
@@ -236,11 +236,11 @@ func (s *failingSnapshotGeneric120) Snapshot(context.Context) (Snapshot, error) 
 }
 
 func TestSession120InvalidReadAndCallerCancellationAreRecoverable(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
-	wrapper := &failingSnapshot120{MemoryStorage: store}
+	wrapper := &failingSnapshot120{SQLiteStorage: store}
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)
@@ -267,7 +267,7 @@ func TestSession120InvalidReadAndCallerCancellationAreRecoverable(t *testing.T) 
 }
 
 func TestSession120HarnessFatalCauseReportedOnceOutsideLine(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		cause := errors.New("first fatal read")
 		var reports atomic.Int64
 		reported := make(chan error, 1)

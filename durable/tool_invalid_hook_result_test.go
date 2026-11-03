@@ -9,7 +9,7 @@ import (
 func TestInvalidToolResultWithAfterToolStillFaultsWithoutReceipt(t *testing.T) {
 	for _, where := range []string{"executor", "hook"} {
 		t.Run(where, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				registration := wrapRegistration("invalid-return")
 				cycle := JSON{}

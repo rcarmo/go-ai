@@ -33,7 +33,7 @@ func TestCompactionSerializationOmitsSystemImagesAndBoundsToolText(t *testing.T)
 	}
 }
 func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		var calls atomic.Int64
 		var changed atomic.Bool

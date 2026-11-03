@@ -68,7 +68,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 				return ch
 			})
 			options.Registry = registry
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			c := root(t, h, ref)
 			sub, err := c.Submit(bg, Input{Content: "go"})
@@ -110,7 +110,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 	}
 }
 func TestToolTerminateFinalBoundaryQueuesFollowUpAndPreservesHookControl(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered, release := make(chan struct{}), make(chan struct{})
 		ext := &Extension{Name: "hook-control", Tools: []ToolRegistration{{Definition: goai.Tool{Name: "end", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "end.test", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {

@@ -22,7 +22,7 @@ func mainContextScopeHarness(t *testing.T, store Storage, clock *atomic.Int64) *
 func TestMainContextBusyFollowsEndedOwnerChain(t *testing.T) {
 	for _, check := range []string{"idle-scope", "zero-retention"} {
 		t.Run(check, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entry, owner, owned, child, other := mint(t, b.store), mint(t, b.store), mint(t, b.store), mint(t, b.store), mint(t, b.store)
 				contribution := contextEntry(entry, 1, goai.RoleUser, "kept")
 				// An ended task still connects its owned conversation to root.
@@ -70,7 +70,7 @@ func TestMainContextBusyFollowsEndedOwnerChain(t *testing.T) {
 func TestMainContextExpiryAtPublication(t *testing.T) {
 	for _, change := range []string{"becomes-busy", "entry-only"} {
 		t.Run(change, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var clock atomic.Int64
 				clock.Store(1000)
 				h := mainContextScopeHarness(t, b.store, &clock)

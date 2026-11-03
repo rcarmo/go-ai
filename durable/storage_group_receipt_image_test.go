@@ -7,13 +7,13 @@ import (
 )
 
 func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 3)
 		doc := mint(t, b.store)
 		for index := range batches {
 			batches[index].Writes = append(batches[index].Writes, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "receipt.prefix", Version: 1, Value: JSON{"n": index + 1}}})
 		}
-		reference, err := NewMemory()
+		reference, err := newTestSQLite(t)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,7 +107,7 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 func TestInternalGroupReceiptFrameRefusalAndSinkFailure(t *testing.T) {
 	for _, outcome := range []string{"refusal", "sink-error"} {
 		t.Run(outcome, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				batches, _ := groupEntryBatches(t, b.store, 3)
 				if outcome == "refusal" {
 					batches[1].Writes = nil
@@ -154,7 +154,7 @@ func TestInternalGroupReceiptFrameRefusalAndSinkFailure(t *testing.T) {
 }
 
 func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
-	store, err := NewMemory()
+	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}

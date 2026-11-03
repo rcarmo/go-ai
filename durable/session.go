@@ -418,12 +418,7 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
 // hasNativeReadImage recognises only concrete native stores. Adapters remain
 // authoritative, including replacements installed on the Session line after Open.
 func (s *Session) hasNativeReadImage() bool {
-	switch s.store.(type) {
-	case *MemoryStorage, *JournalStorage:
-		return true
-	default:
-		return directSQLiteTaskSnapshot(s.store)
-	}
+	return directSQLiteTaskSnapshot(s.store)
 }
 
 // taskSnapshot is an internal view captured while the Session line is owned.

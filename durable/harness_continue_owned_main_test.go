@@ -84,12 +84,12 @@ func mainContinueOwnedFailure() *goai.ErrorEvent {
 // Official v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5,
 // source-continue.test.ts:306-353, through a real registered delegate tool.
 // Native adaptations: CreateOwnedConversation inherits the configured model;
-// registered provider events and memory/journal replace Faux/MemoryStorage.
+// registered provider events and memory/journal replace Faux/SQLiteStorage.
 // The tool owns the child, waits for its model_error, submits an entryless
 // continue, observes busy rejection, waits for recovery and returns to the
 // parent model. Attribution/context assertions below are derived additions.
 func TestMainContinueOwnedToolAfterModelError(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		observed := make(chan mainContinueOwnedObservation, 1)
 		busy, release := make(chan struct{}), make(chan struct{})
 		registry := NewRegistry()
@@ -249,7 +249,7 @@ func TestMainContinueOwnedToolAfterModelError(t *testing.T) {
 func TestMainContinueOwnedSubmissionAbortBeforeProviderDerived(t *testing.T) {
 	for _, mode := range []string{"conversation", "task"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				observed := make(chan mainContinueOwnedObservation, 1)
 				beforeProvider := make(chan struct{})
 				var hooks, calls atomic.Int64

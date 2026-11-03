@@ -9,12 +9,12 @@ import (
 )
 
 func TestTaskOwnershipPinnedWaitingTwoChildrenCloseReopenOrderedOutcomes(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		checkWaitingChildrenReopen(t, b, func() Storage { return reopenStoreAfterHarnessClose(t, b.store) })
 	})
 }
 
-func checkWaitingChildrenReopen(t *testing.T, b backend, reopen func() Storage) {
+func checkWaitingChildrenReopen(t *testing.T, b sqliteFixture, reopen func() Storage) {
 	started := make(chan ID, 4)
 	var generation atomic.Int64
 	generation.Store(1)

@@ -29,7 +29,7 @@ func (*imageChunkExecution120) Deliver(context.Context, CodemodeDelivery) error 
 func (*imageChunkExecution120) Close() error                                    { return nil }
 
 func TestCodemode120LargeImageChunkResultReplay(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		data := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("large-image", 40000)))
 		var starts atomic.Int64
 		registry := NewRegistry()

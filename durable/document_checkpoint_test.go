@@ -9,20 +9,18 @@ import (
 	"testing"
 )
 
-func checkpointBackends(t *testing.T, fn func(*testing.T, *Session, func() *Session)) {
+func checkpointSQLite(t *testing.T, fn func(*testing.T, *Session, func() *Session)) {
 	t.Helper()
-	for _, name := range []string{"memory", "journal"} {
+	for _, name := range []string{"sqlite"} {
 		t.Run(name, func(t *testing.T) {
-			image := &MemoryImage{}
+
 			dir := filepath.Join(t.TempDir(), "private")
 			open := func() *Session {
 				var store Storage
 				var err error
-				if name == "memory" {
-					store, err = OpenMemory(MemoryOptions{Image: image})
-				} else {
-					store, err = OpenJournal(dir, JournalOptions{})
-				}
+
+				store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -67,7 +65,7 @@ func checkpointSnapshot(t *testing.T, s *Session) Snapshot {
 	return v
 }
 func TestDocumentCheckpointCountsSelectionUnloadAndReopen(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		seen := []uint64{}
 		id := ID(0)
 		def := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.count", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(value JSON, ops []Operation, info CheckpointInfo) (bool, error) {
@@ -122,7 +120,7 @@ func TestDocumentCheckpointCountsSelectionUnloadAndReopen(t *testing.T) {
 	})
 }
 func TestDocumentCheckpointRequiredBasesAndStructuralIntent(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		calls := 0
 		old := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.intent", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"xs": []any{"a", "b"}}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { calls++; return false, nil }})
 		checkpointCommit(t, s, func(tx *Tx) error {
@@ -200,7 +198,7 @@ func TestDocumentCheckpointRequiredBasesAndStructuralIntent(t *testing.T) {
 	})
 }
 func TestDocumentCheckpointFinalDetachedArgumentsAndWholeRollback(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		fail := true
 		firstCalls := 0
 		var escaped *DocumentHandle
@@ -268,7 +266,7 @@ func TestDocumentCheckpointFinalDetachedArgumentsAndWholeRollback(t *testing.T) 
 	})
 }
 func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		def := checkpointDef(t, DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "checkpoint.fork", Version: 1, Scope: "conversation", History: "rewindable", Fork: "current", Initial: func(JSON) (JSON, error) { return JSON{"s": "a"}, nil }})
 		var entry ID
 		checkpointCommit(t, s, func(tx *Tx) error {
@@ -318,7 +316,7 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 }
 
 func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, reopen func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, reopen func() *Session) {
 		calls := []uint64{}
 		old := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.version", Version: 1, Scope: "conversation", History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(_ JSON, _ []Operation, i CheckpointInfo) (bool, error) {
 			calls = append(calls, i.DeltasSinceBase)
@@ -393,7 +391,7 @@ func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
 }
 
 func TestDocumentCheckpointInvalidFinalReferencesSkipPredicate(t *testing.T) {
-	checkpointBackends(t, func(t *testing.T, s *Session, _ func() *Session) {
+	checkpointSQLite(t, func(t *testing.T, s *Session, _ func() *Session) {
 		calls := 0
 		def := checkpointDef(t, DefinitionOptions{Kind: "checkpoint.validation", Version: 1, Scope: "session", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { calls++; return false, nil }})
 		checkpointCommit(t, s, func(tx *Tx) error { _, e := tx.AcquireDocument(def, 0, nil, nil); return e })
@@ -428,7 +426,7 @@ func TestDocumentCheckpointSealedPredicateAndTypedExactBudget(t *testing.T) {
 	l.MaxDocumentBytes = 512
 	l.MaxRecordBytes = 2048
 	l.MaxStringBytes = 1024
-	s0, e := OpenMemory(MemoryOptions{Limits: &l})
+	s0, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &l})
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -13,7 +13,7 @@ import (
 // successor answers, normal startRun clears the failure even for input that was
 // already queued when the original run failed. Each run has its own first entry.
 func TestMainRunFailureContinueQueueClearsFailureAfterAnswer(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		entered := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 		release := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}

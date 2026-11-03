@@ -49,7 +49,7 @@ func TestMainContextReadPublicationWitness(t *testing.T) {
 					name = "warm"
 				}
 				t.Run(name, func(t *testing.T) {
-					utf16Backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						root := mint(t, b.store)
 						apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 						s, err := OpenSession(b.store)
@@ -112,7 +112,7 @@ func TestMainContextReadPublicationWitness(t *testing.T) {
 func TestMainContextReadInstallationFences(t *testing.T) {
 	for _, mode := range []string{"install", "newer-read", "expiry", "settings", "settings-empty", "cancel", "close", "raw-close", "poison", "failure", "receipt", "stored"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var clock atomic.Int64
 				clock.Store(1000)
 				retention := int64(1000)
@@ -249,7 +249,7 @@ func (a *mainContextProjection) Snapshot(ctx context.Context) (Snapshot, error) 
 }
 
 func TestMainContextReadWrapperAuthority(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		id := mint(t, b.store)
@@ -291,7 +291,7 @@ func TestMainContextReadWrapperAuthority(t *testing.T) {
 }
 
 func TestMainContextReadConcurrentHeaders(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		s, err := OpenSession(b.store)
@@ -359,7 +359,7 @@ func TestMainContextReadPublicOffLine(t *testing.T) {
 					name = "before-install"
 				}
 				t.Run(name, func(t *testing.T) {
-					utf16Backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						var clock atomic.Int64
 						clock.Store(1000)
 						h := mainContextScopeHarness(t, b.store, &clock)
@@ -456,7 +456,7 @@ func TestMainContextReadPublicOffLine(t *testing.T) {
 }
 
 func TestMainContextReadEmptyAndInvalidBounds(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		s, err := OpenSession(b.store)

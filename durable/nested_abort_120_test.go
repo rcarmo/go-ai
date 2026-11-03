@@ -8,7 +8,7 @@ import (
 )
 
 func TestNestedTool120AbortJoinsHostAndStoresCallerResult(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		cleanupTaskGates(t, release)
 		var childID atomic.Uint64
@@ -66,7 +66,7 @@ func TestNestedTool120AbortJoinsHostAndStoresCallerResult(t *testing.T) {
 	})
 }
 func TestNestedTool120OutcomeCallbackAndUsageSettleOnce(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var commits atomic.Int64
 		registry := NewRegistry()
 		reg := wrapRegistration("nested_usage")

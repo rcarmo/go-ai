@@ -9,7 +9,7 @@ import (
 func TestDisplayWrite120SettlesDuringGeneration(t *testing.T) { testDisplayWrite120(t, false) }
 func TestDisplayWrite120WaitsBehindQueuedReset(t *testing.T)  { testDisplayWrite120(t, true) }
 func testDisplayWrite120(t *testing.T, queuedReset bool) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		gate := make(chan struct{})
 		entered := make(chan struct{}, 1)
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {

@@ -15,7 +15,7 @@ func TestCodemode120ParallelRuntimeReopen(t *testing.T) { testParallelRuntime120
 func TestCodemode120RemoteParallelRuntime(t *testing.T) { testParallelRuntime120(t, false, true) }
 func TestCodemode120RemoteParallelReopen(t *testing.T)  { testParallelRuntime120(t, true, true) }
 func testParallelRuntime120(t *testing.T, reopen, remote bool) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		sandbox, err := NewQuickJSSandbox(bg)
 		if err != nil {
 			t.Fatal(err)

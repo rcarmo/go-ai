@@ -70,7 +70,7 @@ func TestCompactionUTF16MainFormattingAndState(t *testing.T) {
 }
 
 func TestCompactionUTF16MainExecutionReopen(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		high := toolUTF16Scalar(t, `"\ud800"`)
 		low := toolUTF16Scalar(t, `"\udfff"`)
 		call := goai.ContentBlock{Type: "toolCall", ID: "c", Name: "leaf"}

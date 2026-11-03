@@ -33,7 +33,7 @@ func testFilesystemRejectedResult120(t *testing.T, images bool) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		writer := &codemodeFS120{id: "owned-fs"}
 		code := "// @options: {\"max_output_tokens\":1}\nstore('valid',true);return 'long output';"
@@ -142,7 +142,7 @@ func testFilesystemRejectedResult120(t *testing.T, images bool) {
 }
 
 func TestCodemode120FilesystemIdentityChangeRejectsBeforeWrite(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		first := &codemodeFS120{id: "first"}
 		other := &codemodeFS120{id: "other"}
 		registry := NewRegistry()

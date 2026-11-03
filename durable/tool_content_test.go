@@ -9,7 +9,7 @@ import (
 )
 
 func TestToolImageContentPersistsAndReachesSuccessor(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "image", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "image.test", Version: 1, Execute: func(context.Context, JSON, *ToolAPI) (ToolResult, error) {
 			return ToolResult{Blocks: []goai.ContentBlock{{Type: "image", Data: "AQID", MimeType: "image/png"}}}, nil

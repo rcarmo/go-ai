@@ -34,7 +34,7 @@ func TestBashFailedTruncatedOutputPublishesSpillTailAndOriginalError(t *testing.
 		return ch
 	}})
 	defer goai.UnregisterApi(api)
-	store, err := durable.NewMemory()
+	store, err := newSQLiteStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ import (
 func TestDeferredAbortCancelsRemoteOnceAndReportsFailure(t *testing.T) {
 	for _, mode := range []string{"success", "error", "panic"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				api := goai.Api("durable-cancel-" + strings.ReplaceAll(t.Name(), "/", "-"))
 				var cancels, polls, reports atomic.Int64
 				provider := &goai.ApiProvider{Api: api, Stream: func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {

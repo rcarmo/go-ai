@@ -8,7 +8,7 @@ import (
 func TestTaskOwnershipPinnedDecidedAndMarkedOwnersRejectNewWorkAtomically(t *testing.T) {
 	for _, ending := range []string{"missing", "held", "terminal", "marked"} {
 		t.Run(ending, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				runEntered, runRelease, childEntered, childRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				cleanupTaskGates(t, runRelease, childRelease)
 				child := taskDefinition(t, "task.decided.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

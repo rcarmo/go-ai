@@ -8,7 +8,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedHeldOutcomeVersionAndLiveOutcomes(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release, heldReturn, probe, probed, waitCommitted := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var parentRuns, migrations, replacementRuns atomic.Int64
 		child := taskDefinition(t, "task.held-live.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

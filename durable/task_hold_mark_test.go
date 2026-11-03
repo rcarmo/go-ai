@@ -10,7 +10,7 @@ import (
 func TestTaskOwnershipPinnedMarkCompletedHoldPreservesOutcomeAndDrainsChild(t *testing.T) {
 	for _, scope := range []string{"task", "conversation"} {
 		t.Run(scope, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				childEntered, childRelease, abortEntered, abortRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var parentAborts, childAborts atomic.Int64
 				child := taskDefinition(t, "task.held-mark.child", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {

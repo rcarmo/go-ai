@@ -28,7 +28,7 @@ func installTaskAppend(t *testing.T, h *Harness, core *storeCore, appendFrame fu
 }
 
 func TestTaskRecoveryOpenNoEffectsAndCloseJoinsStubbornHost(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var calls atomic.Int64
 		def := taskDefinition(t, "task.recovery.host", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -88,7 +88,7 @@ func TestTaskRecoveryOpenNoEffectsAndCloseJoinsStubbornHost(t *testing.T) {
 }
 
 func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		original := taskDefinition(t, "task.migration.identity", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		var migrations atomic.Int64
 		reports := make(chan error, 4)
@@ -166,7 +166,7 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 func TestTaskRecoveryRejectedReservationDoesNotSpinAndPoisonCloseJoins(t *testing.T) {
 	for _, uncertain := range []bool{false, true} {
 		t.Run(map[bool]string{false: "rejected", true: "uncertain"}[uncertain], func(t *testing.T) {
-			store, err := NewMemory()
+			store, err := newTestSQLite(t)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +241,7 @@ func TestTaskRecoveryRejectedReservationDoesNotSpinAndPoisonCloseJoins(t *testin
 }
 
 func TestTaskRecoveryPoisonUnrelatedCommitRetainsActualJoin(t *testing.T) {
-	store, err := NewMemory()
+	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestTaskRecoveryPoisonUnrelatedCommitRetainsActualJoin(t *testing.T) {
 func TestTaskRecoveryMarkedBlockedMigrationOrphansSamePass(t *testing.T) {
 	for _, variant := range []string{"missing", "too-old", "no-migrate", "thrown", "invalid-output"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var migrations atomic.Int64
 				original := taskDefinition(t, "task.marked.migration", func(context.Context, TaskRecord, *TaskRuntime) error { return errors.New("blocked task executed") })
 				originalOptions := original.options
@@ -365,7 +365,7 @@ func TestTaskRecoveryMarkedBlockedMigrationOrphansSamePass(t *testing.T) {
 }
 
 func TestTaskRecoveryReopenedAbortMarkedMissingDefinitionOrphansOnResume(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs atomic.Int64
 		entered, marked, returnRun := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		def := taskDefinition(t, "task.reopen.marked.missing", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -442,10 +442,10 @@ func assertTaskToolSpend(t *testing.T, state Snapshot, conversation ID, name str
 }
 
 func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, failure := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 			t.Run(backendName+"/"+failure, func(t *testing.T) {
-				image := &MemoryImage{}
+
 				directory := t.TempDir() + "/private"
 				var store Storage
 				var core *storeCore
@@ -453,21 +453,19 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				open := func() Storage {
 					var s Storage
 					var e error
-					if backendName == "memory" {
-						s, e = OpenMemory(MemoryOptions{Image: image})
-					} else {
-						s, e = OpenJournal(directory, JournalOptions{})
-					}
+
+					s, e = openSQLiteTestDirectory(directory, SQLiteOptions{})
+
 					if e != nil {
 						t.Fatal(e)
 					}
 					return s
 				}
 				store = open()
-				if m, ok := store.(*MemoryStorage); ok {
+				if m, ok := store.(*SQLiteStorage); ok {
 					core = m.storeCore
 				} else {
-					core = store.(*JournalStorage).storeCore
+					core = store.(*SQLiteStorage).storeCore
 				}
 				var requests, effects, callbacks, childRuns atomic.Int64
 				childEntered, releaseChild := make(chan struct{}), make(chan struct{})
@@ -641,7 +639,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				if callbacks.Load() != 1 || effects.Load() != 1 {
 					t.Fatal("Open replayed adopted Hold")
 				}
-				wantFinal := backendName == "journal" && failure == "uncertain-after"
+				wantFinal := backendName == "sqlite" && failure == "uncertain-after"
 				if terminalStatus(opened.Tasks[toolID].Status) != wantFinal {
 					t.Fatal("confirmed reopened prefix", opened.Tasks[toolID].Status, wantFinal)
 				}
@@ -672,7 +670,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 }
 
 func TestTaskRecoveryGenerationHeldReceiptFinalCleanup(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		requestEntered, answer, childEntered, releaseChild := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var requests atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -794,7 +792,7 @@ func assertTaskModelSpend(t *testing.T, state Snapshot, conversation ID, provide
 }
 
 func TestTaskRecoverySchedulerGenerationOrphanNoFabricatedMessage(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var effects atomic.Int64
 		h := taskTestHarnessOptions(t, b.store, Options{Models: func(goai.Provider, string) *goai.Model { effects.Add(1); return nil }})
 		var taskID, subID ID
@@ -840,7 +838,7 @@ func TestTaskRecoverySchedulerGenerationOrphanNoFabricatedMessage(t *testing.T) 
 }
 
 func TestTaskRecoveryToolOutcomePanicRollbackFallbackAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var requests, effects, callbacks atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			if requests.Add(1) == 1 {
@@ -925,7 +923,7 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 		return
 	}
 	stage := os.Getenv("GO_AI_TASK_CRASH_STAGE")
-	store, err := OpenJournal(dir+"/private", JournalOptions{})
+	store, err := openSQLiteTestDirectory(dir+"/private", SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1159,7 +1157,7 @@ func TestTaskRecoveryRealSIGKILLAdoptedStages(t *testing.T) {
 			if !ok || !status.Signaled() || status.Signal() != syscall.SIGKILL || ctx.Err() != nil {
 				t.Fatal("unexpected child exit/timeout", exit, status, ctx.Err())
 			}
-			store, err := OpenJournal(dir+"/private", JournalOptions{})
+			store, err := openSQLiteTestDirectory(dir+"/private", SQLiteOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1306,12 +1304,10 @@ func assertTaskCrashStage(t *testing.T, state Snapshot, id ID, stage string, reo
 func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 	for _, timing := range []string{"no-self", "preexisting", "during-first", "during-fallback", "poison-fallback"} {
 		t.Run(timing, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var core *storeCore
 				switch store := b.store.(type) {
-				case *MemoryStorage:
-					core = store.storeCore
-				case *JournalStorage:
+				case *SQLiteStorage:
 					core = store.storeCore
 				}
 				var requests atomic.Int64
@@ -1467,12 +1463,12 @@ func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 func TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry(t *testing.T) {
 	for _, duringFailure := range []bool{false, true} {
 		t.Run(map[bool]string{false: "later-wake", true: "wake-during-rejection"}[duringFailure], func(t *testing.T) {
-			taskLimitedBackends(t, 2, func(t *testing.T, store Storage) {
+			taskLimitedSQLite(t, 2, func(t *testing.T, store Storage) {
 				var core *storeCore
-				if native, ok := store.(*MemoryStorage); ok {
+				if native, ok := store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = store.(*JournalStorage).storeCore
+					core = store.(*SQLiteStorage).storeCore
 				}
 				callerEntered, letWait, detached, releaseCaller := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				targetEntered, appendEntered, releaseAppend := make(chan struct{}), make(chan struct{}), make(chan struct{})
@@ -1595,7 +1591,7 @@ func TestTaskRecoveryBoundReservationRejectionWaitCleanupNoRetry(t *testing.T) {
 func TestTaskRecoveryRejectedReconcileIgnoresStaleWakeAndRetainsNewWake(t *testing.T) {
 	for _, duringFailure := range []bool{false, true} {
 		t.Run(map[bool]string{false: "later-wake", true: "wake-during-final"}[duringFailure], func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				childEntered, releaseChild, appendEntered, releaseAppend := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var parentCalls, childCalls, finalAttempts atomic.Int64
 				reports := make(chan error, 4)
@@ -1640,10 +1636,10 @@ func TestTaskRecoveryRejectedReconcileIgnoresStaleWakeAndRetainsNewWake(t *testi
 					awaitTaskSignal(t, parentDone)
 				}
 				var core *storeCore
-				if native, ok := b.store.(*MemoryStorage); ok {
+				if native, ok := b.store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = b.store.(*JournalStorage).storeCore
+					core = b.store.(*SQLiteStorage).storeCore
 				}
 				var original func(byte, uint64, uint64, []byte) error
 				h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -1712,12 +1708,12 @@ func TestTaskRecoveryRejectedReconcileIgnoresStaleWakeAndRetainsNewWake(t *testi
 func TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence(t *testing.T) {
 	for _, timing := range []string{"no-self", "preexisting", "during-offline", "poison-fallback"} {
 		t.Run(timing, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var core *storeCore
-				if native, ok := b.store.(*MemoryStorage); ok {
+				if native, ok := b.store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = b.store.(*JournalStorage).storeCore
+					core = b.store.(*SQLiteStorage).storeCore
 				}
 				type witness struct {
 					runtime *TaskRuntime
@@ -1876,7 +1872,7 @@ func TestTaskRecoveryOfflineGenerationPreparationFallbackWakeSequence(t *testing
 }
 
 func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *testing.T) {
-	taskLimitedBackends(t, 2, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 2, func(t *testing.T, store Storage) {
 		callerEntered, releaseCaller, appendEntered, releaseAppend := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		reservationResult := make(chan error, 1)
 		var h *Harness
@@ -1941,10 +1937,10 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 			t.Fatal(err)
 		}
 		var core *storeCore
-		if native, ok := store.(*MemoryStorage); ok {
+		if native, ok := store.(*SQLiteStorage); ok {
 			core = native.storeCore
 		} else {
-			core = store.(*JournalStorage).storeCore
+			core = store.(*SQLiteStorage).storeCore
 		}
 		var original func(byte, uint64, uint64, []byte) error
 		h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -2045,7 +2041,7 @@ func TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission(t *te
 }
 
 func TestTaskRecoveryHandoverMissingIncompatibleReportsBounded(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		const phases = 6
 		entered, releases := make([]chan struct{}, phases), make([]chan struct{}, phases)
 		for k := range entered {
@@ -2149,19 +2145,17 @@ func TestTaskRecoveryHandoverMissingIncompatibleReportsBounded(t *testing.T) {
 }
 
 func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, failure := range []string{"rejected-fallback-adopts", "rejected-fallback-rejected", "uncertain-before", "uncertain-after"} {
 			t.Run(backendName+"/"+failure, func(t *testing.T) {
-				image := &MemoryImage{}
+
 				directory := t.TempDir() + "/private"
 				open := func() Storage {
 					var store Storage
 					var err error
-					if backendName == "memory" {
-						store, err = OpenMemory(MemoryOptions{Image: image})
-					} else {
-						store, err = OpenJournal(directory, JournalOptions{})
-					}
+
+					store, err = openSQLiteTestDirectory(directory, SQLiteOptions{})
+
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -2169,10 +2163,10 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 				}
 				store := open()
 				var core *storeCore
-				if native, ok := store.(*MemoryStorage); ok {
+				if native, ok := store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = store.(*JournalStorage).storeCore
+					core = store.(*SQLiteStorage).storeCore
 				}
 				toolEntered, releaseTool, childEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var childCalls, requests, effects, callbacks atomic.Int64
@@ -2321,7 +2315,7 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 						}
 					}
 				}
-				confirmedSuccess := backendName == "journal" && failure == "uncertain-after"
+				confirmedSuccess := backendName == "sqlite" && failure == "uncertain-after"
 				confirmedHold := confirmedSuccess || fallbackAdopted
 				if taskHasDecidedOutcome(opened.Tasks[toolID]) != confirmedHold || effects.Load() != 1 || callbacks.Load() != 1 {
 					t.Fatal("deciding confirmed prefix/Open replay")
@@ -2399,7 +2393,7 @@ func assertTaskToolSpendOrAbsent(t *testing.T, state Snapshot, conversation ID, 
 func TestTaskRecoveryHandoverIdentityMemoMigrationAndNoOverlap(t *testing.T) {
 	for _, variant := range []string{"same-version", "newer-migrates", "newer-migration-fails"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releasePhase, progressAdopted, releaseOldHost := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var active, peak, oldCalls, newCalls, migrations atomic.Int64
 				var oldRuntime *TaskRuntime
@@ -2535,7 +2529,7 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 	for _, mode := range []string{"run-throw", "run-no-progress", "abort-throw", "abort-no-progress"} {
 		for _, duringFailure := range []bool{false, true} {
 			t.Run(mode+"/"+map[bool]string{false: "later-wake", true: "during-fault"}[duringFailure], func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					var runs, aborts, attempts atomic.Int64
 					failure := reject("scheduler fault append rejected")
 					entered, release := make(chan struct{}), make(chan struct{})
@@ -2590,10 +2584,10 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 						t.Fatal(err)
 					}
 					var core *storeCore
-					if native, ok := b.store.(*MemoryStorage); ok {
+					if native, ok := b.store.(*SQLiteStorage); ok {
 						core = native.storeCore
 					} else {
-						core = b.store.(*JournalStorage).storeCore
+						core = b.store.(*SQLiteStorage).storeCore
 					}
 					var original func(byte, uint64, uint64, []byte) error
 					h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -2677,7 +2671,7 @@ func TestTaskRecoveryRejectedSchedulerFaultRunAbortLaterWake(t *testing.T) {
 func TestTaskRecoveryCloseSealRejectsFreshMemoAndToolPrefix(t *testing.T) {
 	for _, kind := range []string{"native-memo", "tool-output"} {
 		t.Run(kind, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releaseHost, blockerEntered, releaseBlocker := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var captured *TaskRuntime
 				var api *ToolAPI
@@ -2829,7 +2823,7 @@ func TestTaskRecoveryCloseSealRejectsFreshMemoAndToolPrefix(t *testing.T) {
 }
 
 func TestTaskRecoveryDirectAbortCloseReopenFourStages(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		runEntered, releaseRun, abortEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var runs, aborts atomic.Int64
 		var blockAbort atomic.Bool
@@ -2954,7 +2948,7 @@ func TestTaskRecoveryDirectAbortCloseReopenFourStages(t *testing.T) {
 func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 	for _, operation := range []string{"create-conversation", "configure", "passive-commit", "withdraw", "submit-write", "submit-followup"} {
 		t.Run(operation, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releaseHost, blockerEntered, releaseBlocker := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				def := taskDefinition(t, "task.public.close.origin", func(context.Context, TaskRecord, *TaskRuntime) error { close(entered); <-releaseHost; return nil })
 				h := taskTestHarness(t, b.store, def)
@@ -3092,7 +3086,7 @@ func TestTaskRecoveryCloseSealRejectsPublicNonterminalOrigins(t *testing.T) {
 }
 
 func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseChild := make(chan struct{}), make(chan struct{})
 		var childCalls, requests atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
@@ -3276,7 +3270,7 @@ func TestTaskRecoveryFreshSubmitAfterReadCloseAdmissionRejects(t *testing.T) {
 	for _, mode := range []string{"write", "follow-up"} {
 		for _, bindingMode := range []string{"host", "bound"} {
 			t.Run(mode+"/"+bindingMode, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					entered, releaseHost := make(chan struct{}), make(chan struct{})
 					var captured *TaskRuntime
 					def := taskDefinition(t, "task.submit.postread.close", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -3384,7 +3378,7 @@ func TestTaskRecoveryFreshSubmitAfterReadCloseAdmissionRejects(t *testing.T) {
 func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 	for _, kind := range []string{"generation", "tool"} {
 		t.Run(kind, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var requests, executes atomic.Int64
 				entered, release := make(chan struct{}), make(chan struct{})
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
@@ -3541,7 +3535,7 @@ func TestTaskRecoveryBuiltinPredispatchAncestorCancellation(t *testing.T) {
 func TestTaskRecoveryQueuedHandoverLateCommitAndAbortOrdering(t *testing.T) {
 	for _, operation := range []string{"late-commit", "abort-mark"} {
 		t.Run(operation, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				oldEntered, releaseOld, progressEntered, releaseProgress, handoverEntered, releaseHandover := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var oldRuntime *TaskRuntime
 				var oldNext, newNext, newAbort atomic.Int64
@@ -3566,10 +3560,10 @@ func TestTaskRecoveryQueuedHandoverLateCommitAndAbortOrdering(t *testing.T) {
 				cleanupTaskGates(t, releaseOld, releaseProgress, releaseHandover)
 				id := createPublicTask(t, h, old, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 				var core *storeCore
-				if native, ok := b.store.(*MemoryStorage); ok {
+				if native, ok := b.store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = b.store.(*JournalStorage).storeCore
+					core = b.store.(*SQLiteStorage).storeCore
 				}
 				var original func(byte, uint64, uint64, []byte) error
 				h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -3715,20 +3709,18 @@ func TestTaskRecoveryQueuedHandoverLateCommitAndAbortOrdering(t *testing.T) {
 }
 
 func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, stage := range []string{"deciding", "final"} {
 			for _, failure := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 				t.Run(backendName+"/"+stage+"/"+failure, func(t *testing.T) {
-					image := &MemoryImage{}
+
 					directory := t.TempDir() + "/private"
 					open := func() Storage {
 						var store Storage
 						var err error
-						if backendName == "memory" {
-							store, err = OpenMemory(MemoryOptions{Image: image})
-						} else {
-							store, err = OpenJournal(directory, JournalOptions{})
-						}
+
+						store, err = openSQLiteTestDirectory(directory, SQLiteOptions{})
+
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -3736,10 +3728,10 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					}
 					store := open()
 					var core *storeCore
-					if native, ok := store.(*MemoryStorage); ok {
+					if native, ok := store.(*SQLiteStorage); ok {
 						core = native.storeCore
 					} else {
-						core = store.(*JournalStorage).storeCore
+						core = store.(*SQLiteStorage).storeCore
 					}
 					requestEntered, releaseResponse, childEntered, releaseChild := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 					var requests, childCalls atomic.Int64
@@ -3902,7 +3894,7 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 						}
 						assertTaskModelSpendOrAbsent(t, rejected, 1, model.Provider, model.ID, map[bool]int{true: 5, false: 0}[stage == "final"])
 					}
-					confirmedAfter := backendName == "journal" && failure == "uncertain-after"
+					confirmedAfter := backendName == "sqlite" && failure == "uncertain-after"
 					confirmedReceipt := stage == "final" || confirmedAfter
 					confirmedFinal := stage == "final" && confirmedAfter
 					if taskHasDecidedOutcome(opened.Tasks[generation]) != confirmedReceipt || terminalStatus(opened.Submissions[sub.ID()].Status) != confirmedReceipt || opened.Documents[taskDocID].Retired != confirmedFinal {
@@ -3980,7 +3972,7 @@ func assertTaskModelSpendOrAbsent(t *testing.T, state Snapshot, conversation ID,
 func TestTaskRecoveryBlockedDefinitionPauseReadAndFittingRegistration(t *testing.T) {
 	for _, variant := range []string{"missing", "too-old", "no-migration"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var runs, migrations atomic.Int64
 				base := taskDefinition(t, "task.definition.blocked", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 					runs.Add(1)
@@ -4127,7 +4119,7 @@ func TestTaskRecoveryBlockedDefinitionPauseReadAndFittingRegistration(t *testing
 func TestTaskRecoveryOpenFailureClosesStoreAndRetainsNoSubscription(t *testing.T) {
 	for _, stage := range []string{"running-reconciliation", "registry-subscription"} {
 		t.Run(stage, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				registry := NewRegistry()
 				var effects atomic.Int64
 				def := taskDefinition(t, "task.open.failure", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -4145,10 +4137,10 @@ func TestTaskRecoveryOpenFailureClosesStoreAndRetainsNoSubscription(t *testing.T
 				apply(t, b.store, Write{Op: "put-task", Task: &task})
 				if stage == "running-reconciliation" {
 					var core *storeCore
-					if native, ok := b.store.(*MemoryStorage); ok {
+					if native, ok := b.store.(*SQLiteStorage); ok {
 						core = native.storeCore
 					} else {
-						core = b.store.(*JournalStorage).storeCore
+						core = b.store.(*SQLiteStorage).storeCore
 					}
 					<-core.line
 					original := core.appendFrame
@@ -4206,7 +4198,7 @@ func TestTaskRecoveryOpenFailureClosesStoreAndRetainsNoSubscription(t *testing.T
 func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 	for _, intent := range []string{"held-failure", "abort-mark"} {
 		t.Run(intent, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				abortEntered, releaseAbort := make(chan struct{}), make(chan struct{})
 				started := make(chan ID, 4)
 				var runs, childAborts atomic.Int64
@@ -4345,7 +4337,7 @@ func TestTaskRecoveryLateOwnedConversationEdgesHeldFailureOrMark(t *testing.T) {
 }
 
 func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var runs, aborts atomic.Int64
 		owner := taskDefinition(t, "task.cascade.retry.owner", func(context.Context, TaskRecord, *TaskRuntime) error {
 			return errors.New("owner should retain failed hold")
@@ -4412,10 +4404,10 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 			}
 		}}, owner, child)
 		var core *storeCore
-		if native, ok := store.(*MemoryStorage); ok {
+		if native, ok := store.(*SQLiteStorage); ok {
 			core = native.storeCore
 		} else {
-			core = store.(*JournalStorage).storeCore
+			core = store.(*SQLiteStorage).storeCore
 		}
 		var original func(byte, uint64, uint64, []byte) error
 		second.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -4475,21 +4467,19 @@ func TestTaskRecoveryRejectedLateEdgeCascadeNeedsGenuineWake(t *testing.T) {
 }
 
 func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		t.Run(backendName, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxWrites = 2
 			l.MaxPage = 8
-			image := &MemoryImage{}
+
 			directory := t.TempDir() + "/private"
 			open := func() Storage {
 				var store Storage
 				var err error
-				if backendName == "memory" {
-					store, err = OpenMemory(MemoryOptions{Image: image, Limits: &l})
-				} else {
-					store, err = OpenJournal(directory, JournalOptions{Limits: &l})
-				}
+
+				store, err = openSQLiteTestDirectory(directory, SQLiteOptions{Limits: &l})
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -4564,22 +4554,20 @@ func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
 // Supplementary mixed native/builtin persisted fixtures validate deterministic
 // startup prefix/cancel/failure. Genuine old producer journals remain gated.
 func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, mode := range []string{"reject-first", "reject-second", "cancel-after-first", "success"} {
 			t.Run(backendName+"/"+mode, func(t *testing.T) {
 				l := DefaultLimits()
 				l.MaxWrites = 2
 				l.MaxPage = 8
-				image := &MemoryImage{}
+
 				directory := t.TempDir() + "/private"
 				open := func() Storage {
 					var store Storage
 					var err error
-					if backendName == "memory" {
-						store, err = OpenMemory(MemoryOptions{Image: image, Limits: &l})
-					} else {
-						store, err = OpenJournal(directory, JournalOptions{Limits: &l})
-					}
+
+					store, err = openSQLiteTestDirectory(directory, SQLiteOptions{Limits: &l})
+
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -4587,10 +4575,10 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 				}
 				store := open()
 				var core *storeCore
-				if native, ok := store.(*MemoryStorage); ok {
+				if native, ok := store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = store.(*JournalStorage).storeCore
+					core = store.(*SQLiteStorage).storeCore
 				}
 				var effects atomic.Int64
 				registry := NewRegistry()
@@ -4770,7 +4758,7 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 	for _, scenario := range []string{"reopened-marked-empty-new-latechild", "live-heldfailed-preexisting-child"} {
 		t.Run(scenario, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				ownerEntered, releaseOwner, childEntered, releaseChild, abortEntered, releaseAbort, decideFailure := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var ordinaryRuns, childAborts atomic.Int64
 				ownerRuntime, drainedRuntime := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
@@ -4951,10 +4939,10 @@ func TestTaskRecoveryRejectedCascadeExactOwnerVariants(t *testing.T) {
 					h = first
 				}
 				var core *storeCore
-				if native, ok := store.(*MemoryStorage); ok {
+				if native, ok := store.(*SQLiteStorage); ok {
 					core = native.storeCore
 				} else {
-					core = store.(*JournalStorage).storeCore
+					core = store.(*SQLiteStorage).storeCore
 				}
 				var original func(byte, uint64, uint64, []byte) error
 				h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -5047,7 +5035,7 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 	for _, stage := range []string{"preparation", "dispatched"} {
 		for _, failure := range []string{"model-panic", "model-nil", "options-panic", "options-error"} {
 			t.Run(stage+"/"+failure, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					var requests, modelCalls, optionCalls atomic.Int64
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
 					defer server.Close()
@@ -5194,7 +5182,7 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 		for _, stage := range []string{"preparation", "dispatched"} {
 			for _, failure := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 				t.Run(callback+"/"+stage+"/"+failure, func(t *testing.T) {
-					backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						var requests, optionsCalls, modelCalls, deciding atomic.Int64
 						var recovered atomic.Bool
 						server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
@@ -5259,10 +5247,10 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 							t.Fatal("callback not dispatched by shared scheduler")
 						}
 						var core *storeCore
-						if native, ok := b.store.(*MemoryStorage); ok {
+						if native, ok := b.store.(*SQLiteStorage); ok {
 							core = native.storeCore
 						} else {
-							core = b.store.(*JournalStorage).storeCore
+							core = b.store.(*SQLiteStorage).storeCore
 						}
 						var original func(byte, uint64, uint64, []byte) error
 						h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -5331,7 +5319,7 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 						if modelCalls.Load() != beforeModelCalls || optionsCalls.Load() != beforeOptionCalls {
 							t.Fatal("paused Open called host resolver")
 						}
-						_, journal := b.store.(*JournalStorage)
+						_, journal := b.store.(*SQLiteStorage)
 						confirmed := journal && failure == "uncertain-after"
 						if taskHasDecidedOutcome(opened.Tasks[picked.taskID]) != confirmed || requests.Load() != 0 || !equalJSONValue(opened.Documents[doc].Value["sum"], 0) {
 							t.Fatal("callback confirmed prefix/noOpeneffects", confirmed, err)
@@ -5435,7 +5423,7 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 	for _, hostFailure := range []string{"error", "panic"} {
 		for _, storageFailure := range []string{"none", "rejected", "uncertain-before", "uncertain-after"} {
 			t.Run(hostFailure+"/"+storageFailure, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					var requests, repairs, effects, deciding atomic.Int64
 					beforeIntent, releaseRepair := make(chan struct{}), make(chan struct{})
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -5517,10 +5505,10 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 						t.Fatal("call-phase assistant receipt count", assistants)
 					}
 					var core *storeCore
-					if native, ok := b.store.(*MemoryStorage); ok {
+					if native, ok := b.store.(*SQLiteStorage); ok {
 						core = native.storeCore
 					} else {
-						core = b.store.(*JournalStorage).storeCore
+						core = b.store.(*SQLiteStorage).storeCore
 					}
 					var original func(byte, uint64, uint64, []byte) error
 					h.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -5632,7 +5620,7 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 						}
 					}
 
-					_, journal := b.store.(*JournalStorage)
+					_, journal := b.store.(*SQLiteStorage)
 					confirmed := storageFailure == "none" || journal && storageFailure == "uncertain-after"
 					if taskHasDecidedOutcome(opened.Tasks[toolID]) != confirmed || effects.Load() != 0 || repairs.Load() != 1 || requests.Load() != 1 {
 						t.Fatal("repair confirmedprefix/Open effects", confirmed)
@@ -5736,7 +5724,7 @@ func (c *taskStartedErrContext) Err() error {
 func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 	for _, stage := range []string{"initial-tool", "started-tool", "offline-generation"} {
 		t.Run(stage, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var requests, executions atomic.Int64
 				entered, release := make(chan struct{}), make(chan struct{})
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
@@ -5904,20 +5892,18 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 }
 
 func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, stage := range []string{"recovery", "recovery-caller-cancel", "recovery-external-cancel", "subscription"} {
 			for _, reportMode := range []string{"returns", "panics"} {
 				t.Run(backendName+"/"+stage+"/"+reportMode, func(t *testing.T) {
-					image := &MemoryImage{}
+
 					directory := t.TempDir() + "/private"
 					openStore := func() Storage {
 						var store Storage
 						var err error
-						if backendName == "memory" {
-							store, err = OpenMemory(MemoryOptions{Image: image})
-						} else {
-							store, err = OpenJournal(directory, JournalOptions{})
-						}
+
+						store, err = openSQLiteTestDirectory(directory, SQLiteOptions{})
+
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -5926,10 +5912,10 @@ func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *te
 					}
 					store := openStore()
 					var core *storeCore
-					if memory, ok := store.(*MemoryStorage); ok {
+					if memory, ok := store.(*SQLiteStorage); ok {
 						core = memory.storeCore
 					} else {
-						core = store.(*JournalStorage).storeCore
+						core = store.(*SQLiteStorage).storeCore
 					}
 					registry := NewRegistry()
 					var id ID
@@ -6048,7 +6034,7 @@ func TestTaskRecoveryOpenReportsSecondaryCleanupFailureAndPreservesPrimary(t *te
 func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.T) {
 	for _, failure := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 		t.Run(failure, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var requests, repairs, executions, appCommits, admissions atomic.Int64
 				var repeatRound atomic.Bool
 				validatorEntered := make(chan *TaskRuntime, 1)
@@ -6152,10 +6138,10 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 					}
 				}
 				var core *storeCore
-				if memory, ok := b.store.(*MemoryStorage); ok {
+				if memory, ok := b.store.(*SQLiteStorage); ok {
 					core = memory.storeCore
 				} else {
-					core = b.store.(*JournalStorage).storeCore
+					core = b.store.(*SQLiteStorage).storeCore
 				}
 				var original func(byte, uint64, uint64, []byte) error
 				first.session.taskBookkeeping(func() { <-core.line; original = core.appendFrame; core.leave() })
@@ -6218,7 +6204,7 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				if err := first.Close(bg); err != nil {
 					t.Fatal(err)
 				}
-				_, journal := b.store.(*JournalStorage)
+				_, journal := b.store.(*SQLiteStorage)
 				confirmed := journal && failure == "uncertain-after"
 				repeatRound.Store(false)
 				reopened := reopenStoreAfterHarnessClose(t, b.store)
@@ -6392,7 +6378,7 @@ func (s *taskContinuationSnapshotGate) Snapshot(ctx context.Context) (Snapshot, 
 func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *testing.T) {
 	for _, placement := range []string{"close", "close-queued-admission", "late-owned-host"} {
 		t.Run(placement, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var requests, executions, childRuns atomic.Int64
 				toolEntered, releaseTool, releaseSnapshot, childEntered, releaseChild, childTerminal, returnChild := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				toolHost, parentHost, childHost := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
@@ -6672,7 +6658,7 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T) {
 	for _, variant := range []string{"missing", "too-old", "no-migrate", "cached-throw", "cached-invalid", "untried-migration", "replacement-token"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var phases, migrations atomic.Int64
 				definition := taskDefinition(t, "task.direct-orphan", func(context.Context, TaskRecord, *TaskRuntime) error {
 					phases.Add(1)
@@ -6859,7 +6845,7 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 func TestTaskRecoveryPublicBlockedAbortPreservesHeldAndOwnedActualJoin(t *testing.T) {
 	for _, variant := range []string{"held", "owned-running", "owned-terminal-unreturned"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, decide, terminal, returnHost := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				picked := make(chan *TaskRuntime, 1)
 				owner := taskDefinition(t, "task.direct-orphan.excluded", func(context.Context, TaskRecord, *TaskRuntime) error {
@@ -6959,7 +6945,7 @@ func TestTaskRecoveryPublicBlockedAbortPreservesHeldAndOwnedActualJoin(t *testin
 }
 
 func TestTaskRecoveryPublicBlockedAbortUnregisteredOwnerWaitsForFreshOwnedAbortHostReturn(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		runEntered, releaseRun := make(chan struct{}), make(chan struct{})
 		abortEntered, abortCommitted, releaseAbortReturn := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		runRuntime, abortRuntime := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
@@ -7119,7 +7105,7 @@ func TestTaskRecoveryPublicBlockedAbortUnregisteredOwnerWaitsForFreshOwnedAbortH
 }
 
 func TestTaskRecoveryCloseReleasesFailedDefinitionCaches(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		old := taskDefinition(t, "task.close.failed-cache", func(context.Context, TaskRecord, *TaskRuntime) error {
 			t.Error("failed migration dispatched a host")
 			return nil
@@ -7165,7 +7151,7 @@ func TestTaskRecoveryCloseReleasesFailedDefinitionCaches(t *testing.T) {
 }
 
 func TestTaskRecoveryActiveDefinitionLossOrphansOnlyAfterRunReturn(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, cancelled, returnRun := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		var runs, aborts atomic.Int64

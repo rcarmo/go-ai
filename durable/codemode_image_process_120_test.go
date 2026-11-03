@@ -41,7 +41,7 @@ func TestCodemode120ImageProcessHelper(t *testing.T) {
 	if dir == "" {
 		return
 	}
-	storage, err := OpenJournal(dir, JournalOptions{})
+	storage, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestCodemode120ImageChunkProcessExitRecovery(t *testing.T) {
 	if !errors.As(err, &exited) || exited.ExitCode() != 73 {
 		t.Fatal("helper did not stop at commit boundary", err, string(output))
 	}
-	storage, err := OpenJournal(dir, JournalOptions{})
+	storage, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

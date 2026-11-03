@@ -74,7 +74,7 @@ func awaitSleeping140(t *testing.T, h *Harness, id ID) {
 	awaitTaskSignal(t, reached)
 }
 func TestSleep140PersistedContinuationReopenAndAbort(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, after atomic.Int64
 		clock.Store(1000)
 		hosts := make(chan *TaskRuntime, 4)
@@ -149,7 +149,7 @@ func TestSleep140PersistedContinuationReopenAndAbort(t *testing.T) {
 	})
 }
 func TestSleep140RetainsActualPermitUntilHostReturns(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock, after atomic.Int64
 		clock.Store(1000)
 		hosts := make(chan *TaskRuntime, 1)
@@ -194,7 +194,7 @@ func TestSleep140RetainsActualPermitUntilHostReturns(t *testing.T) {
 }
 
 func TestSleep140AutomaticTimerAndInvalidStates(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var rejected atomic.Int64
 		def, err := DefineTask(TaskDefinitionOptions{Kind: "task.timer-sleep-140", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "start"}, nil }, Phases: map[string]TaskPhase{
 			"start": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

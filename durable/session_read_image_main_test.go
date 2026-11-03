@@ -3,7 +3,7 @@ package durable
 import "testing"
 
 func TestMainContextBusyUsesPublishedImage(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		s := h.session
 		id, err := s.MintID(bg)
@@ -25,7 +25,7 @@ func TestMainContextBusyUsesPublishedImage(t *testing.T) {
 // Source-derived boundary, not a translation of the complete async group test:
 // the raw group settles on real storage, but no Session publication occurred.
 func TestMainSessionInternalReadImageExcludesUnpublishedGroup(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
 		s, err := OpenSession(b.store)
 		if err != nil {

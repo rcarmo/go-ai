@@ -248,6 +248,3 @@ func (c *storeCore) FindLatestHeadMarker(ctx context.Context, conversation, at I
 	}
 	return Entry{}, false, nil
 }
-
-var _ HistoryStorage = (*MemoryStorage)(nil)
-var _ HistoryStorage = (*JournalStorage)(nil)

@@ -18,7 +18,7 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 			name = "stale-head"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h := openHarness(t, b.store, Options{})
 				c := root(t, h, ModelRef{})
 				var owner, input, anchor ID

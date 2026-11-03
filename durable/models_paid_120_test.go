@@ -39,7 +39,7 @@ func TestModels120PaidValidationAndReservedAuthority(t *testing.T) {
 }
 
 func TestModels120PaidTypedCallsDurableScopedAuthUsageAndKeyReuse(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var classifierRuns, imageRuns, optionsRuns atomic.Int64
 		goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "paid-test-classifier", Classify: func(model *goai.ClassifierModel, input goai.ClassifierContext, opts *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
 			classifierRuns.Add(1)

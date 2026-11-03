@@ -6,7 +6,7 @@ import (
 )
 
 func TestNestedTool120SequentialModeDoesNotSerializeNestedCalls(t *testing.T) {
-	taskLimitedBackends(t, 3, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 3, func(t *testing.T, store Storage) {
 		entered := make(chan struct{}, 2)
 		release := make(chan struct{})
 		registry := NewRegistry()
@@ -60,7 +60,7 @@ func TestNestedTool120SequentialModeDoesNotSerializeNestedCalls(t *testing.T) {
 	})
 }
 func TestNestedTool120InvalidControlSuppressesCallbackAndHarnessErrorsOmitStructured(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		callbacks := 0
 		reg := wrapRegistration("invalid_control_nested")

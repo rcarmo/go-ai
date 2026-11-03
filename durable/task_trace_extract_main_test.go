@@ -13,7 +13,7 @@ import (
 // merely invocation reservation. Preserve backend callback ordering as well
 // as the resulting parent/link contexts.
 func TestMainTaskTraceExtractionPerPhase(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
 		parent := backend.create("parent", nil, nil, nil)
 		parent.End()

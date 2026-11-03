@@ -21,7 +21,7 @@ func mainRuntimeProgress(r *TaskRuntime, ctx context.Context, change func(*Tx, T
 func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 	for _, mode := range []string{"timer", "close", "failure"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				started := make(chan *TaskRuntime, 1)
 				advance := make(chan struct{})
 				result := make(chan error, 1)
@@ -242,7 +242,7 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 func TestMainHarnessProgressLaneLifetimeFences(t *testing.T) {
 	for _, mode := range []string{"ended", "aborted", "cancelled", "mixed"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				started := make(chan *TaskRuntime, 1)
 				result := make(chan error, 1)
 				var called atomic.Bool

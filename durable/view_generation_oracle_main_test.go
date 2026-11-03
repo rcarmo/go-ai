@@ -13,7 +13,7 @@ import (
 // stored-touch+1 persistence oracle remains a known failure, retained verbatim
 // under testdata/upstream-main/pending and run explicitly through an overlay.
 func TestMainViewUpstreamGenerationValueOperations(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		release := make(chan struct{})
 		var once sync.Once
 		unblock := func() { once.Do(func() { close(release) }) }

@@ -14,7 +14,7 @@ import (
 func TestModels120PaidImageSettlementFailureNeverRepeatsPaidEffect(t *testing.T) {
 	for _, mode := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				const api images.ImagesApi = "paid-settlement-test"
 				var runs atomic.Int64
 				images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: api, GenerateImages: func(*images.ImagesModel, images.ImagesContext, *images.ImagesOptions) (*images.AssistantImages, error) {
@@ -92,7 +92,7 @@ func TestModels120PaidImageSettlementFailureNeverRepeatsPaidEffect(t *testing.T)
 				if e != nil {
 					t.Fatal(e)
 				}
-				_, journal := b.store.(*JournalStorage)
+				_, journal := b.store.(*SQLiteStorage)
 				confirmed := mode == "uncertain-after" && journal
 				for _, doc := range state.Documents {
 					if doc.Kind == nestedCallDocument {

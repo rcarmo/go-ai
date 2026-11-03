@@ -13,7 +13,7 @@ import (
 )
 
 func TestCodemode120PartialImageChunksReuseAfterCancelledAdmission(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var mu sync.Mutex
 		var cancelFirst context.CancelFunc
 		writes := 0

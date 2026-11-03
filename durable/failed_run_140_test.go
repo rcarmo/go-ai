@@ -55,7 +55,7 @@ func statusFailed140(t *testing.T, sub *SubmissionHandle, status, reason string)
 func TestFailedRun140InboxPolicies(t *testing.T) {
 	for _, policy := range []string{"", "keep", "continue", "withdraw"} {
 		t.Run("policy-"+policy, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				ref, options, calls, entered, release := failedRunProvider140(t)
 				options.Settings = &HarnessSettings{AfterFailedRun: policy}
 				h := openHarness(t, b.store, options)
@@ -141,7 +141,7 @@ func TestFailedRun140InboxPolicies(t *testing.T) {
 func TestFailedRun140BoundedWithdrawalRecovery(t *testing.T) {
 	limits := DefaultLimits()
 	limits.MaxWrites = 16
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, calls, entered, release := failedRunProvider140(t)
 		options.Settings = &HarnessSettings{AfterFailedRun: "withdraw"}
 		h := openHarness(t, b.store, options)
@@ -248,7 +248,7 @@ func TestFailedRun140BoundedWithdrawalRecovery(t *testing.T) {
 func TestFailedRun140NoModelLeavesWritesQueued(t *testing.T) {
 	for _, policy := range []string{"keep", "withdraw", "continue"} {
 		t.Run(policy, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				cleanupTaskGates(t, release)
 				var resolutions atomic.Int64
@@ -285,7 +285,7 @@ func TestFailedRun140NoModelLeavesWritesQueued(t *testing.T) {
 }
 
 func TestFailedRun140SettingsValidation(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		if _, err := Open(bg, b.store, Options{Settings: &HarnessSettings{AfterFailedRun: "invalid"}}); err == nil {
 			t.Fatal("invalid Open policy")
 		}
@@ -309,7 +309,7 @@ func TestFailedRun140SettingsValidation(t *testing.T) {
 }
 
 func TestFailedRun140WithdrawalJoinsOwnedHosts(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, calls, entered, release := failedRunProvider140(t)
 		options.Settings = &HarnessSettings{AfterFailedRun: "withdraw"}
 		h := openHarness(t, b.store, options)

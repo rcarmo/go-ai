@@ -98,7 +98,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 	model := fakeModel(goai.ApiOpenAICompletions)
 	model.BaseURL = server.URL
 	dir := filepath.Join(t.TempDir(), "private")
-	store, e := OpenJournal(dir, JournalOptions{})
+	store, e := openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -151,7 +151,7 @@ func TestM1cActualHTTPToolResultAwareAnswer(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	store, e = OpenJournal(dir, JournalOptions{})
+	store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -218,7 +218,7 @@ func TestM1cSchemaSubsetAndRepairBeforeIntent(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	sub, e := root(t, h, ref).Submit(bg, Input{Content: "repair"})
 	if e != nil {
@@ -265,7 +265,7 @@ func TestM1cNotOfferedAndInvalidArgumentsZeroEffects(t *testing.T) {
 				return ch
 			})
 			options.Registry = registry
-			s, _ := NewMemory()
+			s, _ := newTestSQLite(t)
 			h := openHarness(t, s, options)
 			sub, e := root(t, h, ref).Submit(bg, Input{Content: "bad"})
 			if e != nil {
@@ -318,7 +318,7 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	cleanupTaskGates(t, release)
 	r := root(t, h, ref)
@@ -424,7 +424,7 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -467,7 +467,7 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 		return ch
 	})
 	options.Registry = registry
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "close"})
@@ -480,7 +480,7 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 	if e = h.Close(ctx); !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal(e)
 	}
-	if _, e = OpenJournal(dir, JournalOptions{}); !errors.Is(e, ErrOwned) {
+	if _, e = openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal("prematuresuccessor", e)
 	}
 	close(release)
@@ -490,7 +490,7 @@ func TestM1cCloseNoncooperativeToolKeepsOwnershipAndReturnedOutcome(t *testing.T
 	if e = escaped.Output("late"); !errors.Is(e, ErrSealed) {
 		t.Fatal(e)
 	}
-	s, e = OpenJournal(dir, JournalOptions{})
+	s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -544,7 +544,7 @@ func TestM1cRegistryPhasePinOutputCapAndAtomicAppFailure(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	sub, e := root(t, h, ref).Submit(bg, Input{Content: "phasepin"})
 	if e != nil {
@@ -598,7 +598,7 @@ func TestM1cCommittedPartialAndQueuedWithdrawal(t *testing.T) {
 		}()
 		return ch
 	})
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	// Signal from the native append settlement barrier. Snapshot then joins
 	// the still-held session line and therefore reads the adopted revision.
 	s.appendFrame = func(typ byte, ordinal, high uint64, p []byte) error {
@@ -753,7 +753,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				return ch
 			})
 			options.Registry = registry
-			s, dir := newJournal(t)
+			s, dir := newSQLiteTestStore(t)
 			h := openHarness(t, s, options)
 			r := root(t, h, ref)
 			sub, e := r.Submit(bg, Input{Content: "usage", RequestID: "usage"})
@@ -815,7 +815,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 				}
 			}
 			_ = h.Close(bg)
-			s, e = OpenJournal(dir, JournalOptions{})
+			s, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -867,7 +867,7 @@ func TestM1cRetryConfigRejectBeforeIntentAndRecovery(t *testing.T) {
 		}
 		return nil, nil
 	}
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	r := root(t, h, ref)
 	sub, e := r.Submit(bg, Input{Content: "invalidretry"})
@@ -907,7 +907,7 @@ func TestM1cRepeatedProviderCallIDUsesDistinctDurableTasks(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	sub, e := root(t, h, ref).Submit(bg, Input{Content: "two rounds"})
 	if e != nil {
@@ -934,7 +934,7 @@ func TestM1cRepeatedProviderCallIDUsesDistinctDurableTasks(t *testing.T) {
 func TestM1cProviderPartialPointersObservedDetachedAtBoundary(t *testing.T) {
 	ch := make(chan goai.Event)
 	message := terminal("committed prefix").Message
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := &Harness{session: sessionFor(t, s)}
 	conversation, e := h.session.MintID(bg)
 	if e != nil {
@@ -1031,7 +1031,7 @@ func TestM1cAbortAtOfferedCallBoundaryStartsNoTool(t *testing.T) {
 		return ch
 	})
 	options.Registry = registry
-	s, _ := NewMemory()
+	s, _ := newTestSQLite(t)
 	h := openHarness(t, s, options)
 	var releaseOnce sync.Once
 	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })

@@ -14,7 +14,7 @@ import (
 // reserved root is the first conversation; sequence/delta counts and queued
 // stored publications witness real batches; Snapshot is the on-line barrier.
 func TestMainSessionDeferredDeadlineStoresEveryHold(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		var other, otherDoc ID
 		if _, err := f.session.Commit(bg, func(tx *Tx) error {
@@ -74,7 +74,7 @@ func TestMainSessionDeferredDeadlineStoresEveryHold(t *testing.T) {
 // c9f4c7b9 session-deferred-commits.test.ts:365, preserving 2000, +500,
 // explicit 100, and later 60000. An earlier deadline moves; a later one cannot.
 func TestMainSessionDeferredDeadlineEarliestWindow(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		window := float64(2000)
 		f := openMainDeadlineSession(t, b, &window)
 		if err := f.append(f.doc, "a"); err != nil {
@@ -96,7 +96,7 @@ func TestMainSessionDeferredDeadlineEarliestWindow(t *testing.T) {
 // c9f4c7b9 session-deferred-commits.test.ts:378. Infinity creates no timer;
 // a later default window creates one; an immediate dependent write clears it.
 func TestMainSessionDeferredDeadlineInfinityAndRelease(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		if _, err := f.session.commitDeferred(bg, mainDeferredAppend(f.doc, "a")); err != nil {
 			t.Fatal(err)
@@ -126,7 +126,7 @@ func TestMainSessionDeferredDeadlineInfinityAndRelease(t *testing.T) {
 // c9f4c7b9 session-deferred-commits.test.ts:273. Source TypeError maps to
 // native StorageRejected; preserve both numeric inputs and immediate control.
 func TestMainSessionDeferredDeadlineInvalidWindow(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		for _, window := range []float64{-1, math.NaN()} {
 			var rejected *StorageRejected
@@ -143,7 +143,7 @@ func TestMainSessionDeferredDeadlineInvalidWindow(t *testing.T) {
 // Native host/serialization controls: callbacks enqueue without waiting for an
 // admitted commit, stale cancelled hosts cannot store, and repeated fires store once.
 func TestMainSessionDeferredDeadlineHostAdmission(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		if err := f.append(f.doc, "a", 2000); err != nil {
 			t.Fatal(err)
@@ -188,7 +188,7 @@ func TestMainSessionDeferredDeadlineHostAdmission(t *testing.T) {
 }
 
 func TestMainSessionDeferredDeadlineFailure(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		if err := f.append(f.doc, "volatile"); err != nil {
 			t.Fatal(err)
@@ -248,7 +248,7 @@ type mainDeadlineSession struct {
 	defaultWindow *float64
 }
 
-func openMainDeadlineSession(t *testing.T, b backend, defaultWindow *float64, retentionMs ...int64) *mainDeadlineSession {
+func openMainDeadlineSession(t *testing.T, b sqliteFixture, defaultWindow *float64, retentionMs ...int64) *mainDeadlineSession {
 	t.Helper()
 	var retention *int64
 	if len(retentionMs) != 0 {

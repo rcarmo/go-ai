@@ -14,7 +14,7 @@ import (
 // hand-stepped rather than wall-clock streamed; the last observed memory value
 // is quiescent before Close. Storage is reopened only after the host joins.
 func TestMainHarnessCleanCloseStoresHeldGeneration(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
@@ -74,7 +74,7 @@ func TestMainHarnessCleanCloseStoresHeldGeneration(t *testing.T) {
 // a healthy close instead. Additional request/attempt assertions are controls,
 // not extra upstream assertions. No HTTP, credentials or real timers are used.
 func TestMainHarnessDeferredPollAfterCrash(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		api := goai.Api("main-crash-poll-" + strings.ReplaceAll(t.Name(), "/", "-"))
 		var requests, polls atomic.Int64
 		clock := new(atomic.Int64)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSubmissionWaitRegistersAndSettlesFromArbitraryCommitWithoutPolling(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var id ID
 		_, err := h.CommitTasks(bg, 1, func(tx *Tx) error {

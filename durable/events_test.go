@@ -10,7 +10,7 @@ import (
 )
 
 func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		if err := registry.Register(ToolRegistration{Definition: goai.Tool{Name: "echo", Parameters: json.RawMessage(`{"type":"object"}`)}, Implementation: "events.echo", Version: 1, Execute: func(_ context.Context, _ JSON, api *ToolAPI) (ToolResult, error) {
 			if err := api.Output("prefix"); err != nil {
@@ -119,7 +119,7 @@ func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 }
 
 func TestEventSnapshotUsesActiveHeadAndBuiltinDocsOnly(t *testing.T) {
-	store, _ := NewMemory()
+	store, _ := newTestSQLite(t)
 	h := openHarness(t, store, Options{})
 	_, err := h.session.Commit(bg, func(tx *Tx) error {
 		if err := initializeBuiltins(tx, 1); err != nil {

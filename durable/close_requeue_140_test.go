@@ -6,7 +6,7 @@ import (
 )
 
 func TestClose140RequeueDoesNotConsumeRestartBudget(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{}, 8)
 		def := taskDefinition(t, "task.clean-close-140", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if _, err := r.MemoCandidate(ctx, "retained", "value"); err != nil {
@@ -47,7 +47,7 @@ func TestClose140RequeueDoesNotConsumeRestartBudget(t *testing.T) {
 }
 
 func TestClose140RejectedRequeueLeavesCrashRecovery(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})
 		def := taskDefinition(t, "task.rejected-close-140", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
 			close(entered)

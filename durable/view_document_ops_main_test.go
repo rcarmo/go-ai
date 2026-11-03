@@ -29,7 +29,7 @@ func assertConversationOperations(t *testing.T, got, want []Operation, limits Li
 func TestMainConversationDocumentOperationTuples(t *testing.T) {
 	for _, mode := range []string{"replace-with-entry", "explicit-revert", "reincarnate-equal", "version-equal", "retire"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				watch, err := c.Watch(bg)
 				if err != nil {
@@ -152,7 +152,7 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 // A previously reserved ID can sort before the retired incarnation. Source's
 // ID guard must not delete the new mount when the old retirement arrives last.
 func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := openHarness(t, b.store, Options{})
 		c, err := h.Conversation(bg, 1)
 		if err != nil {
@@ -222,7 +222,7 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 	for _, versionChange := range []bool{false, true} {
 		t.Run(fmt.Sprintf("version-change-%v", versionChange), func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				first, err := c.Watch(bg)
 				if err != nil {
@@ -293,7 +293,7 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 }
 
 func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		watch, err := c.Watch(bg)
 		if err != nil {
@@ -375,7 +375,7 @@ func TestMainConversationDocumentTransientViewBudget(t *testing.T) {
 // A watch-local fault budget forces an empty bounded diff for equal-value
 // reincarnations. Their receipted witness must still advance without a callback.
 func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		watch, err := c.Watch(bg)
 		if err != nil {

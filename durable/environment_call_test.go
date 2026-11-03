@@ -8,7 +8,7 @@ import (
 )
 
 func TestToolEnvironmentConstructedOnceBeforeExecuteAndNoUnavailableCall(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var factories, effects atomic.Int64
 		registry := NewRegistry()
 		registration := wrapRegistration("environment-call")

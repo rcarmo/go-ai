@@ -23,7 +23,7 @@ func TestAgentThinkingPinnedLevelsClearRequestForkAndReopen(t *testing.T) {
 		close(ch)
 		return ch
 	})
-	store, dir := newJournal(t)
+	store, dir := newSQLiteTestStore(t)
 	h := openHarness(t, store, options)
 	conv := root(t, h, ref)
 	view, err := conv.Agent(bg)
@@ -80,7 +80,7 @@ func TestAgentThinkingPinnedLevelsClearRequestForkAndReopen(t *testing.T) {
 	if err := h.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	store, err = OpenJournal(dir, JournalOptions{})
+	store, err = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

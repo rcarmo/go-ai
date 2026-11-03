@@ -7,7 +7,7 @@ import (
 )
 
 func TestNestedTool120ParentAttributionSurvivesActiveRestart(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		entered := make(chan struct{})
 		var leafRuns, outerRuns atomic.Int64

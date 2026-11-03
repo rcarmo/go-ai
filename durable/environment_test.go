@@ -53,7 +53,7 @@ func TestEnvironmentFactoryAbortAndFailureFenceEffects(t *testing.T) {
 				<-ctx.Done()
 				return testEnvironment{"late"}, nil
 			}
-			store, _ := NewMemory()
+			store, _ := newTestSQLite(t)
 			h := openHarness(t, store, options)
 			conversation := root(t, h, ref)
 			sub, err := conversation.Submit(bg, Input{Content: "environment"})

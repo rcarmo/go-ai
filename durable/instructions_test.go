@@ -11,7 +11,7 @@ import (
 func TestAgentInstructionsReservedSectionDetachedExplicitEmptyAndClear(t *testing.T) {
 	for _, withExtensions := range []bool{false, true} {
 		t.Run(fmt.Sprintf("extensions-%t", withExtensions), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var seen []string
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					seen = append(seen, input.SystemPrompt)

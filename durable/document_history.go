@@ -268,9 +268,6 @@ func encodeDocumentCursor(after ID, query DocumentQuery, limits Limits) (Cursor,
 	return Cursor(base64.RawURLEncoding.EncodeToString(data)), nil
 }
 
-var _ DocumentHistoryStorage = (*MemoryStorage)(nil)
-var _ DocumentHistoryStorage = (*JournalStorage)(nil)
-
 func resolveDocumentCopies(s Snapshot, writes []Write, l Limits) ([]Write, error) {
 	changed := map[ID]bool{}
 	for _, w := range writes {

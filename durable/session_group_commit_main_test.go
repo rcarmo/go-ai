@@ -22,7 +22,7 @@ func (c *mainCommitAdmissionContext) Done() <-chan struct{} {
 func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 	for _, kind := range []string{"entry", "conversation"} {
 		t.Run(kind, func(t *testing.T) {
-			store, err := NewMemory()
+			store, err := newTestSQLite(t)
 			if err != nil {
 				t.Fatal(err)
 			}

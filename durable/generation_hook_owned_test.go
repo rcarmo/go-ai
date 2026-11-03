@@ -13,7 +13,7 @@ import (
 func TestGenerationAfterToolsHookOwnsWorkAndLateEventsDoNotRepeatTurnEnd(t *testing.T) {
 	for _, terminate := range []bool{false, true} {
 		t.Run(map[bool]string{false: "successor", true: "terminate"}[terminate], func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				child := taskDefinition(t, "task.after-tools.owned", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 					close(entered)

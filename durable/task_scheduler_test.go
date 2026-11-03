@@ -101,7 +101,7 @@ func waitPublicTask(t *testing.T, h *Harness, id ID) TaskRecord {
 }
 
 func TestTaskSchedulerPhasesMemoWinnerAndEndedCapabilities(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var captured *TaskRuntime
 		var calls atomic.Int64
 		var winners []any
@@ -182,17 +182,15 @@ func TestTaskSchedulerPhasesMemoWinnerAndEndedCapabilities(t *testing.T) {
 }
 
 func TestTaskSchedulerCapacityParentChildYieldOne(t *testing.T) {
-	for _, kind := range []string{"memory", "journal"} {
+	for _, kind := range []string{"sqlite"} {
 		t.Run(kind, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxPage = 1
 			var store Storage
 			var err error
-			if kind == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -276,7 +274,7 @@ func TestTaskSchedulerCapacityParentChildYieldOne(t *testing.T) {
 }
 
 func TestTaskSchedulerNoProgressAndCommittedTerminalPrecedence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		equal := taskDefinition(t, "task.equal", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
 				return &TaskState{Status: "running", Checkpoint: JSON{"phase": "work"}}, nil
@@ -301,7 +299,7 @@ func TestTaskSchedulerNoProgressAndCommittedTerminalPrecedence(t *testing.T) {
 }
 
 func TestTaskSchedulerConcurrentBoundWaitRegistrationCycle(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		aReady, bReady, cReady := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		letA, letB, finish, releaseC := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		t.Cleanup(func() {
@@ -407,17 +405,15 @@ func taskHTTPRound(w http.ResponseWriter, calls []string) {
 }
 
 func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		t.Run(backendName, func(t *testing.T) {
 			limits := DefaultLimits()
 			limits.MaxPage = 1
 			var store Storage
 			var err error
-			if backendName == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &limits})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &limits})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &limits})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -538,7 +534,7 @@ func TestTaskSchedulerCapacityToolChildHoldOne(t *testing.T) {
 }
 
 func TestTaskSchedulerLegacyChildrenSequentialEligibility(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		firstEntered, firstRelease, secondEntered, secondRelease, childEntered, childRelease := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var requests, active, peak atomic.Int64
 		var firstID ID
@@ -632,19 +628,17 @@ func TestTaskSchedulerLegacyChildrenSequentialEligibility(t *testing.T) {
 	})
 }
 
-func taskLimitedBackends(t *testing.T, capacity int, run func(*testing.T, Storage)) {
+func taskLimitedSQLite(t *testing.T, capacity int, run func(*testing.T, Storage)) {
 	t.Helper()
-	for _, name := range []string{"memory", "journal"} {
+	for _, name := range []string{"sqlite"} {
 		t.Run(name, func(t *testing.T) {
 			limits := DefaultLimits()
 			limits.MaxPage = capacity
 			var store Storage
 			var err error
-			if name == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &limits})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &limits})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &limits})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -654,7 +648,7 @@ func taskLimitedBackends(t *testing.T, capacity int, run func(*testing.T, Storag
 }
 
 func TestTaskSchedulerAdoptedFrontierBeforeOrdinaryBacklog(t *testing.T) {
-	taskLimitedBackends(t, 3, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 3, func(t *testing.T, store Storage) {
 		callerEntered, letCaller := make(chan struct{}), make(chan struct{})
 		targetEntered, releaseTarget := make(chan struct{}), make(chan struct{})
 		ordinaryEntered, releaseOrdinary := make(chan struct{}), make(chan struct{})
@@ -787,7 +781,7 @@ func TestTaskSchedulerAdoptedFrontierBeforeOrdinaryBacklog(t *testing.T) {
 }
 
 func TestTaskSchedulerIdleFrontierAdmissionAtomic(t *testing.T) {
-	taskLimitedBackends(t, 2, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 2, func(t *testing.T, store Storage) {
 		entered, letWait, rejected, releaseHost, releaseChildren := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var h *Harness
 		var foreign ID
@@ -874,7 +868,7 @@ func TestTaskSchedulerIdleFrontierAdmissionAtomic(t *testing.T) {
 }
 
 func TestTaskSchedulerTerminalHostReturnKeepsPermitAndPinsDrain(t *testing.T) {
-	taskLimitedBackends(t, 1, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 1, func(t *testing.T, store Storage) {
 		decided, release, childEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		def := taskDefinition(t, "task.terminal.host", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("decided"), nil }); err != nil {
@@ -949,7 +943,7 @@ func TestTaskSchedulerTerminalHostReturnKeepsPermitAndPinsDrain(t *testing.T) {
 }
 
 func TestTaskSchedulerCompletedGenerationsReleasePinnedRegistrations(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var requests atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); taskHTTPRound(w, nil) }))
 		defer server.Close()
@@ -995,7 +989,7 @@ func TestTaskSchedulerCompletedGenerationsReleasePinnedRegistrations(t *testing.
 }
 
 func TestTaskSchedulerBoundWriteAttributionAndEscapedSettlementSeal(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var captured *InvocationSubmission
 		var boundConversation *InvocationConversation
 		var subID ID
@@ -1065,7 +1059,7 @@ func TestTaskSchedulerBoundWriteAttributionAndEscapedSettlementSeal(t *testing.T
 }
 
 func TestTaskSchedulerEscapedIdleCannotWakeFailedIntent(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		var bound *InvocationConversation
@@ -1155,7 +1149,7 @@ func TestTaskSchedulerEscapedIdleCannotWakeFailedIntent(t *testing.T) {
 }
 
 func TestTaskSchedulerBoundPendingDedupSealedAdmissionIsInert(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost, attempted := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		var bound *InvocationConversation
@@ -1281,7 +1275,7 @@ func discardUnstartedTaskReservations(t *testing.T, h *Harness, reservations []*
 func TestTaskSchedulerCycleThroughDurableHoldOrWaitRejects(t *testing.T) {
 	for _, join := range []string{"completing", "waiting"} {
 		t.Run(join, func(t *testing.T) {
-			taskLimitedBackends(t, 2, func(t *testing.T, store Storage) {
+			taskLimitedSQLite(t, 2, func(t *testing.T, store Storage) {
 				aEntered, bEntered, letA, letB, releaseA := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var aID, bID, parentID ID
 				var rejected atomic.Bool
@@ -1411,7 +1405,7 @@ func TestTaskSchedulerCycleThroughDurableHoldOrWaitRejects(t *testing.T) {
 }
 
 func TestTaskSchedulerMarkedForeignWaitDoesNotCreateStaleCycle(t *testing.T) {
-	taskLimitedBackends(t, 2, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 2, func(t *testing.T, store Storage) {
 		entered, letWait := make(chan struct{}), make(chan struct{})
 		var aID, bID ID
 		var abortCalls, oldPhaseCalls atomic.Int64
@@ -1495,7 +1489,7 @@ func TestTaskSchedulerMarkedForeignWaitDoesNotCreateStaleCycle(t *testing.T) {
 }
 
 func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		var foreign ID
@@ -1589,18 +1583,16 @@ func TestTaskSchedulerBoundAbortSealedOrSelfScopeAdmissionIsInert(t *testing.T) 
 
 func TestTaskSchedulerPersistedWriteBudgetReservationsAndRetirement(t *testing.T) {
 	for _, maxWrites := range []int{1, 4} {
-		for _, backendName := range []string{"memory", "journal"} {
+		for _, backendName := range []string{"sqlite"} {
 			t.Run(fmt.Sprintf("writes%d/%s", maxWrites, backendName), func(t *testing.T) {
 				limits := DefaultLimits()
 				limits.MaxPage = 2
 				limits.MaxWrites = maxWrites
 				var store Storage
 				var err error
-				if backendName == "memory" {
-					store, err = OpenMemory(MemoryOptions{Limits: &limits})
-				} else {
-					store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &limits})
-				}
+
+				store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &limits})
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1688,18 +1680,16 @@ func TestTaskSchedulerPersistedWriteBudgetReservationsAndRetirement(t *testing.T
 }
 
 func TestTaskSchedulerPersistedWriteBudgetCancellationPrefix(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		t.Run(backendName, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxWrites = 1
 			l.MaxPage = 2
 			var store Storage
 			var err error
-			if backendName == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1761,18 +1751,16 @@ func TestTaskSchedulerPersistedWriteBudgetCancellationPrefix(t *testing.T) {
 
 func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 	for _, maxWrites := range []int{1, 3} {
-		for _, backendName := range []string{"memory", "journal"} {
+		for _, backendName := range []string{"sqlite"} {
 			t.Run(fmt.Sprintf("writes%d/%s", maxWrites, backendName), func(t *testing.T) {
 				l := DefaultLimits()
 				l.MaxWrites = maxWrites
 				l.MaxPage = 2
 				var store Storage
 				var err error
-				if backendName == "memory" {
-					store, err = OpenMemory(MemoryOptions{Limits: &l})
-				} else {
-					store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-				}
+
+				store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1897,7 +1885,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 }
 
 func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost, blockerEntered, releaseBlocker := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		var foreign ID
@@ -2004,18 +1992,16 @@ func TestTaskSchedulerPendingDedupCloseSealDoesNotWake(t *testing.T) {
 }
 
 func TestTaskSchedulerFailFastPrefixCursorCannotDispatchUnmarkedSibling(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		t.Run(backendName, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxWrites = 1
 			l.MaxPage = 2
 			var store Storage
 			var err error
-			if backendName == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2091,7 +2077,7 @@ func TestTaskSchedulerFailFastPrefixCursorCannotDispatchUnmarkedSibling(t *testi
 func TestTaskSchedulerActiveProgressRespectsPendingCascadePrefix(t *testing.T) {
 	for _, intent := range []string{"ancestor-mark", "failFast"} {
 		t.Run(intent, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releasePhase := make(chan struct{}), make(chan struct{})
 				var extraEffects, aborts atomic.Int64
 				var captured *TaskRuntime
@@ -2194,17 +2180,15 @@ func TestTaskSchedulerActiveProgressRespectsPendingCascadePrefix(t *testing.T) {
 func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T) {
 	for _, mode := range []string{"explicit", "cascade"} {
 		for _, budget := range []int{3, 4} {
-			for _, backendName := range []string{"memory", "journal"} {
+			for _, backendName := range []string{"sqlite"} {
 				t.Run(fmt.Sprintf("%s/writes%d/%s", mode, budget, backendName), func(t *testing.T) {
 					l := DefaultLimits()
 					l.MaxWrites = budget
 					var store Storage
 					var err error
-					if backendName == "memory" {
-						store, err = OpenMemory(MemoryOptions{Limits: &l})
-					} else {
-						store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-					}
+
+					store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -2338,7 +2322,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 }
 
 func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		notes, err := DefineDocument(DefinitionOptions{CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }, Kind: "app.runtime-notes", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }})
 		if err != nil {
 			t.Fatal(err)
@@ -2473,7 +2457,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 func TestTaskSchedulerSleepClockAndCancellation(t *testing.T) {
 	for _, mode := range []string{"clock", "caller-cancel", "invocation-mark"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered := make(chan struct{})
 				var clock atomic.Int64
 				clock.Store(1000)
@@ -2557,7 +2541,7 @@ func TestTaskSchedulerSleepClockAndCancellation(t *testing.T) {
 func TestTaskSchedulerCheckpointValueProgressPolicy(t *testing.T) {
 	for _, variant := range []string{"key-order-number", "array-equal", "document-only", "array-changed", "throw-after-progress"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var calls atomic.Int64
 				initial := JSON{"phase": "work", "n": json.Number("1.0"), "items": []any{1, JSON{"nested": true}}}
 				def, err := DefineTask(TaskDefinitionOptions{Kind: "task.checkpoint.value", Version: 1, Initial: func(any) (JSON, error) { return initial, nil }, Phases: map[string]TaskPhase{"work": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
@@ -2611,7 +2595,7 @@ func TestTaskSchedulerCheckpointValueProgressPolicy(t *testing.T) {
 }
 
 func TestTaskSchedulerPhaseRegistrySnapshotPinRefresh(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var h *Harness
 		var firstSeen, secondSeen bool
@@ -2669,7 +2653,7 @@ func TestTaskSchedulerPhaseRegistrySnapshotPinRefresh(t *testing.T) {
 }
 
 func TestTaskSchedulerWaitUnknownTerminalCancelAndClose(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		def := taskDefinition(t, "task.wait.public", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -2796,7 +2780,7 @@ func TestTaskSchedulerWaitUnknownTerminalCancelAndClose(t *testing.T) {
 func TestTaskSchedulerSharedTicketCancellationBeforeAfterAdoption(t *testing.T) {
 	for _, cancelAt := range []string{"before-adoption", "after-adoption"} {
 		t.Run(cancelAt, func(t *testing.T) {
-			taskLimitedBackends(t, 3, func(t *testing.T, store Storage) {
+			taskLimitedSQLite(t, 3, func(t *testing.T, store Storage) {
 				aEntered, bEntered, letA, letB, aCancelled, releaseA, cEntered, releaseC := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 				var aID, bID, cID ID
 				var cRuns atomic.Int64
@@ -2903,7 +2887,7 @@ func TestTaskSchedulerSharedTicketCancellationBeforeAfterAdoption(t *testing.T) 
 }
 
 func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *testing.T) {
-	taskLimitedBackends(t, 4, func(t *testing.T, store Storage) {
+	taskLimitedSQLite(t, 4, func(t *testing.T, store Storage) {
 		aEntered, bEntered, letA, letB, aRejected, releaseA, dEntered, releaseD := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var h *Harness
 		var foreign, cID, dID, aID, bID ID
@@ -3047,7 +3031,7 @@ func TestTaskSchedulerMultiFrontierFailureReleasesOnlyFailedRegistration(t *test
 func TestTaskSchedulerLateWatchAcquisitionAttachmentSealsAndStops(t *testing.T) {
 	for _, seal := range []string{"terminal", "close"} {
 		t.Run(seal, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releaseHost := make(chan struct{}), make(chan struct{})
 				var captured *TaskRuntime
 				def := taskDefinition(t, "task.late.watch", func(context.Context, TaskRecord, *TaskRuntime) error { return errors.New("replaced phase") })
@@ -3158,7 +3142,7 @@ func TestTaskSchedulerLateWatchAcquisitionAttachmentSealsAndStops(t *testing.T) 
 func TestTaskSchedulerSleepFullClockRangeAndCancelledPast(t *testing.T) {
 	for _, variant := range []string{"extreme-future", "cross-sign-future", "extreme-past", "cancelled-past", "nil-context"} {
 		t.Run(variant, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var clock atomic.Int64
 				clock.Store(0)
 				if variant == "cross-sign-future" {
@@ -3264,7 +3248,7 @@ func (c *taskAdmissionContext) Done() <-chan struct{} {
 }
 
 func TestTaskSchedulerOutcomesSingleAdmissionOrderEmptyAndDetached(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		def := taskDefinition(t, "task.outcomes.collection", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -3390,7 +3374,7 @@ func TestTaskSchedulerOutcomesSingleAdmissionOrderEmptyAndDetached(t *testing.T)
 func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 	for _, method := range []string{"outcomes-empty", "outcomes-values", "memo", "typed-entry"} {
 		t.Run(method, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releaseHost := make(chan struct{}), make(chan struct{})
 				var captured *TaskRuntime
 				def := taskDefinition(t, "task.read.queued-seal", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -3478,7 +3462,7 @@ func TestTaskSchedulerOutcomesMemoTypedEntryQueuedSealPrecedence(t *testing.T) {
 }
 
 func TestTaskSchedulerOutcomesCollectionBudgetAndQueuedCancellation(t *testing.T) {
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		t.Run(backendName, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxPage = 8
@@ -3488,11 +3472,9 @@ func TestTaskSchedulerOutcomesCollectionBudgetAndQueuedCancellation(t *testing.T
 			l.MaxStringBytes = 512
 			var store Storage
 			var err error
-			if backendName == "memory" {
-				store, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-			}
+
+			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3572,7 +3554,7 @@ func TestTaskSchedulerOutcomesCollectionBudgetAndQueuedCancellation(t *testing.T
 }
 
 func TestTaskSchedulerBoundWaitNilContextLifetimePrecedence(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		var captured *TaskRuntime
 		def := taskDefinition(t, "task.wait.nil", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -3624,7 +3606,7 @@ func TestTaskSchedulerPhaseRegistryToolsCapturedPersistedLimits(t *testing.T) {
 	if err != nil || len(zero) != 0 {
 		t.Fatal("zero snapshot tools", zero, err)
 	}
-	for _, backendName := range []string{"memory", "journal"} {
+	for _, backendName := range []string{"sqlite"} {
 		for _, schemaSize := range []string{"fits-document", "fits-record-only"} {
 			t.Run(backendName+"/"+schemaSize, func(t *testing.T) {
 				l := DefaultLimits()
@@ -3634,11 +3616,9 @@ func TestTaskSchedulerPhaseRegistryToolsCapturedPersistedLimits(t *testing.T) {
 				// document-envelope policy; no fixture limit widening is needed.
 				var store Storage
 				var err error
-				if backendName == "memory" {
-					store, err = OpenMemory(MemoryOptions{Limits: &l})
-				} else {
-					store, err = OpenJournal(t.TempDir()+"/private", JournalOptions{Limits: &l})
-				}
+
+				store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -3734,7 +3714,7 @@ func TestTaskSchedulerPhaseRegistryToolsCapturedPersistedLimits(t *testing.T) {
 
 func TestTaskSchedulerAdoptedOwnMarkKeepsReadsRejectsWritesAndJoinsBeforeFreshAbort(t *testing.T) {
 	// Pinned harness-tasks:865: marks reject writes, not live host reads.
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseRun := make(chan struct{}), make(chan struct{})
 		captured := make(chan *TaskRuntime, 1)
 		fresh := make(chan *TaskRuntime, 1)
@@ -3901,7 +3881,7 @@ func TestTaskSchedulerInitialWatchAcquisitionQueuedSealCancelAbsent(t *testing.T
 				name = "present"
 			}
 			t.Run(seal+"/"+name, func(t *testing.T) {
-				backends(t, func(t *testing.T, b backend) {
+				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 					entered, releaseHost := make(chan struct{}), make(chan struct{})
 					capturedRuntime := make(chan *TaskRuntime, 1)
 					def := taskDefinition(t, "task.initial-watch", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -4043,7 +4023,7 @@ func TestTaskSchedulerInitialWatchAcquisitionQueuedSealCancelAbsent(t *testing.T
 func TestTaskSchedulerPublicWaitQueuedCallerCancelOrClose(t *testing.T) {
 	for _, seal := range []string{"caller-cancel", "close"} {
 		t.Run(seal, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, releaseHost := make(chan struct{}), make(chan struct{})
 				captured := make(chan *TaskRuntime, 1)
 				definition := taskDefinition(t, "task.publicwait.queued", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -4147,7 +4127,7 @@ func TestTaskSchedulerPublicWaitQueuedCallerCancelOrClose(t *testing.T) {
 func TestTaskSchedulerCloseRejectsQueuedTaskAndBothPendingIdleScopes(t *testing.T) {
 	// Pinned tasks822: all three admitted host readers are live before a fourth
 	// public task wait queues on a witnessed line and Close seals that line.
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, releaseHost := make(chan struct{}), make(chan struct{})
 		captured := make(chan *TaskRuntime, 1)
 		definition := taskDefinition(t, "task.waitclose.both-idle", func(_ context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -4275,7 +4255,7 @@ func TestTaskSchedulerCloseRejectsQueuedTaskAndBothPendingIdleScopes(t *testing.
 }
 
 func TestTaskSchedulerOwnMarkAfterProgressSkipsNextPhase(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		progressed, releaseRun := make(chan struct{}), make(chan struct{})
 		captured, fresh := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
 		var firstPhases, secondPhases, aborts atomic.Int64
@@ -4390,7 +4370,7 @@ func TestTaskSchedulerOwnMarkAfterProgressSkipsNextPhase(t *testing.T) {
 // Adapted from the auditors uncompiled repeat-abort source supplement.
 // Owner-authored source only; no external test is counted as a pass.
 func TestTaskSchedulerRepeatedAbortCallerCancelKeepsMarkAndFreshAbort(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		runEntered, releaseRun := make(chan struct{}), make(chan struct{})
 		abortEntered, releaseAbort := make(chan struct{}), make(chan struct{})
 		oldRuntime, freshRuntime := make(chan *TaskRuntime, 1), make(chan *TaskRuntime, 1)
@@ -4519,7 +4499,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 		for _, descendantKind := range []string{"native", "generation", "tool"} {
 			for _, edge := range []string{"task", "conversation"} {
 				t.Run(prefix+"/"+descendantKind+"/"+edge, func(t *testing.T) {
-					backends(t, func(t *testing.T, b backend) {
+					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						var effects atomic.Int64
 						definition := taskDefinition(t, "task.failfast.inherited", func(context.Context, TaskRecord, *TaskRuntime) error {
 							effects.Add(1)
@@ -4685,7 +4665,7 @@ func TestTaskSchedulerFailFastSelectedAncestorPrefixCannotReserveOrdinaryDescend
 }
 
 func TestTaskSchedulerActiveDescendantPhaseStopsBeforeSelectedOwnerMark(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		captured := make(chan *TaskRuntime, 1)
 		var nextEffects, aborts atomic.Int64

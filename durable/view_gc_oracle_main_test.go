@@ -97,7 +97,7 @@ func TestMainViewUpstreamDroppedEntryLifetime(t *testing.T) {
 			name = "native-retention-control"
 		}
 		t.Run(name, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				w, refs, hold := runViewEntryLifetime(t, h, c, retain)
 				if retain {

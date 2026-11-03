@@ -27,7 +27,7 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 		modelOverride           bool
 	}{{"reserve", 1000, 4096, 800, false}, {"model-cap", 1000, 256, 256, false}, {"zero", 0, 4096, 0, false}, {"model-override", 1000, 4096, 640, true}} {
 		t.Run(tc.name, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				defer func() {
 					select {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestTaskGraphPinnedReopenPendingMarksAndReverseCreatedConversationOrder(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		definition := taskDefinition(t, "task.graph-reopen", func(ctx context.Context, _ TaskRecord, _ *TaskRuntime) error {
 			close(entered)

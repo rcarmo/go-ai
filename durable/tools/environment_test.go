@@ -48,7 +48,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 		return LocalEnv(target.Cwd), nil
 	}}
 	path := filepath.Join(base, "journal")
-	store, err := durable.OpenJournal(path, durable.JournalOptions{})
+	store, err := durable.OpenSQLite(filepath.Join(path, "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	if err := h.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	store, err = durable.OpenJournal(path, durable.JournalOptions{})
+	store, err = durable.OpenSQLite(filepath.Join(path, "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestPerConversationEnvironmentFactoryCwdReadsAndReopen(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(fallback.Cwd(), "result.txt")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("factory bypassed", err)
 	}
-	bytes, err := os.ReadFile(filepath.Join(path, "journal.bin"))
+	bytes, err := os.ReadFile(filepath.Join(path, "store.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}

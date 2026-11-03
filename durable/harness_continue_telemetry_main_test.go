@@ -15,7 +15,7 @@ import (
 // adapts Chord spans. The public prepare label and the backend's data-only
 // Context carrier must match the actual submit/phase and persisted status.
 func TestMainContinueRootTraceAndAdmission(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		type spanRecord struct {
 			name   string
 			parent *spanRecord

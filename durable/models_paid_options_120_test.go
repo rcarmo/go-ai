@@ -13,7 +13,7 @@ import (
 func TestModels120PaidImageRequestOptionsBoundary(t *testing.T) {
 	for _, mode := range []string{"rewrite", "scope", "invalid"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				const api images.ImagesApi = "paid-options-test"
 				var runs atomic.Int64
 				images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: api, GenerateImages: func(*images.ImagesModel, images.ImagesContext, *images.ImagesOptions) (*images.AssistantImages, error) {

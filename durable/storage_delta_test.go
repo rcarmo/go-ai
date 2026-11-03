@@ -3,7 +3,7 @@ package durable
 import (
 	"bytes"
 	"errors"
-	"os"
+
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -13,7 +13,7 @@ func deltaWrite(id ID, version uint64, ops ...Operation) Write {
 	return Write{Op: "delta-document", Delta: &DocumentDelta{ID: id, Version: version, Ops: ops}}
 }
 func TestStorageDeltaHistoryCountVersionAndCopyReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		id := mint(t, s)
 		d := historyDocument(id, 1, "delta.history", "", "rewindable", "asOf")
@@ -85,7 +85,7 @@ func TestStorageDeltaHistoryCountVersionAndCopyReopen(t *testing.T) {
 	})
 }
 func TestStorageDeltaRejectionAtomicAndLatestTail(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		id := mint(t, s)
 		d := Document{ID: id, Scope: "session", Kind: "delta.latest", Version: 1, Value: JSON{"s": "abc"}}
@@ -122,7 +122,7 @@ func TestStorageDeltaRejectionAtomicAndLatestTail(t *testing.T) {
 	})
 }
 func TestStorageDeltaBudgetAndSourceFence(t *testing.T) {
-	for _, name := range []string{"memory", "journal"} {
+	for _, name := range []string{"sqlite"} {
 		t.Run(name, func(t *testing.T) {
 			l := DefaultLimits()
 			l.MaxDocumentBytes = 512
@@ -130,11 +130,9 @@ func TestStorageDeltaBudgetAndSourceFence(t *testing.T) {
 			l.MaxStringBytes = 1024
 			var s Storage
 			var err error
-			if name == "memory" {
-				s, err = OpenMemory(MemoryOptions{Limits: &l})
-			} else {
-				s, err = OpenJournal(filepath.Join(t.TempDir(), "private"), JournalOptions{Limits: &l})
-			}
+
+			s, err = openSQLiteTestDirectory(filepath.Join(t.TempDir(), "private"), SQLiteOptions{Limits: &l})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -173,20 +171,20 @@ func TestStorageDeltaBudgetAndSourceFence(t *testing.T) {
 		})
 	}
 }
-func TestStorageDeltaJournalUncertainAndInvalidReplay(t *testing.T) {
-	for _, mode := range []string{"short", "sync"} {
+func TestStorageDeltaSQLiteUncertainAndInvalidReplay(t *testing.T) {
+	for _, mode := range []string{"before", "after"} {
 		t.Run(mode, func(t *testing.T) {
-			s, dir := newJournal(t)
+			s, dir := newSQLiteTestStore(t)
 			id := mint(t, s)
 			d := Document{ID: id, Scope: "session", Kind: "delta.uncertain", Version: 1, Value: JSON{"s": "a"}}
 			apply(t, s, putDocument(d))
-			fault := &faultFile{journalFile: s.file, writeLimit: -1}
-			if mode == "short" {
-				fault.writeLimit = 17
+			// Inject uncertainty before SQL or after a real atomic commit;
+			// SQLite has no partial journal-frame write contract.
+			if mode == "before" {
+				s.appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("unknown append acknowledgement") }
 			} else {
-				fault.syncErr = errors.New("sync failure")
+				installSQLiteAcknowledgement(s, func() error { return errors.New("lost commit acknowledgement") })
 			}
-			s.file = fault
 			if _, err := s.Apply(bg, Batch{Writes: []Write{deltaWrite(id, 1, Operation{"a", []any{"s"}, "b"})}}); !errors.Is(err, ErrPoisoned) {
 				t.Fatal(err)
 			}
@@ -196,7 +194,7 @@ func TestStorageDeltaJournalUncertainAndInvalidReplay(t *testing.T) {
 			if err := s.Close(bg); err != nil {
 				t.Fatal(err)
 			}
-			reopened, err := OpenJournal(dir, JournalOptions{})
+			reopened, err := openSQLiteTestDirectory(dir, SQLiteOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -207,7 +205,7 @@ func TestStorageDeltaJournalUncertainAndInvalidReplay(t *testing.T) {
 			}
 			want := "a"
 			count := uint64(0)
-			if mode == "sync" {
+			if mode == "after" {
 				want = "ab"
 				count = 1
 			}
@@ -216,7 +214,7 @@ func TestStorageDeltaJournalUncertainAndInvalidReplay(t *testing.T) {
 			}
 		})
 	}
-	s, dir := newJournal(t)
+	s, dir := newSQLiteTestStore(t)
 	id := mint(t, s)
 	d := Document{ID: id, Scope: "session", Kind: "delta.corrupt", Version: 1, Value: JSON{"s": "a"}}
 	apply(t, s, putDocument(d))
@@ -224,19 +222,13 @@ func TestStorageDeltaJournalUncertainAndInvalidReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invalid := frame(2, s.ordinal+1, s.state.HighWater, payload)
+	if err = s.exec("INSERT INTO frames(ordinal,kind,highwater,payload) VALUES(?,?,?,?)", int64(s.ordinal+1), 2, int64(s.state.HighWater), payload); err != nil {
+		t.Fatal(err)
+	}
 	if err = s.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "journal.bin"), os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = f.Write(invalid); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-	if _, err = OpenJournal(dir, JournalOptions{}); !errors.Is(err, ErrCorrupt) {
+	if _, err = openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(err, ErrCorrupt) {
 		t.Fatal("complete cross-version delta frame accepted", err)
 	}
 }
@@ -250,7 +242,7 @@ func TestStorageDeltaRetainedAndRecordBudgets(t *testing.T) {
 			} else {
 				l.MaxRetainedBytes = 800
 			}
-			s, e := OpenMemory(MemoryOptions{Limits: &l})
+			s, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &l})
 			if e != nil {
 				t.Fatal(e)
 			}

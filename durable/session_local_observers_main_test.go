@@ -12,7 +12,7 @@ import (
 // Native reserved conversation/setup and real asynchronous watch receipts adapt
 // source open()/flush(); the local lane itself must be synchronous.
 func TestMainSessionDeferredLocalObserverOracle(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		f := openMainDeadlineSession(t, b, nil)
 		def, _ := mainDeferredLifecycleDefinitions(t)
 		watch, ok, err := f.session.WatchDefinition(bg, def, 1, nil)

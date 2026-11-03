@@ -13,7 +13,7 @@ func paidImageCatalog120(api images.ImagesApi) *typedCatalog120 {
 	return &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), image: &goai.ImageModel{Provider: "scoped", ID: "image", Api: goai.ImageApi(api)}, classifier: &goai.ClassifierModel{Provider: "scoped", ID: "classifier"}}
 }
 func TestModels120PaidImageUnsafeRestartDoesNotRedispatch(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		const api images.ImagesApi = "paid-restart-test"
 		entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		var runs, optionsCalls atomic.Int64
@@ -98,7 +98,7 @@ func TestModels120PaidImageUnsafeRestartDoesNotRedispatch(t *testing.T) {
 	})
 }
 func TestModels120PaidImageProviderErrorRetainsBillingOnce(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		const api images.ImagesApi = "paid-error-test"
 		var runs atomic.Int64
 		images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: api, GenerateImages: func(*images.ImagesModel, images.ImagesContext, *images.ImagesOptions) (*images.AssistantImages, error) {

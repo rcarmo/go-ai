@@ -15,7 +15,7 @@ import (
 func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 	for _, outcome := range []string{"success", "uncertain", "closing"} {
 		t.Run(outcome, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				batches, ids := groupEntryBatches(t, b.store, 1)
 				s, err := OpenSession(b.store)
 				if err != nil {
@@ -134,7 +134,7 @@ func (a *mainHealthSnapshotAdapter) Snapshot(ctx context.Context) (Snapshot, err
 }
 
 func TestMainSessionWrappedReadRetainsWriterAdmission(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 1)
 		adapter := &mainHealthSnapshotAdapter{nativeStorage: b.store.(nativeStorage), firstRead: make(chan struct{})}
 		s, err := OpenSession(adapter)

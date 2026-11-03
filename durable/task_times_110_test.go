@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
+
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		taskID := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}}, Write{Op: "put-task", Task: &Task{ID: taskID, Conversation: root, Kind: "legacy", Status: "pending", Checkpoint: JSON{}}})
@@ -77,12 +77,7 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 		if e = s.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		switch old := b.store.(type) {
-		case *MemoryStorage:
-			b.store, e = OpenMemory(MemoryOptions{Image: old.image})
-		case *JournalStorage:
-			b.store, e = OpenJournal(filepath.Dir(old.path), JournalOptions{})
-		}
+		b.store = reopenStoreAfterHarnessClose(t, b.store)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -100,7 +95,7 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 }
 
 func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		taskID := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
@@ -154,7 +149,7 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 }
 
 func TestTaskTimes110HarnessNativeTerminal(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var calls atomic.Int64
 		definition, e := DefineTask(TaskDefinitionOptions{Kind: "timed-native", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "run"}, nil }, Abort: taskAbort, Phases: map[string]TaskPhase{"run": func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("ok"), nil })

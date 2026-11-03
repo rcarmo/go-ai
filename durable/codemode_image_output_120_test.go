@@ -25,7 +25,7 @@ func TestCodemode120QuickJSImageOutputPersistedAndDetached(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := base64.StdEncoding.EncodeToString(encoded.Bytes())
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "image-output-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			code := "// @options: {\"max_output_tokens\":0}\nimage({type:'image',mimeType:'image/png',data:'" + data + "'});text('discarded');"

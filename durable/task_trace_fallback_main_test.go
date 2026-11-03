@@ -12,7 +12,7 @@ import (
 func TestMainTaskTraceUnavailableExtractionUsesRoot(t *testing.T) {
 	for _, mode := range []string{"absent", "nil", "panic"} {
 		t.Run(mode, func(t *testing.T) {
-			mainTraceBackends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				backend := newMainTaskTraceBackend(t)
 				switch mode {
 				case "absent":

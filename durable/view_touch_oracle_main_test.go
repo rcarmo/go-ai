@@ -8,7 +8,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-func upstreamCompletedChat(t *testing.T, b backend, text string) (*Harness, *ConversationHandle) {
+func upstreamCompletedChat(t *testing.T, b sqliteFixture, text string) (*Harness, *ConversationHandle) {
 	t.Helper()
 	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 		ch := make(chan goai.Event, 1)
@@ -26,7 +26,7 @@ func upstreamCompletedChat(t *testing.T, b backend, text string) (*Harness, *Con
 func TestMainViewUpstreamTouchOracles(t *testing.T) {
 	for _, mode := range []string{"completed-hydration", "unmounted-silence"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := upstreamCompletedChat(t, b, "hello")
 				if mode == "completed-hydration" {
 					sub, err := c.Submit(bg, Input{Content: "hi"})

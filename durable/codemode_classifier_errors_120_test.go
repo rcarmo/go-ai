@@ -20,7 +20,7 @@ func TestCodemode120ClassifierProviderFailureAndInvalidContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		effects.Store(0)
 		registry := NewRegistry()
 		def := taskDefinition(t, "classifier-error", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

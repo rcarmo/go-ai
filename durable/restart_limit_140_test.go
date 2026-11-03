@@ -28,7 +28,7 @@ func seedInterrupted140(t *testing.T, h *Harness, id ID) {
 func TestRestartLimit150RecoveryDispositionAndHostControls(t *testing.T) {
 	for _, action := range []string{"retry", "raise", "abort", "fault"} {
 		t.Run(action, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var runs, reports atomic.Int64
 				events := make(chan observedReport140, 8)
 				def := taskDefinition(t, "task.restart-limit-140", func(ctx context.Context, record TaskRecord, r *TaskRuntime) error {
@@ -119,7 +119,7 @@ func TestRestartLimit150RecoveryDispositionAndHostControls(t *testing.T) {
 }
 
 func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		def := taskDefinition(t, "task.restart-progress-140", func(ctx context.Context, record TaskRecord, r *TaskRuntime) error {
 			if record.Restarts != 1 {
 				return fmt.Errorf("entry count %d", record.Restarts)
@@ -184,7 +184,7 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *testing.T) {
 	for _, missing := range []bool{false, true} {
 		t.Run(fmt.Sprintf("missing=%v", missing), func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				var abortCalls atomic.Int64
 				events := make(chan observedReport140, 8)
 				definition, err := DefineTask(TaskDefinitionOptions{Kind: "task.abort-cutoff-140", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "work"}, nil }, Phases: map[string]TaskPhase{"work": func(context.Context, TaskRecord, *TaskRuntime) error { return fmt.Errorf("ordinary phase ran") }}, Abort: func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -233,7 +233,7 @@ func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *test
 }
 
 func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		events := make(chan observedReport140, 8)
 		definition := taskDefinition(t, "task.reject-cutoff-140", func(context.Context, TaskRecord, *TaskRuntime) error { return fmt.Errorf("must not run") })
 		limit := uint64(2)
@@ -287,7 +287,7 @@ func TestRestartLimit140RejectedCutoffDoesNotReportFault(t *testing.T) {
 }
 
 func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		events := make(chan observedReport140, 8)
 		limit := uint64(1)
 		options := Options{Settings: &HarnessSettings{RestartLimit: &limit}, OnReportWithInfo: func(ctx context.Context, err error, info ReportInfo) {

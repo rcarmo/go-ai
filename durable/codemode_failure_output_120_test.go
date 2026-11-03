@@ -13,7 +13,7 @@ func TestCodemode120QuickJSFailureReportsPriorEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sandbox.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var effects atomic.Int64
 		registry := NewRegistry()
 		leaf := wrapRegistration("codemode_leaf")

@@ -15,7 +15,7 @@ import (
 // Native controls for confirmed storage refusal, then real journal/SQLite
 // reopen. Context extraction must not depend on any original process span.
 func TestMainTaskTraceRefusalAndReopen(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
 		def := taskDefinition(t, "task.trace-reopen", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
@@ -118,7 +118,7 @@ func TestMainTaskTraceRefusalAndReopen(t *testing.T) {
 // Source-derived scheduler fallback: a creator with no propagation data must
 // not manufacture a persisted carrier or override the harness root.
 func TestMainTaskTraceCreatorWithoutCarrier(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
 		def := taskDefinition(t, "task.trace-no-carrier", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
@@ -159,7 +159,7 @@ func TestMainTaskTraceCreatorWithoutCarrier(t *testing.T) {
 // Source scheduler keeps links for all phases of the first invocation only.
 // Parking and reserving a second invocation is an actual scheduler transition.
 func TestMainTaskTraceLinksFirstInvocationOnly(t *testing.T) {
-	mainTraceBackends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
 		var invocations atomic.Int64
 		def := taskDefinition(t, "task.trace-first-only", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

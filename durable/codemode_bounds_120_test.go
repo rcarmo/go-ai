@@ -53,7 +53,7 @@ func (e advanceClockExecution120) Next(context.Context) (CodemodeEvent, error) {
 func (advanceClockExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (advanceClockExecution120) Close() error                                    { return nil }
 func TestCodemode120ExpiredResultCannotSettleStore(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var clock atomic.Int64
 		clock.Store(1000)
 		registry := NewRegistry()

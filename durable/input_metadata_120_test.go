@@ -7,7 +7,7 @@ import (
 )
 
 func TestInputMetadata120PreservesEntryAndUserMessage(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			if len(input.Messages) != 1 || goai.ContentText(input.Messages[0].Content) != "user text" {
 				t.Error("custom input missing from model", input.Messages)

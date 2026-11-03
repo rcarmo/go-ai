@@ -13,7 +13,7 @@ import (
 // have adopted only that batch; SQLite has adopted all three. Neither a raw
 // reader nor a second caller may enter that partially delivered call.
 func TestInternalGroupQueuedReadAndWriter(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 4)
 		core := b.store.(nativeStorage).nativeCore()
 		ctx, cancel := context.WithTimeout(bg, 5*time.Second)

@@ -58,7 +58,7 @@ func run() error {
 		return err
 	}
 	model := &goai.Model{ID: "local-model", Provider: goai.ProviderOpenAI, Api: goai.ApiOpenAICompletions, BaseURL: server.URL, ContextWindow: 8192, MaxTokens: 256}
-	store, err := durable.OpenJournal(dir, durable.JournalOptions{})
+	store, err := durable.OpenSQLite(filepath.Join(dir, "store.sqlite"), durable.SQLiteOptions{})
 	if err != nil {
 		return err
 	}

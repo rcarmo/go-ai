@@ -19,7 +19,7 @@ func (invalidOutputExecution120) Next(context.Context) (CodemodeEvent, error) {
 func (invalidOutputExecution120) Deliver(context.Context, CodemodeDelivery) error { return nil }
 func (invalidOutputExecution120) Close() error                                    { return nil }
 func TestCodemode120InvalidResultCannotWriteOutputFiles(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &outputWriter120{}
 		registry := NewRegistry()
 		def := taskDefinition(t, "invalid-output-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {

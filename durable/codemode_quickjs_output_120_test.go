@@ -27,7 +27,7 @@ func TestCodemode120QuickJSTextConsoleReturnAndBudget(t *testing.T) {
 			t.Fatalf("code %s result %+v err %v", tc.code, event.Result, err)
 		}
 	}
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		registry := NewRegistry()
 		def := taskDefinition(t, "output-budget-parent", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			result, err := r.RunCodemode(ctx, "run", "// @options: {\"max_output_tokens\":1}\nconsole.log('long console');return 'long result';", sandbox)

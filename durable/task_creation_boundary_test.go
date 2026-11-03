@@ -6,7 +6,7 @@ import (
 )
 
 func TestTaskOwnershipPinnedCreateRejectMatrixAndFinalOwnerOverlay(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		definition := taskDefinition(t, "task.creation.boundary", func(context.Context, TaskRecord, *TaskRuntime) error { return nil })
 		h := taskTestHarness(t, b.store, definition)
 		parent := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})

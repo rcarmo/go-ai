@@ -25,7 +25,7 @@ func TestCodemode120FilesystemAddressCommitFaultsNeverWriteBeforeConfirmation(t 
 	defer engine.Close(bg)
 	for _, mode := range []string{"rejected", "uncertain-before", "uncertain-after"} {
 		t.Run(mode, func(t *testing.T) {
-			backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				fs := &addressFaultFS120{&codemodeFS120{id: "address-fs"}}
 				registry := NewRegistry()
 				def := taskDefinition(t, "address-fault", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
@@ -111,7 +111,7 @@ func TestCodemode120FilesystemAddressCommitFaultsNeverWriteBeforeConfirmation(t 
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, journal := b.store.(*JournalStorage)
+				_, journal := b.store.(*SQLiteStorage)
 				confirmed := mode == "uncertain-after" && journal
 				for _, doc := range state.Documents {
 					if doc.Kind == codemodeRunKind {

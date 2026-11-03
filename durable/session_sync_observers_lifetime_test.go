@@ -9,7 +9,7 @@ import (
 // Native invariants of the new guard: spent handles release real callback,
 // reporter and Session fields, not weak references to a proxy payload box.
 func TestMainSyncCommitObserverReleaseAndSharedBounds(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s, add := mainSyncCounterSession(t, b)
 		if err := add(); err != nil {
 			t.Fatal(err)

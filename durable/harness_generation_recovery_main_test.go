@@ -257,7 +257,7 @@ func mainFinishRecovery(t *testing.T, f *mainRecoveryHarness, streams <-chan *ma
 // f9a26365 harness-deferred-progress.test.ts:116-156, with controlled provider
 // clocks and native failed-Session/reopen adapters instead of process killing.
 func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
@@ -298,7 +298,7 @@ func TestMainHarnessRecoveryStoredPartialAndReplica(t *testing.T) {
 
 // Source158-175: an unstored attempt and partial must not become an entry.
 func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
@@ -326,7 +326,7 @@ func TestMainHarnessRecoveryBeforeFirstStore(t *testing.T) {
 // Source177-207: crash before conversion and during the resend must retain one
 // aborted stored partial, with no duplicate from the held resend.
 func TestMainHarnessRecoveryRepeatedCrashes(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenSlowRecovery(t, b.store, ref, options, clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
@@ -412,7 +412,7 @@ func TestMainGenerationPartialLegacyAndOwnerFence(t *testing.T) {
 // Native fault boundary derived from Source177: conversion and removal of its
 // stored presentation must be one transaction, before another intent can store.
 func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenRecovery(t, b.store, ref, options, clock, 150)
 		sub, err := f.c.Submit(bg, Input{Content: "hi"})
@@ -496,7 +496,7 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 }
 
 func TestMainGenerationAgentEventsBeforeStorage(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options, streams, clock := mainRecoverySetup(t)
 		f := mainOpenRecovery(t, b.store, ref, options, clock, math.Inf(1))
 		events := make(chan AgentEvent, 64)

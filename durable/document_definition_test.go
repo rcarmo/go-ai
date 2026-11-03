@@ -24,7 +24,7 @@ func mustDefinition(t *testing.T, o DefinitionOptions) *DocumentDefinition {
 	return d
 }
 func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		session, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)
@@ -111,7 +111,7 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 }
 
 func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		session, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)
@@ -212,7 +212,7 @@ func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.
 }
 
 func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *testing.T) {
-	s, e := NewMemory()
+	s, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -269,7 +269,7 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 }
 
 func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
 		session, e := OpenSession(s)
 		if e != nil {
@@ -361,7 +361,7 @@ func TestDocumentDefinitionToolCommitProductionAndReopen(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	store, dir := newJournal(t)
+	store, dir := newSQLiteTestStore(t)
 	registry := NewRegistry()
 	model := fakeModel(goai.ApiOpenAICompletions)
 	model.BaseURL = server.URL
@@ -398,7 +398,7 @@ func TestDocumentDefinitionToolCommitProductionAndReopen(t *testing.T) {
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)
 	}
-	store, e = OpenJournal(dir, JournalOptions{})
+	store, e = openSQLiteTestDirectory(dir, SQLiteOptions{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -424,7 +424,7 @@ func TestDocumentDefinitionToolCommitProductionAndReopen(t *testing.T) {
 func TestDocumentDefinitionCacheBoundUnloadAndUnaccessedVersions(t *testing.T) {
 	limits := DefaultLimits()
 	limits.MaxPage = 2
-	store, e := OpenMemory(MemoryOptions{Limits: &limits})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -461,7 +461,7 @@ func TestDocumentDefinitionCacheBoundUnloadAndUnaccessedVersions(t *testing.T) {
 }
 
 func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -498,7 +498,7 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 }
 
 func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -556,7 +556,7 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 	limits := DefaultLimits()
 	limits.MaxRetainedBytes = 2000
-	store, e := OpenMemory(MemoryOptions{Limits: &limits})
+	store, e := openTestSQLite(t, sqliteFixtureOptions{Limits: &limits})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -591,7 +591,7 @@ func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 }
 
 func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
-	store, e := NewMemory()
+	store, e := newTestSQLite(t)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -638,18 +638,16 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 }
 
 func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
-	for _, name := range []string{"memory", "journal"} {
+	for _, name := range []string{"sqlite"} {
 		t.Run(name, func(t *testing.T) {
 			limits := DefaultLimits()
 			limits.MaxDocumentBytes, limits.MaxRecordBytes = 512, 2048
 			limits.MaxStringBytes, limits.MaxRequestIDBytes = 1024, 512
 			var store Storage
 			var e error
-			if name == "memory" {
-				store, e = OpenMemory(MemoryOptions{Limits: &limits})
-			} else {
-				store, e = OpenJournal(filepath.Join(t.TempDir(), "private"), JournalOptions{Limits: &limits})
-			}
+
+			store, e = openSQLiteTestDirectory(filepath.Join(t.TempDir(), "private"), SQLiteOptions{Limits: &limits})
+
 			if e != nil {
 				t.Fatal(e)
 			}

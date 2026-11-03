@@ -80,50 +80,32 @@
 // before admission leave the store usable. Allocator reservations commit alone
 // and remain spent even when the later transaction fails.
 //
-// Native journal v1 is one owner-only directory (0700) and journal.bin (0600).
-// This is NOT the official JSONL/sidecar format. Frames are exactly 64-byte
-// header + strict JSON payload + 8-byte ENDGOD1! terminator. Header: GODJNL1!,
-// little-endian version uint16=1, type uint8(config0/reservation1/commit2), flags0,
-// payload uint32 length, ordinal uint64, allocator high-water uint64 and SHA-256
-// over the first32 header bytes plus payload. Config first/ordinal1/high-water1
-// persists format, effective limits and Sync. Reservations advance high-water
-// without logical Seq; commits advance Seq and preserve high-water. IDs/Seq/frame
-// ordinals never exceed 2^53-1. Root1 is reserved; first minted ID2. Complete bad
-// headers/checksums/JSON/relations fail closed. Only a legal final incomplete
-// header/frame/terminator prefix is truncated; no magic scanning/repair occurs.
-// The journal has no sidecar, reclamation or automatic corruption repair.
-// OpenSQLite stores native reservation/commit frames in WAL transactions with
-// synchronous=FULL under CGO_ENABLED=0 with modernc.org/sqlite. The connector
-// keeps memory/journal imports buildable on engine-unsupported targets, where
-// OpenSQLite returns ErrUnsupported; secure lifetime locking also needs Unix.
-// Reclaim replaces physical
-// frames with a complete logical checkpoint, retaining every entry and revision.
-// Its files are distinct from upstream SQLite files. Canonical parent paths and
-// an inode flock exclude cooperating processes until Close; directory/file
-// replacement by the host or a noncooperating writer is outside that guarantee.
+// SQLite is the sole storage implementation. OpenSQLite uses native Go record
+// semantics in atomic WAL transactions with synchronous=FULL and CGO-free
+// modernc.org/sqlite. Its schema is distinct from upstream SQLite storage.
+// Reclaim replaces frames with a complete logical checkpoint while retaining
+// every transcript entry, document revision, spent ID and sequence/ordinal.
+// Canonical path ownership and an inode flock last through joined Close.
+// The database must be a regular owner-only file. Directory/file replacement
+// by the host or a noncooperating writer is outside this guarantee. Driver or
+// secure-locking unsupported targets return ErrUnsupported before creating data.
+// Process-exit recovery tests do not establish universal power-loss guarantees.
+// Memory/Journal constructors and formats are removed from the current API.
+// Existing data is not deleted or automatically migrated.
 //
-// Sync defaults true. File sync follows append; directory creation syncs parent
-// edges and new file directory metadata before acknowledgement. Unsupported or
-// failed required directory sync rejects opening. Actual power-loss behaviour
-// depends on the filesystem/device; process-crash ordering is not a universal
-// power-failure guarantee. Sync=false omits those barriers and is persisted;
-// conflicting explicit reopen options reject. In-process path/image exclusion
-// is enforced through full close settlement. Cross-process/host exclusivity and
-// exclusion of symlink/directory replacement are HOST preconditions; no OS lock
-// or multiwriter guarantee is supplied. MemoryImage reopening retains RAM only.
-//
-// Defaults/hard v1 ceilings: frame4MiB/16MiB (plus72 overhead), record512KiB/1MiB,
+// Defaults/hard v1 ceilings: frame4MiB/16MiB, record512KiB/1MiB,
 // object256KiB/1MiB, decoded string/key256KiB/512KiB, requestID512/4096 bytes,
 // depth32/64, members4096/16384, JSON nodes65536/262144, writes256/1024,
 // page256/4096 (positive explicit limits), indexed records100000/1000000,
-// retained encoded records32MiB/128MiB, file256MiB/4GiB. Config bootstrap16KiB.
+// retained encoded records32MiB/128MiB. Config bootstrap16KiB. The legacy
+// MaxJournalBytes configuration field does not impose a SQLite database quota.
 // Limits are persisted, coherent and applied to writes/replay; strict bounded
 // traversal precedes incremental encoding, which never calls caller marshalers.
 // Latest full bases replace current values; rewindable bases retain each commit
 // revision. Both revision counts and bytes consume persisted budgets; no history
 // is silently pruned. Retired-ID metadata remains indexed. Heap
-// overhead can exceed retained bytes; no hard RSS bound is promised. Journal
-// growth/replay cost is append-only. Queries are detached committed snapshots,
+// overhead can exceed retained bytes; no hard RSS bound is promised. Frame
+// growth/replay cost is append-only until Reclaim. Queries are detached committed snapshots,
 // numeric ascending-ID pages except the legacy entry cursor ordered by
 // commit/position. HistoryStorage supplies fork-aware newest-ID-first scans,
 // stable query-bound cursors, visible entry lookup and inherited head markers.

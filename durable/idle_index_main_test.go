@@ -33,7 +33,7 @@ func checkMainIdleIndex(t *testing.T, h *Harness, want bool) {
 }
 
 func TestMainIdleIndexHeldQueue(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		mint := func() ID {
 			t.Helper()
 			id, err := b.store.MintID(bg)
@@ -86,7 +86,7 @@ func TestMainIdleIndexHeldQueue(t *testing.T) {
 }
 
 func TestMainIdleIndexActualHost(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		committed, release := make(chan struct{}), make(chan struct{})
 		def := taskDefinition(t, "idle.index.host", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			if err := r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil }); err != nil {
@@ -120,7 +120,7 @@ func TestMainIdleIndexActualHost(t *testing.T) {
 }
 
 func TestMainIdleIndexPublicationWitness(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		h.session.taskBookkeeping(func() { h.scheduler.currentIdleIndex() })
 		var before uint64
@@ -198,7 +198,7 @@ func BenchmarkMainContextBusyHistory(b *testing.B) {
 }
 
 func TestMainIdleIndexLegacyReparent(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		a, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -233,7 +233,7 @@ func TestMainIdleIndexLegacyReparent(t *testing.T) {
 }
 
 func TestMainIdleIndexLegacyCycleFallback(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id, err := b.store.MintID(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -266,7 +266,7 @@ func TestMainIdleIndexLegacyCycleFallback(t *testing.T) {
 }
 
 func TestMainIdleIndexAmbiguousDocumentFallback(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		mint := func() ID {
 			t.Helper()
 			id, err := b.store.MintID(bg)

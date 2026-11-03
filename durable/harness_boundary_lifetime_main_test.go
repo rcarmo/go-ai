@@ -19,7 +19,7 @@ import (
 func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 	for _, mode := range []string{"conversation-abort", "task-abort", "legacy-first-absent"} {
 		t.Run(mode, func(t *testing.T) {
-			utf16Backends(t, func(t *testing.T, b backend) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				entered, release, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
 				providerEntered := make(chan struct{}, 1)
 				var resolutions, calls atomic.Int64
@@ -265,7 +265,7 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 // Seed that valid pre-boundary state on the real Session before Resume; all IDs
 // are minted there, and preparation itself must append the first real entry.
 func TestMainBoundaryLegacyRecoveryBusyControl(t *testing.T) {
-	utf16Backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered, release, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		providerRelease := make(chan struct{})
 		providerEntered := make(chan []string, 1)

@@ -7,7 +7,7 @@ import (
 )
 
 func TestCompactionRejectsStopWithToolCallWithoutPlacingSummary(t *testing.T) {
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
 			ch <- &goai.DoneEvent{Reason: goai.StopReasonStop, Message: &goai.Message{Role: goai.RoleAssistant, StopReason: goai.StopReasonStop, Content: []goai.ContentBlock{{Type: "text", Text: "must not become summary"}, {Type: "toolCall", ID: "call", Name: "unknown", Arguments: map[string]any{}}}}}

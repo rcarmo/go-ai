@@ -22,7 +22,7 @@ func TestCodemode120OutputWriterCloseJoinsAndCannotSettle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.Close(bg)
-	backends(t, func(t *testing.T, b backend) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		writer := &cancelOutputWriter120{entered: make(chan struct{}), cancelled: make(chan struct{}), release: make(chan struct{})}
 		defer releaseTaskGate(writer.release)
 		registry := NewRegistry()
