@@ -2,6 +2,10 @@
 
 The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. GitHub published the stable release at `2026-11-02T11:05:31Z`. Earlier release pins and receipts are historical comparison inputs; they establish no v1.5.0 acceptance. Retained tests, runtime identity and generated-schema/catalogue tooling must follow this release, including required breaking semantics.
 
+## Terminal-only deferred polling
+
+The pinned poll API returns one message; it exposes no harness streaming progress. [Poll-boundary checks](poll-boundary.md) cover source671's real abort-handler cutoff plus two source-derived terminal/crash/cancellation controls on SQLite, without runtime changes. Three functions pass nine repeated checks; four injected faults reject five SQLite leaves. Whole-file dispositions and full v1.5.0 acceptance do not change. Next: after-run source785 missing-definition/Stop-orphaning.
+
 ## SQLite-only storage
 
 Rui's clarification supersedes the earlier multi-engine matrix: **SQLite through pure-Go modernc is the sole storage implementation**. Runtime `f284e255e0711ff2cf2950240fdf83b9c5652f5c` removes Memory/Journal implementations and selection paths; [scope and checks](sqlite-only.md) record29selected durable functions/87repeated passes, tools/codemode consumers and static checks. Existing data and published assets are preserved. Earlier memory/journal results below retain their historical scope. The [cutoff-order/salvage checkpoint](cutoff-order-salvage.md) adds source621/648 and derived registry/deferred controls; its four functions also pass on SQLite. No whole-file disposition or full v1.5.0 acceptance changes.

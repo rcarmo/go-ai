@@ -15,7 +15,7 @@ Runtime `fea6d8ef444a30e81cddb19c3c0c9114b2de14a8` faults ordinary cut-off tasks
 
 Native IDs, request checkpoint `intent`→source `request`, message-entry roles and real modernc SQLite replace the source wrappers. The native live document's extra `failedRun=true` compatibility flag is asserted explicitly alongside `runFailure`; no other extra fields are accepted. The failed-Session/cancel/join/reopen fixture replaces process death. The original source648 restart seed and the derived legacy partial/phase seeds remain separate.
 
-The seeded deferred cases do not establish modern poll/retry stream-presentation persistence. Code inspection and an initial phase-seed probe found that native poll/retry projection rebuilds its message from legacy `cp.Partial`; the modern request presentation alone disappeared after a phase rewrite. That rewrite did not execute a real provider phase transition. A real polling-stream progress/crash oracle is the next check before changing projection code.
+An initial arbitrary poll/retry phase rewrite dropped modern request presentation, without executing a real provider transition. Later [poll-boundary checks](poll-boundary.md) establish that f9's poll API returns one terminal message and exposes no streaming progress to the harness. Native provider deltas leave no partial; real interrupted-fetch and cancellation-cutoff checks pass without runtime changes. The seeded legacy partials above supply no streamed-poll API guarantee.
 
 ## Baseline and changes
 
@@ -41,4 +41,4 @@ After analysis,28MB of source extracts/static copies/mutation/log scratch and1.3
 
 ## Next controls
 
-The next pinned oracles cover real polled streaming progress and retry conversion, cutoff during deferred cancellation, failure/report ordering, and complete phase DTO/ownership behaviour. Registry locking here tests the native snapshot dependency; full dynamic registry semantics need further source reconciliation. Whole-file restart-failure review stays `pending-review`; full v1.5.0 alignment is unverified.
+The [poll-boundary checks](poll-boundary.md) cover terminal-only polling, real abort-handler cutoff and repeated host loss during deferred cancellation. Failure/report ordering beyond those selected assertions and complete phase DTO/ownership behaviour need further oracles. Registry locking here tests the native snapshot dependency; full dynamic registry semantics need further source reconciliation. Whole-file restart-failure review stays `pending-review`; full v1.5.0 alignment is unverified.
