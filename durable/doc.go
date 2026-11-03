@@ -1,6 +1,14 @@
 // Package durable implements native atomic storage and persistent model → owned
 // host tool → answer runs through goai.Stream. Copied definitions, bounded schema
 // validation, persisted final arguments and conservative replay guard effects.
+// The active target is all aspects of official upstream v1.5.0 across pi-ai,
+// pi-durable and pi-codemode, including their interactions. All build, test and
+// static-analysis paths require CGO_ENABLED=0. SQLite must remain available in
+// that configuration; the CGO-free modernc.org/sqlite adapter passes focused
+// native conformance/fault checks. Wider-platform SQLite, full v1.5.0 alignment and
+// release acceptance are unverified. The dated receipts below keep their
+// original scope; CGO/race receipts supply no current pure-Go race coverage.
+//
 // The M1 runtime is published. Local work adds generic tasks, selected extensions
 // and hooks, steering/reset/passive boundaries, compaction/retry/deferred polling,
 // committed views/events, coding tools, subagents and native SQLite. Native
@@ -84,8 +92,11 @@
 // headers/checksums/JSON/relations fail closed. Only a legal final incomplete
 // header/frame/terminator prefix is truncated; no magic scanning/repair occurs.
 // The journal has no sidecar, reclamation or automatic corruption repair.
-// OpenSQLite (CGO + system sqlite3 on Unix) stores native reservation/commit
-// frames in WAL transactions with synchronous=FULL. Reclaim replaces physical
+// OpenSQLite stores native reservation/commit frames in WAL transactions with
+// synchronous=FULL under CGO_ENABLED=0 with modernc.org/sqlite. The connector
+// keeps memory/journal imports buildable on engine-unsupported targets, where
+// OpenSQLite returns ErrUnsupported; secure lifetime locking also needs Unix.
+// Reclaim replaces physical
 // frames with a complete logical checkpoint, retaining every entry and revision.
 // Its files are distinct from upstream SQLite files. Canonical parent paths and
 // an inode flock exclude cooperating processes until Close; directory/file

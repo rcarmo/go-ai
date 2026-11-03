@@ -9,7 +9,7 @@
 
 A Go port of [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) with the same broad shape: model discovery, streaming events, tool calls, OAuth helpers, and multi-provider request plumbing.
 
-The current upstream baseline is **v1.3.0** of pi-ai and pi-durable, including durable codemode support. The generated catalogues contain 1614 chat models, 60 image models and 40 classifiers. Native [v1.3.0](https://github.com/rcarmo/go-ai/releases/tag/v1.3.0) is published; verification is recorded in [RELEASE.md](RELEASE.md).
+The accepted baseline is upstream **v1.4.0**. Current work targets **all aspects of official upstream v1.5.0** across pi-ai, pi-durable and pi-codemode, including their interactions, using pure Go (`CGO_ENABLED=0`). Full v1.5.0 alignment and release acceptance are unverified; the [release inventory](docs/upstream-v1.5.0/README.md) records the current scope and gaps. Published releases and their verification remain in [RELEASE.md](RELEASE.md).
 
 ## Documentation
 
@@ -21,14 +21,14 @@ The current upstream baseline is **v1.3.0** of pi-ai and pi-durable, including d
 ## Features
 
 * One `Stream`/`Complete` entry point over the registered provider implementation, with channel-based text, thinking, and tool-call events.
-* A generated model registry for text/chat and image models, checked against the upstream v1.1.0 records rather than copied by hand.
+* Generated registries for text/chat, image and classifier models, checked against pinned upstream records. Full v1.5.0 catalogue alignment is unverified.
 * JSON-compatible message, context, tool, usage, diagnostic, and stream-option types for cross-language transcript hand-off.
 * Tool calling with JSON Schema parameters, strict/constrained sampling helpers where providers expose them, and partial JSON parsing for streamed arguments.
 * Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
 * OAuth helpers for GitHub Copilot, OpenAI Codex, Anthropic, Google Gemini CLI, Google Antigravity, Radius, Kimi Coding, and xAI.
 * Image generation support through the `images` package and OpenRouter image provider registration.
-* A native durable harness with memory, append-journal and SQLite stores, owned tasks/tools, subscriptions, compaction and recovery.
-* Local release gates for regenerated catalog drift, SBOM/security/license checks, logging quality, race tests, and reproducible test runs.
+* A native durable harness with memory, append-journal and SQLite stores, owned tasks/tools, subscriptions, compaction and recovery. SQLite uses a CGO-free driver; focused storage conformance and fault checks pass (see [Storage qualification](#storage-qualification)).
+* Local pure-Go release gates for regenerated catalogue drift, SBOM/security/licence checks, logging quality, profiling and reproducible test runs. Go's CGO-dependent race detector is unavailable under this policy.
 
 ## Installation
 
@@ -153,13 +153,31 @@ The generated catalog also includes provider metadata for OpenRouter, xAI, Groq,
 
 * This is a Go library, so JavaScript-only surfaces such as a Workers `env.AI.fetch` binding are adapted as Go interfaces and helpers rather than copied as runtime globals.
 * Provider SDK behaviour is not always byte-for-byte identical. Where Go uses its own HTTP transport or an official Go SDK, the request/stream semantics are tested against deterministic fixtures and recorded in the release ledger.
-* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with verification limits recorded in the [v1.1.0 validation record](docs/v110/local-validation.md#verification-limits).
+* Live-provider smoke tests that require credentials stay out of the local gate. The repository favours deterministic wire, parser, replay, catalog, OAuth, and validation tests, with current verification limits recorded in the [v1.5.0 inventory](docs/upstream-v1.5.0/README.md).
 * `CompactContext` is deliberately simple tail truncation. If you need semantic summaries or specialised transcript retention, add that in your agent layer.
-* The durable API targets pi-durable 1.1.0 directly. Earlier native durable APIs and journal formats are not compatibility guarantees; consult the durable documentation before upgrading.
+* The durable API targets the active official pi-durable v1.5.0 contract. Earlier native durable APIs and journal formats are not compatibility guarantees; consult the durable documentation before upgrading.
+
+## Storage qualification
+
+Memory, append-journal and SQLite are required storage backends for the pure-Go v1.5.0 target. SQLite must expose `durable.OpenSQLite` and run its backend tests with `CGO_ENABLED=0`, using `modernc.org/sqlite` without a C compiler or system SQLite dependency. CGO-only files, stubs, skipped backend tests and reduced backend lists leave this requirement unmet. Focused CGO=0 conformance and fault checks now pass for the native storage layer; see the [SQLite checkpoint](docs/upstream-v1.5.0/pure-go-storage.md). SQLite is unavailable where the driver or secure locking is unsupported; the private connector boundary preserves unrelated package builds. Upstream storage facade/schema/migration parity and broader platform acceptance are unverified. Older CGO-enabled results retain their original scope.
+
+The native storage formats have their own ownership, durability and resource limits; upstream file interoperability and universal power-loss guarantees are outside those contracts. See [package storage details](durable/doc.go).
+
+## Development tests
+
+`make test` runs ordinary `go test` under `CGO_ENABLED=0`, using the project-owned temporary environment. To select one existing test without running the full suite:
+
+```sh
+make test PACKAGES=./durable TEST_FLAGS='-run TestMainBoundaryWritesFirstAndSequentialHeads -count=1'
+```
+
+Temporary files use `/workspace/tmp/go-ai` locally, or a portable project-named root selected by `scripts/project-tmp.sh`. `PROJECT_TMP_BASE=/absolute/base` selects `/absolute/base/go-ai`; an absolute `PROJECT_TMP_ROOT` ending in `go-ai` is also supported, and both overrides must agree. CI prefers `RUNNER_TEMP`, then inherited `TMPDIR`, then platform temp; local hosts without writable `/workspace/tmp` use platform temp. The selected root contains `cache/`, `build/` and isolated `runs/tests/` scratch. Each ordinary run removes its own scratch on exit.
+
+`make test-profile` retains CPU, `alloc_space` and `alloc_objects` analysis for acceptance/pre-release and optional diagnostics. Pre-release profiling, measured-outlier tuning and disposal after use remain mandatory. Reproducibility and CI retain the profiling gates. `make test-race` fails explicitly because Go's race detector requires CGO; these pure-Go tests provide no race-detector coverage.
 
 ## Compatibility/versioning
 
-The current baseline tracks upstream `@earendil-works/pi-ai` and `@earendil-works/pi-durable` v1.1.0. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
+The accepted baseline is upstream v1.4.0; the active target is official v1.5.0 of pi-ai, pi-durable and pi-codemode, with relevant schema/dependency contracts. Contexts, messages, events, tools, usage, and many provider compatibility fields are intended to serialize in the same shape as upstream so logs and agent state can move between Go and TypeScript when the supported surface overlaps.
 
 Release audits update `RELEASE.md`, the generated catalogs, and the per-release manifests in `docs/`. Tags should be treated as upstream-aligned checkpoints rather than a promise that every upstream runtime surface exists unchanged in Go.
 
@@ -169,7 +187,7 @@ This project is a derivative port of [@earendil-works/pi-ai](https://www.npmjs.c
 
 ## Supply-chain metadata
 
-Native v1.1.0 has version-pinned CycloneDX release assets:
+Native v1.3.0 has version-pinned CycloneDX release assets:
 
 * [sbom.cdx.json](https://github.com/rcarmo/go-ai/releases/download/v1.3.0/sbom.cdx.json)
 * [sbom.cdx.json.sha256](https://github.com/rcarmo/go-ai/releases/download/v1.3.0/sbom.cdx.json.sha256)

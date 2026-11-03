@@ -1,6 +1,10 @@
-.PHONY: help install lint format test test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test publisher-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race test-shuffle staticcheck
+.PHONY: help install lint format test test-profile test-deterministic vet coverage fuzz check clean clean-all build build-all deps generate check-model-regeneration check-model-regeneration-self-test check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta bump-patch push security vuln-check vuln-self-test license-check sbom sbom-check sbom-self-test publisher-self-test ci-artifacts bench toolchain-info test-repro test-repro-fast test-race test-shuffle staticcheck
 
 GO ?= $(shell command -v go 2>/dev/null || echo /workspace/.cache/go-install/go/bin/go)
+# All upstream v1.5.0 surfaces must work without CGO, including SQLite.
+# Override inherited/command-line settings and propagate to tools/subprocesses.
+override CGO_ENABLED := 0
+export CGO_ENABLED
 GOFMT ?= gofumpt
 GOLINT ?= golangci-lint
 GOSEC ?= gosec
@@ -50,13 +54,13 @@ project-paths: ## Show canonical cache/build/run/evidence paths
 	@printf '%s\n' 'PROJECT_TMP_ROOT=$(PROJECT_TMP_ROOT)' 'GOCACHE=$(GOCACHE)' 'GOMODCACHE=$(GOMODCACHE)' 'GO_TMPDIR=$(GO_TMPDIR)' 'PROFILE_ROOT=$(PROFILE_ROOT)'
 
 # Enforce routing for all cache/temp-producing entrypoints, including recursive Make.
-deps install lint format test test-deterministic test-shuffle test-race coverage bench fuzz vet staticcheck build generate check-model-regeneration check-model-regeneration-self-test vuln-check vuln-self-test license-check sbom sbom-self-test publisher-self-test toolchain-info check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta: | project-tmp-init
+deps install lint format test test-profile test-deterministic test-shuffle coverage bench fuzz vet staticcheck build generate check-model-regeneration check-model-regeneration-self-test vuln-check vuln-self-test license-check sbom sbom-self-test publisher-self-test toolchain-info check-v0850-inventory check-v0850-catalog-delta check-v0851-inventory check-v0851-catalog-delta check-v0870-inventory check-v0870-catalog-delta check-v0871-inventory check-v0871-catalog-delta: | project-tmp-init
 GOTOOLCHAIN ?= auto
 STATICCHECK_VERSION ?= v0.8.2
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK_GOTOOLCHAIN ?= go1.27.3
-GO_LICENSES_VERSION ?= v1.6.0
+GO_LICENSES_VERSION ?= v2.0.1
 SBOM_DIR ?= artifacts
 SBOM_FILE ?= $(SBOM_DIR)/sbom.cdx.json
 SBOM_SHA_FILE ?= $(SBOM_FILE).sha256
@@ -71,7 +75,7 @@ help: ## Show this help
 # Full reproducible build
 # =============================================================================
 
-build-all: clean deps lint test build ## Full reproducible build (clean + deps + lint + test + build)
+build-all: clean deps lint test-profile build ## Full pure-Go build (clean + deps + lint + profiled tests + build)
 	@echo "Build complete!"
 
 # =============================================================================
@@ -98,7 +102,7 @@ vuln-self-test: ## Run negative vulnerability policy self-tests
 	GO=$(GO) bash scripts/test-python-profile.sh scripts/test-check-vuln-policy.py
 
 license-check: ## Review dependency licenses; unknown/forbidden fail unless documented and explicitly allowed
-	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) check --include_tests --allowed_licenses=$(ALLOWED_LICENSES) ./...
+	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run github.com/google/go-licenses/v2@$(GO_LICENSES_VERSION) check --include_tests --allowed_licenses=$(ALLOWED_LICENSES) ./...
 
 sbom: ## Generate normalized CycloneDX JSON SBOM and SHA-256 checksum under artifacts/
 	@mkdir -p $(SBOM_DIR)
@@ -124,7 +128,19 @@ format: ## Format code with gofumpt
 	@which $(GOFMT) > /dev/null || (echo "Installing gofumpt..." && $(GO) install mvdan.cc/gofumpt@latest)
 	$(GOFMT) -w .
 
-test: ## Run tests with CPU/heap profiles and allocation analysis
+# Ordinary focused runs use Go directly; acceptance profiling stays explicit.
+# Only this invocation's isolated scratch is removed, never shared caches/assets.
+test: ## Run ordinary pure-Go tests; focus with PACKAGES and TEST_FLAGS
+	@bash -euc 'source scripts/project-env.sh; \
+	  run_root="$$PROJECT_TMP_ROOT/runs/tests"; \
+	  project_path_usable "$$run_root" || exit 2; \
+	  mkdir -p "$$run_root"; \
+	  scratch=$$(mktemp -d "$$run_root/ordinary-XXXXXXXX"); \
+	  cleanup() { rm -rf -- "$$scratch"; }; trap cleanup EXIT; \
+	  export TMPDIR="$$scratch" TMP="$$scratch" TEMP="$$scratch" GOTMPDIR="$$scratch"; \
+	  "$$@"' -- "$(GO)" test $(PACKAGES) $(TEST_FLAGS)
+
+test-profile: ## Run acceptance tests with CPU/heap profiles and allocation analysis
 	$(PROFILE_TEST) $(PACKAGES) -- $(TEST_FLAGS)
 
 test-deterministic: ## Profile tests three times to catch nondeterminism
@@ -210,11 +226,12 @@ toolchain-info: ## Print toolchain and environment used by reproducible targets
 staticcheck: ## Run staticcheck at a pinned version
 	GOTOOLCHAIN=$(GOTOOLCHAIN) TMPDIR=$(GO_TMPDIR) $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
-test-race: ## Run race tests (requires gcc/clang + CGO)
-	CGO_ENABLED=1 $(PROFILE_TEST) $(PACKAGES) -- -race $(TEST_FLAGS)
+test-race: ## Fail explicitly: Go's race detector requires CGO
+	@echo "test-race is unavailable under the pure-Go policy (CGO_ENABLED=0): Go's race detector requires CGO. No exception is authorised; ordinary/profiled tests do not provide race-detector coverage." >&2
+	@exit 2
 
-test-repro-fast: project-tmp-self-test ## Reproducible local gate (profiled tests, no race)
-	$(MAKE) test
+test-repro-fast: project-tmp-self-test ## Pure-Go reproducible local gate with acceptance profiling
+	$(MAKE) test-profile
 	TMPDIR=$(GO_TMPDIR) $(GO) vet ./...
 	TMPDIR=$(GO_TMPDIR) $(GO) build ./...
 	$(MAKE) staticcheck
@@ -227,10 +244,9 @@ test-repro-fast: project-tmp-self-test ## Reproducible local gate (profiled test
 	$(MAKE) vuln-self-test
 	$(MAKE) license-check
 
-test-repro: ## Full reproducible gate (includes race detector)
+test-repro: ## Full pure-Go reproducible gate; race detector unavailable
 	$(MAKE) toolchain-info
 	$(MAKE) test-repro-fast
-	$(MAKE) test-race
 
 check-logging: ## Verify logging quality gate
 	./scripts/check-logging.sh
@@ -257,10 +273,10 @@ check-model-regeneration: ## Verify models_generated.go matches exact normalized
 # Clean targets
 # =============================================================================
 
-clean: project-tmp-init ## Remove local disposable output; retain profiles/receipts/SBOM evidence
+clean: project-tmp-init ## Remove local build/coverage output; preserve active jobs and release assets
 	$(GO) clean
 	rm -f coverage.out
-	@echo 'Project caches and retained evidence are preserved; no recursive root cleanup.'
+	@echo 'No shared-cache/run cleanup; dispose completed profiles and scratch after analysis.'
 
 clean-all: clean ## Remove everything including vendor
 	rm -rf vendor

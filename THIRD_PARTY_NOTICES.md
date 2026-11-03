@@ -100,3 +100,44 @@ dependency), Copyright 2009 The Go Authors, under its BSD-3-Clause licence:
 <https://cs.opensource.google/go/x/net/+/refs/tags/v0.62.0:LICENSE>.
 It selects the WHATWG UTS46 options and checks the mapped empty-A-label case
 before canonical hosts enter the parser.
+
+## Pure-Go SQLite storage
+
+`durable/storage_sqlite.go` imports `modernc.org/sqlite` v1.61.1, Copyright
+(c) 2017 The Sqlite Authors, under BSD-3-Clause:
+<https://gitlab.com/cznic/sqlite/-/blob/v1.61.1/LICENSE>.
+The driver carries SQLite 3.54.1 transpiled into Go, rather than linking a
+system SQLite library. SQLite is public domain; its dedication is retained in
+<https://gitlab.com/cznic/sqlite/-/blob/v1.61.1/LICENSE-SQLITE>.
+
+The driver's matching runtime dependency is `modernc.org/libc` v1.79.0,
+Copyright (c) 2017 The Libc Authors, under BSD-3-Clause:
+<https://gitlab.com/cznic/libc/-/blob/v1.79.0/LICENSE>.
+It also carries third-party code, including musl libc (MIT, Copyright
+© 2005-2020 Rich Felker, et al.), Go (BSD-3-Clause), go-netdb (MIT) and
+NixOS/nixpkgs (MIT). Their original notices, including musl's component-specific
+attributions and exceptions, are retained in
+<https://gitlab.com/cznic/libc/-/blob/v1.79.0/LICENSE-3RD-PARTY.md>.
+
+Other resolved runtime modules in the SQLite dependency chain are:
+
+| Module | Version | Licence |
+| --- | --- | --- |
+| `modernc.org/mathutil` | v1.7.1 | BSD-3-Clause |
+| `modernc.org/memory` | v1.12.1 | BSD-3-Clause, including its Go and mmap-go notices |
+| `github.com/dustin/go-humanize` | v1.1.0 | MIT |
+| `github.com/google/uuid` | v1.6.0 | BSD-3-Clause |
+| `github.com/remyoudompheng/bigfft` | v0.0.0-20230129092748-24d4a6f8daec | BSD-3-Clause |
+| `golang.org/x/sys` | v0.49.0 | BSD-3-Clause |
+
+The driver's version-pinned, full-text transitive inventory is
+<https://gitlab.com/cznic/sqlite/-/blob/v1.61.1/LICENSE-3RD-PARTY.md>.
+It distinguishes runtime code from test-only and module-graph-only dependencies.
+The bundled sqlite-vec v0.1.9 extension is MIT (Copyright (c) 2024 Alex Garcia)
+but is linked only by importing `modernc.org/sqlite/vec`; this project does not
+import it.
+
+The original copyright, permission and disclaimer texts remain in the dependency
+modules. Binary redistributors must carry the applicable full BSD and MIT texts
+and inherited third-party notices, not only go-ai's MIT licence or this linked
+inventory. This entry does not replace those texts.

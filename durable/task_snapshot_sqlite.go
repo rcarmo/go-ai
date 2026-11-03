@@ -1,5 +1,3 @@
-//go:build cgo
-
 package durable
 
 // Exact concrete types only: adapters must retain their Snapshot contract.

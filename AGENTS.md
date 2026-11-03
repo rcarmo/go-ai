@@ -17,6 +17,14 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 * Follow YAGNI principles.
 
+## Active v1.5.0 scope and pure-Go requirement
+
+* Rui requires **all aspects** of official upstream v1.5.0 at `f9a26365568127461c47a07a37dcb42c140a3ac5`: pi-ai, pi-durable, pi-codemode and their relevant schema, dependency, metadata and test contracts. The scope extends beyond SQLite. Full alignment and release acceptance are unverified; use [the release inventory](docs/upstream-v1.5.0/README.md) for current limits.
+* Build, test, profile and static-analysis paths use **`CGO_ENABLED=0` only**. `Makefile` overrides and exports this setting; CI uses it for both jobs. Direct commands must source `scripts/project-env.sh` and explicitly export `CGO_ENABLED=0`. There is no authorised CGO=1 matrix or exception.
+* SQLite is required under CGO=0. The active migration uses the CGO-free `modernc.org/sqlite` driver; it must preserve memory/journal/SQLite coverage and existing storage, cancellation, ownership and security contracts. A build tag, stub, skip, reduced backend list or optional-SQLite label cannot satisfy this requirement. Focused CGO=0 native conformance/fault checks pass; see docs/upstream-v1.5.0/pure-go-storage.md. The private connector boundary preserves non-SQLite package builds on engine-unsupported targets; it does not provide SQLite there or complete the requirement. Upstream storage facade/schema/migration and wider-platform acceptance remain unverified.
+* Go's race detector requires CGO. `make test-race` fails with an explicit explanation and is excluded from reproducibility/CI. Ordinary, shuffled, deterministic and profiled tests provide no race-detector coverage. Earlier CGO=1/race receipts retain only their historical scope.
+* These instructions supersede older 1.1.0-only targets, optional-SQLite qualifications and CGO/race requirements. Preserve historical release records and published v1.4.0 refs/assets. No automatic job restart, agent contact, hosted dispatch, push or release publication is authorised.
+
 ## Project-owned cache and temporary paths
 
 - Canonical host root: `/workspace/tmp/go-ai/`. Reproducible caches use `cache/go-build`, `cache/go-mod`, `cache/go-path`, `cache/model-regeneration`, `cache/xdg`, `cache/npm`, `cache/bun`, and `cache/python`; ordinary build scratch uses `build/tmp`; isolated tests/regeneration use `runs/<purpose>/<run-id>`.
@@ -41,7 +49,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 - Read relevant files before editing; never edit blind.
 - Keep changes minimal and scoped. Preserve public compatibility unless a release audit explicitly requires a breaking change.
-- Rui's 8 October 2026 instruction for the active 1.1.0 port: target durable 1.1.0 directly; legacy durable API/journal compatibility is no longer an acceptance requirement. Breaking durable changes are allowed when needed for the target contract. Preserve correctness, cancellation, ownership/security fences, AI compatibility and published 1.0.4 refs/assets. Do not delete existing coverage merely because it tests an older surface.
+- Target the active official v1.5.0 contract across AI, durable and codemode. Rui's earlier removal of legacy durable API/journal compatibility remains in force; required upstream breaking semantics may change the native API. Preserve correctness, cancellation, ownership/security fences, unrelated compatibility and published refs/assets. Do not delete existing coverage merely because it tests an older surface.
 - Do not hand-edit generated artifacts. Generated Go source and image/text catalogs must come from exact pinned upstream inputs and checked-in generators.
 - Preserve unrelated local work and do not weaken existing tests or gates.
 
@@ -54,7 +62,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 - Read the relevant upstream tests at the pinned revision before changing production code. Translate their inputs, scenarios and assertions into native tests through the real production paths. Reuse existing coverage only after verifying that it checks the same contract; maintain the per-test crosswalk.
 - Run those tests against the unchanged implementation and record which pass or fail. A test-harness error is not a demonstrated implementation failure. If a case already passes, do not change production code for it.
 - Preserve upstream assertions. Identify language/API adaptations explicitly, including assertions that cannot be represented natively. Do not silently weaken expectations, replace the behaviour under test with a helper or stub, or label a partial port as passing the complete upstream test.
-- Fix demonstrated failures with the smallest contract-preserving change, then rerun the failing tests and applicable regression, race and validation gates. Do not implement a speculative fix first and add tests afterwards.
+- Fix demonstrated failures with the smallest contract-preserving change, then rerun the failing tests and applicable pure-Go regression and validation gates. Do not implement a speculative fix first and add tests afterwards.
 - If upstream lacks a test for a concrete source delta, add a narrowly scoped source-derived regression first and distinguish it from a translated upstream test. Establish the current failure before changing production code; independent probes supplement the upstream suite and do not replace it.
 - Keep unresolved differences explicit and preserve correctness, cancellation, ownership, security, DTO authority and numerical contracts. Passing a development slice does not establish full convergence or acceptance; the pre-release profiling and cleanup rules still apply.
 
@@ -91,14 +99,15 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 
 ## Acceptance profiling and disposal
 
-- Rui clarified on 30 October 2026: **run Go CPU and allocation profiling for acceptance validation only, not routine development tests.** Use focused unprofiled regressions while implementing convergence slices; preparing benchmark fixtures does not require running them on every edit. At acceptance (including pre-release), capture CPU, alloc_space and alloc_objects, analyse hotspots, tune avoidable work and remeasure equivalent workloads before claiming acceptance. The profiling commands/wrappers below apply at that boundary.
+- **Run Go CPU and allocation profiling for acceptance/pre-release validation; ordinary development tests do not require profiling.** Targeted diagnostic profiling is optional and follows the same analysis/disposal rule. Use focused unprofiled regressions while implementing convergence slices; preparing benchmark fixtures does not require running them on every edit. At acceptance (including pre-release), capture CPU, alloc_space and alloc_objects, analyse hotspots, tune avoidable work and remeasure equivalent workloads before claiming acceptance. The profiling commands/wrappers below apply at that boundary.
 - Delete raw captures, matching binaries, traces and disposable logs immediately after acceptance analysis/use; retain only concise conclusions and measured results. Missing or incomplete capture is a limitation, not a profiling pass. Preserve active-job files until a safe boundary, source, durable datasets/checkpoints and intentional release artifacts.
 
-- Prefer `make test`, `make test-race`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. All run through `scripts/test-profile.sh`, package by package, capturing and analysing cumulative CPU, `alloc_space` and `alloc_objects`, saving a compact summary and disposing raw output immediately.
-- Focus a run with `PACKAGES=./durable TEST_FLAGS='-run TestName -count=3'`. `PROFILE_ROOT` is transient capture storage below the selected project root; disposable test roots use `runs/tests/<run-id>/`. The wrapper manages paths and rejects a successful run if required capture/analysis is missing. Exit traps dispose incomplete output too, after recording capture failures.
+- Use `make test` for ordinary development tests. It calls ordinary `go test` with `PACKAGES` and `TEST_FLAGS`, using unique `runs/tests/ordinary-*` scratch through the same project environment and removing only that scratch on exit. It has no full-suite or profiling prerequisite.
+- At acceptance/pre-release, use `make test-profile`, `make test-shuffle`, `make test-deterministic`, `make coverage`, `make bench` or `make fuzz`. These retain `scripts/test-profile.sh`, package-by-package cumulative CPU, `alloc_space` and `alloc_objects` analysis, concise conclusions and immediate raw-output disposal. `make test-repro` retains acceptance profiling through `test-profile`. Profiling and measured-outlier tuning remain mandatory at this boundary.
+- Focus an ordinary run with `make test PACKAGES=./durable TEST_FLAGS='-run TestName -count=3'`, replacing `TestName` with an existing test. Use `make test-profile` with the same flags for optional diagnostics or acceptance profiling. `PROFILE_ROOT` is transient capture storage below the selected project root; disposable test roots use `runs/tests/<run-id>/`. The profiling wrapper rejects a successful run if required capture/analysis is missing. Exit traps dispose incomplete output too, after recording capture failures.
 - Direct focused runs may use `go test ./package -cpuprofile=<run>/cpu.pprof -memprofile=<run>/heap.pprof -o <run>/test.bin`, followed by `go tool pprof -top -cum` for CPU and `-top -alloc_space` / `-top -alloc_objects` for heap. Capture separate profiles per package when testing several packages.
 - Analyse profiles after failures too. Build failures and process crashes may prevent complete profiles; record a concise diagnostic and explicitly note unavailable data, then dispose failed output. Subprocess tests must profile their child work or explicitly use a profiled parent fixture; never silently drop child profiling.
-- Inspect allocation and CPU call chains after each run. Record measured reductions against comparable workloads, or state why no safe change applies. Generated reports enforce capture and provide the starting analysis; they do not replace engineering judgement. Do not weaken assertions, increase acceptance deadlines or skip verification to improve performance numbers.
+- Inspect allocation and CPU call chains after each profiled run. Record measured reductions against comparable workloads, or state why no safe change applies. Generated reports enforce capture and provide the starting analysis; they do not replace engineering judgement. Do not weaken assertions, increase acceptance deadlines or skip verification to improve performance numbers.
 
 ## Local gates and review
 
@@ -108,10 +117,9 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
   - focused tests for every changed behavior;
   - full-record clean text and image regeneration checks;
   - independent deliberate text and image fault gates proving regeneration comparators fail on real drift;
-  - `make test`;
+  - `make test` and acceptance/pre-release `make test-profile`;
   - `make test-shuffle`;
-  - `make test-race`;
-  - `go vet ./...`;
+  - `make vet` (`CGO_ENABLED=0`);
   - `make staticcheck`;
   - `make check-logging`;
   - `make test-repro`.
@@ -127,9 +135,9 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
   - `git config user.email "rui.carmo@gmail.com"`
   - `git config --global user.name "Rui Carmo"`
   - `git config --global user.email "rui.carmo@gmail.com"`
-- Use a local-first workflow: finish implementation, docs, regeneration, deliberate fault gates, focused/full tests, race/static checks, SBOM/security checks, and git hygiene locally before pushing.
+- Use a local-first workflow: finish implementation, docs, regeneration, deliberate fault gates, focused/full pure-Go tests, static checks, SBOM/security checks, and git hygiene locally before pushing.
 - Hosted CI runs only for explicit release preparation, after local validation. `.github/workflows/ci.yml` has no push, pull-request or scheduled trigger. Dispatch it on the candidate ref with `release_preparation=true`; a dispatch without confirmation skips validation. Do not use hosted CI as an iterative debugging loop.
-- Weekly security review and urgent-advisory review are local/operator work; they do not automatically dispatch CI. Keep all release security, SBOM, licence, race and fuzz gates intact.
+- Weekly security review and urgent-advisory review are local/operator work; they do not automatically dispatch CI. Keep release security, SBOM, licence, profiling and fuzz gates intact. The pure-Go policy excludes the CGO-dependent race detector; no equivalent race coverage is available.
 - Record the tested runtime SHA and any later docs-only SHA separately. SBOM publication remains an independent manual workflow requiring explicit publication authority.
 - Final release parity state must be clean and synced with `origin/main`, Rui-authored, and non-rebased.
 

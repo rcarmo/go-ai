@@ -29,6 +29,9 @@ project_path_usable "$scratch_root" || exit 2
 mkdir -p "$scratch_root"
 scratch=$(mktemp -d "$scratch_root/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX") || exit 1
 export TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" GOTMPDIR="$scratch"
+# Subprocess fixtures capture/analyse child work only on this explicit path.
+# Ordinary go test/make test must leave this opt-in unset.
+export GO_AI_PROFILE_CHILDREN=1
 # Scratch is disposable; binary/profile/log evidence stays in the separate run.
 summary_root="$PROJECT_TMP_ROOT/evidence/analysis"
 mkdir -p "$summary_root"

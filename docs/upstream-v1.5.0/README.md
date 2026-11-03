@@ -16,6 +16,10 @@ The [main crosswalk](upstream-tests-f9a26365.tsv), [schema queue](dependency-tes
 
 The earlier main tip `3e0eec29` includes **post-release** OpenCode Claude mid-conversation effort/`drop_block` and Anthropic non-strict `$defs`/`definitions` preservation. Those production changes and the added definitions-key regressions are excluded from this release target. The original release's Anthropic schema test still needs its existing native coverage reconciled; the newer assertions receive no 1.5.0 credit.
 
+## Pure-Go SQLite checkpoint
+
+[SQLite migration checks](pure-go-storage.md) now pass with Go 1.27.3 and CGO=0: 42 selected SQLite/group functions repeated three times, 126 top-level passes, no failures/skips. The final candidate excludes continuation WIP only in an isolated validation copy. The modernc v1.61.1 adapter preserves native WAL/FULL, schema/replay, rollback/poisoning, ownership and admitted-cancellation settlement. A private connector boundary restores Linux/mips64le package/test compilation; SQLite remains unavailable where its engine or secure locking is unsupported. Upstream storage facade/schema/migration and wider-platform acceptance remain open. Code mode retains QuickJS in wazero.
+
 ## Reused local-listener result
 
 Native runtime `148c77b08c1d84a9cfca278380b3b872544a7ffe` was verified against 3e durable inputs. Exact comparison confirms the release's durable/schema runtime and test trees are identical. The [Source564 port and private local-listener controls](../upstream-main/session-local-observers.md) therefore retain their original focused normal/race/static/mutation results; no test was repeated merely to retarget. Earlier stored-observer/retention/lifecycle/deadline and generation receipts also keep their original scope.

@@ -10,10 +10,14 @@ on:
         required: true
         default: false
 
+# All release-candidate surfaces, including SQLite, must remain available.
+env:
+  CGO_ENABLED: '0'
+
 jobs:
   check:
     if: ${{ inputs.release_preparation }}
-    name: Vet, Staticcheck & Deterministic Tests
+    name: Pure-Go Build, Static Checks & Deterministic Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,12 +55,8 @@ jobs:
       - name: Check (vet, staticcheck, deterministic tests)
         run: make check
 
-      - name: Race tests
-        # Hosted two-core runners need a larger aggregate package budget;
-        # individual three-second correctness deadlines remain unchanged.
-        env:
-          GOMAXPROCS: '2'
-        run: make test-race TEST_FLAGS='-timeout=12m'
+      # Go's race detector requires CGO; no exception is authorised.
+      # These pure-Go gates provide no race-detector coverage.
 
       - name: Test with coverage
         if: matrix.go-version == '1.27.3'
@@ -88,7 +88,8 @@ jobs:
           retention-days: 30
 
   fuzz:
-    name: Fuzz Tests
+    if: ${{ inputs.release_preparation }}
+    name: Pure-Go Fuzz Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

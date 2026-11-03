@@ -1,5 +1,3 @@
-//go:build cgo
-
 package durable
 
 import (
@@ -48,27 +46,16 @@ func TestSQLiteCrossProcessOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close(bg)
-	// The subprocess runs the same test binary. Profiles are still captured by
-	// the parent test run; child profiling is enabled explicitly as well.
-	profiles := t.TempDir()
-	command := exec.Command(os.Args[0], "-test.run=^TestSQLiteCrossProcessOwnership$", "-test.cpuprofile="+filepath.Join(profiles, "child.cpu"), "-test.memprofile="+filepath.Join(profiles, "child.heap"))
+	profiles := sqliteChildProfileDirectory(t)
+	command := exec.Command(os.Args[0], "-test.run=^TestSQLiteCrossProcessOwnership$")
+	if profiles != "" {
+		command.Args = append(command.Args, "-test.cpuprofile="+filepath.Join(profiles, "cpu.pprof"), "-test.memprofile="+filepath.Join(profiles, "heap.pprof"))
+	}
 	command.Env = append(os.Environ(), "DURABLE_SQLITE_LOCK_TEST="+path)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("ownership subprocess: %v\n%s", err, output)
 	}
-	for _, kind := range []string{"alloc_space", "alloc_objects", "cpu"} {
-		profile := filepath.Join(profiles, "child.heap")
-		flag := "-" + kind
-		if kind == "cpu" {
-			profile = filepath.Join(profiles, "child.cpu")
-			flag = "-cum"
-		}
-		output, err := exec.Command("go", "tool", "pprof", "-top", flag, os.Args[0], profile).CombinedOutput()
-		if err != nil {
-			t.Fatalf("child profile analysis: %v\n%s", err, output)
-		}
-		t.Logf("child %s profile:\n%s", kind, output)
-	}
+	analyseSQLiteChildProfiles(t, profiles)
 }
 func TestSQLiteDirectoryAliasAndFileSymlink(t *testing.T) {
 	directory := t.TempDir()

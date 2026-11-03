@@ -1,4 +1,4 @@
-//go:build cgo && unix
+//go:build unix
 
 package durable
 
@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"runtime/pprof"
 	"testing"
 )
 
@@ -112,14 +110,7 @@ func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 }
 func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 	if path := os.Getenv("DURABLE_SQLITE_CRASH_PATH"); path != "" {
-		profiles := os.Getenv("DURABLE_SQLITE_CRASH_PROFILES")
-		cpu, err := os.Create(filepath.Join(profiles, "cpu.pprof"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := pprof.StartCPUProfile(cpu); err != nil {
-			t.Fatal(err)
-		}
+		stopProfiles := startSQLiteCrashProfiles(t, os.Getenv("DURABLE_SQLITE_CRASH_PROFILES"))
 		store, err := OpenSQLite(path, SQLiteOptions{})
 		if err != nil {
 			t.Fatal(err)
@@ -135,23 +126,13 @@ func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 		if reserved != 4 {
 			t.Fatal("fixture allocator", reserved)
 		}
-		pprof.StopCPUProfile()
-		cpu.Close()
-		heap, err := os.Create(filepath.Join(profiles, "heap.pprof"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		runtime.GC()
-		if err := pprof.WriteHeapProfile(heap); err != nil {
-			t.Fatal(err)
-		}
-		heap.Close()
+		stopProfiles()
 		// Immediate process exit deliberately omits Storage.Close and lock release.
 		// This proves process-crash recovery only, not universal power-loss safety.
 		os.Exit(23)
 	}
 	path := filepath.Join(t.TempDir(), "session.sqlite")
-	profiles := t.TempDir()
+	profiles := sqliteChildProfileDirectory(t)
 	command := exec.Command(os.Args[0], "-test.run=^TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix$")
 	command.Env = append(os.Environ(), "DURABLE_SQLITE_CRASH_PATH="+path, "DURABLE_SQLITE_CRASH_PROFILES="+profiles)
 	output, err := command.CombinedOutput()
@@ -159,19 +140,7 @@ func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 	if !errors.As(err, &exit) || exit.ExitCode() != 23 {
 		t.Fatalf("crash subprocess: %v\n%s", err, output)
 	}
-	for _, kind := range []string{"alloc_space", "alloc_objects", "cpu"} {
-		profile := filepath.Join(profiles, "heap.pprof")
-		flag := "-" + kind
-		if kind == "cpu" {
-			profile = filepath.Join(profiles, "cpu.pprof")
-			flag = "-cum"
-		}
-		output, err := exec.Command("go", "tool", "pprof", "-top", flag, os.Args[0], profile).CombinedOutput()
-		if err != nil {
-			t.Fatalf("crash profile analysis: %v\n%s", err, output)
-		}
-		t.Logf("crash helper %s:\n%s", kind, output)
-	}
+	analyseSQLiteChildProfiles(t, profiles)
 	store, err := OpenSQLite(path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
