@@ -522,6 +522,7 @@ type ToolResult struct {
 	Commit                  func(*Tx) error
 	usesRetainedOutput      bool
 	usesReportedDiagnostics bool
+	harnessResult           bool // final hook result, independent of the failed task ending
 	thrownError             string
 }
 type toolCheckpoint struct {
@@ -535,6 +536,7 @@ type toolCheckpoint struct {
 	Started            bool      `json:"started"`
 	Abort              bool      `json:"abort,omitempty"`
 	ErrorCode          string    `json:"errorCode,omitempty"`
+	CutoffMessage      string    `json:"cutoffMessage,omitempty"`
 	ReportedError      bool      `json:"reportedError,omitempty"`
 	// Present for final results that have passed afterTool. Older receipts
 	// derive their error flag from ErrorCode/ReportedError.
@@ -1284,13 +1286,7 @@ func (h *Harness) executeTool(task Task, runtime *TaskRuntime) (finalErr error) 
 		return err
 	}
 	if task.Restarts > 0 && task.Restarts >= h.RestartLimit() && !cp.Abort {
-		message := fmt.Sprintf("Tool %s was interrupted %s in a row; it is not run again", cp.Offer.Name, cutoffCount(task.Restarts))
-		result := ToolResult{IsError: true, Diagnostics: []ToolDiagnostic{{Severity: "error", Code: "restart_limit", Message: message}}}
-		err := h.finishTool(task, cp, result, "restart_limit")
-		if err == nil {
-			runtime.reportCutoff(task.Restarts, message)
-		}
-		return err
+		return h.endToolCutoff(task, cp, runtime, parentCheckpoint.Agent)
 	}
 	registry := runtime.registry.selection
 	if registry == nil {
@@ -1640,7 +1636,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 	// Returned content replaces streamed progress; omitted content uses the
 	// retained buffer. Bound all final blocks once, as reference finalResult.
 	text := result.Content
-	if code != "" {
+	if code != "" && !result.harnessResult {
 		// Reference harness errors keep the durable partial output and add an
 		// error diagnostic, rendered separately from returned content.
 		if code != "tool_error" || result.thrownError == "" {
@@ -1720,7 +1716,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		// fabricated empty text contribution (upstream fromSlot/harnessError).
 		content = nil
 	}
-	if code == "" && len(result.Blocks) > 0 {
+	if (code == "" || result.harnessResult) && len(result.Blocks) > 0 {
 		blocks, err := contributionReceipt(goai.Message{Role: goai.RoleToolResult, Content: result.Blocks}, h.session.limits)
 		if err != nil {
 			code, text = "invalid_content", "invalid_content"
@@ -1734,7 +1730,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		}
 	}
 	var truncations []ToolDiagnostic
-	if code == "" {
+	if code == "" || result.harnessResult {
 		limits := resolvedToolOutputLimits(cp.Offer.OutputLimits)
 		if result.usesRetainedOutput && cp.DroppedBytes > 0 {
 			truncations = append(truncations, truncatedToolOutput(cp.DroppedBytes, cp.DroppedLines, limits.Retain))
@@ -1789,7 +1785,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		}
 		content = append(content, block)
 	}
-	receipt := messageReceipt{Role: goai.RoleToolResult, DurationMs: copyTaskTime(cp.DurationMs), Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "") || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
+	receipt := messageReceipt{Role: goai.RoleToolResult, DurationMs: copyTaskTime(cp.DurationMs), Content: content, ToolCallID: cp.CallID, ToolName: cp.Offer.Name, IsError: (code != "" && result.thrownError == "" && !result.harnessResult) || result.IsError, ErrorCode: code, Diagnostics: diagnostics, Details: owned, DetailsValue: detailsValue, HasDetails: hasDetailsValue, Usage: result.Usage}
 	receipt.ImageChunks = result.imageChunks
 	value, e := dtoObject(receipt, h.session.limits)
 	if e != nil {
@@ -1873,12 +1869,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
 		}
 		if code == "restart_limit" {
-			for _, diagnostic := range diagnostics {
-				if diagnostic.Severity == "error" && diagnostic.Code == code {
-					outcome.Error.Message = diagnostic.Message
-					break
-				}
-			}
+			outcome.Error.Message = cp.CutoffMessage
 			outcome.Error.Detail = &TaskValue{Present: true, Value: JSON{"reason": code}}
 		}
 		if code == "aborted" {

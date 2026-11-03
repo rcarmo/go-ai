@@ -431,6 +431,14 @@ func toolReceiptRawStatus(outcome TaskOutcome, cp toolCheckpoint) (string, error
 		if outcome.Status != "failed" || outcome.Error == nil || outcome.Error.Detail == nil || !outcome.Error.Detail.Present || !equalJSONValue(outcome.Error.Detail.Value, JSON{"reason": "restart_limit"}) {
 			return "", reject("tool cutoff outcome")
 		}
+		if cp.CutoffMessage != "" {
+			if outcome.Error.Message != cp.CutoffMessage {
+				return "", reject("tool cutoff message disagreement")
+			}
+			return "done", nil
+		}
+		// Earlier native receipts predate hook normalization and retain the
+		// original diagnostic as their error-message witness.
 		for _, diagnostic := range cp.Result.Diagnostics {
 			if diagnostic.Code == "restart_limit" && diagnostic.Severity == "error" && diagnostic.Message == outcome.Error.Message {
 				return "done", nil
