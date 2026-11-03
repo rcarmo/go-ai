@@ -63,6 +63,16 @@ func TestMainContinueRootTraceAndAdmission(t *testing.T) {
 			return ch
 		})
 		options.Telemetry = &goai.TelemetrySpan{
+			ExtractContext: func(carrier goai.TelemetryCarrier) *goai.TelemetrySpan {
+				mu.Lock()
+				defer mu.Unlock()
+				for _, record := range spans {
+					if reflect.DeepEqual(record.trace, map[string]string(carrier)) {
+						return &goai.TelemetrySpan{Context: carrier, StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan { return create(name, record, attrs, nil) }}
+					}
+				}
+				return nil
+			},
 			StartRootSpan: func(name string, attrs map[string]any, links []*goai.TelemetrySpan) *goai.TelemetrySpan {
 				return create(name, nil, attrs, links)
 			},

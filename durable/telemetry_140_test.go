@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -509,7 +510,7 @@ func TestTelemetry140NestedTasksInheritCreatingPhaseAndReleaseParents(t *testing
 		ancestry := map[string]string{}
 		var backend func(string) *goai.TelemetrySpan
 		backend = func(parent string) *goai.TelemetrySpan {
-			return &goai.TelemetrySpan{StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
+			return &goai.TelemetrySpan{Context: goai.TelemetryCarrier{"task": parent}, ExtractContext: func(c goai.TelemetryCarrier) *goai.TelemetrySpan { return backend(c["task"]) }, StartSpan: func(name string, attrs map[string]any) *goai.TelemetrySpan {
 				task, _ := attrs["task.name"].(string)
 				mu.Lock()
 				ancestry[task] = parent
@@ -964,7 +965,13 @@ func TestTelemetry140QueuedBatchLinksOriginalSubmission(t *testing.T) {
 				var links [][2]int64
 				var backend func(int64) *goai.TelemetrySpan
 				backend = func(origin int64) *goai.TelemetrySpan {
-					return &goai.TelemetrySpan{Value: origin, StartSpan: func(string, map[string]any) *goai.TelemetrySpan { return backend(origin) }, StartRootSpan: func(string, map[string]any, []*goai.TelemetrySpan) *goai.TelemetrySpan { return backend(roots.Add(1)) }, AddLink: func(other *goai.TelemetrySpan) {
+					// Upstream propagation is data-only; opaque Value alone cannot
+					// supply persisted task parents or links.
+					carrier := goai.TelemetryCarrier{"origin": strconv.FormatInt(origin, 10)}
+					return &goai.TelemetrySpan{Context: carrier, Value: origin, ExtractContext: func(c goai.TelemetryCarrier) *goai.TelemetrySpan {
+						id, _ := strconv.ParseInt(c["origin"], 10, 64)
+						return backend(id)
+					}, StartSpan: func(string, map[string]any) *goai.TelemetrySpan { return backend(origin) }, StartRootSpan: func(string, map[string]any, []*goai.TelemetrySpan) *goai.TelemetrySpan { return backend(roots.Add(1)) }, AddLink: func(other *goai.TelemetrySpan) {
 						if _, err := h.Snapshot(bg); err != nil {
 							t.Error("link on mutation line", err)
 						}
@@ -1010,7 +1017,9 @@ func TestTelemetry140QueuedBatchLinksOriginalSubmission(t *testing.T) {
 				}
 				mu.Lock()
 				defer mu.Unlock()
-				if requests.Load() != 2 || roots.Load() != 4 || len(links) != 1 || links[0] != [2]int64{2, 3} {
+				// Source f9a26365:303-345 links BOTH prepare and request,
+				// not the old private merge event. Preserve exact dedup origins.
+				if requests.Load() != 2 || roots.Load() != 4 || len(links) != 2 || links[0] != [2]int64{2, 3} || links[1] != [2]int64{2, 3} {
 					t.Fatal("queued/dedup lineage lost", requests.Load(), roots.Load(), links)
 				}
 			})

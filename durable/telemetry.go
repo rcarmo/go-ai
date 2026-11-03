@@ -60,6 +60,7 @@ func taskTraceState(task Task) phaseTraceState {
 			outcome = &builtin.Hold.Outcome
 		}
 	}
+	phase = publicTaskPhase(task.Kind, phase)
 	if outcome != nil {
 		value := outcome.Status
 		if value == "completed" {
@@ -97,21 +98,30 @@ type invocationTelemetry struct {
 	span  atomic.Pointer[goai.TelemetrySpan]
 	mu    sync.Mutex // protects adopted scalar observations, never held across host code
 	phase *durablePhaseTrace
+	// Owned data captured at reservation; only the invocation host resolves it.
+	parent any
+	links  *[]goai.TelemetryCarrier
 }
 
-func (r *TaskRuntime) initTelemetry() {
+func (r *TaskRuntime) initTelemetry(task Task) {
 	if r.harness.options.Telemetry == nil {
 		return
 	}
 	parent := r.harness.telemetryParents[r.taskID] // Session-line owned at reservation
-	if parent == nil {
+	// Persisted trace metadata is resolved through the host backend. A local
+	// creator handle must not override missing/failed extraction. Legacy raw
+	// adapters without trace metadata retain their existing live ancestry.
+	if parent == nil || task.Trace != nil {
 		parent = r.harness.options.Telemetry
 	}
 	copy := *parent
 	if copy.Metrics == nil {
 		copy.Metrics = r.harness.options.Telemetry.Metrics
 	}
-	r.telemetry = &invocationTelemetry{root: &copy}
+	r.telemetry = &invocationTelemetry{root: &copy, parent: task.Trace}
+	if task.StartedAt == nil {
+		r.telemetry.links = task.Links
+	}
 	r.context = context.WithValue(r.context, telemetryContextKey{}, r.telemetry)
 }
 
@@ -124,17 +134,51 @@ func (r *TaskRuntime) activeInvocation(delta float64) {
 	}
 }
 
+func publicTaskPhase(kind, phase string) string {
+	if kind == "pi.generation" {
+		switch phase {
+		case "queued", "prepare-next":
+			return "prepare"
+		case "intent":
+			return "request"
+		}
+	}
+	return phase
+}
+
+// Resolve transport data only on the retained invocation host, never while
+// reserving/adopting on the Session line. Backend mutations see detached maps.
+func (r *TaskRuntime) resolveTaskParent() {
+	trace := r.telemetry
+	root := r.harness.options.Telemetry
+	if trace.parent == nil || root.ExtractContext == nil {
+		return
+	}
+	var carrier goai.TelemetryCarrier
+	if data, ok := trace.parent.(goai.TelemetryCarrier); ok {
+		carrier = *copyTelemetryCarrier(&data)
+	}
+	parent := root
+	telemetryCall(func() {
+		if restored := root.ExtractContext(carrier); restored != nil {
+			parent = restored
+		}
+	})
+	owned := *parent
+	if owned.Metrics == nil {
+		owned.Metrics = root.Metrics
+	}
+	trace.root = &owned
+}
+
 func (r *TaskRuntime) beginPhase(checkpoint JSON) {
 	trace := r.telemetry
 	if trace == nil {
 		return
 	}
+	r.resolveTaskParent()
 	phase, _ := checkpoint["phase"].(string)
-	if r.kind == "pi.generation" && phase == "queued" {
-		// The native checkpoint spelling stays private; public builtin
-		// preparation spans use the upstream phase vocabulary.
-		phase = "prepare"
-	}
+	phase = publicTaskPhase(r.kind, phase)
 	kind := "run"
 	if r.abortMode {
 		kind = "abort"
@@ -165,6 +209,18 @@ func (r *TaskRuntime) beginPhase(checkpoint JSON) {
 	trace.phase = &durablePhaseTrace{started: time.Now(), span: span, phase: phase, state: phaseTraceState{outcome: "interrupted"}}
 	trace.mu.Unlock()
 	trace.span.Store(span)
+	if root := r.harness.options.Telemetry; root.ExtractContext != nil && trace.links != nil && span.AddLink != nil {
+		for _, carrier := range *trace.links {
+			link := root
+			owned := *copyTelemetryCarrier(&carrier)
+			telemetryCall(func() {
+				if restored := root.ExtractContext(owned); restored != nil {
+					link = restored
+				}
+			})
+			telemetryCall(func() { span.AddLink(link) })
+		}
+	}
 }
 
 // Called on the Session line only after successful adoption. No backend code or
@@ -347,7 +403,7 @@ func (h *Harness) noteTaskAncestry(ctx context.Context, tx *Tx, before Snapshot)
 		if task == nil {
 			continue
 		}
-		if terminalStatus(task.Status) {
+		if terminalStatus(task.Status) || tx.taskTraceRoots[task.ID] {
 			delete(h.telemetryParents, task.ID)
 			continue
 		}
@@ -371,7 +427,6 @@ type durableEvent struct {
 type durableEventBatch struct {
 	span   *goai.TelemetrySpan
 	events []durableEvent
-	links  []*goai.TelemetrySpan
 }
 type durableEventBuffer struct {
 	mu      sync.Mutex
@@ -387,9 +442,6 @@ func eventBufferFromContext(ctx context.Context) *durableEventBuffer {
 	return buffer
 }
 func (batch *durableEventBatch) deliver() {
-	for _, link := range batch.links {
-		telemetryCall(func() { batch.span.AddLink(link) })
-	}
 	for _, event := range batch.events {
 		telemetryCall(func() { batch.span.AddEvent(event.name, event.attrs) })
 	}
@@ -426,15 +478,10 @@ func (h *Harness) captureCommitEvents(ctx context.Context, tx *Tx, before Snapsh
 			span = runtime.telemetry.span.Load()
 		}
 	}
-	if span == nil || (span.AddEvent == nil && span.AddLink == nil) {
+	if span == nil || span.AddEvent == nil {
 		return nil
 	}
 	var batch *durableEventBatch
-	if span.AddLink != nil {
-		if links := h.queuedInputLinks(tx, before); len(links) != 0 {
-			batch = &durableEventBatch{span: span, links: links}
-		}
-	}
 	add := func(name string, attrs map[string]any) {
 		if span.AddEvent == nil {
 			return
@@ -493,60 +540,4 @@ func (r *TaskRuntime) toolTelemetry(name, callID string) {
 			telemetryCall(func() { span.SetAttributes(map[string]any{"tool.name": name, "tool.call_id": callID}) })
 		}
 	}
-}
-
-// Queued inputs already own placeholder generation tasks whose creating spans
-// are their original submit roots. Capture those before adoption retires them.
-// No transcript scan or persisted tracing metadata is needed.
-func (h *Harness) queuedInputLinks(tx *Tx, before Snapshot) []*goai.TelemetrySpan {
-	creator := tx.byTask
-	if creator == 0 {
-		creator = tx.progressTask
-	}
-	if creator == 0 {
-		return nil
-	}
-	var links []*goai.TelemetrySpan
-	var seen map[ID]bool
-	var placeholders map[ID]*goai.TelemetrySpan
-	for _, write := range tx.writes {
-		task := write.Task
-		if task == nil || task.ID == creator || task.Kind != "pi.generation" || !terminalStatus(task.Status) {
-			continue
-		}
-		if parent := h.telemetryParents[task.ID]; parent != nil {
-			if placeholders == nil {
-				placeholders = make(map[ID]*goai.TelemetrySpan)
-			}
-			placeholders[submissionEntryID(task.Checkpoint["submission"])] = parent
-		}
-	}
-	for _, write := range tx.writes {
-		task := write.Task
-		if task == nil || task.ID != creator || task.Kind != "pi.generation" {
-			continue
-		}
-		merged, _ := task.Checkpoint["steered"].([]any)
-		if len(merged) == 0 {
-			continue
-		}
-		if seen == nil {
-			seen = make(map[ID]bool)
-			old, _ := before.Tasks[creator].Checkpoint["steered"].([]any)
-			for _, value := range old {
-				seen[submissionEntryID(value)] = true
-			}
-		}
-		for _, value := range merged {
-			id := submissionEntryID(value)
-			if id == 0 || seen[id] {
-				continue
-			}
-			seen[id] = true
-			if parent := placeholders[id]; parent != nil {
-				links = append(links, parent)
-			}
-		}
-	}
-	return links
 }

@@ -483,7 +483,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			// Inheriting life cancellation would signal before that stop order.
 			ctx, cancel := context.WithCancel(context.WithoutCancel(s.h.life))
 			runtime := &TaskRuntime{harness: s.h, taskID: id, conversation: task.Conversation, kind: task.Kind, context: ctx, cancel: cancel, registry: snapshot, definition: definition, reportExtension: snapshot.installer(task.Kind, definition), abortMode: taskAborted(task), done: make(chan struct{})}
-			runtime.initTelemetry()
+			runtime.initTelemetry(task)
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
 			s.refreshIdleHost(id)

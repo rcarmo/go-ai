@@ -28,6 +28,7 @@ type Tx struct {
 	taskAdoptState     *Snapshot   // immutable confirmed storage view, private to adoption
 	taskRollback       func(error) // trusted bounded bookkeeping BEFORE Session.leave
 	taskTerminals      map[ID]bool // private builtin withdrawal cleanup; no legacy rewrite
+	taskTraceRoots     map[ID]bool // normalized root directives, applied only after adoption
 	externalTaskCommit bool        // public host transaction, not a scheduler/adapter pass
 	// Immediate parents of successfully staged high-level forks. This fence is
 	// broader than copy source IDs: new current-policy parent docs also reject.

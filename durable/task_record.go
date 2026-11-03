@@ -13,6 +13,13 @@ const (
 func copyTask(task Task, l Limits) (Task, error) {
 	task.StartedAt = copyTaskTime(task.StartedAt)
 	task.EndedAt = copyTaskTime(task.EndedAt)
+	var err error
+	if task.Trace, err = copyTaskTrace(task.Trace, l); err != nil {
+		return Task{}, err
+	}
+	if task.Links, err = copyTaskLinks(task.Links, l); err != nil {
+		return Task{}, err
+	}
 	checkpoint, err := copyObject(task.Checkpoint, l)
 	if err != nil {
 		return Task{}, err

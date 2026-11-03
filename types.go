@@ -521,9 +521,13 @@ type TelemetrySpan struct {
 	// it when creating the span and keep it immutable afterwards. Durable
 	// submissions snapshot it; Value and callbacks always remain process-local.
 	// A nil map means absent, while a non-nil empty map is an empty carrier.
-	Context   TelemetryCarrier                                            `json:"-"`
-	Value     any                                                         `json:"-"`
-	StartSpan func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
+	Context TelemetryCarrier `json:"-"`
+	// ExtractContext restores a context-only parent/link from an owned carrier.
+	// Nil requests the backend root. It must not start or end a span. Durable
+	// invokes it outside Session/Harness locks; nil results use the host root.
+	ExtractContext func(TelemetryCarrier) *TelemetrySpan                       `json:"-"`
+	Value          any                                                         `json:"-"`
+	StartSpan      func(name string, attributes map[string]any) *TelemetrySpan `json:"-"`
 	// StartRootSpan starts an independent trace linked to the supplied callers.
 	// Backends without link support may omit it; callers fall back to StartSpan.
 	// Links are process-local span handles, never serialized request content.

@@ -189,6 +189,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		if runtime.ended.Load() {
 			return nil
 		}
+		// Native preparation and dispatch share one handler, but are distinct
+		// public phases. Keep the request under the task parent, not prepare.
+		runtime.finishPhase()
+		runtime.beginPhase(JSON{"phase": "request", "attempt": cp.Attempt + 1})
 	}
 	if e = h.sessionCommitInterruptedPartial(task, cp); e != nil {
 		return e

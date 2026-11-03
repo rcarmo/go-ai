@@ -62,6 +62,9 @@ func (h *Harness) startQueuedRunBoundary(tx *Tx, conversation, ending ID, keepFa
 		if err := h.applyQueuedInputs(tx, task, &cp, true, decisions...); err != nil {
 			return err
 		}
+		if err := tx.bindGenerationTrace(&task, cp, false); err != nil {
+			return err
+		}
 		task.Checkpoint, err = dtoObject(cp, tx.limits)
 		if err != nil {
 			return err

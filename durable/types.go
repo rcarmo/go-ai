@@ -133,16 +133,20 @@ type Entry struct {
 // absent in old journals; those records are never guessed into generic tasks.
 // New readers accept old records. Old binaries reject new Execution fields.
 type Task struct {
-	ID               ID             `json:"id"`
-	Conversation     ID             `json:"conversation"`
-	Owner            ID             `json:"owner,omitempty"`
-	Kind             string         `json:"kind"`
-	Status           string         `json:"status"`
-	Checkpoint       JSON           `json:"checkpoint"`
-	Execution        *TaskExecution `json:"execution,omitempty"`
-	Restarts         uint64         `json:"restarts,omitempty"`
-	AbandonOnRestart bool           `json:"abandonOnRestart,omitempty"`
-	AbortReason      string         `json:"abortReason,omitempty"` // restart; ordinary cancellation omits it
+	ID           ID             `json:"id"`
+	Conversation ID             `json:"conversation"`
+	Owner        ID             `json:"owner,omitempty"`
+	Kind         string         `json:"kind"`
+	Status       string         `json:"status"`
+	Checkpoint   JSON           `json:"checkpoint"`
+	Execution    *TaskExecution `json:"execution,omitempty"`
+	// Trace is an optional data-only TelemetryCarrier or the literal "root".
+	Trace any `json:"trace,omitempty"`
+	// A pointer preserves absent versus explicitly empty links.
+	Links            *[]goai.TelemetryCarrier `json:"links,omitempty"`
+	Restarts         uint64                   `json:"restarts,omitempty"`
+	AbandonOnRestart bool                     `json:"abandonOnRestart,omitempty"`
+	AbortReason      string                   `json:"abortReason,omitempty"` // restart; ordinary cancellation omits it
 	// Optional Unix millisecond lifecycle times. Old records keep these absent.
 	StartedAt *int64 `json:"startedAt,omitempty"`
 	EndedAt   *int64 `json:"endedAt,omitempty"`
@@ -236,6 +240,8 @@ type TaskRecord struct {
 	AbortRequested   bool
 	Memos            map[string]*TaskValue
 	State            TaskState
+	Trace            any                      `json:"trace,omitempty"`
+	Links            *[]goai.TelemetryCarrier `json:"links,omitempty"`
 }
 
 type TaskOwnership struct {
@@ -248,6 +254,13 @@ type TaskOptions struct {
 	Conversation     ID
 	Ownership        TaskOwnership
 	Background       bool
+	// Nil inherits the creating context; "root" explicitly stores no carrier.
+	// Other values must be data-only string maps (TelemetryCarrier).
+	Trace any                      `json:"trace,omitempty"`
+	Links *[]goai.TelemetryCarrier `json:"links,omitempty"`
+	// When non-nil, overrides Trace/Links: the first submission supplies the
+	// parent (or root), and subsequent available carriers supply the links.
+	SubmissionIDs []ID `json:"submissionIds,omitempty"`
 }
 
 type TaskInspection struct {

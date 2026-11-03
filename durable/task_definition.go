@@ -156,6 +156,9 @@ func (tx *Tx) CreateTask(definition *TaskDefinition, input any, options TaskOpti
 	}
 	tx.state.HighWater = uint64(id)
 	task := Task{AbandonOnRestart: options.AbandonOnRestart, ID: id, Conversation: conversation, Owner: owner, Kind: definition.options.Kind, Status: "pending", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: nativeTaskTag, Native: native}}
+	if err = tx.bindTaskTrace(&task, options); err != nil {
+		return 0, err
+	}
 	if err = tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 		return 0, err
 	}
@@ -355,6 +358,7 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 		return TaskRecord{}, err
 	}
 	view := TaskRecord{Restarts: owned.Restarts, AbandonOnRestart: owned.AbandonOnRestart, AbortReason: owned.AbortReason, StartedAt: owned.StartedAt, EndedAt: owned.EndedAt, ID: owned.ID, Conversation: owned.Conversation, Owner: owned.Owner, Kind: owned.Kind, Background: taskBackground(owned)}
+	view.Trace, view.Links = owned.Trace, owned.Links
 	if owned.Execution != nil && owned.Execution.Native != nil {
 		native := owned.Execution.Native
 		view.Version = native.Version

@@ -46,6 +46,9 @@ func (h *Harness) startExplicitContinue(tx *Tx, conversation, submission ID, req
 	if inherited := submissionEntryID(generationObject(previous["runFailure"])["first"]); inherited != 0 {
 		first = inherited
 	}
+	if err := tx.bindGenerationTrace(&task, cp, true); err != nil {
+		return err
+	}
 	task.Checkpoint, err = dtoObject(cp, tx.limits)
 	if err != nil {
 		return err

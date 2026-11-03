@@ -39,7 +39,8 @@ func TestTelemetryCarrierDataOnlyAndStrictDecoding(t *testing.T) {
 			t.Error("failed decode mutated receiver", data, got)
 		}
 	}
-	span := &goai.TelemetrySpan{Context: goai.TelemetryCarrier{"traceparent": "PRIVATE_PROPAGATION"}, Value: make(chan int)}
+	extractCalls := 0
+	span := &goai.TelemetrySpan{Context: goai.TelemetryCarrier{"traceparent": "PRIVATE_PROPAGATION"}, Value: make(chan int), ExtractContext: func(goai.TelemetryCarrier) *goai.TelemetrySpan { extractCalls++; return nil }}
 	for _, value := range []any{span, &goai.StreamOptions{Telemetry: span}} {
 		data, err := json.Marshal(value)
 		if err != nil {
@@ -49,10 +50,13 @@ func TestTelemetryCarrierDataOnlyAndStrictDecoding(t *testing.T) {
 		if err := json.Unmarshal(data, &object); err != nil {
 			t.Fatal(err)
 		}
-		for _, key := range []string{"Context", "context", "Value", "value", "Telemetry", "telemetry"} {
+		for _, key := range []string{"Context", "context", "Value", "value", "Telemetry", "telemetry", "ExtractContext", "extractContext"} {
 			if _, present := object[key]; present {
 				t.Error("backend data entered ordinary request JSON", key)
 			}
 		}
+	}
+	if extractCalls != 0 {
+		t.Fatal("ordinary request encoding invoked backend extraction", extractCalls)
 	}
 }

@@ -351,6 +351,9 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 		}
 		// Private submission adapter, not public raw execution authority.
 		task := Task{ID: taskID, Conversation: c.id, Kind: "pi.generation", Status: "pending", Checkpoint: checkpoint}
+		if err := tx.bindTaskTrace(&task, TaskOptions{SubmissionIDs: []ID{subID}}); err != nil {
+			return err
+		}
 		if err = tx.stage(Write{Op: "put-task", Task: &task}); err != nil {
 			return err
 		}
