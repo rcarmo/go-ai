@@ -1,5 +1,7 @@
 # Answered-run recovery baseline
 
+Historical baseline: the selected recovery assertions now pass and are promoted to `durable/harness_after_run_recovery_main_test.go`. [Cutoff implementation, checks and remaining contracts](restart-cutoffs.md) describe the later checkpoint. The failures and overlay recipe below describe the unchanged baseline revision.
+
 The unchanged after-run runtime at `ac5ac784c19fb0dd2666356f319f7cd5a9f3ca75` passes crash/no-reask and normal lowered-limit controls, but fails answered-finish and child-cutoff recovery. No runtime fix is included in this baseline.
 
 The oracle is `durable/testdata/upstream-main/pending/harness_after_run_recovery_test.go`, derived from official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`, `packages/durable/test/harness-after-run.test.ts`:

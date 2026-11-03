@@ -65,7 +65,7 @@ After analysis, 28MB of owned source extracts, overlays, fault logs and static-s
 
 ### Open source work
 
-Crash recovery before/after child creation (429), restart-limit outcomes/reporting (757/955/983/1019), missing-definition orphaning (785), full history/compaction/failure inheritance, hook deselection, forks, foreign ownership and remaining29-file assertions need source reconciliation. The current generic restart-limit paths have not been accepted for answered finish/drain checkpoints. The native orderly-close control does not establish crash recovery or held-progress equivalence. Next: source429 crash/no-reask and source757 answered restart-limit oracles, before treating after-run as converged.
+The [cutoff checkpoint](restart-cutoffs.md) now passes selected source429 crash/no-reask and757/955/983/1019 recovery assertions, with ordinary faulting, answered queue preservation and normal lowered-limit controls. Source429 orderly close in drain, missing-definition orphaning (785), full history/compaction/failure inheritance, hook deselection, forks, foreign ownership and the remaining29-file assertions need source reconciliation. The native orderly-close control does not establish held-progress equivalence. Coupled builtin tool result-hook/phase assertions and complete DTO fidelity also need review; full after-run convergence is unverified.
 
 Whole-file disposition stays `pending-review`; only its current evidence cell changes in the362-row crosswalk. Dependencies, SQLite driver, QuickJS/wazero, nativev1.4 assets and public Commit are unchanged. No full suite, race, profiling, TypeScript/Vitest execution, hosted CI or release publication was run. Full v1.5.0 alignment is unverified.
 
