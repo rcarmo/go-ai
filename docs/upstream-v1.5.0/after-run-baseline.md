@@ -1,5 +1,7 @@
 ## After-run lifecycle baseline
 
+Historical baseline at `5a0863808249fbc50a844b010f6303b8f89ce3ca`. The [runtime checkpoint](after-run.md) adds the typed hook and selected answer/finish/drain paths. The oracle moved to `durable/harness_after_run_main_test.go` and the declaration adapter was removed. The recipe below targets the baseline revision; it must not be applied on top of the new API.
+
 Go has no `GenerationHooks.AfterRun` field or answer/finish/drain lifecycle. The focused baseline fails on memory, journal and real pure-Go SQLite: **six failing leaves, three passing no-hook controls, 0.549s**, using Go 1.27.3, `GOMAXPROCS=4` and `CGO_ENABLED=0`. Production stays at `b6b8d4185a7be3bc9dc1a84811af7925cf5c3791` (documentation head `cbb8c9de588df163b4d6b7d68597431b21e1e15b`).
 
 The target is official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`. Its [after-run tests][tests] contain 29 declarations. This baseline translates selected assertions from two declarations; no complete body/file or TypeScript execution is credited.
