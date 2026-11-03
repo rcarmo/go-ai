@@ -1,5 +1,7 @@
 # Pending upstream-main oracles
 
+Official v1.5.0 `f9a26365` after-run assertions are now pending here: `harness_after_run_test.go` and its declaration-only `after_run_declarations.go` adapter. Production has no after-run API/lifecycle. The [baseline and execution recipe](../../../../docs/upstream-v1.5.0/after-run-baseline.md) records six failing backend leaves and three passing no-hook controls under Go1.27.3/CGO0. The adapter adds names and a hook field only, with no dispatch or state-machine implementation; no passing after-run behaviour is credited. Keep the full assertions, avoid default skips, and remove the adapter when a reviewed production API replaces it. The same receipt indexes all29 source declarations and the next validation/installed-definition controls.
+
 The interruption-retry fixture now passes and lives at `durable/harness_interruption_retry_main_test.go`; poll, budget and marker controls are also ordinary tests at `46710ff8921dce0187eaa4df855e8fc5d62834b8`. See the [runtime checkpoint](../../../../docs/upstream-v1.5.0/interrupted-retry.md) and [historical failing baseline](../../../../docs/upstream-v1.5.0/interrupted-retry-baseline.md). The whole upstream restart-failure file remains `pending-review`; selected passing assertions do not establish full-body parity.
 
 Previously pending tests were promoted without weakening their assertions:

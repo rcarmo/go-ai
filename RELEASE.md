@@ -1,5 +1,13 @@
 # Release acceptance
 
+## After-run known-failure baseline -- 3 November 2026
+
+Production remains `b6b8d4185a7be3bc9dc1a84811af7925cf5c3791`, docs `cbb8c9d`. Official1.5 `f9a26365` has29 declarations in `harness-after-run.test.ts`; native `GenerationHooks` has no AfterRun field or finish/drain lifecycle. Reconciled existing on-yield/handoff/ordinary-owned-hold prerequisites without rerunning completed gates: generic held outcomes already end the live run at the answer and cannot supply the source lifecycle.
+
+[After-run baseline](docs/upstream-v1.5.0/after-run-baseline.md) preserves selected source181/251 assertions in three pending functions. A documented declaration-only overlay supplies proposed types and one hook field, with **no dispatch/selection/lifecycle implementation**. Corrected Go1.27.3/GOMAXPROCS4/CGO0 count1 baseline: **six failing backend leaves, three passing no-hook controls, .549s**, memory/journal/real pure-Go SQLite. The answered run becomes idle before a child starts; the empty hook is never called. Later child/summary/drain assertions are retained but unreached, with no passing credit. Initial Extension/EntryCursor fixture build errors excluded. Pending-inclusive vet/SC0.8.2withtests physicalcopy, virtual discovery, format/diff and prototype checks pass; no production/API/storage format/dependency change.
+
+The29-row source index and next validation538/installed-definition617 controls precede real typed API, atomic answer/settlement/finish, off-line once-only initialisation/child-batch creation, drain/final-boundary, recovery/Stop/ownership/restart-limit work. Only the after-run evidence cell changes in362TSV; current reviews/flags/dispositions, inventory and210 dependency rows are independently unchanged. Wholefile stays `pending-review`. No fullsuite/race/profiling/TS/CI/release/fullalignment. After analysis,27MB owned scratch and500MB completed build/test cache were disposed with no active Go jobs; source/dependencies/toolchains/nativev1.4/assets/prototype remain protected.
+
 ## Builtin task ancestry and closed-phase outcomes -- 3 November 2026
 
 Runtime `b6b8d4185a7be3bc9dc1a84811af7925cf5c3791`, baseline `e46eee7`/runtime `2fd88f2`, persists the creating phase carrier for parallel/sequential model-tool tasks and reports aborted/OK for an undecided closed/ended phase. Terminal, waiting and sleeping decisions retain precedence. Official1.5 `f9a26365` background-compaction metadata, nested-task carriers and actual active-reopen parenting already pass unchanged production.
