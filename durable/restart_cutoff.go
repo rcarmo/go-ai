@@ -28,12 +28,16 @@ func (h *Harness) endGenerationCutoff(r *TaskRuntime, task Task, cp generationCh
 	switch phase {
 	case "queued", "prepare-next":
 		phase = "prepare"
-	case "intent", "retry":
+	case "intent":
 		phase = "request"
 	case "compaction":
 		phase = "compact"
 	}
-	message := fmt.Sprintf("The generation was interrupted %s in its %s phase", cutoffCount(task.Restarts), phase)
+	count := cutoffCount(task.Restarts)
+	if task.Restarts > 1 {
+		count += " in a row"
+	}
+	message := fmt.Sprintf("The generation was interrupted %s in its %s phase", count, phase)
 	var err error
 	if cp.Phase == "finish" || cp.Phase == "drain" {
 		err = h.endAfterRunWithQueue(r, task, cp, true)

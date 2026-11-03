@@ -322,10 +322,10 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 		if s.sealed.Load() || s.h.closing.Load() || requireEnabled && !s.enabled.Load() {
 			return nil
 		}
-		snapshot, err := s.h.options.Registry.taskSnapshot(tx.limits)
-		if err != nil {
-			return err
-		}
+		// f9 scheduler1933: cutoff decisions precede registry access. A
+		// blocked/failing snapshot must not prevent terminal cutoff cleanup.
+		var snapshot TaskRegistrySnapshot
+		snapshotTaken := false
 		for target := range s.tickets {
 			task, ok := tx.state.Tasks[target]
 			if !ok || !s.runnable(tx.state, task) {
@@ -375,8 +375,16 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 					return false, err
 				}
 				s.failTicket(id, &InvocationWaitRequiresYield{Task: id})
-				faultReports = append(faultReports, &attributedReport{cause: cause, info: taskReportInfo(task, snapshot, "task_faulted", "restart_limit")})
+				faultReports = append(faultReports, &attributedReport{cause: cause, info: taskReportInfo(task, TaskRegistrySnapshot{}, "task_faulted", "restart_limit")})
 				return len(tx.writes) > 0, nil
+			}
+			if !snapshotTaken {
+				var err error
+				snapshot, err = s.h.options.Registry.taskSnapshot(tx.limits)
+				if err != nil {
+					return false, err
+				}
+				snapshotTaken = true
 			}
 			var definition *TaskDefinition
 			if task.Kind == "pi.generation" {

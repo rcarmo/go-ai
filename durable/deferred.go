@@ -9,7 +9,9 @@ import (
 // Close leaves the handle pending for reopen. Provider failures are reported but
 // cannot erase the durable abort mark or prevent local bottom-up settlement.
 func (h *Harness) cancelDeferred(ctx context.Context, cp generationCheckpoint, runtime *TaskRuntime) {
-	if cp.Phase != "poll" || cp.Deferred == nil || cp.Model == nil {
+	// A retry of an interrupted poll retains the same pending response.
+	// f9 generation.ts deferredOf includes both poll and retry.poll.
+	if (cp.Phase != "poll" && cp.Phase != "retry") || cp.Deferred == nil || cp.Model == nil {
 		return
 	}
 	provider := goai.GetApiProvider(cp.Model.Api)
