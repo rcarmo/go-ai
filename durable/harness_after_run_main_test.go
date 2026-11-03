@@ -199,6 +199,151 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 
 // Split source251's no-hook and empty-hook setups into independent functions,
 // so the unchanged runtime's valid no-hook control is not hidden by a failure.
+func TestMainAfterRunHookReadsCommittedEntryBoundaries(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		var h *Harness
+		registry := NewRegistry()
+		if err := registry.Install(&Extension{Name: "after-run-history", Hooks: GenerationHooks{AfterRun: func(ctx context.Context, run RunSummary, api *HookAPI) (*AfterRunResult, error) {
+			if run.First == 0 || run.Answer == 0 || run.Last == 0 {
+				t.Error("run summary missing entry ids", run)
+				return nil, nil
+			}
+			for _, id := range []ID{run.First, run.Answer, run.Last} {
+				entry, ok, err := api.Entry(ctx, id)
+				if err != nil || !ok || entry.ID != id {
+					t.Errorf("hook cannot read committed entry %d: ok=%v err=%v entry=%+v", id, ok, err, entry)
+				}
+			}
+			first, ok, err := api.Entry(ctx, run.First)
+			if err != nil || !ok {
+				t.Errorf("hook cannot read first entry %d: ok=%v err=%v", run.First, ok, err)
+				return nil, nil
+			}
+			var user MessageReceipt
+			if err := fromObject(first.Value, &user, h.session.limits); err != nil || user.Role != goai.RoleUser {
+				t.Errorf("run first entry must remain user-visible: receipt=%+v kind=%q err=%v", user, first.Kind, err)
+			}
+			answer, ok, err := api.Entry(ctx, run.Answer)
+			if err != nil || !ok {
+				t.Errorf("hook cannot read answer entry %d: ok=%v err=%v", run.Answer, ok, err)
+				return nil, nil
+			}
+			var assistant MessageReceipt
+			if err := fromObject(answer.Value, &assistant, h.session.limits); err != nil || assistant.Role != goai.RoleAssistant {
+				t.Errorf("run answer entry must remain assistant-visible: receipt=%+v kind=%q err=%v", assistant, answer.Kind, err)
+			}
+			return nil, nil
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			ch <- terminal("done")
+			close(ch)
+			return ch
+		})
+		options.Registry = registry
+		h = openHarness(t, b.store, options)
+		c := root(t, h, ref)
+		if _, err := c.Submit(bg, Input{Content: "go"}); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		defer cancel()
+		if err := c.WaitForIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if live := mainAfterRunLive(t, h, c.ID()); len(live) != 0 {
+			t.Error("run did not clear after hook-visible read", live)
+		}
+	})
+}
+
+func TestMainAfterRunContinueAfterFailureSummaryUsesFailedFirst(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		var h *Harness
+		probe := &mainAfterRunProbe{started: make(chan struct{})}
+		registry := NewRegistry()
+		if err := registry.Install(&Extension{Name: "after-run-continue-history", Hooks: GenerationHooks{AfterRun: func(_ context.Context, run RunSummary, _ *HookAPI) (*AfterRunResult, error) {
+			probe.mu.Lock()
+			defer probe.mu.Unlock()
+			probe.asked = append(probe.asked, run)
+			return nil, nil
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		var calls atomic.Int64
+		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+			ch := make(chan goai.Event, 1)
+			switch calls.Add(1) {
+			case 1:
+				message := terminal("").Message
+				message.Content = nil
+				message.StopReason, message.ErrorMessage = goai.StopReasonError, "Invalid request"
+				ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: message}
+			case 2:
+				ch <- terminal("recovered")
+			default:
+				t.Error("unexpected provider request after continue")
+				ch <- terminal("unexpected")
+			}
+			close(ch)
+			return ch
+		})
+		options.Registry = registry
+		h = openHarness(t, b.store, options)
+		c := root(t, h, ref)
+		firstSub, err := c.Submit(bg, Input{Content: "Analyze this"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitSubmission(t, firstSub)
+		state, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var first ID
+		for _, entry := range state.Entries {
+			if entry.Conversation != c.ID() || entry.Kind != "message" {
+				continue
+			}
+			var receipt MessageReceipt
+			if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+				t.Fatal(err)
+			}
+			if receipt.Role == goai.RoleUser {
+				first = entry.ID
+				break
+			}
+		}
+		if first == 0 {
+			t.Fatal("failed run missing original user entry")
+		}
+		resumed, err := c.Submit(bg, Input{Type: "continue"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		settled := waitSubmission(t, resumed)
+		if settled.Record.Type != "continue" || settled.Record.Status != "done" || settled.Record.Answer == 0 {
+			t.Fatalf("continue settlement = %+v; want continue/done with answer", settled.Record)
+		}
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		defer cancel()
+		if err := c.WaitForIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		probe.mu.Lock()
+		defer probe.mu.Unlock()
+		if len(probe.asked) != 1 {
+			t.Fatalf("afterRun hook count = %d; want 1", len(probe.asked))
+		}
+		want := RunSummary{Reason: "answer", First: first, Answer: settled.Record.Answer, Last: settled.Record.Answer}
+		if !reflect.DeepEqual(probe.asked[0], want) {
+			t.Errorf("continue summary = %+v; want %+v", probe.asked[0], want)
+		}
+	})
+}
+
 func TestMainAfterRunNoHookImmediateEnd(t *testing.T) {
 	mainAfterRunEmpty(t, false)
 }
