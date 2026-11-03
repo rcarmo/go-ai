@@ -27,7 +27,7 @@ The accepted baseline is upstream **v1.4.0**. Current work targets **all aspects
 * Reasoning/thinking support, including signed thinking replay, Anthropic managed effort markers, raw stop reasons, and provider-specific compatibility flags.
 * OAuth helpers for GitHub Copilot, OpenAI Codex, Anthropic, Google Gemini CLI, Google Antigravity, Radius, Kimi Coding, and xAI.
 * Image generation support through the `images` package and OpenRouter image provider registration.
-* A native durable harness with memory, append-journal and SQLite stores, owned tasks/tools, subscriptions, compaction and recovery. SQLite uses a CGO-free driver; focused storage conformance and fault checks pass (see [Storage qualification](#storage-qualification)).
+* A native durable harness with SQLite storage, owned tasks/tools, subscriptions, compaction and recovery. SQLite uses a CGO-free driver; focused storage conformance and fault checks pass (see [Storage qualification](#storage-qualification)).
 * Local pure-Go release gates for regenerated catalogue drift, SBOM/security/licence checks, logging quality, profiling and reproducible test runs. Go's CGO-dependent race detector is unavailable under this policy.
 
 ## Installation
@@ -159,7 +159,7 @@ The generated catalog also includes provider metadata for OpenRouter, xAI, Groq,
 
 ## Storage qualification
 
-Memory, append-journal and SQLite are required storage backends for the pure-Go v1.5.0 target. SQLite must expose `durable.OpenSQLite` and run its backend tests with `CGO_ENABLED=0`, using `modernc.org/sqlite` without a C compiler or system SQLite dependency. CGO-only files, stubs, skipped backend tests and reduced backend lists leave this requirement unmet. Focused CGO=0 conformance and fault checks now pass for the native storage layer; see the [SQLite checkpoint](docs/upstream-v1.5.0/pure-go-storage.md). SQLite is unavailable where the driver or secure locking is unsupported; the private connector boundary preserves unrelated package builds. Upstream storage facade/schema/migration parity and broader platform acceptance are unverified. Older CGO-enabled results retain their original scope.
+SQLite is the sole storage backend for the pure-Go v1.5.0 target. `durable.OpenSQLite` uses `modernc.org/sqlite` with `CGO_ENABLED=0`, without a C compiler or system SQLite dependency. Memory/Journal implementations and constructors have been removed; existing data and published assets are not deleted or automatically migrated. CGO-only files, stubs, skips and optional-SQLite paths leave the requirement unmet. Focused CGO=0 conformance and fault checks now pass for the native storage layer; see the [SQLite-only checkpoint](docs/upstream-v1.5.0/sqlite-only.md). SQLite is unavailable where the driver or secure locking is unsupported; the private connector boundary preserves unrelated package builds. Upstream storage facade/schema/migration parity and broader platform acceptance are unverified. Older CGO-enabled results retain their original scope.
 
 The native storage formats have their own ownership, durability and resource limits; upstream file interoperability and universal power-loss guarantees are outside those contracts. See [package storage details](durable/doc.go).
 

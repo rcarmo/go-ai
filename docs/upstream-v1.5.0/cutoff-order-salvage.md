@@ -1,6 +1,6 @@
 # Cutoff ordering and generation salvage
 
-Rui's SQLite-only correction now takes priority. The memory/journal/SQLite test matrix below records historical verification before that correction; Memory and Journal are being removed, not retained as supported alternatives. This checkpoint has not been pushed.
+The memory/journal/SQLite matrix below records historical verification before Rui's SQLite-only correction. [Runtime f284e25](sqlite-only.md) removes Memory and Journal, and these four functions also pass its SQLite-only selection.
 
 Runtime `fea6d8ef444a30e81cddb19c3c0c9114b2de14a8` faults ordinary cut-off tasks before taking a registry snapshot, cancels deferred responses retained by retry-of-poll checkpoints at the limit, and preserves the source's generation phase/count text. Base: `b949d234d121501af88786d9fb7db7a75608d089`. Target: official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`.
 

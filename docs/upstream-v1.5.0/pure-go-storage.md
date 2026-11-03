@@ -1,4 +1,6 @@
-## Pure-Go storage checkpoint
+## Historical pure-Go storage checkpoint
+
+The later [SQLite-only checkpoint](sqlite-only.md) supersedes this multi-engine matrix and preserved Memory/Journal API. Those implementations and constructors are removed. Measurements and boundaries below describe the earlier revision only.
 
 SQLite now runs under `CGO_ENABLED=0`, with focused memory/journal/SQLite conformance and fault checks passing. All aspects of official upstream v1.5.0 at `f9a26365568127461c47a07a37dcb42c140a3ac5` remain in scope. Full alignment and release acceptance are unverified; see the [release inventory][release].
 

@@ -2,6 +2,10 @@
 
 The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. GitHub published the stable release at `2026-11-02T11:05:31Z`. Earlier release pins and receipts are historical comparison inputs; they establish no v1.5.0 acceptance. Retained tests, runtime identity and generated-schema/catalogue tooling must follow this release, including required breaking semantics.
 
+## SQLite-only storage
+
+Rui's clarification supersedes the earlier multi-engine matrix: **SQLite through pure-Go modernc is the sole storage implementation**. Runtime `f284e255e0711ff2cf2950240fdf83b9c5652f5c` removes Memory/Journal implementations and selection paths; [scope and checks](sqlite-only.md) record29selected durable functions/87repeated passes, tools/codemode consumers and static checks. Existing data and published assets are preserved. Earlier memory/journal results below retain their historical scope. The [cutoff-order/salvage checkpoint](cutoff-order-salvage.md) adds source621/648 and derived registry/deferred controls; its four functions also pass on SQLite. No whole-file disposition or full v1.5.0 acceptance changes.
+
 ## Release inputs
 
 [Package provenance](packages.json) records npm 1.5.0 archives for `@earendil-works/pi-ai`, `pi-durable`, `pi-codemode` and transitive `pi-schema`: registry/tarball URLs, sizes, computed SHA-256, verified registry SHA-512 integrity, and packed manifests. All four archived names/versions match. Registry metadata supplies no `gitHead`. [Release metadata checks](release-metadata.md) now compare all1712 public catalogue records against that archive and all25 exported JSON schemas against the pinned source and published JavaScript. Complete package-build/source correspondence and wider SDK alignment remain unverified.

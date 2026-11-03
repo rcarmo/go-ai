@@ -1,10 +1,14 @@
 # Native durable harness
 
-`github.com/rcarmo/go-ai/durable` persists provider → owned host tool → provider answer runs in a native memory store or append journal. The useful M1 runtime is independently accepted and published in [native v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/v1.0.1) and [upstream-v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/upstream-v1.0.1), both targeting `33fcb88e6d9d5996279cd6f88687f988728aa2d8`. The working tree aligns the audited pi-durable 1.0.4 deltas and passes minimum-toolchain, race, static and local public-consumer checks. [1.0.4 validation](../v104/local-validation.md) records polling/argv/PowerShell, host-store, decoder and platform boundaries. The earlier 1.0.0 [parity closure](parity-closure.md) retains its version scope. Rui authorised the native v1.0.4 commit/tag/publication cycle on 6 October 2026; [release audit](../../RELEASE.md) records its outcome. Independent blanket TypeScript replay and external clean-clone acceptance have not been performed.
+The active target is official upstream v1.5.0 (`f9a26365`), using pure Go, SQLite as the sole storage backend, and QuickJS in wazero for codemode. Full alignment is unverified; [current inventory and limits](../upstream-v1.5.0/README.md). Memory/Journal constructors have been removed. Existing data and published assets are preserved without automatic migration. Earlier release and test results below retain their historical scope.
 
-## Native 1.1.0 candidate
+## Earlier native checkpoints
 
-The current uncommitted port targets official durable1.1.0 directly. Rui removed legacy durable API/journal compatibility from its acceptance requirements. Required `Storage` scans support ordered pages; cursors preserve direction. Storage entry scans default descending, conversation history ascending. `ConversationHandle.Context(ctx, at)` selects a visible as-of entry. Context caching defaults to600000ms idle retention; `HarnessSettings.ContextRetentionMs` preserves explicit zero. Initial system/baseline ordering, incremental contexts and edit/head/fork invalidation remain detached and Session-owned.
+`github.com/rcarmo/go-ai/durable` persists provider → owned host tool → provider answer runs in SQLite. The useful M1 runtime is independently accepted and published in [native v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/v1.0.1) and [upstream-v1.0.1](https://github.com/rcarmo/go-ai/releases/tag/upstream-v1.0.1), both targeting `33fcb88e6d9d5996279cd6f88687f988728aa2d8`. The working tree aligns the audited pi-durable 1.0.4 deltas and passes minimum-toolchain, race, static and local public-consumer checks. [1.0.4 validation](../v104/local-validation.md) records polling/argv/PowerShell, host-store, decoder and platform boundaries. The earlier 1.0.0 [parity closure](parity-closure.md) retains its version scope. Rui authorised the native v1.0.4 commit/tag/publication cycle on 6 October 2026; [release audit](../../RELEASE.md) records its outcome. Independent blanket TypeScript replay and external clean-clone acceptance have not been performed.
+
+## Historical native 1.1.0 checkpoint
+
+The earlier port targeted official durable1.1.0 directly. Rui removed legacy durable API/journal compatibility from its acceptance requirements. Required `Storage` scans support ordered pages; cursors preserve direction. Storage entry scans default descending, conversation history ascending. `ConversationHandle.Context(ctx, at)` selects a visible as-of entry. Context caching defaults to600000ms idle retention; `HarnessSettings.ContextRetentionMs` preserves explicit zero. Initial system/baseline ordering, incremental contexts and edit/head/fork invalidation remain detached and Session-owned.
 
 Tasks expose optional `StartedAt`/`EndedAt` milliseconds; receipts expose optional monotonic `DurationMs`. Executor durations measure each attempt, including failed/panic results; blocked calls and later-fetched deferred responses remain untimed. `Options.Catalog` shares host model discovery/refresh, and invocation-bound `Models()` access provides credential-free catalog reads and `Complete` through the host request boundary. [Candidate validation](../v110/local-validation.md) and [changed-path crosswalk](../v110/changed-paths-crosswalk.md) include native SQLite/Cloudflare distinctions, profiling and verification limits. Published1.0.4 is unchanged.
 
@@ -14,12 +18,12 @@ Tasks expose optional `StartedAt`/`EndedAt` milliseconds; receipts expose option
 go run ./examples/durable
 ```
 
-The example starts a local fake OpenAI HTTP/SSE server, registers a replay-safe sum tool and uses the exported `goai.Stream` provider path. It prints `The sum is 5.` without live credentials or an external server. Set `DURABLE_EXAMPLE_DIR` to retain its journal; the same request ID returns its stored answer on later runs.
+The example starts a local fake OpenAI HTTP/SSE server, registers a replay-safe sum tool and uses the exported `goai.Stream` provider path. It prints `The sum is 5.` without live credentials or an external server. Set `DURABLE_EXAMPLE_DIR` to retain its SQLite database; the same request ID returns its stored answer on later runs.
 
 ## Public API
 
 ```go
-store, err := durable.OpenJournal(dir, durable.JournalOptions{}) // Sync=true
+store, err := durable.OpenSQLite(filepath.Join(dir, "store.sqlite"), durable.SQLiteOptions{})
 registry := durable.NewRegistry()
 err = registry.Register(durable.ToolRegistration{
     Definition: tool, Implementation: "host.sum", Version: 1,
@@ -54,7 +58,7 @@ Model requests pin sanitized model behaviour, settings and context cutoff; local
 
 ## Storage and scope
 
-The journal is native GODJNL1 framing, not upstream JSONL/SQLite interoperability. Default Sync=true; owner-only directory/file, strict JSON, durable ID reservations, coherent persisted resource caps, legal final torn-tail truncation and fail-closed complete corruption. Uncertain append/sync poisons reads/dispatch until close/reopen. Power-loss guarantees depend on filesystem/device semantics. In-process exclusivity is enforced; cross-process exclusivity and path replacement exclusion are host preconditions. Journal and SQLite reclamation preserve logical history. SQLite uses a cooperating-process ownership lock; journal cross-process exclusion remains a host precondition. Encryption and a hard RSS bound are not supplied. See [package format/limits](../../durable/doc.go).
+SQLite uses CGO-free `modernc.org/sqlite`, WAL transactions and synchronous=FULL. The database is owner-only; canonical-path and inode locks last through joined close. Strict JSON, durable ID reservations, persisted resource budgets and fail-closed corrupt-record replay remain enforced. Confirmed rollback leaves the store usable; an uncertain commit poisons reads/dispatch until close/reopen. Reclamation preserves logical history. Its native schema is distinct from upstream SQLite files. Process-exit checks do not establish universal power-loss guarantees; host file replacement, noncooperating writers, encryption and a hard RSS bound are outside these guarantees. See [package format/limits](../../durable/doc.go).
 
 The local native history/definition/delta checkpoint adds fork ancestry, half-open document incarnations, as-of/current copies, lazy migrations and decoded delta/checkpoint selection. These slices and their integrated durable regression are independently accepted. The current working tree also passes the final repository and durable/tools race gates; no successor publication was made. Generic tasks, extensions, subagents, adaptive progress, committed views/events/task graphs, steering/reset boundaries, compaction, deferred polling/retries, SQLite/reclamation and coding tools are implemented locally. Current assertions, native adaptations and verification limits are listed in [parity closure](parity-closure.md). Unprovable legacy-agent history is rejected instead of backfilled. Built-in tools are host callbacks; the package does not silently run bash or access files.
 
