@@ -2,7 +2,7 @@
   "baseline": "4a080252f06caf63a525d7873c5d94d3c23887e0",
   "previousTarget": "c9f4c7b9fcd0f3e6b5bbc35c7c9b6cda35580eb8",
   "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
-  "observedDate": "2026-11-02",
+  "observedDate": "2026-11-03",
   "targetCommitTime": "2026-11-02T11:38:21+01:00",
   "commitsSincePrevious": 11,
   "purpose": "Pinned official release v1.5.0; scoped prior evidence retains its tested pin; no acceptance claim.",
