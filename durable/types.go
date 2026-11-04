@@ -26,6 +26,7 @@ var (
 	ErrCorrupt          = errors.New("durable: corrupt journal")
 	ErrUnsupported      = errors.New("durable: unsupported operation")
 	ErrConversationBusy = errors.New("durable: conversation busy")
+	ErrConversationIdle = errors.New("durable: conversation idle")
 	ErrSealed           = errors.New("durable: transaction sealed")
 	ErrConcurrent       = errors.New("durable: overlapping or reentrant transaction method")
 	ErrOwned            = errors.New("durable: storage already owned in this process")

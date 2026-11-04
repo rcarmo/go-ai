@@ -22,7 +22,18 @@ type Input struct {
 	// refuse a live generation. "follow-up" remains a legacy alias.
 	// Deduplication precedes rejection.
 	WhenBusy string
+	// WhenIdle may be "reject" for input that must not start a new run.
+	WhenIdle string
 }
+
+// ConversationIdle identifies the conversation that rejected idle input.
+type ConversationIdle struct{ ConversationID ID }
+
+func (e *ConversationIdle) Error() string {
+	return fmt.Sprintf("Conversation %d is idle", e.ConversationID)
+}
+func (e *ConversationIdle) Unwrap() error { return ErrConversationIdle }
+
 type SubmissionHandle struct {
 	h  *Harness
 	id ID
@@ -101,6 +112,12 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" && input.WhenBusy != "followUp" {
 		return nil, reject("invalid busy mode")
 	}
+	if input.WhenIdle != "" && input.WhenIdle != "reject" {
+		return nil, reject("invalid idle mode")
+	}
+	if input.WhenIdle != "" && input.Type != "" && input.Type != "input" && input.Type != "follow-up" && input.Type != "steer" {
+		return nil, reject("idle mode requires input")
+	}
 	if input.Type == "" || input.Type == "input" {
 		input.Type = "follow-up"
 		if input.WhenBusy == "steer" {
@@ -141,7 +158,9 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 		}
 		for _, sub := range current.Submissions {
 			if input.RequestID != "" && sub.Conversation == c.id && sub.RequestID == input.RequestID {
-				if sub.Type != input.Type {
+				// Steer and follow-up are queue modes of the same upstream
+				// input submission type; deduplication precedes mode checks.
+				if publicSubmission(sub).Type != publicSubmission(Submission{Type: input.Type}).Type {
 					return reject("request ID cross-type conflict")
 				}
 				dedupID = sub.ID
@@ -216,6 +235,9 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			return err
 		}
 		busy := h.conversationGenerationBusy(tx.state, c.id)
+		if input.WhenIdle == "reject" && !busy {
+			return &ConversationIdle{ConversationID: c.id}
+		}
 		if input.WhenBusy == "reject" && input.Type != "write" && busy && !failedQueueHeld(tx.state, c.id) {
 			return ErrConversationBusy
 		}
