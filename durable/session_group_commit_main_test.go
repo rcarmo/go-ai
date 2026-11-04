@@ -1,8 +1,11 @@
 package durable
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -267,4 +270,400 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	if entries != 1 {
 		t.Fatalf("only the earlier part should be stored, got %d (frames written: %d)", entries, stored)
 	}
+}
+
+// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240 and 292, in the shape native can
+// express. Native admits one writer on the line, so a second job cannot run its callback inside the
+// pending window; what native does is wait at admission and then see the published creation. Measured:
+// the job waits, it reads the document that the pending commit created instead of creating one again,
+// a write to the conversation the pending commit created targets it only after publication, and an unkeyed
+// scan includes the published conversation only after publication.
+//
+// Shape note: native has no `document.create` write type at storage level - create and change are
+// `put-document` and `delta-document` - so the source's "creations length 1" assertion has no native
+// analogue. The equivalent measured here is that the waiting job produced a delta on the same document
+// id, not a second creation.
+// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240 and 292, in the shape native can
+// express. Native admits one writer on the line, so a second job cannot run its callback inside the
+// pending window; what native does is block at admission and then observe the published work. Measured:
+// the creating job reaches storage while publication is held, the second job does not settle inside the
+// window, and after release it sees the published document (case 217), writes to the published
+// conversation (case 240) or includes the published conversation in an unkeyed scan (case 292).
+//
+// Shape difference recorded: the source counts a write of type document.create, native has no create-type
+// write at storage level - an initial document write is put-document and a later change delta-document -
+// so the measured equivalent for case 217 is one put-document from the creating job and one
+// delta-document on the same id from the waiting job.
+//
+// Fixture shape note: values must be reported from inside the callback and settlement must be awaited
+// separately. A job that reports after its own commit cannot be observed inside the pending window, and a
+// subtest that ends before settlement cancels the context under a still-running commit. An earlier
+// version of this control timed out at 60s for that reason; that was a fixture artifact, not a contract
+// result.
+func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
+	def, err := DefineDocument(DefinitionOptions{
+		Kind:           "gc.gates.note",
+		Version:        1,
+		Scope:          "session",
+		Initial:        func(JSON) (JSON, error) { return JSON{"n": 0}, nil },
+		CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	open := func(t *testing.T) (*Session, *mainGatesHeld, context.Context) {
+		t.Helper()
+		store, err := newTestSQLite(t)
+		if err != nil {
+			t.Fatal(err)
+		}
+		held := &mainGatesHeld{entered: make(chan struct{}), release: make(chan struct{})}
+		original := store.appendFrame
+		store.appendFrame = held.install(original)
+		t.Cleanup(func() { store.appendFrame = original })
+		s, err := OpenSession(store)
+		if err != nil {
+			store.Close(context.Background())
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { s.Close(context.Background()) })
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		t.Cleanup(cancel)
+		return s, held, ctx
+	}
+
+	// run starts one job. The callback reports its value from inside the pending window, and settlement
+	// is reported separately so the test can tell "ran but not published" from "settled".
+	run := func(t *testing.T, s *Session, ctx context.Context, callback func(*Tx) error, settled chan error) {
+		t.Helper()
+		go func() {
+			_, err := s.Commit(ctx, callback)
+			settled <- err
+		}()
+	}
+
+	settleWithin := func(t *testing.T, ch chan error, seconds int) error {
+		t.Helper()
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(time.Duration(seconds) * time.Second):
+			return fmt.Errorf("no settlement within %ds", seconds)
+		}
+	}
+
+	t.Run("case-217-document-address-waits", func(t *testing.T) {
+		s, held, ctx := open(t)
+		held.holdCommits()
+
+		values := make(chan int64, 4)
+		firstSettled := make(chan error, 1)
+		secondSettled := make(chan error, 1)
+
+		run(t, s, ctx, func(tx *Tx) error {
+			h, err := tx.AcquireDocument(def, 0, nil, nil)
+			if err != nil {
+				return err
+			}
+			v, err := h.Get()
+			if err != nil {
+				return err
+			}
+			n := gateNumber(v["n"]) + 1
+			if err := h.Set(JSON{"n": n}); err != nil {
+				return err
+			}
+			values <- n
+			return nil
+		}, firstSettled)
+
+		select {
+		case n := <-values:
+			if n != 1 {
+				t.Fatalf("creating job must produce 1, got %d", n)
+			}
+		case err := <-firstSettled:
+			t.Fatalf("creating job settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("creating job did not reach storage while held")
+		}
+
+		run(t, s, ctx, func(tx *Tx) error {
+			h, err := tx.AcquireDocument(def, 0, nil, nil)
+			if err != nil {
+				return err
+			}
+			v, err := h.Get()
+			if err != nil {
+				return err
+			}
+			n := gateNumber(v["n"]) + 1
+			if err := h.Set(JSON{"n": n}); err != nil {
+				return err
+			}
+			values <- n
+			return nil
+		}, secondSettled)
+
+		select {
+		case n := <-values:
+			t.Fatalf("waiting job ran inside the pending window with n=%d", n)
+		case err := <-secondSettled:
+			t.Fatalf("waiting job errored inside the pending window: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		select {
+		case n := <-values:
+			if n != 2 {
+				t.Fatalf("waiting job must read the published document and produce 2, got %d", n)
+			}
+		case err := <-secondSettled:
+			t.Fatalf("waiting job errored after release: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("waiting job stuck after release")
+		}
+		for _, ch := range []chan error{firstSettled, secondSettled} {
+			if err := settleWithin(t, ch, 3); err != nil {
+				t.Fatalf("commit did not settle: %v", err)
+			}
+		}
+		if held.putFrames != 1 || held.deltaFrames != 1 {
+			t.Fatalf("waiting job must write a delta on the existing document: put=%d delta=%d", held.putFrames, held.deltaFrames)
+		}
+	})
+
+	t.Run("case-240-write-waits-for-created-conversation", func(t *testing.T) {
+		s, held, ctx := open(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		createdSettled := make(chan error, 1)
+		appendedSettled := make(chan error, 1)
+
+		var createdID ID
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+				return err
+			}
+			createdID = id
+			values <- id
+			return nil
+		}, createdSettled)
+
+		select {
+		case id := <-values:
+			createdID = id
+		case err := <-createdSettled:
+			t.Fatalf("creating commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("creating job did not reach storage while held")
+		}
+
+		run(t, s, ctx, func(tx *Tx) error {
+			entryID, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: createdID, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
+				return err
+			}
+			values <- entryID
+			return nil
+		}, appendedSettled)
+
+		select {
+		case id := <-values:
+			t.Fatalf("write job ran inside the pending window (entry %d)", id)
+		case err := <-appendedSettled:
+			t.Fatalf("write job errored inside the pending window: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		select {
+		case entryID := <-values:
+			if entryID == 0 {
+				t.Fatal("no entry written")
+			}
+			_ = entryID
+		case err := <-appendedSettled:
+			t.Fatalf("write job errored after release: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("write job stuck after release")
+		}
+		for _, ch := range []chan error{createdSettled, appendedSettled} {
+			if err := settleWithin(t, ch, 3); err != nil {
+				t.Fatalf("commit did not settle: %v", err)
+			}
+		}
+
+		// The appended entry must belong to the conversation the pending commit created.
+		snap, err := s.Snapshot(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, e := range snap.Entries {
+			if e.Conversation == createdID {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("appended entry must belong to the published conversation %d, snapshot: %v", createdID, snap.Entries)
+		}
+	})
+
+	t.Run("case-292-unkeyed-scan-waits", func(t *testing.T) {
+		s, held, ctx := open(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		createdSettled := make(chan error, 1)
+		scannedSettled := make(chan error, 1)
+		var createdID ID
+
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+				return err
+			}
+			createdID = id
+			values <- id
+			return nil
+		}, createdSettled)
+
+		select {
+		case id := <-values:
+			createdID = id
+		case err := <-createdSettled:
+			t.Fatalf("creating commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("creating job did not reach storage while held")
+		}
+
+		seen := make(chan []ID, 1)
+		go func() {
+			_, err := s.Commit(ctx, func(tx *Tx) error {
+				page, err := tx.ScanConversations(ConversationQuery{}, 10, "")
+				if err != nil {
+					return err
+				}
+				ids := []ID{}
+				for _, c := range page.Items {
+					ids = append(ids, c.ID)
+				}
+				seen <- ids
+				return nil
+			})
+			scannedSettled <- err
+		}()
+
+		select {
+		case ids := <-seen:
+			t.Fatalf("unkeyed scan ran inside the pending window: %v", ids)
+		case err := <-scannedSettled:
+			t.Fatalf("unkeyed scan errored inside the pending window: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		select {
+		case ids := <-seen:
+			found := false
+			for _, id := range ids {
+				if id == createdID {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("scan after publication must include the published conversation %d, got %v", createdID, ids)
+			}
+		case err := <-scannedSettled:
+			t.Fatalf("unkeyed scan errored after release: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("unkeyed scan stuck after release")
+		}
+		for _, ch := range []chan error{createdSettled, scannedSettled} {
+			if err := settleWithin(t, ch, 3); err != nil {
+				t.Fatalf("commit did not settle: %v", err)
+			}
+		}
+	})
+}
+
+// Counts the write types each job produced at storage level: native encodes a first document write
+// as put-document and a later change as delta-document, so no create-type write is expected.
+type mainGatesHeld struct {
+	mu          sync.Mutex
+	hold        bool
+	entered     chan struct{}
+	release     chan struct{}
+	putFrames   int
+	deltaFrames int
+}
+
+func (h *mainGatesHeld) holdCommits() { h.mu.Lock(); h.hold = true; h.mu.Unlock() }
+
+func (h *mainGatesHeld) releaseHold() {
+	h.mu.Lock()
+	h.hold = false
+	h.mu.Unlock()
+	select {
+	case <-h.release:
+	default:
+		close(h.release)
+	}
+}
+
+func (h *mainGatesHeld) install(appendFrame func(byte, uint64, uint64, []byte) error) func(byte, uint64, uint64, []byte) error {
+	return func(typ byte, ordinal, high uint64, payload []byte) error {
+		h.mu.Lock()
+		if bytes.Contains(payload, []byte(`"put-document"`)) {
+			h.putFrames++
+		}
+		if bytes.Contains(payload, []byte(`"delta-document"`)) {
+			h.deltaFrames++
+		}
+		if typ == 2 && h.hold {
+			h.mu.Unlock()
+			select {
+			case <-h.entered:
+			default:
+				close(h.entered)
+			}
+			<-h.release
+		} else {
+			h.mu.Unlock()
+		}
+		if appendFrame != nil {
+			return appendFrame(typ, ordinal, high, payload)
+		}
+		return nil
+	}
+}
+
+func gateNumber(v any) int64 {
+	switch t := v.(type) {
+	case json.Number:
+		n, err := t.Int64()
+		if err != nil {
+			return -1
+		}
+		return n
+	case int64:
+		return t
+	case int:
+		return int64(t)
+	}
+	return -1
 }
