@@ -45,6 +45,22 @@ This is a candidate for staged review, not a prescribed patch:
 | `Tx.current`, `stage`, `finalizeTaskWrites`, `finalizeDocuments` | Candidate preparation currently validates broad record/reference/ownership invariants and may fold held documents. Task/definition helpers also inspect `tx.state` or Session caches. | Audit all internal accesses, not only public reads; any uncaptured broad read forces a conservative gate. Never silently rerun application callbacks after validation conflict. |
 | `MintID` / allocator | Core line owns reservation frame and high-water update; `sessionReadAdmission` can read only the confirmed high water without joining the writer. | A possible pre-reserved block must be durable before IDs escape, bounded against MaxID/quotas and tested for crash/no reuse; it may change contiguous-ID and reservation timing contracts. No block size or policy is selected here. |
 
+## Allocator compatibility and options
+
+At `36e079d`, native `storeCore.mintID` settles a kind-1 reservation under the core line before returning the ID; `Tx.MintID` advances its provisional high water only after success. Reservations are deliberately non-transactional: a later rejected transaction does not undo one. Replay validates reservation continuity; process-crash controls assert unused reservations are not reused. Some native tests also assert exact high-water values and the next ID, not merely monotonicity.
+
+The pinned backends differ: upstream SQLite's `mintId` advances an in-memory counter, with commit metadata advanced from candidate writes; upstream IndexedDB increments metadata in a transaction. The IndexedDB test expects IDs 2 then 3 across reopen. These observations do not make a native SQLite durability guarantee optional: compare each backend's actual crash/visibility contract before proposing a change.
+
+Six focused native functions passed at `36e079d`, count 1: `TestSQLiteRealInsertFailureRollsBackAndKeepsReservation`, `TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts`, `TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix`, `TestInternalSQLiteGroupCrashRecovery`, `TestMainBoundaryPassiveWriteRollback`, and `TestMainSQLitePureGoContentionAdmittedCancellationAndCloseOverlap`. Vet/diff checks passed with the prototype overlay. The crash controls cover process-exit recovery and cannot establish universal power-loss safety.
+
+Possible approaches need separate validation:
+
+1. **Pre-core-call test seam.** Holding the native storage call before the core gate would better match `BatchStorage`'s held-wrapper fixture. This removes a test-seam distortion, but does not by itself solve real allocation contention while SQLite is settling an in-flight call. It must not be presented as the runtime fix.
+2. **Durably reserved pool.** Reserve a bounded range before a call becomes in flight, then issue IDs from that range without taking the held core gate. A crash may leave unused gaps. This can preserve no-reuse if implemented correctly, but changes reservation timing, high-water observability and potentially exact next-ID expectations. Reconcile those contracts, exhaustion and failed/uncertain reservations before choosing a size or implementing it.
+3. **Provisional in-memory IDs.** Reserving only when a later commit lands could avoid an early storage operation, but an ID already returned to a callback or leaked externally could be reused after crash or rejection. That conflicts with the current native durable-reservation invariant unless a new explicit non-escaping representation is proven. It is not a safe drop-in optimisation.
+
+No option is selected in this pass. A focused allocator design must specify exhaustion, concurrent mint ordering, failure/close cancellation, escaped IDs, recovery after unused reservations, exact high-water/next-ID expectations, and how source170 still observes independent callbacks while the earlier call is held. P05 cannot weaken the existing invariant merely to satisfy the oracle.
+
 ## Blocking design questions
 
 - Which operations can provide a complete key/read witness, including `Tx.current`, document address creation, task ownership, scans and held values? A conservative global gate preserves safety but will not satisfy source170 for independent callbacks. Specify actual instrumented operations and tests before allowing overlap.
