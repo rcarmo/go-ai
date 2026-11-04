@@ -61,6 +61,10 @@ Possible approaches need separate validation:
 
 No option is selected in this pass. A focused allocator design must specify exhaustion, concurrent mint ordering, failure/close cancellation, escaped IDs, recovery after unused reservations, exact high-water/next-ID expectations, and how source170 still observes independent callbacks while the earlier call is held. P05 cannot weaken the existing invariant merely to satisfy the oracle.
 
+A minimal diagnostic at `644ca87` used the existing durable `MintID` mechanism, committed the first returned ID and reopened the store. With only ID 2 reserved, reopened high water was 2 and the next ID was 3; after reserving IDs 2, 3 and 4 but using only 2, high water was 4 and the next ID was 5 (two subtests, 0.052s). This characterises existing durable reservations; it does not implement a pool or prove that a particular pool must use the same public high-water representation. It shows the concrete trade-off for a simple durable prefetch: unused reserved IDs become visible gaps after reopen. Existing exact-next-ID and public high-water tests need reconciliation if prefetch changes those observations.
+
+**Decision for Rui:** may P05 use bounded durably pre-reserved IDs and permit gaps/high-water advancement for IDs never handed to a caller, provided every returned ID remains non-reusable across crash/rejection, quotas and exhaustion are bounded, and changed exact-ID contracts are reviewed? If exact public high-water and next-ID behaviour must remain unchanged, investigate a different mechanism; the probes do not prove one impossible. A pre-core-call hold seam is still useful for a faithful test but is not a solution to actual SQLite writer contention.
+
 ### Pre-core hold versus an actual SQLite transaction
 
 Two temporary diagnostics at `5c05fd1` separate the gates; neither modifies production or establishes source170 parity:
