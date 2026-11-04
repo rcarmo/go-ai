@@ -48,3 +48,10 @@ Use a directory beneath the resolved project run root. Create `prototype_stub.go
 ```
 
 Run `make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run TestPendingViewObserversShareDocsIdentity -count=1 -timeout=30s"`. The prototype itself is unchanged. Dispose of the run directory after analysis.
+
+The same view-identity overlay also compiles:
+
+- `TestPendingViewSource160UnchangedMapIdentity`: exact touching-frame count/configuration delta and unchanged contents pass; unchanged `pi.live` and `docs` map identities fail. The source's initial empty entries-array object identity is unexecuted because Go slice pointers cannot establish it.
+- `TestPendingViewSource525WindowDocsIdentity`: windows `{min:2,max:3}` and `{min:5}` over six notes plus one append have equal document contents but different document maps. The independent content/window assertions pass as `TestMainViewSource525IndependentWindowContents`.
+
+Run `-run 'TestPendingViewSource(160|525)'` with that overlay. At parent `c422344`, count3/shuffle42 gives six expected failures in 0.258s; five focused passing functions give 15 passes in 1.975s. Source160 initialises configuration before recording to match `openChat(chatSetup())`; the bare-fixture normalisation probe is uncredited. Runtime ownership is unchanged.
