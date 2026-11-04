@@ -126,7 +126,7 @@ func mainAfterRecoveryStart(t *testing.T, p *mainAfterRecoveryProbe, store Stora
 func mainAfterRecoveryOutcome(t *testing.T, h *Harness, id ID) {
 	t.Helper()
 	task, ok, err := h.Task(bg, id)
-	if err != nil || !ok || task.State.Outcome == nil || task.State.Outcome.Status != "completed" {
+	if err != nil || !ok || task.State.Status != "terminal" || task.State.Outcome == nil || task.State.Outcome.Status != "completed" {
 		t.Error("answered generation outcome", task, ok, err)
 	}
 }
