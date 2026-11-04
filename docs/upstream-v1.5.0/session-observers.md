@@ -1,6 +1,6 @@
 # Session observers at v1.5.0
 
-The private standalone stored-commit lane passes the selected pinned observer assertions. Synchronous document observation and Harness integration are incomplete. Row 338 stays `reviewed-open`.
+Private standalone stored-commit and synchronous document-observer lanes pass selected source-shaped controls. Public API ownership and Harness integration are incomplete. Row 338 stays `reviewed-open`.
 
 Source: `packages/durable/test/session-observers.test.ts` and `packages/durable/src/session/session.ts` at `f9a26365568127461c47a07a37dcb42c140a3ac5`.
 
@@ -23,16 +23,16 @@ Callbacks run synchronously under the Session line. They must not block or call 
 
 ## Synchronous document observations
 
-The source's `observeDoc` cases require acquisition values, operation delivery and address pins under a synchronous observer guard. Native exposes asynchronous `DocumentWatch` delivery but no corresponding synchronous document-observation handle.
+`observeDocumentDefinition` is a private standalone synchronous guard. It registers at a specific position in the local listener order, pins the active document incarnation, returns a detached acquisition value and delivers each prepared document change synchronously after stored or memory adoption. It rejects scheduler-backed Sessions; it is not a public `observeDoc` API.
 
-- Cases 77/87/105/132: absent attachment, stored and memory adoption, and retirement/recreation have related watch/local-listener controls. Their synchronous document-observer assertions were not executed here.
-- Cases 162/176/187/203/215: detach, end and listener-error contracts have stored-lane analogues above. Document pin release, watch-versus-observer ending and same-commit behaviour still need their own oracle.
-- Cases 241/254/296: atomic/cancelled attachment and promise rejection on invalid attachment were not executed. Go returned errors do not establish JavaScript rejection timing.
-- Cases 265/309: detached-observer and retired-value collection require document-lifetime evidence. Stored-lane reference clearing does not establish those assertions.
-- Case 353: rejected listener promises have no native callback equivalent. Returned Go errors are synchronous and cannot establish asynchronous rejection behaviour.
-- Cases 469/496/520: retirement-time throw, self-detach and peer-detach must suppress later callbacks and recreation pins in the same commit. Stored-lane peer-detach controls do not establish document pin/incarnation behaviour. These assertions remain unexecuted.
+- Source77/87/105 have source-shaped standalone controls: absent attachment, committed count3 with exact set operation outside the storage call, and deferred count5 before storage with no duplicate local advance on flush. The private Go API and detached values adapt the source interface.
+- Source132/162 have standalone retirement/recreation and idempotent-detach controls. Retirement clears the Session-owned followed value and pin, while the caller owns the detached initial value; recreation emits a replacement and pins its new incarnation.
+- Source176/203/215 have close/failure and synchronous Go error/panic isolation controls. Normal close ends once with `failed`/`session closed`; a backend failure retains its cause. The tests do not establish JavaScript rejected-promise timing.
+- Source241/254/296 have queued-baseline, cancellation before and after registration, and malformed-address controls. Go returned errors do not establish JavaScript promise-rejection timing.
+- Source469/496/520 have source-shaped same-commit retirement error, self-detach and peer-detach controls. Detached guards retain no recreation pin/value; a healthy peer continues. Full public/Harness and JS callback semantics remain open.
+- Source265/309: explicit guard/reference release and retired-value clearing are tested; JavaScript `WeakRef` timing and collection are not. Source353 rejected thenables remain untested.
 
-These are fixture/API gaps, not passing source tests. No runtime contract or API changed in this pass.
+The synchronous callback runs on the Session line; it must not block or synchronously re-enter Session/Storage. Source callbacks can enqueue later async work. A public Go API needs an agreed re-entry mechanism and P07 ownership/identity design. Task-owner termination is tested only with a standalone raw task, not the scheduler-backed path.
 
 ## Focused verification
 
@@ -47,3 +47,11 @@ At parent `3c142ab` plus the two new controls, pure Go/modernc SQLite:
 The first command failed in the Makefile shell because an unquoted regex end anchor was consumed by Make. No tests ran in that attempt. The corrected focused commands above supplied the credited results.
 
 The overlay changed compiler input only for the unrelated untracked continuation prototype. Disposable run data was deleted after analysis. No full suite, profiling, hosted CI, release or push was run.
+
+## Private document-observer verification
+
+At parent `59065bc` plus the private implementation, pure Go/modernc SQLite, the focused set of 24 functions ran count 3 with shuffle seed 42: **72 top-level passes, 0 failures, 0 skips, 2.801s**. It includes 15 synchronous document-observer functions and nine related local/stored/watch/failure controls. The final source-shaped adoption test checks callback timing outside the actual storage append and confirms deferred memory delivery before storage.
+
+Four compiler-overlay faults were rejected: suppressing advances; retaining the retired pin; skipping post-registration cancellation; and omitting task-owner ending. `go vet`, formatting and `git diff --check` passed with the protected prototype excluded through the compiler overlay. The interrupted command and earlier failed fault-script parse were not credited. Staticcheck was unavailable; race testing requires CGO and was not run under the pure-Go restriction.
+
+The implementation is private and standalone. Scheduler-backed Sessions return `ErrUnsupported`; public observation API, JS reference identity, rejected thenables, WeakRef/GC timing, source re-entry and group-publication interactions remain open. No full suite, profiling, hosted CI, release or push ran. Disposable logs, overlays and fault copies were removed after analysis.

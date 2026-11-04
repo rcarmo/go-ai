@@ -18,6 +18,9 @@ type sessionObservedCommit struct {
 // identity without comparing Go closures or using unsafe code.
 type sessionCommitListener struct {
 	callback func(context.Context, sessionObservedCommit) error
+	// Document observations occupy their actual position in the local Set.
+	// Their guard contains host errors rather than failing the Session.
+	document *sessionDocumentObservation
 }
 
 func (s *Session) followSessionCommits(listener *sessionCommitListener) (func(), error) {
@@ -87,6 +90,10 @@ func (s *Session) publishLocalCommit(ctx context.Context, kind string, publicati
 	ctx = context.WithoutCancel(ctx)
 	var first error
 	for _, listener := range listeners {
+		if listener.document != nil {
+			listener.document.advance(ctx, publication)
+			continue
+		}
 		if err := callSessionCommitObserver(func() error { return listener.callback(ctx, event) }); first == nil {
 			first = err
 		}

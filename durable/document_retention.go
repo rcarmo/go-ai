@@ -13,6 +13,14 @@ func (s *Session) documentPinned(id ID) bool {
 			return true
 		}
 	}
+	for _, observation := range s.documentObservers {
+		observation.mu.Lock()
+		live := observation.session != nil && observation.id == id
+		observation.mu.Unlock()
+		if live {
+			return true
+		}
+	}
 	return false
 }
 func (s *Session) sweepDocumentCache() {

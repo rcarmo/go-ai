@@ -787,6 +787,9 @@ func (s *Session) observerReservedBytesLocked() int64 {
 	for p := range s.subscriptions {
 		total += p.quota
 	}
+	for _, observation := range s.documentObservers {
+		total += observation.quota
+	}
 	return total
 }
 

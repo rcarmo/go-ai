@@ -47,9 +47,10 @@ type Session struct {
 	observerMu            sync.Mutex
 	watches               map[*DocumentWatch]bool
 	subscriptions         map[*CommitSubscription]bool
-	syncCommitObservers   []*sessionCommitObservation // observerMu; insertion order
-	localCommitListeners  []*sessionCommitListener    // observerMu; copied Set order
-	taskScheduler         *taskScheduler              // private line-owned Harness integration
+	syncCommitObservers   []*sessionCommitObservation   // observerMu; insertion order
+	localCommitListeners  []*sessionCommitListener      // observerMu; copied Set order
+	documentObservers     []*sessionDocumentObservation // observerMu; private standalone lane
+	taskScheduler         *taskScheduler                // private line-owned Harness integration
 }
 
 // OpenSession claims one native memory/journal store. Storage remains owned
@@ -471,6 +472,7 @@ func (s *Session) Close(ctx context.Context) error {
 				s.closeErr = s.flushHeldOnClose()
 			}
 			s.endStoredCommitObservers()
+			s.endDocumentObservers()
 			s.clearLocalCommitListeners()
 			if s.persistenceTimer != nil {
 				s.persistenceTimer.Stop()
