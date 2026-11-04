@@ -4,7 +4,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Parity backlog and contract decisions
 
-[Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. [Contract decisions](parity-contract-decisions.md) records the afterRun, close/requeue, wait-cycle and refusal/failure conflicts; afterRun and close runtime changes need Rui's explicit direction.
+[Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. [Contract decisions](parity-contract-decisions.md) records the afterRun, close/requeue, wait-cycle and refusal/failure conflicts; afterRun and close runtime changes need Rui's explicit direction. [Wait-cycle admission](wait-cycle-admission.md) records the P03 graph analysis and its separate runtime-change pause.
 
 ## Terminal-only deferred polling
 
