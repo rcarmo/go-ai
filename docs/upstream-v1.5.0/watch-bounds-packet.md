@@ -1,0 +1,24 @@
+# Watch folding bounds and persistence witness
+
+Pinned `packages/chord/src/delta/pending.ts` folds pending operations, switching to replacement when the folded count exceeds 10,000. A first single batch remains unchanged until another batch arrives; a later root clears pending/overflow state. `packages/durable/test/session-watches.test.ts:202` sends 4,000 + 4,000 + 2,001 distinct key changes, then expects one root replacement and 10,001 keys. This is not equivalent to 4,097 operations or to an oversized single frame.
+
+## Native bounds
+
+| Limit | Current policy | Effect on source202 |
+| --- | --- | --- |
+| Document/container members | Default `MaxMembers=4096`; persisted policy may be configured up to 16,384. | A document with 8,000 or 10,001 keys fails the default container limit before the source watch assertion. A configured larger policy is not the default contract. |
+| Replay and operation tuples | `maxDeltaOperations=4096`; `ownOperations` also uses `MaxMembers` and `MaxRecordBytes`. | Folded distinct operations collapse to root at 4,097. Raising only the folding threshold would produce outputs that native `ApplyOperations` rejects. |
+| Encoded document/record/frame | Defaults 256 KiB / 512 KiB / 4 MiB; persisted and subject to coherence checks. | A short-key source-shaped JSON value is about 125 KiB at 10,001 keys, under the default document byte ceiling; this does not remove member, node, tuple or security bounds. |
+| Retained watcher budget | 32 MiB default shared budget; at the default capacity of 64, each watch reserves 512 KiB. `prepareWatchFrames` constructs detached normal and root frames; `enqueueWatchFrames` accounts queued encoded payloads and replaces or ends on byte quota. | Capacity and quota can trigger root replacement independently of Chord's op count. Byte counts are admission accounting, not a measurement of Go heap retained by maps, paths, and copies. |
+
+A Bun UTF-8 sizing probe used the exact key/value pattern `{keys:{k0:0,...}}`, with no operations overhead omitted: 4,000 keys = 49,790 value bytes; 8,000 = 101,790; 10,000 = 127,790; 10,001 = 127,805. The corresponding encoded `{value,ops:[["r",value]]}` sizes are 99,605 / 203,605 / 255,605 / 255,635 bytes. Each payload contains the value twice. At 10,001 keys the root payload alone is about 48.8% of the default 524,288-byte per-watch quota. These are JSON bytes, not allocation or CPU measurements; long keys/values and multiple watchers alter the outcome.
+
+## Source-aligned design to validate
+
+Separate the limits rather than increasing one constant globally. Define a bounded folded-watch operation ceiling of 10,000 while retaining independent document member, node, encoded record/frame and aggregate process budgets. Ensure every non-root folded delivery can be consumed by the public replay contract under the same policy; separating watch and transaction operation ceilings alone is insufficient if `ApplyOperations` still rejects the frame. Retain the single-batch, root-recovery, in-flight, cancellation and ownership rules. For source202, the document and replay policies must admit the actual 10,001-key value and 4,000-operation batches; consider a narrowly scoped persisted policy or a reviewed default migration with explicit compatibility and resource limits. A configurable-only pass cannot establish default parity. Account for retained copies and non-JSON object overhead under concurrent watchers before choosing policy. No runtime or limit change is made here.
+
+## Current witness
+
+At local `0457605`, the source128-shaped `TestMainViewUpstreamGenerationOracle` checks replay, final revision, the user splice and generation tuple, and `frame count == stored matching touches + 1`; it now passes. That equality is a persistence/notification witness, not proof of a separate deferred write or source202 bound. `TestMainSessionConversationMemoryDelivery` independently checks deferred memory visibility before storage and timer/read-dependent flushing. The bounded set of 10 named view/watch/deferred functions (including deadline, unload, reload and close) passed count1 in 1.251s; Go vet and diff checks passed with the protected prototype excluded by compiler overlay. The first run named a nonexistent retention test and credited only its six actual tests; it is excluded from this receipt. No new threshold, profiling, race, full suite, CI or release ran. Disposable run scratch was removed after analysis.
+
+Next: port source183/202/229 unchanged through the public watch and production commit path, record exact default-policy failures, measure concurrent resource use on equivalent bounded workloads and choose a policy with explicit persisted-limit migration. Then test replay and quota failure at both sides of the selected thresholds. The current native 4,096 tests remain valid until a source-backed policy is selected.
