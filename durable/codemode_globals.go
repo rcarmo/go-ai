@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// CodemodeUndefined represents a JavaScript undefined result from a custom
+// global. A nil result remains JSON null. It is valid only as the whole result,
+// not as a nested JSON value.
+const CodemodeUndefined codemodeUndefined = 0
+
+type codemodeUndefined uint8
+
 // CodemodeGlobal is process-local host authority. Version pins callback
 // semantics; change it whenever replay-visible behaviour changes. Execute may
 // run again when its delivery commit is unconfirmed, so callbacks must be pure

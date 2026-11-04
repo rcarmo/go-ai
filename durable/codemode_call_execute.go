@@ -20,6 +20,13 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 		} else {
 			value, globalErr = codemodeDiscoveryOutcome(start, call)
 		}
+		undefined := false
+		if codemodeCustomGlobal(start, call.Name) != nil && globalErr == nil {
+			_, undefined = value.(codemodeUndefined)
+			if undefined {
+				value = nil
+			}
+		}
 		if value != nil && globalErr == nil {
 			object, e := dtoObject(JSON{"value": value}, l)
 			if e != nil {
@@ -36,7 +43,7 @@ func (r *TaskRuntime) executeCodemodeCall(linked context.Context, key string, st
 			delivery.Error = globalErr.Error()
 		} else {
 			delivery.Value = value
-			delivery.HasValue = true
+			delivery.HasValue = !undefined
 		}
 	} else {
 		name, arguments := call.Name, call.Arguments

@@ -184,6 +184,9 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 			if delivery.Error != "" {
 				return nil, codemodeRejectedDelivery(delivery)
 			}
+			if !delivery.HasValue {
+				return nil, nil
+			}
 			return json.Marshal(delivery.Value)
 		}
 	}
@@ -239,6 +242,9 @@ func (s *QuickJSSandbox) Start(ctx context.Context, code string, start CodemodeS
 					}
 					if delivery.Error != "" {
 						return nil, codemodeRejectedDelivery(delivery)
+					}
+					if !delivery.HasValue {
+						return nil, nil
 					}
 					return json.Marshal(delivery.Value)
 				case <-ctx.Done():
