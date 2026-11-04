@@ -963,9 +963,6 @@ func openGatesSession(t *testing.T) (*Session, *SQLiteStorage, *mainGatesHeld, c
 	held := &mainGatesHeld{entered: make(chan struct{}), release: make(chan struct{})}
 	original := store.appendFrame
 	store.appendFrame = held.install(original)
-	// Release on the failure path too: a subtest that fails before its own release would otherwise leave a
-	// job blocked in the storage hook and deadlock the cleanup that waits for it.
-	t.Cleanup(held.releaseHold)
 	t.Cleanup(func() { store.appendFrame = original })
 	s, err := OpenSession(store)
 	if err != nil {
@@ -975,6 +972,10 @@ func openGatesSession(t *testing.T) (*Session, *SQLiteStorage, *mainGatesHeld, c
 	t.Cleanup(func() { s.Close(context.Background()) })
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
+	// Cleanups run in reverse order. Release before cancellation and Close:
+	// otherwise an early assertion failure can leave Close waiting forever
+	// for a commit blocked in the append hook.
+	t.Cleanup(held.releaseHold)
 	return s, store, held, ctx
 }
 
@@ -995,5 +996,41 @@ func settleWithinGate(t *testing.T, ch chan error, seconds int) error {
 		return err
 	case <-time.After(time.Duration(seconds) * time.Second):
 		return fmt.Errorf("no settlement within %ds", seconds)
+	}
+}
+
+// A subtest may fail or return before explicitly releasing a held append. Its
+// cleanup must release the hook before waiting for Session.Close. The buffered
+// completion channel lets the parent verify the commit goroutine returned.
+func TestMainGatesSessionCleanupReleasesHeldAppend(t *testing.T) {
+	done := make(chan error, 1)
+	if !t.Run("return-with-held-append", func(t *testing.T) {
+		s, _, held, ctx := openGatesSession(t)
+		held.holdCommits()
+		go func() {
+			_, err := s.Commit(ctx, func(tx *Tx) error {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+			})
+			done <- err
+		}()
+		select {
+		case <-held.entered:
+		case err := <-done:
+			t.Fatalf("commit returned before the held append: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("commit did not reach the held append")
+		}
+		// Deliberately rely on cleanup, as an early assertion failure would.
+	}) {
+		t.Fatal("held-append subtest failed")
+	}
+	select {
+	case <-done: // A cancelled or successful commit can both unwind safely.
+	case <-time.After(3 * time.Second):
+		t.Fatal("held commit did not return after cleanup")
 	}
 }
