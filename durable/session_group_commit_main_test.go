@@ -273,35 +273,26 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 }
 
 // Actual f9a26365 session-group-commit.test.ts gates cases 217, 240, 292, 323, and the two deferred-commit
-// ordering cases 662 and 680, in the shape native can
-// express. Native admits one writer on the line, so a second job cannot run its callback inside the
-// pending window; what native does is wait at admission and then see the published creation. Measured:
-// the job waits, it reads the document that the pending commit created instead of creating one again,
-// a write to the conversation the pending commit created targets it only after publication, and an unkeyed
-// scan includes the published conversation only after publication.
-//
-// Shape note: native has no `document.create` write type at storage level - create and change are
-// `put-document` and `delta-document` - so the source's "creations length 1" assertion has no native
-// analogue. The equivalent measured here is that the waiting job produced a delta on the same document
-// id, not a second creation.
-// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240, 292, 323, and the two deferred-commit
-// ordering cases 662 and 680, in the shape native can
-// express. Native admits one writer on the line, so a second job cannot run its callback inside the
-// pending window; what native does is block at admission and then observe the published work. Measured:
-// the creating job reaches storage while publication is held, the second job does not settle inside the
-// window, and after release it sees the published document (case 217), writes to the published
-// conversation (case 240) or includes the published conversation in an unkeyed scan (case 292).
+// ordering cases 662 and 680, in the shape native can express. Native admits one writer on the line, so a
+// second job cannot run its callback inside the pending window; what native does is block at admission and
+// then observe the published work. Measured: the creating job reaches storage while publication is held, the
+// second job does not settle inside the window, and after release it sees the published document (217),
+// writes to the published conversation (240), includes the published conversation in an unkeyed scan (292),
+// a line read issued after an un-awaited commit waits for that commit and then sees its entry (323), and
+// publication order follows admission order (662, 680).
 //
 // Shape difference recorded: the source counts a write of type document.create, native has no create-type
-// write at storage level - an initial document write is put-document and a later change delta-document -
-// so the measured equivalent for case 217 is one put-document from the creating job and one
-// delta-document on the same id from the waiting job.
+// write at storage level - an initial document write is put-document and a later change delta-document - so
+// the measured equivalent for case 217 is one put-document from the creating job and one delta-document on
+// the same id from the waiting job. Cases 662 and 680 are approximations: native cannot have a deferred part
+// inside one pending group, so the deferred job is a later writer.
 //
-// Fixture shape note: values must be reported from inside the callback and settlement must be awaited
-// separately. A job that reports after its own commit cannot be observed inside the pending window, and a
-// subtest that ends before settlement cancels the context under a still-running commit. An earlier
-// version of this control timed out at 60s for that reason; that was a fixture artifact, not a contract
-// result.
+// Fixture shape notes: values must be reported from inside the callback and settlement awaited separately,
+// because a job that reports after its own commit cannot be observed inside the pending window and a subtest
+// that ends before settlement cancels the context under a still-running commit. An earlier version timed out
+// at 60s for the first reason and failed intermittently for the second; both were fixture artifacts, not
+// contract results. A third artifact - an injected-failure branch returning while the hook mutex was held -
+// deadlocked a run for 90s and is not credited.
 func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 	def, err := DefineDocument(DefinitionOptions{
 		Kind:           "gc.gates.note",
@@ -314,72 +305,34 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	open := func(t *testing.T) (*Session, *mainGatesHeld, context.Context) {
-		t.Helper()
-		store, err := newTestSQLite(t)
-		if err != nil {
-			t.Fatal(err)
-		}
-		held := &mainGatesHeld{entered: make(chan struct{}), release: make(chan struct{})}
-		original := store.appendFrame
-		store.appendFrame = held.install(original)
-		t.Cleanup(func() { store.appendFrame = original })
-		s, err := OpenSession(store)
-		if err != nil {
-			store.Close(context.Background())
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { s.Close(context.Background()) })
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		t.Cleanup(cancel)
-		return s, held, ctx
-	}
-
-	// run starts one job. The callback reports its value from inside the pending window, and settlement
-	// is reported separately so the test can tell "ran but not published" from "settled".
-	run := func(t *testing.T, s *Session, ctx context.Context, callback func(*Tx) error, settled chan error) {
-		t.Helper()
-		go func() {
-			_, err := s.Commit(ctx, callback)
-			settled <- err
-		}()
-	}
-
-	settleWithin := func(t *testing.T, ch chan error, seconds int) error {
-		t.Helper()
-		select {
-		case err := <-ch:
-			return err
-		case <-time.After(time.Duration(seconds) * time.Second):
-			return fmt.Errorf("no settlement within %ds", seconds)
-		}
-	}
-
 	t.Run("case-217-document-address-waits", func(t *testing.T) {
-		s, held, ctx := open(t)
+		s, _, held, ctx := openGatesSession(t)
 		held.holdCommits()
 
 		values := make(chan int64, 4)
 		firstSettled := make(chan error, 1)
 		secondSettled := make(chan error, 1)
 
-		run(t, s, ctx, func(tx *Tx) error {
-			h, err := tx.AcquireDocument(def, 0, nil, nil)
-			if err != nil {
-				return err
-			}
-			v, err := h.Get()
-			if err != nil {
-				return err
-			}
-			n := gateNumber(v["n"]) + 1
-			if err := h.Set(JSON{"n": n}); err != nil {
-				return err
-			}
-			values <- n
-			return nil
-		}, firstSettled)
+		bump := func(t *testing.T, settled chan error) {
+			runGatesJob(t, s, ctx, func(tx *Tx) error {
+				h, err := tx.AcquireDocument(def, 0, nil, nil)
+				if err != nil {
+					return err
+				}
+				v, err := h.Get()
+				if err != nil {
+					return err
+				}
+				n := gateNumber(v["n"]) + 1
+				if err := h.Set(JSON{"n": n}); err != nil {
+					return err
+				}
+				values <- n
+				return nil
+			}, settled)
+		}
 
+		bump(t, firstSettled)
 		select {
 		case n := <-values:
 			if n != 1 {
@@ -391,23 +344,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal("creating job did not reach storage while held")
 		}
 
-		run(t, s, ctx, func(tx *Tx) error {
-			h, err := tx.AcquireDocument(def, 0, nil, nil)
-			if err != nil {
-				return err
-			}
-			v, err := h.Get()
-			if err != nil {
-				return err
-			}
-			n := gateNumber(v["n"]) + 1
-			if err := h.Set(JSON{"n": n}); err != nil {
-				return err
-			}
-			values <- n
-			return nil
-		}, secondSettled)
-
+		bump(t, secondSettled)
 		select {
 		case n := <-values:
 			t.Fatalf("waiting job ran inside the pending window with n=%d", n)
@@ -428,7 +365,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal("waiting job stuck after release")
 		}
 		for _, ch := range []chan error{firstSettled, secondSettled} {
-			if err := settleWithin(t, ch, 3); err != nil {
+			if err := settleWithinGate(t, ch, 3); err != nil {
 				t.Fatalf("commit did not settle: %v", err)
 			}
 		}
@@ -438,15 +375,15 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 	})
 
 	t.Run("case-240-write-waits-for-created-conversation", func(t *testing.T) {
-		s, held, ctx := open(t)
+		s, _, held, ctx := openGatesSession(t)
 		held.holdCommits()
 
 		values := make(chan ID, 4)
 		createdSettled := make(chan error, 1)
 		appendedSettled := make(chan error, 1)
-
 		var createdID ID
-		run(t, s, ctx, func(tx *Tx) error {
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
@@ -468,7 +405,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal("creating job did not reach storage while held")
 		}
 
-		run(t, s, ctx, func(tx *Tx) error {
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
 			entryID, err := tx.MintID()
 			if err != nil {
 				return err
@@ -494,19 +431,17 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			if entryID == 0 {
 				t.Fatal("no entry written")
 			}
-			_ = entryID
 		case err := <-appendedSettled:
 			t.Fatalf("write job errored after release: %v", err)
 		case <-time.After(3 * time.Second):
 			t.Fatal("write job stuck after release")
 		}
 		for _, ch := range []chan error{createdSettled, appendedSettled} {
-			if err := settleWithin(t, ch, 3); err != nil {
+			if err := settleWithinGate(t, ch, 3); err != nil {
 				t.Fatalf("commit did not settle: %v", err)
 			}
 		}
 
-		// The appended entry must belong to the conversation the pending commit created.
 		snap, err := s.Snapshot(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -522,220 +457,8 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		}
 	})
 
-	t.Run("case-662-deferred-commit-publishes-after-the-previous", func(t *testing.T) {
-		// Native approximation. The source has two parts in one pending group; native admits one writer on
-		// the line, so the deferred job is not admitted until the previous commit has published. What is
-		// measured is the same observable outcome in native shape: frames land in admission order.
-		s, held, ctx := open(t)
-		held.holdCommits()
-
-		values := make(chan ID, 4)
-		firstSettled := make(chan error, 1)
-		secondSettled := make(chan error, 1)
-		run(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "first"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
-		}, firstSettled)
-
-		select {
-		case id := <-values:
-			if id == 0 {
-				t.Fatal("no entry written")
-			}
-		case err := <-firstSettled:
-			t.Fatalf("first commit settled inside the pending window: %v", err)
-		case <-time.After(3 * time.Second):
-			t.Fatal("first commit did not reach storage while held")
-		}
-
-		run(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "second"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
-		}, secondSettled)
-
-		select {
-		case id := <-values:
-			t.Fatalf("deferred job ran inside the pending window (entry %d)", id)
-		case err := <-secondSettled:
-			t.Fatalf("deferred job errored inside the pending window: %v", err)
-		case <-time.After(400 * time.Millisecond):
-		}
-
-		held.releaseHold()
-		if err := settleWithin(t, firstSettled, 3); err != nil {
-			t.Fatalf("first commit did not settle: %v", err)
-		}
-		if err := settleWithin(t, secondSettled, 3); err != nil {
-			t.Fatalf("deferred commit did not settle: %v", err)
-		}
-		ordinals := held.landedOrdinals()
-		if len(ordinals) != 2 || ordinals[0] > ordinals[1] {
-			t.Fatalf("publication order must follow admission order, got %v", ordinals)
-		}
-	})
-
-	t.Run("case-680-deferred-commit-behind-a-failed-commit-never-publishes", func(t *testing.T) {
-		// Native approximation. The source puts both parts in one pending group and refuses the first; native
-		// cannot admit the second while the first is in flight, so the second is a later job. What is
-		// measured is the observable equivalent: the refused commit lands no frame, and the job after it is
-		// refused as SessionFailed and lands no frame either.
-		s, held, ctx := open(t)
-		held.holdCommits()
-		held.failOn = `"refuse"`
-
-		values := make(chan ID, 4)
-		failedSettled := make(chan error, 1)
-		laterSettled := make(chan error, 1)
-		run(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse", Value: JSON{"text": "refuse"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
-		}, failedSettled)
-
-		select {
-		case id := <-values:
-			if id == 0 {
-				t.Fatal("no entry staged")
-			}
-		case <-time.After(3 * time.Second):
-			t.Fatal("refused commit did not reach storage while held")
-		}
-
-		// A later job is the only shape native can express for a commit behind the refused one.
-		run(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "after"}}); err != nil {
-				return err
-			}
-			return nil
-		}, laterSettled)
-
-		held.releaseHold()
-
-		// Native reports its own classification rather than the storage error, so the source's error
-		// identity is not preserved (already recorded through the pending refusal fixture).
-		err := settleWithin(t, failedSettled, 3)
-		if err == nil {
-			t.Fatal("refused commit must fail")
-		}
-		if !strings.Contains(err.Error(), "refused") && !strings.Contains(err.Error(), "uncertain storage outcome") {
-			t.Fatalf("refused commit must report the refusal or native classification, got %v", err)
-		}
-
-		err = settleWithin(t, laterSettled, 3)
-		if err == nil {
-			t.Fatal("job after a refused commit must be refused, not settled")
-		}
-		if !strings.Contains(err.Error(), "SessionFailed") && !strings.Contains(err.Error(), "session failed") {
-			t.Fatalf("job after a refused commit must report SessionFailed, got %v", err)
-		}
-		if len(held.landedOrdinals()) != 0 {
-			t.Fatalf("no part may publish after a refused commit, landed frames: %v", held.landedOrdinals())
-		}
-	})
-
-	t.Run("case-323-line-read-after-un-awaited-commit", func(t *testing.T) {
-		s, held, ctx := open(t)
-		held.holdCommits()
-
-		values := make(chan ID, 4)
-		commitSettled := make(chan error, 1)
-		// Un-awaited commit: nothing in the test waits for its completion before the read is issued.
-		run(t, s, ctx, func(tx *Tx) error {
-			created, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.CreateConversation(Conversation{ID: created}); err != nil {
-				return err
-			}
-			entryID, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: created, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
-				return err
-			}
-			values <- created
-			return nil
-		}, commitSettled)
-
-		var convID ID
-		select {
-		case id := <-values:
-			if id == 0 {
-				t.Fatal("no conversation created")
-			}
-			convID = id
-		case err := <-commitSettled:
-			t.Fatalf("un-awaited commit settled inside the pending window: %v", err)
-		case <-time.After(3 * time.Second):
-			t.Fatal("un-awaited commit did not reach storage while held")
-		}
-
-		// The line read is issued after the un-awaited commit reached storage, so it must wait for its
-		// publication and then see it.
-		read := make(chan Snapshot, 1)
-		go func() {
-			snap, err := s.Snapshot(ctx)
-			if err != nil {
-				t.Errorf("line read: %v", err)
-			}
-			read <- snap
-		}()
-		select {
-		case snap := <-read:
-			if len(snap.Entries) != 0 {
-				t.Fatalf("line read returned inside the pending window with entries: %v", snap.Entries)
-			}
-			t.Fatal("line read did not wait for the un-awaited commit's publication")
-		case <-time.After(400 * time.Millisecond):
-		}
-
-		held.releaseHold()
-		select {
-		case snap := <-read:
-			if len(snap.Entries) != 1 {
-				t.Fatalf("line read after publication must see the entry the un-awaited commit created, got %v", snap.Entries)
-			}
-			// Native's line starts at conversation 1, so assert the created conversation is present
-			// rather than that it is the only one.
-			if _, ok := snap.Conversations[convID]; !ok {
-				t.Fatalf("line read after publication must see the created conversation %d, got %v", convID, snap.Conversations)
-			}
-		case <-time.After(3 * time.Second):
-			t.Fatal("line read stuck after release")
-		}
-		if err := settleWithin(t, commitSettled, 3); err != nil {
-			t.Fatalf("un-awaited commit did not settle: %v", err)
-		}
-	})
-
 	t.Run("case-292-unkeyed-scan-waits", func(t *testing.T) {
-		s, held, ctx := open(t)
+		s, _, held, ctx := openGatesSession(t)
 		held.holdCommits()
 
 		values := make(chan ID, 4)
@@ -743,7 +466,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		scannedSettled := make(chan error, 1)
 		var createdID ID
 
-		run(t, s, ctx, func(tx *Tx) error {
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
@@ -808,11 +531,332 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 			t.Fatal("unkeyed scan stuck after release")
 		}
 		for _, ch := range []chan error{createdSettled, scannedSettled} {
-			if err := settleWithin(t, ch, 3); err != nil {
+			if err := settleWithinGate(t, ch, 3); err != nil {
 				t.Fatalf("commit did not settle: %v", err)
 			}
 		}
 	})
+
+	t.Run("case-323-line-read-after-un-awaited-commit", func(t *testing.T) {
+		s, _, held, ctx := openGatesSession(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		commitSettled := make(chan error, 1)
+		var convID ID
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
+			created, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: created}); err != nil {
+				return err
+			}
+			entryID, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: created, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
+				return err
+			}
+			convID = created
+			values <- created
+			return nil
+		}, commitSettled)
+
+		select {
+		case id := <-values:
+			convID = id
+		case err := <-commitSettled:
+			t.Fatalf("un-awaited commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("un-awaited commit did not reach storage while held")
+		}
+
+		read := make(chan Snapshot, 1)
+		go func() {
+			snap, err := s.Snapshot(ctx)
+			if err != nil {
+				t.Errorf("line read: %v", err)
+			}
+			read <- snap
+		}()
+		select {
+		case snap := <-read:
+			if len(snap.Entries) != 0 {
+				t.Fatalf("line read returned inside the pending window with entries: %v", snap.Entries)
+			}
+			t.Fatal("line read did not wait for the un-awaited commit's publication")
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		select {
+		case snap := <-read:
+			if len(snap.Entries) != 1 {
+				t.Fatalf("line read after publication must see the entry the un-awaited commit created, got %v", snap.Entries)
+			}
+			// Native's line starts at conversation 1, so assert the created conversation is present
+			// rather than that it is the only one.
+			if _, ok := snap.Conversations[convID]; !ok {
+				t.Fatalf("line read after publication must see the created conversation %d, got %v", convID, snap.Conversations)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("line read stuck after release")
+		}
+		if err := settleWithinGate(t, commitSettled, 3); err != nil {
+			t.Fatalf("un-awaited commit did not settle: %v", err)
+		}
+	})
+
+	t.Run("case-662-deferred-commit-publishes-after-the-previous", func(t *testing.T) {
+		s, _, held, ctx := openGatesSession(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		firstSettled := make(chan error, 1)
+		secondSettled := make(chan error, 1)
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "first"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, firstSettled)
+
+		select {
+		case id := <-values:
+			if id == 0 {
+				t.Fatal("no entry written")
+			}
+		case err := <-firstSettled:
+			t.Fatalf("first commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("first commit did not reach storage while held")
+		}
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "second"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, secondSettled)
+
+		select {
+		case id := <-values:
+			t.Fatalf("deferred job ran inside the pending window (entry %d)", id)
+		case err := <-secondSettled:
+			t.Fatalf("deferred job errored inside the pending window: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		if err := settleWithinGate(t, firstSettled, 3); err != nil {
+			t.Fatalf("first commit did not settle: %v", err)
+		}
+		if err := settleWithinGate(t, secondSettled, 3); err != nil {
+			t.Fatalf("deferred commit did not settle: %v", err)
+		}
+		ordinals := held.landedOrdinals()
+		if len(ordinals) != 2 || ordinals[0] > ordinals[1] {
+			t.Fatalf("publication order must follow admission order, got %v", ordinals)
+		}
+	})
+
+	t.Run("case-680-deferred-commit-behind-a-failed-commit-never-publishes", func(t *testing.T) {
+		s, _, held, ctx := openGatesSession(t)
+		held.holdCommits()
+		held.failOn = `"refuse"`
+
+		values := make(chan ID, 4)
+		failedSettled := make(chan error, 1)
+		laterSettled := make(chan error, 1)
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse", Value: JSON{"text": "refuse"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, failedSettled)
+
+		select {
+		case id := <-values:
+			if id == 0 {
+				t.Fatal("no entry staged")
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("refused commit did not reach storage while held")
+		}
+
+		runGatesJob(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "after"}}); err != nil {
+				return err
+			}
+			return nil
+		}, laterSettled)
+
+		held.releaseHold()
+
+		err := settleWithinGate(t, failedSettled, 3)
+		if err == nil {
+			t.Fatal("refused commit must fail")
+		}
+		// Native reports its own classification rather than the storage error, so the source's error
+		// identity is not preserved (already recorded through the pending refusal fixture).
+		if !strings.Contains(err.Error(), "refused") && !strings.Contains(err.Error(), "uncertain storage outcome") {
+			t.Fatalf("refused commit must report the refusal or native classification, got %v", err)
+		}
+
+		err = settleWithinGate(t, laterSettled, 3)
+		if err == nil {
+			t.Fatal("job after a refused commit must be refused, not settled")
+		}
+		if !strings.Contains(err.Error(), "SessionFailed") && !strings.Contains(err.Error(), "session failed") {
+			t.Fatalf("job after a refused commit must report SessionFailed, got %v", err)
+		}
+		if len(held.landedOrdinals()) != 0 {
+			t.Fatalf("no part may publish after a refused commit, landed frames: %v", held.landedOrdinals())
+		}
+	})
+}
+
+// Actual f9a26365 session-group-commit.test.ts case 256: each read of the entries of a conversation an
+// unpublished commit creates waits for its creation and then finds nothing. Native expresses three of the
+// five surfaces the case names - a transaction scan, the store-level history scan, and the store-level head
+// marker lookup - and each is measured as gated by the pending writer and returning the value the source
+// expects after publication. The other two named surfaces are capability limits, not passes or failures: the
+// source reads the Session's newest-entry and head-marker helpers through Transaction, and native's public Tx
+// exposes no latest-entry or head-marker surface.
+func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
+	surfaces := []struct {
+		name   string
+		expect string
+		read   func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error)
+	}{
+		{
+			name:   "tx-scanEntries",
+			expect: "empty items",
+			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
+				page, err := s.ScanEntries(context.Background(), EntryQuery{Conversation: conv}, 1, "")
+				if err != nil {
+					return "", false, err
+				}
+				return "empty items", len(page.Items) == 0, nil
+			},
+		},
+		{
+			name:   "store-scanEntries",
+			expect: "empty items",
+			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
+				page, err := store.ScanEntries(context.Background(), EntryQuery{Conversation: conv}, 1, "")
+				if err != nil {
+					return "", false, err
+				}
+				return "empty items", len(page.Items) == 0, nil
+			},
+		},
+		{
+			name:   "store-findLatestHeadMarker",
+			expect: "not found",
+			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
+				_, ok, err := store.FindLatestHeadMarker(context.Background(), conv, 0)
+				if err != nil {
+					return "", false, err
+				}
+				return "not found", !ok, nil
+			},
+		},
+	}
+
+	for _, surface := range surfaces {
+		t.Run(surface.name, func(t *testing.T) {
+			s, store, held, ctx := openGatesSession(t)
+			held.holdCommits()
+
+			created := make(chan ID, 1)
+			createdSettled := make(chan error, 1)
+			var conv ID
+
+			runGatesJob(t, s, ctx, func(tx *Tx) error {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if err := tx.CreateConversation(Conversation{ID: id}); err != nil {
+					return err
+				}
+				created <- id
+				return nil
+			}, createdSettled)
+
+			select {
+			case id := <-created:
+				conv = id
+			case err := <-createdSettled:
+				t.Fatalf("creating commit settled inside the pending window: %v", err)
+			case <-time.After(3 * time.Second):
+				t.Fatal("creating job did not reach storage while held")
+			}
+
+			result := make(chan string, 1)
+			errs := make(chan error, 1)
+			go func() {
+				got, ok, err := surface.read(t, s, store, conv)
+				if err != nil {
+					errs <- err
+					return
+				}
+				if !ok {
+					result <- "unexpected " + got
+					return
+				}
+				result <- got
+			}()
+
+			select {
+			case got := <-result:
+				t.Fatalf("read was not gated by the pending creation (returned %s inside the window)", got)
+			case err := <-errs:
+				t.Fatalf("read errored inside the pending window: %v", err)
+			case <-time.After(400 * time.Millisecond):
+			}
+
+			held.releaseHold()
+			select {
+			case got := <-result:
+				if got != surface.expect {
+					t.Fatalf("read after publication must return %s, got %s", surface.expect, got)
+				}
+			case err := <-errs:
+				t.Fatalf("read after publication errored: %v", err)
+			case <-time.After(3 * time.Second):
+				t.Fatal("read stuck after release")
+			}
+			if err := settleWithinGate(t, createdSettled, 3); err != nil {
+				t.Fatalf("creating commit did not settle: %v", err)
+			}
+		})
+	}
 }
 
 // Counts the write types each job produced at storage level: native encodes a first document write
@@ -908,4 +952,48 @@ func gateNumber(v any) int64 {
 		return int64(t)
 	}
 	return -1
+}
+
+func openGatesSession(t *testing.T) (*Session, *SQLiteStorage, *mainGatesHeld, context.Context) {
+	t.Helper()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := &mainGatesHeld{entered: make(chan struct{}), release: make(chan struct{})}
+	original := store.appendFrame
+	store.appendFrame = held.install(original)
+	// Release on the failure path too: a subtest that fails before its own release would otherwise leave a
+	// job blocked in the storage hook and deadlock the cleanup that waits for it.
+	t.Cleanup(held.releaseHold)
+	t.Cleanup(func() { store.appendFrame = original })
+	s, err := OpenSession(store)
+	if err != nil {
+		store.Close(context.Background())
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close(context.Background()) })
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
+	return s, store, held, ctx
+}
+
+// runGatesJob reports the callback value from inside the pending window and settlement separately, so the
+// test can tell "ran but not published" from "settled".
+func runGatesJob(t *testing.T, s *Session, ctx context.Context, callback func(*Tx) error, settled chan error) {
+	t.Helper()
+	go func() {
+		_, err := s.Commit(ctx, callback)
+		settled <- err
+	}()
+}
+
+func settleWithinGate(t *testing.T, ch chan error, seconds int) error {
+	t.Helper()
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(time.Duration(seconds) * time.Second):
+		return fmt.Errorf("no settlement within %ds", seconds)
+	}
 }
