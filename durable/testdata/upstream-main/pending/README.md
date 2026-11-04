@@ -55,3 +55,11 @@ The same view-identity overlay also compiles:
 - `TestPendingViewSource525WindowDocsIdentity`: windows `{min:2,max:3}` and `{min:5}` over six notes plus one append have equal document contents but different document maps. The independent content/window assertions pass as `TestMainViewSource525IndependentWindowContents`.
 
 Run `-run 'TestPendingViewSource(160|525)'` with that overlay. At parent `c422344`, count3/shuffle42 gives six expected failures in 0.258s; five focused passing functions give 15 passes in 1.975s. Source160 initialises configuration before recording to match `openChat(chatSetup())`; the bare-fixture normalisation probe is uncredited. Runtime ownership is unchanged.
+
+## Session group admission and batching (v1.5.0 source170)
+
+`session_group_commit_batching_test.go` retains the source's held-first-call assertion: independent callbacks b/c both execute before a's storage call is released; no publication occurs before release; calls contain `[1, 2]` parts; outcomes settle a/b/c; publication sequences are three distinct increasing values. It creates three separate conversation-scoped note addresses and uses native `appendFrame`/`appendFrames` hooks and the private standalone stored-observer lane. Go goroutine completion order is an adaptation of JS promise settlement order, not a proof of JS microtask/macrotask ordering. `Done()`-evaluation witnesses show b/c attempted Session admission; cleanup releases storage and joins workers before closing.
+
+At parent `6f53cc6`, count3/shuffle42: three expected failures in 3.210s. Each run reports b/c did not execute during the held call and native call sizes `[1,1,1]`, rather than `[1,2]`. No premature publication, completion-order or distinct-increasing-sequence assertion failed in those runs. Six related controls pass count1 in 2.364s; vet with the pending oracle compiled and formatting/diff checks pass. This is not a concurrency or whole-file parity pass.
+
+Use the project-root overlay recipe above, mapping virtual `zz_packet_pending_test.go` to this file (instead of the view fixture) and excluding the protected prototype. Run `make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run TestPendingSessionGroupCommitBatchesAdmittedParts -count=1 -timeout=30s"`. Remove run data after analysis.
