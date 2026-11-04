@@ -50,7 +50,7 @@
 
 ## Approval gate and next actions
 
-1. Rui chooses D1 semantics; the missing bounded range-read surface remains separate parity work unless an adaptation is explicitly agreed.
+1. Rui chooses D1 runtime direction. The bounded range-read is an existing pinned `TaskRuntime.entries` API, not an optional invented surface: `types.ts:328` specifies committed fork-aware history, `harness/scheduler.ts:2828` wires the scan, and source694 uses inclusive run bounds and ascending order. Port it before claiming the source694 history assertions; the P01 runtime pause still applies.
 2. Rui chooses D2 signal/fence/abort/requeue ordering and legacy expectation migration.
 3. Continue P03's admission-graph investigation and determine whether P05 is prerequisite. The pinned source defines the desired refusal; only D1/D2 runtime changes have the previously stated explicit pause.
 4. P04 first reports a faithful refusal mechanism and classification table; obtain direction before changing a conflicting latch/error policy.
