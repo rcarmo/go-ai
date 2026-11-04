@@ -31,3 +31,20 @@ Future known-failing fixtures belong here only with an explicit project-owned ex
 Fixture-capability limits in the same file, recorded without execution (no disposition claimed): cases 491 (scheduler index pins/sweep symbol), 608 and 626 (a mark write and a reconcile pass that must reach the line inside the pending window), 646 (record-cache bound; native has no record cache and no storage-read counter), 699 (submission lookup completing inside the pending window) and 714 (a wait continuation that observes an unpublished group mid-window; native waits are task-scoped `On` + policy, not per-execution). Native admits one writer on the line and no read or write can complete inside the pending window, which `TestMainSessionUnpublishedReadBarriers` already measures; the cases that only assert a reader waits for publication are expressible and pass as `durable/harness_group_commit_main_test.go` `TestMainGroupCommitLineReadsWaitForPendingMembership` (cases 363, 404, 446).
 
 `session_group_commit_refusal_test.go` keeps source 414 (row 337, refusal half): a batch the storage refuses must fail the Session, so every outcome after it reports `SessionFailed` and the session end carries the refusal. Measured 2026-11-04 (count1, 1.092s, reproduces unchanged at 1.072s after the gates controls were added): native reports the refusal as `StorageRejected` - no write was admitted - does not latch the Session, and the operation admitted after it succeeds. The fence native does implement is measured as a passing control in `durable/session_group_commit_main_test.go` (`TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError`): an error during settlement latches the Session, a later read reports `SessionFailed`, `Closed` reports `failed`, and the earlier part stays durable while the failed part never lands. Native's reported cause is its own classification ("uncertain storage outcome"), not the storage error the source expects, so that assertion is not met. Two limits recorded without resolution: native has no predicate-based backend refusal inside a call, so the nearest expressible refusal is the storage's own admission refusal; and the source's three parts admitted while the first call is in flight cannot be reproduced because native admits one writer on the line. Recipe: `make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run '^TestPendingGroupCommitRefusalFailsTheSession' -count=1 -timeout=45s"`.
+
+## Conversation-view document identity (v1.5.0 source330)
+
+`harness_view_shared_docs_test.go` retains `harness-view.test.ts:330`'s assertion that simultaneous observers share the same `docs` object. Native `ConversationWatch.Value()` deep-copies its result: equal contents have different live map identities. The fixture records that failure and continues through the listener-isolation assertions, which pass. Initial failure 0.058s; count3 after adding the content-equality precondition: three expected failures, 0.074s. This measures the public accessor contract; internal mount sharing is unverified. Native's detached-copy ownership control also passes, so an identity fix needs contract reconciliation. See `docs/upstream-v1.5.0/view-shared-identity.md`.
+
+Use a directory beneath the resolved project run root. Create `prototype_stub.go` containing `package durable` and an `overlay.json` with these replacements (absolute paths):
+
+```json
+{
+  "Replace": {
+    "/workspace/projects/go-ai/durable/continuation_prototype_main_test.go": "<run>/prototype_stub.go",
+    "/workspace/projects/go-ai/durable/zz_pending_view_identity_test.go": "/workspace/projects/go-ai/durable/testdata/upstream-main/pending/harness_view_shared_docs_test.go"
+  }
+}
+```
+
+Run `make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run TestPendingViewObserversShareDocsIdentity -count=1 -timeout=30s"`. The prototype itself is unchanged. Dispose of the run directory after analysis.

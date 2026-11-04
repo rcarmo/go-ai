@@ -14,6 +14,10 @@ Rui's clarification supersedes the earlier multi-engine matrix: **SQLite through
 
 [Session observers](session-observers.md) records the pinned row-338 comparison, private stored-lane controls and the unexecuted synchronous document-observer contracts. The row stays `reviewed-open`.
 
+## Conversation-view identity checkpoint
+
+[Conversation-view document identity](view-shared-identity.md) records the source330 pending oracle: native public values contain equal documents in different maps. Shared identity conflicts with the existing detached-copy contract; row 314 stays `partial`.
+
 ## Release inputs
 
 [Package provenance](packages.json) records npm 1.5.0 archives for `@earendil-works/pi-ai`, `pi-durable`, `pi-codemode` and transitive `pi-schema`: registry/tarball URLs, sizes, computed SHA-256, verified registry SHA-512 integrity, and packed manifests. All four archived names/versions match. Registry metadata supplies no `gitHead`. [Release metadata checks](release-metadata.md) now compare all1712 public catalogue records against that archive and all25 exported JSON schemas against the pinned source and published JavaScript. Complete package-build/source correspondence and wider SDK alignment remain unverified.
