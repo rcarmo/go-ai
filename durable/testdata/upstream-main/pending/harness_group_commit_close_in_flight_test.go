@@ -22,7 +22,8 @@ import (
 // case pass unchanged (entry present after reopen, invocation pending again).
 //
 // Run with the project overlay so the protected continuation prototype stays out of compiler input:
-//   make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run '^TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight' -count=1 -timeout=45s"
+//
+//	make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run '^TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight' -count=1 -timeout=45s"
 func TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
