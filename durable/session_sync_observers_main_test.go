@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // c9f4c7b9 session-observers.test.ts:389. Private standalone observer entry;
@@ -230,5 +232,114 @@ func mainSyncCounterSession(t *testing.T, b sqliteFixture) (*Session, func() err
 			return h.ApplyOperations([]Operation{{"s", []any{"count"}, count + 1}})
 		})
 		return err
+	}
+}
+
+// Source-derived stored-lane control for f9a26365 session.ts:900-906. The source
+// schedules observeCommits one microtask after publication and before resolved
+// commit continuations. Go has no microtask queue: this checks only that receipt
+// adoption and storage precede the callback, and the callback precedes Commit's
+// return. It does not establish JavaScript scheduler or document-observer parity.
+func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close(context.Background()) })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var entry ID
+	calls := 0
+	var callbackErr error
+	_, err = s.observeStoredCommits(sessionCommitObserver{
+		advance: func(_ context.Context, p CommitPublication) error {
+			calls++
+			// These private reads avoid re-entering the Session line from its
+			// synchronous callback (which the native contract forbids).
+			if p.Seq != s.readImage.Seq {
+				callbackErr = fmt.Errorf("publication seq %d, adopted seq %d", p.Seq, s.readImage.Seq)
+				return nil
+			}
+			if _, ok := s.readImage.Entries[entry]; !ok {
+				callbackErr = fmt.Errorf("entry %d absent from adopted image", entry)
+				return nil
+			}
+			raw, e := store.Snapshot(ctx)
+			if e != nil {
+				callbackErr = e
+				return nil
+			}
+			if _, ok := raw.Entries[entry]; !ok || raw.Seq != p.Seq {
+				callbackErr = fmt.Errorf("publication precedes storage: seq %d, entry present %v", raw.Seq, ok)
+			}
+			return nil
+		},
+		end: func(WatchEnd) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seq, err := s.Commit(ctx, func(tx *Tx) error {
+		var e error
+		entry, e = tx.MintID()
+		if e != nil {
+			return e
+		}
+		return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{"body": "published"}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || callbackErr != nil || seq != s.readImage.Seq {
+		t.Fatalf("callback before Commit return: calls=%d err=%v returned=%d adopted=%d", calls, callbackErr, seq, s.readImage.Seq)
+	}
+}
+
+// Source session-observers.test.ts:187 checks distinct close errors for two
+// document observations. This is a stored-lane analogue only: it preserves the
+// lifetime/error-identity assertion without substituting an asynchronous watch
+// for the source's synchronous observeDoc interface.
+func TestMainSyncCommitObserverSeparateCloseErrors(t *testing.T) {
+	var ends []WatchEnd
+	for range 2 {
+		store, err := newTestSQLite(t)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := OpenSession(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.observeStoredCommits(sessionCommitObserver{
+			advance: func(context.Context, CommitPublication) error { return nil },
+			end: func(end WatchEnd) error {
+				ends = append(ends, end)
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Close(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Close(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ends) != 2 {
+		t.Fatalf("each observation must end exactly once, got %v", ends)
+	}
+	for _, end := range ends {
+		if end.Reason != "failed" || end.Error == nil || end.Error.Error() != "session closed" {
+			t.Fatalf("unexpected close ending: %+v", end)
+		}
+	}
+	if ends[0].Error == ends[1].Error {
+		t.Fatal("separate Session closes reused the same error")
 	}
 }
