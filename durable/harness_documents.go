@@ -44,6 +44,21 @@ func (h *Harness) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 	}
 	return h.session.SnapshotDefinitionAsOf(ctx, def, conversation, key, at)
 }
+
+// ObserveDefinition attaches a synchronous document observer. Callbacks run
+// on the Session line and must not block or call Session APIs.
+func (h *Harness) ObserveDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string, observer DocumentObserver) (*DocumentObservation, bool, error) {
+	if h.closing.Load() {
+		return nil, false, ErrClosed
+	}
+	observation, found, err := h.session.ObserveDefinition(ctx, def, owner, key, observer)
+	if err == nil && h.closing.Load() {
+		observation.Detach()
+		return nil, false, ErrClosed
+	}
+	return observation, found, err
+}
+
 func (h *Harness) WatchDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (*DocumentWatch, bool, error) {
 	if h.closing.Load() {
 		return nil, false, ErrClosed
@@ -105,6 +120,16 @@ func (c *ConversationHandle) SnapshotDefinitionAsOf(ctx context.Context, def *Do
 	}
 	return c.h.SnapshotDefinitionAsOf(ctx, def, c.id, key, at)
 }
+
+// ObserveDefinition binds conversation-scoped and session-scoped documents.
+func (c *ConversationHandle) ObserveDefinition(ctx context.Context, def *DocumentDefinition, key *string, observer DocumentObserver) (*DocumentObservation, bool, error) {
+	owner, err := c.documentOwner(def)
+	if err != nil {
+		return nil, false, err
+	}
+	return c.h.ObserveDefinition(ctx, def, owner, key, observer)
+}
+
 func (c *ConversationHandle) WatchDefinition(ctx context.Context, def *DocumentDefinition, key *string) (*DocumentWatch, bool, error) {
 	owner, err := c.documentOwner(def)
 	if err != nil {

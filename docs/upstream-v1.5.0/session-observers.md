@@ -1,6 +1,6 @@
 # Session observers at v1.5.0
 
-Private stored-commit and synchronous document-observer lanes pass selected source-shaped controls. Document observation also supports scheduler-backed Sessions; public API ownership and full Harness integration are incomplete. Row 338 stays `reviewed-open`.
+Private stored-commit and synchronous document-observer lanes pass selected source-shaped controls. `Session`, `Harness` and `ConversationHandle` expose synchronous typed document observation with detached Go values. Full readonly identity, task-runtime attachment and Harness integration remain incomplete. Row 338 stays `reviewed-open`.
 
 Source: `packages/durable/test/session-observers.test.ts` and `packages/durable/src/session/session.ts` at `f9a26365568127461c47a07a37dcb42c140a3ac5`.
 
@@ -23,7 +23,7 @@ Callbacks run synchronously under the Session line. They must not block or call 
 
 ## Synchronous document observations
 
-`observeDocumentDefinition` is a private synchronous guard. It registers at a specific position in the local listener order, pins the active document incarnation, returns a detached acquisition value and delivers each prepared document change synchronously after stored or memory adoption. It supports scheduler-backed Sessions but is not a public `observeDoc` API.
+`observeDocumentDefinition` is the synchronous guard behind public `ObserveDefinition` on Session, Harness and conversation handles. It registers in local listener order, pins the active incarnation, returns a detached acquisition value and delivers each prepared document change synchronously after stored or memory adoption. The exported `DocumentObservation.Value` is the attachment baseline; `Detach` is idempotent. Go mutable maps are detached copies and do not implement JavaScript readonly reference identity.
 
 - Source77/87/105 have source-shaped standalone controls: absent attachment, committed count3 with exact set operation outside the storage call, and deferred count5 before storage with no duplicate local advance on flush. The private Go API and detached values adapt the source interface.
 - Source132/162 have standalone retirement/recreation and idempotent-detach controls. Retirement clears the Session-owned followed value and pin, while the caller owns the detached initial value; recreation emits a replacement and pins its new incarnation.
@@ -58,10 +58,16 @@ At that checkpoint the implementation was private and standalone. Public observa
 
 ## Scheduler-backed document observation
 
-The pinned implementation uses the same synchronous document observer on Session and Harness paths. The private Go guard no longer rejects a Session solely because its task scheduler exists. The public Go `Harness.observeDoc` API and its readonly reference-identity adaptation are not implemented by this change; the controls call the private guard.
+The pinned implementation uses the same synchronous document observer on Session and Harness paths. The private guard supports scheduler-backed Sessions; `Harness.ObserveDefinition` now exposes it. The readonly reference-identity adaptation remains unresolved. The owner-retirement and rollback controls below now attach through the public Harness API; other scheduler controls retain private guard access.
 
 At parent `fa31487`, the first source308-shaped oracle failed at attachment with `ErrUnsupported` (0.063s). The corrected source-shaped fixture uses `test.observers.progress`, `lines: ["started"]`, waits for the real task, and checks retirement with empty operations followed by `ended`, both after the native storage core gate is released. It then closes the Harness and checks no extra calls. Explicit native IDs and private callbacks adapt the source API. A separate derived control checks that an aborted deciding transaction neither delivers retirement nor releases its pin. Queued-attachment/cancellation and Session-failure-cause controls exercise the same private guard with a real scheduler; Go `context.Canceled` adapts source rejection timing.
 
 Four new Harness observer functions plus 26 related focused functions passed count3/shuffle42: 90 top-level passes, 0 failures, 0 skips, 3.268s. A final count1 gate passed in 1.106s. Three compiler-overlay faults were rejected: suppressing the retirement advance, suppressing the owner end, and restoring the scheduler exclusion. Vet, formatting and diff checks passed. The earlier baseline's scalar `status` fixture was corrected to the pinned source's `lines` array before the credited post-change runs.
 
 Callbacks remain synchronous on the Session line; they must not block or synchronously re-enter Session/Storage. JS thenables, public observer ownership, task-runtime-owned attachment and P05 multi-part group ordering remain open. No full suite, profiling, hosted CI, release or push ran; scratch was removed after analysis.
+
+## Public typed observation slice
+
+At parent `43eb05f`, `Session.ObserveDefinition`, `Harness.ObserveDefinition` and `ConversationHandle.ObserveDefinition` expose the existing synchronous guard. Source-shaped public controls cover absent attachment, stored and deferred advances, exact operations, listener failure, detach and Harness close. The source308 task-owner retirement and native rollback controls now attach through the public Harness surface. Harness listener failures use `OnReportWithInfo`; standalone Session callers receive the ending error. Acquisition values and callback values are detached Go maps; this does not establish source identity, JavaScript thenables or task-runtime-owned attachment.
+
+The initial overlaid public source fixture failed to compile because the public API was absent. The final focused set of 23 functions passed count3/shuffle42: 69 top-level passes, 0 failures, 0 skips, 1.803s. Vet, formatting and diff checks passed with the protected prototype excluded by compiler overlay. Two overlay faults, removing public detach and suppressing Harness reporting, were rejected by their respective public controls. No race detector, full suite, profiling, hosted CI, release or push ran. Scratch and fault copies were removed after use.

@@ -13,9 +13,9 @@ import (
 
 // Source f9a26365 harness-observers.test.ts:308: a task-owned document
 // observation gets its retirement and then ends at the task's deciding commit,
-// both outside storage adoption. This uses native private observer callbacks
-// and explicit TaskRuntime/document IDs. The source's public observeDoc API and
-// JS reference identity are not represented by this fixture.
+// both outside storage adoption. Go uses explicit TaskRuntime/document IDs,
+// detached values and synchronous error-return callbacks; JS reference
+// identity is not represented by this fixture.
 func TestMainHarnessDocumentObserverOwnerRetirement(t *testing.T) {
 	runHarnessDocumentObserverOwnerRetirement(t, false)
 }
@@ -114,12 +114,12 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 		coreHeld bool
 	}
 	calls := make(chan call, 3)
-	observation, baseline, ok, err := h.session.observeDocumentDefinition(context.Background(), def, id, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error {
+	observation, ok, err := h.ObserveDefinition(context.Background(), def, id, nil, DocumentObserver{
+		Advance: func(_ context.Context, frame WatchFrame) error {
 			calls <- call{kind: "advance", frame: frame, adopting: adopting.Load(), coreHeld: insideCore()}
 			return nil
 		},
-		end: func(end WatchEnd) error {
+		End: func(end WatchEnd) error {
 			calls <- call{kind: "end", end: end, adopting: adopting.Load(), coreHeld: insideCore()}
 			return nil
 		},
@@ -129,9 +129,9 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 		release()
 		return
 	}
-	defer observation.detach()
-	if !reflect.DeepEqual(baseline["lines"], []any{"started"}) {
-		t.Fatalf("observation baseline: %v", baseline)
+	defer observation.Detach()
+	if !reflect.DeepEqual(observation.Value["lines"], []any{"started"}) {
+		t.Fatalf("observation baseline: %v", observation.Value)
 	}
 	if testRollback {
 		rollback := errors.New("rolled back owner retirement")
@@ -143,7 +143,7 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 		}); !errors.Is(err, rollback) {
 			t.Fatalf("rollback control: %v", err)
 		}
-		if len(calls) != 0 || !h.session.documentPinned(observation.id) {
+		if len(calls) != 0 || !h.session.documentPinned(observation.guard.id) {
 			t.Fatal("rolled-back retirement delivered or released its pin")
 		}
 	}
