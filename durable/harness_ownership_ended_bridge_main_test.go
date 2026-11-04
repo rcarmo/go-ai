@@ -11,22 +11,16 @@ import (
 )
 
 // Actual f9a26365 harness-ownership.test.ts ended-bridge case (depths 2 and 5):
-// "aborts work below N ended tasks with their live owner, which waits for it". The
-// source creates the chain p -> links -> a conversation owned by the deepest ended
-// link, then a commit creates `d` in that conversation; aborting p aborts `d` first
-// and p's abort handler completes only after that member ended.
-//
-// Known-failing oracle. Two parts cannot be expressed through the native public API:
-// `Tx` exposes no CreateConversation, so a task-owned conversation cannot be created,
-// and the portable reduction (a public commit creating work owned by the deepest
-// ended link) is rejected by native's own rule that a decided task cannot own new work
-// (`task_definition.go:144`, `taskCanOwnNewWork` at `task_definition.go:177`), which
-// contradicts the source's live-owner-holds rule. Baseline at 8a70e08, run through the
-// project overlay with the protected prototype replaced only in the compiler input:
-// 2 failing subtests (depth2 0.04s, depth5 0.06s), function 0.105s, both at
-// "durable: rejected: task owner is decided or abort-marked"; the abort-order assertions
-// are never reached. No assertion is weakened and no runtime change was made pending
-// reconciliation of the live-owner/cross-owner export contracts.
+// "aborts work below N ended tasks with their live owner, which waits for it". Built
+// through the public transaction surface: `Tx` exposes CreateTask, CreateConversation,
+// AppendEntry, CreateDocument, Document, MintID, CreateSubmission and AppendTypedEntry.
+// The chain is p -> links (each owned by the previous), a conversation owned by the
+// deepest link created while that owner is live, then `d` created in that conversation
+// by a public commit after its owner ended. Aborting the live owner p aborts that work,
+// and p's abort handler completes only after the member ended. Handler completion order
+// is recorded as handlers settle. The direct task-ownership variant is not asserted here:
+// native legitimately rejects new work owned by a decided task (`taskCanOwnNewWork`,
+// task_definition.go:177), and the source does not test that shape.
 func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 	for _, depth := range []int{2, 5} {
 		t.Run("depth"+strconv.Itoa(depth), func(t *testing.T) {
@@ -36,13 +30,13 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 				gates := map[string]chan struct{}{}
 				links := make([]string, depth)
 				for i := range links {
-					links[i] = "link" + strconv.Itoa(i)
+					links[i] = "link" + strconv.Itoa(depth) + "_" + strconv.Itoa(i)
 				}
 				names := append(append([]string{"p"}, links...), "d")
 				for _, name := range names {
 					gates[name] = make(chan struct{})
 				}
-				gates["abort.p"] = make(chan struct{}) // p's handler stays blocked so order is observable
+				gates["abort.p"] = make(chan struct{})
 				record := func(name string) {
 					mu.Lock()
 					order = append(order, name)
@@ -50,7 +44,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 				}
 				defs := map[string]*TaskDefinition{}
 				for _, name := range names {
-					def, err := DefineTask(TaskDefinitionOptions{Kind: "task.hold." + strconv.Itoa(depth) + "." + name, Version: 1,
+					def, err := DefineTask(TaskDefinitionOptions{Kind: "task.holdf." + strconv.Itoa(depth) + "." + name, Version: 1,
 						Initial: func(any) (JSON, error) { return JSON{"phase": "run"}, nil },
 						Phases: map[string]TaskPhase{"run": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 							select {
@@ -96,6 +90,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 				h := openHarness(t, b.store, options)
 				c := root(t, h, ref)
 				ids := map[string]ID{}
+				var convID ID
 				_, err := h.CommitTasks(bg, c.ID(), func(tx *Tx) error {
 					id, err := tx.CreateTask(defs["p"], JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
@@ -110,6 +105,14 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 						}
 						ids[name] = id
 						owner = id
+					}
+					// Conversation owned by the deepest link, created while that owner is live.
+					convID, err = tx.MintID()
+					if err != nil {
+						return err
+					}
+					if err := tx.CreateConversation(Conversation{ID: convID, Owner: owner}); err != nil {
+						return err
 					}
 					return nil
 				})
@@ -133,9 +136,9 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 						t.Fatal(name, "not completed", rec.State)
 					}
 				}
-				deepest := links[depth-1]
-				_, err = h.CommitTasks(bg, c.ID(), func(tx *Tx) error {
-					id, err := tx.CreateTask(defs["d"], JSON{"name": "d"}, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: ids[deepest]}})
+				// Work created in the task-owned conversation by a public commit, after its owner ended.
+				_, err = h.CommitTasks(bg, convID, func(tx *Tx) error {
+					id, err := tx.CreateTask(defs["d"], JSON{"name": "d"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 					if err != nil {
 						return err
 					}
@@ -143,19 +146,28 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 					return nil
 				})
 				if err != nil {
-					t.Fatal(err)
+					t.Fatal("commit below ended tasks", err)
 				}
 				if err := h.Resume(bg); err != nil {
 					t.Fatal(err)
 				}
 				ctx, cancel := context.WithTimeout(bg, 4*time.Second)
 				defer cancel()
-				running, ok, err := h.Task(ctx, ids["d"])
-				if err != nil || !ok {
-					t.Fatal("work below ended tasks missing", ok, err)
-				}
-				if running.State.Status != "running" {
-					t.Fatal("work below ended tasks is not running", running.State)
+				var running TaskRecord
+				deadline := time.Now().Add(3 * time.Second)
+				for {
+					var ok bool
+					running, ok, err = h.Task(ctx, ids["d"])
+					if err != nil || !ok {
+						t.Fatal("work below ended tasks missing", ok, err)
+					}
+					if running.State.Status == "running" {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("work below ended tasks never started", running.State.Status, running.State.Outcome)
+					}
+					time.Sleep(time.Millisecond)
 				}
 				if _, err := h.AbortTask(ctx, ids["p"]); err != nil {
 					t.Fatal("abort", err)
@@ -170,7 +182,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 				mu.Lock()
 				before := append([]string{}, order...)
 				mu.Unlock()
-				if !containsString(before, "abort.d") || containsString(before, "abort.p") {
+				if !hasName(before, "abort.d") || hasName(before, "abort.p") {
 					t.Error("p's handler settled before the work below ended tasks", before)
 				}
 				close(gates["abort.p"])
@@ -195,7 +207,7 @@ func TestMainOwnershipEndedBridgeAbortsWorkBelowEndedTasks(t *testing.T) {
 	}
 }
 
-func containsString(list []string, want string) bool {
+func hasName(list []string, want string) bool {
 	for _, item := range list {
 		if item == want {
 			return true
