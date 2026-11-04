@@ -61,17 +61,17 @@ Return: starting/ending revision; exact source assertion; files changed; baselin
 
 - Source: `packages/durable/test/harness-after-run.test.ts` around 694; `packages/durable/src/harness/generation.ts` around 864/893. Verify actual paths/anchors in the pinned tree.
 - Native: `durable/generation.go` (`finishWithAfterRun`, `finishGeneration`, hook selection), `durable/generation_handoff.go` (`handoffToolGeneration`), generation checkpoint definitions found by symbol search.
-- Pending file: `harness_after_run_history_test.go`; test `TestMainAfterRunToolRoundAndPreCompactionSummary`.
+- Pending file: `harness_after_run_history_test.go`; test `TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction`.
 - Baseline: hook is never invoked after the model tool round; later history assertions are not reached. Handle-update semantics matter: modifying `DocumentHandle.Get()` output alone does not stage a write.
 - Work: carry/recompute the correct selected hook state into the post-tool answer path, preserving first/answer/last boundaries, hook cutoff and summary timing. Match source answer-before-compaction semantics. Do not blindly copy stale hook state into unrelated successor runs.
-- Acceptance: pending oracle unchanged, `TestMainAfterRunChildRestartLimitCompletesGeneration`, `TestMainAfterRunHookAppendsToSameContextBeforeCompaction`, `TestMainAfterRunHooksUseCurrentLimitsAndSkipOnlyPastCutoff`, `TestMainAfterRunNoFirstEntryWhenHookRemovedIt`, and relevant handoff tests discovered from changed symbols. Start count1; repeat only this set count3/shuffle42.
+- Acceptance: pending oracle unchanged, `TestMainAfterRunChildRestartLimitCompletesGeneration`, `TestMainAfterRunHookReadsCommittedEntryBoundaries`, `TestMainCutoffHooksAtLimitNotPastLimit`, `TestMainAfterRunRunWithoutRecordedFirstEntryAnswersAsFirst`, and relevant handoff tests discovered from changed symbols. Start count1; repeat only this set count3/shuffle42.
 - Boundaries: generation/handoff and narrowly affected tests/docs only. No close/group/view/schema work. Promote the oracle only after all portable assertions pass. The HookAPI range-scan/post-compaction ordered-kind gap must remain explicitly unverified if unchanged.
 
 ## P02 — Close signalling, abort fencing and requeue (implementation after P00 approval)
 
 - Source: `harness-after-run.test.ts` source429 and `harness-group-commit.test.ts` source758, plus pinned close/scheduler implementation found from those tests.
 - Native: `durable/harness.go` (`Close`), `durable/task_scheduler.go`, `durable/close_requeue.go`, `durable/session.go`, invocation cancellation and outcome-settlement helpers found by tracing callers.
-- Run pending files separately: `harness_after_run_close_drain_test.go` / `TestMainAfterRunDrainCloseIsReexecuted`; `harness_group_commit_close_in_flight_test.go` / `TestPendingCloseSignalsRunningInvocationWhileCommitInFlight`.
+- Run pending files separately: `harness_after_run_close_drain_test.go` / `TestMainAfterRunCloseInDrainResumesInterruptedAttempt`; `harness_group_commit_close_in_flight_test.go` / `TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight`.
 - Baseline: running drain is not signalled at the required close boundary; abort callback does not run; a phase can commit while closing and finish instead of leaving an interrupted attempt for re-execution. In-flight storage still drains before close returns.
 - Work: fence the interrupted attempt and signal hosts at the pinned boundary without cancelling an already admitted storage settlement. Reconcile abort-handler outcomes with requeue. Preserve checkpoints, restart budget and crash recovery.
 - Acceptance: both pending oracles separately and together with `TestClose140RequeueDoesNotConsumeRestartBudget`, `TestClose140RejectedRequeueLeavesCrashRecovery`, `TestMainGroupCommitChildEndsBeforePhaseWhenMarkUnpublished`, and existing explicit-abort/recovery tests selected from changed paths. Verify reopen and no late stale-attempt commit; test rejected/uncertain requeue storage paths.
@@ -81,7 +81,7 @@ Return: starting/ending revision; exact source assertion; files changed; baselin
 
 - Source: `packages/durable/test/harness-group-commit.test.ts` source226 (#11141) and the pinned dependency/admission cycle implementation it calls.
 - Native: `durable/task_definition.go`, `durable/task_scheduler.go`, `TaskRuntime.MemoCandidate`, waiting state `On`/policy, ownership/dependency validation located by symbol search.
-- Pending file: `harness_group_commit_wait_cycle_test.go`; `TestPendingGroupCommitOppositeWaitsRefuseCycle`.
+- Pending file: `harness_group_commit_wait_cycle_test.go`; `TestPendingGroupCommitRefusesSecondOfTwoOppositeWaits`.
 - Baseline: both opposite waits commit; neither task completes; refusal list stays empty during the bounded observation window. Native can express this case; do not relabel it unportable.
 - Work: find the earliest valid cycle-refusal boundary using the effective dependency image, including pending intent where appropriate. Preserve legitimate acyclic waits, allSettled/failFast and cancellation/ownership semantics.
 - Acceptance: retained oracle unchanged; two-node and longer cycle refusal; acyclic chain; shared dependency without a cycle; foreign-owner rejection; abort during a wait. Reuse reconciled task-ownership/group controls and document newly derived tests separately from source tests.
