@@ -624,3 +624,239 @@ func TestMainGroupCommitChildEndsBeforePhaseWhenMarkUnpublished(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// Actual f9a26365 harness-group-commit.test.ts cases 363, 404 and 446, in the shape native can
+// express. The source has an end decision and a creation admitted after it in the same pending group
+// (two writers on one line). Native admits one writer on the line, so no second writer can be
+// admitted into the same pending group; the same two facts are measured with one writer that records
+// its own end and the creation in the same commit:
+//  1. a native read cannot complete inside the pending window — it waits for publication, which is
+//     what the source's `readOnLine` + `touch` gate asserts, and
+//  2. after publication the creation is live and its membership resolves past the ended ancestor.
+//
+// The source's mid-window observations (the read returning nothing, the roots record for an owner,
+// the ancestor showing live) are not expressible natively.
+func TestMainGroupCommitLineReadsWaitForPendingMembership(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		shape string // "root": creation in the root conversation; "chain": creation in a conversation owned by the ending task
+	}{
+		{name: "case-363-root-creation", shape: "root"},
+		{name: "case-404-chain-past-ended-ancestor", shape: "chain"},
+		{name: "case-446-live-work-above-pending-end", shape: "chain"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			held := &groupCommitHeld{entered: make(chan struct{}), release: make(chan struct{})}
+			gates := map[string]chan struct{}{}
+			for _, n := range []string{"maker", "child"} {
+				gates[n] = make(chan struct{})
+			}
+			registry := NewRegistry()
+			var created ID
+			var targetConversation ID
+
+			childDef, err := DefineTask(TaskDefinitionOptions{
+				Kind:    "task.gcmember.child",
+				Version: 1,
+				Initial: func(any) (JSON, error) { return JSON{"phase": "run"}, nil },
+				Phases: map[string]TaskPhase{"run": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(_ *Tx, _ TaskRecord) (*TaskState, error) { return taskDone("d"), nil })
+				}},
+				Abort: func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(_ *Tx, _ TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "d"}}, nil
+					})
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			makerDef, err := DefineTask(TaskDefinitionOptions{
+				Kind:    "task.gcmember.maker",
+				Version: 1,
+				Initial: func(any) (JSON, error) { return JSON{"phase": "run"}, nil },
+				Phases: map[string]TaskPhase{"run": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					select {
+					case <-gates["maker"]:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+					// One pending group: the end decision and the creation admitted after it.
+					return r.Commit(ctx, func(tx *Tx, rec TaskRecord) (*TaskState, error) {
+						id, err := tx.CreateTask(childDef, JSON{"name": "d"}, TaskOptions{
+							Conversation: targetConversation,
+							Ownership:    TaskOwnership{Kind: "conversation"},
+						})
+						if err != nil {
+							return nil, err
+						}
+						created = id
+						return taskDone("end"), nil
+					})
+				}},
+				Abort: func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+					return r.Commit(ctx, func(_ *Tx, _ TaskRecord) (*TaskState, error) {
+						return &TaskState{Status: "terminal", Outcome: &TaskOutcome{Status: "aborted", Reason: "maker"}}, nil
+					})
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, def := range []*TaskDefinition{childDef, makerDef} {
+				if _, err := registry.RegisterTask(def); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				close(ch)
+				return ch
+			})
+			options.Registry = registry
+			h := openHarness(t, store, options)
+			original := h.session.core.appendFrame
+			h.session.core.appendFrame = held.install(original)
+			defer func() { h.session.core.appendFrame = original }()
+
+			c := root(t, h, ref)
+			ctx, cancel := context.WithTimeout(bg, 12*time.Second)
+			defer cancel()
+			if err := h.Resume(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			var maker ID
+			if _, err := h.CommitTasks(ctx, c.ID(), func(tx *Tx) error {
+				var err error
+				maker, err = tx.CreateTask(makerDef, JSON{"name": "p"}, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+				if err != nil {
+					return err
+				}
+				if tc.shape == "chain" {
+					targetConversation, err = tx.MintID()
+					if err != nil {
+						return err
+					}
+					return tx.CreateConversation(Conversation{ID: targetConversation, Owner: maker})
+				}
+				targetConversation = c.ID()
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				rec, ok, err := h.Task(ctx, maker)
+				if err != nil || !ok {
+					t.Fatal("maker missing", ok, err)
+				}
+				if rec.State.Status == "running" {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("maker never started", rec.State.Status)
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+
+			held.holdCommits()
+			close(gates["maker"])
+			select {
+			case <-held.entered:
+			case <-time.After(3 * time.Second):
+				t.Fatal("pending group (end + creation) did not reach storage")
+			}
+
+			// (1) The read cannot complete inside the pending window: it waits for publication.
+			reading := make(chan TaskGraph, 1)
+			go func() {
+				g, err := h.TaskGraph(ctx)
+				if err != nil {
+					t.Errorf("graph read: %v", err)
+				}
+				reading <- g
+			}()
+			select {
+			case g := <-reading:
+				t.Fatalf("read completed inside the pending window and saw %d live nodes", len(g.Tasks))
+			case <-time.After(400 * time.Millisecond):
+			}
+
+			held.releaseHold()
+			var g TaskGraph
+			select {
+			case g = <-reading:
+			case <-time.After(3 * time.Second):
+				t.Fatal("read stuck after publication")
+			}
+			if created == 0 {
+				t.Fatal("pending group recorded no creation")
+			}
+
+			// (2) Membership after publication. Native lists the created task as pending until the
+			// scheduler dispatches it, so membership presence is the contract measured here.
+			node, ok := memberNode(g, created)
+			if !ok {
+				t.Fatal("created task missing from the read after publication")
+			}
+			if node.State.Status != "pending" && node.State.Status != "running" {
+				t.Fatalf("created task not live after publication: %s", node.State.Status)
+			}
+			if node.Conversation != targetConversation {
+				t.Fatalf("created membership: conversation=%d want %d", node.Conversation, targetConversation)
+			}
+			if ancestor, live := memberNode(g, maker); live && ancestor.State.Status != "completing" {
+				t.Fatalf("ancestor must be on its end path after the published decision: status=%s", ancestor.State.Status)
+			}
+			snap, err := h.session.Snapshot(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.shape == "chain" {
+				conv := snap.Conversations[targetConversation]
+				if conv.ID != targetConversation {
+					t.Fatal("conversation missing after publication")
+				}
+				if conv.Owner != maker {
+					t.Fatalf("conversation owner must be the ended ancestor: owner=%d maker=%d", conv.Owner, maker)
+				}
+			}
+
+			close(gates["child"])
+			rec, err := h.WaitForTask(ctx, created)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rec.State.Outcome == nil || rec.State.Outcome.Status != "completed" {
+				t.Fatalf("created task must complete: %+v", rec.State)
+			}
+			// In the chain shapes the ancestor held as completing for the created task, matching the
+			// case-123 contract already measured in this file.
+			rec, err = h.WaitForTask(ctx, maker)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rec.State.Outcome == nil || rec.State.Outcome.Status != "completed" {
+				t.Fatalf("ancestor must settle after its member: %+v", rec.State)
+			}
+			if err := h.Close(ctx); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+func memberNode(g TaskGraph, id ID) (TaskGraphNode, bool) {
+	for _, n := range g.Tasks {
+		if n.ID == id {
+			return n, true
+		}
+	}
+	return TaskGraphNode{}, false
+}
