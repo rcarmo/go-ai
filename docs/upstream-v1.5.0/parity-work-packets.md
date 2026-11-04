@@ -113,7 +113,7 @@ Return: starting/ending revision; exact source assertion; files changed; baselin
 - Source: pinned `session-observers.test.ts` and `session.ts` observer guard; harness view/task-graph observer callers.
 - Native: `durable/observation.go`, `session_sync_observers.go`, `session_local_observers.go`; `docs/upstream-v1.5.0/session-observers.md` maps current gaps.
 - Existing private stored lane tests pass; it explicitly rejects scheduler-backed Sessions. Asynchronous `DocumentWatch` is a different interface.
-- Design: document acquisition/pin guard, registration atomicity, value/ops on memory and stored adoption, detach at callback admission, retirement/recreation, callback errors and reporter/end containment. Define Go callback/re-entry and async-error adaptation before exposing a public interface.
+- Design: `docs/upstream-v1.5.0/document-observer-design.md` maps acquisition/pin guard, registration atomicity, value/ops on memory and stored adoption, per-change detach checks, retirement/recreation, callback errors, Go re-entry and ownership. Implement the private standalone source77/87/105 slice first with its listed negative controls; it is not full observer or public identity parity.
 - Stage acceptance: source77/87/105, then132/162, then241/254, then469/496/520. Keep JS rejected-thenable and WeakRef timing gaps separate. Preserve stored-lane source389/403/414/427 tests; wire Harness only with scheduler publication-order tests.
 - Stop: no asynchronous-watch substitution and no shared mutable maps without P07's ownership decision.
 
