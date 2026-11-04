@@ -6,12 +6,13 @@ import (
 	"sync"
 )
 
-// Private standalone lane, not a replacement for SubscribeCommits. As in c9's
-// observeCommits, callbacks are synchronous, must not block/call Session APIs,
-// and receive a read-only publication. This trusted internal boundary does not
-// expose mutable maps as a new public Go API. Public ownership/Harness wiring
-// remains separate. report is the fast RecordingSession.report adaptation, not
-// the legacy/Harness reporter (whose valid off-line reentry is unchanged).
+// Private stored-commit lane, not a replacement for SubscribeCommits. As in
+// the pinned observeCommits contract, callbacks are synchronous, must not block
+// or call Session APIs, and receive a read-only publication. This trusted
+// internal boundary also works with a Harness scheduler but does not expose
+// mutable maps as a public Go API. Source microtask dispatch, public ownership
+// and Harness reporting remain separate work. report is a fast private hook,
+// not the legacy/Harness reporter (whose off-line reentry is unchanged).
 type sessionCommitObserver struct {
 	advance func(context.Context, CommitPublication) error
 	end     func(WatchEnd) error
@@ -27,10 +28,6 @@ type sessionCommitObservation struct {
 func (s *Session) observeStoredCommits(observer sessionCommitObserver) (*sessionCommitObservation, error) {
 	if observer.advance == nil || observer.end == nil {
 		return nil, reject("incomplete synchronous commit observer")
-	}
-	// The scheduler's publication/waiter ordering is not wired to this lane yet.
-	if s.taskScheduler != nil {
-		return nil, ErrUnsupported
 	}
 	s.observerMu.Lock()
 	defer s.observerMu.Unlock()

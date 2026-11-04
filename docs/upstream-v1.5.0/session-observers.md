@@ -19,7 +19,7 @@ Existing controls also test registration-order delivery, detaching a later captu
 
 Callbacks run synchronously under the Session line. They must not block or call Session APIs. Re-entry through those APIs is outside this native callback contract; no test in this pass attempts it. The new visibility control reads the private adopted image and raw storage without re-entering the Session.
 
-`observeStoredCommits` explicitly rejects scheduler-backed Sessions. Watch delivery is asynchronous and cannot replace the synchronous document-observer interface in these comparisons.
+The private `observeStoredCommits` guard supports scheduler-backed Sessions. Watch delivery is asynchronous and cannot replace the synchronous document-observer interface in these comparisons.
 
 ## Synchronous document observations
 
@@ -77,3 +77,9 @@ At parent `17cbda5`, `TestMainPublicDocumentObserverRetirementAndGuards` checks 
 The pinned `TaskRuntime` extends `DocumentObserver`, whose `watchDoc` API differs from Session's `observeDoc`; the inspected scheduler forwards `watchDoc`, not `observeDoc`. Do not invent invocation-owned synchronous observation without further source evidence.
 
 At parent `7dcdb3f`, `TestMainPublicDocumentObserverQueuedAttachment` tests source241/254 through the exported Session method: a commit already on the line enters the acquisition baseline, and cancellation of queued acquisition leaves no observer. Four selected public/private/Harness functions passed count3/shuffle42: 12 passes, 0 failures, 0 skips, 0.664s. An overlay returning an empty public baseline was rejected. Suppressing two post-load context checks survived the queued-cancellation control because earlier Session admission already rejected it; this does not establish those individual checks. The first empty-baseline fault failed to compile and is not credited. Vet, formatting and diff checks passed; scratch was removed. No runtime source changed.
+
+## Scheduler-backed private stored observation
+
+At parent `1b366ad`, source-shaped scheduler lifecycle controls initially failed all four subtests at the private guard with `ErrUnsupported` (0.104s). Removing that scheduler-only rejection admits the same bounded private guard on Harness Sessions. `TestMainHarnessStoredObserverLifecycle` checks two stored advances before close, real confirmed backend failure with cause, idempotent detach and guarded listener error. The source284-shaped pending waiter oracle now also passes through the private guard. Callbacks still run on the Session line; source queues host dispatch one microtask later. Private publication values remain trusted readonly Go maps; the public `observeCommits` surface, JS dispatch membership, safe detached ownership/reporting, abort ordering and P05 grouped publications remain open. The lifecycle test uses a fast private report callback, not a Harness host reporter.
+
+The 20 selected lifecycle, waiter, standalone observer, deferred and Harness-document functions ran count3/shuffle42: 60 top-level passes, 0 failures, 0 skips, 1.818s. Reinstating the scheduler guard, suppressing stored publication and changing close/failure ending each caused behavioural failures. Vet, formatting and diff checks pass with protected prototype/pending overlays. Disposable scratch was removed. Source `types.ts` says normal close ends commit observers `ended`; pinned implementation `session.ts:1838–1850` and source test389 use `failed`/`session closed`, which the native guard follows. No full suite, profiling, hosted CI, release or push ran.
