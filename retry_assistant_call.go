@@ -107,14 +107,18 @@ func RetryAssistantCall(ctx context.Context, produce func() *Message, policy *As
 				if callbacks != nil && callbacks.OnRetryFinished != nil {
 					callbacks.OnRetryFinished(false, attempt, lastError)
 				}
-				return &Message{Role: RoleAssistant, StopReason: StopReasonAborted}
+				aborted := *response
+				aborted.StopReason, aborted.ErrorMessage = StopReasonAborted, ""
+				return &aborted
 			case <-timer.C:
 			}
 		} else if ctx.Err() != nil {
 			if callbacks != nil && callbacks.OnRetryFinished != nil {
 				callbacks.OnRetryFinished(false, attempt, lastError)
 			}
-			return &Message{Role: RoleAssistant, StopReason: StopReasonAborted}
+			aborted := *response
+			aborted.StopReason, aborted.ErrorMessage = StopReasonAborted, ""
+			return &aborted
 		}
 		if callbacks != nil && callbacks.OnRetryAttemptStart != nil {
 			callbacks.OnRetryAttemptStart()
