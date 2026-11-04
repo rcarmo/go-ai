@@ -12,10 +12,14 @@ import (
 // serial callbacks against distinct conversation-scoped document addresses:
 // callbacks b/c run while a storage call is held, then b/c are stored together.
 // This in-package fixture uses native append hooks and the private synchronous
-// stored-observer lane because OpenSession requires native storage. It retains
-// the source's admission, no-publication, call-shape, ordering and sequence
-// assertions. Go goroutine completion order is an adaptation of JS promise
-// settlement order, not a proof of JS microtask/macrotask semantics.
+// stored-observer lane because OpenSession requires native storage. The source
+// holds its wrapper before delegating to underlying storage; this native hook
+// holds after the core storage gate is acquired. Native ID reservations also
+// use that gate, so future overlap fixes need an appropriate storage seam or
+// a safe reservation strategy before this fixture can establish full source
+// fidelity. It retains the admission, no-publication, call-shape, ordering and
+// sequence assertions. Go goroutine completion order adapts JS promise order;
+// it does not prove JS microtask/macrotask semantics.
 func TestPendingSessionGroupCommitBatchesAdmittedParts(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
