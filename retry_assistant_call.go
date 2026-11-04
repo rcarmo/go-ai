@@ -9,6 +9,45 @@ type AssistantRetryPolicy struct {
 	Enabled     bool
 	MaxRetries  int
 	BaseDelayMs int
+	// MaxAgentDelayMs caps each assistant retry. Nil uses 60,000 ms; zero
+	// explicitly disables backoff. Negative values are treated as zero.
+	MaxAgentDelayMs *int
+}
+
+const DefaultMaxAgentRetryDelayMs = 60_000
+
+// assistantRetryDelay keeps exponential arithmetic within both the source's
+// exact-integer range and Go's time.Duration representation.
+func assistantRetryDelay(policy *AssistantRetryPolicy, attempt int) time.Duration {
+	if policy == nil || policy.BaseDelayMs <= 0 {
+		return 0
+	}
+	const maxSafe = int64(1<<53 - 1)
+	const maxDurationMs = int64((1<<63 - 1) / int64(time.Millisecond))
+	capMs := int64(DefaultMaxAgentRetryDelayMs)
+	if policy.MaxAgentDelayMs != nil {
+		capMs = int64(*policy.MaxAgentDelayMs)
+	}
+	if capMs <= 0 {
+		return 0
+	}
+	if capMs > maxSafe {
+		capMs = maxSafe
+	}
+	if capMs > maxDurationMs {
+		capMs = maxDurationMs
+	}
+	delay := int64(policy.BaseDelayMs)
+	if delay >= capMs {
+		return time.Duration(capMs) * time.Millisecond
+	}
+	for n := 1; n < attempt; n++ {
+		if delay > capMs/2 {
+			return time.Duration(capMs) * time.Millisecond
+		}
+		delay *= 2
+	}
+	return time.Duration(delay) * time.Millisecond
 }
 
 type AssistantRetryCallbacks struct {
@@ -56,10 +95,7 @@ func RetryAssistantCall(ctx context.Context, produce func() *Message, policy *As
 		attempt++
 		lastAttempt = attempt
 		lastError = response.ErrorMessage
-		delay := time.Duration(0)
-		if policy != nil && policy.BaseDelayMs > 0 {
-			delay = time.Duration(policy.BaseDelayMs) * time.Millisecond * time.Duration(1<<(attempt-1))
-		}
+		delay := assistantRetryDelay(policy, attempt)
 		if callbacks != nil && callbacks.OnRetryScheduled != nil {
 			callbacks.OnRetryScheduled(attempt, maxAttempts, delay, lastError)
 		}

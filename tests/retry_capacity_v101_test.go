@@ -32,7 +32,8 @@ func TestV101CapacityAssistantProductionRetryAndCancellation(t *testing.T) {
 		calls++
 		return &goai.Message{StopReason: goai.StopReasonError, ErrorMessage: "model is at capacity"}
 	}, &goai.AssistantRetryPolicy{Enabled: true, MaxRetries: 2, BaseDelayMs: 3600000}, &goai.AssistantRetryCallbacks{OnRetryScheduled: func(_, _ int, delay time.Duration, _ string) {
-		if delay != time.Hour {
+		// The pinned agent retry policy caps the default delay at one minute.
+		if delay != time.Minute {
 			t.Errorf("delay=%v", delay)
 		}
 		cancel()
