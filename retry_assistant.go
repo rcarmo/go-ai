@@ -2,7 +2,7 @@ package goai
 
 import "regexp"
 
-var nonRetryableProviderLimitErrorPattern = regexp.MustCompile(`(?i)GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|available balance|insufficient_quota|out of budget|quota exceeded|billing|subscription_sharing_usage_limit_exceeded|subscription_sharing_workplace_individual_usage_limit_exceeded`)
+var nonRetryableProviderLimitErrorPattern = regexp.MustCompile(`(?i)GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|available balance|insufficient_quota|out of budget|quota exceeded|billing|subscription_sharing_usage_limit_exceeded|subscription_sharing_workplace_individual_usage_limit_exceeded|"code"\s*:\s*"?1308([^0-9]|$)`)
 
 // Match upstream's ASCII alphanumeric boundaries (#11057). RE2 has no
 // lookaround, so consume the delimiters; only existence of a match is needed.
