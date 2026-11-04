@@ -1,6 +1,6 @@
 # Session observers at v1.5.0
 
-Private standalone stored-commit and synchronous document-observer lanes pass selected source-shaped controls. Public API ownership and Harness integration are incomplete. Row 338 stays `reviewed-open`.
+Private stored-commit and synchronous document-observer lanes pass selected source-shaped controls. Document observation also supports scheduler-backed Sessions; public API ownership and full Harness integration are incomplete. Row 338 stays `reviewed-open`.
 
 Source: `packages/durable/test/session-observers.test.ts` and `packages/durable/src/session/session.ts` at `f9a26365568127461c47a07a37dcb42c140a3ac5`.
 
@@ -23,7 +23,7 @@ Callbacks run synchronously under the Session line. They must not block or call 
 
 ## Synchronous document observations
 
-`observeDocumentDefinition` is a private standalone synchronous guard. It registers at a specific position in the local listener order, pins the active document incarnation, returns a detached acquisition value and delivers each prepared document change synchronously after stored or memory adoption. It rejects scheduler-backed Sessions; it is not a public `observeDoc` API.
+`observeDocumentDefinition` is a private synchronous guard. It registers at a specific position in the local listener order, pins the active document incarnation, returns a detached acquisition value and delivers each prepared document change synchronously after stored or memory adoption. It supports scheduler-backed Sessions but is not a public `observeDoc` API.
 
 - Source77/87/105 have source-shaped standalone controls: absent attachment, committed count3 with exact set operation outside the storage call, and deferred count5 before storage with no duplicate local advance on flush. The private Go API and detached values adapt the source interface.
 - Source132/162 have standalone retirement/recreation and idempotent-detach controls. Retirement clears the Session-owned followed value and pin, while the caller owns the detached initial value; recreation emits a replacement and pins its new incarnation.
@@ -32,7 +32,7 @@ Callbacks run synchronously under the Session line. They must not block or call 
 - Source469/496/520 have source-shaped same-commit retirement error, self-detach and peer-detach controls. Detached guards retain no recreation pin/value; a healthy peer continues. Full public/Harness and JS callback semantics remain open.
 - Source265/309: explicit guard/reference release and retired-value clearing are tested; JavaScript `WeakRef` timing and collection are not. Source353 rejected thenables remain untested.
 
-The synchronous callback runs on the Session line; it must not block or synchronously re-enter Session/Storage. Source callbacks can enqueue later async work. A public Go API needs an agreed re-entry mechanism and P07 ownership/identity design. Task-owner termination is tested only with a standalone raw task, not the scheduler-backed path.
+The synchronous callback runs on the Session line; it must not block or synchronously re-enter Session/Storage. Source callbacks can enqueue later async work. A public Go API needs an agreed re-entry mechanism and P07 ownership/identity design. Task-owner termination has a scheduler-backed source-shaped control below; task-runtime-owned observer acquisition and full Harness integration remain open.
 
 ## Focused verification
 
@@ -54,4 +54,14 @@ At parent `59065bc` plus the private implementation, pure Go/modernc SQLite, the
 
 Four compiler-overlay faults were rejected: suppressing advances; retaining the retired pin; skipping post-registration cancellation; and omitting task-owner ending. `go vet`, formatting and `git diff --check` passed with the protected prototype excluded through the compiler overlay. The interrupted command and earlier failed fault-script parse were not credited. Staticcheck was unavailable; race testing requires CGO and was not run under the pure-Go restriction.
 
-The implementation is private and standalone. Scheduler-backed Sessions return `ErrUnsupported`; public observation API, JS reference identity, rejected thenables, WeakRef/GC timing, source re-entry and group-publication interactions remain open. No full suite, profiling, hosted CI, release or push ran. Disposable logs, overlays and fault copies were removed after analysis.
+At that checkpoint the implementation was private and standalone. Public observation API, JS reference identity, rejected thenables, WeakRef/GC timing, source re-entry and group-publication interactions remain open. No full suite, profiling, hosted CI, release or push ran. Disposable logs, overlays and fault copies were removed after analysis.
+
+## Scheduler-backed document observation
+
+The pinned implementation uses the same synchronous document observer on Session and Harness paths. The private Go guard no longer rejects a Session solely because its task scheduler exists. The Go public `Harness.observeDoc` API and its reference-identity/re-entry contract are not implemented by this change; the controls call the private guard.
+
+At parent `fa31487`, the first source308-shaped oracle failed at attachment with `ErrUnsupported` (0.063s). The corrected source-shaped fixture uses `test.observers.progress`, `lines: ["started"]`, waits for the real task, and checks retirement with empty operations followed by `ended`, both after the native storage core gate is released. It then closes the Harness and checks no extra calls. Explicit native IDs and private callbacks adapt the source API. A separate derived control checks that an aborted deciding transaction neither delivers retirement nor releases its pin. Queued-attachment/cancellation and Session-failure-cause controls exercise the same private guard with a real scheduler; Go `context.Canceled` adapts source rejection timing.
+
+Four new Harness observer functions plus 26 related focused functions passed count3/shuffle42: 90 top-level passes, 0 failures, 0 skips, 3.268s. A final count1 gate passed in 1.106s. Three compiler-overlay faults were rejected: suppressing the retirement advance, suppressing the owner end, and restoring the scheduler exclusion. Vet, formatting and diff checks passed. The earlier baseline's scalar `status` fixture was corrected to the pinned source's `lines` array before the credited post-change runs.
+
+Callbacks remain synchronous on the Session line; they must not block or synchronously re-enter Session/Storage. JS thenables, public observer ownership, task-runtime-owned attachment and P05 multi-part group ordering remain open. No full suite, profiling, hosted CI, release or push ran; scratch was removed after analysis.

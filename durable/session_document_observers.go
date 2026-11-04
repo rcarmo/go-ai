@@ -6,9 +6,9 @@ import (
 	"sync"
 )
 
-// Private standalone synchronous observeDoc slice. Its callbacks run on the
-// Session line and must not block or synchronously call Session/Storage APIs.
-// Public API ownership and scheduler-backed Sessions remain separate work.
+// Private synchronous observeDoc slice. Its callbacks run on the Session line
+// and must not block or synchronously call Session/Storage APIs. Public API
+// ownership and re-entry semantics remain separate work.
 type sessionDocumentObserver struct {
 	advance func(context.Context, WatchFrame) error
 	end     func(WatchEnd) error
@@ -34,9 +34,6 @@ type sessionDocumentObservation struct {
 func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string, observer sessionDocumentObserver) (*sessionDocumentObservation, JSON, bool, error) {
 	if observer.advance == nil || observer.end == nil {
 		return nil, nil, false, reject("incomplete synchronous document observer")
-	}
-	if s.taskScheduler != nil {
-		return nil, nil, false, ErrUnsupported
 	}
 	if err := s.enter(ctx); err != nil {
 		return nil, nil, false, err
