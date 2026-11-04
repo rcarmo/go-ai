@@ -272,7 +272,8 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	}
 }
 
-// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240 and 292, in the shape native can
+// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240, 292, 323, and the two deferred-commit
+// ordering cases 662 and 680, in the shape native can
 // express. Native admits one writer on the line, so a second job cannot run its callback inside the
 // pending window; what native does is wait at admission and then see the published creation. Measured:
 // the job waits, it reads the document that the pending commit created instead of creating one again,
@@ -283,7 +284,8 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 // `put-document` and `delta-document` - so the source's "creations length 1" assertion has no native
 // analogue. The equivalent measured here is that the waiting job produced a delta on the same document
 // id, not a second creation.
-// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240 and 292, in the shape native can
+// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240, 292, 323, and the two deferred-commit
+// ordering cases 662 and 680, in the shape native can
 // express. Native admits one writer on the line, so a second job cannot run its callback inside the
 // pending window; what native does is block at admission and then observe the published work. Measured:
 // the creating job reaches storage while publication is held, the second job does not settle inside the
@@ -520,6 +522,218 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		}
 	})
 
+	t.Run("case-662-deferred-commit-publishes-after-the-previous", func(t *testing.T) {
+		// Native approximation. The source has two parts in one pending group; native admits one writer on
+		// the line, so the deferred job is not admitted until the previous commit has published. What is
+		// measured is the same observable outcome in native shape: frames land in admission order.
+		s, held, ctx := open(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		firstSettled := make(chan error, 1)
+		secondSettled := make(chan error, 1)
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "first"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, firstSettled)
+
+		select {
+		case id := <-values:
+			if id == 0 {
+				t.Fatal("no entry written")
+			}
+		case err := <-firstSettled:
+			t.Fatalf("first commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("first commit did not reach storage while held")
+		}
+
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "second"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, secondSettled)
+
+		select {
+		case id := <-values:
+			t.Fatalf("deferred job ran inside the pending window (entry %d)", id)
+		case err := <-secondSettled:
+			t.Fatalf("deferred job errored inside the pending window: %v", err)
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		if err := settleWithin(t, firstSettled, 3); err != nil {
+			t.Fatalf("first commit did not settle: %v", err)
+		}
+		if err := settleWithin(t, secondSettled, 3); err != nil {
+			t.Fatalf("deferred commit did not settle: %v", err)
+		}
+		ordinals := held.landedOrdinals()
+		if len(ordinals) != 2 || ordinals[0] > ordinals[1] {
+			t.Fatalf("publication order must follow admission order, got %v", ordinals)
+		}
+	})
+
+	t.Run("case-680-deferred-commit-behind-a-failed-commit-never-publishes", func(t *testing.T) {
+		// Native approximation. The source puts both parts in one pending group and refuses the first; native
+		// cannot admit the second while the first is in flight, so the second is a later job. What is
+		// measured is the observable equivalent: the refused commit lands no frame, and the job after it is
+		// refused as SessionFailed and lands no frame either.
+		s, held, ctx := open(t)
+		held.holdCommits()
+		held.failOn = `"refuse"`
+
+		values := make(chan ID, 4)
+		failedSettled := make(chan error, 1)
+		laterSettled := make(chan error, 1)
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "refuse", Value: JSON{"text": "refuse"}}); err != nil {
+				return err
+			}
+			values <- id
+			return nil
+		}, failedSettled)
+
+		select {
+		case id := <-values:
+			if id == 0 {
+				t.Fatal("no entry staged")
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("refused commit did not reach storage while held")
+		}
+
+		// A later job is the only shape native can express for a commit behind the refused one.
+		run(t, s, ctx, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "after"}}); err != nil {
+				return err
+			}
+			return nil
+		}, laterSettled)
+
+		held.releaseHold()
+
+		// Native reports its own classification rather than the storage error, so the source's error
+		// identity is not preserved (already recorded through the pending refusal fixture).
+		err := settleWithin(t, failedSettled, 3)
+		if err == nil {
+			t.Fatal("refused commit must fail")
+		}
+		if !strings.Contains(err.Error(), "refused") && !strings.Contains(err.Error(), "uncertain storage outcome") {
+			t.Fatalf("refused commit must report the refusal or native classification, got %v", err)
+		}
+
+		err = settleWithin(t, laterSettled, 3)
+		if err == nil {
+			t.Fatal("job after a refused commit must be refused, not settled")
+		}
+		if !strings.Contains(err.Error(), "SessionFailed") && !strings.Contains(err.Error(), "session failed") {
+			t.Fatalf("job after a refused commit must report SessionFailed, got %v", err)
+		}
+		if len(held.landedOrdinals()) != 0 {
+			t.Fatalf("no part may publish after a refused commit, landed frames: %v", held.landedOrdinals())
+		}
+	})
+
+	t.Run("case-323-line-read-after-un-awaited-commit", func(t *testing.T) {
+		s, held, ctx := open(t)
+		held.holdCommits()
+
+		values := make(chan ID, 4)
+		commitSettled := make(chan error, 1)
+		// Un-awaited commit: nothing in the test waits for its completion before the read is issued.
+		run(t, s, ctx, func(tx *Tx) error {
+			created, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: created}); err != nil {
+				return err
+			}
+			entryID, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.AppendEntry(Entry{ID: entryID, Conversation: created, Kind: "note", Value: JSON{"text": "note"}}); err != nil {
+				return err
+			}
+			values <- created
+			return nil
+		}, commitSettled)
+
+		var convID ID
+		select {
+		case id := <-values:
+			if id == 0 {
+				t.Fatal("no conversation created")
+			}
+			convID = id
+		case err := <-commitSettled:
+			t.Fatalf("un-awaited commit settled inside the pending window: %v", err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("un-awaited commit did not reach storage while held")
+		}
+
+		// The line read is issued after the un-awaited commit reached storage, so it must wait for its
+		// publication and then see it.
+		read := make(chan Snapshot, 1)
+		go func() {
+			snap, err := s.Snapshot(ctx)
+			if err != nil {
+				t.Errorf("line read: %v", err)
+			}
+			read <- snap
+		}()
+		select {
+		case snap := <-read:
+			if len(snap.Entries) != 0 {
+				t.Fatalf("line read returned inside the pending window with entries: %v", snap.Entries)
+			}
+			t.Fatal("line read did not wait for the un-awaited commit's publication")
+		case <-time.After(400 * time.Millisecond):
+		}
+
+		held.releaseHold()
+		select {
+		case snap := <-read:
+			if len(snap.Entries) != 1 {
+				t.Fatalf("line read after publication must see the entry the un-awaited commit created, got %v", snap.Entries)
+			}
+			// Native's line starts at conversation 1, so assert the created conversation is present
+			// rather than that it is the only one.
+			if _, ok := snap.Conversations[convID]; !ok {
+				t.Fatalf("line read after publication must see the created conversation %d, got %v", convID, snap.Conversations)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("line read stuck after release")
+		}
+		if err := settleWithin(t, commitSettled, 3); err != nil {
+			t.Fatalf("un-awaited commit did not settle: %v", err)
+		}
+	})
+
 	t.Run("case-292-unkeyed-scan-waits", func(t *testing.T) {
 		s, held, ctx := open(t)
 		held.holdCommits()
@@ -610,6 +824,8 @@ type mainGatesHeld struct {
 	release     chan struct{}
 	putFrames   int
 	deltaFrames int
+	landed      []uint64
+	failOn      string
 }
 
 func (h *mainGatesHeld) holdCommits() { h.mu.Lock(); h.hold = true; h.mu.Unlock() }
@@ -634,22 +850,48 @@ func (h *mainGatesHeld) install(appendFrame func(byte, uint64, uint64, []byte) e
 		if bytes.Contains(payload, []byte(`"delta-document"`)) {
 			h.deltaFrames++
 		}
-		if typ == 2 && h.hold {
-			h.mu.Unlock()
+		fail := h.failOn != "" && bytes.Contains(payload, []byte(h.failOn))
+		hold := typ == 2 && h.hold
+		h.mu.Unlock()
+
+		if hold {
 			select {
 			case <-h.entered:
 			default:
 				close(h.entered)
 			}
 			<-h.release
-		} else {
+		}
+
+		if fail {
+			return errors.New("refused")
+		}
+
+		if appendFrame == nil {
+			return nil
+		}
+		err := appendFrame(typ, ordinal, high, payload)
+		if err == nil && typ == 2 {
+			h.mu.Lock()
+			h.landedLocked(ordinal)
 			h.mu.Unlock()
 		}
-		if appendFrame != nil {
-			return appendFrame(typ, ordinal, high, payload)
-		}
-		return nil
+		return err
 	}
+}
+
+func (h *mainGatesHeld) landedLocked(ordinal uint64) {
+	if len(h.landed) < 16 {
+		h.landed = append(h.landed, ordinal)
+	}
+}
+
+func (h *mainGatesHeld) landedOrdinals() []uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]uint64, len(h.landed))
+	copy(out, h.landed)
+	return out
 }
 
 func gateNumber(v any) int64 {
