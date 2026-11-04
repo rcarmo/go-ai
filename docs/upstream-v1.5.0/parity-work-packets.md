@@ -146,7 +146,7 @@ Return: starting/ending revision; exact source assertion; files changed; baselin
 
 ## P10 — Remaining durable contracts (split before assigning implementation)
 
-Use P09 to create separate packets for: restart/retry charging; dependency/continuation ordering; submission/turn limits; tool-hook ordering; cross-owner export; environment/telemetry; codemode integration. Start from the existing per-topic v1.5.0 receipts and pinned test files; derive the native edit/test set by symbol tracing. Preserve selected passing controls and label any source-internal API adaptation. Do not assign this whole list as one coding task.
+Use P09 to create separate packets for: restart/retry charging; dependency/continuation ordering; submission/turn limits; tool-hook ordering; cross-owner export; environment/telemetry; codemode integration. The two-source-test [hook/task history packet](hook-history-packet.md) identifies the missing runtime range scan and its acceptance boundaries; P01's runtime pause remains in force. Start from the existing per-topic v1.5.0 receipts and pinned test files; derive the native edit/test set by symbol tracing. Preserve selected passing controls and label any source-internal API adaptation. Do not assign this whole list as one coding task.
 
 ## P11 — Schema contracts (split before assigning implementation)
 
