@@ -15,9 +15,12 @@ type Input struct {
 	// its model contribution. ID/placement are assigned at admission.
 	Entry     *Entry
 	RequestID string
-	Type      string
-	// WhenBusy selects steer/follow-up for inputs, or reject to refuse a
-	// new input while a generation is live. Deduplication precedes rejection.
+	// Type accepts "input", "write" and "continue". Empty, "follow-up" and
+	// "steer" remain accepted as legacy input spellings.
+	Type string
+	// WhenBusy selects "steer" or "followUp" for inputs, or "reject" to
+	// refuse a live generation. "follow-up" remains a legacy alias.
+	// Deduplication precedes rejection.
 	WhenBusy string
 }
 type SubmissionHandle struct {
@@ -95,10 +98,10 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
-	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" {
+	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" && input.WhenBusy != "followUp" {
 		return nil, reject("invalid busy mode")
 	}
-	if input.Type == "" {
+	if input.Type == "" || input.Type == "input" {
 		input.Type = "follow-up"
 		if input.WhenBusy == "steer" {
 			input.Type = "steer"
