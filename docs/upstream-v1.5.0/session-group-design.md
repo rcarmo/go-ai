@@ -61,6 +61,15 @@ Possible approaches need separate validation:
 
 No option is selected in this pass. A focused allocator design must specify exhaustion, concurrent mint ordering, failure/close cancellation, escaped IDs, recovery after unused reservations, exact high-water/next-ID expectations, and how source170 still observes independent callbacks while the earlier call is held. P05 cannot weaken the existing invariant merely to satisfy the oracle.
 
+### Pre-core hold versus an actual SQLite transaction
+
+Two temporary diagnostics at `5c05fd1` separate the gates; neither modifies production or establishes source170 parity:
+
+- A compiler-overlay hook held `settleBatch` **before** `commitPartsAt` entered the core. While held, a direct test-only `store.mintID(..., true)` completed a durable reservation, but a second public Session job, with a `Done()` admission-attempt witness, remained blocked. After release both Session jobs returned and the observed high water included the reservation. One pass, 0.376s. This bypasses public Session admission only to isolate the core; it is not a proposed production API or a complete source170 test.
+- A second diagnostic used a native single-frame `BEGIN IMMEDIATE`/`INSERT`/`COMMIT` equivalent and held after the actual SQLite insert, before commit. The second Session job and direct core mint waited; an independent SQLite connection with 100ms busy timeout failed `BEGIN IMMEDIATE` with `SQLITE_BUSY`. After release, the commit, mint, Session job and independent writer completed. One pass, 0.386s. This tests one held SQLite transaction and a real second connection, not every possible storage/cancellation interleaving or power-loss behaviour.
+
+Both diagnostics released holds and joined workers before closing and were disposed after analysis. Earlier failed compile/probe attempts are not acceptance evidence. The first result narrows the source test-seam difference: pre-core holding leaves the core available, but current Session serialization remains an independent blocker. The second demonstrates that a truly active SQLite writer also prevents an independent durable reservation write. A future design must handle both conditions, rather than only moving the test hook.
+
 ## Blocking design questions
 
 - Which operations can provide a complete key/read witness, including `Tx.current`, document address creation, task ownership, scans and held values? A conservative global gate preserves safety but will not satisfy source170 for independent callbacks. Specify actual instrumented operations and tests before allowing overlap.
