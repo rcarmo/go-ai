@@ -2,6 +2,10 @@
 
 The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. GitHub published the stable release at `2026-11-02T11:05:31Z`. Earlier release pins and receipts are historical comparison inputs; they establish no v1.5.0 acceptance. Retained tests, runtime identity and generated-schema/catalogue tooling must follow this release, including required breaking semantics.
 
+## Delegation backlog
+
+[Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. P00 resolves the contract decisions before the paused runtime changes; later subsystem work must be split into similarly concrete packets before delegation.
+
 ## Terminal-only deferred polling
 
 The pinned poll API returns one message; it exposes no harness streaming progress. [Poll-boundary checks](poll-boundary.md) cover source671's real abort-handler cutoff plus two source-derived terminal/crash/cancellation controls on SQLite, without runtime changes. Three functions pass nine repeated checks; four injected faults reject five SQLite leaves. Whole-file dispositions and full v1.5.0 acceptance do not change. Next: after-run source785 missing-definition/Stop-orphaning.
