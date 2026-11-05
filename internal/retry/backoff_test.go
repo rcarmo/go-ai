@@ -125,3 +125,25 @@ func TestParseRetryAfterHugeAndNonFinite(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeBackoffSaturatesBeforeDurationConversion(t *testing.T) {
+	max := time.Duration(math.MaxInt64)
+	for _, tc := range []struct {
+		name         string
+		attempt      int
+		initial, cap time.Duration
+		multiplier   float64
+		want         time.Duration
+	}{
+		{"max-duration", 0, max, max, 1, max},
+		{"large-exponent", 10000, time.Second, max, 2, max},
+		{"normal-cap", 10000, time.Second, 8 * time.Second, 2, 8 * time.Second},
+		{"decaying", 4, 8 * time.Second, max, 0.5, 500 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retry.ComputeBackoff(tc.attempt, tc.initial, tc.cap, tc.multiplier, 0); got != tc.want {
+				t.Fatalf("got %v want %v", got, tc.want)
+			}
+		})
+	}
+}

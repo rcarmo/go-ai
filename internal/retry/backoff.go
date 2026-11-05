@@ -19,8 +19,13 @@ func ComputeBackoff(attempt int, initialDelay, maxDelay time.Duration, multiplie
 		jitter := (1 - jitterFraction) + rand.Float64()*jitterRange
 		delay *= jitter
 	}
-	if delay > float64(maxDelay) {
-		delay = float64(maxDelay)
+	// Return the integer cap directly: float64(math.MaxInt64) rounds to
+	// 2^63, whose conversion to time.Duration would wrap negative.
+	if delay >= float64(maxDelay) {
+		return maxDelay
+	}
+	if math.IsNaN(delay) || delay <= 0 {
+		return 0
 	}
 	return time.Duration(delay)
 }
