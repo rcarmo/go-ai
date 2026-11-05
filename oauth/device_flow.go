@@ -2,14 +2,27 @@ package oauth
 
 import "time"
 
-const minDeviceCodePollInterval = 5 * time.Second
+const minDeviceCodePollInterval = time.Second
+const defaultDeviceCodePollInterval = 5 * time.Second
 
+// Legacy provider DTOs use zero for an omitted interval. Explicit positive
+// intervals follow v1.5.0: minimum one second; omission defaults to five.
 func normalizeDeviceCodePollInterval(intervalSecs int) time.Duration {
-	interval := time.Duration(intervalSecs) * time.Second
-	if interval < minDeviceCodePollInterval {
+	if intervalSecs == 0 {
+		return defaultDeviceCodePollInterval
+	}
+	return explicitDeviceCodePollInterval(intervalSecs)
+}
+
+func explicitDeviceCodePollInterval(intervalSecs int) time.Duration {
+	if intervalSecs < 1 {
 		return minDeviceCodePollInterval
 	}
-	return interval
+	const maxDuration = time.Duration(1<<63 - 1)
+	if int64(intervalSecs) > int64(maxDuration/time.Second) {
+		return maxDuration
+	}
+	return time.Duration(intervalSecs) * time.Second
 }
 
 func nextDeviceCodePollInterval(interval time.Duration, oauthError string) (time.Duration, bool) {

@@ -46,11 +46,11 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
-var classifierAttemptDeadline = errors.New("classifier attempt deadline")
+var errClassifierAttemptDeadline = errors.New("classifier attempt deadline")
 
 // The caller owns cancel until it transfers ownership to the response body.
 func classifierAttemptContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeoutCause(ctx, timeout, classifierAttemptDeadline)
+	return context.WithTimeoutCause(ctx, timeout, errClassifierAttemptDeadline)
 }
 
 type classifierAttemptBody struct {
@@ -76,7 +76,8 @@ func (b *classifierAttemptBody) Close() error {
 }
 
 func classifierAttemptError(err error, caller, attempt context.Context, timeout time.Duration) error {
-	if caller.Err() == nil && context.Cause(attempt) == classifierAttemptDeadline {
+	if caller.Err() == nil && context.Cause(attempt) == errClassifierAttemptDeadline {
+		//lint:ignore ST1005 The pinned classifier protocol preserves this capitalized upstream message.
 		return fmt.Errorf("Request timed out after %dms", timeout.Milliseconds())
 	}
 	return err
@@ -377,6 +378,11 @@ func sleepProviderRetry(ctx context.Context, delay time.Duration) error {
 		return providerAbortError()
 	}
 	timer := time.NewTimer(max(delay, 0))
+	return waitProviderRetryTimer(ctx, timer)
+}
+
+// The waiter owns and always retires its timer, including on cancellation.
+func waitProviderRetryTimer(ctx context.Context, timer *time.Timer) error {
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():

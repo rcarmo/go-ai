@@ -196,3 +196,20 @@ func readXAIForm(t *testing.T, r *http.Request) url.Values {
 	}
 	return r.Form
 }
+
+// Translate the shared source helper's explicit two-second interval and
+// server-supplied slow_down interval through an actual OAuth provider path.
+func TestV150XAIDeviceCodeShortServerIntervals(t *testing.T) {
+	server := newXAITestServer(t, []xaiTokenReply{
+		{status: http.StatusBadRequest, body: map[string]interface{}{"error": "slow_down", "interval": 1}},
+		{status: http.StatusOK, body: xaiTokenBody(map[string]interface{}{})},
+	})
+	server.deviceOverrides = map[string]interface{}{"interval": 2}
+	provider := newTestXAIProvider(server)
+	var intervals []time.Duration
+	provider.pollWait = func(ctx context.Context, d time.Duration) error { intervals = append(intervals, d); return ctx.Err() }
+	creds, err := provider.Login(LoginCallbacks{})
+	if err != nil || creds == nil || creds.Access != "access-token" || len(intervals) != 2 || intervals[0] != 2*time.Second || intervals[1] != time.Second {
+		t.Fatalf("creds=%#v err=%v waits=%v", creds, err, intervals)
+	}
+}

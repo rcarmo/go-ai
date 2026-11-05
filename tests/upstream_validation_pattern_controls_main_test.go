@@ -33,7 +33,7 @@ func TestMainValidationStringPatternSourceControls(t *testing.T) {
 func TestMainValidationInvalidPatternUnionDoesNotAccept(t *testing.T) {
 	schema := `{"type":"object","properties":{"s":{"anyOf":[{"type":"string","pattern":"["},{"type":"string"}]}}}`
 	got := mainNumericOutcome(t, schema, `{"s":"aaa"}`)
-	if strings.HasPrefix(got, "ok ") || !strings.Contains(got, "invalid regular expression") {
+	if got != "THROW Invalid regular expression: /[/: Unterminated character class" {
 		t.Fatalf("invalid pattern was accepted: %s", got)
 	}
 }

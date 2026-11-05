@@ -258,74 +258,62 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 	if literal, exists := schema["const"]; exists && !schemaLiteralEqual(value, literal) {
 		return &toolSchemaIssue{path, "expected " + v.literalJSON(literal)}
 	}
-	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
-		if target, ok := v.resolvePureDataReference(ref, schema).(map[string]interface{}); ok {
-			key, cacheable := toolSchemaKey(target, value)
-			if cacheable && !active[key] {
-				active[key] = true
-				defer delete(active, key)
-				return v.issue(value, target, path, active)
-			}
-		}
-		return generic
+	if reason := schemaNumericBoundsReason(value, schema); reason != "" {
+		return &toolSchemaIssue{path, reason}
 	}
-	if len(types) == 0 || anyMatchesJSONSchemaType(value, types) {
-		if reason := schemaNumericBoundsReason(value, schema); reason != "" {
-			return &toolSchemaIssue{path, reason}
-		}
+	if issue := v.constraintIssue(value, schema, path, active); issue != nil {
+		return issue
 	}
-	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) {
-		if reason := v.stringFormatReason(value, schema); reason != "" {
-			return &toolSchemaIssue{path, reason}
-		}
+	if _, ok := value.(string); ok {
 		if reason := v.stringPatternReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}
-	}
-	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
-		if branches, ok := schemaList(schema[keyword]); ok {
-			if keyword == "oneOf" {
-				matches := 0
-				for _, branch := range branches {
-					if v.schemaAcceptsValue(value, branch) {
-						matches++
-					}
-				}
-				// explain.ts walkUnion reports overlap before inspecting
-				// failing branches, even when another alternative rejects.
-				if matches > 1 {
-					return &toolSchemaIssue{path, "matches more than one alternative"}
-				}
-			}
-			for _, branch := range branches {
-				if !v.schemaAcceptsValue(value, branch) {
-					return v.issue(value, branch, path, active)
-				}
-			}
+		if reason := v.stringFormatReason(value, schema); reason != "" {
+			return &toolSchemaIssue{path, reason}
 		}
 	}
 	if object, ok := value.(map[string]interface{}); ok {
 		if required, ok := schema["required"].([]interface{}); ok {
 			for _, raw := range required {
 				if key, ok := raw.(string); ok {
-					if _, exists := object[key]; !exists {
+					if _, present := object[key]; !present {
 						return &toolSchemaIssue{schemaIssuePath(path, key), "missing"}
 					}
 				}
 			}
 		}
 		members := v.membersFor(schema)
+		// Declared property errors precede additional-property errors upstream.
+		keys := []string{}
+		for _, key := range v.resourceIndex().keys(members.properties) {
+			if _, present := object[key]; present {
+				keys = append(keys, key)
+			}
+		}
 		for _, key := range sortedSchemaKeys(object) {
+			if _, declared := members.properties[key]; !declared {
+				keys = append(keys, key)
+			}
+		}
+		for _, key := range keys {
 			var failure *toolSchemaIssue
+			declared := false
+			_, declared = members.properties[key]
+			matched := declared
+			for _, p := range members.patterns {
+				if v.matchSchemaPattern(p.source, key).matched {
+					matched = true
+				}
+			}
 			accepted := members.each(key, func(raw interface{}) bool {
 				if v.acceptsRaw(object[key], raw) {
 					return true
 				}
 				childPath := schemaIssuePath(path, key)
-				if child, ok := raw.(map[string]interface{}); ok {
-					failure = v.issue(object[key], child, childPath, active)
+				if no, ok := raw.(bool); ok && !no && !matched {
+					failure = &toolSchemaIssue{childPath, "unknown field"}
 				} else {
-					failure = &toolSchemaIssue{childPath, "value does not match schema"}
+					failure = v.rawIssue(object[key], raw, childPath, active)
 				}
 				return false
 			})
@@ -338,10 +326,74 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		}
 	}
 	if array, ok := value.([]interface{}); ok {
-		for index, current := range array {
-			if child := validationItemSchema(schema, index); child != nil && !v.schemaAcceptsValue(current, child) {
-				return v.issue(current, child, schemaIssuePath(path, strconv.Itoa(index)), active)
+		for i, current := range array {
+			if raw := validationItemRaw(schema, i); raw != nil && !v.acceptsRaw(current, raw) {
+				return v.rawIssue(current, raw, schemaIssuePath(path, strconv.Itoa(i)), active)
 			}
+		}
+	}
+	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+		if branches, ok := schemaList(schema[keyword]); ok {
+			matches := 0
+			for _, branch := range branches {
+				if v.schemaAcceptsValue(value, branch) {
+					matches++
+				}
+			}
+			if keyword == "oneOf" && matches > 1 {
+				return &toolSchemaIssue{path, "matches more than one alternative"}
+			}
+			if keyword != "allOf" && matches > 0 {
+				continue
+			}
+			var best *toolSchemaIssue
+			bestDeclared := -1
+			for _, branch := range branches {
+				if v.schemaAcceptsValue(value, branch) {
+					continue
+				}
+				candidate := v.issue(value, branch, path, active)
+				if keyword == "allOf" {
+					return candidate
+				}
+				declared := 0
+				resolved := branch
+				if ref, ok := branch["$ref"].(string); ok {
+					if target, ok := v.resolvePureDataReference(ref, branch).(map[string]interface{}); ok {
+						resolved = target
+					}
+				}
+				if object, ok := value.(map[string]interface{}); ok {
+					properties, _ := resolved["properties"].(map[string]interface{})
+					for key := range object {
+						if _, present := properties[key]; present {
+							declared++
+						}
+					}
+				}
+				if best == nil || declared > bestDeclared || declared == bestDeclared && len(candidate.path) > len(best.path) {
+					best, bestDeclared = candidate, declared
+				}
+			}
+			if best != nil {
+				return best
+			}
+		}
+	}
+	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
+		target := v.resolvePureDataReference(ref, schema)
+		if target == nil {
+			return &toolSchemaIssue{path, "unresolved reference " + ref}
+		}
+		if child, ok := target.(map[string]interface{}); ok {
+			key, cacheable := toolSchemaKey(child, value)
+			if cacheable && !active[key] {
+				active[key] = true
+				defer delete(active, key)
+				return v.issue(value, child, path, active)
+			}
+		} else {
+			return v.rawIssue(value, target, path, active)
 		}
 	}
 	return generic

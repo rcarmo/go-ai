@@ -3,6 +3,7 @@ package goai
 import (
 	"context"
 	"fmt"
+	"regexp/syntax"
 	"time"
 
 	"github.com/rcarmo/go-ai/internal/quickjs"
@@ -39,7 +40,7 @@ func (v *toolSchemaValidator) checkSchemaPatternSyntax(pattern string) error {
 			var valid bool
 			valid, err = engine.CheckSchemaRegExp(ctx, pattern)
 			if err == nil && !valid {
-				err = fmt.Errorf("invalid regular expression: %s", pattern)
+				err = &toolSchemaPatternSyntaxError{pattern: pattern}
 			}
 		}
 	}
@@ -94,8 +95,35 @@ func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchem
 		if result.err != nil {
 			v.patternFailure = result.err
 		} else if !result.valid {
-			v.patternFailure = fmt.Errorf("invalid regular expression: %s", pattern)
+			v.patternFailure = &toolSchemaPatternSyntaxError{pattern: pattern}
 		}
 	}
 	return result
+}
+
+// Keep engine/infrastructure failures distinct from invalid schema syntax.
+type toolSchemaPatternSyntaxError struct{ pattern string }
+
+func (e *toolSchemaPatternSyntaxError) Error() string {
+	return "invalid regular expression: " + e.pattern
+}
+func (e *toolSchemaPatternSyntaxError) publicMessage() string {
+	reason := "Invalid regular expression"
+	if _, err := syntax.Parse(e.pattern, syntax.Perl); err != nil {
+		if parse, ok := err.(*syntax.Error); ok {
+			switch parse.Code {
+			case syntax.ErrMissingBracket:
+				reason = "Unterminated character class"
+			case syntax.ErrMissingParen:
+				reason = "Unterminated group"
+			case syntax.ErrUnexpectedParen:
+				reason = "Unmatched )"
+			case syntax.ErrMissingRepeatArgument:
+				reason = "Nothing to repeat"
+			case syntax.ErrInvalidCharRange:
+				reason = "Range out of order in character class"
+			}
+		}
+	}
+	return fmt.Sprintf("Invalid regular expression: /%s/: %s", e.pattern, reason)
 }

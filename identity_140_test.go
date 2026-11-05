@@ -50,7 +50,7 @@ func TestIdentity140JSONAndMerging(t *testing.T) {
 			t.Fatalf("accepted %s", wire)
 		}
 	}
-	if !strings.HasPrefix(FormatUserAgent(nil), "pi/1.4.0 (") {
+	if !strings.HasPrefix(FormatUserAgent(nil), "pi/1.5.0 (") {
 		t.Fatal(FormatUserAgent(nil))
 	}
 	if MergeClientIdentity(nil, nil) != nil {

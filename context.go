@@ -3,6 +3,7 @@ package goai
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -138,24 +139,21 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 	v := newToolSchemaValidator(schema, tool.Parameters)
 	out := v.normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
 	if v.patternFailure != nil {
+		var syntaxErr *toolSchemaPatternSyntaxError
+		if errors.As(v.patternFailure, &syntaxErr) {
+			return nil, errors.New(syntaxErr.publicMessage())
+		}
 		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
 	}
 	if out == nil {
 		out = make(map[string]interface{})
 	}
-	if required, ok := schema["required"].([]interface{}); ok {
-		for _, r := range required {
-			name, ok := r.(string)
-			if !ok {
-				continue
-			}
-			if _, exists := out[name]; !exists {
-				return nil, fmt.Errorf("validation failed for tool %q: missing required field %q", tool.Name, name)
-			}
-		}
-	}
 	coerced, err := v.coerceWithJSONSchema(out, schema)
 	if err != nil {
+		var syntaxErr *toolSchemaPatternSyntaxError
+		if errors.As(err, &syntaxErr) {
+			return nil, errors.New(syntaxErr.publicMessage())
+		}
 		if issue, ok := err.(*toolSchemaIssue); ok {
 			received, marshalErr := json.MarshalIndent(tc.Arguments, "", "  ")
 			if marshalErr != nil {
@@ -425,17 +423,7 @@ func validationTupleItems(schema map[string]interface{}) ([]interface{}, bool) {
 }
 
 func validationItemSchema(schema map[string]interface{}, index int) map[string]interface{} {
-	if items, tuple := validationTupleItems(schema); tuple {
-		if index < len(items) {
-			item, _ := items[index].(map[string]interface{})
-			return item
-		}
-		// Legacy tuple items have no homogeneous rest schema.
-		if _, legacy := schema["items"].([]interface{}); legacy {
-			return nil
-		}
-	}
-	item, _ := schema["items"].(map[string]interface{})
+	item, _ := validationItemRaw(schema, index).(map[string]interface{})
 	return item
 }
 
@@ -492,7 +480,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 			return false
 		}
 	}
-	if schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" || v.stringPatternReason(value, schema) != "" {
+	if v.constraintIssue(value, schema, "", make(map[toolSchemaMemoKey]bool)) != nil || schemaNumericBoundsReason(value, schema) != "" || v.stringFormatReason(value, schema) != "" || v.stringPatternReason(value, schema) != "" {
 		return false
 	}
 	switch value := value.(type) {
@@ -514,7 +502,7 @@ func (v *toolSchemaValidator) schemaAcceptsValue(value interface{}, schema map[s
 		}
 	case []interface{}:
 		for i, current := range value {
-			if item := validationItemSchema(schema, i); item != nil && !v.schemaAcceptsValue(current, item) {
+			if item := validationItemRaw(schema, i); item != nil && !v.acceptsRaw(current, item) {
 				return false
 			}
 		}

@@ -142,7 +142,7 @@ func startCodexDeviceFlow() (*codexDeviceResponse, error) {
 
 func pollForCodexToken(ctx context.Context, deviceCode string, intervalSecs, expiresIn int) (*Credentials, error) {
 	deadline := time.Now().Add(time.Duration(expiresIn) * time.Second)
-	interval := normalizeDeviceCodePollInterval(intervalSecs)
+	interval := explicitDeviceCodePollInterval(intervalSecs)
 
 	for time.Now().Before(deadline) {
 		select {

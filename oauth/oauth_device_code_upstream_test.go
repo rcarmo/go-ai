@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-func TestOAuthDeviceCodePollIntervalClampsToRFCMinimum(t *testing.T) {
-	for _, secs := range []int{-1, 0, 1, 4} {
-		if got := normalizeDeviceCodePollInterval(secs); got != 5*time.Second {
-			t.Fatalf("normalizeDeviceCodePollInterval(%d) = %v, want 5s", secs, got)
+func TestOAuthDeviceCodePollIntervalDefaultAndMinimum(t *testing.T) {
+	for _, tc := range []struct {
+		secs int
+		want time.Duration
+	}{{-1, time.Second}, {0, 5 * time.Second}, {1, time.Second}, {4, 4 * time.Second}, {7, 7 * time.Second}} {
+		if got := normalizeDeviceCodePollInterval(tc.secs); got != tc.want {
+			t.Fatalf("interval %d got %s want %s", tc.secs, got, tc.want)
 		}
-	}
-	if got := normalizeDeviceCodePollInterval(7); got != 7*time.Second {
-		t.Fatalf("normalizeDeviceCodePollInterval(7) = %v, want 7s", got)
 	}
 }
 
@@ -42,7 +42,20 @@ func TestOAuthDeviceCodeSlowDownHonorsServerProvidedInterval(t *testing.T) {
 		t.Fatalf("slow_down with server interval got (%v, %v), want 12s and continue", got, ok)
 	}
 	got, ok = nextDeviceCodePollIntervalWithServerInterval(7*time.Second, "slow_down", 1)
-	if !ok || got != 5*time.Second {
-		t.Fatalf("slow_down with low server interval got (%v, %v), want clamped 5s and continue", got, ok)
+	if !ok || got != time.Second {
+		t.Fatalf("slow_down with low server interval got (%v, %v), want clamped 1s and continue", got, ok)
+	}
+}
+
+// v1.5.0 oauth-device-code.test.ts uses a two-second interval; the shared
+// source helper clamps explicit intervals to one second, not five seconds.
+func TestV150DeviceCodeExplicitIntervals(t *testing.T) {
+	for _, seconds := range []int{1, 2, 4, 7} {
+		if got := normalizeDeviceCodePollInterval(seconds); got != time.Duration(seconds)*time.Second {
+			t.Errorf("interval %d: got %s", seconds, got)
+		}
+	}
+	if got, ok := nextDeviceCodePollIntervalWithServerInterval(2*time.Second, "slow_down", 1); !ok || got != time.Second {
+		t.Errorf("server interval 1: %s %v", got, ok)
 	}
 }

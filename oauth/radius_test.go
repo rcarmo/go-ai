@@ -210,7 +210,7 @@ func TestRadiusOAuthPollDeviceTokenSlowDownThenSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pollDeviceToken: %v", err)
 	}
-	if creds.Access != "access-after-slow" || len(intervals) != 2 || intervals[0] != 5*time.Second || intervals[1] != 10*time.Second {
+	if creds.Access != "access-after-slow" || len(intervals) != 2 || intervals[0] != time.Second || intervals[1] != 6*time.Second {
 		t.Fatalf("unexpected slow_down result creds=%#v intervals=%v", creds, intervals)
 	}
 }

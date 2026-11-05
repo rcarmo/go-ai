@@ -2,6 +2,14 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
+## Reproduced inference assessment fixes -- 5 November 2026
+
+[Assessment fixes](docs/upstream-v1.5.0/assessment-fixes.md) records the exact f9 upstream/native test comparison and fixes from base `d272616`: all 166 common-domain validation fixtures now pass, including the 24 previously failing leaves. Supplementary constraints preserve input ownership and exact native numbers. OAuth short server intervals follow the pinned one-second minimum; retry tests verify exact virtual-clock boundaries and timer retirement. Stale identity/catalogue assertions were reconciled against the official 1.5.0 archive without editing generated records.
+
+Final non-durable package run: **1,398 top-level passes, no failures/skips**, including all provider packages and durable/tools. Vet, Staticcheck 0.8.2, logging, full 1,712-record catalogue comparison and three effective constraint/timer/OAuth fault checks pass. Focused profiling identified scalar uniqueness allocation, which was tuned and remeasured; the receipt retains concise CPU/allocation conclusions and limits. Raw captures and disposable artifacts were removed.
+
+The unrestricted full suite **fails seven inherited durable functions**, all reproduced with the original validator restored. Their names and failures are retained in the receipt. No durable assertions were weakened, and no durable production code, generated catalogue, dependency, published ref or asset changed. Complete compiler, durable/codemode and release acceptance remain open. No hosted CI or release publication was performed.
+
 ## Deferred-poll boundary and cancellation cutoffs -- 3 November 2026
 
 [Three selected checks](docs/upstream-v1.5.0/poll-boundary.md) pass without runtime changes against `3620c50` (SQLite-only runtime `f284e25`). Tests `ddf546c3c5a6f65fc21a5854e37c241eb7676618`, tightened at `d98f0c2798d6250cc6233841c1de3db6615d517a`, cover actual f9 restart-failure source671: two host losses inside the deferred job's abort cancellation, then fault/aborted settlement at limit2. Two source-derived controls check terminal-only Go poll channels through completion/crash, and skipping repeated cancellation after host loss past the cutoff. The poll API at `generation.ts:332` returns one message; the earlier streamed-poll progress assumption is withdrawn. Failed-Session/close/reopen, virtual clock, joined callbacks and the extra native failedRun field are explicit adapters.

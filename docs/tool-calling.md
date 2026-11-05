@@ -127,7 +127,13 @@ if err != nil {
 - Tool exists
 - Required fields are present
 - Field types match schema (string, number, boolean, array, object)
-- Enum values are valid
+- Enum and constant values are valid
+- String lengths count Unicode code points; patterns use the bounded ECMAScript matcher
+- Numeric bounds and decimal `multipleOf` constraints hold
+- Array bounds, structural uniqueness, tuple/rest schemas and `contains` constraints hold
+- Object bounds, property names, dependencies, conditionals and unevaluated-property constraints hold
+
+Constraints also participate in union selection. Conversion and uniqueness checks do not mutate caller-owned arguments. Native cyclic uniqueness inputs are rejected, with a depth limit of 256 and an aggregate canonicalization limit of 1,048,576 values. These checks are not a claim of complete JSON Schema or pi-schema compiler equivalence; see the [pinned fixture coverage and remaining limits](upstream-v1.5.0/assessment-fixes.md).
 
 ## Returning tool results
 

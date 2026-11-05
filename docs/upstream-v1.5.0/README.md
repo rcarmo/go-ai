@@ -2,6 +2,10 @@
 
 The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. GitHub published the stable release at `2026-11-02T11:05:31Z`. Earlier release pins and receipts are historical comparison inputs; they establish no v1.5.0 acceptance. Retained tests, runtime identity and generated-schema/catalogue tooling must follow this release, including required breaking semantics.
 
+## Reproduced inference assessment fixes
+
+[Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
+
 ## Parity backlog and contract decisions
 
 [Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. [Contract decisions](parity-contract-decisions.md) records the afterRun, close/requeue, wait-cycle and refusal/failure conflicts; afterRun and close runtime changes need Rui's explicit direction. [Wait-cycle admission](wait-cycle-admission.md) records the P03 graph analysis and its separate runtime-change pause.

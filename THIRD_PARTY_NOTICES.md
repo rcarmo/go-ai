@@ -68,7 +68,13 @@ and optional-null normalisation follow the null-domain compiler/coercion rules
 at that pin. The literal equality, final coercion pass and diagnostic formatting
 in `schema_validation_literals.go`, `schema_validation_literal_coercion.go` and
 `schema_validation_literal_json.go` adapt `checks.ts`, `coerce.ts` and `explain.ts`
-from the same source. The MIT permission and
+from the same source. `schema_validation_constraints.go` and the extended
+branch-error selection in `schema_validation.go` follow `checks.ts`,
+`compiler.ts` and `explain.ts` at official v1.5.0
+`f9a26365568127461c47a07a37dcb42c140a3ac5`.
+`tests/testdata/validation_probes_v150.json` retains JSON-call outcomes from
+that release's `packages/ai/test/validation-probes.test.ts`; its exclusions are
+documented beside the native fixture test. The MIT permission and
 disclaimer printed above apply:
 
 Copyright (c) 2025 Mario Zechner
