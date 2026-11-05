@@ -109,6 +109,9 @@ func TestValidationPlainPatternTraversalStops(t *testing.T) {
 		`{"unevaluatedProperties":true}`,
 		`{"properties":{"x":{"unevaluatedItems":false}}}`,
 		`{"items":null}`,
+		// Pinned compiler follows this pointer with the inner resource base;
+		// the native resolver does not retain a base for data-only targets.
+		`{"$id":"https://example.test/outer","$defs":{"inner":{"$id":"https://example.test/inner","default":{"$ref":"#/$defs/bad"},"$defs":{"bad":{"pattern":"["}},"properties":{"x":{"$ref":"#/default"}}}},"properties":{"x":{"$ref":"https://example.test/inner"}}}`,
 	} {
 		var root map[string]interface{}
 		if err := json.Unmarshal([]byte(raw), &root); err != nil {

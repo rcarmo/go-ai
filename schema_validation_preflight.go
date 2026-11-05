@@ -195,8 +195,15 @@ func (p *plainPatternTraversal) walk(raw interface{}, depth int) error {
 		}
 	}
 	if ref, ok := node["$ref"].(string); ok {
-		// With unresolvedRefs: "reject", an unresolved target is false.
+		// With unresolvedRefs: "reject", an unresolved target is false. A
+		// pointer may name annotation data not indexed as a schema; its inherited
+		// resource base and source order are unavailable to this prototype.
 		if target := p.validator.resolve(ref, node); target != nil {
+			if schema, ok := target.(map[string]interface{}); ok {
+				if _, indexed := p.resources.bases[reflect.ValueOf(schema).Pointer()]; !indexed {
+					return fmt.Errorf("%w: unindexed reference target", errSchemaPatternPreflightUnsupported)
+				}
+			}
 			if err := p.walk(target, depth+1); err != nil {
 				return err
 			}
