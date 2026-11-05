@@ -48,6 +48,11 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 
 var classifierAttemptDeadline = errors.New("classifier attempt deadline")
 
+// The caller owns cancel until it transfers ownership to the response body.
+func classifierAttemptContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeoutCause(ctx, timeout, classifierAttemptDeadline)
+}
+
 type classifierAttemptBody struct {
 	io.ReadCloser
 	attempt context.Context
@@ -95,7 +100,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		attemptCtx := ctx
 		cancel := func() {}
 		if stopOnTransportError && attemptTimeout > 0 {
-			attemptCtx, cancel = context.WithTimeoutCause(ctx, attemptTimeout, classifierAttemptDeadline)
+			attemptCtx, cancel = classifierAttemptContext(ctx, attemptTimeout)
 		}
 		attemptReq := req.Clone(attemptCtx)
 		if req.GetBody != nil {
