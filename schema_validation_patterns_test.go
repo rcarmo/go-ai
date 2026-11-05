@@ -1,6 +1,7 @@
 package goai
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -70,5 +71,29 @@ func TestValidationStringPatternDeadlineFailClosed(t *testing.T) {
 	v.patternDeadline = time.Now().Add(-time.Second)
 	if v.schemaAcceptsValue("aaaa!", schema) || !strings.Contains(v.stringPatternReason("aaaa!", schema), "pattern checker unavailable") {
 		t.Fatal("expired pattern budget accepted")
+	}
+}
+
+// Schema compilation shares the match budget and memoizes syntax by pattern,
+// independent of any input value. Invalid syntax and expiry fail closed.
+func TestValidationPatternCompileBudgetAndMemo(t *testing.T) {
+	v := newToolSchemaValidator(map[string]interface{}{})
+	v.work = &toolSchemaWork{}
+	if err := v.checkSchemaPatternSyntax(`\p{L}+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.checkSchemaPatternSyntax(`\p{L}+`); err != nil || v.work.regexChecks != 1 {
+		t.Fatalf("compile cache err=%v checks=%d", err, v.work.regexChecks)
+	}
+	if err := v.checkSchemaPatternSyntax(`\a`); err != nil {
+		t.Fatalf("legacy fallback rejected: %v", err)
+	}
+	if err := v.checkSchemaPatternSyntax(`[`); err == nil {
+		t.Fatal("invalid pattern compiled")
+	}
+	expired := newToolSchemaValidator(map[string]interface{}{})
+	expired.patternDeadline = time.Now().Add(-time.Second)
+	if err := expired.checkSchemaPatternSyntax(`a`); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired compile got %v", err)
 	}
 }
