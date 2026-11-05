@@ -3,6 +3,7 @@ package goai_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +63,19 @@ func TestMainDecisionsProviderAttemptTimeoutDoesNotRetry(t *testing.T) {
 	defer cancel()
 	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", Context: ctx, TimeoutMs: 20, MaxRetries: 2})
 	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+// A rejected fetch is an ordinary error, without provider status and headers.
+func TestMainDecisionsProviderFetchErrorDoesNotRetry(t *testing.T) {
+	var calls atomic.Int32
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return nil, errors.New("fetch fixture failure")
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, MaxRetries: 2})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || !strings.Contains(result.ErrorMessage, "fetch fixture failure") {
 		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
 	}
 }

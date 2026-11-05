@@ -2,11 +2,9 @@ package goai
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,7 +44,7 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
-func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTimeout bool) (*http.Response, error) {
+func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool) (*http.Response, error) {
 	cfg.applyDefaults()
 	if client == nil {
 		client = cfg.NewHTTPClient()
@@ -70,8 +68,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		}
 		resp, err := client.Do(attemptReq)
 		if err != nil {
-			var networkError net.Error
-			if stopOnTimeout && errors.As(err, &networkError) && networkError.Timeout() {
+			if stopOnTransportError {
 				return nil, err
 			}
 			return nil, &ProviderRequestError{Status: 0, Headers: http.Header{}, Message: err.Error(), Cause: err}
