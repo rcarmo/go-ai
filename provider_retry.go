@@ -2,9 +2,11 @@ package goai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,10 +43,10 @@ type ProviderRetryOptions struct {
 }
 
 func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
-	return doProviderRequestWithRetry(ctx, client, req, cfg, nil)
+	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
-func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int) (*http.Response, error) {
+func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTimeout bool) (*http.Response, error) {
 	cfg.applyDefaults()
 	if client == nil {
 		client = cfg.NewHTTPClient()
@@ -68,6 +70,10 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		}
 		resp, err := client.Do(attemptReq)
 		if err != nil {
+			var networkError net.Error
+			if stopOnTimeout && errors.As(err, &networkError) && networkError.Timeout() {
+				return nil, err
+			}
 			return nil, &ProviderRequestError{Status: 0, Headers: http.Header{}, Message: err.Error(), Cause: err}
 		}
 		// Retry directives apply to failures, never an opened successful stream.

@@ -405,7 +405,7 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 		cfg.RequestTimeout = time.Duration(request.options.TimeoutMs) * time.Millisecond
 	}
 	client = withClassifierTimeout(client, cfg)
-	resp, err := DoProviderRequestWithRetry(request.ctx, client, req, cfg)
+	resp, err := doProviderRequestWithRetry(request.ctx, client, req, cfg, nil, true)
 	if err != nil {
 		return nil, err
 	}

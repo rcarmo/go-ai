@@ -1,12 +1,14 @@
 package goai_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -40,6 +42,25 @@ func TestMainDecisionsProviderExplicitZeroRetries(t *testing.T) {
 	defer srv.Close()
 	zero := 0
 	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", MaxRetriesOverride: &zero})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+// Source-derived: an attempt timeout is a TimeoutError, not a provider error.
+func TestMainDecisionsProviderAttemptTimeoutDoesNotRetry(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(100 * time.Millisecond):
+		}
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", Context: ctx, TimeoutMs: 20, MaxRetries: 2})
 	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 {
 		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
 	}
