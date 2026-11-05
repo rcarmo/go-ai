@@ -32,6 +32,9 @@ type ProviderRetryOptions struct {
 	MaxRetries      int
 	MaxRetryDelay   time.Duration
 	DisableDelayCap bool
+	// NoRetryStatuses excludes these provider statuses even when a server
+	// explicitly requests a retry.
+	NoRetryStatuses []int
 }
 
 func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
@@ -106,6 +109,11 @@ func RetryProviderRequest[T any](ctx context.Context, request func() (T, error),
 		perr, ok := err.(*ProviderRequestError)
 		if remaining <= 0 || !ok || !isRetryableProviderRequestError(perr) {
 			return value, err
+		}
+		for _, status := range options.NoRetryStatuses {
+			if perr.Status == status {
+				return value, err
+			}
 		}
 		retryIndex := maxRetries - remaining
 		remaining--

@@ -1,0 +1,5 @@
+# Provider retry status exclusion
+
+Pinned `packages/ai/test/provider-retry.test.ts:40` requires a 504 in `noRetryStatuses` to return the same error after one attempt despite a retry budget. `packages/ai/src/utils/provider-retry.ts` applies the exclusion after ordinary retry classification, including the provider's `x-should-retry` directive.
+
+At parent `f94f7fc`, the translated test failed to compile because `ProviderRetryOptions` had no exclusion field. `NoRetryStatuses` now applies to `RetryProviderRequest` without changing the existing HTTP `RetryConfig.RetryableStatuses` allow-list. The source-shaped test checks the original 504 error and attempt count, plus source-derived forced/veto headers, a retried 503 and an ordinary error. An overlay removing the exclusion failed both unmarked and forced 504 controls. Six selected provider retry functions passed count1 in 1.016s; vet for root and tests, formatting and diff checks pass. No runtime network, paid calls, full suite, profiling, hosted CI or release ran; scratch was removed. Wiring exclusions through particular provider adapters and full provider retry parity remain unverified.
