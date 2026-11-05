@@ -142,3 +142,30 @@ type retryCloseWitness struct {
 }
 
 func (b *retryCloseWitness) Close() error { *b.closed = true; return nil }
+
+func TestDoWithRetryHugeConfiguredCapDoesNotWrap(t *testing.T) {
+	maxDurationMs := int64((1<<63 - 1) / int64(time.Millisecond))
+	if int64(int(maxDurationMs+1)) != maxDurationMs+1 {
+		t.Skip("int too narrow to exercise duration overflow")
+	}
+	calls := 0
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return &http.Response{StatusCode: 429, Header: http.Header{"Retry-After": []string{"0.001"}}, Body: io.NopCloser(strings.NewReader("busy"))}, nil
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("ok"))}, nil
+	})}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	cfg := goai.NoRetryConfig()
+	cfg.MaxRetries, cfg.MaxRetryDelayMs = 1, int(maxDurationMs+1)
+	response, err := goai.DoWithRetry(ctx, client, req, cfg)
+	if response != nil {
+		defer response.Body.Close()
+	}
+	if err != nil || response == nil || response.StatusCode != 200 || calls != 2 {
+		t.Fatalf("response=%v err=%v calls=%d", response, err, calls)
+	}
+}

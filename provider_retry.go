@@ -94,15 +94,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	if req.Body != nil && req.GetBody == nil && cfg.MaxRetries > 0 {
 		return nil, fmt.Errorf("retry requires request.GetBody for replayable request body")
 	}
-	maxDelay := time.Duration(0)
-	if cfg.MaxRetryDelayMs > 0 {
-		if int64(cfg.MaxRetryDelayMs) > math.MaxInt64/int64(time.Millisecond) {
-			maxDelay = time.Duration(math.MaxInt64)
-		} else {
-			maxDelay = time.Duration(cfg.MaxRetryDelayMs) * time.Millisecond
-		}
-	}
-	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: maxDelay, DisableDelayCap: cfg.MaxRetryDelayMs <= 0}
+	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: boundedRetryCap(cfg.MaxRetryDelayMs), DisableDelayCap: cfg.MaxRetryDelayMs <= 0}
 	attempt := 0
 	return retryProviderRequest(ctx, func() (*http.Response, error) {
 		attempt++

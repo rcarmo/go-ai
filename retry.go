@@ -4,6 +4,7 @@ package goai
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -161,6 +162,18 @@ func RetryConfigFromOptions(opts *StreamOptions) RetryConfig {
 	return NoRetryConfig()
 }
 
+// boundedRetryCap converts a positive millisecond cap without duration wrap.
+// Nonpositive values disable the cap; unrepresentably large caps saturate.
+func boundedRetryCap(ms int) time.Duration {
+	if ms <= 0 {
+		return 0
+	}
+	if int64(ms) > math.MaxInt64/int64(time.Millisecond) {
+		return time.Duration(math.MaxInt64)
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 // DoWithRetry executes an HTTP request with retry logic.
 //
 // If all retries are exhausted on HTTP status responses, the final response is
@@ -224,7 +237,7 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 
 		logWarn("retryable HTTP status", "status", resp.StatusCode, "attempt", attempt+1, "maxRetries", cfg.MaxRetries, "delay", delay)
 
-		if cfg.MaxRetryDelayMs > 0 && delay > time.Duration(cfg.MaxRetryDelayMs)*time.Millisecond {
+		if cfg.MaxRetryDelayMs > 0 && delay > boundedRetryCap(cfg.MaxRetryDelayMs) {
 			logWarn("retry delay exceeds cap", "status", resp.StatusCode, "delay", delay, "capMs", cfg.MaxRetryDelayMs)
 			resp.Body.Close()
 			return nil, fmt.Errorf("server requested retry delay of %v exceeds cap of %dms (HTTP %d)",
