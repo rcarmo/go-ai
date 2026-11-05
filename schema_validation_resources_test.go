@@ -134,3 +134,26 @@ func TestValidationResolvedReferenceCarriesPointerBase(t *testing.T) {
 		t.Fatalf("unresolved=%v", target)
 	}
 }
+
+// Equal relative references in different resources must not share a cache
+// entry: each base names its own schema, even after the cache is warm.
+func TestValidationResolvedReferenceCacheSeparatesBases(t *testing.T) {
+	raw := []byte(`{"$id":"https://example.test/root","$defs":{"a":{"$id":"https://example.test/a","$defs":{"value":{"type":"number"}}},"b":{"$id":"https://example.test/b","$defs":{"value":{"type":"string"}}}}}`)
+	var root map[string]interface{}
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	v := newToolSchemaValidator(root, raw)
+	for _, tc := range []struct{ base, want string }{
+		{"https://example.test/a", "number"},
+		{"https://example.test/b", "string"},
+		{"https://example.test/a", "number"},
+		{"https://example.test/b", "string"},
+	} {
+		target, base := v.resolveFromBase("#/$defs/value", tc.base)
+		m, ok := target.(map[string]interface{})
+		if !ok || m["type"] != tc.want || base != tc.base {
+			t.Fatalf("base=%q target=%v targetBase=%q", tc.base, target, base)
+		}
+	}
+}
