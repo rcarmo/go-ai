@@ -267,14 +267,23 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 	return time.Duration(float64(delay) * (1 - rand.Float64()*0.25)), nil
 }
 
-// parseProviderRetryDate supports HTTP dates and the long-month UTC form
-// accepted by Date.parse. Other JavaScript date formats are not yet covered.
+// parseProviderRetryDate supports HTTP dates and selected long-month and
+// numeric GMT-offset forms accepted by Date.parse. Other formats remain open.
 func parseProviderRetryDate(value string) (time.Time, error) {
 	when, err := http.ParseTime(value)
 	if err == nil {
 		return when, nil
 	}
-	return time.Parse("January 2, 2006 15:04:05 GMT", value)
+	for _, layout := range []string{
+		"January 2, 2006 15:04:05 GMT-0700",
+		"Mon, 02 Jan 2006 15:04:05 GMT-0700",
+		"January 2, 2006 15:04:05 GMT",
+	} {
+		if when, err = time.Parse(layout, value); err == nil {
+			return when, nil
+		}
+	}
+	return time.Time{}, err
 }
 
 // parseProviderRetryFloat follows Number.parseFloat's decimal-prefix grammar.

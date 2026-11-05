@@ -57,6 +57,31 @@ func TestMainProviderRetryHeaderECMAScriptWhitespace(t *testing.T) {
 	}
 }
 
+// Source-derived Date.parse offset cases. Compare absolute instants as well as
+// the cap outcome so accepting a date in the wrong timezone cannot pass.
+func TestMainProviderRetryHeaderGMTOffsetDate(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  time.Time
+	}{
+		{"January 1, 2100 00:00:00 GMT+0100", time.Date(2099, 12, 31, 23, 0, 0, 0, time.UTC)},
+		{"Fri, 01 Jan 2100 00:00:00 GMT+0100", time.Date(2099, 12, 31, 23, 0, 0, 0, time.UTC)},
+		{"January 1, 2100 00:00:00 GMT-0230", time.Date(2100, 1, 1, 2, 30, 0, 0, time.UTC)},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			got, err := parseProviderRetryDate(tc.value)
+			if err != nil || !got.Equal(tc.want) {
+				t.Fatalf("parse got %v, %v; want %v", got, err, tc.want)
+			}
+			header := http.Header{"Retry-After": []string{tc.value}}
+			_, err = providerRetryDelay(&ProviderRequestError{Status: 429, Headers: header, Message: "busy"}, 0, ProviderRetryOptions{MaxRetryDelay: time.Second})
+			if err == nil || !strings.Contains(err.Error(), "retry delay") {
+				t.Fatalf("delay got %v; want server delay-cap error", err)
+			}
+		})
+	}
+}
+
 // Source-derived from the Retry-After Date.parse fallback. The long month
 // form is accepted by the pinned JavaScript runtime but not net/http.ParseTime.
 func TestMainProviderRetryHeaderLongMonthDate(t *testing.T) {
