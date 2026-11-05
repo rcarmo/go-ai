@@ -71,9 +71,6 @@ func GetSupportedThinkingLevels(model *Model) []ModelThinkingLevel {
 		}
 		out = append(out, level)
 	}
-	if len(out) == 0 {
-		return []ModelThinkingLevel{ThinkingOff}
-	}
 	return out
 }
 
