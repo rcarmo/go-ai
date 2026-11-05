@@ -96,7 +96,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	}
 	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: time.Duration(cfg.MaxRetryDelayMs) * time.Millisecond, DisableDelayCap: cfg.MaxRetryDelayMs == 0}
 	attempt := 0
-	return RetryProviderRequest(ctx, func() (*http.Response, error) {
+	return retryProviderRequest(ctx, func() (*http.Response, error) {
 		attemptCtx := ctx
 		cancel := func() {}
 		if stopOnTransportError && attemptTimeout > 0 {
@@ -162,14 +162,15 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 			headers.Set("x-should-retry", "true")
 		}
 		resp.Body.Close()
-		if cfg.OnRetry != nil {
-			cfg.OnRetry(attempt-1, 0, resp.StatusCode)
-		}
 		return nil, &ProviderRequestError{Status: resp.StatusCode, Headers: headers, Message: fmt.Sprintf("HTTP %d", resp.StatusCode)}
-	}, options)
+	}, options, cfg.OnRetry)
 }
 
 func RetryProviderRequest[T any](ctx context.Context, request func() (T, error), options ProviderRetryOptions) (T, error) {
+	return retryProviderRequest(ctx, request, options, nil)
+}
+
+func retryProviderRequest[T any](ctx context.Context, request func() (T, error), options ProviderRetryOptions, onRetry func(int, time.Duration, int)) (T, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -199,6 +200,9 @@ func RetryProviderRequest[T any](ctx context.Context, request func() (T, error),
 		if err != nil {
 			var zero T
 			return zero, err
+		}
+		if onRetry != nil {
+			onRetry(retryIndex, delay, perr.Status)
 		}
 		if err := sleepProviderRetry(ctx, delay); err != nil {
 			var zero T

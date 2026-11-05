@@ -2,6 +2,7 @@ package goai_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -21,6 +22,69 @@ type providerRetryBodyMain struct {
 }
 
 func (b *providerRetryBodyMain) Close() error { b.closed++; return nil }
+
+// OnRetry is a native RetryConfig contract, not an upstream provider callback.
+// It reports an admitted retry and its actual delay, including network errors.
+func TestProviderHTTPRetryCallbackMain(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		transport  bool
+		capError   bool
+		cancel     bool
+		wantCalls  int
+		wantEvents int
+		wantDelay  time.Duration
+		wantStatus int
+	}{
+		{name: "http", wantCalls: 2, wantEvents: 1, wantDelay: 3 * time.Millisecond, wantStatus: 429},
+		{name: "transport", transport: true, wantCalls: 2, wantEvents: 1, wantDelay: -1, wantStatus: 0},
+		{name: "cap-rejects", capError: true, wantCalls: 1},
+		{name: "callback-cancels", cancel: true, wantCalls: 1, wantEvents: 1, wantDelay: 3 * time.Millisecond, wantStatus: 429},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			calls, events := 0, 0
+			client := &http.Client{Transport: providerRetryTransportMain(func(_ *http.Request) (*http.Response, error) {
+				calls++
+				if calls == 1 {
+					if tc.transport {
+						return nil, fmt.Errorf("transport failure")
+					}
+					delay := "3"
+					if tc.capError {
+						delay = "2000"
+					}
+					return &http.Response{StatusCode: 429, Header: http.Header{"Retry-After-Ms": []string{delay}}, Body: io.NopCloser(strings.NewReader("busy"))}, nil
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("ok"))}, nil
+			})}
+			cfg := goai.NoRetryConfig()
+			cfg.MaxRetries, cfg.MaxRetryDelayMs = 1, 1000
+			cfg.OnRetry = func(attempt int, delay time.Duration, status int) {
+				events++
+				if attempt != 0 || status != tc.wantStatus || (tc.wantDelay >= 0 && delay != tc.wantDelay) || (tc.wantDelay < 0 && (delay < 375*time.Millisecond || delay > 500*time.Millisecond)) {
+					t.Errorf("callback got attempt=%d delay=%s status=%d", attempt, delay, status)
+				}
+				if tc.cancel {
+					cancel()
+				}
+			}
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+			resp, err := goai.DoProviderRequestWithRetry(ctx, client, req, cfg)
+			if resp != nil {
+				resp.Body.Close()
+			}
+			if (tc.capError || tc.cancel) != (err != nil) {
+				t.Fatalf("unexpected result: response=%v error=%v", resp, err)
+			}
+			if calls != tc.wantCalls || events != tc.wantEvents {
+				t.Fatalf("calls=%d events=%d; want %d/%d", calls, events, tc.wantCalls, tc.wantEvents)
+			}
+		})
+	}
+}
+
 func TestProviderHTTPRetryDirectiveAndOwnershipMain(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
