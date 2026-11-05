@@ -1,6 +1,7 @@
 package retry_test
 
 import (
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -103,5 +104,24 @@ func TestParseDurationString(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("ParseDurationString(%q) = %v, want %v", tt.input, got, tt.expected)
 		}
+	}
+}
+
+func TestParseRetryAfterHugeAndNonFinite(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		header http.Header
+		want   time.Duration
+	}{
+		{"huge-seconds", http.Header{"Retry-After": []string{"1e100"}}, time.Duration(math.MaxInt64)},
+		{"huge-reset", http.Header{"X-Ratelimit-Reset-After": []string{"1e100"}}, time.Duration(math.MaxInt64)},
+		{"infinity-fallback", http.Header{"Retry-After": []string{"Infinity"}, "X-Ratelimit-Reset-After": []string{"2"}}, 2 * time.Second},
+		{"nan-fallback", http.Header{"Retry-After": []string{"NaN"}, "X-Ratelimit-Reset-After": []string{"2"}}, 2 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retry.ParseRetryAfter(tc.header); got != tc.want {
+				t.Fatalf("got %v want %v", got, tc.want)
+			}
+		})
 	}
 }

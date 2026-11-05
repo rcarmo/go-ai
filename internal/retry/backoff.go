@@ -31,7 +31,9 @@ func ParseRetryAfter(headers http.Header) time.Duration {
 	val := headers.Get("Retry-After")
 	if val != "" {
 		if secs, err := strconv.ParseFloat(val, 64); err == nil {
-			return time.Duration(secs * float64(time.Second))
+			if delay, finite := boundedSeconds(secs); finite {
+				return delay
+			}
 		}
 		if t, err := http.ParseTime(val); err == nil {
 			delay := time.Until(t)
@@ -64,9 +66,27 @@ func ParseDurationString(s string) time.Duration {
 		return d
 	}
 	if secs, err := strconv.ParseFloat(s, 64); err == nil {
-		return time.Duration(secs * float64(time.Second))
+		if delay, finite := boundedSeconds(secs); finite {
+			return delay
+		}
 	}
 	return 0
+}
+
+// A finite positive delay outside time.Duration's range must remain a long
+// delay rather than wrap negative and become an immediate retry.
+func boundedSeconds(seconds float64) (time.Duration, bool) {
+	if math.IsNaN(seconds) || math.IsInf(seconds, 0) {
+		return 0, false
+	}
+	nanos := seconds * float64(time.Second)
+	if nanos >= float64(math.MaxInt64) {
+		return time.Duration(math.MaxInt64), true
+	}
+	if nanos <= float64(math.MinInt64) {
+		return time.Duration(math.MinInt64), true
+	}
+	return time.Duration(nanos), true
 }
 
 // IsRetryableStatus returns true for status codes that should be retried.

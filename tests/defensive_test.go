@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,3 +111,34 @@ func TestDoWithRetryReplaysBodyAcrossRetries(t *testing.T) {
 		t.Fatalf("expected 2 attempts, got %d", attempts)
 	}
 }
+
+// A very large finite server delay must hit the configured cap, not wrap into
+// a negative duration and become a short fallback retry.
+func TestDoWithRetryHugeServerDelayIsCapped(t *testing.T) {
+	calls := 0
+	closed := false
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 429, Header: http.Header{"Retry-After": []string{"1e100"}}, Body: &retryCloseWitness{Reader: strings.NewReader("busy"), closed: &closed}}, nil
+	})}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	cfg := goai.NoRetryConfig()
+	cfg.MaxRetries, cfg.MaxRetryDelayMs = 1, 1000
+	cfg.InitialDelay = time.Millisecond
+	resp, err := goai.DoWithRetry(ctx, client, req, cfg)
+	if resp != nil {
+		resp.Body.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "exceeds cap") || calls != 1 || !closed {
+		t.Fatalf("response=%v err=%v calls=%d closed=%v", resp, err, calls, closed)
+	}
+}
+
+type retryCloseWitness struct {
+	io.Reader
+	closed *bool
+}
+
+func (b *retryCloseWitness) Close() error { *b.closed = true; return nil }
