@@ -17,12 +17,13 @@ const toolSchemaDefaultBase = "https://json-schema.invalid/root.json"
 
 type toolSchemaRefKey struct{ base, ref string }
 type toolSchemaResources struct {
-	bases         map[uintptr]string
-	documents     map[string]interface{}
-	anchors       map[string]interface{}
-	orders        map[uintptr][]string
-	literalOrders map[uintptr][]string
-	work          *toolSchemaWork
+	bases          map[uintptr]string
+	documents      map[string]interface{}
+	anchors        map[string]interface{}
+	orders         map[uintptr][]string
+	compilerOrders map[uintptr][]string
+	literalOrders  map[uintptr][]string
+	work           *toolSchemaWork
 }
 
 // Index only schema-bearing keywords, in the pinned resolver's order. An ID
@@ -92,6 +93,19 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 		}
 	}
 	r.bases[identity] = base
+	// The compiler enumerates these schema maps even after reference indexing.
+	// Keep only their source ordering, not annotation/extension data order.
+	for _, keyword := range []string{"properties", "patternProperties", "dependentSchemas", "dependencies"} {
+		if entries, ok := node[keyword].(map[string]interface{}); ok {
+			id := reflect.ValueOf(entries).Pointer()
+			if keys, found := r.orders[id]; found {
+				if r.compilerOrders == nil {
+					r.compilerOrders = make(map[uintptr][]string)
+				}
+				r.compilerOrders[id] = keys
+			}
+		}
+	}
 	for _, keyword := range []string{"const", "enum"} {
 		r.retainLiteralOrder(node[keyword])
 	}
@@ -246,7 +260,11 @@ func (r *toolSchemaResources) readOrder(root interface{}, raw []byte) {
 }
 
 func (r *toolSchemaResources) keys(object map[string]interface{}) []string {
-	if keys, ok := r.orders[reflect.ValueOf(object).Pointer()]; ok {
+	id := reflect.ValueOf(object).Pointer()
+	if keys, ok := r.orders[id]; ok {
+		return keys
+	}
+	if keys, ok := r.compilerOrders[id]; ok {
 		return keys
 	}
 	return schemaJSKeys(sortedSchemaKeys(object))

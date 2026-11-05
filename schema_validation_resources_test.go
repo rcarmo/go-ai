@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -68,5 +69,40 @@ func TestValidationResourceIndexWork(t *testing.T) {
 	}
 	if len(v.refs) != 128 || len(v.resources.bases) != 129 || len(v.resources.orders) != 0 {
 		t.Fatal("unexpected resource cache or retained ordering metadata")
+	}
+}
+
+// The compiler visits schema map entries in JavaScript property order. Indexing
+// must retain that order for reachable property maps, not annotation data.
+func TestValidationResourceCompilerOrderRetention(t *testing.T) {
+	raw := []byte(`{"properties":{"z":{"type":"string"},"10":true,"2":false,"a":{"properties":{"y":true,"x":false}}},"patternProperties":{"z":true,"a":true},"$defs":{"unused":{"properties":{"q":true,"b":false}}},"default":{"z":1,"a":2}}`)
+	var root map[string]interface{}
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	v := newToolSchemaValidator(root, raw)
+	r := v.resourceIndex()
+	props := root["properties"].(map[string]interface{})
+	if got := r.keys(props); !reflect.DeepEqual(got, []string{"2", "10", "z", "a"}) {
+		t.Fatalf("property order=%v", got)
+	}
+	inner := props["a"].(map[string]interface{})["properties"].(map[string]interface{})
+	if got := r.keys(inner); !reflect.DeepEqual(got, []string{"y", "x"}) {
+		t.Fatalf("nested property order=%v", got)
+	}
+	patterns := root["patternProperties"].(map[string]interface{})
+	if got := r.keys(patterns); !reflect.DeepEqual(got, []string{"z", "a"}) {
+		t.Fatalf("pattern order=%v", got)
+	}
+	unused := root["$defs"].(map[string]interface{})["unused"].(map[string]interface{})["properties"].(map[string]interface{})
+	if got := r.keys(unused); !reflect.DeepEqual(got, []string{"q", "b"}) {
+		t.Fatalf("referencable definition order=%v", got)
+	}
+	annotation := root["default"].(map[string]interface{})
+	if got := r.keys(annotation); !reflect.DeepEqual(got, []string{"a", "z"}) {
+		t.Fatalf("annotation data order was retained: %v", got)
+	}
+	if len(r.orders) != 0 || v.schemaRaw != nil {
+		t.Fatal("retained full ordering table or raw schema")
 	}
 }
