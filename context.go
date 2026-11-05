@@ -137,6 +137,9 @@ func ValidateToolArguments(tool *Tool, tc ToolCall) (map[string]interface{}, err
 	}
 	v := newToolSchemaValidator(schema, tool.Parameters)
 	out := v.normalizeOptionalNulls(tc.Arguments, schema).(map[string]interface{})
+	if v.patternFailure != nil {
+		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
 	if out == nil {
 		out = make(map[string]interface{})
 	}
@@ -257,8 +260,16 @@ func hasStringRef(schema map[string]interface{}) bool {
 
 func (v *toolSchemaValidator) coerceWithJSONSchema(value interface{}, schema map[string]interface{}) (interface{}, error) {
 	converted := v.coerceValidationTypes(v.convertValidationValue(value, schema), schema)
-	if !v.schemaAcceptsValue(converted, schema) {
-		return nil, v.issue(converted, schema, "", make(map[toolSchemaMemoKey]bool))
+	accepted := v.schemaAcceptsValue(converted, schema)
+	if v.patternFailure != nil {
+		return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+	}
+	if !accepted {
+		issue := v.issue(converted, schema, "", make(map[toolSchemaMemoKey]bool))
+		if v.patternFailure != nil {
+			return nil, fmt.Errorf("pattern checker unavailable: %w", v.patternFailure)
+		}
+		return nil, issue
 	}
 	return converted, nil
 }

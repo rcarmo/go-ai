@@ -28,6 +28,17 @@ func TestValidationStringPatternMemoAndFailure(t *testing.T) {
 	}
 }
 
+func TestValidationPatternFailureCannotBeHiddenByUnion(t *testing.T) {
+	pattern := map[string]interface{}{"type": "string", "pattern": `^a+$`}
+	schema := map[string]interface{}{"anyOf": []interface{}{pattern, map[string]interface{}{"type": "string"}}}
+	v := newToolSchemaValidator(schema)
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`^a+$`, "aaa"}: {err: errors.New("engine unavailable")}}
+	_, err := v.coerceWithJSONSchema("aaa", schema)
+	if err == nil || !strings.Contains(err.Error(), "engine unavailable") {
+		t.Fatalf("union hid infrastructure failure: %v", err)
+	}
+}
+
 func TestValidationPatternPropertyFailureIsNotAccepted(t *testing.T) {
 	schema := map[string]interface{}{"type": "object", "patternProperties": map[string]interface{}{`(?<!x)y`: true}}
 	v := newToolSchemaValidator(schema)

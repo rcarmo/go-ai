@@ -59,6 +59,7 @@ type toolSchemaValidator struct {
 	regex           map[string]toolSchemaRegexResult
 	patterns        map[toolSchemaPatternKey]toolSchemaPatternResult
 	patternDeadline time.Time
+	patternFailure  error
 	converted       map[toolSchemaMemoKey]interface{}
 	converting      map[toolSchemaMemoKey]bool
 	checked         map[toolSchemaMemoKey]bool

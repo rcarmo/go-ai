@@ -56,5 +56,8 @@ func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchem
 		}
 		v.patterns[key] = result
 	}
+	if result.err != nil && v.patternFailure == nil {
+		v.patternFailure = result.err
+	}
 	return result
 }
