@@ -340,7 +340,7 @@ func withClassifierTimeout(client *http.Client, cfg RetryConfig) *http.Client {
 		client = http.DefaultClient
 	}
 	copy := *client
-	if cfg.RequestTimeout > 0 {
+	if cfg.RequestTimeout > 0 && (copy.Timeout == 0 || cfg.RequestTimeout < copy.Timeout) {
 		copy.Timeout = cfg.RequestTimeout
 	}
 	return &copy
@@ -501,17 +501,21 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 		return nil, err
 	}
 	client = withClassifierTimeout(client, retryCfg)
+	attemptTimeout := retryCfg.RequestTimeout
+	if attemptTimeout > 0 && client.Timeout > 0 && client.Timeout < attemptTimeout {
+		attemptTimeout = 0
+	}
 	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses, true)
 	if err != nil {
-		if ctx.Err() == nil && retryCfg.RequestTimeout > 0 && errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("Request timed out after %dms", retryCfg.RequestTimeout.Milliseconds())
+		if ctx.Err() == nil && attemptTimeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("Request timed out after %dms", attemptTimeout.Milliseconds())
 		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
-		return nil, classifierResponseReadError(label, err, retryCfg.RequestTimeout, ctx)
+		return nil, classifierResponseReadError(label, err, attemptTimeout, ctx)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &classifierHTTPError{status: resp.StatusCode, body: string(data), label: label}

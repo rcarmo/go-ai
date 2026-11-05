@@ -206,6 +206,25 @@ func TestMainDecisionsProviderBodyCallerCancellation(t *testing.T) {
 	}
 }
 
+// A caller-owned client deadline must not be lengthened by classifier options.
+func TestMainDecisionsProviderPreservesShorterClientTimeout(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(150 * time.Millisecond):
+			_ = json.NewEncoder(w).Encode(map[string]any{"answers": decisionsAnswers110()})
+		}
+	}))
+	defer srv.Close()
+	client := &http.Client{Timeout: 20 * time.Millisecond}
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, TimeoutMs: 200})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || strings.Contains(result.ErrorMessage, "timed out after 200ms") || client.Timeout != 20*time.Millisecond {
+		t.Fatalf("calls=%d, client timeout=%v, result=%+v, error=%v", calls.Load(), client.Timeout, result, err)
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {
