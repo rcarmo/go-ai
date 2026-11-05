@@ -7,7 +7,9 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 )
 
 const defaultProviderMaxRetryDelay = 60 * time.Second
@@ -166,17 +168,18 @@ func isRetryableProviderRequestError(err *ProviderRequestError) bool {
 func providerRetryDelay(err *ProviderRequestError, retryIndex int, options ProviderRetryOptions) (time.Duration, error) {
 	if err.Headers != nil {
 		if v := err.Headers.Get("retry-after-ms"); v != "" {
-			ms, parseErr := strconv.ParseFloat(v, 64)
-			if parseErr == nil && !math.IsNaN(ms) && !math.IsInf(ms, 0) {
+			ms, numeric := parseProviderRetryFloat(v)
+			if numeric && !math.IsInf(ms, 0) {
 				return validateProviderRetrySeconds(ms/1000, options, err.Error())
 			}
 		}
 		if v := err.Headers.Get("retry-after"); v != "" {
-			seconds, parseErr := strconv.ParseFloat(v, 64)
-			if parseErr == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) {
-				return validateProviderRetrySeconds(seconds, options, err.Error())
-			}
-			if when, dateErr := http.ParseTime(v); dateErr == nil {
+			seconds, numeric := parseProviderRetryFloat(v)
+			if numeric {
+				if !math.IsInf(seconds, 0) && !math.IsInf(seconds*1000, 0) {
+					return validateProviderRetrySeconds(seconds, options, err.Error())
+				}
+			} else if when, dateErr := http.ParseTime(v); dateErr == nil {
 				return validateProviderRetryDelay(time.Until(when), options, err.Error())
 			}
 		}
@@ -187,6 +190,53 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 		delay = 500 * time.Millisecond << max(retryIndex, 0)
 	}
 	return time.Duration(float64(delay) * (1 - rand.Float64()*0.25)), nil
+}
+
+// parseProviderRetryFloat follows Number.parseFloat's decimal-prefix grammar.
+// Its bool distinguishes NaN (which permits the date fallback) from infinity.
+func parseProviderRetryFloat(value string) (float64, bool) {
+	value = strings.TrimLeftFunc(value, func(r rune) bool { return unicode.IsSpace(r) || r == '\uFEFF' })
+	i := 0
+	if i < len(value) && (value[i] == '+' || value[i] == '-') {
+		i++
+	}
+	if strings.HasPrefix(value[i:], "Infinity") {
+		if i > 0 && value[0] == '-' {
+			return math.Inf(-1), true
+		}
+		return math.Inf(1), true
+	}
+	digits := 0
+	for i < len(value) && value[i] >= '0' && value[i] <= '9' {
+		i++
+		digits++
+	}
+	if i < len(value) && value[i] == '.' {
+		i++
+		for i < len(value) && value[i] >= '0' && value[i] <= '9' {
+			i++
+			digits++
+		}
+	}
+	if digits == 0 {
+		return 0, false
+	}
+	end := i
+	if i < len(value) && (value[i] == 'e' || value[i] == 'E') {
+		i++
+		if i < len(value) && (value[i] == '+' || value[i] == '-') {
+			i++
+		}
+		start := i
+		for i < len(value) && value[i] >= '0' && value[i] <= '9' {
+			i++
+		}
+		if i > start {
+			end = i
+		}
+	}
+	parsed, _ := strconv.ParseFloat(value[:end], 64)
+	return parsed, true
 }
 
 func validateProviderRetryDelay(delay time.Duration, options ProviderRetryOptions, message string) (time.Duration, error) {
