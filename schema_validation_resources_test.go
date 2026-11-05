@@ -106,3 +106,31 @@ func TestValidationResourceCompilerOrderRetention(t *testing.T) {
 		t.Fatal("retained full ordering table or raw schema")
 	}
 }
+
+// A JSON Pointer can select non-indexed data, while inheriting the last
+// indexed resource's base. Resolve must retain that base on cache hits.
+func TestValidationResolvedReferenceCarriesPointerBase(t *testing.T) {
+	raw := []byte(`{"$id":"https://example.test/outer","$defs":{"inner":{"$id":"https://example.test/inner","default":{"$ref":"#/$defs/number"},"$defs":{"number":{"type":"number"}},"properties":{"x":{"$ref":"#/default"}}}},"properties":{"x":{"$ref":"https://example.test/inner"}}}`)
+	var root map[string]interface{}
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	v := newToolSchemaValidator(root, raw)
+	inner := root["$defs"].(map[string]interface{})["inner"].(map[string]interface{})
+	from := inner["properties"].(map[string]interface{})["x"].(map[string]interface{})
+	want := inner["default"].(map[string]interface{})
+	for i := 0; i < 2; i++ {
+		target, base := v.resolveWithBase("#/default", from)
+		m, ok := target.(map[string]interface{})
+		if !ok || reflect.ValueOf(m).Pointer() != reflect.ValueOf(want).Pointer() || base != "https://example.test/inner" {
+			t.Fatalf("target=%v base=%q", target, base)
+		}
+	}
+	_, base := v.resolveWithBase("#/$defs/inner/default", root)
+	if base != "https://example.test/inner" {
+		t.Fatalf("nested pointer base=%q", base)
+	}
+	if target, _ := v.resolveWithBase("#/missing", from); target != nil {
+		t.Fatalf("unresolved=%v", target)
+	}
+}

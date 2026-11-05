@@ -137,6 +137,13 @@ func (r *toolSchemaResources) index(raw interface{}, base string) {
 }
 
 func (v *toolSchemaValidator) resolve(ref string, from ...map[string]interface{}) interface{} {
+	target, _ := v.resolveWithBase(ref, from...)
+	return target
+}
+
+// resolveWithBase retains the resource base reached by a JSON pointer even
+// when the final object was not indexed as a schema (for example default).
+func (v *toolSchemaValidator) resolveWithBase(ref string, from ...map[string]interface{}) (target interface{}, targetBase string) {
 	r := v.resourceIndex()
 	base := r.bases[reflect.ValueOf(v.root).Pointer()]
 	if len(from) > 0 {
@@ -144,30 +151,43 @@ func (v *toolSchemaValidator) resolve(ref string, from ...map[string]interface{}
 			base = b
 		}
 	}
+	return v.resolveFromBase(ref, base)
+}
+
+func (v *toolSchemaValidator) resolveFromBase(ref, base string) (target interface{}, targetBase string) {
+	r := v.resourceIndex()
 	key := toolSchemaRefKey{base: base, ref: ref}
 	if target, found := v.refs[key]; found {
-		return target
+		return target, v.refBases[key]
 	}
-	var target interface{}
-	defer func() { v.refs[key] = target }()
+	defer func() {
+		v.refs[key] = target
+		v.refBases[key] = targetBase
+	}()
 	uri := resolveSchemaURI(ref, base)
 	document := schemaDocument(uri)
 	root, found := r.documents[document]
 	if !found {
-		return nil
+		return nil, ""
 	}
+	targetBase = document
 	fragment := ""
 	if len(uri) > len(document) {
 		var err error
 		fragment, err = url.PathUnescape(uri[len(document)+1:])
 		if err != nil || !utf8.ValidString(fragment) {
-			return nil
+			return nil, ""
 		}
 	}
 	if fragment == "" {
 		target = root
 	} else if !strings.HasPrefix(fragment, "/") {
 		target = r.anchors[document+"#"+fragment]
+		if object, ok := target.(map[string]interface{}); ok {
+			if b, found := r.bases[reflect.ValueOf(object).Pointer()]; found {
+				targetBase = b
+			}
+		}
 	} else {
 		target = root
 		for _, raw := range strings.Split(fragment[1:], "/") {
@@ -179,21 +199,26 @@ func (v *toolSchemaValidator) resolve(ref string, from ...map[string]interface{}
 				index, err := strconv.Atoi(segment)
 				if err != nil || index < 0 || index >= len(current) || strconv.Itoa(index) != segment {
 					target = nil
-					return nil
+					return nil, ""
 				}
 				target = current[index]
 			default:
 				target = nil
-				return nil
+				return nil, ""
+			}
+			if object, ok := target.(map[string]interface{}); ok {
+				if b, found := r.bases[reflect.ValueOf(object).Pointer()]; found {
+					targetBase = b
+				}
 			}
 		}
 	}
 	switch target.(type) {
 	case map[string]interface{}, bool:
-		return target
+		return target, targetBase
 	default:
 		target = nil
-		return nil
+		return nil, ""
 	}
 }
 

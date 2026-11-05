@@ -56,6 +56,7 @@ type toolSchemaValidator struct {
 	schemaRaw       []byte
 	resources       *toolSchemaResources
 	refs            map[toolSchemaRefKey]interface{}
+	refBases        map[toolSchemaRefKey]string
 	regex           map[string]toolSchemaRegexResult
 	patterns        map[toolSchemaPatternKey]toolSchemaPatternResult
 	patternSyntax   map[string]error
@@ -75,7 +76,7 @@ type toolSchemaValidator struct {
 
 func newToolSchemaValidator(root map[string]interface{}, raw ...[]byte) *toolSchemaValidator {
 	v := &toolSchemaValidator{
-		root: root, refs: make(map[toolSchemaRefKey]interface{}),
+		root: root, refs: make(map[toolSchemaRefKey]interface{}), refBases: make(map[toolSchemaRefKey]string),
 		converted: make(map[toolSchemaMemoKey]interface{}), converting: make(map[toolSchemaMemoKey]bool),
 		checked: make(map[toolSchemaMemoKey]bool), checking: make(map[toolSchemaMemoKey]bool),
 		members: make(map[uintptr]*toolSchemaMembers), inputs: make(map[toolSchemaMemoKey]interface{}),
