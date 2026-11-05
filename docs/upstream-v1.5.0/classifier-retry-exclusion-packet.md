@@ -1,0 +1,7 @@
+# Classifier retry exclusion wiring
+
+At upstream `f9a26365568127461c47a07a37dcb42c140a3ac5`, `packages/ai/src/api/openai-decisions.ts` passes `[504]` to `postClassifierRequest`; `system-one-shared.ts` passes no exclusion. `classifier_decisions.go` passes `[504]` and the Go classifier HTTP adapter excludes it from its retryable status list. The upstream Decisions test expects one 504 request with a gateway message that omits HTML and a successful retry for 503.
+
+The existing `TestDecisions110GatewayNoRetryOtherRetriesCancelTimeout` exercises those 504 and 503 outcomes, 401 error content, cancellation and timeout. The new production-path `TestMainDecisionsProviderExcludesGatewayTimeoutDespiteRetryHeader` adds a 504 with `X-Should-Retry: true`; it expects one request and the same gateway error behaviour. This is a source-derived precedence control, not a literal upstream test. Both functions passed count1 in 0.045s. A temporary overlay removing the Decisions 504 exclusion made the new control fail with three requests. `go vet . ./tests`, formatting and `git diff --check` passed with `CGO_ENABLED=0`; overlay scratch was removed. No runtime change was needed.
+
+The native status-list adaptation currently limits its generated 5xx list to 500–599 and always includes 408, 409 and 429. The pinned Decisions caller excludes only 504, so those generic differences are outside this control. Full classifier and provider retry parity, the full suite, profiling, hosted CI and release remain unverified.
