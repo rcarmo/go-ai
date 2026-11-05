@@ -6,6 +6,7 @@ import (
 	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -19,6 +20,7 @@ type taskScheduler struct {
 	wake            chan struct{}
 	done            chan struct{}
 	invocations     map[ID]*TaskRuntime
+	active          sync.Map    // *TaskRuntime -> struct{}; off-line close cancellation registry
 	wakeSleeping    map[ID]Task // immutable published records; exact native reads only
 	wakeSleepingSeq uint64
 	idleIndex       *idleIndex  // published metadata, Session-line owned
@@ -311,6 +313,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 					}
 				}
 				r.ended.Store(true)
+				s.active.Delete(r)
 				close(r.done)
 			}
 			// Revalidate ALL surviving dependency registrations against the
@@ -507,6 +510,10 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 			runtime.initTelemetry(task)
 			delete(s.tickets, id)
 			s.invocations[id] = runtime
+			s.active.Store(runtime, struct{}{})
+			if s.h.closing.Load() {
+				runtime.requestClose()
+			}
 			s.refreshIdleHost(id)
 			reservations = append(reservations, runtime)
 			s.cursor = id
@@ -701,7 +708,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		runtime.finishPhase()
 		runtime.activeInvocation(-1)
 		var watches []*DocumentWatch
-		s.h.session.taskBookkeeping(func() { runtime.ended.Store(true); watches = runtime.watches; runtime.watches = nil })
+		s.h.session.taskBookkeeping(func() { runtime.ended.Store(true); watches = runtime.takeWatches() })
 		// Stop invocation-owned watches before cancelling their acquisition
 		// context, so normal host return has a deterministic stopped reason.
 		for _, watch := range watches {
@@ -729,6 +736,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 			}
 			s.notifyWaiters(err)
 			// Close observes both the actual return AND completed line bookkeeping.
+			s.active.Delete(runtime)
 			close(runtime.done)
 		})
 		s.h.notify()
@@ -1117,16 +1125,19 @@ func (s *taskScheduler) prepareTaskWrites(tx *Tx) error {
 	if len(tx.writes) == 0 {
 		return nil
 	}
-	// Only terminal execution writes need the final owned-work check. Ordinary
+	// Waiting transitions also need source-equivalent cycle admission. Ordinary
 	// progress/document admissions do not need another full candidate replay.
 	terminal := false
+	waiting := false
 	for _, write := range tx.writes {
 		if write.Task != nil && write.Task.Execution != nil && terminalStatus(write.Task.Status) {
 			terminal = true
-			break
+		}
+		if write.Task != nil && write.Task.Execution != nil && write.Task.Execution.Native != nil && write.Task.Execution.Native.State.Status == "waiting" {
+			waiting = true
 		}
 	}
-	if !terminal {
+	if !terminal && !waiting {
 		return nil
 	}
 	// Hold selection occurs in the deciding adapter BEFORE its task is staged.
@@ -1135,7 +1146,28 @@ func (s *taskScheduler) prepareTaskWrites(tx *Tx) error {
 	if err != nil {
 		return err
 	}
+	checked := make(map[ID]bool)
 	for _, write := range tx.writes {
+		if write.Task != nil && !checked[write.Task.ID] {
+			checked[write.Task.ID] = true
+			task := candidate.Tasks[write.Task.ID]
+			if task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {
+				if err := validateTaskReferences(candidate, task, tx.limits); err != nil {
+					return err
+				}
+				var cycle []ID
+				if !taskAborted(task) {
+					cycle = persistedWaitCycle(candidate, task.ID, task.Execution.Native.State.On)
+				}
+				if len(cycle) > 0 {
+					parts := []string{fmt.Sprint(task.ID)}
+					for _, id := range cycle {
+						parts = append(parts, fmt.Sprint(id))
+					}
+					return reject("Task " + fmt.Sprint(task.ID) + " cannot wait on " + fmt.Sprint(cycle[0]) + ": " + strings.Join(parts, " -> ") + " is a wait cycle")
+				}
+			}
+		}
 		if write.Task != nil && write.Task.Execution != nil && terminalStatus(write.Task.Status) && len(s.ownedLive(candidate, write.Task.ID)) > 0 {
 			return reject("terminal task still owns live work")
 		}
@@ -1216,8 +1248,7 @@ func (s *taskScheduler) endOnLine(r *TaskRuntime) {
 	if r.ended.Swap(true) {
 		return
 	}
-	stop := taskStop{runtime: r, watches: r.watches}
-	r.watches = nil
+	stop := taskStop{runtime: r, watches: r.takeWatches()}
 	for wait := range s.waiters {
 		if wait.binding == r {
 			s.signalWait(wait, ErrSealed)

@@ -182,7 +182,7 @@ func TestMainWatchPendingNativeBounds(t *testing.T) {
 	value := JSON{"n": 0}
 	var frames []WatchFrame
 	for batch := 0; batch < 3; batch++ {
-		count := maxDeltaOperations / 2
+		count := maxPendingWatchOperations / 2
 		if batch == 2 {
 			count = 1
 		}

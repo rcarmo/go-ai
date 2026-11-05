@@ -209,7 +209,7 @@ func TestDeltaDepthStringOperationAndEncodedBudgets(t *testing.T) {
 				l.MaxStringBytes = 512
 				ops = []Operation{{"s", []any{"x"}, string(bytes.Repeat([]byte{'x'}, 513))}}
 			case "operations":
-				ops = make([]Operation, 4097)
+				ops = make([]Operation, maxDeltaOperations+1)
 				for i := range ops {
 					ops[i] = Operation{"r", nil}
 				}

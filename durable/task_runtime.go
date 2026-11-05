@@ -14,6 +14,8 @@ type InvocationWaitRequiresYield struct{ Task ID }
 func (*InvocationWaitRequiresYield) Error() string { return "durable: invocation_wait_requires_yield" }
 
 type TaskRuntime struct {
+	resourceMu           sync.Mutex  // invocation-owned watches; independent of Session admission
+	closeRequested       atomic.Bool // close fence before an in-flight call can release the line
 	timerMu              sync.Mutex
 	timers               map[*invocationTimer]struct{}
 	codemodeMu           sync.Mutex
@@ -45,7 +47,7 @@ type TaskRuntime struct {
 }
 
 func (r *TaskRuntime) check() error {
-	if r == nil || r.ended.Load() {
+	if r == nil || r.ended.Load() || r.closeRequested.Load() {
 		return ErrSealed
 	}
 	return nil
@@ -498,6 +500,11 @@ func (r *TaskRuntime) attachWatch(ctx context.Context, watch *DocumentWatch) (*D
 		}
 		if r.harness.closing.Load() {
 			return ErrClosed
+		}
+		r.resourceMu.Lock()
+		defer r.resourceMu.Unlock()
+		if err := r.check(); err != nil {
+			return err
 		}
 		live := r.watches[:0]
 		for _, prior := range r.watches {

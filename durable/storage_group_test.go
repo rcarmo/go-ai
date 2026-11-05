@@ -153,34 +153,41 @@ func TestInternalGroupOwnershipAndEmptyCall(t *testing.T) {
 	})
 }
 
-func TestInternalGroupSequentialBackendError(t *testing.T) {
+// Pinned store-storage-commit.test.ts:371: a backend failure rolls the entire
+// SQLite call back; previously confirmed calls stand. An unknown outcome stops
+// the store. A per-frame hook cannot inject a failure into appendFrames.
+func TestInternalGroupAtomicBackendError(t *testing.T) {
 	for _, knownRollback := range []bool{false, true} {
 		sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-			batches, _ := groupEntryBatches(t, b.store, 3)
+			seed, _ := groupEntryBatches(t, b.store, 1)
 			core := b.store.(nativeStorage).nativeCore()
-			original := core.appendFrame
+			if _, err := core.commitBatches(bg, seed, nil, false); err != nil {
+				t.Fatal(err)
+			}
+			batches, _ := groupEntryBatches(t, b.store, 3)
 			calls := 0
-			core.appendFrame = func(kind byte, ordinal, high uint64, payload []byte) error {
+			failure := errors.New("unknown append outcome")
+			if knownRollback {
+				failure = reject("confirmed rejection")
+			}
+			core.appendFrames = func(frames []storageFrame) error {
 				calls++
-				if calls == 2 {
-					if knownRollback {
-						return reject("confirmed rejection")
-					}
-					return errors.New("unknown append outcome")
+				if len(frames) != 3 {
+					t.Errorf("frames=%d", len(frames))
 				}
-				if original != nil {
-					return original(kind, ordinal, high, payload)
-				}
-				return nil
+				return failure
 			}
 			received := 0
 			result, err := core.commitBatches(bg, batches, func(int, uint64) error { received++; return nil }, false)
-			if err == nil || result.refused != nil || received != 1 || core.state.Seq != 1 || errors.Is(err, ErrPoisoned) == knownRollback {
-				t.Fatalf("rollback=%v result=%+v receipts=%d err=%v", knownRollback, result, received, err)
+			if err == nil || result.refused != nil || received != 0 || core.state.Seq != 1 || calls != 1 || errors.Is(err, ErrPoisoned) == knownRollback {
+				t.Fatalf("rollback=%v result=%+v receipts=%d calls=%d err=%v", knownRollback, result, received, calls, err)
+			}
+			if knownRollback && !errors.Is(err, failure) {
+				t.Fatalf("rollback lost its cause: %v", err)
 			}
 			state, err := b.reopen().Snapshot(bg)
 			if err != nil || state.Seq != 1 || len(state.Entries) != 1 {
-				t.Fatalf("confirmed prefix lost: %+v err=%v", state, err)
+				t.Fatalf("confirmed prior call lost: %+v error=%v", state, err)
 			}
 		})
 	}
@@ -201,9 +208,15 @@ func TestInternalGroupBounds(t *testing.T) {
 		batch.Writes[0].Entry.Value["pad"] = strings.Repeat("x", 200)
 	}
 	settledBytes := 0
-	store.appendFrame = func(_ byte, _, _ uint64, payload []byte) error { settledBytes += len(payload); return nil }
+	appendSeries := store.appendFrames
+	store.appendFrames = func(frames []storageFrame) error {
+		for _, frame := range frames {
+			settledBytes += len(frame.payload)
+		}
+		return appendSeries(frames)
+	}
 	result, err := store.commitBatches(bg, batches, nil, false)
-	if err != nil || result.refused == nil || result.stored <= 0 || result.stored >= len(batches) || settledBytes > limits.MaxFramePayloadBytes {
+	if err != nil || result.refused == nil || result.stored <= 0 || result.stored >= len(batches) || settledBytes <= 0 || settledBytes > limits.MaxFramePayloadBytes {
 		t.Fatalf("bounded prefix=%+v bytes=%d err=%v", result, settledBytes, err)
 	}
 	seq := store.state.Seq
@@ -227,13 +240,14 @@ func TestInternalGroupAdmissionCancelAndClose(t *testing.T) {
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer func() { unblock(); _ = store.Close(bg) }()
 	calls := 0
-	store.appendFrame = func(byte, uint64, uint64, []byte) error {
+	appendSeries := store.appendFrames
+	store.appendFrames = func(frames []storageFrame) error {
 		calls++
 		if calls == 1 {
 			close(held)
 			<-release
 		}
-		return nil
+		return appendSeries(frames)
 	}
 	first := make(chan error, 1)
 	go func() {

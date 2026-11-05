@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,22 +11,12 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Actual f9a26365 harness-after-run.test.ts694, narrowed to what the current
-// native public hook API can express. The source reads the run's whole history
-// with api.entries(minEntryId..maxEntryId) and asserts the exact kind sequence;
-// the native HookAPI exposes no range scan, so that ordering is not asserted
-// here. What is asserted is the same distinction the source makes: the active
-// context lost the run's input to the mid-run summary, while the run's committed
-// history keeps it.
-//
-// Known-failing oracle. The fixture fails before reaching the history checks
-// because the AfterRun hook is not invoked at all for a run whose answer follows
-// a model tool round, while the pinned contract evaluates the selected AfterRun
-// hooks on the answering path. The failure is not a selection artifact: it also
-// reproduces with the extension selected explicitly on the agent, with no gate
-// and no compaction, so the tool-round continuation itself skips the hook.
-// Assertions are retained unchanged; no default skip or relaxed expectation.
-func TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing.T) {
+// Complete f9a26365 harness-after-run.test.ts:694 history assertion. Native
+// stored message/role envelopes map to the source entry kinds without filtering
+// any non-system contribution. The old pending fixture omitted source waitForIdle
+// and falsely diagnosed a missing callback; after restoring that wait, unchanged
+// generation runtime passes. Entries now supplies the original bounded scan.
+func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var h *Harness
 		started := make(chan struct{})
@@ -40,6 +31,7 @@ func TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 			headKind    string
 			headInRun   bool
 			firstInView bool
+			kinds       []string
 		}
 		registry := NewRegistry()
 		err := registry.Install(&Extension{
@@ -59,6 +51,16 @@ func TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 			Hooks: GenerationHooks{AfterRun: func(ctx context.Context, run RunSummary, api *HookAPI) (*AfterRunResult, error) {
 				hook.called = true
 				hook.summary = run
+				page, err := api.Entries(ctx, EntryQuery{MinEntryID: run.First, MaxEntryID: run.Last, Order: Ascending}, 100, "")
+				if err != nil {
+					t.Errorf("run history scan: %v", err)
+					return nil, nil
+				}
+				for _, kind := range v150HistoryKinds(t, page.Items) {
+					if kind != "pi.system" {
+						hook.kinds = append(hook.kinds, kind)
+					}
+				}
 				first, ok, err := api.Entry(ctx, run.First)
 				if err != nil || !ok {
 					t.Errorf("hook cannot read the run start hidden from the active context: ok=%v err=%v", ok, err)
@@ -114,7 +116,8 @@ func TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 		})
 		options.Registry = registry
 		h = openHarness(t, b.store, options)
-		c, err := h.Root(bg, AgentChange{Model: ref, SystemPrompt: "system", Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: true, ReserveTokens: 1000, KeepRecentTokens: 1, BackgroundTokens: 0}}})
+		cleanupTaskGates(t, release)
+		c, err := h.Root(bg, AgentChange{Model: ref, SystemPrompt: "system", Settings: RequestSettings{Compaction: CompactionPolicy{Enabled: false, ReserveTokens: 1000, KeepRecentTokens: 1, BackgroundTokens: 0}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,6 +148,13 @@ func TestMainAfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 		settled := waitSubmission(t, sub)
 		if settled.Record.Status != "done" || settled.Record.Answer == 0 {
 			t.Fatal("run did not settle", settled)
+		}
+		// Source waits for the run, not merely the already-settled input.
+		if err := c.WaitForIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(hook.kinds, []string{"pi.user", "pi.assistant", "pi.tool-result", "pi.compaction", "pi.assistant"}) {
+			t.Errorf("raw run history kinds: %v", hook.kinds)
 		}
 		if !hook.called {
 			t.Fatal("afterRun hook was not invoked for the tool-round run", hook.summary)

@@ -9,25 +9,12 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Known-failing oracle for the unverified half of pinned source429
-// (harness-after-run.test.ts429): "An orderly close in `drain` resumes the same
-// way." The source shape is kept: the drain task records its attempt, waits for
-// the gate or its abort, then attempts its commit, and the abort handler records
-// the aborted outcome. The source expects the interrupted attempt to leave no
-// decided outcome, so the reopened harness re-executes the phase (two attempts,
-// one commit) and the hook is never re-asked once its tasks exist.
-//
-// Observed native behaviour at revision e7a17b0 (failing baseline, one run,
-// 0.086s): Close does not cancel the running drain task — no abort handler runs
-// (aborts=0), the phase continues past cancellation and its commit lands while the
-// harness closing flag is true, so the task completes at close with one attempt and
-// the reopen re-execution the source asserts is never reached. When the handler
-// instead surfaces cancellation as an error, native records a decided `faulted`
-// outcome rather than leaving the interrupted attempt pending. The source's entry
-// count (`kindOf(..., "test.tests")` length 1) is not ported: the native public API
-// exposes no entry range scan. No assertion here is weakened, and no runtime change
-// was made pending reconciliation of the close-fence contracts.
-func TestMainAfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
+// Pinned harness-after-run.test.ts:429 orderly-close half. Source waits for an
+// actual task attempt, closes, reopens and checks a rerun without re-asking the
+// hook. The old pending fixture incorrectly expected the durable abort handler
+// and raced task reservation against actual phase entry. Those translation
+// errors are corrected; the original runtime already passes this scenario.
+func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		var executions, commits, aborts, asks atomic.Int64
 		gate := make(chan struct{})
@@ -75,6 +62,7 @@ func TestMainAfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		})
 		options.Registry = registry
 		h := openHarness(t, b.store, options)
+		cleanupTaskGates(t, gate)
 		c := root(t, h, ref)
 		sub, err := c.Submit(bg, Input{Content: "go"})
 		if err != nil {
@@ -103,7 +91,8 @@ func TestMainAfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 			if err != nil || !ok {
 				t.Fatal("drain task missing", ok, err)
 			}
-			if child.State.Status == "running" {
+			// Source awaits the actual phase attempt, not its earlier reservation.
+			if child.State.Status == "running" && executions.Load() == 1 {
 				break
 			}
 			if time.Now().After(runningDeadline) {
@@ -114,8 +103,10 @@ func TestMainAfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		if err := h.Close(bg); err != nil {
 			t.Fatal("orderly close during drain", err)
 		}
-		if aborts.Load() != 1 {
-			t.Error("close did not run the drain task's abort handler", aborts.Load())
+		// Source orderly close cancels an invocation; it does not persist an
+		// abort mark or run the task's durable abort handler.
+		if aborts.Load() != 0 {
+			t.Error("orderly close invoked the durable abort handler", aborts.Load())
 		}
 		close(gate)
 		h2 := openHarness(t, b.reopen(), options)
@@ -130,6 +121,20 @@ func TestMainAfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 		}
 		if executions.Load() != 2 || commits.Load() != 1 {
 			t.Error("interrupted drain attempt was not re-executed once", executions.Load(), commits.Load())
+		}
+		// The source also requires exactly one stored test entry across reopen.
+		page, err := c2.ScanEntries(ctx, EntryQuery{Order: Ascending}, 100, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		for _, entry := range page.Items {
+			if entry.Kind == "test.tests" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("test entry count=%d", count)
 		}
 		if asks.Load() != 1 {
 			t.Error("hook was re-asked after its tasks existed", asks.Load())

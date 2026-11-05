@@ -1,12 +1,9 @@
 package durable
 
-// Measured 2026-11-04 (count1, via the project overlay with the protected prototype excluded from
-// the compiler input): native produces no refusal for two opposite waits admitted behind each other.
-// Both waits commit, and neither task settles - the mutual wait deadlocks (refusals empty, ranDone
-// empty, 4.243s before the bounded window closes). The source refuses the second admitted wait with a
-// wait-cycle error, the first is not refused, and the first completes. This fixture keeps the source's
-// assertions; it is not a pass and needs direction before any runtime change.
-// recipe: make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run '^TestPendingGroupCommitRefusesSecondOfTwoOppositeWaits' -count=1 -timeout=45s"
+// Before the v1.5.0 semantic port, this retained source226 oracle failed:
+// both opposite waits were admitted and neither task settled (4.26s baseline).
+// The production candidate graph check now refuses the second transition.
+// Assertions are retained; this oracle is part of the ordinary test build.
 // The held-commit capability is the internal `appendFrame`/`appendFrames` hook on the native storage
 // (a Storage wrapper cannot be used: "session requires native storage"), following the precedent in
 // TestMainSessionUnpublishedReadBarriers. Native rejects an execution replacement from a commit that
@@ -28,19 +25,8 @@ import (
 // admitted behind each other". Two conversation-owned tasks, each waiting on the other through a memo.
 // The source asserts the second admitted wait is refused with a wait-cycle error, the first is not
 // refused, and the first completes. Native has a waiting state with On/policy but no cycle check in the
-// admission path, so this fixture measures what native actually does rather than assuming it.
+// admission path before this port; the fixture retains the source outcome without approximation.
 // Same held-commit capability as the other group-commit fixtures (internal `appendFrame` hook).
-func copyExecWithMemo(exec *TaskExecution, target ID) *TaskExecution {
-	if exec == nil || exec.Native == nil {
-		return exec
-	}
-	native := *exec.Native
-	native.Memos = map[string]*TaskValue{"on": {Present: true, Value: target}}
-	out := *exec
-	out.Native = &native
-	return &out
-}
-
 // Self-contained held-commit capability for this fixture (the same mechanism as the promoted
 // group-commit controls; the package helper is not shared so the fixture stays standalone).
 type pendingGroupCommitHeld struct {
@@ -84,7 +70,7 @@ func (h *pendingGroupCommitHeld) install(appendFrame func(byte, uint64, uint64, 
 	}
 }
 
-func TestPendingGroupCommitRefusesSecondOfTwoOppositeWaits(t *testing.T) {
+func TestV150GroupCommitRefusesSecondOfTwoOppositeWaits(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)

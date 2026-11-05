@@ -18,8 +18,9 @@ func coalesceWatchFrames(frames []WatchFrame, limits Limits, quota int64) (Watch
 	if err != nil {
 		return WatchFrame{}, err
 	}
-	// Folding can concatenate strings and grow a batch: revalidate the detached
-	// callback payload and process quota. A bounded root is the recovery view.
+	// A single batch stays as-is; subsequent folded batches are kept replayable up
+	// to the source's 10,000-op threshold. Once pending operations overflow, the
+	// recovery view is a root replacement that resets the folded state.
 	if !overflow {
 		frame.Ops, err = ownOperations(ops, limits)
 		if err == nil {
@@ -44,6 +45,15 @@ func coalesceWatchFrames(frames []WatchFrame, limits Limits, quota int64) (Watch
 	return frame, nil
 }
 
+const maxPendingWatchOperations = 10_000
+
+func watchFoldThreshold(ops []Operation, limits Limits) bool {
+	if len(ops) > maxDeltaOperations || len(ops) > limits.MaxMembers {
+		return true
+	}
+	return len(ops) > maxPendingWatchOperations
+}
+
 func watchPrimitive(v any) bool {
 	switch v.(type) {
 	case nil, bool, string, json.Number, float64, float32, int, int64, int32, uint, uint64, uint32:
@@ -56,6 +66,18 @@ func watchPrimitive(v any) bool {
 // foldWatchOperations shares Chord leaf/barrier rules between JSON watch kinds.
 // It never modifies input operations or paths. Native replay limits still apply.
 func foldWatchOperations(batches [][]Operation, limits Limits) ([]Operation, bool, error) {
+	// Empty pushes do not turn one source batch into a folded queue.
+	var single []Operation
+	count := 0
+	for _, batch := range batches {
+		if len(batch) > 0 {
+			single = batch
+			count++
+		}
+	}
+	if count <= 1 {
+		return single, false, nil
+	}
 	var ops []Operation
 	leaves := map[string]int{}
 	overflow := false
@@ -96,9 +118,8 @@ func foldWatchOperations(batches [][]Operation, limits Limits) ([]Operation, boo
 				clear(leaves)
 			}
 			ops = append(ops, op)
-			// Keep the native delta replay/DTO limit. Source permits 10,000 pending
-			// ops; native frames must also remain valid ApplyOperations inputs.
-			if len(ops) > maxDeltaOperations || len(ops) > limits.MaxMembers {
+			// Source folding threshold and independent persisted replay limits.
+			if watchFoldThreshold(ops, limits) {
 				overflow = true
 				ops = nil
 				clear(leaves)

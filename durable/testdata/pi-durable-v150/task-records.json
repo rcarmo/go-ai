@@ -1,0 +1,275 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "package": "@earendil-works/pi-durable",
+  "version": "1.5.0",
+  "producer": "original MemoryStorage.commit/task",
+  "fixtures": [
+    {
+      "name": "pending-null-input",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "pending",
+          "checkpoint": {
+            "phase": "work"
+          }
+        }
+      }
+    },
+    {
+      "name": "running-raw-memos",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": {
+          "a": 1
+        },
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "running",
+          "checkpoint": {
+            "phase": "work"
+          }
+        },
+        "memos": {
+          "nil": null,
+          "false": false,
+          "empty": ""
+        },
+        "startedAt": 0
+      }
+    },
+    {
+      "name": "waiting-empty-on",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": false,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "waiting",
+          "checkpoint": {
+            "phase": "next"
+          },
+          "on": [],
+          "policy": "allSettled"
+        }
+      }
+    },
+    {
+      "name": "sleeping-zero-deadline",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": "",
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "sleeping",
+          "checkpoint": {
+            "phase": "next"
+          },
+          "until": 0
+        }
+      }
+    },
+    {
+      "name": "completing-null-result",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": [],
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "completing",
+          "outcome": {
+            "status": "completed",
+            "result": null
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-completed-object",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "completed",
+            "result": {
+              "ok": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-failed-null-detail",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "failed",
+            "error": {
+              "message": "failure",
+              "detail": null
+            },
+            "result": false
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-aborted-no-reason",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "aborted"
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-aborted-empty-reason",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "aborted",
+            "reason": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-orphaned",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "orphaned",
+            "reason": "missing_task"
+          }
+        }
+      }
+    },
+    {
+      "name": "terminal-faulted-detail",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "faulted",
+            "error": {
+              "message": "contract",
+              "detail": {
+                "safe": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "optional-zero-metadata",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "terminal",
+          "outcome": {
+            "status": "completed",
+            "result": false
+          }
+        },
+        "startedAt": 0,
+        "endedAt": 0,
+        "restarts": 0,
+        "abandonOnRestart": true,
+        "trace": {},
+        "links": []
+      }
+    },
+    {
+      "name": "opaque-stored-checkpoint",
+      "record": {
+        "id": 2,
+        "conversationId": 1,
+        "kind": "compat.task",
+        "version": 1,
+        "input": null,
+        "background": false,
+        "abortRequested": false,
+        "state": {
+          "status": "pending",
+          "checkpoint": 42
+        }
+      }
+    }
+  ]
+}

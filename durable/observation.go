@@ -28,14 +28,15 @@ type WatchEnd struct {
 // WatchFrame is a detached value delivery. Retirement retains the preceding
 // value with no operations; a later incarnation replaces it at the same address.
 type WatchFrame struct {
-	Kind       string
-	Retired    bool
-	Seq        uint64
-	Value      JSON
-	Ops        []Operation
-	Context    context.Context
-	ownedValue JSON
-	ready      <-chan struct{}
+	Kind         string
+	Retired      bool
+	Seq          uint64
+	Value        JSON
+	Ops          []Operation
+	Context      context.Context
+	ownedValue   JSON
+	ready        <-chan struct{}
+	pendingReady []<-chan struct{} // readiness of compacted queued publications
 }
 
 // DocumentWatch owns detached public views and serialises its host callback off
@@ -188,7 +189,20 @@ func (w *DocumentWatch) drain() {
 		// own their call, and later publications belong to the next delivery.
 		for _, pending := range frames {
 			if pending.ready != nil {
-				<-pending.ready
+				select {
+				case <-pending.ready:
+				case <-w.closed:
+					clear(frames)
+					return
+				}
+			}
+			for _, gate := range pending.pendingReady {
+				select {
+				case <-gate:
+				case <-w.closed:
+					clear(frames)
+					return
+				}
 			}
 		}
 		frame, e := coalesceWatchFrames(frames, w.session.limits, w.byteLimit)
@@ -206,7 +220,7 @@ func (w *DocumentWatch) drain() {
 		callback := w.listener
 		w.mu.Unlock()
 		callbackContext = frame.Context
-		frame.ownedValue, frame.ready = nil, nil
+		frame.ownedValue, frame.ready, frame.pendingReady = nil, nil, nil
 		if e := callback(frame.Context, frame); e != nil {
 			w.terminate(WatchEnd{Reason: "listener_error", Error: e})
 			w.session.reportListener(frame.Context, e)
@@ -357,13 +371,19 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 			}
 			frame, size := prepared.frame, prepared.size
 			if size > w.byteLimit-w.pendingBytes {
-				for _, pending := range w.pending {
-					prepared.reset.Retired = prepared.reset.Retired || pending.Retired
+				frames := append(append([]WatchFrame(nil), w.pending...), frame)
+				compacted, compactedSize, err := compactPendingWatchFrames(frames, s.limits, w.byteLimit)
+				clear(frames)
+				if err != nil {
+					w.mu.Unlock()
+					w.terminate(WatchEnd{Reason: "budget_exceeded", Error: err})
+					continue
 				}
+				clear(w.pending)
 				w.pending = nil
 				w.bytes = nil
 				w.pendingBytes = 0
-				frame, size = prepared.reset, prepared.resetSize
+				frame, size = compacted, compactedSize
 			}
 			w.pending = append(w.pending, frame)
 			w.bytes = append(w.bytes, size)

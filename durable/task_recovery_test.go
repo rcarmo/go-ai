@@ -2209,6 +2209,28 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					if _, err := api.CreateTask(ctx, child, nil, TaskOptions{Ownership: TaskOwnership{Kind: "task", Task: toolID}}); err != nil {
 						return ToolResult{}, err
 					}
+					deadline := time.Now().Add(3 * time.Second)
+					for {
+						stored, err := store.Snapshot(ctx)
+						if err != nil {
+							return ToolResult{}, err
+						}
+						var known toolCheckpoint
+						if err := fromObject(stored.Tasks[toolID].Checkpoint, &known, api.h.session.limits); err != nil {
+							return ToolResult{}, err
+						}
+						known, err = toolPresentation(stored, stored.Tasks[toolID], known, api.h.session.limits)
+						if err != nil {
+							return ToolResult{}, err
+						}
+						if known.Output == "known-prefix" {
+							break
+						}
+						if time.Now().After(deadline) {
+							return ToolResult{}, errors.New("progress prefix was never stored")
+						}
+						time.Sleep(time.Millisecond)
+					}
 					close(toolEntered)
 					<-releaseTool
 					return ToolResult{Content: "returned success", Details: JSON{"candidate": true}, Usage: &goai.Usage{Input: 1, Output: 2, TotalTokens: 3}, Commit: func(tx *Tx) error {
@@ -2223,7 +2245,11 @@ func TestTaskRecoveryToolDecidingHoldRejectedUncertainAndReopen(t *testing.T) {
 					t.Fatal(err)
 				}
 				reports := make(chan error, 4)
-				options := Options{Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }, OnReport: func(err error) {
+				// Source crash tests await a genuinely stored progress prefix. Details
+				// only awaits memory publication; zero persistence plus the witness below
+				// establishes the durable prefix before fault injection.
+				window := float64(0)
+				options := Options{Settings: &HarnessSettings{Progress: &ProgressSettings{PersistWithinMs: &window}}, Registry: registry, Models: func(goai.Provider, string) *goai.Model { return model }, OnReport: func(err error) {
 					select {
 					case reports <- err:
 					default:
@@ -3245,7 +3271,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 			t.Fatal("queued child cascade mark missing", childRecord, err)
 		}
 		joined, err := h.Snapshot(bg)
-		if err != nil || joined.Submissions[sub.ID()].Status != "pending" || joined.Submissions[write.ID()].Status != "pending" || joined.Submissions[own.ID()].Status != "pending" {
+		if err != nil || joined.Submissions[sub.ID()].Status != "pending" || joined.Submissions[write.ID()].Status != "done" || joined.Submissions[own.ID()].Status != "pending" {
 			t.Fatal("queued child unsettled/queue preservation", err)
 		}
 		releaseTaskGate(releaseChild)
@@ -5338,10 +5364,11 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 							t.Fatal("confirmed resolver-error receipt replayed callbacks")
 						}
 						if !confirmed {
-							additional := int64(1)
-							if stage == "preparation" {
-								additional = 2
-							}
+							// A failed, unconfirmed dispatched attempt is charged and retried
+							// from fresh preparation by the v1.5.0 interruption contract.
+							// Native preparation and request are two phase-local read-only
+							// resolver observations; only one remote request is permitted above.
+							additional := int64(2)
 							if modelCalls.Load() != beforeModelCalls+additional || optionsCalls.Load() != beforeOptionCalls+additional {
 								t.Fatal("unconfirmed attempt resolver count", modelCalls.Load(), optionsCalls.Load(), additional)
 							}
@@ -6278,7 +6305,15 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 					if task.Kind == "pi.tool" {
 						finalTool = id
 						var cp toolCheckpoint
-						if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil || !cp.Started || cp.Output != "repair-prefix" || cp.Result != nil || task.Execution == nil || task.Execution.Builtin.Memos["kept-repair"] == nil {
+						if err := fromObject(task.Checkpoint, &cp, second.session.limits); err != nil {
+							t.Fatal(err)
+						}
+						// Progress belongs to pi.live, not the durable execution checkpoint.
+						if cp.Output != "" {
+							t.Fatal("presentation leaked into execution checkpoint", cp.Output)
+						}
+						cp, presentationErr := toolPresentation(state, task, cp, second.session.limits)
+						if presentationErr != nil || !cp.Started || cp.Output != "repair-prefix" || cp.Result != nil || task.Execution == nil || task.Execution.Builtin.Memos["kept-repair"] == nil {
 							t.Fatal("executing intent metadata/prefix/memo", cp, err)
 						}
 					}

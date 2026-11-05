@@ -14,7 +14,9 @@ import (
 // and every payload placement are copied; returned values have no input authority.
 type Operation []any
 
-const maxDeltaOperations = 4096
+// Replay accepts a source single batch past the pending-fold threshold.
+// Independent tuple/member/node/byte budgets still bound every value.
+const maxDeltaOperations = 16 << 10
 
 // ApplyOperations applies a complete batch to a detached strict-JSON candidate.
 // Every intermediate revision obeys the supplied document/container budgets.
@@ -32,8 +34,15 @@ func ApplyOperations(value any, operations []Operation, limits Limits) (any, err
 	if err != nil {
 		return nil, err
 	}
-	if err = checkDeltaValue(root, limits); err != nil {
+	encodedRoot, err := encodeBounded(root, limits, limits.MaxDocumentBytes)
+	if err != nil {
 		return nil, err
+	}
+	if handled, err := applyPrimitiveObjectSets(root, ops, limits, len(encodedRoot)); handled {
+		if err != nil {
+			return nil, err
+		}
+		return root, nil
 	}
 	for _, op := range ops {
 		root, err = applyOperation(root, op, limits)

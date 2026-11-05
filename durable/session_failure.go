@@ -182,3 +182,12 @@ func (g *sessionStorage) Request(ctx context.Context, id ID, key string) (Submis
 	e = g.s.backendResult(ctx, e, false)
 	return v, ok, e
 }
+
+// A failure-driven shutdown retains its first cause at Harness boundaries too.
+// Closing is a lifecycle flag, never a replacement for a known Session failure.
+func (h *Harness) closedError() error {
+	if failure := h.session.failure(); failure != nil {
+		return failure
+	}
+	return ErrClosed
+}

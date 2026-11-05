@@ -741,12 +741,9 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 }
 
 // Actual f9a26365 session-group-commit.test.ts case 256: each read of the entries of a conversation an
-// unpublished commit creates waits for its creation and then finds nothing. Native expresses three of the
-// five surfaces the case names - a transaction scan, the store-level history scan, and the store-level head
-// marker lookup - and each is measured as gated by the pending writer and returning the value the source
-// expects after publication. The other two named surfaces are capability limits, not passes or failures: the
-// source reads the Session's newest-entry and head-marker helpers through Transaction, and native's public Tx
-// exposes no latest-entry or head-marker surface.
+// unpublished commit creates waits for its creation and then finds nothing. Source line reads use
+// Session.readOnLine, not raw Storage. The separate v1.5.0 read-line test also retains both
+// transaction newest-entry and head-marker surfaces; all five are expressible natively.
 func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 	surfaces := []struct {
 		name   string
@@ -765,10 +762,15 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 			},
 		},
 		{
-			name:   "store-scanEntries",
+			name:   "line-scanEntries",
 			expect: "empty items",
 			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
-				page, err := store.ScanEntries(context.Background(), EntryQuery{Conversation: conv}, 1, "")
+				var page Page[Entry]
+				err := s.ReadOnLine(context.Background(), func(line *ReadLine) error {
+					var err error
+					page, err = line.ScanEntries(EntryQuery{Conversation: conv}, 1, "")
+					return err
+				})
 				if err != nil {
 					return "", false, err
 				}
@@ -776,14 +778,19 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 			},
 		},
 		{
-			name:   "store-findLatestHeadMarker",
+			name:   "line-findLatestHeadMarker",
 			expect: "not found",
 			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
-				_, ok, err := store.FindLatestHeadMarker(context.Background(), conv, 0)
+				var found bool
+				err := s.ReadOnLine(context.Background(), func(line *ReadLine) error {
+					var err error
+					_, found, err = line.FindLatestHeadMarker(conv, 0)
+					return err
+				})
 				if err != nil {
 					return "", false, err
 				}
-				return "not found", !ok, nil
+				return "not found", !found, nil
 			},
 		},
 	}

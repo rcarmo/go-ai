@@ -272,7 +272,7 @@ func (h *Harness) RootWithInit(ctx context.Context, change AgentChange, init Con
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing.Load() {
-		return nil, ErrClosed
+		return nil, h.closedError()
 	}
 	if e := h.configureLockedWithInit(ctx, 1, change, true, init); e != nil {
 		return nil, e
@@ -281,7 +281,7 @@ func (h *Harness) RootWithInit(ctx context.Context, change AgentChange, init Con
 }
 func (h *Harness) Conversation(ctx context.Context, id ID) (*ConversationHandle, error) {
 	if h.closing.Load() {
-		return nil, ErrClosed
+		return nil, h.closedError()
 	}
 	s, e := h.session.Snapshot(ctx)
 	if e != nil {
@@ -300,7 +300,7 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closing.Load() {
-		return nil, ErrClosed
+		return nil, h.closedError()
 	}
 	id, e := h.session.MintID(ctx)
 	if e != nil {
@@ -312,7 +312,7 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 	}
 	_, e = h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
-			return ErrClosed
+			return h.closedError()
 		}
 		if e := tx.CreateConversation(Conversation{ID: id, Name: change.Name}); e != nil {
 			return e
@@ -456,7 +456,7 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 	}
 	_, e = h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
-			return ErrClosed
+			return h.closedError()
 		}
 		firstRoot := initializeOnly && id == 1 && !found
 		if firstRoot {
@@ -515,7 +515,7 @@ func (c *ConversationHandle) Configure(ctx context.Context, change AgentChange) 
 	c.h.mu.Lock()
 	defer c.h.mu.Unlock()
 	if c.h.closing.Load() {
-		return ErrClosed
+		return c.h.closedError()
 	}
 	return c.h.configureLocked(ctx, c.id, change, false)
 }
@@ -530,7 +530,7 @@ func (c *ConversationHandle) Context(ctx context.Context, cutoff ...ID) (*goai.C
 		at = cutoff[0]
 	}
 	if c.h.closing.Load() {
-		return nil, ErrClosed
+		return nil, c.h.closedError()
 	}
 	var a agentState
 	view, e := c.h.session.contextView(ctx, c.id, at, func(state Snapshot) error {
@@ -555,7 +555,7 @@ func (c *ConversationHandle) Context(ctx context.Context, cutoff ...ID) (*goai.C
 }
 func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextView, error) {
 	if c.h.closing.Load() {
-		return ContextView{}, ErrClosed
+		return ContextView{}, c.h.closedError()
 	}
 	return c.h.session.ContextView(ctx, c.id, at)
 }
@@ -572,14 +572,14 @@ func (c *ConversationHandle) ScanEntries(ctx context.Context, q EntryQuery, limi
 	}
 	q.Conversation = c.id
 	if c.h.closing.Load() {
-		return Page[Entry]{}, ErrClosed
+		return Page[Entry]{}, c.h.closedError()
 	}
 	return c.h.session.ScanEntries(ctx, q, limit, cursor)
 }
 
 func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, limit int) ([]Entry, error) {
 	if c.h.closing.Load() {
-		return nil, ErrClosed
+		return nil, c.h.closedError()
 	}
 	s := c.h.session
 	if err := s.enter(ctx); err != nil {
@@ -617,7 +617,7 @@ func (h *Harness) Resume(ctx context.Context) error {
 		return err
 	}
 	if h.closing.Load() {
-		return ErrClosed
+		return h.closedError()
 	}
 	h.scheduler.enable()
 	return nil
@@ -641,6 +641,9 @@ func (h *Harness) Close(ctx context.Context) error {
 		h.scheduler.unsubscribe()
 		h.cancel()
 		go func() {
+			// A held storage call may own the Session line. Signal invocation-owned
+			// cancellation without joining that line, then drain admitted work below.
+			h.scheduler.signalClose()
 			// Synchronise with an admitted submitter before releasing storage.
 			h.mu.Lock()
 			//lint:ignore SA2001 The empty section is an intentional mutex barrier.
@@ -648,7 +651,7 @@ func (h *Harness) Close(ctx context.Context) error {
 			<-h.scheduler.done
 			var joins []<-chan struct{}
 			h.session.taskBookkeeping(func() {
-				h.scheduler.notifyWaiters(ErrClosed)
+				h.scheduler.notifyWaiters(h.closedError())
 				for _, r := range h.scheduler.invocations {
 					h.scheduler.endOnLine(r)
 					joins = append(joins, r.done)
@@ -764,11 +767,11 @@ func initializeBuiltins(tx *Tx, conversation ID) error {
 // Execution replacements still require private runtime actions.
 func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback func(*Tx) error) (uint64, error) {
 	if h.closing.Load() {
-		return 0, ErrClosed
+		return 0, h.closedError()
 	}
 	return h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
-			return ErrClosed
+			return h.closedError()
 		}
 		if conversation != 0 {
 			if _, ok := tx.state.Conversations[conversation]; !ok {
@@ -784,7 +787,7 @@ func (h *Harness) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
 	var ok bool
 	err := h.session.readTasks(ctx, func(state Snapshot) error {
 		if h.closing.Load() {
-			return ErrClosed
+			return h.closedError()
 		}
 		task, found := state.Tasks[id]
 		ok = found
@@ -817,7 +820,7 @@ func (h *Harness) waitTask(ctx context.Context, id ID, binding *TaskRuntime) (Ta
 		var terminal bool
 		err := h.session.readTasks(ctx, func(state Snapshot) error {
 			if h.closing.Load() {
-				return ErrClosed
+				return h.closedError()
 			}
 			if binding != nil {
 				if err := binding.check(); err != nil {
@@ -861,7 +864,7 @@ func (h *Harness) waitTask(ctx context.Context, id ID, binding *TaskRuntime) (Ta
 		case <-ctx.Done():
 			return TaskRecord{}, ctx.Err()
 		case <-h.life.Done():
-			return TaskRecord{}, ErrClosed
+			return TaskRecord{}, h.closedError()
 		case <-wait.signal:
 		}
 	}
@@ -875,7 +878,7 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 	var cancel context.CancelFunc
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
 		if h.closing.Load() {
-			return ErrClosed
+			return h.closedError()
 		}
 		task, ok := tx.state.Tasks[id]
 		if !ok {
@@ -929,7 +932,7 @@ func (h *Harness) InspectTasks(ctx context.Context) (TaskInspectionView, error) 
 	err := h.session.readTasks(ctx, func(state Snapshot) error {
 		if h.closing.Load() {
 			result.Scheduling = "closing"
-			return ErrClosed
+			return h.closedError()
 		}
 		if h.scheduler.enabled.Load() {
 			result.Scheduling = "running"
@@ -1370,7 +1373,7 @@ func (h *Harness) waitIdleAdmissionMode(ctx context.Context, conversation ID, bi
 		idle := true
 		err := h.session.readTaskView(ctx, func(state Snapshot, published bool) error {
 			if h.closing.Load() {
-				return ErrClosed
+				return h.closedError()
 			}
 			if binding != nil {
 				if err := binding.check(); err != nil {
@@ -1415,7 +1418,7 @@ func (h *Harness) waitIdleAdmissionMode(ctx context.Context, conversation ID, bi
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-h.life.Done():
-			return ErrClosed
+			return h.closedError()
 		case <-rootWait.signal:
 		}
 	}

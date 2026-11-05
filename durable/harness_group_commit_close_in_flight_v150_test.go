@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,34 +10,32 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Known-failing oracle for f9a26365 packages/durable/test/harness-group-commit.test.ts case 758,
-// "signals an invocation when it closes during a call in flight, and stores that call before Storage
-// closes".
-//
-// Source assertion: the running invocation is signalled while a call is in flight, and close does not
-// settle before that call is stored.
-//
-// Measured native baseline (revision c0ec30e, single run, count=1): close does wait for the in-flight
-// call, but it does not signal the running invocation during that window — the invocation is only
-// signalled after the held call settles. The storage-before-close and reopened-pending halves of the
-// case pass unchanged (entry present after reopen, invocation pending again).
-//
-// Run with the project overlay so the protected continuation prototype stays out of compiler input:
-//
-//	make test PACKAGES=./durable TEST_FLAGS="-overlay <run>/overlay.json -v -run '^TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight' -count=1 -timeout=45s"
-func TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
+// Pinned harness-group-commit.test.ts:758. Before the close registry/fence this
+// test failed because a held storage call prevented invocation signalling.
+// Source releases the held call after checking the signal, before awaiting
+// Close. Admitted storage must land, and the interrupted task reopens pending.
+func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	held := &groupCommitHeld{entered: make(chan struct{}), release: make(chan struct{})}
 	var signalled atomic.Bool
+	entered := make(chan struct{})
 	def, err := DefineTask(TaskDefinitionOptions{
 		Kind:    "task.gcclose.listens",
 		Version: 1,
 		Initial: func(any) (JSON, error) { return JSON{"phase": "wait"}, nil },
 		Phases: map[string]TaskPhase{"wait": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
+			close(entered)
 			<-ctx.Done()
+			// Source-derived authority fence: even a fresh caller context cannot
+			// run another commit callback once Close has signalled this invocation.
+			called := false
+			err := r.Commit(context.Background(), func(*Tx, TaskRecord) (*TaskState, error) { called = true; return taskDone(nil), nil })
+			if called || !errors.Is(err, ErrSealed) {
+				t.Errorf("late invocation commit called=%v error=%v", called, err)
+			}
 			signalled.Store(true)
 			return nil
 		}},
@@ -93,6 +92,10 @@ func TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T
 		time.Sleep(5 * time.Millisecond)
 	}
 
+	// A Go reservation is published before its handler goroutine runs.
+	// Observe the actual listener before testing its cancellation, rather than
+	// mistaking a sealed-before-start reservation for an unsignalled handler.
+	awaitTaskSignal(t, entered)
 	held.holdCommits()
 	writing := make(chan error, 1)
 	go func() {
@@ -126,6 +129,9 @@ func TestPendingGroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T
 		held.releaseHold()
 		t.Fatal("close did not signal the running invocation during the call in flight")
 	}
+
+	// Source releases the held backend call before awaiting close.
+	held.releaseHold()
 
 	// Retained assertions that pass unchanged.
 	select {

@@ -11,7 +11,7 @@ import (
 func TestMainConversationPendingNativeBounds(t *testing.T) {
 	l := DefaultLimits()
 	before := ConversationView{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"n": JSON{"i": -1}}}}
-	for _, count := range []int{maxDeltaOperations, maxDeltaOperations + 1} {
+	for _, count := range []int{maxPendingWatchOperations, maxPendingWatchOperations + 1} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			frames := make([]PublicationFrame, 2)
 			index := 0
@@ -38,10 +38,10 @@ func TestMainConversationPendingNativeBounds(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantCount := count
-			if count > maxDeltaOperations {
+			if count > maxPendingWatchOperations {
 				wantCount = 1
 			}
-			if len(folded.conversation.ops) != wantCount || (count > maxDeltaOperations && folded.conversation.ops[0][0] != "r") {
+			if len(folded.conversation.ops) != wantCount || (count > maxPendingWatchOperations && folded.conversation.ops[0][0] != "r") {
 				t.Fatal("native operation boundary", len(folded.conversation.ops))
 			}
 			// A bounded recovery root is also required when retained bytes cannot hold
