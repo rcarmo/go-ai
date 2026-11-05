@@ -32,6 +32,27 @@ func TestMainValidationInvalidPatternDynamicScopeLazy(t *testing.T) {
 	}
 }
 
+// Source-derived compiler construction order. The pinned V8 diagnostic is
+// retained for each first-invalid pattern; Bun establishes the same ordering
+// but has different exception wording. No generated output hash is involved.
+func TestMainValidationInvalidPatternConstructionOrder(t *testing.T) {
+	for _, tc := range []struct{ name, schema, want string }{
+		{"root-before-property", `{"pattern":"[","properties":{"p":{"pattern":"*"}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"property-before-inplace", `{"properties":{"p":{"pattern":"*"}},"allOf":[{"pattern":"["}]}`, `THROW Invalid regular expression: /*/: Nothing to repeat`},
+		{"property-insertion-order", `{"properties":{"z":{"pattern":"*"},"a":{"pattern":"["}}}`, `THROW Invalid regular expression: /*/: Nothing to repeat`},
+		{"integer-key-order", `{"properties":{"z":{"pattern":"*"},"10":{"pattern":"["},"2":{"pattern":"("}}}`, `THROW Invalid regular expression: /(/: Unterminated group`},
+		{"pattern-key-before-schema", `{"patternProperties":{"[":{"pattern":"*"}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"annotated-if-before-unevaluated", `{"if":{"pattern":"*"},"unevaluatedProperties":{"pattern":"["}}`, `THROW Invalid regular expression: /*/: Nothing to repeat`},
+		{"annotated-plain-before-property", `{"pattern":"*","properties":{"x":{"pattern":"["}},"unevaluatedProperties":true}`, `THROW Invalid regular expression: /*/: Nothing to repeat`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mainNumericOutcome(t, tc.schema, `{}`); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // Source-derived from the pinned compiler: unused definitions are not checks,
 // while referenced definitions and declared properties compile regardless of data.
 func TestMainValidationInvalidPatternReachability(t *testing.T) {
