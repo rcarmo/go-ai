@@ -42,6 +42,8 @@ type ClassifierOptions struct {
 	Context         context.Context
 	Timeout         time.Duration
 	TimeoutMs       int
+	// TimeoutMsOverride distinguishes an explicit zero timeout from omission.
+	TimeoutMsOverride *int
 	// Non-zero legacy values remain supported. Pointer overrides distinguish
 	// an omitted option from an explicit zero, which disables retries or the cap.
 	MaxRetries              int
@@ -293,6 +295,32 @@ func classifierRetryConfig(opts *ClassifierOptions) RetryConfig {
 	return cfg
 }
 
+func classifierRequestTimeout(opts *ClassifierOptions) (time.Duration, error) {
+	if opts == nil {
+		return 0, nil
+	}
+	timeout := opts.Timeout
+	ms := opts.TimeoutMs
+	if opts.TimeoutMsOverride != nil {
+		ms = *opts.TimeoutMsOverride
+		if ms < 0 {
+			return 0, fmt.Errorf("classifier timeout must be non-negative")
+		}
+		if ms == 0 {
+			// http.Client treats zero as no timeout. A minimal positive value
+			// represents the asynchronous zero-millisecond timeout.
+			return time.Nanosecond, nil
+		}
+	}
+	if ms > 0 {
+		if int64(ms) > int64((1<<63-1)/time.Millisecond) {
+			return 0, fmt.Errorf("classifier timeout exceeds duration range")
+		}
+		timeout = time.Duration(ms) * time.Millisecond
+	}
+	return timeout, nil
+}
+
 func withClassifierTimeout(client *http.Client, cfg RetryConfig) *http.Client {
 	if client != nil && cfg.RequestTimeout == 0 {
 		return client
@@ -457,11 +485,9 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 		client = opts.HTTPClient
 	}
 	retryCfg := classifierRetryConfig(opts)
-	if opts != nil && opts.Timeout > 0 {
-		retryCfg.RequestTimeout = opts.Timeout
-	}
-	if opts != nil && opts.TimeoutMs > 0 {
-		retryCfg.RequestTimeout = time.Duration(opts.TimeoutMs) * time.Millisecond
+	retryCfg.RequestTimeout, err = classifierRequestTimeout(opts)
+	if err != nil {
+		return nil, err
 	}
 	client = withClassifierTimeout(client, retryCfg)
 	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses, true)

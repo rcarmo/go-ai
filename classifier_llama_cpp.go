@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 )
 
 const llamaCPPLabel = "llama.cpp"
@@ -398,11 +397,9 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 		client = request.options.HTTPClient
 	}
 	cfg := classifierRetryConfig(request.options)
-	if request.options != nil && request.options.Timeout > 0 {
-		cfg.RequestTimeout = request.options.Timeout
-	}
-	if request.options != nil && request.options.TimeoutMs > 0 {
-		cfg.RequestTimeout = time.Duration(request.options.TimeoutMs) * time.Millisecond
+	cfg.RequestTimeout, err = classifierRequestTimeout(request.options)
+	if err != nil {
+		return nil, err
 	}
 	client = withClassifierTimeout(client, cfg)
 	resp, err := doProviderRequestWithRetry(request.ctx, client, req, cfg, nil, true)

@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func TestMainClassifierTimeoutPresence(t *testing.T) {
+	zero, ten, negative := 0, 10, -1
+	for _, tc := range []struct {
+		name      string
+		opts      *ClassifierOptions
+		want      time.Duration
+		wantError bool
+	}{
+		{"omitted", nil, 0, false},
+		{"zero", &ClassifierOptions{Timeout: time.Second, TimeoutMsOverride: &zero}, time.Nanosecond, false},
+		{"positive", &ClassifierOptions{TimeoutMsOverride: &ten}, 10 * time.Millisecond, false},
+		{"legacy", &ClassifierOptions{TimeoutMs: 20}, 20 * time.Millisecond, false},
+		{"negative", &ClassifierOptions{TimeoutMsOverride: &negative}, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := classifierRequestTimeout(tc.opts)
+			if got != tc.want || (err != nil) != tc.wantError {
+				t.Fatalf("got (%v, %v), want (%v, error=%v)", got, err, tc.want, tc.wantError)
+			}
+		})
+	}
+}
+
 func TestMainClassifierRetryDefaultsAndExplicitZero(t *testing.T) {
 	zero, one := 0, 1
 	for _, tc := range []struct {

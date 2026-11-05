@@ -130,6 +130,27 @@ func TestMainDecisionsProviderDefaultHasNoAttemptDeadline(t *testing.T) {
 	}
 }
 
+// Explicit timeoutMs: 0 is distinct from an omitted timeout in the pinned API.
+func TestMainDecisionsProviderExplicitZeroTimeout(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(100 * time.Millisecond):
+			_ = json.NewEncoder(w).Encode(map[string]any{"answers": decisionsAnswers110()})
+		}
+	}))
+	defer srv.Close()
+	zero := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", Context: ctx, TimeoutMsOverride: &zero})
+	if err != nil || result.StopReason != goai.StopReasonError || !strings.Contains(result.ErrorMessage, "deadline exceeded") || calls.Load() > 1 || ctx.Err() != nil {
+		t.Fatalf("calls=%d, caller error=%v, result=%+v, error=%v", calls.Load(), ctx.Err(), result, err)
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {
