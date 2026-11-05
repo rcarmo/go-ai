@@ -55,6 +55,42 @@ func GetModelType(model any) ModelType {
 
 func IsModelType(model any, typ ModelType) bool { return GetModelType(model) == typ }
 
+// TypedModelsAreEqual compares chat, image and classifier model identities.
+// Nil pointers and unsupported values are not models and never compare equal.
+// Values and pointers are both accepted, as with GetModelType.
+func TypedModelsAreEqual(a, b any) bool {
+	left, ok := typedModelIdentity(a)
+	if !ok {
+		return false
+	}
+	right, ok := typedModelIdentity(b)
+	return ok && left == right
+}
+
+func typedModelIdentity(model any) (TypedModelRef, bool) {
+	switch m := model.(type) {
+	case *Model:
+		if m != nil {
+			return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+		}
+	case Model:
+		return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+	case *ImageModel:
+		if m != nil {
+			return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+		}
+	case ImageModel:
+		return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+	case *ClassifierModel:
+		if m != nil {
+			return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+		}
+	case ClassifierModel:
+		return TypedModelRef{Type: GetModelType(m), Provider: string(m.Provider), ID: m.ID}, true
+	}
+	return TypedModelRef{}, false
+}
+
 func ParseTypedModelRef(s string) (TypedModelRef, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {

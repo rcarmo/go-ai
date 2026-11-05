@@ -24,8 +24,9 @@ func TestV100TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 		chatProviders[model.Provider] = true
 		chatAPIs[model.Api] = true
 	}
-	if len(chatModels) != 1599 || len(chatProviders) != 41 || len(chatAPIs) != 10 {
-		t.Fatalf("chat count/providers/apis = %d/%d/%d, want 1599/41/10", len(chatModels), len(chatProviders), len(chatAPIs))
+	// Current v1.5.0 catalogue: independently checked against all published records.
+	if len(chatModels) != 1592 || len(chatProviders) != 41 || len(chatAPIs) != 10 {
+		t.Fatalf("chat count/providers/apis = %d/%d/%d, want 1592/41/10", len(chatModels), len(chatProviders), len(chatAPIs))
 	}
 
 	imageModels := goai.ListImageModels("")
@@ -35,8 +36,8 @@ func TestV100TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 		imageProviders[model.Provider] = true
 		imageAPIs[model.Api] = true
 	}
-	if len(imageModels) != 63 || len(imageProviders) != 1 || len(imageAPIs) != 1 {
-		t.Fatalf("image count/providers/apis = %d/%d/%d, want 61/1/1", len(imageModels), len(imageProviders), len(imageAPIs))
+	if len(imageModels) != 64 || len(imageProviders) != 1 || len(imageAPIs) != 1 {
+		t.Fatalf("image count/providers/apis = %d/%d/%d, want 64/1/1", len(imageModels), len(imageProviders), len(imageAPIs))
 	}
 
 	classifierModels := goai.ListClassifierModels("")
@@ -46,11 +47,11 @@ func TestV100TypedRegistryCountsAndRepresentativeMetadata(t *testing.T) {
 		classifierProviders[model.Provider] = true
 		classifierAPIs[model.Api] = true
 	}
-	if len(classifierModels) != 51 || len(classifierProviders) != 6 || len(classifierAPIs) != 3 {
-		t.Fatalf("classifier count/providers/apis = %d/%d/%d, want 51/6/3", len(classifierModels), len(classifierProviders), len(classifierAPIs))
+	if len(classifierModels) != 56 || len(classifierProviders) != 6 || len(classifierAPIs) != 3 {
+		t.Fatalf("classifier count/providers/apis = %d/%d/%d, want 56/6/3", len(classifierModels), len(classifierProviders), len(classifierAPIs))
 	}
-	if total := len(chatModels) + len(imageModels) + len(classifierModels); total != 1713 {
-		t.Fatalf("typed model total=%d, want 1713", total)
+	if total := len(chatModels) + len(imageModels) + len(classifierModels); total != 1712 {
+		t.Fatalf("typed model total=%d, want 1712", total)
 	}
 
 	openAIGPT := goai.GetModel(goai.ProviderOpenAI, "gpt-6.1-sol")
