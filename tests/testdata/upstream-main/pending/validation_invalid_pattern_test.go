@@ -15,6 +15,23 @@ func TestMainValidationInvalidPatternCompilation(t *testing.T) {
 	}
 }
 
+// The fallback anchor is compiled eagerly, but an overriding anchor in the
+// dynamic scope is compiled only when validation reaches the dynamic reference.
+func TestMainValidationInvalidPatternDynamicScopeLazy(t *testing.T) {
+	schema := `{"$id":"https://example.test/outer","$defs":{"bad":{"$dynamicAnchor":"node","type":"string","pattern":"["},"inner":{"$id":"https://example.test/inner","$dynamicAnchor":"node","properties":{"child":{"$dynamicRef":"#node"}}}},"properties":{"x":{"$ref":"https://example.test/inner"}}}`
+	for _, tc := range []struct{ input, want string }{
+		{`{}`, `ok {}`},
+		{`{"x":{}}`, `ok {"x":{}}`},
+		{`{"x":{"child":"abc"}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := mainNumericOutcome(t, schema, tc.input); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // Source-derived from the pinned compiler: unused definitions are not checks,
 // while referenced definitions and declared properties compile regardless of data.
 func TestMainValidationInvalidPatternReachability(t *testing.T) {
@@ -31,6 +48,14 @@ func TestMainValidationInvalidPatternReachability(t *testing.T) {
 		{"draft-uri-ref-sibling", `{"$schema":"http://json-schema.org/draft-07/schema#","$defs":{"x":{"type":"number"}},"$ref":"#/$defs/x","pattern":"["}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
 		{"draft-uri-dependent-schemas", `{"$schema":"http://json-schema.org/draft-07/schema#","dependentSchemas":{"x":{"type":"string","pattern":"["}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
 		{"recursive-reference", `{"$defs":{"x":{"properties":{"next":{"$ref":"#/$defs/x"},"value":{"type":"string","pattern":"["}}}},"$ref":"#/$defs/x"}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"dynamic-pointer", `{"$defs":{"x":{"type":"string","pattern":"["}},"properties":{"x":{"$dynamicRef":"#/$defs/x"}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"dynamic-anchor", `{"$defs":{"x":{"$dynamicAnchor":"node","type":"string","pattern":"["}},"properties":{"x":{"$dynamicRef":"#node"}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"unused-dynamic-anchor", `{"$defs":{"x":{"$dynamicAnchor":"node","type":"string","pattern":"["}},"properties":{"x":{"type":"string"}}}`, `ok {}`},
+		{"dynamic-scope-unused-anchor", `{"$dynamicAnchor":"node","$defs":{"x":{"$dynamicAnchor":"other","type":"string","pattern":"["}},"properties":{"x":{"$dynamicRef":"#node"}}}`, `ok {}`},
+		{"union-const-pattern", `{"properties":{"x":{"anyOf":[{"const":1,"pattern":"["},{"const":2}]}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"union-const-annotation", `{"properties":{"x":{"anyOf":[{"const":1,"default":{"pattern":"["}},{"const":2}]}}}`, `ok {}`},
+		{"tagged-union", `{"properties":{"x":{"anyOf":[{"type":"object","properties":{"kind":{"const":"a"},"x":{"type":"string","pattern":"["}},"required":["kind"]},{"type":"object","properties":{"kind":{"const":"b"}},"required":["kind"]}]}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
+		{"tagged-union-refs", `{"$defs":{"a":{"type":"object","properties":{"kind":{"const":"a"},"x":{"type":"string","pattern":"["}},"required":["kind"]},"b":{"type":"object","properties":{"kind":{"const":"b"}},"required":["kind"]}},"properties":{"x":{"anyOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
 		{"then-with-if", `{"if":{"type":"number"},"then":{"type":"string","pattern":"["}}`, `THROW Invalid regular expression: /[/: Unterminated character class`},
 		{"then-without-if", `{"then":{"type":"string","pattern":"["}}`, `ok {}`},
 		{"else-without-if", `{"else":{"type":"string","pattern":"["}}`, `ok {}`},
