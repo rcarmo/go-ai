@@ -350,7 +350,17 @@ func parseClassifierUsage(value any, model *ClassifierModel) *Usage {
 			return nil
 		}
 	}
-	usage := &Usage{Input: input, Output: output, TotalTokens: input + output}
+	// Usage exposes int counters while upstream uses JavaScript numbers. Keep
+	// the individual counts for costing and saturate an unrepresentable sum
+	// rather than turning positive reported usage into a negative total.
+	maxInt := int(^uint(0) >> 1)
+	total := input
+	if output > maxInt-input {
+		total = maxInt
+	} else {
+		total += output
+	}
+	usage := &Usage{Input: input, Output: output, TotalTokens: total}
 	usage.Cost = CalculateCost(&Model{Cost: model.Cost}, usage)
 	return usage
 }
