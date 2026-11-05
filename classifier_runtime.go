@@ -503,6 +503,9 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 	client = withClassifierTimeout(client, retryCfg)
 	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses, true)
 	if err != nil {
+		if ctx.Err() == nil && retryCfg.RequestTimeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("Request timed out after %dms", retryCfg.RequestTimeout.Milliseconds())
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()

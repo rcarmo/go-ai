@@ -63,7 +63,7 @@ func TestMainDecisionsProviderAttemptTimeoutDoesNotRetry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", Context: ctx, TimeoutMs: 20, MaxRetries: 2})
-	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 {
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || !strings.Contains(result.ErrorMessage, "timed out after 20ms") {
 		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
 	}
 }
@@ -146,7 +146,7 @@ func TestMainDecisionsProviderExplicitZeroTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", Context: ctx, TimeoutMsOverride: &zero})
-	if err != nil || result.StopReason != goai.StopReasonError || !strings.Contains(result.ErrorMessage, "deadline exceeded") || calls.Load() > 1 || ctx.Err() != nil {
+	if err != nil || result.StopReason != goai.StopReasonError || !strings.Contains(result.ErrorMessage, "timed out after 0ms") || calls.Load() > 1 || ctx.Err() != nil {
 		t.Fatalf("calls=%d, caller error=%v, result=%+v, error=%v", calls.Load(), ctx.Err(), result, err)
 	}
 }
