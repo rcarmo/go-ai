@@ -11,6 +11,40 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+// Port of the pinned Decisions 503 recovery with omitted retry options.
+func TestMainDecisionsProviderDefaultRetries(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After-Ms", "0")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"answers": decisionsAnswers110()})
+	}))
+	defer srv.Close()
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture"})
+	if err != nil || result.StopReason != goai.StopReasonStop || calls.Load() != 2 {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+// Source-shaped explicit zero disables the default retries.
+func TestMainDecisionsProviderExplicitZeroRetries(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After-Ms", "0")
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	zero := 0
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", MaxRetriesOverride: &zero})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {

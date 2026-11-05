@@ -42,12 +42,16 @@ type ClassifierOptions struct {
 	Context         context.Context
 	Timeout         time.Duration
 	TimeoutMs       int
-	MaxRetries      int
-	MaxRetryDelayMs int
-	HTTPClient      *http.Client
-	Env             ProviderEnv
-	OnPayload       ClassifierPayloadHook
-	OnResponse      ClassifierResponseHook
+	// Non-zero legacy values remain supported. Pointer overrides distinguish
+	// an omitted option from an explicit zero, which disables retries or the cap.
+	MaxRetries              int
+	MaxRetryDelayMs         int
+	MaxRetriesOverride      *int
+	MaxRetryDelayMsOverride *int
+	HTTPClient              *http.Client
+	Env                     ProviderEnv
+	OnPayload               ClassifierPayloadHook
+	OnResponse              ClassifierResponseHook
 }
 
 type ClassifierApiProvider struct {
@@ -268,12 +272,22 @@ func applyClassifierHeaders(h http.Header, model *ClassifierModel, apiKey string
 }
 
 func classifierRetryConfig(opts *ClassifierOptions) RetryConfig {
-	if opts == nil || (opts.MaxRetries == 0 && opts.MaxRetryDelayMs == 0) {
-		return NoRetryConfig()
-	}
 	cfg := DefaultRetryConfig()
-	cfg.MaxRetries = opts.MaxRetries
-	cfg.MaxRetryDelayMs = opts.MaxRetryDelayMs
+	cfg.MaxRetries = 2
+	if opts != nil {
+		if opts.MaxRetries != 0 {
+			cfg.MaxRetries = opts.MaxRetries
+		}
+		if opts.MaxRetryDelayMs != 0 {
+			cfg.MaxRetryDelayMs = opts.MaxRetryDelayMs
+		}
+		if opts.MaxRetriesOverride != nil {
+			cfg.MaxRetries = *opts.MaxRetriesOverride
+		}
+		if opts.MaxRetryDelayMsOverride != nil {
+			cfg.MaxRetryDelayMs = *opts.MaxRetryDelayMsOverride
+		}
+	}
 	return cfg
 }
 
