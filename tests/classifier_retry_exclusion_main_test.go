@@ -116,6 +116,20 @@ func TestMainDecisionsProviderOversizedErrorBodyDoesNotRetry(t *testing.T) {
 	}
 }
 
+// Omitted timeout leaves the fetch without an added per-attempt deadline.
+func TestMainDecisionsProviderDefaultHasNoAttemptDeadline(t *testing.T) {
+	var sawDeadline atomic.Bool
+	client := &http.Client{Transport: providerRetryTransportMain(func(r *http.Request) (*http.Response, error) {
+		_, hasDeadline := r.Context().Deadline()
+		sawDeadline.Store(hasDeadline)
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"answers":[]}`))}, nil
+	})}
+	_, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client})
+	if err != nil || sawDeadline.Load() {
+		t.Fatalf("added deadline=%v, error=%v", sawDeadline.Load(), err)
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {

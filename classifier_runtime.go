@@ -274,6 +274,8 @@ func applyClassifierHeaders(h http.Header, model *ClassifierModel, apiKey string
 func classifierRetryConfig(opts *ClassifierOptions) RetryConfig {
 	cfg := DefaultRetryConfig()
 	cfg.MaxRetries = 2
+	// Upstream adds an attempt deadline only when the caller provides one.
+	cfg.RequestTimeout = 0
 	if opts != nil {
 		if opts.MaxRetries != 0 {
 			cfg.MaxRetries = opts.MaxRetries
