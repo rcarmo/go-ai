@@ -225,6 +225,80 @@ func TestMainDecisionsProviderPreservesShorterClientTimeout(t *testing.T) {
 	}
 }
 
+// An independent transport deadline is not the classifier's attempt timer.
+func TestMainDecisionsProviderIndependentTransportDeadline(t *testing.T) {
+	var calls atomic.Int32
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return nil, context.DeadlineExceeded
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, TimeoutMs: 2000})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || strings.Contains(result.ErrorMessage, "timed out after 2000ms") || !strings.Contains(result.ErrorMessage, "deadline exceeded") {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+// An independent body read deadline must not be attributed to the attempt timer.
+func TestMainDecisionsProviderIndependentBodyDeadline(t *testing.T) {
+	var calls atomic.Int32
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: classifierDeadlineBody{}}, nil
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, TimeoutMs: 2000})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || strings.Contains(result.ErrorMessage, "timed out after 2000ms") || !strings.Contains(result.ErrorMessage, "deadline exceeded") {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+type classifierDeadlineBody struct{}
+
+func (classifierDeadlineBody) Read([]byte) (int, error) { return 0, context.DeadlineExceeded }
+func (classifierDeadlineBody) Close() error             { return nil }
+
+// Each retry gets a fresh timer; the retry delay is outside the attempt.
+func TestMainDecisionsProviderTimeoutIsPerAttempt(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After-Ms", "100")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"answers": decisionsAnswers110()})
+	}))
+	defer srv.Close()
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", TimeoutMs: 50, MaxRetries: 1})
+	if err != nil || result.StopReason != goai.StopReasonStop || calls.Load() != 2 {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+// Retry and final body closure both release their owned attempt contexts.
+func TestMainDecisionsProviderAttemptContextsReleased(t *testing.T) {
+	var contexts []context.Context
+	client := &http.Client{Transport: providerRetryTransportMain(func(r *http.Request) (*http.Response, error) {
+		if len(contexts) > 0 && contexts[0].Err() == nil {
+			t.Error("prior attempt was not released before retry")
+		}
+		contexts = append(contexts, r.Context())
+		if len(contexts) == 1 {
+			return &http.Response{StatusCode: 503, Header: http.Header{"Retry-After-Ms": []string{"0"}}, Body: io.NopCloser(strings.NewReader("busy"))}, nil
+		}
+		data, _ := json.Marshal(map[string]any{"answers": decisionsAnswers110()})
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(string(data)))}, nil
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, TimeoutMs: 2000, MaxRetries: 1})
+	if err != nil || result.StopReason != goai.StopReasonStop || len(contexts) != 2 {
+		t.Fatalf("contexts=%d, result=%+v, error=%v", len(contexts), result, err)
+	}
+	for i, ctx := range contexts {
+		if ctx.Err() == nil {
+			t.Errorf("attempt %d context is still active", i)
+		}
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {

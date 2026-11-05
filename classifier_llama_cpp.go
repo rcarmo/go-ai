@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -402,22 +401,14 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 	if err != nil {
 		return nil, err
 	}
-	client = withClassifierTimeout(client, cfg)
-	attemptTimeout := cfg.RequestTimeout
-	if attemptTimeout > 0 && client.Timeout > 0 && client.Timeout < attemptTimeout {
-		attemptTimeout = 0
-	}
 	resp, err := doProviderRequestWithRetry(request.ctx, client, req, cfg, nil, true)
 	if err != nil {
-		if request.ctx.Err() == nil && attemptTimeout > 0 && errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("Request timed out after %dms", attemptTimeout.Milliseconds())
-		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(responseBody) > 1<<20 {
-		return nil, classifierResponseReadError(llamaCPPLabel, err, attemptTimeout, request.ctx)
+		return nil, classifierResponseReadError(llamaCPPLabel, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("%s returned %d", llamaCPPLabel, resp.StatusCode)

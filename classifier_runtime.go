@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -322,28 +321,11 @@ func classifierRequestTimeout(opts *ClassifierOptions) (time.Duration, error) {
 	return timeout, nil
 }
 
-func classifierResponseReadError(label string, err error, timeout time.Duration, ctx context.Context) error {
+func classifierResponseReadError(label string, err error) error {
 	if err != nil {
-		if ctx.Err() == nil && timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("Request timed out after %dms", timeout.Milliseconds())
-		}
 		return fmt.Errorf("%s could not read response: %w", label, err)
 	}
 	return fmt.Errorf("%s could not read response", label)
-}
-
-func withClassifierTimeout(client *http.Client, cfg RetryConfig) *http.Client {
-	if client != nil && cfg.RequestTimeout == 0 {
-		return client
-	}
-	if client == nil {
-		client = http.DefaultClient
-	}
-	copy := *client
-	if cfg.RequestTimeout > 0 && (copy.Timeout == 0 || cfg.RequestTimeout < copy.Timeout) {
-		copy.Timeout = cfg.RequestTimeout
-	}
-	return &copy
 }
 
 func responseHeaders(h http.Header) map[string]string {
@@ -500,22 +482,14 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 	if err != nil {
 		return nil, err
 	}
-	client = withClassifierTimeout(client, retryCfg)
-	attemptTimeout := retryCfg.RequestTimeout
-	if attemptTimeout > 0 && client.Timeout > 0 && client.Timeout < attemptTimeout {
-		attemptTimeout = 0
-	}
 	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses, true)
 	if err != nil {
-		if ctx.Err() == nil && attemptTimeout > 0 && errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("Request timed out after %dms", attemptTimeout.Milliseconds())
-		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
-		return nil, classifierResponseReadError(label, err, attemptTimeout, ctx)
+		return nil, classifierResponseReadError(label, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &classifierHTTPError{status: resp.StatusCode, body: string(data), label: label}

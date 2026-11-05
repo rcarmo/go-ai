@@ -2,6 +2,7 @@ package goai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -45,7 +46,39 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	return doProviderRequestWithRetry(ctx, client, req, cfg, nil, false)
 }
 
+var classifierAttemptDeadline = errors.New("classifier attempt deadline")
+
+type classifierAttemptBody struct {
+	io.ReadCloser
+	attempt context.Context
+	caller  context.Context
+	cancel  context.CancelFunc
+	timeout time.Duration
+}
+
+func (b *classifierAttemptBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		err = classifierAttemptError(err, b.caller, b.attempt, b.timeout)
+	}
+	return n, err
+}
+
+func (b *classifierAttemptBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.cancel()
+	return err
+}
+
+func classifierAttemptError(err error, caller, attempt context.Context, timeout time.Duration) error {
+	if caller.Err() == nil && context.Cause(attempt) == classifierAttemptDeadline {
+		return fmt.Errorf("Request timed out after %dms", timeout.Milliseconds())
+	}
+	return err
+}
+
 func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int, stopOnTransportError bool) (*http.Response, error) {
+	attemptTimeout := cfg.RequestTimeout
 	cfg.applyDefaults()
 	if client == nil {
 		client = cfg.NewHTTPClient()
@@ -59,10 +92,16 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: time.Duration(cfg.MaxRetryDelayMs) * time.Millisecond, DisableDelayCap: cfg.MaxRetryDelayMs == 0}
 	attempt := 0
 	return RetryProviderRequest(ctx, func() (*http.Response, error) {
-		attemptReq := req.Clone(ctx)
+		attemptCtx := ctx
+		cancel := func() {}
+		if stopOnTransportError && attemptTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeoutCause(ctx, attemptTimeout, classifierAttemptDeadline)
+		}
+		attemptReq := req.Clone(attemptCtx)
 		if req.GetBody != nil {
 			body, err := req.GetBody()
 			if err != nil {
+				cancel()
 				return nil, fmt.Errorf("clone request body: %w", err)
 			}
 			attemptReq.Body = body
@@ -70,9 +109,15 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		resp, err := client.Do(attemptReq)
 		if err != nil {
 			if stopOnTransportError {
+				err = classifierAttemptError(err, ctx, attemptCtx, attemptTimeout)
+				cancel()
 				return nil, err
 			}
+			cancel()
 			return nil, &ProviderRequestError{Status: 0, Headers: http.Header{}, Message: err.Error(), Cause: err}
+		}
+		if stopOnTransportError && attemptTimeout > 0 {
+			resp.Body = &classifierAttemptBody{ReadCloser: resp.Body, attempt: attemptCtx, caller: ctx, cancel: cancel, timeout: attemptTimeout}
 		}
 		// Retry directives apply to failures, never an opened successful stream.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
