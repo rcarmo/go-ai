@@ -34,6 +34,29 @@ func TestMainProviderRetryHeaderNumericPrefixes(t *testing.T) {
 	}
 }
 
+// U+0085 is Go whitespace but is not ECMAScript WhiteSpace or LineTerminator.
+func TestMainProviderRetryHeaderECMAScriptWhitespace(t *testing.T) {
+	for _, tc := range []struct {
+		name, value string
+		want        time.Duration
+	}{
+		{"next-line-falls-through", "\u00852ms", 4 * time.Millisecond},
+		{"no-break-space-trimmed", "\u00a02ms", 2 * time.Millisecond},
+		{"byte-order-mark-trimmed", "\ufeff2ms", 2 * time.Millisecond},
+		{"line-separator-trimmed", "\u20282ms", 2 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := http.Header{}
+			h.Set("retry-after-ms", tc.value)
+			h.Set("retry-after", "0.004")
+			got, err := providerRetryDelay(&ProviderRequestError{Status: 429, Headers: h}, 0, ProviderRetryOptions{})
+			if err != nil || got != tc.want {
+				t.Fatalf("got (%v, %v), want %v", got, err, tc.want)
+			}
+		})
+	}
+}
+
 func TestMainProviderRetryHeaderNonFiniteFallsThrough(t *testing.T) {
 	for _, value := range []string{"Infinity", "-Infinitysuffix", "1e9999"} {
 		t.Run(value, func(t *testing.T) {

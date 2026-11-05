@@ -195,7 +195,11 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 // parseProviderRetryFloat follows Number.parseFloat's decimal-prefix grammar.
 // Its bool distinguishes NaN (which permits the date fallback) from infinity.
 func parseProviderRetryFloat(value string) (float64, bool) {
-	value = strings.TrimLeftFunc(value, func(r rune) bool { return unicode.IsSpace(r) || r == '\uFEFF' })
+	value = strings.TrimLeftFunc(value, func(r rune) bool {
+		// ECMAScript whitespace is Unicode Zs plus these whitespace and line
+		// terminator characters; Go's IsSpace also includes U+0085.
+		return unicode.Is(unicode.Zs, r) || r == '\uFEFF' || r == '\t' || r == '\v' || r == '\f' || r == '\n' || r == '\r' || r == '\u2028' || r == '\u2029'
+	})
 	i := 0
 	if i < len(value) && (value[i] == '+' || value[i] == '-') {
 		i++
