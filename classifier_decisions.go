@@ -155,6 +155,10 @@ func parseDecisionsAnswers(value any, ctx ClassifierContext) (map[string]Classif
 		}
 		switch q.Type {
 		case "choice":
+			_, hasChoice := raw["choice"].(string)
+			if raw["type"] != "choice" || !hasChoice {
+				return nil, fmt.Errorf("OpenAI Decisions did not return a choice answer for %s", id)
+			}
 			entries, ok := raw["probabilities"].([]any)
 			if !ok {
 				return nil, fmt.Errorf("OpenAI Decisions returned invalid probabilities for %s", id)
