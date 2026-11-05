@@ -1,6 +1,11 @@
 package goai
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -53,3 +58,30 @@ func TestMainClassifierRetryDefaultsAndExplicitZero(t *testing.T) {
 		})
 	}
 }
+
+// The public HTTP adapter must not silently disable a large positive cap
+// when converting milliseconds to time.Duration.
+func TestMainProviderRetryConfiguredCapConversion(t *testing.T) {
+	maxDurationMs := int64((1<<63 - 1) / int64(time.Millisecond))
+	if int64(int(maxDurationMs+1)) != maxDurationMs+1 {
+		t.Skip("int too narrow to exercise duration overflow")
+	}
+	calls := 0
+	client := &http.Client{Transport: retryCapTransport(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 429, Header: http.Header{"Retry-After-Ms": []string{strconv.FormatInt(maxDurationMs+10000, 10)}}, Body: io.NopCloser(strings.NewReader("busy"))}, nil
+	})}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	cfg := NoRetryConfig()
+	cfg.MaxRetries, cfg.MaxRetryDelayMs = 1, int(maxDurationMs+1)
+	_, err := DoProviderRequestWithRetry(ctx, client, req, cfg)
+	if err == nil || !strings.Contains(err.Error(), "server requested") || calls != 1 {
+		t.Fatalf("got error=%v calls=%d; want cap rejection on first attempt", err, calls)
+	}
+}
+
+type retryCapTransport func(*http.Request) (*http.Response, error)
+
+func (f retryCapTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
