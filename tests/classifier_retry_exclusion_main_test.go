@@ -1,6 +1,7 @@
 package goai_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,38 @@ import (
 
 	goai "github.com/rcarmo/go-ai"
 )
+
+// Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
+func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		status    int
+		directive string
+	}{
+		{"status-600", 600, ""},
+		{"forced-400", 400, "true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					w.Header().Set("Retry-After-Ms", "0")
+					if tc.directive != "" {
+						w.Header().Set("X-Should-Retry", tc.directive)
+					}
+					w.WriteHeader(tc.status)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"answers": decisionsAnswers110()})
+			}))
+			defer srv.Close()
+			result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", MaxRetries: 1})
+			if err != nil || result.StopReason != goai.StopReasonStop || calls.Load() != 2 {
+				t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+			}
+		})
+	}
+}
 
 // Source-shaped OpenAI Decisions gateway refusal, with an additional server
 // force-retry directive to exercise noRetryStatuses precedence through HTTP.

@@ -41,6 +41,10 @@ type ProviderRetryOptions struct {
 }
 
 func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
+	return doProviderRequestWithRetry(ctx, client, req, cfg, nil)
+}
+
+func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig, noRetryStatuses []int) (*http.Response, error) {
 	cfg.applyDefaults()
 	if client == nil {
 		client = cfg.NewHTTPClient()
@@ -72,6 +76,11 @@ func DoProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		}
 		if !isRetryableProviderStatus(resp.StatusCode, resp.Header, cfg) {
 			return resp, nil
+		}
+		for _, status := range noRetryStatuses {
+			if resp.StatusCode == status {
+				return resp, nil
+			}
 		}
 		if attempt >= cfg.MaxRetries {
 			return resp, nil

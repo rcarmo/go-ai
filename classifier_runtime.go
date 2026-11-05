@@ -447,20 +447,8 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 	if opts != nil && opts.TimeoutMs > 0 {
 		retryCfg.RequestTimeout = time.Duration(opts.TimeoutMs) * time.Millisecond
 	}
-	if len(noRetryStatuses) > 0 {
-		retryCfg.RetryableStatuses = []int{408, 409, 429}
-		for status := 500; status < 600; status++ {
-			skip := false
-			for _, excluded := range noRetryStatuses {
-				skip = skip || status == excluded
-			}
-			if !skip {
-				retryCfg.RetryableStatuses = append(retryCfg.RetryableStatuses, status)
-			}
-		}
-	}
 	client = withClassifierTimeout(client, retryCfg)
-	resp, err := DoProviderRequestWithRetry(ctx, client, req, retryCfg)
+	resp, err := doProviderRequestWithRetry(ctx, client, req, retryCfg, noRetryStatuses)
 	if err != nil {
 		return nil, err
 	}
