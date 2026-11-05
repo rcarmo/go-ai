@@ -28,6 +28,17 @@ func TestValidationStringPatternMemoAndFailure(t *testing.T) {
 	}
 }
 
+func TestValidationInvalidPatternCannotBeHiddenByUnion(t *testing.T) {
+	pattern := map[string]interface{}{"type": "string", "pattern": `[`}
+	schema := map[string]interface{}{"anyOf": []interface{}{pattern, map[string]interface{}{"type": "string"}}}
+	v := newToolSchemaValidator(schema)
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`[`, "aaa"}: {valid: false}}
+	_, err := v.coerceWithJSONSchema("aaa", schema)
+	if err == nil || !strings.Contains(err.Error(), "invalid regular expression") {
+		t.Fatalf("union hid invalid pattern: %v", err)
+	}
+}
+
 func TestValidationPatternFailureCannotBeHiddenByUnion(t *testing.T) {
 	pattern := map[string]interface{}{"type": "string", "pattern": `^a+$`}
 	schema := map[string]interface{}{"anyOf": []interface{}{pattern, map[string]interface{}{"type": "string"}}}

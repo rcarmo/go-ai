@@ -2,6 +2,7 @@ package goai
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/rcarmo/go-ai/internal/quickjs"
@@ -56,8 +57,12 @@ func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchem
 		}
 		v.patterns[key] = result
 	}
-	if result.err != nil && v.patternFailure == nil {
-		v.patternFailure = result.err
+	if v.patternFailure == nil {
+		if result.err != nil {
+			v.patternFailure = result.err
+		} else if !result.valid {
+			v.patternFailure = fmt.Errorf("invalid regular expression: %s", pattern)
+		}
 	}
 	return result
 }

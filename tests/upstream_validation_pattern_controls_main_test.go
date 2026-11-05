@@ -28,6 +28,16 @@ func TestMainValidationStringPatternSourceControls(t *testing.T) {
 	}
 }
 
+// Source-derived safety control: an invalid reached pattern must not be hidden
+// by a succeeding anyOf alternative. Compile-time throw timing remains open.
+func TestMainValidationInvalidPatternUnionDoesNotAccept(t *testing.T) {
+	schema := `{"type":"object","properties":{"s":{"anyOf":[{"type":"string","pattern":"["},{"type":"string"}]}}}`
+	got := mainNumericOutcome(t, schema, `{"s":"aaa"}`)
+	if strings.HasPrefix(got, "ok ") || !strings.Contains(got, "invalid regular expression") {
+		t.Fatalf("invalid pattern was accepted: %s", got)
+	}
+}
+
 func TestMainValidationStringPatternUnionAndOwnership(t *testing.T) {
 	schema := `{"type":"object","properties":{"s":{"oneOf":[{"type":"string","pattern":"^a+$"},{"type":"string","pattern":"^b+$"}]}}}`
 	for _, tc := range []struct{ input, prefix string }{
