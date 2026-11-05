@@ -168,13 +168,13 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 		if v := err.Headers.Get("retry-after-ms"); v != "" {
 			ms, parseErr := strconv.ParseFloat(v, 64)
 			if parseErr == nil && !math.IsNaN(ms) && !math.IsInf(ms, 0) {
-				return validateProviderRetryDelay(time.Duration(ms*float64(time.Millisecond)), options, err.Error())
+				return validateProviderRetrySeconds(ms/1000, options, err.Error())
 			}
 		}
 		if v := err.Headers.Get("retry-after"); v != "" {
 			seconds, parseErr := strconv.ParseFloat(v, 64)
 			if parseErr == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) {
-				return validateProviderRetryDelay(time.Duration(seconds*float64(time.Second)), options, err.Error())
+				return validateProviderRetrySeconds(seconds, options, err.Error())
 			}
 			if when, dateErr := http.ParseTime(v); dateErr == nil {
 				return validateProviderRetryDelay(time.Until(when), options, err.Error())
@@ -190,17 +190,34 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 }
 
 func validateProviderRetryDelay(delay time.Duration, options ProviderRetryOptions, message string) (time.Duration, error) {
-	if options.DisableDelayCap {
-		return delay, nil
-	}
 	maxDelay := options.MaxRetryDelay
 	if maxDelay == 0 {
 		maxDelay = defaultProviderMaxRetryDelay
 	}
-	if maxDelay > 0 && delay > maxDelay {
-		return 0, fmt.Errorf("server requested %ds retry delay (max: %ds). %s", int((delay+time.Second-1)/time.Second), int((maxDelay+time.Second-1)/time.Second), message)
+	if !options.DisableDelayCap && maxDelay > 0 && delay > maxDelay {
+		return 0, fmt.Errorf("server requested %.0fs retry delay (max: %.0fs). %s", math.Ceil(delay.Seconds()), math.Ceil(maxDelay.Seconds()), message)
 	}
 	return delay, nil
+}
+
+func validateProviderRetrySeconds(seconds float64, options ProviderRetryOptions, message string) (time.Duration, error) {
+	maxDelay := options.MaxRetryDelay
+	if maxDelay == 0 {
+		maxDelay = defaultProviderMaxRetryDelay
+	}
+	if !options.DisableDelayCap && maxDelay > 0 && seconds > maxDelay.Seconds() {
+		return 0, fmt.Errorf("server requested %.0fs retry delay (max: %.0fs). %s", math.Ceil(seconds), math.Ceil(maxDelay.Seconds()), message)
+	}
+	// Convert only after checking the cap. A finite server value can exceed
+	// time.Duration's range; saturate instead of wrapping to an immediate retry.
+	nanos := seconds * float64(time.Second)
+	if nanos >= float64(math.MaxInt64) {
+		return time.Duration(math.MaxInt64), nil
+	}
+	if nanos <= float64(math.MinInt64) {
+		return time.Duration(math.MinInt64), nil
+	}
+	return time.Duration(nanos), nil
 }
 
 func sleepProviderRetry(ctx context.Context, delay time.Duration) error {
