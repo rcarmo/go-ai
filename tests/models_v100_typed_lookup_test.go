@@ -6,6 +6,29 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
+// Source model-types.test.ts:72–73: legacy untyped chat equals explicit chat,
+// but an image identity is distinct even when provider and ID match. The
+// existing ModelsAreEqual API accepts *Model only, so the image type here is a
+// labelled representation adaptation, not a cross-struct API parity claim.
+func TestMainModelsAreEqualHonoursType(t *testing.T) {
+	legacy := &goai.Model{ID: "shared", Provider: "provider"}
+	chat := &goai.Model{ID: "shared", Provider: "provider", Type: "chat"}
+	image := &goai.Model{ID: "shared", Provider: "provider", Type: "image"}
+	if !goai.ModelsAreEqual(legacy, chat) || !goai.ModelsAreEqual(chat, legacy) {
+		t.Fatal("legacy model should compare as chat")
+	}
+	if goai.ModelsAreEqual(legacy, image) || goai.ModelsAreEqual(image, legacy) {
+		t.Fatal("different model types must not compare equal")
+	}
+	if goai.ModelsAreEqual(nil, chat) || goai.ModelsAreEqual(chat, nil) {
+		t.Fatal("nil models must not compare equal")
+	}
+	if goai.ModelsAreEqual(chat, &goai.Model{ID: "other", Provider: "provider", Type: "chat"}) ||
+		goai.ModelsAreEqual(chat, &goai.Model{ID: "shared", Provider: "other", Type: "chat"}) {
+		t.Fatal("different IDs or providers must not compare equal")
+	}
+}
+
 func TestV100UnifiedTypedLookupAndImageCompatibility(t *testing.T) {
 	goai.ClearModels()
 	goai.ClearImageModels()
