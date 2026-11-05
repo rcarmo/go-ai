@@ -12,7 +12,7 @@ import (
 // Each call owns a fresh module and bounded heap. Only this constant function
 // is evaluated: pattern is a JS string argument, never interpolated code. No
 // codemode prelude, tools, globals, files or network capabilities are installed.
-// Constructor exceptions return "", as in the upstream format check;
+// Constructor exceptions return false, as in the upstream format check;
 // initialization, cancellation and WASM failures remain distinct errors.
 // The caller controls the deadline; schema validation supplies five seconds.
 func (e *Engine) CheckRegExp(ctx context.Context, pattern string) (valid bool, err error) {
@@ -20,8 +20,8 @@ func (e *Engine) CheckRegExp(ctx context.Context, pattern string) (valid bool, e
 	return err == nil && result == "valid", err
 }
 
-// MatchRegExp matches ECMAScript Unicode-mode patterns in an isolated guest.
-// Pattern and value are passed as data, never interpolated into code.
+// MatchRegExp applies the schema dependency's Unicode-first, legacy-fallback
+// matching policy in an isolated guest. Arguments are always passed as data.
 func (e *Engine) MatchRegExp(ctx context.Context, pattern, value string) (valid, matched bool, err error) {
 	result, err := e.regExpOperation(ctx, pattern, value, true)
 	return err == nil && (result == "match" || result == "miss"), err == nil && result == "match", err
@@ -79,7 +79,7 @@ func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, mat
 	}
 	code := `(pattern => { try { new RegExp(pattern, "u"); return "valid"; } catch { return "invalid"; } })`
 	if match {
-		code = `((pattern, value) => { let re; try { re = new RegExp(pattern, "u"); } catch { return "invalid"; } return re.test(value) ? "match" : "miss"; })`
+		code = `((pattern, value) => { let re; try { re = new RegExp(pattern, "u"); } catch { try { re = new RegExp(pattern); } catch { return "invalid"; } } return re.test(value) ? "match" : "miss"; })`
 	}
 	codePtr, err := v.writeBytes(wasmCtx, []byte(code))
 	if err != nil {

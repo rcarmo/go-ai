@@ -32,6 +32,8 @@ func TestRegExpMatchUnicodeControls(t *testing.T) {
 		{`^.$`, "😀", true, true},
 		{`(?<!x)y`, "y", true, true},
 		{`(?<!x)y`, "xy", true, false},
+		{`^\a$`, "a", true, true},
+		{`^\a$`, "b", true, false},
 		{`[`, "y", false, false},
 		{`^safe$`, `x");throw 1;//`, true, false},
 		{`x");throw 1;//`, "anything", false, false},

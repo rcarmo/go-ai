@@ -17,6 +17,8 @@ func TestMainValidationStringPatternSourceControls(t *testing.T) {
 		{"class", `{"type":"object","properties":{"s":{"type":"string","pattern":"^[a-z-]+$"}}}`, `{"s":"a-b"}`, `ok {"s":"a-b"}`},
 		{"lookbehind-pass", `{"type":"object","properties":{"s":{"type":"string","pattern":"(?<!x)y"}}}`, `{"s":"y"}`, `ok {"s":"y"}`},
 		{"lookbehind-reject", `{"type":"object","properties":{"s":{"type":"string","pattern":"(?<!x)y"}}}`, `{"s":"xy"}`, `REJECT - s: expected to match (?<!x)y`},
+		{"legacy-identity-escape", `{"type":"object","properties":{"s":{"type":"string","pattern":"^\\a$"}}}`, `{"s":"a"}`, `ok {"s":"a"}`},
+		{"legacy-identity-reject", `{"type":"object","properties":{"s":{"type":"string","pattern":"^\\a$"}}}`, `{"s":"b"}`, `REJECT - s: expected to match ^\a$`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := mainNumericOutcome(t, tc.schema, tc.input); got != tc.want {
