@@ -97,6 +97,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 	options := ProviderRetryOptions{MaxRetries: cfg.MaxRetries, MaxRetryDelay: time.Duration(cfg.MaxRetryDelayMs) * time.Millisecond, DisableDelayCap: cfg.MaxRetryDelayMs == 0}
 	attempt := 0
 	return retryProviderRequest(ctx, func() (*http.Response, error) {
+		attempt++
 		attemptCtx := ctx
 		cancel := func() {}
 		if stopOnTransportError && attemptTimeout > 0 {
@@ -136,7 +137,7 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 				return resp, nil
 			}
 		}
-		if attempt >= cfg.MaxRetries {
+		if attempt > cfg.MaxRetries {
 			return resp, nil
 		}
 		if stopOnTransportError {
@@ -151,7 +152,6 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 				return nil, fmt.Errorf("provider error response exceeds 1 MiB")
 			}
 		}
-		attempt++
 		headers := resp.Header.Clone()
 		// Carry an explicitly allowed native status through the generic retry
 		// classifier without mutating the actual response headers.

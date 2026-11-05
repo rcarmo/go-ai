@@ -85,6 +85,63 @@ func TestProviderHTTPRetryCallbackMain(t *testing.T) {
 	}
 }
 
+// Transport and HTTP failures share one retry budget; the final response body
+// remains caller-owned even if earlier attempts failed before a response.
+func TestProviderHTTPRetryMixedAttemptOwnershipMain(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		statuses []int // 0 is a transport failure
+	}{
+		{"transport-then-http", []int{0, 429}},
+		{"http-transport-http", []int{429, 0, 503}},
+		{"transport-then-success", []int{0, 200}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			bodies := make([]*providerRetryBodyMain, 0, len(tc.statuses))
+			client := &http.Client{Transport: providerRetryTransportMain(func(_ *http.Request) (*http.Response, error) {
+				if calls >= len(tc.statuses) {
+					return nil, fmt.Errorf("unexpected additional attempt")
+				}
+				status := tc.statuses[calls]
+				calls++
+				if status == 0 {
+					return nil, fmt.Errorf("transport failure")
+				}
+				body := &providerRetryBodyMain{Reader: strings.NewReader("response payload")}
+				bodies = append(bodies, body)
+				return &http.Response{StatusCode: status, Header: http.Header{"Retry-After-Ms": []string{"0"}}, Body: body}, nil
+			})}
+			cfg := goai.NoRetryConfig()
+			cfg.MaxRetries, cfg.MaxRetryDelayMs = len(tc.statuses)-1, 1000
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			defer cancel()
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+			response, err := goai.DoProviderRequestWithRetry(ctx, client, req, cfg)
+			if err != nil || response == nil {
+				t.Fatalf("expected final response; got response=%v error=%v", response, err)
+			}
+			defer response.Body.Close()
+			if calls != len(tc.statuses) || response.StatusCode != tc.statuses[len(tc.statuses)-1] {
+				t.Fatalf("calls=%d status=%d", calls, response.StatusCode)
+			}
+			for i, body := range bodies {
+				wantClosed := 1
+				if i == len(bodies)-1 {
+					wantClosed = 0
+				}
+				if body.closed != wantClosed {
+					t.Fatalf("body %d closed=%d want %d", i, body.closed, wantClosed)
+				}
+			}
+			payload, err := io.ReadAll(response.Body)
+			if err != nil || string(payload) != "response payload" {
+				t.Fatalf("final body=%q error=%v", payload, err)
+			}
+		})
+	}
+}
+
 func TestProviderHTTPRetryDirectiveAndOwnershipMain(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
