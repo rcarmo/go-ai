@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // All reference state is owned by one validation call. Schema/value identity,
@@ -52,16 +53,18 @@ func toolSchemaKey(schema map[string]interface{}, value interface{}) (toolSchema
 type toolSchemaWork struct{ convertCalls, indexNodes, regexChecks, literalCandidates int } // Optional structural-work witness in white-box tests.
 
 type toolSchemaValidator struct {
-	root       map[string]interface{}
-	schemaRaw  []byte
-	resources  *toolSchemaResources
-	refs       map[toolSchemaRefKey]interface{}
-	regex      map[string]toolSchemaRegexResult
-	converted  map[toolSchemaMemoKey]interface{}
-	converting map[toolSchemaMemoKey]bool
-	checked    map[toolSchemaMemoKey]bool
-	checking   map[toolSchemaMemoKey]bool
-	members    map[uintptr]*toolSchemaMembers
+	root            map[string]interface{}
+	schemaRaw       []byte
+	resources       *toolSchemaResources
+	refs            map[toolSchemaRefKey]interface{}
+	regex           map[string]toolSchemaRegexResult
+	patterns        map[toolSchemaPatternKey]toolSchemaPatternResult
+	patternDeadline time.Time
+	converted       map[toolSchemaMemoKey]interface{}
+	converting      map[toolSchemaMemoKey]bool
+	checked         map[toolSchemaMemoKey]bool
+	checking        map[toolSchemaMemoKey]bool
+	members         map[uintptr]*toolSchemaMembers
 	// Pointer identities must not outlive their inputs: retain them through
 	// the call so GC/address reuse cannot turn a different candidate into a hit.
 	inputs map[toolSchemaMemoKey]interface{}
@@ -274,6 +277,9 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 	}
 	if _, isString := value.(string); isString && (len(types) == 0 || anyMatchesJSONSchemaType(value, types)) {
 		if reason := v.stringFormatReason(value, schema); reason != "" {
+			return &toolSchemaIssue{path, reason}
+		}
+		if reason := v.stringPatternReason(value, schema); reason != "" {
 			return &toolSchemaIssue{path, reason}
 		}
 	}

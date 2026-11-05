@@ -17,6 +17,50 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
+func TestRegExpMatchUnicodeControls(t *testing.T) {
+	e, err := NewEngine(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close(context.Background())
+	for _, tc := range []struct {
+		pattern, value string
+		valid, matched bool
+	}{
+		{`^\p{L}+$`, "äb", true, true},
+		{`^\p{L}+$`, "p{L}", true, false},
+		{`^.$`, "😀", true, true},
+		{`(?<!x)y`, "y", true, true},
+		{`(?<!x)y`, "xy", true, false},
+		{`[`, "y", false, false},
+		{`^safe$`, `x");throw 1;//`, true, false},
+		{`x");throw 1;//`, "anything", false, false},
+	} {
+		valid, matched, err := e.MatchRegExp(context.Background(), tc.pattern, tc.value)
+		if err != nil || valid != tc.valid || matched != tc.matched {
+			t.Errorf("pattern=%q value=%q got=(%v,%v,%v) want=(%v,%v)", tc.pattern, tc.value, valid, matched, err, tc.valid, tc.matched)
+		}
+	}
+}
+
+func TestRegExpMatchCancellationAndRecovery(t *testing.T) {
+	e, err := NewEngine(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	valid, matched, err := e.MatchRegExp(ctx, `^(a+)+$`, strings.Repeat("a", 5000)+"!")
+	if valid || matched || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("pathological match got (%v,%v,%v)", valid, matched, err)
+	}
+	valid, matched, err = e.MatchRegExp(context.Background(), `^ok$`, "ok")
+	if err != nil || !valid || !matched {
+		t.Fatalf("recovery got (%v,%v,%v)", valid, matched, err)
+	}
+}
+
 func TestRegExpUnicodeOracles(t *testing.T) {
 	var f struct {
 		Literal, Derived []struct {
