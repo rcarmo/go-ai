@@ -204,7 +204,7 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 				if !math.IsInf(seconds, 0) && !math.IsInf(seconds*1000, 0) {
 					return validateProviderRetrySeconds(seconds, options, err.Error())
 				}
-			} else if when, dateErr := http.ParseTime(v); dateErr == nil {
+			} else if when, dateErr := parseProviderRetryDate(v); dateErr == nil {
 				return validateProviderRetryDelay(time.Until(when), options, err.Error())
 			}
 		}
@@ -215,6 +215,16 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 		delay = 500 * time.Millisecond << max(retryIndex, 0)
 	}
 	return time.Duration(float64(delay) * (1 - rand.Float64()*0.25)), nil
+}
+
+// parseProviderRetryDate supports HTTP dates and the long-month UTC form
+// accepted by Date.parse. Other JavaScript date formats are not yet covered.
+func parseProviderRetryDate(value string) (time.Time, error) {
+	when, err := http.ParseTime(value)
+	if err == nil {
+		return when, nil
+	}
+	return time.Parse("January 2, 2006 15:04:05 GMT", value)
 }
 
 // parseProviderRetryFloat follows Number.parseFloat's decimal-prefix grammar.

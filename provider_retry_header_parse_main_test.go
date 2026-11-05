@@ -57,6 +57,17 @@ func TestMainProviderRetryHeaderECMAScriptWhitespace(t *testing.T) {
 	}
 }
 
+// Source-derived from the Retry-After Date.parse fallback. The long month
+// form is accepted by the pinned JavaScript runtime but not net/http.ParseTime.
+func TestMainProviderRetryHeaderLongMonthDate(t *testing.T) {
+	h := http.Header{}
+	h.Set("Retry-After", "January 1, 3000 00:00:00 GMT")
+	_, err := providerRetryDelay(&ProviderRequestError{Status: 429, Headers: h, Message: "busy"}, 0, ProviderRetryOptions{MaxRetryDelay: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "retry delay") {
+		t.Fatalf("got %v; want a server delay-cap error", err)
+	}
+}
+
 func TestMainProviderRetryHeaderNonFiniteFallsThrough(t *testing.T) {
 	for _, value := range []string{"Infinity", "-Infinitysuffix", "1e9999"} {
 		t.Run(value, func(t *testing.T) {
