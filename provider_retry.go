@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"time"
@@ -180,15 +181,12 @@ func providerRetryDelay(err *ProviderRequestError, retryIndex int, options Provi
 			}
 		}
 	}
-	multiplier := 1
-	for i := 0; i < retryIndex; i++ {
-		multiplier *= 2
+	// Cap before shifting: the retry index can grow beyond the integer width.
+	delay := 8 * time.Second
+	if retryIndex < 4 {
+		delay = 500 * time.Millisecond << max(retryIndex, 0)
 	}
-	delay := time.Duration(float64(time.Second) * 0.5 * float64(multiplier))
-	if delay > 8*time.Second {
-		delay = 8 * time.Second
-	}
-	return delay, nil
+	return time.Duration(float64(delay) * (1 - rand.Float64()*0.25)), nil
 }
 
 func validateProviderRetryDelay(delay time.Duration, options ProviderRetryOptions, message string) (time.Duration, error) {
