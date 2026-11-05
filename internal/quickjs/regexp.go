@@ -16,18 +16,34 @@ import (
 // initialization, cancellation and WASM failures remain distinct errors.
 // The caller controls the deadline; schema validation supplies five seconds.
 func (e *Engine) CheckRegExp(ctx context.Context, pattern string) (valid bool, err error) {
-	result, err := e.regExpOperation(ctx, pattern, "", false)
+	result, err := e.regExpOperation(ctx, pattern, "", regexpUnicodeCheck)
+	return err == nil && result == "valid", err
+}
+
+// CheckSchemaRegExp checks syntax using the schema dependency's Unicode-first,
+// legacy-fallback policy. It never evaluates the expression against a value.
+func (e *Engine) CheckSchemaRegExp(ctx context.Context, pattern string) (valid bool, err error) {
+	result, err := e.regExpOperation(ctx, pattern, "", regexpSchemaCheck)
 	return err == nil && result == "valid", err
 }
 
 // MatchRegExp applies the schema dependency's Unicode-first, legacy-fallback
 // matching policy in an isolated guest. Arguments are always passed as data.
 func (e *Engine) MatchRegExp(ctx context.Context, pattern, value string) (valid, matched bool, err error) {
-	result, err := e.regExpOperation(ctx, pattern, value, true)
+	result, err := e.regExpOperation(ctx, pattern, value, regexpMatch)
 	return err == nil && (result == "match" || result == "miss"), err == nil && result == "match", err
 }
 
-func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, match bool) (resultCode string, err error) {
+type regexpOperation uint8
+
+const (
+	regexpUnicodeCheck regexpOperation = iota
+	regexpSchemaCheck
+	regexpMatch
+)
+
+func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, operation regexpOperation) (resultCode string, err error) {
+	match := operation == regexpMatch
 	if ctx == nil {
 		return "", fmt.Errorf("nil regexp context")
 	}
@@ -78,7 +94,10 @@ func (e *Engine) regExpOperation(ctx context.Context, pattern, value string, mat
 		return nil
 	}
 	code := `(pattern => { try { new RegExp(pattern, "u"); return "valid"; } catch { return "invalid"; } })`
-	if match {
+	switch operation {
+	case regexpSchemaCheck:
+		code = `(pattern => { try { new RegExp(pattern, "u"); } catch { try { new RegExp(pattern); } catch { return "invalid"; } } return "valid"; })`
+	case regexpMatch:
 		code = `((pattern, value) => { let re; try { re = new RegExp(pattern, "u"); } catch { try { re = new RegExp(pattern); } catch { return "invalid"; } } return re.test(value) ? "match" : "miss"; })`
 	}
 	codePtr, err := v.writeBytes(wasmCtx, []byte(code))

@@ -45,6 +45,38 @@ func TestRegExpMatchUnicodeControls(t *testing.T) {
 	}
 }
 
+// Source-derived from sharedRegex: schema compilation tries Unicode mode and
+// then legacy mode, but must not execute a pattern against an input.
+func TestRegExpSchemaCompileModes(t *testing.T) {
+	e, err := NewEngine(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close(context.Background())
+	for _, tc := range []struct {
+		pattern string
+		valid   bool
+	}{
+		{`^\p{L}+$`, true},
+		{`^\a$`, true}, // Unicode rejects this identity escape; legacy accepts it.
+		{`[`, false},
+		{`^(a+)+$`, true},
+		{`x");throw 1;//`, false},
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		valid, err := e.CheckSchemaRegExp(ctx, tc.pattern)
+		cancel()
+		if err != nil || valid != tc.valid {
+			t.Errorf("pattern=%q valid=%v err=%v want=%v", tc.pattern, valid, err, tc.valid)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if valid, err := e.CheckSchemaRegExp(ctx, "a"); valid || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled compile valid=%v err=%v", valid, err)
+	}
+}
+
 func TestRegExpMatchCancellationAndRecovery(t *testing.T) {
 	e, err := NewEngine(context.Background())
 	if err != nil {
