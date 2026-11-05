@@ -32,6 +32,23 @@ func TestMainValidationInvalidPatternDynamicScopeLazy(t *testing.T) {
 	}
 }
 
+// These patterns expose an engine-version gap: the pinned compiler delegates
+// to the host RegExp. Node 22.23.1 rejects them in both modes, while this
+// project's QuickJS and the local Bun accept them. They are source-derived
+// host-specific controls, not upstream test assertions or universal JS syntax.
+func TestMainValidationInvalidPatternNode22Syntax(t *testing.T) {
+	for _, tc := range []struct{ name, schema, want string }{
+		{"duplicate-disjoint-groups", `{"properties":{"x":{"pattern":"(?<x>a)|(?<x>b)"}}}`, `THROW Invalid regular expression: /(?<x>a)|(?<x>b)/: Duplicate capture group name`},
+		{"inline-modifier", `{"properties":{"x":{"pattern":"(?i:a)"}}}`, `THROW Invalid regular expression: /(?i:a)/: Invalid group`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mainNumericOutcome(t, tc.schema, `{}`); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // Source-derived compiler construction order. The pinned V8 diagnostic is
 // retained for each first-invalid pattern; Bun establishes the same ordering
 // but has different exception wording. No generated output hash is involved.
