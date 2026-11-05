@@ -157,3 +157,43 @@ func TestValidationResolvedReferenceCacheSeparatesBases(t *testing.T) {
 		}
 	}
 }
+
+// A reference to a data-only pure $ref must use the pointer's reached base,
+// without assigning that base globally to the referenced object.
+func TestValidationResolvePureDataReferenceChain(t *testing.T) {
+	raw := []byte(`{"$id":"https://example.test/outer","$defs":{"inner":{"$id":"https://example.test/inner","default":{"$ref":"#/$defs/number"},"$defs":{"number":{"type":"number"}},"properties":{"x":{"$ref":"#/default"}}}}}`)
+	var root map[string]interface{}
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	v := newToolSchemaValidator(root, raw)
+	inner := root["$defs"].(map[string]interface{})["inner"].(map[string]interface{})
+	from := inner["properties"].(map[string]interface{})["x"].(map[string]interface{})
+	for i := 0; i < 2; i++ {
+		target := v.resolvePureDataReference("#/default", from)
+		m, ok := target.(map[string]interface{})
+		if !ok || m["type"] != "number" {
+			t.Fatalf("target=%v", target)
+		}
+	}
+	data := inner["default"].(map[string]interface{})
+	if _, ok := v.resources.bases[reflect.ValueOf(data).Pointer()]; ok {
+		t.Fatal("data target registered as a schema resource")
+	}
+}
+
+func TestValidationResolvePureDataReferenceStops(t *testing.T) {
+	raw := []byte(`{"default":{"$ref":"#/default"},"examples":{"$ref":"#/$defs/n","type":"string"},"$defs":{"n":{"type":"number"}}}`)
+	var root map[string]interface{}
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	v := newToolSchemaValidator(root, raw)
+	if got := v.resolvePureDataReference("#/default", root); got != nil {
+		t.Fatalf("cycle did not fail closed: %v", got)
+	}
+	got, ok := v.resolvePureDataReference("#/examples", root).(map[string]interface{})
+	if !ok || got["type"] != "string" {
+		t.Fatalf("reference with sibling constraints was bypassed: %v", got)
+	}
+}

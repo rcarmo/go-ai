@@ -222,6 +222,35 @@ func (v *toolSchemaValidator) resolveFromBase(ref, base string) (target interfac
 	}
 }
 
+// resolvePureDataReference follows only data-only objects consisting solely
+// of a string $ref. That shape has no sibling semantics or nested schema
+// context to preserve. Other data objects are returned to existing callers
+// unchanged; the general context-aware traversal remains separate work.
+func (v *toolSchemaValidator) resolvePureDataReference(ref string, from ...map[string]interface{}) interface{} {
+	target, base := v.resolveWithBase(ref, from...)
+	seen := make(map[toolSchemaRefKey]bool)
+	for depth := 0; depth < 256; depth++ {
+		node, ok := target.(map[string]interface{})
+		if !ok || node == nil {
+			return target
+		}
+		if _, indexed := v.resources.bases[reflect.ValueOf(node).Pointer()]; indexed || len(node) != 1 {
+			return target
+		}
+		next, ok := node["$ref"].(string)
+		if !ok {
+			return target
+		}
+		key := toolSchemaRefKey{base: base, ref: next}
+		if seen[key] {
+			return nil
+		}
+		seen[key] = true
+		target, base = v.resolveFromBase(next, base)
+	}
+	return nil
+}
+
 // JSON bytes preserve object-member order that Go maps cannot represent.
 // Capture it lazily only when references need indexing; duplicate registrations
 // then follow JS Object.keys ordering (integer indices first, then insertion).

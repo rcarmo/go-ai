@@ -88,7 +88,7 @@ func newToolSchemaValidator(root map[string]interface{}, raw ...[]byte) *toolSch
 }
 
 func (v *toolSchemaValidator) convertReference(value interface{}, ref string, from ...map[string]interface{}) interface{} {
-	target, ok := v.resolve(ref, from...).(map[string]interface{})
+	target, ok := v.resolvePureDataReference(ref, from...).(map[string]interface{})
 	if !ok {
 		return value
 	}
@@ -117,7 +117,7 @@ func (v *toolSchemaValidator) convertReference(value interface{}, ref string, fr
 }
 
 func (v *toolSchemaValidator) checkReference(value interface{}, ref string, from ...map[string]interface{}) bool {
-	target := v.resolve(ref, from...)
+	target := v.resolvePureDataReference(ref, from...)
 	if literal, ok := target.(bool); ok {
 		return literal
 	}
@@ -259,7 +259,7 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		return &toolSchemaIssue{path, "expected " + v.literalJSON(literal)}
 	}
 	if ref, ok := schema["$ref"].(string); ok && !v.checkReference(value, ref, schema) {
-		if target, ok := v.resolve(ref, schema).(map[string]interface{}); ok {
+		if target, ok := v.resolvePureDataReference(ref, schema).(map[string]interface{}); ok {
 			key, cacheable := toolSchemaKey(target, value)
 			if cacheable && !active[key] {
 				active[key] = true
