@@ -2,6 +2,8 @@
 
 The user explicitly requested a semantically equivalent durable port with the same guarantees. Target remains official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`; starting native revision `028fb76cace523a92fe70ccf60309071f24f2163`. This request authorises source-aligned implementation of the previously paused lifecycle/admission contracts. It does not authorise weakening storage durability, ownership, cancellation, immutable publication or resource bounds. No complete parity result is claimed.
 
+The [durable deviation register](durable-deviations.md) records current incompatibilities, fix paths and acceptance criteria; its [review obligations](durable-review-obligations.tsv) include every pinned durable test/support/fixture path. Public wire slices and passing native regressions do not establish full parity.
+
 ## Source and execution
 
 Exact ai/schema/durable source was fetched under the resolved project run root, `runs/durable-port/pi-f9a26365568127461c47a07a37dcb42c140a3ac5`. It is temporary input, not a committed dependency. Use `source scripts/project-env.sh`, Go 1.27.3, `CGO_ENABLED=0`, `GOMAXPROCS=4` and Makefile targets. Raw diagnostic files under this run are disposable after their analysis. No other-agent contact, hosted dispatch or release publication has occurred.
@@ -116,16 +118,17 @@ The existing source-170 pending test was compiled through a temporary Go overlay
 ## Public grouped storage commit
 
 - `Storage` now exposes the original grouped `Commit(ctx, batches, receive) (CommitResult, error)` in addition to the native `Apply(Batch)` contract. `durable/storage_public.go` translates the public `StorageWrite` union to the private native `Write` envelope under the core line and settles each batch as one atomic commit with its own sequence.
-- `CommitResult{Stored, Refused}` mirrors the original `{stored, refused?}`: a Durable-check refusal resolves with `Refused` set rather than rejecting, batches before the refused one stay durable, and a backend failure still rejects. `receive` is a durability receipt (index, sequence), not publication.
+- `CommitResult{Stored, Refused}` implements part of the original `{stored, refused?}` contract: an error-valued Durable-check refusal resolves with `Refused` set rather than rejecting, batches before the refused one stay durable, and a backend failure still rejects. Arbitrary original refusal values, including falsy values, are not losslessly represented by the public Go error field (D03). `receive` is a durability receipt (index, sequence), not publication.
 - Internal split: `commitPartsAt` is a thin wrapper over `commitResolvedParts`, which evaluates a per-batch resolver while the core line is held, so a document change, retirement or copy resolves its address from the running base image instead of from caller-supplied state.
 - Records the native store cannot represent in its own envelope are refused before becoming durable rather than written in a different shape. A public task record for a built-in (`pi.*`) kind is refused because its raw checkpoint contract is not reversible from the public record alone; `Conversation.OwnerConversation` supplied by a caller is discarded, since storage derives ownership on adoption.
-- `durable/storage_replay_v150_test.go` replays all 12 captured original batches (`testdata/pi-durable-v150/storage-writes.json`) through `Commit`: 12 accepted batches, no refusal, sequence 1..12, and every stored record re-encodes to the record the original wrote. It also checks the effects the batch order implies, including the copy at sequence 3 materialising the pre-delta base value and the retired session document.
-- Verification: `durable/storage_public_v150_test.go` and the replay test cover grouped ordering, refusal stopping a call, refusal of unrepresentable records, ID ownership and full original-wire replay. `go vet ./durable` is clean.
+- `durable/storage_replay_v150_test.go` replays all 12 captured original batches (`testdata/pi-durable-v150/storage-writes.json`) through `Commit`: 12 accepted batches, no refusal and sequences 1..12. Record equality uses `dropEmptyRequestID`, ignoring the known loss of `requestId:""`; strict original-record equality fails (D08). The fixture also pre-mints IDs, unlike the original raw Storage explicit-ID contract (D28). It checks copy at sequence 3 materialising the pre-delta base value and the retired session document.
+- Verification: `durable/storage_public_v150_test.go` and the replay test cover grouped ordering, refusal stopping a call, native refusal of unrepresentable records, native ID ownership and partial original-wire replay. Built-in task refusal and stricter raw ID ownership are open incompatibilities (D09/D28), despite their passing safety controls. `go vet ./durable` was clean.
 
 ### Submission fidelity fixes found by the replay
 
 - The original stores an explicitly empty failure `reason` and reads it back empty. Native `nativeSubmission` rejected an empty reason for `unanswered`, so the captured batch was refused. The check now accepts it; the write union already requires the `reason` key to be present for that status.
 - `publicSubmission` now treats a present `errorCode` as the reason and falls back to the native status only when the key is absent, so an empty reason no longer reads back as `failed`.
+- The continue-submission private validator still rejects an empty unanswered reason. Original output accepts it; this subtype gap is recorded as D29.
 
 ### Recorded gap: present-but-empty `requestId`
 

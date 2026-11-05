@@ -15,7 +15,7 @@ The accepted baseline is upstream **v1.4.0**. Current work targets **all aspects
 
 * [Go Reference](https://pkg.go.dev/github.com/rcarmo/go-ai) has the published API surface.
 * [Basic usage](docs/basic-usage.md), [model selection](docs/model-selection.md), [prompt/context handling](docs/prompts-and-context.md), [tool calling](docs/tool-calling.md), and [image handling](docs/image-handling.md) cover the common paths.
-* [Harness helpers](docs/HARNESS.md) describe the in-memory agent/session utilities; [native durable harness](docs/durable/README.md) covers persisted conversations, tasks, tools and recovery.
+* [Harness helpers](docs/HARNESS.md) describe the in-memory agent/session utilities; [native durable harness](docs/durable/README.md) covers persisted conversations, tasks, tools and recovery. The [pi-durable deviation register](docs/upstream-v1.5.0/durable-deviations.md) tracks remaining semantic incompatibilities and their acceptance criteria.
 * [RELEASE.md](RELEASE.md), the [v1.3.0 changed-path inventory](docs/v130/changed-paths.json) and [acceptance record](docs/v130/acceptance.md) record audit scope, adaptations and verification limits.
 
 ## Features

@@ -1,0 +1,750 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "nativeBaseline": "a89368c99be4f270baf1108a143b82fb08f849e9",
+  "date": "2026-11-05",
+  "scope": "All currently identified durable deviations and explicit review obligations; not an exhaustive assertion-level audit.",
+  "entries": [
+    {
+      "id": "D01",
+      "title": "Independent Session admission and storage batching",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/src/session/writer.ts"
+      ],
+      "native": [
+        "durable/session.go",
+        "durable/storage_group.go"
+      ],
+      "evidence": "Fresh adapted source170 oracle: callbacks b/c do not run during held a; calls [1,1,1], expected [1,2]. Storage multi-batch support alone passes.",
+      "fix": "Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.",
+      "acceptance": [
+        "Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order."
+      ],
+      "depends": [
+        "D02",
+        "D03",
+        "D04"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D02",
+      "title": "Keyed unpublished read dependencies",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/src/session/session.ts"
+      ],
+      "native": [
+        "durable/session.go",
+        "durable/session_read_line.go",
+        "durable/transaction.go"
+      ],
+      "evidence": "Current global Session line blocks all reads/callbacks through settlement. Existing serial barrier tests cannot establish keyed overlap.",
+      "fix": "Register exact write keys, including newly created identities, document addresses, ancestry and selected held changes. Touch newest-key gates; unkeyable scans drain the admitted prefix. Revalidate candidate graph against effective pending state.",
+      "acceptance": [
+        "Source201-380: leaked entry, duplicate document creation, new conversation, all line reads, unkeyable scans, held-document reads. Verify disjoint jobs progress and dependent jobs wait."
+      ],
+      "depends": [],
+      "blocker": "Footprint must cover whole-image finalisation and ownership reads before global baseline checks can be narrowed."
+    },
+    {
+      "id": "D03",
+      "title": "Failure boundaries and arbitrary rejection/refusal values",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/src/session/writer.ts",
+        "packages/durable/src/types.ts"
+      ],
+      "native": [
+        "durable/session_failure.go",
+        "durable/storage_public.go",
+        "durable/storage_group.go"
+      ],
+      "evidence": "Original accepts unknown error values, including null/undefined/falsy. Public CommitResult.Refused and SessionFailed.Cause only carry Go errors. Native private refusal has presence tracking, public boundary does not preserve the original value. Single-commit wrapping does not establish multipart own-error outcomes.",
+      "fix": "Retain presence and original value independently of Go error diagnostics. Record first failing job and same-call own-error set. Publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause.",
+      "acceptance": [
+        "All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen."
+      ],
+      "depends": [
+        "D01"
+      ],
+      "blocker": "Needs a lossless public error-value representation and compatibility review; converting everything to strings is unacceptable."
+    },
+    {
+      "id": "D04",
+      "title": "Publication turns, continuations and storage publication scope",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/src/session/writer.ts",
+        "packages/durable/src/session/session.ts"
+      ],
+      "native": [
+        "durable/session_publication.go",
+        "durable/session_receipt.go",
+        "durable/session_sync_observers.go"
+      ],
+      "evidence": "Native publication runs on the Session line synchronously; no general Storage publication-scope interface. Source 698/721/753/770/796/815 require deferred scopes and inter-part continuation turns. Draft writer host only accepts a synchronous scope and cannot yet implement those cases.",
+      "fix": "Design one serial publication dispatcher with awaitable scope completion, explicit continuation/outcome ordering and failure rechecks immediately inside the deferred scope. Retain detached exact-prefix receipts and contain scope throws according to the source.",
+      "acceptance": [
+        "Source698-815 unchanged ordering assertions; defer a scope, throw without executing it, fail between parts and while scope is pending. No later part publishes."
+      ],
+      "depends": [
+        "D01",
+        "D03"
+      ],
+      "blocker": "Go has no JS microtask/macrotask queue. A scheduler/bridge must reproduce observable order; runtime.Gosched or sleeps do not establish parity."
+    },
+    {
+      "id": "D05",
+      "title": "256 started-but-undelivered job bound and ordered outcomes",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/src/session/session.ts"
+      ],
+      "native": [
+        "durable/session.go"
+      ],
+      "evidence": "Session currently serialises through settlement and has no source-equivalent outstanding-job accounting. Writer queue alone would otherwise permit unbounded admissions.",
+      "fix": "Bound jobs at source admission, not merely queued writes. Account for reads, empty commits, callback errors and held parts. Deliver outcomes in line order; release room only at delivery.",
+      "acceptance": [
+        "Source390 and920: only255 additional jobs start behind first; all300 finish; outstanding/unpublished/reads return to zero; cancellation and errors release every slot."
+      ],
+      "depends": [
+        "D01",
+        "D04"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D06",
+      "title": "Deferred changes, unload, reload, deadlines and close during writer flight",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/session-group-commit.test.ts",
+        "packages/durable/test/session-deferred-commits.test.ts"
+      ],
+      "native": [
+        "durable/session_deferred.go",
+        "durable/session_timers.go",
+        "durable/session.go"
+      ],
+      "evidence": "Serial deferred persistence has focused passing controls; concurrent source 325/360/662/680/839/857/885/902 interactions are not ported as a complete group contract.",
+      "fix": "Admit memory-only parts in the same writer order; pin held revisions and store each selected revision once. Put unload/reload/deadline/close flushes behind the flight and join their outcomes.",
+      "acceptance": [
+        "All named source cases; close drains admitted work and held changes; no duplicate persistence, lost revision, early memory publication or gate/worker leak."
+      ],
+      "depends": [
+        "D01",
+        "D02",
+        "D04",
+        "D05"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D07",
+      "title": "Original harness message kinds and model payloads",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/entries.ts",
+        "packages/durable/src/harness/generation.ts",
+        "packages/durable/test/harness-input-entries.test.ts"
+      ],
+      "native": [
+        "durable/message_entry.go",
+        "durable/entry_record_wire.go",
+        "durable/registry.go",
+        "durable/entry_definition.go"
+      ],
+      "evidence": "Fresh pending oracle fails live and after reopen: kind message/value instead of pi.user/pi.assistant/model. Readers accept both. Previous attempted producer switch caused 37 failures and one hang because native receipt errorCode/tagged details violate contribution validation.",
+      "fix": "Capture original user/assistant/tool-result receipts covering errors, diagnostics, details, empty fields and all content blocks. Introduce lossless public-message conversion, keep legacy readers, then switch every producer. Separate private receipt witnesses from original public fields.",
+      "acceptance": [
+        "Pending entry_message_kinds_v150_test.go unchanged; original tool-result data.diagnostics, model details/error fields, exact required-zero/empty presence; full generation, tool, compaction, abort and reopen regressions."
+      ],
+      "depends": [],
+      "blocker": "A tag-only switch loses native receipt semantics; complete receipt conversion is prerequisite."
+    },
+    {
+      "id": "D08",
+      "title": "Present-but-empty submission requestId and deduplication",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/types.ts",
+        "packages/durable/src/storage/memory.ts",
+        "packages/durable/test/store-storage.test.ts"
+      ],
+      "native": [
+        "durable/storage_replay_v150_test.go",
+        "durable/submission_transaction.go",
+        "durable/submission_status.go",
+        "durable/storage.go"
+      ],
+      "evidence": "Fresh strict replay fails submission12: original requestId empty string becomes absent. Native RequestID string plus omitempty and empty-key index skip cannot preserve presence. Existing normalised replay is partial evidence only.",
+      "fix": "Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.",
+      "acceptance": [
+        "All12 captured batches with exact JSON equality and no dropEmptyRequestID; empty vs absent dedup/lookups before and after reopen; transitions, duplicates and caller ownership."
+      ],
+      "depends": [
+        "D11"
+      ],
+      "blocker": "Requires deliberate private-envelope evolution; no silent persisted-format rewrite."
+    },
+    {
+      "id": "D09",
+      "title": "Built-in public task writes are refused",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/types.ts",
+        "packages/durable/src/storage/memory.ts",
+        "packages/durable/test/store-storage.test.ts"
+      ],
+      "native": [
+        "durable/storage_public.go",
+        "durable/task_definition.go",
+        "durable/task_record_wire.go"
+      ],
+      "evidence": "public nativeTask refuses every pi.* kind, while original Storage.commit accepts task records independently of native runtime checkpoint adapters. Namespace-wide refusal is stricter than the original.",
+      "fix": "Separate storage canonical records from runtime interpretation. Preserve exact public task data, including opaque checkpoints; translate only when execution needs a known adapter. Do not ban application kinds merely by pi. prefix.",
+      "acceptance": [
+        "Replay captured original built-in and opaque task records through Storage.Commit/read/reopen; invalid runtime phases fail only at source-equivalent execution boundary."
+      ],
+      "depends": [
+        "D11",
+        "D12"
+      ],
+      "blocker": "Private execution envelope is not reversibly equivalent to all original task records."
+    },
+    {
+      "id": "D10",
+      "title": "OpenSession rejects arbitrary conforming Storage implementations",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/session/session.ts",
+        "packages/durable/src/types.ts",
+        "packages/durable/test/storage-runtime-boundary.test.ts"
+      ],
+      "native": [
+        "durable/session.go",
+        "durable/session_receipt.go",
+        "durable/storage_public.go",
+        "durable/types.go"
+      ],
+      "evidence": "OpenSession requires private nativeStorage/nativeCore. Adding public Commit does not admit a source-shaped wrapper. Session settlement uses core directly, so original BatchStorage hold/refusal/scope wrappers cannot be used faithfully.",
+      "fix": "Use the original Storage capabilities at the Session boundary. Keep a verified native fast path only if it cannot bypass wrapper authority. Provide exact-prefix adoption for non-native storage without exposing private frames.",
+      "acceptance": [
+        "Run original wrapper-shaped hold/refusal/publishing tests through OpenSession; wrapper reads/writes must intercept all relevant calls; native prefix-adoption and ownership controls remain green."
+      ],
+      "depends": [
+        "D11",
+        "D12"
+      ],
+      "blocker": "Current ID reservation also takes the native core gate. A hold after that gate is not the original before-delegation seam."
+    },
+    {
+      "id": "D11",
+      "title": "Persisted SQLite schema and record envelopes differ",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/storage/sqlite/migrations.ts",
+        "packages/durable/test/sqlite-storage.test.ts",
+        "packages/durable/test/store-storage.test.ts"
+      ],
+      "native": [
+        "durable/storage_sqlite.go",
+        "durable/storage_ownership.go",
+        "durable/types.go"
+      ],
+      "evidence": "Native SQLite stores its own configuration/frames/checkpoints, not the original table schema. Public codecs deliberately leave existing native storage unchanged. Direct original-database interoperability is unverified and cannot be inferred from wire equality.",
+      "fix": "Specify supported original/native format detection, read/export/import or explicit migration with version markers, rollback and old-reader behaviour. Never reinterpret private frames as public JSON. Preserve user data and durability during migration.",
+      "acceptance": [
+        "Open/read original-produced DB fixture or verified lossless migration in both directions as required; native legacy reopen; crash at each migration boundary; unsupported version rejection; no partial conversion."
+      ],
+      "depends": [],
+      "blocker": "Database drop-in interchange requires an explicit migration design and fixtures, not a marshaler change."
+    },
+    {
+      "id": "D12",
+      "title": "Storage read/query result shapes and remaining public record DTOs",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/types.ts",
+        "packages/durable/test/store-storage.test.ts",
+        "packages/durable/test/session-tables.test.ts"
+      ],
+      "native": [
+        "durable/types.go",
+        "durable/storage.go",
+        "durable/scan.go",
+        "durable/document_history.go"
+      ],
+      "evidence": "Storage still requires native Apply/Snapshot/Limits and exposes raw Task, Submission and materialised Document; original entry read returns {entry,commitSeq}, documents distinguish record/stored content, and original single-record methods differ. Captured cursor and selected-record wire slices do not cover the whole API.",
+      "fix": "Inventory every original Storage method and public union, with an explicit Go spelling map but identical data/absence/order semantics. Add missing single-record/head/document methods and public DTO boundaries; keep private envelopes private.",
+      "acceptance": [
+        "Run pinned storage conformance through only the declared public interface; exact method result fixtures for tasks/submissions/documents/entries, scopes/points/retirement/forks, query fields and absence."
+      ],
+      "depends": [],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D13",
+      "title": "Session commit callback result/options and remaining exported API surface",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/types.ts",
+        "packages/durable/src/index.ts",
+        "packages/durable/test/session-tables.test.ts",
+        "packages/durable/test/session-definitions.test.ts"
+      ],
+      "native": [
+        "durable/session.go",
+        "durable/transaction.go",
+        "durable/session_deferred.go"
+      ],
+      "evidence": "Original Session.commit returns callback result and accepts persistence options; Go Commit accepts func(*Tx) error and returns sequence. Separate CommitDeferred and caller-side result capture are alternate caller semantics. Complete exported symbol/type conformance has not been enumerated.",
+      "fix": "Create a source-export-to-Go mapping for all functions, interfaces, tokens and unions. Preserve result/options semantics in the accepted primary API; account for Go generic-method limitations without requiring application semantic workarounds.",
+      "acceptance": [
+        "Source callback-value tests, empty/error/async-equivalent results, deferred options on same entry point, tokens, typed lookup and original defaults; compile an external consumer using only the accepted mapped API."
+      ],
+      "depends": [],
+      "blocker": "Public API compatibility change; Go cannot define generic methods. Decide the lossless language mapping before treating it as drop-in."
+    },
+    {
+      "id": "D14",
+      "title": "Shared readonly conversation-view and observer values",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/harness-view.test.ts",
+        "packages/durable/src/harness/view.ts"
+      ],
+      "native": [
+        "durable/view.go",
+        "durable/view_publication.go",
+        "durable/immutable_value.go"
+      ],
+      "evidence": "Fresh source 160/330/525 oracles fail unchanged pi.live/docs identity and shared docs across windows/observers. Public Value/callbacks deep-copy mutable maps. Immutable primitives exist but are not integrated.",
+      "fix": "Integrate revision-stable immutable shared values and mounted view ownership. Reconcile legacy tests that allow mutating detached maps; do not expose mutable aliases or provide an optional alternate view instead of the original contract.",
+      "acceptance": [
+        "All three pending identity oracles unchanged; source160/274/330/525 content/window/identity, mutation prevention, peer-listener isolation and remount-new-identity controls."
+      ],
+      "depends": [],
+      "blocker": "Representation/API migration is required. Ordinary writable Go maps cannot enforce shared readonly ownership."
+    },
+    {
+      "id": "D15",
+      "title": "View/entry identity lifetime, mount collection and empty-array identity",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/harness-view.test.ts",
+        "packages/durable/src/harness/transcript.ts",
+        "packages/durable/src/harness/view.ts"
+      ],
+      "native": [
+        "durable/view_gc_oracle_main_test.go",
+        "durable/view_identity_oracle_main_test.go",
+        "durable/view_window.go"
+      ],
+      "evidence": "Existing Go GC controls establish backing-array lifetimes; they do not establish source 570 individual EntryRecord retention or JavaScript empty-array object identity. Internal last-observer mount reuse/rebuild identity remains unverified.",
+      "fix": "Tie immutable entry identity and mount lifetime to retained handles/revisions. Define a testable language representation for empty collections and weak ownership. Retain no full prior snapshots just to preserve identity.",
+      "acceptance": [
+        "Source274 remount, source570 individual record lifetime, shared slices/windows and last-detach cleanup; bounded retention and repeated attach/detach stress."
+      ],
+      "depends": [
+        "D14"
+      ],
+      "blocker": "WeakRef/GC timing differs between runtimes; observable ownership must be established without flaky forced-GC timing claims."
+    },
+    {
+      "id": "D16",
+      "title": "Public observeCommits host dispatch and waiter ordering",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/session-observers.test.ts",
+        "packages/durable/test/harness-submissions.test.ts",
+        "packages/durable/src/session/session.ts"
+      ],
+      "native": [
+        "durable/session_sync_observers.go",
+        "durable/session_local_observers.go",
+        "durable/observation.go",
+        "durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go"
+      ],
+      "evidence": "Private stored guard is synchronous on the line. Public SubscribeCommits is asynchronous. Neither supplies original observeCommits one-microtask host dispatch with observer membership selected at dispatch time. Private source 284 waiter control passes but is not public parity.",
+      "fix": "Implement public stored observation with source dispatch/membership/error-isolation semantics, immutable safe publication values, close/failure ending and callback-before-wait/abort ordering.",
+      "acceptance": [
+        "Complete pinned session-observers corpus, public source284 wait test, attach/detach between publication and dispatch, re-entry, listener faults, close/failure and multipart publications."
+      ],
+      "depends": [
+        "D04",
+        "D14"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D17",
+      "title": "Synchronous document observer readonly identity and full contract",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/session-observers.test.ts",
+        "packages/durable/src/types.ts"
+      ],
+      "native": [
+        "durable/session_document_observers.go",
+        "durable/session_public_document_observer_main_test.go",
+        "durable/observation.go"
+      ],
+      "evidence": "Public Session/Harness/ConversationHandle ObserveDefinition has focused passing guards and lifecycle tests; returned values are detached. Some mutation fault probes survived. TaskRuntime source uses watchDoc, not synchronous observeDoc; earlier ownership-gap diagnoses need reconciliation.",
+      "fix": "Map the exact original DocumentObserver vs Session observer surfaces. Preserve synchronous forbidden-reentry rules and readonly identity; port remaining acquisition, cancellation, lifecycle and listener assertions before expanding APIs.",
+      "acceptance": [
+        "Source77/87/105/132/162/241/254/308/469/496/520, detach/end guards, queued acquisition/cancellation, retirement/recreation, scheduler publication and immutable values."
+      ],
+      "depends": [
+        "D14",
+        "D16"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D18",
+      "title": "Resource policies, safe-number domain and persisted limits",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/session-watches.test.ts",
+        "packages/durable/test/store-storage.test.ts",
+        "packages/durable/src/types.ts"
+      ],
+      "native": [
+        "durable/types.go",
+        "durable/json.go",
+        "durable/watch_pending.go",
+        "durable/delta.go"
+      ],
+      "evidence": "Source 202 now passes new defaults and fold-threshold controls. Existing databases retain stricter persisted profiles. Native member/node/depth/bytes/record/ID policies may still reject other valid original inputs; complete policy and numeric-domain comparison is absent.",
+      "fix": "Catalogue each original vs native bound, integer domain and default. Preserve bounded execution but implement valid original-domain behaviour; distinguish configurable operational limits from semantic rejection. Version any stored-policy change explicitly.",
+      "acceptance": [
+        "Source202 and8000/10000 controls stay green; exact safe integers and cursor/document points; original large-input boundary fixtures; intermediate-growth, cancellation and ownership controls; strict old-profile reopen."
+      ],
+      "depends": [
+        "D11"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D19",
+      "title": "Grouped scheduler ownership/wait graph and read races",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/harness-group-commit.test.ts",
+        "packages/durable/test/harness-scheduler-indexes.test.ts",
+        "packages/durable/test/harness-scheduler-retention.test.ts"
+      ],
+      "native": [
+        "durable/task_wait_cycle.go",
+        "durable/task_scheduler.go",
+        "durable/harness_group_commit_main_test.go"
+      ],
+      "evidence": "Persisted opposite-wait cycle admission is fixed. Full grouped pending-edge admission, source 491 index/sweep,608/626 reconcile marks,646 record-cache bound,699 submission lookup and714 wait continuation remain unexecuted or use limited seams.",
+      "fix": "Repeat graph/ownership validation against the effective candidate state at admission. Port production read/index seams and measure cache/retention bounds; preserve foreign-owner and terminal/background distinctions.",
+      "acceptance": [
+        "Whole harness-group-commit corpus plus opposite-wait oracle, longer cycles, acyclic chains, pending creation/end ordering, idle indexes, bounded cache and close signalling."
+      ],
+      "depends": [
+        "D01",
+        "D02",
+        "D03"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D20",
+      "title": "Lifecycle, restart/recovery, hook and submission corpus coverage",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/harness-after-run.test.ts",
+        "packages/durable/test/harness-restart-failure.test.ts",
+        "packages/durable/test/harness-submissions.test.ts",
+        "packages/durable/test/harness-turn-limit.test.ts",
+        "packages/durable/test/harness-tool-hooks.test.ts"
+      ],
+      "native": [
+        "durable/harness.go",
+        "durable/hooks.go",
+        "durable/submission.go",
+        "durable/task_runtime.go",
+        "docs/upstream-v1.5.0/durable-semantic-port.md"
+      ],
+      "evidence": "Selected history/close/cancellation/wait fixes pass and earlier afterRun/close-drain failures were fixture translation errors. The complete per-assertion lifecycle/restart/turn-limit/tool-hook review is unfinished; source 149 held submission read vs close has no faithful current proof.",
+      "fix": "Reconcile old diagnoses against current code; port unchanged complete source scenarios, especially real read-hold/close, restart charging, hook ordering and mixed continue/input boundaries. Do not resurrect disproved diagnoses as runtime gaps.",
+      "acceptance": [
+        "Every assertion in the named files mapped and executed or independently blocked; real crash/reopen, stale-attempt fencing, first cause, queue preservation and callback counts."
+      ],
+      "depends": [
+        "D01",
+        "D03",
+        "D07",
+        "D16",
+        "D19"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D21",
+      "title": "Telemetry, environments, cross-owner export and diagnostic parity",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/harness-telemetry.test.ts",
+        "packages/durable/test/harness-telemetry-options.test.ts",
+        "packages/durable/test/harness-reports.test.ts",
+        "packages/durable/test/harness-host-inputs.test.ts",
+        "packages/durable/test/harness-ownership.test.ts"
+      ],
+      "native": [
+        "durable/telemetry.go",
+        "durable/environment.go",
+        "durable/report.go",
+        "docs/upstream-v1.5.0/builtin-task-traces.md"
+      ],
+      "evidence": "Selected task/submission/built-in trace receipts cover a subset; full event order, labels/phases, carrier metadata, clock/error callbacks, environment lifetimes and cross-owner exports are not fully reconciled.",
+      "fix": "Inventory original events and environment/ownership capabilities; capture deterministic traces with synthetic carriers; port exact ordering, presence and error-classification assertions without exposing credentials.",
+      "acceptance": [
+        "Complete named source corpora; re-entry, reporter failure, parent/link presence, owner retirement, reopening and no secret/raw-provider data leaks."
+      ],
+      "depends": [
+        "D03",
+        "D04",
+        "D07",
+        "D19"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D22",
+      "title": "Codemode engine/worker and complete restart semantics",
+      "state": "unverified",
+      "source": [
+        "packages/durable/test/codemode.test.ts",
+        "packages/durable/test/codemode-checkpoints.test.ts",
+        "packages/durable/test/codemode-imports.test.ts",
+        "packages/durable/test/codemode-describe.test.ts",
+        "packages/durable/test/codemode-models.test.ts"
+      ],
+      "native": [
+        "durable/codemode_runtime.go",
+        "docs/upstream-v1.5.0/codemode-undefined-packet.md",
+        "internal/quickjs"
+      ],
+      "evidence": "QuickJS/wazero undefined/null and late-result/reopen slices pass; official-worker and complete source codemode corpus parity are unverified. Native undefined sentinel is an explicit Go mapping, not proof of every boundary. Environment-dependent tests have skips.",
+      "fix": "Port all guest-visible values, module/import/worker delivery, interruption, replay and checkpoint assertions; test official wire fixtures independently of native host mocks and classify any engine differences.",
+      "acceptance": [
+        "Whole codemode corpus with exact guest assertions, undefined/null presence, deterministic replay, exports/imports, bounded cancellation and no late delivery; explain and close each skipped requirement."
+      ],
+      "depends": [
+        "D07",
+        "D11",
+        "D20"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D23",
+      "title": "Schema dependency and host RegExp/compiler semantics",
+      "state": "unverified",
+      "source": [
+        "packages/schema/src/compiler.ts",
+        "packages/schema/src/shared.ts",
+        "packages/ai/src/utils/validation.ts",
+        "packages/durable/test/harness-json.test.ts"
+      ],
+      "native": [
+        "schema_validation_preflight.go",
+        "schema_validation.go",
+        "internal/quickjs/regexp.go",
+        "docs/upstream-v1.5.0/schema-pattern-packet.md"
+      ],
+      "evidence": "Known invalid-pattern compile/reachability and Node-vs-QuickJS regex differences are recorded in schema-pattern-packet. Plain-path preflight is private/unwired. Other numeric multipleOf, recursion, cloning, diagnostics and draft contracts lack complete durable dependency acceptance.",
+      "fix": "Make separate source-backed schema packets: reachable compilation/ref/dynamic scope, host regex grammar, exact decimal arithmetic, cloning/cache and issue paths. Use pinned runtime fixtures and preserve fail-closed resource handling.",
+      "acceptance": [
+        "Retained validation_invalid_pattern_test.go, pinned compiler/dynamic/annotation-order cases and regex-host probes; exact numeric/recursive/ownership tests; durable schema consumers."
+      ],
+      "depends": [],
+      "blocker": "Host JS engine versions can disagree. Choose and test the pinned supported runtime contract; do not silently accept QuickJS-only syntax."
+    },
+    {
+      "id": "D24",
+      "title": "Provider/AI semantics inherited by durable execution",
+      "state": "unverified",
+      "source": [
+        "packages/ai/src/types.ts",
+        "packages/durable/test/provider-session-cache-e2e.test.ts"
+      ],
+      "native": [
+        "docs/upstream-v1.5.0/upstream-tests-f9a26365.tsv",
+        "docs/upstream-v1.5.0/assessment-fixes.md",
+        "durable/generation.go"
+      ],
+      "evidence": "Inference fixes and prompt-cache audits are separate receipts. Durable correctness still depends on exact message/tool metadata, retry/stream/error/cancellation and schema behaviour. Full AI corpus is outside the completed durable slices.",
+      "fix": "Link each durable provider boundary to its AI discrepancy ticket and mock-transport fixture. Review inherited behaviour without folding all AI work into a false durable pass.",
+      "acceptance": [
+        "Pinned provider fixtures exercised by durable, terminal/tool/error/cancellation paths and cache request semantics; no real paid calls needed."
+      ],
+      "depends": [
+        "D07",
+        "D23"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D25",
+      "title": "Original alternative storage engines",
+      "state": "scope-exclusion",
+      "source": [
+        "packages/durable/test/memory-storage.test.ts",
+        "packages/durable/test/jsonl-storage.test.ts",
+        "packages/durable/test/indexeddb-storage.test.ts"
+      ],
+      "native": [
+        "docs/upstream-v1.5.0/sqlite-only.md"
+      ],
+      "evidence": "User explicitly selected SQLite/modernc as the sole backend. Original Memory/JSONL/IndexedDB engines are absent by that product scope choice.",
+      "fix": "Keep excluded backend constructors/engine-specific tests visible. Still port shared Storage semantics to SQLite; reintroducing other engines requires a scope change, not automatic waiver of shared assertions.",
+      "acceptance": [
+        "Document each excluded engine-only assertion; retain shared conformance, SQLite rollback/ownership/crash tests."
+      ],
+      "depends": [],
+      "blocker": "Authorised SQLite-only scope excludes these engines; full original package backend availability is therefore not a completion claim."
+    },
+    {
+      "id": "D26",
+      "title": "Assertion-level crosswalk and release verification are incomplete",
+      "state": "verification-gap",
+      "source": [
+        "packages/durable/src/index.ts",
+        "packages/durable/test/session-group-commit.test.ts"
+      ],
+      "native": [
+        "docs/upstream-v1.5.0/upstream-tests-f9a26365.tsv",
+        "docs/upstream-v1.5.0/upstream-review-f9a26365.json"
+      ],
+      "evidence": "Historical crosswalk has 161 durable test/support/fixture paths; 147 are pending-review, seven prior-partial-needs-delta-review, six reviewed-open and one partial. These stale file dispositions are not a parity percentage. Current full native test pass cannot close source assertions. Complete-tree verification found four additional worker support/configuration paths missing from that historical inventory; the new obligations cover 165 paths in total.",
+      "fix": "Track every pinned durable path and enumerate every test/assertion per subsystem; map exact source/native adapters, results, mutants, unknowns and dependencies. Include required ai/schema/codemode dependencies. Complete regression/fault/static/profile verification after implementation.",
+      "acceptance": [
+        "No unmapped pinned durable paths; no open source assertion, skipped required contract or normalised fixture counted as passing. Current full-suite, fault, CPU/alloc_space/alloc_objects and public-consumer checks retained with exact revisions."
+      ],
+      "depends": [
+        "D01",
+        "D02",
+        "D03",
+        "D04",
+        "D05",
+        "D06",
+        "D07",
+        "D08",
+        "D09",
+        "D10",
+        "D11",
+        "D12",
+        "D13",
+        "D14",
+        "D15",
+        "D16",
+        "D17",
+        "D18",
+        "D19",
+        "D20",
+        "D21",
+        "D22",
+        "D23",
+        "D24",
+        "D27",
+        "D28",
+        "D29"
+      ],
+      "blocker": "none identified; acceptance still required"
+    },
+    {
+      "id": "D27",
+      "title": "Read-only Session/Harness mode and concurrent external viewers",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/test/harness-read-only.test.ts",
+        "packages/durable/src/harness/harness.ts",
+        "packages/durable/src/session/session.ts"
+      ],
+      "native": [
+        "durable/session.go",
+        "durable/harness.go",
+        "durable/storage_sqlite.go",
+        "durable/storage_ownership.go"
+      ],
+      "evidence": "Original readOnly mode opens running work without scheduling or writing, refuses mutations with ReadOnlySession and supports an externally driven viewer. Native Session/Harness options have no readOnly mode; SQLite uses exclusive native writer ownership and initialisation.",
+      "fix": "Add original read-only admission and scheduler policy, error classification, refresh and close behaviour. Design a safe SQLite viewer path that coexists with the driver without violating single-writer ownership or running recovery/migration writes.",
+      "acceptance": [
+        "Complete harness-read-only source corpus: no sequence advance on open/close, no wake or recovery writes, every forbidden mutation refused, existing running tasks preserved, viewer stays usable and sees externally driven data."
+      ],
+      "depends": [
+        "D10",
+        "D11",
+        "D12",
+        "D20"
+      ],
+      "blocker": "Needs a reader/refresh architecture compatible with native inode ownership and snapshots. Removing ownership locks is unacceptable."
+    },
+    {
+      "id": "D28",
+      "title": "Raw Storage initial state, explicit IDs and empty batches",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/storage/memory.ts",
+        "packages/durable/src/storage/store/commit.ts",
+        "packages/durable/test/store-storage.test.ts"
+      ],
+      "native": [
+        "durable/storage.go",
+        "durable/storage_public.go",
+        "durable/storage_public_v150_test.go",
+        "durable/testdata/pi-durable-v150/storage-boundaries.json"
+      ],
+      "evidence": "Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState preinstalls root1, publicBatch refuses empty writes, and adoption refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs.",
+      "fix": "Separate raw Storage initialisation from Session root bootstrap. Implement original raw empty-batch sequence semantics and atomic allocator advancement for explicit IDs, with global type collision checks. Preserve native transaction ID reservation and writer ownership rather than deleting them.",
+      "acceptance": [
+        "Replay storage-boundaries.json through the public native SQLite boundary with no preparatory minting: fresh root absent, empty batch accepted at seq1, explicit99 accepted, next mint100; original outbox replay and reopen. Concurrent allocator/explicit-ID, collisions, backend rollback and uncertain outcomes must preserve uniqueness."
+      ],
+      "depends": [
+        "D10",
+        "D11",
+        "D12"
+      ],
+      "blocker": "Raw initial state and explicit-ID allocator semantics affect existing persisted native files; require explicit legacy compatibility and Session root bootstrap rules."
+    },
+    {
+      "id": "D29",
+      "title": "Empty unanswered reason remains rejected for continue submissions",
+      "state": "confirmed",
+      "source": [
+        "packages/durable/src/types.ts",
+        "packages/durable/src/storage/memory.ts",
+        "packages/durable/test/store-storage.test.ts"
+      ],
+      "native": [
+        "durable/storage.go",
+        "durable/submission_transaction.go",
+        "durable/submission_status.go",
+        "durable/testdata/pi-durable-v150/storage-boundaries.json"
+      ],
+      "evidence": "Fresh original capture accepts an unanswered continue submission with reason empty string. nativeSubmission now permits empty unanswered reasons, but validateContinueSubmission still rejects errorCode empty string. The earlier input-submission replay fix does not cover this subtype.",
+      "fix": "Preserve reason presence independently of its string contents through all submission subtypes and transitions. Remove only the stricter continue nonempty requirement after a retained original-derived failing control; do not allow missing reason or illegal answer/detail combinations.",
+      "acceptance": [
+        "Original storedSubmission in storage-boundaries.json round-trips exactly for continue; input/write/continue unanswered empty, missing and nonempty reasons; dedup and reopen; invalid union controls and submission settlement remain green."
+      ],
+      "depends": [
+        "D08",
+        "D12"
+      ],
+      "blocker": "No new representation blocker beyond presence tracking; current private validator conflicts with the original union."
+    }
+  ]
+}

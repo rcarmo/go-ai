@@ -6,7 +6,13 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 [Assessment fixes and verification](assessment-fixes.md) records the 166-fixture validation regression table, short OAuth interval correction, deterministic retry timer checks, catalogue verification and seven inherited durable full-suite failures. The 24 reproduced common-domain validation mismatches are fixed; broader schema/compiler and durable/codemode alignment remain open.
 
-## Parity backlog and contract decisions
+## Current durable deviations
+
+The [durable deviation register](durable-deviations.md) records 17 confirmed incompatibility groups, ten unverified areas, one verification gap and the approved backend exclusion, with evidence, fix paths, dependencies and acceptance tests. Its [review obligations](durable-review-obligations.tsv) cover all 165 pinned durable test/support/fixture paths, including 101 test files. The [semantic-port receipts](durable-semantic-port.md) record the current implementation slices. No complete parity result is established.
+
+## Historical parity backlog and contract decisions
+
+The semantic-equivalence request supersedes the earlier direction-before-runtime pauses below. Some earlier diagnoses were fixture-translation errors; the current deviation register and semantic-port receipts reconcile them.
 
 [Parity work packets](parity-work-packets.md) define bounded assignments, source/native entry points, reproduction setup, acceptance tests, dependencies and stop conditions. [Contract decisions](parity-contract-decisions.md) records the afterRun, close/requeue, wait-cycle and refusal/failure conflicts; afterRun and close runtime changes need Rui's explicit direction. [Wait-cycle admission](wait-cycle-admission.md) records the P03 graph analysis and its separate runtime-change pause.
 
