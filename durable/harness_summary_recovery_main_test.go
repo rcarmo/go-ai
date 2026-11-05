@@ -67,7 +67,7 @@ func TestMainHarnessSummarisationCrashResumesCheckpoint(t *testing.T) {
 			t.Fatal(err)
 		}
 		record, err := CanonicalTask(before.Tasks[id], h.session.limits)
-		if err != nil || record.State.Checkpoint["phase"] != "summarize" {
+		if err != nil || taskCheckpointMap(record.State.Checkpoint)["phase"] != "summarize" {
 			t.Fatal("summary intent not stored before dispatch", record, err)
 		}
 		reopened := (&mainRecoveryHarness{t: t, h: h, store: b.store}).crash()

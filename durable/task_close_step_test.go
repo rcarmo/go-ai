@@ -100,7 +100,7 @@ func TestTaskSchedulerPinnedCloseAtReturnedFaultOrProgressStepWritesNoOutcome(t 
 				if before.Seq+1 != after.Seq || after.Tasks[id].Status != "pending" || taskHasDecidedOutcome(after.Tasks[id]) || first.Load() != 1 || second.Load() != 0 || aborts.Load() != 0 {
 					t.Fatal("Close step published decision/fresh work", before.Seq, after.Seq, after.Tasks[id], first.Load(), second.Load(), aborts.Load())
 				}
-				if mode == "progress" && after.Tasks[id].Execution.Native.State.Checkpoint["phase"] != "two" {
+				if mode == "progress" && taskCheckpointMap(after.Tasks[id].Execution.Native.State.Checkpoint)["phase"] != "two" {
 					t.Fatal("committed progress lost", after.Tasks[id])
 				}
 			})

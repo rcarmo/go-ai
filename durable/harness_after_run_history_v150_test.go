@@ -51,7 +51,7 @@ func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 			Hooks: GenerationHooks{AfterRun: func(ctx context.Context, run RunSummary, api *HookAPI) (*AfterRunResult, error) {
 				hook.called = true
 				hook.summary = run
-				page, err := api.Entries(ctx, EntryQuery{MinEntryID: run.First, MaxEntryID: run.Last, Order: Ascending}, 100, "")
+				page, err := api.Entries(ctx, EntryQuery{MinEntryID: run.First, MaxEntryID: run.Last, Order: Ascending}, 100, nil)
 				if err != nil {
 					t.Errorf("run history scan: %v", err)
 					return nil, nil

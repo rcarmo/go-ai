@@ -29,7 +29,7 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 		}
 		set := func(status string) error {
 			_, err := s.Commit(bg, func(tx *Tx) error {
-				p, err := tx.ScanTasks(TaskQuery{Conversation: root}, 10, "")
+				p, err := tx.ScanTasks(TaskQuery{Conversation: root}, 10, nil)
 				if err != nil {
 					return err
 				}
@@ -129,7 +129,7 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 			if e := tx.PutTask(v); e != nil {
 				return e
 			}
-			p, e := tx.ScanTasks(TaskQuery{}, 1, "")
+			p, e := tx.ScanTasks(TaskQuery{}, 1, nil)
 			if e != nil {
 				return e
 			}

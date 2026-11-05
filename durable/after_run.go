@@ -270,7 +270,7 @@ func (h *Harness) endAfterRunWithQueue(r *TaskRuntime, task Task, cp generationC
 		if !ok {
 			return reject("afterRun answer missing")
 		}
-		if _, err := h.cleanupGeneration(tx, &current, hold, entry.Value); err != nil {
+		if _, err := h.cleanupGeneration(tx, &current, hold, mustEntryValue(entry, h.session.limits)); err != nil {
 			return err
 		}
 		return tx.stage(Write{Op: "put-task", Task: &current})

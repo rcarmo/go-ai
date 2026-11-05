@@ -29,7 +29,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 						return e
 					}
 					for _, write := range commit.Writes {
-						if write.Task != nil && write.Task.ID == id && write.Task.Execution.Native.State.Checkpoint["progress"] != nil {
+						if write.Task != nil && write.Task.ID == id && taskCheckpointMap(write.Task.Execution.Native.State.Checkpoint)["progress"] != nil {
 							attempts.Add(1)
 							return cause
 						}
@@ -101,7 +101,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 			t.Fatal(e)
 		}
 		task := state.Tasks[ID(childID.Load())]
-		if taskHasDecidedOutcome(task) || task.Execution.Native.State.Checkpoint["progress"] != nil || attempts.Load() != 1 {
+		if taskHasDecidedOutcome(task) || taskCheckpointMap(task.Execution.Native.State.Checkpoint)["progress"] != nil || attempts.Load() != 1 {
 			t.Fatal("rejected progress adopted/retried", task, attempts.Load())
 		}
 		for _, doc := range state.Documents {

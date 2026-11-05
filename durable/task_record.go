@@ -116,7 +116,7 @@ func copyTaskState(state TaskState, l Limits) (TaskState, error) {
 		state.Until = &until
 	}
 	if state.Checkpoint != nil {
-		checkpoint, err := copyObject(state.Checkpoint, l)
+		checkpoint, err := copyTaskCheckpointValue(state.Checkpoint, l)
 		if err != nil {
 			return TaskState{}, err
 		}
@@ -211,8 +211,9 @@ func validateTaskState(state TaskState) error {
 		if state.Status == "sleeping" && (state.Until == nil || *state.Until < 0 || uint64(*state.Until) > MaxID) {
 			return reject("invalid task sleep deadline")
 		}
-		phase, ok := state.Checkpoint["phase"].(string)
-		if state.Checkpoint == nil || !ok || !validKind(phase) || state.Outcome != nil {
+		// Stored checkpoints are opaque JSON until their definition migrates or
+		// executes them. Required phase shape belongs to current-definition admission.
+		if state.Outcome != nil {
 			return reject("live task state union")
 		}
 		if state.Status == "waiting" {
@@ -266,7 +267,7 @@ func validateTaskRecord(task Task, l Limits) error {
 			return err
 		}
 		if checkpoint.InputMetadata != nil {
-			metadata := *checkpoint.InputMetadata
+			metadata := Entry(*checkpoint.InputMetadata)
 			metadata.Value = nil
 			if err := validateInputMetadata(&metadata); err != nil {
 				return err
@@ -674,11 +675,11 @@ func validateTaskReferences(s Snapshot, task Task, l Limits) error {
 		}
 		if hold.Entry != 0 {
 			entry, ok := s.Entries[hold.Entry]
-			if !ok || entry.Conversation != task.Conversation || entry.Kind != "message" || entry.ByTask != task.ID {
+			if !ok || entry.Conversation != task.Conversation || !isMessageEntry(entry) || entry.ByTask != task.ID {
 				return reject("hold receipt entry missing")
 			}
-			var receipt MessageReceipt
-			if err := fromObject(entry.Value, &receipt, l); err != nil {
+			receipt, err := entryMessage(entry, l)
+			if err != nil {
 				return err
 			}
 			if task.Kind == "pi.tool" {
@@ -708,7 +709,7 @@ func validateTaskReferences(s Snapshot, task Task, l Limits) error {
 				if hold.Stage == "final" && hold.Action == "generation-receipt" {
 					sub := s.Submissions[hold.Submission]
 					raw, ok := sub.Value["message"].(map[string]any)
-					if !ok || sub.Status != hold.FinalStatus || !equalTaskValue(&TaskValue{Present: true, Value: entry.Value}, &TaskValue{Present: true, Value: raw}, l) {
+					if !ok || sub.Status != hold.FinalStatus || !entryValueEquals(entry, raw, l) {
 						return reject("final hold submission/receipt disagreement")
 					}
 				}

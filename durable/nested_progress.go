@@ -16,7 +16,7 @@ func (a *ToolAPI) updateNestedProgress(change func(*toolCheckpoint, Limits) erro
 	decoder := a.outputDecoder
 	candidate := a.checkpoint
 	err := a.runtime.Commit(a.ctx, func(_ *Tx, record TaskRecord) (*TaskState, error) {
-		cp := record.State.Checkpoint
+		cp := taskCheckpointMap(record.State.Checkpoint)
 		if value, ok := cp["progress"].(map[string]any); ok {
 			if err := fromObject(JSON(value), &candidate, a.h.session.limits); err != nil {
 				return nil, err

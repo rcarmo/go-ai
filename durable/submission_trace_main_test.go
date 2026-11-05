@@ -64,9 +64,11 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 		h := taskTestHarness(t, b.store)
 		want := map[string]string{"traceparent": "opaque-parent", "tracestate": "vendor=value"}
 		var record SubmissionRecord
-		if err := json.Unmarshal([]byte(`{"conversation":1,"requestId":"trace-dto","type":"continue","status":"placed","trace":{"traceparent":"opaque-parent","tracestate":"vendor=value"}}`), &record); err != nil {
+		if err := json.Unmarshal([]byte(`{"id":2,"conversationId":1,"requestId":"trace-dto","type":"continue","status":"placed","trace":{"traceparent":"opaque-parent","tracestate":"vendor=value"}}`), &record); err != nil {
 			t.Fatal(err)
 		}
+		// CreateSubmission takes a creation draft; storage assigns its ID.
+		record.ID = 0
 		var id ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			var err error
@@ -150,9 +152,11 @@ func TestMainSubmissionTraceEmptyAndAbsent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := taskTestHarness(t, mustMemory(t))
 			var record SubmissionRecord
-			if err := json.Unmarshal([]byte(`{"conversation":1,"type":"continue","status":"placed"`+tc.field+`}`), &record); err != nil {
+			if err := json.Unmarshal([]byte(`{"id":2,"conversationId":1,"type":"continue","status":"placed"`+tc.field+`}`), &record); err != nil {
 				t.Fatal(err)
 			}
+			// Convert the public record into an ID-less creation draft.
+			record.ID = 0
 			_, err := h.Commit(bg, func(tx *Tx) error {
 				id, err := tx.CreateSubmission(record)
 				if err != nil {
@@ -177,7 +181,7 @@ func TestMainSubmissionTraceRejectsNonStringCarrier(t *testing.T) {
 	for _, carrier := range []string{`"opaque"`, `[]`, `{"span":1}`, `{"span":true}`, `{"span":null}`, `{"span":{"nested":"private"}}`} {
 		t.Run(carrier, func(t *testing.T) {
 			var record SubmissionRecord
-			if err := json.Unmarshal([]byte(`{"conversation":1,"type":"continue","status":"placed","trace":`+carrier+`}`), &record); err == nil {
+			if err := json.Unmarshal([]byte(`{"id":2,"conversationId":1,"type":"continue","status":"placed","trace":`+carrier+`}`), &record); err == nil {
 				t.Error("invalid trace carrier accepted", carrier)
 			}
 		})

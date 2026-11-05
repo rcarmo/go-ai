@@ -88,8 +88,14 @@ type Limits struct {
 func DefaultLimits() Limits {
 	return Limits{4 << 20, 512 << 10, 256 << 10, 256 << 10, 512, 32, 16 << 10, 131072, 256, 256, 100000, 32 << 20, 256 << 20}
 }
+
+// maximumDurableLimits bounds codecs that cannot receive a store-specific
+// policy, including encoding/json on public records and crash witnesses.
+func maximumDurableLimits() Limits {
+	return Limits{16 << 20, 1 << 20, 1 << 20, 512 << 10, 4096, 64, 16384, 262144, 1024, 4096, 1000000, 128 << 20, 4 << 30}
+}
 func (l Limits) validate() error {
-	max := Limits{16 << 20, 1 << 20, 1 << 20, 512 << 10, 4096, 64, 16384, 262144, 1024, 4096, 1000000, 128 << 20, 4 << 30}
+	max := maximumDurableLimits()
 	vals := []int64{int64(l.MaxFramePayloadBytes), int64(l.MaxRecordBytes), int64(l.MaxDocumentBytes), int64(l.MaxStringBytes), int64(l.MaxRequestIDBytes), int64(l.MaxDepth), int64(l.MaxMembers), int64(l.MaxNodes), int64(l.MaxWrites), int64(l.MaxPage), int64(l.MaxRecords), l.MaxRetainedBytes, l.MaxJournalBytes}
 	caps := []int64{int64(max.MaxFramePayloadBytes), int64(max.MaxRecordBytes), int64(max.MaxDocumentBytes), int64(max.MaxStringBytes), int64(max.MaxRequestIDBytes), int64(max.MaxDepth), int64(max.MaxMembers), int64(max.MaxNodes), int64(max.MaxWrites), int64(max.MaxPage), int64(max.MaxRecords), max.MaxRetainedBytes, max.MaxJournalBytes}
 	for i, v := range vals {
@@ -112,6 +118,9 @@ type Conversation struct {
 	Parent   ID     `json:"parent,omitempty"`
 	Name     string `json:"name,omitempty"`
 	ParentAt ID     `json:"parentAt,omitempty"`
+	// OwnerConversation is the owner task's conversation. It is derived from
+	// storage on every adoption and never persisted in the native envelope.
+	OwnerConversation ID `json:"-"`
 }
 type Entry struct {
 	ID           ID     `json:"id"`
@@ -167,10 +176,11 @@ type TaskOutcomeError struct {
 }
 
 type TaskOutcome struct {
-	Status string            `json:"status"`
-	Result *TaskValue        `json:"result,omitempty"`
-	Error  *TaskOutcomeError `json:"error,omitempty"`
-	Reason string            `json:"reason,omitempty"`
+	Status            string            `json:"status"`
+	Result            *TaskValue        `json:"result,omitempty"`
+	Error             *TaskOutcomeError `json:"error,omitempty"`
+	Reason            string            `json:"reason,omitempty"`
+	wireReasonPresent bool
 }
 
 // TaskState is a strict union. Live states own an object checkpoint. Outcomes
@@ -178,7 +188,7 @@ type TaskOutcome struct {
 type TaskState struct {
 	Until      *int64       `json:"until,omitempty"` // required only for sleeping; epoch milliseconds
 	Status     string       `json:"status"`
-	Checkpoint JSON         `json:"checkpoint,omitempty"`
+	Checkpoint any          `json:"checkpoint,omitempty"`
 	On         []ID         `json:"on,omitempty"`
 	Policy     string       `json:"policy,omitempty"`
 	Outcome    *TaskOutcome `json:"outcome,omitempty"`
@@ -228,23 +238,24 @@ type TaskExecution struct {
 // TaskRecord is a detached canonical runtime view. Legacy raw records remain
 // available through Snapshot; their absent generic results are not invented.
 type TaskRecord struct {
-	Restarts         uint64
-	AbandonOnRestart bool
-	AbortReason      string
-	StartedAt        *int64
-	EndedAt          *int64
-	ID               ID
-	Conversation     ID
-	Owner            ID
-	Kind             string
-	Version          uint64
-	Input            *TaskValue
-	Background       bool
-	AbortRequested   bool
-	Memos            map[string]*TaskValue
-	State            TaskState
-	Trace            any                      `json:"trace,omitempty"`
-	Links            *[]goai.TelemetryCarrier `json:"links,omitempty"`
+	Restarts            uint64
+	AbandonOnRestart    bool
+	AbortReason         string
+	StartedAt           *int64
+	EndedAt             *int64
+	ID                  ID
+	Conversation        ID
+	Owner               ID
+	Kind                string
+	Version             uint64
+	Input               *TaskValue
+	Background          bool
+	AbortRequested      bool
+	Memos               map[string]*TaskValue
+	State               TaskState
+	Trace               any                      `json:"trace,omitempty"`
+	Links               *[]goai.TelemetryCarrier `json:"links,omitempty"`
+	wireRestartsPresent bool
 }
 
 type TaskOwnership struct {
@@ -420,6 +431,10 @@ type EntryCursor struct {
 type Storage interface {
 	MintID(context.Context) (ID, error)
 	Apply(context.Context, Batch) (uint64, error)
+	// Commit is the original public grouped persistence boundary: it stores the
+	// batched command union in order and delivers one durability receipt per
+	// stored batch before it resolves. It is not Session publication.
+	Commit(context.Context, [][]StorageWrite, func(index int, seq uint64)) (CommitResult, error)
 	Snapshot(context.Context) (Snapshot, error)
 	// The 1.1.0 ordered scan contract is required of storage implementations.
 	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)

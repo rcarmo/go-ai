@@ -33,7 +33,7 @@ func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 			}
 		})
 		t.Run("entries", func(t *testing.T) {
-			page, err := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, "")
+			page, err := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, nil)
 			if err != nil || len(page.Items) != 0 {
 				t.Fatalf("published entries: %#v %v", page, err)
 			}
@@ -63,15 +63,15 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 			if published {
 				want = 1
 			}
-			conversations, err := s.ScanConversations(bg, ConversationQuery{}, 10, "")
+			conversations, err := s.ScanConversations(bg, ConversationQuery{}, 10, nil)
 			if err != nil || len(conversations.Items) != 1+want {
 				t.Fatalf("conversations: %+v %v", conversations, err)
 			}
-			tasks, err := s.ScanTasks(bg, TaskQuery{Conversation: ids[0]}, 10, "")
+			tasks, err := s.ScanTasks(bg, TaskQuery{Conversation: ids[0]}, 10, nil)
 			if err != nil || len(tasks.Items) != want {
 				t.Fatalf("tasks: %+v %v", tasks, err)
 			}
-			submissions, err := s.ScanSubmissions(bg, SubmissionQuery{Conversation: ids[0]}, 10, "")
+			submissions, err := s.ScanSubmissions(bg, SubmissionQuery{Conversation: ids[0]}, 10, nil)
 			if err != nil || len(submissions.Items) != want {
 				t.Fatalf("submissions: %+v %v", submissions, err)
 			}
@@ -132,7 +132,7 @@ func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 		if err != nil || image.Seq != 2 || image.Conversations[1].Name != "adapter" || adapter.snapshots != 1 {
 			t.Fatal(image, err, adapter.snapshots)
 		}
-		page, err := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, "")
+		page, err := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, nil)
 		if err != nil || len(page.Items) != 2 || adapter.entries != 1 {
 			t.Fatal(page, err, adapter.entries)
 		}

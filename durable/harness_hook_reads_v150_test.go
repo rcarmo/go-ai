@@ -57,7 +57,7 @@ func TestV150HookReadsCommittedRawHistory(t *testing.T) {
 	registry := NewRegistry()
 	if err := registry.Install(&Extension{Name: "reader", Hooks: GenerationHooks{OnYield: func(ctx context.Context, _ MessageReceipt, api *HookAPI) (*Input, error) {
 		captured = api
-		page, err := api.Entries(ctx, EntryQuery{Order: Ascending}, 10, "")
+		page, err := api.Entries(ctx, EntryQuery{Order: Ascending}, 10, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +102,7 @@ func TestV150HookReadsCommittedRawHistory(t *testing.T) {
 	if captured == nil {
 		t.Fatal("hook not invoked")
 	}
-	if _, err := captured.Entries(bg, EntryQuery{}, 10, ""); !errors.Is(err, ErrSealed) {
+	if _, err := captured.Entries(bg, EntryQuery{}, 10, nil); !errors.Is(err, ErrSealed) {
 		t.Fatalf("escaped hook history=%v", err)
 	}
 }
@@ -118,11 +118,11 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 	var captured *TaskRuntime
 	reader := taskDefinition(t, "test.reader", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 		captured = r
-		first, err := r.Entries(ctx, EntryQuery{Order: Ascending}, 1, "")
+		first, err := r.Entries(ctx, EntryQuery{Order: Ascending}, 1, nil)
 		if err != nil {
 			return err
 		}
-		if len(first.Items) != 1 || first.Next == "" {
+		if len(first.Items) != 1 || first.Next == nil {
 			t.Errorf("first page=%+v", first)
 			return nil
 		}
@@ -130,11 +130,11 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if len(second.Items) != 1 || second.Next != "" {
+		if len(second.Items) != 1 || second.Next != nil {
 			t.Errorf("second page=%+v", second)
 			return nil
 		}
-		bounded, err := r.Entries(ctx, EntryQuery{MinEntryID: second.Items[0].ID, MaxEntryID: second.Items[0].ID}, 10, "")
+		bounded, err := r.Entries(ctx, EntryQuery{MinEntryID: second.Items[0].ID, MaxEntryID: second.Items[0].ID}, 10, nil)
 		if err != nil {
 			return err
 		}
@@ -146,12 +146,12 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 			pages = append(pages, ids)
 		}
 		// Native caller-control and ownership checks supplement the source scenario.
-		if _, err := r.Entries(ctx, EntryQuery{Conversation: ID(MaxID)}, 1, ""); err == nil {
+		if _, err := r.Entries(ctx, EntryQuery{Conversation: ID(MaxID)}, 1, nil); err == nil {
 			t.Error("foreign conversation accepted")
 		}
 		canceled, cancel := context.WithCancel(ctx)
 		cancel()
-		if _, err := r.Entries(canceled, EntryQuery{}, 1, ""); !errors.Is(err, context.Canceled) {
+		if _, err := r.Entries(canceled, EntryQuery{}, 1, nil); !errors.Is(err, context.Canceled) {
 			t.Errorf("canceled history=%v", err)
 		}
 		first.Items[0].Value["mutated"] = true
@@ -183,7 +183,7 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 	if result := waitPublicTask(t, h, id); result.State.Outcome.Status != "completed" {
 		t.Fatal(result)
 	}
-	all, err := conversation.ScanEntries(bg, EntryQuery{Order: Ascending}, 10, "")
+	all, err := conversation.ScanEntries(bg, EntryQuery{Order: Ascending}, 10, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 	if len(all.Items) != 2 || !reflect.DeepEqual(pages, [][]ID{{all.Items[0].ID}, {all.Items[1].ID}, {all.Items[1].ID}}) {
 		t.Fatalf("pages=%v all=%+v", pages, all)
 	}
-	if _, err := captured.Entries(bg, EntryQuery{}, 1, ""); !errors.Is(err, ErrSealed) {
+	if _, err := captured.Entries(bg, EntryQuery{}, 1, nil); !errors.Is(err, ErrSealed) {
 		t.Fatalf("ended task history=%v", err)
 	}
 }

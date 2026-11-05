@@ -2,8 +2,9 @@ package durable
 
 import (
 	"context"
-	"encoding/base64"
-	"reflect"
+	"encoding/json"
+	"math"
+	"strconv"
 )
 
 // ScanOrder controls ID traversal. An omitted order uses the scan's default;
@@ -40,54 +41,97 @@ type OrderedStorage interface {
 	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[Task], error)
 	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
 }
-type scanCursor[Q any] struct {
-	Query Q         `json:"query"`
-	After ID        `json:"after"`
-	Order ScanOrder `json:"order,omitempty"`
+
+// Cursor is the original pi-durable continuation: a plain JSON object whose
+// "after" member is the last returned ID and whose optional "order" member is
+// the scan direction. Filters are not bound to it. A nil Cursor starts a scan.
+type Cursor map[string]any
+
+// nextCursor is the continuation after a page whose last item has id.
+func nextCursor(id ID, order ScanOrder) Cursor {
+	return Cursor{"after": float64(id), "order": string(order)}
+}
+
+// cursorAfter reads the cursor's "after" member, which must be a safe integer.
+func cursorAfter(cursor Cursor) (int64, bool, error) {
+	value, ok := cursor["after"]
+	if cursor == nil || !ok {
+		return 0, false, nil
+	}
+	const safe = 1<<53 - 1
+	var after int64
+	switch v := value.(type) {
+	case float64:
+		if v != math.Trunc(v) || v > safe || v < -safe {
+			return 0, false, storageRequest("invalid storage cursor")
+		}
+		after = int64(v)
+	case json.Number:
+		n, err := strconv.ParseInt(string(v), 10, 64)
+		if err != nil {
+			f, ferr := v.Float64()
+			if ferr != nil || f != math.Trunc(f) || f > safe || f < -safe {
+				return 0, false, storageRequest("invalid storage cursor")
+			}
+			n = int64(f)
+		}
+		after = n
+	case int:
+		after = int64(v)
+	case int64:
+		after = v
+	case uint64:
+		if v > safe {
+			return 0, false, storageRequest("invalid storage cursor")
+		}
+		after = int64(v)
+	case ID:
+		if uint64(v) > safe {
+			return 0, false, storageRequest("invalid storage cursor")
+		}
+		after = int64(v)
+	default:
+		return 0, false, storageRequest("invalid storage cursor")
+	}
+	if after > safe || after < -safe {
+		return 0, false, storageRequest("invalid storage cursor")
+	}
+	return after, true, nil
 }
 
 func validScanOrder(order ScanOrder) bool { return order == Ascending || order == Descending }
 
-// The query in a continuation omits order: callers can omit or repeat the stored
-// order, but cannot alter filters or switch direction. Pre-1.1 entry cursors have
-// no order and therefore retain their original descending default.
-func resolveScan[Q any](query Q, requested, fallback ScanOrder, cursor Cursor, l Limits) (ScanOrder, ID, error) {
+// resolveScan follows the original scanStart: a cursor continues in the order
+// it was created with whether the query repeats or omits it; a different order
+// is rejected. A cursor without an order continues in the scan's default.
+func resolveScan(requested, fallback ScanOrder, cursor Cursor) (ScanOrder, int64, bool, error) {
 	if requested != "" && !validScanOrder(requested) {
-		return "", 0, storageRequest("invalid scan order")
+		return "", 0, false, storageRequest("invalid scan order: " + string(requested))
 	}
-	if cursor == "" {
+	if cursor == nil {
 		if requested != "" {
 			fallback = requested
 		}
-		return fallback, 0, nil
+		return fallback, 0, false, nil
 	}
-	if len(cursor) > 1024 {
-		return "", 0, storageRequest("invalid storage cursor")
+	after, ok, err := cursorAfter(cursor)
+	if err != nil || !ok {
+		return "", 0, false, storageRequest("invalid storage cursor")
 	}
-	data, err := base64.RawURLEncoding.DecodeString(string(cursor))
-	if err != nil {
-		return "", 0, storageRequest("invalid storage cursor")
-	}
-	var continuation scanCursor[Q]
-	if err = decodeStrict(data, l, 1024, &continuation); err != nil {
-		return "", 0, storageRequest("invalid storage cursor encoding")
-	}
-	if continuation.After < 1 || uint64(continuation.After) > MaxID || !reflect.DeepEqual(continuation.Query, query) {
-		return "", 0, storageRequest("storage cursor query mismatch")
-	}
-	order := continuation.Order
-	if order == "" {
-		order = fallback
-	}
-	if !validScanOrder(order) {
-		return "", 0, storageRequest("invalid storage cursor order")
+	order := fallback
+	if stored, present := cursor["order"]; present {
+		text, isString := stored.(string)
+		if !isString || !validScanOrder(ScanOrder(text)) {
+			return "", 0, false, storageRequest("invalid storage cursor")
+		}
+		order = ScanOrder(text)
 	}
 	if requested != "" && requested != order {
-		return "", 0, storageRequest("storage cursor order mismatch")
+		return "", 0, false, storageRequest("the cursor continues a " + string(order) + " scan; the query asks for " + string(requested))
 	}
-	return order, continuation.After, nil
+	return order, after, true, nil
 }
-func scanPage[V any, Q any](values map[ID]V, query Q, order ScanOrder, after ID, limit int, l Limits, match func(V) bool, detach func(V) (V, error)) (Page[V], error) {
+func scanPage[V any](values map[ID]V, order ScanOrder, after int64, hasAfter bool, limit int, match func(V) bool, detach func(V) (V, error)) (Page[V], error) {
 	keys := ids(values)
 	if order == Descending {
 		for i, j := 0, len(keys)-1; i < j; i, j = i+1, j-1 {
@@ -97,7 +141,7 @@ func scanPage[V any, Q any](values map[ID]V, query Q, order ScanOrder, after ID,
 	page := Page[V]{Items: []V{}}
 	var last ID
 	for _, id := range keys {
-		if after != 0 && ((order == Ascending && id <= after) || (order == Descending && id >= after)) {
+		if hasAfter && ((order == Ascending && int64(id) <= after) || (order == Descending && int64(id) >= after)) {
 			continue
 		}
 		value := values[id]
@@ -105,11 +149,7 @@ func scanPage[V any, Q any](values map[ID]V, query Q, order ScanOrder, after ID,
 			continue
 		}
 		if len(page.Items) == limit {
-			data, err := encodeBounded(scanCursor[Q]{Query: query, After: last, Order: order}, l, 1024)
-			if err != nil {
-				return Page[V]{}, err
-			}
-			page.Next = Cursor(base64.RawURLEncoding.EncodeToString(data))
+			page.Next = nextCursor(last, order)
 			break
 		}
 		owned, err := detach(value)
@@ -125,13 +165,11 @@ func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cu
 	if err := checkReadIDs(q.OwnerTask, q.OwnerConversation); err != nil {
 		return Page[Conversation]{}, err
 	}
-	requested := q.Order
-	q.Order = ""
-	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
+	order, after, hasAfter, err := resolveScan(q.Order, Ascending, cursor)
 	if err != nil {
 		return Page[Conversation]{}, err
 	}
-	return scanPage(state.Conversations, q, order, after, limit, l, func(v Conversation) bool {
+	return scanPage(state.Conversations, order, after, hasAfter, limit, func(v Conversation) bool {
 		if q.OwnerTask != 0 && v.Owner != q.OwnerTask {
 			return false
 		}
@@ -148,13 +186,11 @@ func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) 
 	if err := checkReadIDs(q.Conversation); err != nil {
 		return Page[Task]{}, err
 	}
-	requested := q.Order
-	q.Order = ""
-	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
+	order, after, hasAfter, err := resolveScan(q.Order, Ascending, cursor)
 	if err != nil {
 		return Page[Task]{}, err
 	}
-	return scanPage(state.Tasks, q, order, after, limit, l, func(v Task) bool {
+	return scanPage(state.Tasks, order, after, hasAfter, limit, func(v Task) bool {
 		return (q.Conversation == 0 || v.Conversation == q.Conversation) && (q.Kind == "" || v.Kind == q.Kind) && (q.Status == "" || v.Status == q.Status) && (q.AbortRequested == nil || taskAborted(v) == *q.AbortRequested) && (q.Background == nil || taskBackground(v) == *q.Background)
 	}, func(v Task) (Task, error) { return copyTask(v, l) })
 }
@@ -162,13 +198,11 @@ func scanSubmissions(state Snapshot, q SubmissionQuery, limit int, cursor Cursor
 	if err := checkReadIDs(q.Conversation); err != nil {
 		return Page[Submission]{}, err
 	}
-	requested := q.Order
-	q.Order = ""
-	order, after, err := resolveScan(q, requested, Ascending, cursor, l)
+	order, after, hasAfter, err := resolveScan(q.Order, Ascending, cursor)
 	if err != nil {
 		return Page[Submission]{}, err
 	}
-	return scanPage(state.Submissions, q, order, after, limit, l, func(v Submission) bool {
+	return scanPage(state.Submissions, order, after, hasAfter, limit, func(v Submission) bool {
 		return (q.Conversation == 0 || v.Conversation == q.Conversation) && (q.Status == "" || v.Status == q.Status)
 	}, func(v Submission) (Submission, error) {
 		value, e := copyObject(v.Value, l)

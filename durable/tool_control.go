@@ -139,7 +139,8 @@ func (h *Harness) applyToolControls(tx *Tx, current Task, cp *generationCheckpoi
 		return false, reject("tool round assistant unavailable")
 	}
 	var receipt MessageReceipt
-	if err := fromObject(entry.Value, &receipt, tx.limits); err != nil {
+	receipt, err := entryMessage(entry, tx.limits)
+	if err != nil {
 		return false, err
 	}
 	if handoff != nil {

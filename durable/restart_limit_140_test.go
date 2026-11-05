@@ -126,7 +126,7 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 			}
 			if err := r.Commit(ctx, func(_ *Tx, current TaskRecord) (*TaskState, error) {
 				state := current.State
-				state.Checkpoint["number"] = json.Number("1.0")
+				taskCheckpointMap(state.Checkpoint)["number"] = json.Number("1.0")
 				return &state, nil
 			}); err != nil {
 				return err
@@ -157,7 +157,7 @@ func TestRestartLimit140ProgressNotIntentOrMemo(t *testing.T) {
 				return err
 			}
 			task.Checkpoint = JSON{}
-			task.Execution.Native.State.Checkpoint["number"] = json.Number("1")
+			taskCheckpointMap(task.Execution.Native.State.Checkpoint)["number"] = json.Number("1")
 			return tx.stage(Write{Op: "put-task", Task: &task})
 		})
 		if err != nil {

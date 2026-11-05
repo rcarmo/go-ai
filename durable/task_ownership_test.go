@@ -82,7 +82,7 @@ func TestTaskOwnershipHeldFailureFailFastBeforeDescendantDrain(t *testing.T) {
 				}
 				var failedID, siblingID, grandID, outsideID ID
 				failed := taskDefinition(t, "task.failfast.failed", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-					if task.State.Checkpoint["phase"] == "finish" {
+					if taskCheckpointMap(task.State.Checkpoint)["phase"] == "finish" {
 						if ending == "faulted" {
 							return errors.New("actual held child phase failure")
 						}
@@ -108,7 +108,7 @@ func TestTaskOwnershipHeldFailureFailFastBeforeDescendantDrain(t *testing.T) {
 				}
 				var outcomes []TaskOutcome
 				parent := taskDefinition(t, "task.failfast.parent", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-					if task.State.Checkpoint["phase"] == "join" {
+					if taskCheckpointMap(task.State.Checkpoint)["phase"] == "join" {
 						var err error
 						outcomes, err = r.Outcomes(ctx, []ID{failedID, siblingID})
 						if err != nil {
@@ -302,7 +302,7 @@ func TestTaskOwnershipRejectFinishingChildButOwnedConversationWorkHolds(t *testi
 		var childID ID
 		var attempts atomic.Int64
 		parent := taskDefinition(t, "task.overlay.parent", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			if task.State.Checkpoint["phase"] == "finish" {
+			if taskCheckpointMap(task.State.Checkpoint)["phase"] == "finish" {
 				return r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
 					var err error
 					childID, err = tx.CreateTask(child, nil, TaskOptions{Conversation: conversation, Ownership: TaskOwnership{Kind: "conversation"}})
@@ -1229,7 +1229,7 @@ func TestTaskOwnershipTerminalCandidateDocumentOverlayAndPublication(t *testing.
 			t.Fatal("new document empty lifetime placement")
 		}
 		query := b.store.(DocumentHistoryStorage)
-		page, err := query.ScanDocuments(bg, DocumentQuery{Scope: "task", Owner: ownerID, At: CurrentDocumentPoint()}, 10, "")
+		page, err := query.ScanDocuments(bg, DocumentQuery{Scope: "task", Owner: ownerID, At: CurrentDocumentPoint()}, 10, nil)
 		if err != nil || len(page.Items) != 0 {
 			t.Fatal("terminal owner current taskdocs", page, err)
 		}
@@ -1527,7 +1527,9 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					})
 					options := definition.options
 					options.Version = 2
-					options.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+					options.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+						checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 						migrations.Add(1)
 						return input, checkpoint, nil
 					}
@@ -1609,7 +1611,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 									}
 								}
 								if item.Record.State.Checkpoint != nil {
-									item.Record.State.Checkpoint["phase"] = "caller mutation"
+									taskCheckpointMap(item.Record.State.Checkpoint)["phase"] = "caller mutation"
 								}
 								if len(item.Record.State.On) > 0 {
 									item.Record.State.On[0] = ID(MaxID)
@@ -1759,13 +1761,13 @@ func TestTaskOwnershipRunningPhasesWaitOnSubsetsInSequence(t *testing.T) {
 			}
 		}
 		first := observeTaskState(t, h, id, "waiting")
-		if first.State.Checkpoint["phase"] != "round1" || len(first.State.On) != 1 || first.State.On[0] != members[0] || first.State.Policy != "allSettled" {
+		if taskCheckpointMap(first.State.Checkpoint)["phase"] != "round1" || len(first.State.On) != 1 || first.State.On[0] != members[0] || first.State.Policy != "allSettled" {
 			t.Fatal("first subset", first)
 		}
 		releaseTaskGate(gates[1])
 		waitPublicTask(t, h, members[1])
 		awaitTaskSignal(t, runtimes[members[1]].done)
-		if record, _, err := h.Task(bg, id); err != nil || record.State.Status != "waiting" || record.State.Checkpoint["phase"] != "round1" {
+		if record, _, err := h.Task(bg, id); err != nil || record.State.Status != "waiting" || taskCheckpointMap(record.State.Checkpoint)["phase"] != "round1" {
 			t.Fatal("outside first subset resumed parent", record, err)
 		}
 		releaseTaskGate(gates[0])
@@ -1778,7 +1780,7 @@ func TestTaskOwnershipRunningPhasesWaitOnSubsetsInSequence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if record.State.Status == "waiting" && record.State.Checkpoint["phase"] == "round2" {
+			if record.State.Status == "waiting" && taskCheckpointMap(record.State.Checkpoint)["phase"] == "round2" {
 				if record.State.Policy != "failFast" || len(record.State.On) != 2 || record.State.On[0] != members[1] || record.State.On[1] != members[2] {
 					t.Fatal("second subset", record)
 				}

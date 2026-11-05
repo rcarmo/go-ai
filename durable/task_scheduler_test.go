@@ -109,7 +109,7 @@ func TestTaskSchedulerPhasesMemoWinnerAndEndedCapabilities(t *testing.T) {
 			captured = r
 			calls.Add(1)
 			n := 0
-			if value, ok := task.State.Checkpoint["n"]; ok {
+			if value, ok := taskCheckpointMap(task.State.Checkpoint)["n"]; ok {
 				switch v := value.(type) {
 				case int:
 					n = v
@@ -208,7 +208,7 @@ func TestTaskSchedulerCapacityParentChildYieldOne(t *testing.T) {
 			})
 			var childID ID
 			parent := taskDefinition(t, "task.capacity.parent", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-				if task.State.Checkpoint["phase"] == "join" {
+				if taskCheckpointMap(task.State.Checkpoint)["phase"] == "join" {
 					return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("parent"), nil })
 				}
 				if err := r.Commit(ctx, func(tx *Tx, _ TaskRecord) (*TaskState, error) {
@@ -1281,7 +1281,7 @@ func TestTaskSchedulerCycleThroughDurableHoldOrWaitRejects(t *testing.T) {
 				var rejected atomic.Bool
 				cycleRejected := make(chan struct{})
 				a := taskDefinition(t, "task.cycle.durable.a", func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-					if task.State.Checkpoint["phase"] == "join" {
+					if taskCheckpointMap(task.State.Checkpoint)["phase"] == "join" {
 						return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("a"), nil })
 					}
 					close(aEntered)
@@ -2394,7 +2394,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 				if err != nil {
 					return err
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: value})
+				return tx.appendMessage(id, 1, 0, value)
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -4283,7 +4283,7 @@ func TestTaskSchedulerOwnMarkAfterProgressSkipsNextPhase(t *testing.T) {
 			Abort: func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 				aborts.Add(1)
 				fresh <- r
-				if !task.AbortRequested || task.State.Checkpoint["phase"] != "two" {
+				if !task.AbortRequested || taskCheckpointMap(task.State.Checkpoint)["phase"] != "two" {
 					return errors.New("fresh abort lost marked progressed checkpoint")
 				}
 				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) {
@@ -4318,7 +4318,7 @@ func TestTaskSchedulerOwnMarkAfterProgressSkipsNextPhase(t *testing.T) {
 				t.Fatal(err)
 			}
 			if record.AbortRequested {
-				if record.State.Checkpoint["phase"] != "two" {
+				if taskCheckpointMap(record.State.Checkpoint)["phase"] != "two" {
 					t.Fatal("mark lost progress", record)
 				}
 				break

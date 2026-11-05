@@ -47,7 +47,7 @@ func TestHarnessInspectListsOnlyUnsettledSubmissionsDetachedWithoutEffects(t *te
 			t.Fatal(view)
 		}
 		view.Submissions[0].Value["content"] = "mutated"
-		view.Tasks[0].Record.State.Checkpoint["phase"] = "mutated"
+		taskCheckpointMap(view.Tasks[0].Record.State.Checkpoint)["phase"] = "mutated"
 		again, err := h.Inspect(bg)
 		if err != nil {
 			t.Fatal(err)
@@ -56,7 +56,7 @@ func TestHarnessInspectListsOnlyUnsettledSubmissionsDetachedWithoutEffects(t *te
 		if err != nil {
 			t.Fatal(err)
 		}
-		if before.Seq != after.Seq || again.Submissions[0].Value["content"] == "mutated" || again.Tasks[0].Record.State.Checkpoint["phase"] == "mutated" {
+		if before.Seq != after.Seq || again.Submissions[0].Value["content"] == "mutated" || taskCheckpointMap(again.Tasks[0].Record.State.Checkpoint)["phase"] == "mutated" {
 			t.Fatal("inspection changed state", again)
 		}
 		close(release)

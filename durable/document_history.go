@@ -2,7 +2,6 @@ package durable
 
 import (
 	"context"
-	"encoding/base64"
 )
 
 // DocumentScope is exact: session requires Owner0; conversation/task require a
@@ -215,19 +214,19 @@ func (c *storeCore) ScanDocuments(ctx context.Context, q DocumentQuery, limit in
 	if err := checkPage(c.limits, limit); err != nil {
 		return Page[Document]{}, err
 	}
-	after, err := decodeDocumentCursor(cursor, q, c.limits)
+	after, hasAfter, err := decodeDocumentCursor(cursor)
 	if err != nil {
 		return Page[Document]{}, err
 	}
 	page := Page[Document]{Items: []Document{}}
 	for _, id := range ids(c.state.Documents) {
 		d := c.state.Documents[id]
-		if id <= after || d.Scope != q.Scope || d.Owner != q.Owner || (q.Kind != "" && d.Kind != q.Kind) || !aliveDocument(d, q.At) {
+		if (hasAfter && int64(id) <= after) || d.Scope != q.Scope || d.Owner != q.Owner || (q.Kind != "" && d.Kind != q.Kind) || !aliveDocument(d, q.At) {
 			continue
 		}
 		if len(page.Items) == limit {
-			page.Next, err = encodeDocumentCursor(page.Items[len(page.Items)-1].ID, q, c.limits)
-			return page, err
+			page.Next = Cursor{"after": float64(page.Items[len(page.Items)-1].ID)}
+			return page, nil
 		}
 		d.Value = nil
 		page.Items = append(page.Items, d)
@@ -235,37 +234,10 @@ func (c *storeCore) ScanDocuments(ctx context.Context, q DocumentQuery, limit in
 	return page, nil
 }
 
-type documentCursor struct {
-	Query DocumentQuery `json:"query"`
-	After ID            `json:"after"`
-}
-
-func decodeDocumentCursor(cursor Cursor, query DocumentQuery, limits Limits) (ID, error) {
-	if cursor == "" {
-		return 0, nil
-	}
-	if len(cursor) > 1024 {
-		return 0, storageRequest("invalid document cursor")
-	}
-	data, err := base64.RawURLEncoding.DecodeString(string(cursor))
-	if err != nil {
-		return 0, storageRequest("invalid document cursor")
-	}
-	var v documentCursor
-	if err = decodeStrict(data, limits, 1024, &v); err != nil {
-		return 0, storageRequest("invalid document cursor encoding")
-	}
-	if v.Query != query || v.After == 0 || uint64(v.After) > MaxID {
-		return 0, storageRequest("document cursor query mismatch")
-	}
-	return v.After, nil
-}
-func encodeDocumentCursor(after ID, query DocumentQuery, limits Limits) (Cursor, error) {
-	data, err := encodeBounded(documentCursor{query, after}, limits, 1024)
-	if err != nil {
-		return "", err
-	}
-	return Cursor(base64.RawURLEncoding.EncodeToString(data)), nil
+// Document scans are ascending only; like the original they read only the
+// cursor's "after" member.
+func decodeDocumentCursor(cursor Cursor) (int64, bool, error) {
+	return cursorAfter(cursor)
 }
 
 func resolveDocumentCopies(s Snapshot, writes []Write, l Limits) ([]Write, error) {

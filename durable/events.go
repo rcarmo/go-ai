@@ -124,7 +124,7 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if err != nil {
 				return result, err
 			}
-			arguments, err := nestedCheckpointArguments(record.State.Checkpoint, input, limits)
+			arguments, err := nestedCheckpointArguments(taskCheckpointMap(record.State.Checkpoint), input, limits)
 			if err != nil {
 				return result, err
 			}
@@ -136,7 +136,7 @@ func conversationSnapshot(state Snapshot, id ID, limits Limits) (ConversationSna
 			if input.ParentCallID != "" {
 				callID = input.ParentCallID + "/" + input.Key
 			}
-			progress, err := nestedEventProgress(record.State.Checkpoint, limits)
+			progress, err := nestedEventProgress(taskCheckpointMap(record.State.Checkpoint), limits)
 			if err != nil {
 				return result, err
 			}
@@ -209,12 +209,8 @@ func copyConversationSnapshot(value ConversationSnapshot, limits Limits) (Conver
 		result.Entries = append(result.Entries, copy)
 	}
 	for _, record := range value.Tasks {
-		wire, err := encodeBounded(record, limits, limits.MaxRecordBytes)
+		copy, err := copyPublicTaskRecord(record, limits)
 		if err != nil {
-			return result, err
-		}
-		var copy TaskRecord
-		if err = decodeStrict(wire, limits, limits.MaxRecordBytes, &copy); err != nil {
 			return result, err
 		}
 		result.Tasks = append(result.Tasks, copy)
@@ -482,7 +478,7 @@ func (s *AgentEventStream) Start(listener func(context.Context, []AgentEvent) er
 					return err
 				}
 				events = append(events, AgentEvent{Type: "entry_appended", Seq: next.Seq, Entry: &copy})
-				if entry.Kind == "message" || len(entry.Model) > 0 {
+				if isMessageEntry(entry) || len(entry.Model) > 0 {
 					second, err := copyEntry(entry, s.limits)
 					if err != nil {
 						return err

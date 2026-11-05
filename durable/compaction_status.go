@@ -60,7 +60,7 @@ func (t *Tx) syncCompactionStatuses() error {
 				}
 			}
 			attempt := 1
-			checkpoint := record.State.Checkpoint
+			checkpoint := taskCheckpointMap(record.State.Checkpoint)
 			if raw, ok := checkpoint["attempt"]; ok {
 				if number, ok := exactNumber(raw); ok {
 					attempt = int(number.Num().Int64())

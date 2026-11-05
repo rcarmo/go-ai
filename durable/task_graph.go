@@ -40,7 +40,7 @@ func graphNode(task Task, conversations []ID, limits Limits) (TaskGraphNode, err
 	if record.State.Outcome != nil {
 		state.Outcome = record.State.Outcome.Status
 	} else {
-		state.Phase, _ = record.State.Checkpoint["phase"].(string)
+		state.Phase, _ = taskCheckpointMap(record.State.Checkpoint)["phase"].(string)
 		state.On = append([]ID(nil), record.State.On...)
 		state.Policy = record.State.Policy
 	}

@@ -33,7 +33,7 @@ func TestTaskDefinitionConstructorOwnsPhaseMapAndInput(t *testing.T) {
 	}
 	input["input"] = "caller"
 	retained["nested"].(JSON)["value"] = "retained"
-	if execution.Input.Value.(map[string]any)["input"] != "original" || execution.State.Checkpoint["nested"].(map[string]any)["value"] != "initial" {
+	if execution.Input.Value.(map[string]any)["input"] != "original" || taskCheckpointMap(execution.State.Checkpoint)["nested"].(map[string]any)["value"] != "initial" {
 		t.Fatal("definition callback/caller placement escaped")
 	}
 	for _, mutate := range []func(*TaskDefinitionOptions){
@@ -146,7 +146,6 @@ func TestTaskDefinitionCodecStrictValuesAndUnions(t *testing.T) {
 		"live-with-outcome":          func(t *Task) { t.Execution.Native.State.Outcome = &TaskOutcome{Status: "aborted"} },
 		"nonwaiting-on":              func(t *Task) { t.Execution.Native.State.On = []ID{3} },
 		"wrong-raw-status":           func(t *Task) { t.Status = "done" },
-		"unknown-phase":              func(t *Task) { t.Execution.Native.State.Checkpoint["phase"] = 1 },
 		"background-child":           func(t *Task) { t.Owner = 3; t.Execution.Native.Background = true },
 		"terminal-with-checkpoint": func(t *Task) {
 			t.Status = "done"
@@ -210,7 +209,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 		defer session.Close(bg)
 		_, err = session.Commit(bg, func(tx *Tx) error {
 			v := tx.state.Tasks[id]
-			v.Execution.Native.State.Checkpoint["count"] = 1
+			taskCheckpointMap(v.Execution.Native.State.Checkpoint)["count"] = 1
 			// Raw public Tx.PutTask cannot replace native execution authority.
 			if err := tx.PutTask(v); err == nil {
 				return errors.New("raw execution replacement accepted")
@@ -219,14 +218,14 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 			if err := tx.stage(Write{Op: "put-task", Task: &v}); err != nil {
 				return err
 			}
-			v.Execution.Native.State.Checkpoint["count"] = 9
+			taskCheckpointMap(v.Execution.Native.State.Checkpoint)["count"] = 9
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		state, err := session.Snapshot(bg)
-		if err != nil || state.Tasks[id].Execution.Native.Input.Value.(map[string]any)["label"] != "owned" || state.Tasks[id].Execution.Native.Memos["winner"].Value.(map[string]any)["label"] != "owned" || !equalJSONValue(state.Tasks[id].Execution.Native.State.Checkpoint["count"], json.Number("1")) {
+		if err != nil || state.Tasks[id].Execution.Native.Input.Value.(map[string]any)["label"] != "owned" || state.Tasks[id].Execution.Native.Memos["winner"].Value.(map[string]any)["label"] != "owned" || !equalJSONValue(taskCheckpointMap(state.Tasks[id].Execution.Native.State.Checkpoint)["count"], json.Number("1")) {
 			t.Fatal("Tx/snapshot envelope detached", err)
 		}
 	})

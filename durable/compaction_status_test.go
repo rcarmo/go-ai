@@ -115,7 +115,7 @@ func waitCompactionCheckpoint(t *testing.T, h *Harness, id ID, phase string) Sna
 		if err != nil {
 			t.Fatal(err)
 		}
-		if record.State.Checkpoint["phase"] == phase {
+		if taskCheckpointMap(record.State.Checkpoint)["phase"] == phase {
 			return state
 		}
 		select {

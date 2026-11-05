@@ -55,7 +55,7 @@ func taskTraceState(task Task) phaseTraceState {
 		if native := task.Execution.Native; native != nil {
 			status = native.State.Status
 			outcome = native.State.Outcome
-			phase, _ = native.State.Checkpoint["phase"].(string)
+			phase, _ = taskCheckpointMap(native.State.Checkpoint)["phase"].(string)
 		}
 		if builtin := task.Execution.Builtin; builtin != nil && builtin.Hold != nil {
 			outcome = &builtin.Hold.Outcome

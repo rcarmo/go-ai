@@ -11,9 +11,9 @@ func validateInputMetadata(entry *Entry) error {
 	}
 	return nil
 }
-func inputMetadataEntry(metadata *Entry, id, conversation ID, message JSON, receipt MessageReceipt, by ID) Entry {
+func inputMetadataEntry(metadata *storedEntry, id, conversation ID, message JSON, receipt MessageReceipt, by ID) Entry {
 	if metadata == nil {
-		return Entry{ID: id, Conversation: conversation, Kind: "message", Value: message, ByTask: by}
+		return Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind, Value: message, ByTask: by}
 	}
 	return Entry{ID: id, Conversation: conversation, Kind: metadata.Kind, Value: JSON{}, Data: metadata.Data, HasData: metadata.HasData, Model: []MessageReceipt{receipt}, ByTask: by}
 }

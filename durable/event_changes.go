@@ -138,11 +138,11 @@ func eventEntryMessage(entry Entry, limits Limits) (*MessageReceipt, error) {
 		}
 		return &messages[0], nil
 	}
-	if entry.Kind != "message" {
+	if entry.Kind != legacyMessageKind {
 		return nil, nil
 	}
-	var message MessageReceipt
-	if err := fromObject(entry.Value, &message, limits); err != nil {
+	message, err := entryMessage(entry, limits)
+	if err != nil {
 		return nil, err
 	}
 	return &message, nil

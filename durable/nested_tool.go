@@ -304,7 +304,7 @@ func abortNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) err
 	code := "aborted"
 	if record.AbortReason == "restart" {
 		code = "abandoned"
-		if started, _ := record.State.Checkpoint["started"].(bool); started {
+		if started, _ := taskCheckpointMap(record.State.Checkpoint)["started"].(bool); started {
 			code = "interrupted"
 		}
 	}
@@ -340,21 +340,21 @@ func runNestedTool(ctx context.Context, record TaskRecord, r *TaskRuntime) error
 		return err
 	}
 	reg, exists := pins[input.Name]
-	started, _ := record.State.Checkpoint["started"].(bool)
+	started, _ := taskCheckpointMap(record.State.Checkpoint)["started"].(bool)
 	if !exists || !toolCallerAllowed(reg.offer, "tools") || !toolCallerAllowed(input.Offer, "tools") {
 		return settleNestedTool(ctx, record, r, ToolResult{Content: "Tool unavailable", IsError: true}, "tool_unavailable", 0)
 	}
 	if started && (!input.Offer.ReplaySafe || !reg.offer.ReplaySafe) {
 		return settleNestedTool(ctx, record, r, ToolResult{Content: "Tool interrupted", IsError: true}, "interrupted", 0)
 	}
-	args, err := nestedCheckpointArguments(record.State.Checkpoint, input, l)
+	args, err := nestedCheckpointArguments(taskCheckpointMap(record.State.Checkpoint), input, l)
 	if err != nil {
 		return err
 	}
 	if started {
 		// Each replayed executor attempt starts a fresh progress buffer.
 		if err = r.Commit(ctx, func(_ *Tx, current TaskRecord) (*TaskState, error) {
-			cp := current.State.Checkpoint
+			cp := taskCheckpointMap(current.State.Checkpoint)
 			delete(cp, "progress")
 			return &TaskState{Status: "running", Checkpoint: cp}, nil
 		}); err != nil {

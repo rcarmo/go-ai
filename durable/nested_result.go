@@ -37,7 +37,7 @@ func runNestedAfterHooks(ctx context.Context, r *TaskRuntime, agent agentState, 
 }
 
 func nestedProgressResult(record TaskRecord, limits Limits) ToolResult {
-	value, ok := record.State.Checkpoint["progress"].(map[string]any)
+	value, ok := taskCheckpointMap(record.State.Checkpoint)["progress"].(map[string]any)
 	if !ok {
 		return ToolResult{}
 	}

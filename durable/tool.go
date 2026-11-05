@@ -985,7 +985,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 		if e != nil {
 			return e
 		}
-		if e = tx.AppendEntry(Entry{ID: entryID, Conversation: parent.Conversation, Kind: "message", Value: value, ByTask: parent.ID}); e != nil {
+		if e = tx.appendMessage(entryID, parent.Conversation, parent.ID, value); e != nil {
 			return e
 		}
 		cp.AssistantEntry = entryID
@@ -1002,7 +1002,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 				if err != nil {
 					return err
 				}
-				if err := tx.AppendEntry(Entry{ID: id, Conversation: parent.Conversation, Kind: "message", ByTask: parent.ID, Value: value}); err != nil {
+				if err := tx.appendMessage(id, parent.Conversation, parent.ID, value); err != nil {
 					return err
 				}
 				cp.UnstartedCalls = append(cp.UnstartedCalls, tool.CallID)
@@ -1109,7 +1109,8 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 	// with no receipt contribute no entry; synthetic context results are not
 	// committed hook authority.
 	var assistant MessageReceipt
-	if err := fromObject(s.Entries[latest.AssistantEntry].Value, &assistant, h.session.limits); err != nil {
+	assistant, err := entryMessage(s.Entries[latest.AssistantEntry], h.session.limits)
+	if err != nil {
 		return err
 	}
 	producers := map[ID]bool{current.ID: true}
@@ -1119,11 +1120,11 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 	byCall := map[string]ID{}
 	for _, id := range ids(s.Entries) {
 		entry := s.Entries[id]
-		if id <= latest.AssistantEntry || entry.Conversation != current.Conversation || entry.Kind != "message" || !producers[entry.ByTask] {
+		if id <= latest.AssistantEntry || entry.Conversation != current.Conversation || !isMessageEntry(entry) || !producers[entry.ByTask] {
 			continue
 		}
-		var receipt MessageReceipt
-		if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+		receipt, err := entryMessage(entry, h.session.limits)
+		if err != nil {
 			return err
 		}
 		if receipt.Role == goai.RoleToolResult {
@@ -1136,8 +1137,8 @@ func (h *Harness) runOwnedTools(runtime *TaskRuntime, parent *Task, cp *generati
 			continue
 		}
 		if id, ok := byCall[call.ID]; ok {
-			var receipt MessageReceipt
-			if err := fromObject(s.Entries[id].Value, &receipt, h.session.limits); err != nil {
+			receipt, err := entryMessage(s.Entries[id], h.session.limits)
+			if err != nil {
 				return err
 			}
 			results, resultEntries = append(results, receipt), append(resultEntries, id)
@@ -1850,7 +1851,7 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		if e != nil {
 			return e
 		}
-		if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); e != nil {
+		if e = tx.appendMessage(id, task.Conversation, task.ID, value); e != nil {
 			return e
 		}
 		outcome := TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}

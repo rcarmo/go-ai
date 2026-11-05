@@ -82,7 +82,7 @@ func TestDocumentHistoryLifetimeVersionDetachedAndReopen(t *testing.T) {
 				if err != nil || !ok || record.ID != tc.id || record.Value != nil {
 					t.Fatal(record, ok, err)
 				}
-				page, err := h.ScanDocuments(bg, DocumentQuery{Scope: "conversation", Owner: 1, At: DocumentPoint{Seq: tc.at}}, 10, "")
+				page, err := h.ScanDocuments(bg, DocumentQuery{Scope: "conversation", Owner: 1, At: DocumentPoint{Seq: tc.at}}, 10, nil)
 				if err != nil || len(page.Items) != 1 || page.Items[0].ID != tc.id || page.Items[0].Value != nil {
 					t.Fatal(page, err)
 				}
@@ -121,8 +121,8 @@ func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing
 			}
 		}
 		q := DocumentQuery{Scope: "conversation", Owner: 1, At: CurrentDocumentPoint(), Kind: "family"}
-		page, err := h.ScanDocuments(bg, q, 2, "")
-		if err != nil || len(page.Items) != 2 || page.Next == "" {
+		page, err := h.ScanDocuments(bg, q, 2, nil)
+		if err != nil || len(page.Items) != 2 || page.Next == nil {
 			t.Fatal(page, err)
 		}
 		encoded, _ := json.Marshal(page.Next)
@@ -131,7 +131,7 @@ func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing
 			t.Fatal(err)
 		}
 		next, err := h.ScanDocuments(bg, q, 10, cursor)
-		if err != nil || len(next.Items) != 3 || next.Next != "" {
+		if err != nil || len(next.Items) != 3 || next.Next != nil {
 			t.Fatal(next, err)
 		}
 		for _, run := range []func() error{
@@ -145,12 +145,8 @@ func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing
 				return e
 			},
 			func() error { _, _, e := h.DocumentAt(bg, ID(MaxID+1), CurrentDocumentPoint()); return e },
-			func() error { _, e := h.ScanDocuments(bg, q, 0, ""); return e },
-			func() error { _, e := h.ScanDocuments(bg, q, 1, "invalid!"); return e },
-			func() error {
-				_, e := h.ScanDocuments(bg, DocumentQuery{Scope: "conversation", Owner: 1, At: DocumentPoint{Seq: created}}, 1, cursor)
-				return e
-			},
+			func() error { _, e := h.ScanDocuments(bg, q, 0, nil); return e },
+			func() error { _, e := h.ScanDocuments(bg, q, 1, Cursor{"after": "invalid!"}); return e },
 		} {
 			rejected(t, run())
 		}
@@ -176,7 +172,7 @@ func TestDocumentHistoryExactFamilyAddressCurrentOnlyAndEmptyLifetime(t *testing
 				_, _, e := h.FindDocument(bg, documentAddress(singleton), CurrentDocumentPoint())
 				return e
 			},
-			func() error { _, e := h.ScanDocuments(bg, q, 1, ""); return e },
+			func() error { _, e := h.ScanDocuments(bg, q, 1, nil); return e },
 		} {
 			if !errors.Is(run(), ErrClosed) {
 				t.Fatal("history read after close")
@@ -465,7 +461,7 @@ func TestDocumentHistoryPublicForkProductionHTTPAgentAndReopen(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		if e = tx.AppendEntry(Entry{ID: cut, Conversation: 1, Kind: "message", Value: value}); e != nil {
+		if e = tx.appendMessage(cut, 1, 0, value); e != nil {
 			return e
 		}
 		app, e = tx.MintID()
@@ -616,7 +612,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 				t.Fatal(e)
 			}
 			count += len(page.Items)
-			if page.Next == "" {
+			if page.Next == nil {
 				break
 			}
 			cursor = page.Next

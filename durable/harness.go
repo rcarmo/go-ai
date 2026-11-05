@@ -564,7 +564,7 @@ func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextVie
 func (c *ConversationHandle) ScanEntries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	// Conversation history defaults oldest-first, while direct Storage scans
 	// default newest-first. Continuing without order follows its cursor.
-	if q.Order == "" && cursor == "" {
+	if q.Order == "" && cursor == nil {
 		q.Order = Ascending
 	}
 	if q.Conversation != 0 && q.Conversation != c.id {
@@ -1202,7 +1202,10 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 			if !ok {
 				return reject("hold receipt missing")
 			}
-			value = entry.Value
+			var err error
+			if value, err = entryMessageValue(entry, tx.limits); err != nil {
+				return err
+			}
 		}
 		// Fresh decisions already ran endRun. Only legacy held receipts with
 		// pending inputs need boundary cleanup here; repeating it could place
@@ -1235,7 +1238,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: encoded, ByTask: task.ID}); err != nil {
+			if err := tx.appendMessage(id, task.Conversation, task.ID, encoded); err != nil {
 				return err
 			}
 			hold.Entry = id
@@ -1287,7 +1290,7 @@ func (h *Harness) finalizeBuiltinHold(tx *Tx, task Task) error {
 		if err != nil {
 			return err
 		}
-		if err := tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); err != nil {
+		if err := tx.appendMessage(id, task.Conversation, task.ID, value); err != nil {
 			return err
 		}
 		hold.Entry = id

@@ -31,7 +31,7 @@ func TestTaskGraph140MigrationFailureMetadataWithoutCommit(t *testing.T) {
 		}
 		options := def.options
 		options.Version = 2
-		options.Migrate = func(any, JSON, uint64) (any, JSON, error) {
+		options.Migrate = func(any, any, uint64) (any, JSON, error) {
 			migrations.Add(1)
 			return nil, nil, errors.New("migration failed")
 		}

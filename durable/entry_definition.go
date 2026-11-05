@@ -290,9 +290,10 @@ func deriveContextHistory(history []Entry, l Limits) (ContextView, error) {
 	}
 	for _, entry := range view.Entries {
 		contribution := entry.Model
-		if contribution == nil && entry.Kind == "message" {
-			var receipt messageReceipt
-			if e = fromObject(entry.Value, &receipt, l); e != nil {
+		if contribution == nil && entry.Kind == legacyMessageKind {
+			var receipt MessageReceipt
+			receipt, e = entryMessage(entry, l)
+			if e != nil {
 				return view, e
 			}
 			contribution = []MessageReceipt{receipt}

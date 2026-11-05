@@ -68,7 +68,9 @@ func TestTaskOwnershipPinnedHeldOutcomeVersionAndLiveOutcomes(t *testing.T) {
 		held := observeTaskState(t, h, parentID, "completing")
 		options := parent.options
 		options.Version = 2
-		options.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+		options.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+			checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 			migrations.Add(1)
 			return input, checkpoint, nil
 		}

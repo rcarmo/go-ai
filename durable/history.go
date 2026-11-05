@@ -2,18 +2,13 @@ package durable
 
 import (
 	"context"
-	"encoding/base64"
 	"sort"
 )
-
-// Cursor is backend-owned continuation state. Round-trip it unchanged to the
-// same scan/query; it is not an offset into a mutable slice.
-type Cursor string
 
 // Page contains detached records and an optional continuation (empty at end).
 type Page[T any] struct {
 	Items []T    `json:"items"`
-	Next  Cursor `json:"next,omitempty"`
+	Next  Cursor `json:"next,omitempty"` // nil at the end
 }
 
 // EntryQuery selects inclusive ID bounds in fork-aware history (descending by
@@ -33,8 +28,6 @@ type HistoryStorage interface {
 	VisibleEntry(context.Context, ID, ID) (Entry, bool, error)
 	FindLatestHeadMarker(context.Context, ID, ID) (Entry, bool, error)
 }
-
-type historyCursor = scanCursor[EntryQuery]
 
 func validateAncestry(s Snapshot, final bool) error {
 	for id, v := range s.Conversations {
@@ -155,30 +148,26 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 	if uint64(q.Conversation) > MaxID || uint64(q.MinEntryID) > MaxID || uint64(q.MaxEntryID) > MaxID {
 		return Page[Entry]{}, storageRequest("entry query outside ID bounds")
 	}
-	original := q
-	original.Order = ""
-	order, after, err := resolveScan(original, q.Order, Descending, cursor, l)
+	order, after, hasAfter, err := resolveScan(q.Order, Descending, cursor)
 	if err != nil {
 		return Page[Entry]{}, err
 	}
 	q.Order = order
-	if after != 0 {
-		if _, ok := state.Conversations[q.Conversation]; !ok {
-			return Page[Entry]{}, storageRequest("unknown conversation")
-		}
+	// The cursor narrows the bound on the side the scan moves away from.
+	if hasAfter {
 		if order == Descending {
-			if after == 1 {
+			if after <= 1 {
 				return Page[Entry]{Items: []Entry{}}, nil
 			}
-			if q.MaxEntryID == 0 || q.MaxEntryID >= after {
-				q.MaxEntryID = after - 1
+			if q.MaxEntryID == 0 || int64(q.MaxEntryID) >= after {
+				q.MaxEntryID = ID(after - 1)
 			}
 		} else {
-			if uint64(after) == MaxID {
+			if after >= int64(MaxID) {
 				return Page[Entry]{Items: []Entry{}}, nil
 			}
-			if q.MinEntryID <= after {
-				q.MinEntryID = after + 1
+			if after >= 0 && int64(q.MinEntryID) <= after {
+				q.MinEntryID = ID(after + 1)
 			}
 		}
 	}
@@ -191,11 +180,7 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 	}
 	page := Page[Entry]{Items: []Entry{}}
 	if len(entries) > limit {
-		data, err := encodeBounded(historyCursor{Query: original, After: entries[limit-1].ID, Order: order}, l, 1024)
-		if err != nil {
-			return Page[Entry]{}, err
-		}
-		page.Next = Cursor(base64.RawURLEncoding.EncodeToString(data))
+		page.Next = nextCursor(entries[limit-1].ID, order)
 		entries = entries[:limit]
 	}
 	for _, entry := range entries {

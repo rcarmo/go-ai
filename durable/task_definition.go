@@ -18,7 +18,7 @@ type TaskDefinitionOptions struct {
 	Initial func(any) (JSON, error)
 	Phases  map[string]TaskPhase
 	Abort   TaskPhase
-	Migrate func(any, JSON, uint64) (any, JSON, error)
+	Migrate func(any, any, uint64) (any, JSON, error)
 }
 
 // TaskDefinition copies its phase map. Functions remain process-local host code;
@@ -397,6 +397,9 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 	// it remains the sole authority for started effects and their replay policy.
 	switch owned.Kind {
 	case "pi.generation":
+		// The pinned GenerationTask is created with the empty object input.
+		// Its current native checkpoint is not yet a source-equivalent projection.
+		view.Input = &TaskValue{Present: true, Value: JSON{}}
 		var cp generationCheckpoint
 		if err = fromObject(owned.Checkpoint, &cp, l); err != nil {
 			return TaskRecord{}, err

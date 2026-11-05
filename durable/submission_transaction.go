@@ -87,9 +87,11 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 		}
 	case "unanswered":
 		sub.Status = "failed"
-		if record.Reason == "" || record.Answer != 0 {
+		if record.Answer != 0 {
 			return Submission{}, reject("unanswered submission fields")
 		}
+		// The write union already requires a present reason for this status; an
+		// explicitly empty one is stored and read back empty, as in the original.
 		value["errorCode"] = record.Reason
 	default:
 		return Submission{}, reject("submission status")

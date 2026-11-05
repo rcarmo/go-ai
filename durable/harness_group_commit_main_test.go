@@ -568,7 +568,7 @@ func TestMainGroupCommitChildEndsBeforePhaseWhenMarkUnpublished(t *testing.T) {
 		if err != nil || !ok {
 			t.Fatal("child missing", ok, err)
 		}
-		if rec.State.Status == "running" && rec.State.Checkpoint["phase"] == "two" {
+		if rec.State.Status == "running" && taskCheckpointMap(rec.State.Checkpoint)["phase"] == "two" {
 			break
 		}
 		if time.Now().After(deadline) {

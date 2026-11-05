@@ -31,7 +31,7 @@ func TestClose140RequeueDoesNotConsumeRestartBudget(t *testing.T) {
 			store := reopenStoreAfterHarnessClose(t, h.session.store)
 			snapshot := snap(t, store)
 			task := snapshot.Tasks[id]
-			if task.Status != "pending" || task.Restarts != 0 || taskHasDecidedOutcome(task) || task.Execution.Native.State.Checkpoint["phase"] != "work" || task.Execution.Native.Memos["retained"] == nil {
+			if task.Status != "pending" || task.Restarts != 0 || taskHasDecidedOutcome(task) || taskCheckpointMap(task.Execution.Native.State.Checkpoint)["phase"] != "work" || task.Execution.Native.Memos["retained"] == nil {
 				t.Fatal("clean shutdown changed execution/budget", task)
 			}
 			h = taskTestHarnessOptions(t, store, options, def)

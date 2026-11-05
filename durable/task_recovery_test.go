@@ -101,7 +101,7 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 		id := createPublicTask(t, h, original, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
 		options := original.options
 		options.Version = 2
-		options.Migrate = func(any, JSON, uint64) (any, JSON, error) {
+		options.Migrate = func(any, any, uint64) (any, JSON, error) {
 			migrations.Add(1)
 			return func() {}, JSON{"phase": "work"}, nil
 		}
@@ -141,7 +141,9 @@ func TestTaskRecoveryInvalidMigrationCachesDefinitionIdentityAndNoReadEffects(t 
 		if err != nil || migrations.Load() != 1 || len(inspection.Tasks) != 1 || inspection.Tasks[0].Reason != "migration_failed" {
 			t.Fatal("same definition retried", migrations.Load(), inspection, err)
 		}
-		options.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+		options.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+			checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 			migrations.Add(1)
 			return input, checkpoint, nil
 		}
@@ -314,7 +316,7 @@ func TestTaskRecoveryMarkedBlockedMigrationOrphansSamePass(t *testing.T) {
 						options.Version = 3
 					}
 					if variant == "thrown" || variant == "invalid-output" {
-						options.Migrate = func(any, JSON, uint64) (any, JSON, error) {
+						options.Migrate = func(any, any, uint64) (any, JSON, error) {
 							migrations.Add(1)
 							if variant == "thrown" {
 								return nil, nil, errors.New("rejected migration")
@@ -506,7 +508,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 						return ToolResult{}, errors.New("active tool missing")
 					}
 					if err := api.Commit(ctx, func(tx *Tx) error {
-						return tx.PutTask(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: public.State.Checkpoint})
+						return tx.PutTask(Task{ID: public.ID, Owner: public.Owner, Conversation: public.Conversation, Kind: public.Kind, Status: "done", Checkpoint: taskCheckpointMap(public.State.Checkpoint)})
 					}); err == nil {
 						return ToolResult{}, errors.New("builtin raw authority forged")
 					}
@@ -2493,7 +2495,9 @@ func TestTaskRecoveryHandoverIdentityMemoMigrationAndNoOverlap(t *testing.T) {
 				}}
 				if variant != "same-version" {
 					options.Version = 2
-					options.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+					options.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+						checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 						migrations.Add(1)
 						if variant == "newer-migration-fails" {
 							return nil, nil, errors.New("handover migration rejected")
@@ -2513,7 +2517,7 @@ func TestTaskRecoveryHandoverIdentityMemoMigrationAndNoOverlap(t *testing.T) {
 				// Real old host remains active AFTER progress adoption. A fitting
 				// registry publication cannot run replacement before its return.
 				state, ok, err := h.Task(bg, id)
-				if err != nil || !ok || state.State.Checkpoint["phase"] != "b" || newCalls.Load() != 0 || active.Load() != 1 {
+				if err != nil || !ok || taskCheckpointMap(state.State.Checkpoint)["phase"] != "b" || newCalls.Load() != 0 || active.Load() != 1 {
 					t.Fatal("phase overlap/handover boundary", state, err)
 				}
 				releaseTaskGate(releaseOldHost)
@@ -2524,7 +2528,7 @@ func TestTaskRecoveryHandoverIdentityMemoMigrationAndNoOverlap(t *testing.T) {
 						t.Fatal("handover migration failure missing")
 					}
 					blocked, ok, err := h.Task(bg, id)
-					if err != nil || !ok || blocked.Version != 1 || blocked.State.Status != "pending" || blocked.State.Checkpoint["phase"] != "b" || newCalls.Load() != 0 || migrations.Load() != 1 {
+					if err != nil || !ok || blocked.Version != 1 || blocked.State.Status != "pending" || taskCheckpointMap(blocked.State.Checkpoint)["phase"] != "b" || newCalls.Load() != 0 || migrations.Load() != 1 {
 						t.Fatal("failed handover migration changed task", blocked, err)
 					}
 					inspection, err := h.InspectTasks(bg)
@@ -4102,7 +4106,9 @@ func TestTaskRecoveryBlockedDefinitionPauseReadAndFittingRegistration(t *testing
 				fittingOptions := storedOptions
 				if variant == "no-migration" {
 					fittingOptions.Version = 2
-					fittingOptions.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+					fittingOptions.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+						checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 						migrations.Add(1)
 						return input, checkpoint, nil
 					}
@@ -5819,7 +5825,7 @@ func TestTaskRecoverySelectedAncestorBuiltinDispatchGuards(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if err := tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "message", Value: value, ByTask: generation}); err != nil {
+						if err := tx.appendMessage(entry, 1, generation, value); err != nil {
 							return err
 						}
 					}
@@ -6743,7 +6749,9 @@ func TestTaskRecoveryPublicBlockedAbortDirectReturnRetiresDocuments(t *testing.T
 						}
 					}
 					if variant != "no-migrate" && variant != "too-old" {
-						options.Migrate = func(input any, checkpoint JSON, _ uint64) (any, JSON, error) {
+						options.Migrate = func(input any, _objectCheckpointValue any, _ uint64) (any, JSON, error) {
+							checkpoint := taskCheckpointMap(_objectCheckpointValue)
+
 							migrations.Add(1)
 							if variant == "cached-invalid" {
 								return func() {}, checkpoint, nil
@@ -7150,7 +7158,7 @@ func TestTaskRecoveryCloseReleasesFailedDefinitionCaches(t *testing.T) {
 		migrationError := errors.New("process-local migration error")
 		options := old.options
 		options.Version = 2
-		options.Migrate = func(any, JSON, uint64) (any, JSON, error) { return nil, nil, migrationError }
+		options.Migrate = func(any, any, uint64) (any, JSON, error) { return nil, nil, migrationError }
 		next, err := DefineTask(options)
 		if err != nil {
 			t.Fatal(err)

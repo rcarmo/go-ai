@@ -1,6 +1,10 @@
 package durable
 
-import "fmt"
+import (
+	"fmt"
+
+	goai "github.com/rcarmo/go-ai"
+)
 
 // Project adopted checkpoint state into the harness presentation document in the
 // same commit. No provider event becomes visible before checkpoint adoption.
@@ -126,8 +130,8 @@ func (t *Tx) generationToolSlots(state Snapshot, parent Task, cp generationCheck
 	if !ok {
 		return nil, reject("tool slots assistant missing")
 	}
-	var message MessageReceipt
-	if err := fromObject(assistant.Value, &message, t.limits); err != nil {
+	message, err := entryMessage(assistant, t.limits)
+	if err != nil {
 		return nil, err
 	}
 	tasks := map[string]Task{}
@@ -144,8 +148,9 @@ func (t *Tx) generationToolSlots(state Snapshot, parent Task, cp generationCheck
 	}
 	entries := map[string]ID{}
 	for _, entry := range state.Entries {
-		if entry.Conversation == parent.Conversation && entry.ByTask == parent.ID && entry.Value["role"] == "toolResult" {
-			if call, ok := entry.Value["toolCallId"].(string); ok {
+		if entry.Conversation == parent.Conversation && entry.ByTask == parent.ID && isMessageEntry(entry) {
+			if receipt, err := entryMessage(entry, t.limits); err == nil && receipt.Role == goai.RoleToolResult {
+				call := receipt.ToolCallID
 				entries[call] = entry.ID
 			}
 		}

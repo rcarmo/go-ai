@@ -99,7 +99,7 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 					if err != nil || !exists {
 						t.Fatal(err)
 					}
-					if record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 1011 || record.State.Checkpoint["phase"] != "retry" {
+					if record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 1011 || taskCheckpointMap(record.State.Checkpoint)["phase"] != "retry" {
 						t.Errorf("interrupted poll must back off before fetching again: %+v", record)
 					}
 					state, err := f.h.Snapshot(bg)

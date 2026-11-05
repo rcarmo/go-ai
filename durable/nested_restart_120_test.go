@@ -83,7 +83,7 @@ func TestNestedTool120RestartKeyAndReplayPolicy(t *testing.T) {
 					t.Fatal(e)
 				}
 				native := state.Tasks[ids[0]].Execution.Native
-				progress, ok := native.State.Checkpoint["progress"].(map[string]any)
+				progress, ok := taskCheckpointMap(native.State.Checkpoint)["progress"].(map[string]any)
 				if !ok || progress["output"] != "persisted-prefix" {
 					t.Fatal("progress not durable", native.State.Checkpoint)
 				}

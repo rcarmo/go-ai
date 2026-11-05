@@ -85,7 +85,7 @@ func TestMainHarnessRetrySleepAndToolWaitDoNotChargeGenerationRestarts(t *testin
 		}
 		taskID := task.ID
 		sleeping := observeTaskState(t, f.h, taskID, "sleeping")
-		if sleeping.State.Checkpoint["phase"] != "retry" || sleeping.State.Until == nil || *sleeping.State.Until != 61000 || requests.Load() != 1 {
+		if taskCheckpointMap(sleeping.State.Checkpoint)["phase"] != "retry" || sleeping.State.Until == nil || *sleeping.State.Until != 61000 || requests.Load() != 1 {
 			t.Fatal("provider503 did not enter the actual 60000ms retry sleep", sleeping, requests.Load())
 		}
 		persisted := func() TaskRecord {
@@ -121,10 +121,10 @@ func TestMainHarnessRetrySleepAndToolWaitDoNotChargeGenerationRestarts(t *testin
 		waiting, ok, err := f.h.Task(bg, taskID)
 		// Source319: the canonical state (not the raw compatibility status)
 		// must be waiting for its real gated tool round, checkpoint phase tools.
-		if err != nil || !ok || waiting.State.Status != "waiting" || waiting.State.Checkpoint["phase"] != "tools" {
+		if err != nil || !ok || waiting.State.Status != "waiting" || taskCheckpointMap(waiting.State.Checkpoint)["phase"] != "tools" {
 			t.Fatal("source319: generation not canonically waiting for tools", waiting, err)
 		}
-		if stored := persisted(); stored.State.Status != "waiting" || stored.State.Checkpoint["phase"] != "tools" || len(stored.State.On) != 1 || requests.Load() != 2 || executions.Load() != 1 {
+		if stored := persisted(); stored.State.Status != "waiting" || taskCheckpointMap(stored.State.Checkpoint)["phase"] != "tools" || len(stored.State.On) != 1 || requests.Load() != 2 || executions.Load() != 1 {
 			t.Fatal("gated tool wait was not persisted before second crash", stored, requests.Load(), executions.Load())
 		}
 		store = f.crash()
@@ -135,7 +135,7 @@ func TestMainHarnessRetrySleepAndToolWaitDoNotChargeGenerationRestarts(t *testin
 		if err != nil || !ok || before.Restarts != 0 {
 			t.Fatal("source323: tool-waiting generation charged at reopen", before, err)
 		}
-		if before.State.Status != "waiting" || before.State.Checkpoint["phase"] != "tools" || requests.Load() != 2 || executions.Load() != 1 {
+		if before.State.Status != "waiting" || taskCheckpointMap(before.State.Checkpoint)["phase"] != "tools" || requests.Load() != 2 || executions.Load() != 1 {
 			t.Fatal("second reopen changed the tool wait or dispatched before Resume", before, requests.Load(), executions.Load())
 		}
 		close(gate)

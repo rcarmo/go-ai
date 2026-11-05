@@ -491,7 +491,7 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 		seen := make(chan []ID, 1)
 		go func() {
 			_, err := s.Commit(ctx, func(tx *Tx) error {
-				page, err := tx.ScanConversations(ConversationQuery{}, 10, "")
+				page, err := tx.ScanConversations(ConversationQuery{}, 10, nil)
 				if err != nil {
 					return err
 				}
@@ -754,7 +754,7 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 			name:   "tx-scanEntries",
 			expect: "empty items",
 			read: func(t *testing.T, s *Session, store *SQLiteStorage, conv ID) (string, bool, error) {
-				page, err := s.ScanEntries(context.Background(), EntryQuery{Conversation: conv}, 1, "")
+				page, err := s.ScanEntries(context.Background(), EntryQuery{Conversation: conv}, 1, nil)
 				if err != nil {
 					return "", false, err
 				}
@@ -768,7 +768,7 @@ func TestMainSessionCase256ReadSurfacesWaitForPendingCreation(t *testing.T) {
 				var page Page[Entry]
 				err := s.ReadOnLine(context.Background(), func(line *ReadLine) error {
 					var err error
-					page, err = line.ScanEntries(EntryQuery{Conversation: conv}, 1, "")
+					page, err = line.ScanEntries(EntryQuery{Conversation: conv}, 1, nil)
 					return err
 				})
 				if err != nil {

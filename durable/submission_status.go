@@ -11,17 +11,18 @@ import (
 // SubmissionRecord exposes the reference lifecycle while Snapshot retains
 // native storage envelopes. Value is detached compatibility data.
 type SubmissionRecord struct {
-	ID           ID
-	Conversation ID
-	RequestID    string
-	Type         string
-	Status       string
-	Entry        ID
-	Answer       ID
-	Reason       string
-	Detail       *TaskValue // Optional arbitrary JSON; Present distinguishes null.
-	Value        JSON
-	Trace        *goai.TelemetryCarrier `json:"trace,omitempty"`
+	ID                   ID
+	Conversation         ID
+	RequestID            string
+	Type                 string
+	Status               string
+	Entry                ID
+	Answer               ID
+	Reason               string
+	Detail               *TaskValue // Optional arbitrary JSON; Present distinguishes null.
+	Value                JSON
+	Trace                *goai.TelemetryCarrier `json:"trace,omitempty"`
+	wireRequestIDPresent bool
 }
 
 // Status reads committed lifecycle without enabling scheduling.
@@ -301,8 +302,11 @@ func publicSubmission(sub Submission) SubmissionRecord {
 	default:
 		record.Status = "unanswered"
 		record.Answer = 0 // legacy envelopes may retain a receipt, never an answer
-		record.Reason, _ = sub.Value["errorCode"].(string)
-		if record.Reason == "" {
+		// A present errorCode is the failure reason; only its absence falls back to
+		// the native status, so an explicitly empty reason reads back empty.
+		if reason, ok := sub.Value["errorCode"].(string); ok {
+			record.Reason = reason
+		} else {
 			record.Reason = sub.Status
 		}
 		if detail, found := sub.Value["detail"]; found {

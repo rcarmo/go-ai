@@ -62,7 +62,7 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 					})
 				case "tx.scanEntries":
 					_, err = session.Commit(ctx, func(tx *Tx) error {
-						page, e := tx.ScanEntries(EntryQuery{Conversation: id}, 1, "")
+						page, e := tx.ScanEntries(EntryQuery{Conversation: id}, 1, nil)
 						if e == nil && len(page.Items) != 0 {
 							return errors.New("unexpected entries")
 						}
@@ -70,7 +70,7 @@ func TestV150SessionReadLinePendingConversation(t *testing.T) {
 					})
 				case "line.scanEntries":
 					err = session.ReadOnLine(ctx, func(line *ReadLine) error {
-						page, e := line.ScanEntries(EntryQuery{Conversation: id}, 1, "")
+						page, e := line.ScanEntries(EntryQuery{Conversation: id}, 1, nil)
 						if e == nil && len(page.Items) != 0 {
 							return errors.New("unexpected entries")
 						}

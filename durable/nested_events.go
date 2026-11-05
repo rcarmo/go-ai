@@ -19,11 +19,11 @@ func nestedLifecycleEvents(state Snapshot, old, task Task, seq uint64, l Limits)
 	events := []AgentEvent{}
 	currentCheckpoint := task.Checkpoint
 	if task.Execution != nil && task.Execution.Native != nil {
-		currentCheckpoint = task.Execution.Native.State.Checkpoint
+		currentCheckpoint = taskCheckpointMap(task.Execution.Native.State.Checkpoint)
 	}
 	oldCheckpoint := old.Checkpoint
 	if old.Execution != nil && old.Execution.Native != nil {
-		oldCheckpoint = old.Execution.Native.State.Checkpoint
+		oldCheckpoint = taskCheckpointMap(old.Execution.Native.State.Checkpoint)
 	}
 	started, _ := currentCheckpoint["started"].(bool)
 	wasStarted, _ := oldCheckpoint["started"].(bool)

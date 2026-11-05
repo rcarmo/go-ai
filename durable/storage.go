@@ -611,6 +611,13 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			delete(n.DocumentRevisions, id)
 		}
 	}
+	created := map[ID]bool{}
+	for _, w := range r.Writes {
+		if w.Op == "create-conversation" && w.Conversation != nil {
+			created[w.Conversation.ID] = true
+		}
+	}
+	deriveConversationOwners(&n, created)
 	if err = validateState(&n, l, final, s, r.Writes); err != nil {
 		return Snapshot{}, err
 	}

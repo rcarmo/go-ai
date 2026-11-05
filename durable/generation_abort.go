@@ -37,7 +37,7 @@ func (h *Harness) finishAbortedGeneration(parent Task, cp generationCheckpoint) 
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: entry, Conversation: current.Conversation, Kind: "message", Value: value, ByTask: current.ID}); err != nil {
+			if err := tx.appendMessage(entry, current.Conversation, current.ID, value); err != nil {
 				return err
 			}
 			usage, err := builtin(tx, current.Conversation, "pi.usage")

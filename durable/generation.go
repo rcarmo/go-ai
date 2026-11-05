@@ -533,7 +533,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: entry, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); err != nil {
+			if err := tx.appendMessage(entry, task.Conversation, task.ID, value); err != nil {
 				return err
 			}
 			owned, err := copyTask(tx.state.Tasks[task.ID], tx.limits)
@@ -1136,7 +1136,7 @@ func (h *Harness) finishWithAfterRun(task Task, cp generationCheckpoint, r messa
 		if e != nil {
 			return e
 		}
-		if e = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); e != nil {
+		if e = tx.appendMessage(id, task.Conversation, task.ID, value); e != nil {
 			return e
 		}
 		outcome := TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}

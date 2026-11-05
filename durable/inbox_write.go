@@ -10,11 +10,14 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 	if err != nil {
 		return err
 	}
-	draft := Entry{ID: id, Conversation: conversation, Kind: "message"}
+	draft := Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind}
 	if raw, ok := value["entry"].(map[string]any); ok {
-		if err := fromObject(JSON(raw), &draft, tx.limits); err != nil {
+		// Native submission drafts use the stored envelope, not the public codec.
+		stored := storedEntry(draft)
+		if err := fromObject(JSON(raw), &stored, tx.limits); err != nil {
 			return err
 		}
+		draft = Entry(stored)
 		draft.ID, draft.Conversation, draft.Seq, draft.Position = id, conversation, 0, 0
 	} else if message, ok := value["inputMessage"].(map[string]any); ok {
 		draft.Value, err = copyObject(JSON(message), tx.limits)
@@ -179,7 +182,8 @@ func passiveHeadStale(state Snapshot, conversation ID, value JSON, limits Limits
 	if !ok {
 		return false, nil
 	}
-	var draft Entry
+	// Native submission drafts use the stored envelope, not the public codec.
+	var draft storedEntry
 	if err := fromObject(JSON(raw), &draft, limits); err != nil {
 		return false, err
 	}

@@ -5,7 +5,7 @@ import "context"
 // Entries reads committed fork-aware raw history bound to this invocation's
 // conversation. Inclusive ID ranges survive compaction and crash/replay. A
 // foreign Conversation in the native shared query type is rejected; zero binds
-// it implicitly. Cursors remain opaque and bound to this exact query.
+// it implicitly. Cursors are original {after, order} continuation objects.
 func (r *TaskRuntime) Entries(ctx context.Context, query EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if err := r.check(); err != nil {
 		return Page[Entry]{}, err

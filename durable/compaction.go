@@ -225,7 +225,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 		},
 		"summarize": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			h := r.harness
-			cp := task.State.Checkpoint
+			cp := taskCheckpointMap(task.State.Checkpoint)
 			modelObject := JSON(cp["model"].(map[string]any))
 			var ref ModelRef
 			if err := fromObject(modelObject, &ref, h.session.limits); err != nil {
@@ -376,7 +376,7 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 			})
 		},
 		"retry": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			until, err := exactNumber(task.State.Checkpoint["until"])
+			until, err := exactNumber(taskCheckpointMap(task.State.Checkpoint)["until"])
 			if !err || !until.IsInt() || !until.Num().IsInt64() {
 				return reject("invalid compaction retry deadline")
 			}
@@ -389,13 +389,13 @@ func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
 				if deadline >= 0 && uint64(deadline) <= MaxID {
 					// Recovered pre-sleep checkpoints, or a clock rollback after
 					// reservation, must yield rather than occupy a host permit.
-					return r.SleepUntil(ctx, deadline, task.State.Checkpoint)
+					return r.SleepUntil(ctx, deadline, taskCheckpointMap(task.State.Checkpoint))
 				}
 				if err := r.waitUntil(ctx, deadline); err != nil {
 					return err
 				}
 			}
-			checkpoint, copyErr := copyObject(task.State.Checkpoint, r.harness.session.limits)
+			checkpoint, copyErr := copyObject(taskCheckpointMap(task.State.Checkpoint), r.harness.session.limits)
 			if copyErr != nil {
 				return copyErr
 			}

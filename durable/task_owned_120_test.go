@@ -29,12 +29,12 @@ func TestTask120OwnedTasksDetachedDirectAndAbortAuthority(t *testing.T) {
 			if len(tasks) != 1 || tasks[0].ID != child {
 				t.Fatal(tasks)
 			}
-			tasks[0].State.Checkpoint["mutated"] = true
+			taskCheckpointMap(tasks[0].State.Checkpoint)["mutated"] = true
 			again, e := r.OwnedTasks(ctx)
 			if e != nil {
 				return e
 			}
-			if again[0].State.Checkpoint["mutated"] != nil {
+			if taskCheckpointMap(again[0].State.Checkpoint)["mutated"] != nil {
 				t.Fatal("owned-task alias")
 			}
 			if e = r.AbortOwned(ctx, record.ID); e == nil {

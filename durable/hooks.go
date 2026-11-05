@@ -439,7 +439,7 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 			return err
 		}
 		answerID := id
-		if err = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", ByTask: task.ID, Value: answer}); err != nil {
+		if err = tx.appendMessage(id, task.Conversation, task.ID, answer); err != nil {
 			return err
 		}
 		usage, err := builtin(tx, task.Conversation, "pi.usage")
@@ -464,7 +464,7 @@ func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCh
 		if err != nil {
 			return err
 		}
-		if err = tx.AppendEntry(Entry{ID: id, Conversation: task.Conversation, Kind: "message", ByTask: task.ID, Value: user}); err != nil {
+		if err = tx.appendMessage(id, task.Conversation, task.ID, user); err != nil {
 			return err
 		}
 		state, err := tx.current()

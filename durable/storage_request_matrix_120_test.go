@@ -1,7 +1,6 @@
 package durable
 
 import (
-	"encoding/base64"
 	"errors"
 	"testing"
 )
@@ -24,17 +23,17 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 		read func() error
 	}{
 		{"page-zero", func() error { _, e := store.Conversations(bg, Query{Limit: 0}); return e }},
-		{"page-large", func() error { _, e := store.ScanTasks(bg, TaskQuery{}, limits.MaxPage+1, ""); return e }},
+		{"page-large", func() error { _, e := store.ScanTasks(bg, TaskQuery{}, limits.MaxPage+1, nil); return e }},
 		{"conversation-missing", func() error { _, e := store.Entries(bg, 99, EntryCursor{}, 1); return e }},
 		{"entry-cursor-owner", func() error { _, e := store.Entries(bg, 1, EntryCursor{Conversation: 2}, 1); return e }},
 		{"entry-cursor-range", func() error { _, e := store.Entries(bg, 1, EntryCursor{Seq: MaxID + 1}, 1); return e }},
 		{"request-empty", func() error { _, _, e := store.Request(bg, 1, ""); return e }},
 		{"request-owner-range", func() error { _, _, e := store.Request(bg, ID(MaxID+1), "x"); return e }},
-		{"task-owner-range", func() error { _, e := store.ScanTasks(bg, TaskQuery{Conversation: ID(MaxID + 1)}, 1, ""); return e }},
+		{"task-owner-range", func() error { _, e := store.ScanTasks(bg, TaskQuery{Conversation: ID(MaxID + 1)}, 1, nil); return e }},
 		{"query-after-range", func() error { _, e := store.Documents(bg, Query{After: ID(MaxID + 1), Limit: 1}); return e }},
-		{"entry-conversation-missing", func() error { _, e := store.ScanEntries(bg, EntryQuery{Conversation: 99}, 1, ""); return e }},
+		{"entry-conversation-missing", func() error { _, e := store.ScanEntries(bg, EntryQuery{Conversation: 99}, 1, nil); return e }},
 		{"entry-bound-range", func() error {
-			_, e := store.ScanEntries(bg, EntryQuery{Conversation: 1, MaxEntryID: ID(MaxID + 1)}, 1, "")
+			_, e := store.ScanEntries(bg, EntryQuery{Conversation: 1, MaxEntryID: ID(MaxID + 1)}, 1, nil)
 			return e
 		}},
 		{"document-owner", func() error {
@@ -48,15 +47,15 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 		{"document-point", func() error { _, _, e := history.DocumentAt(bg, 1, DocumentPoint{Current: true, Seq: 1}); return e }},
 		{"document-id-range", func() error { _, _, e := history.DocumentAt(bg, ID(MaxID+1), CurrentDocumentPoint()); return e }},
 		{"document-scope", func() error {
-			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "bad", At: CurrentDocumentPoint()}, 1, "")
+			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "bad", At: CurrentDocumentPoint()}, 1, nil)
 			return e
 		}},
-		{"document-cursor-base64", func() error {
-			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "session", At: CurrentDocumentPoint()}, 1, "bad")
+		{"document-cursor-type", func() error {
+			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "session", At: CurrentDocumentPoint()}, 1, Cursor{"after": true})
 			return e
 		}},
 		{"document-cursor-json", func() error {
-			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "session", At: CurrentDocumentPoint()}, 1, Cursor(base64.RawURLEncoding.EncodeToString([]byte("{\"after\":\"bad\"}"))))
+			_, e := history.ScanDocuments(bg, DocumentQuery{Scope: "session", At: CurrentDocumentPoint()}, 1, Cursor{"after": "bad"})
 			return e
 		}},
 	}
@@ -72,7 +71,7 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 			if e != nil || state.Seq != initial.Seq || state.HighWater != initial.HighWater {
 				t.Fatal("invalid read changed/poisoned storage", e)
 			}
-			if _, e = store.ScanConversations(bg, ConversationQuery{}, 1, ""); e != nil {
+			if _, e = store.ScanConversations(bg, ConversationQuery{}, 1, nil); e != nil {
 				t.Fatal(e)
 			}
 		})

@@ -78,7 +78,7 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 			go func() {
 				defer workers.Done()
 				if kind == "global-conversations" {
-					page, err := s.ScanConversations(admission, ConversationQuery{}, 10, "")
+					page, err := s.ScanConversations(admission, ConversationQuery{}, 10, nil)
 					if err == nil {
 						found := false
 						for _, item := range page.Items {
@@ -91,8 +91,8 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 					second <- err
 					return
 				}
-				page, err := s.ScanEntries(admission, EntryQuery{Conversation: leaked}, 10, "")
-				if err == nil && (len(page.Items) != 0 || page.Next != "") {
+				page, err := s.ScanEntries(admission, EntryQuery{Conversation: leaked}, 10, nil)
+				if err == nil && (len(page.Items) != 0 || page.Next != nil) {
 					err = fmt.Errorf("new conversation scan returned unexpected entries or continuation")
 				}
 				second <- err

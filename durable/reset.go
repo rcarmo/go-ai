@@ -84,8 +84,10 @@ func (h *Harness) resetToolsRun(tx *Tx, current Task, cp generationCheckpoint) e
 	if !ok || entry.ByTask != current.ID || entry.Conversation != current.Conversation {
 		return reject("reset assistant missing")
 	}
-	value := entry.Value
-	var err error
+	value, err := entryMessageValue(entry, tx.limits)
+	if err != nil {
+		return err
+	}
 	cp.Phase = "terminal"
 	cp.Children = nil
 	current.Checkpoint, err = dtoObject(cp, tx.limits)

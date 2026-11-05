@@ -445,7 +445,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 					if err != nil {
 						return false, err
 					}
-					checkpoint, err := copyObject(task.Execution.Native.State.Checkpoint, tx.limits)
+					checkpoint, err := copyTaskCheckpointValue(task.Execution.Native.State.Checkpoint, tx.limits)
 					if err != nil {
 						return false, err
 					}
@@ -751,7 +751,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		s.runBuiltin(runtime)
 		return
 	}
-	var previous JSON
+	var previous any
 	var handlerError error
 	for {
 		var task TaskRecord
@@ -796,7 +796,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 					return err
 				}
 				if equalDeltaJSON(before, after) {
-					faultReport = fmt.Errorf("Task %s phase %s returned without durable progress", raw.Kind, previous["phase"])
+					faultReport = fmt.Errorf("Task %s phase %s returned without durable progress", raw.Kind, taskCheckpointMap(previous)["phase"])
 					return s.fault(tx, raw, faultReport)
 				}
 				snapshot, err := s.h.options.Registry.taskSnapshot(tx.limits)
@@ -851,12 +851,14 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		if !proceed || s.sealed.Load() || s.h.closing.Load() || runtime.ended.Load() {
 			return
 		}
-		previous, _ = copyObject(task.State.Checkpoint, s.h.session.limits)
-		handler := runtime.definition.options.Phases[task.State.Checkpoint["phase"].(string)]
+		previous, _ = copyTaskCheckpointValue(task.State.Checkpoint, s.h.session.limits)
+		checkpoint := taskCheckpointMap(task.State.Checkpoint)
+		phase, _ := checkpoint["phase"].(string)
+		handler := runtime.definition.options.Phases[phase]
 		if runtime.abortMode {
 			handler = runtime.definition.options.Abort
 		}
-		runtime.beginPhase(task.State.Checkpoint)
+		runtime.beginPhase(checkpoint)
 		if runtime.check() != nil || s.sealed.Load() || s.h.closing.Load() {
 			return
 		}
@@ -868,7 +870,7 @@ func (s *taskScheduler) run(runtime *TaskRuntime) {
 		runtime.joinPhaseAgent()
 	}
 }
-func callTaskMigration(def *TaskDefinition, input any, checkpoint JSON, version uint64) (value any, next JSON, err error) {
+func callTaskMigration(def *TaskDefinition, input any, checkpoint any, version uint64) (value any, next JSON, err error) {
 	defer func() {
 		if recover() != nil {
 			err = reject("task migration panic")
@@ -1809,7 +1811,7 @@ func (s *taskScheduler) toolRoundChildren(state Snapshot, parent Task, cp genera
 				// execution envelope may use that historical placement; native
 				// Holds retain their strict producing-task reference validation.
 				attributed := entry.ByTask == child.ID || child.Execution == nil && entry.ByTask == 0
-				if entry.Conversation == child.Conversation && attributed && entry.Kind == "message" && equalJSONValue(entry.Value, value) {
+				if entry.Conversation == child.Conversation && attributed && entry.Kind == legacyMessageKind && equalJSONValue(entry.Value, value) {
 					found = true
 					break
 				}

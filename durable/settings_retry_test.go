@@ -127,7 +127,7 @@ func TestCompactionResolvedReserveBudgetModelCapAndStreamSettings(t *testing.T) 
 					t.Fatal(err)
 				}
 				var policy RetryPolicy
-				if err := fromObject(JSON(task.State.Checkpoint["retry"].(map[string]any)), &policy, h.session.limits); err != nil || policy != defaultHarnessSettings().Retry {
+				if err := fromObject(JSON(taskCheckpointMap(task.State.Checkpoint)["retry"].(map[string]any)), &policy, h.session.limits); err != nil || policy != defaultHarnessSettings().Retry {
 					t.Fatal("summary retry defaults", policy, err)
 				}
 				close(release)

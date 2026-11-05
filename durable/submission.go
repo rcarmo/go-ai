@@ -51,7 +51,7 @@ type generationCheckpoint struct {
 	FailureCut            ID                   `json:"failureCut,omitempty"`
 	Phase                 string               `json:"phase"`
 	Submission            ID                   `json:"submission"`
-	InputMetadata         *Entry               `json:"inputMetadata,omitempty"`
+	InputMetadata         *storedEntry         `json:"inputMetadata,omitempty"` // private native envelope
 	InputEntry            ID                   `json:"inputEntry,omitempty"`
 	Input                 string               `json:"input"`
 	InputBlocks           []goai.ContentBlock  `json:"inputBlocks,omitempty"`
@@ -340,7 +340,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: c.id, Kind: "message", Value: obj}); err != nil {
+			if err := tx.appendMessage(id, c.id, 0, obj); err != nil {
 				return err
 			}
 			value["placedEntry"] = id
@@ -369,7 +369,8 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			if err != nil {
 				return err
 			}
-			cp.InputMetadata = &owned
+			stored := storedEntry(owned)
+			cp.InputMetadata = &stored
 		}
 
 		checkpoint, err := dtoObject(cp, h.session.limits)

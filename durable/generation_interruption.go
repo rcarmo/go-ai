@@ -91,7 +91,7 @@ func recordInterruptedGenerationPartial(tx *Tx, current Task, cp *generationChec
 	if err != nil {
 		return false, err
 	}
-	if err := tx.AppendEntry(Entry{ID: id, Conversation: current.Conversation, Kind: "message", Value: value, ByTask: current.ID}); err != nil {
+	if err := tx.appendMessage(id, current.Conversation, current.ID, value); err != nil {
 		return false, err
 	}
 	usage, err := builtin(tx, current.Conversation, "pi.usage")

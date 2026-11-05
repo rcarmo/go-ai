@@ -13,8 +13,8 @@ func TestSQLite110OrderedScanCursorAndReopen(t *testing.T) {
 	}
 	first, second := mint(t, store), mint(t, store)
 	apply(t, store, Write{Op: "create-conversation", Conversation: &Conversation{ID: first}}, Write{Op: "create-conversation", Conversation: &Conversation{ID: second}})
-	page, e := store.ScanConversations(bg, ConversationQuery{Order: Descending}, 1, "")
-	if e != nil || len(page.Items) != 1 || page.Items[0].ID != second || page.Next == "" {
+	page, e := store.ScanConversations(bg, ConversationQuery{Order: Descending}, 1, nil)
+	if e != nil || len(page.Items) != 1 || page.Items[0].ID != second || page.Next == nil {
 		t.Fatal(page, e)
 	}
 	if e = store.Close(bg); e != nil {
@@ -26,7 +26,7 @@ func TestSQLite110OrderedScanCursorAndReopen(t *testing.T) {
 	}
 	defer store.Close(bg)
 	last, e := store.ScanConversations(bg, ConversationQuery{}, 2, page.Next)
-	if e != nil || len(last.Items) != 2 || last.Items[0].ID != first || last.Items[1].ID != 1 || last.Next != "" {
+	if e != nil || len(last.Items) != 2 || last.Items[0].ID != first || last.Items[1].ID != 1 || last.Next != nil {
 		t.Fatal(last, e)
 	}
 	if _, e = store.ScanConversations(bg, ConversationQuery{Order: Ascending}, 1, page.Next); e == nil {

@@ -119,7 +119,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: entry, Conversation: task.Conversation, Kind: "message", Value: value, ByTask: task.ID}); err != nil {
+			if err := tx.appendMessage(entry, task.Conversation, task.ID, value); err != nil {
 				return err
 			}
 			usage, err := builtin(tx, task.Conversation, "pi.usage")

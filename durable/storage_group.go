@@ -129,6 +129,14 @@ func (c *storeCore) commitParts(ctx context.Context, batches []Batch, receive fu
 // admission, before preparation or persistence. Nil retains raw storage Apply
 // semantics. This is a conservative barrier, not keyed/disjoint admission.
 func (c *storeCore) commitPartsAt(ctx context.Context, batches []Batch, receive func(commitReceipt) error, owned bool, expectedSeq *uint64) (commitGroupResult, error) {
+	return c.commitResolvedParts(ctx, len(batches), func(_ Snapshot, index int) (Batch, error) { return batches[index], nil }, receive, owned, expectedSeq)
+}
+
+// commitResolvedParts is commitPartsAt with a per-batch resolver evaluated while
+// the core line is held, so a caller-supplied command union can consult the
+// running base image (for example to fill a document address from the stored
+// incarnation a change applies to). The resolver must not reenter storage.
+func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve func(Snapshot, int) (Batch, error), receive func(commitReceipt) error, owned bool, expectedSeq *uint64) (commitGroupResult, error) {
 	if err := c.enter(ctx); err != nil {
 		return commitGroupResult{}, err
 	}
@@ -140,19 +148,24 @@ func (c *storeCore) commitPartsAt(ctx context.Context, batches []Batch, receive 
 		return commitGroupResult{}, reject("stale prepared storage baseline")
 	}
 	result := commitGroupResult{lastSeq: c.state.Seq}
-	if len(batches) > c.limits.MaxWrites {
+	if count > c.limits.MaxWrites {
 		result.refused = &commitRefusal{reject("invalid batch count")}
 		return result, nil
 	}
-	if len(batches) == 0 {
+	if count == 0 {
 		return result, nil
 	}
-	atomicGroup := c.appendFrames != nil && len(batches) > 1
+	atomicGroup := c.appendFrames != nil && count > 1
 	base, ordinal := c.state, c.ordinal
 	var frames []storageFrame
 	var bytes int
-	for index, batch := range batches {
-		frame, next, err := c.prepareCommit(base, batch, ordinal)
+	for index := 0; index < count; index++ {
+		batch, err := resolve(base, index)
+		var frame storageFrame
+		var next Snapshot
+		if err == nil {
+			frame, next, err = c.prepareCommit(base, batch, ordinal)
+		}
 		if err == nil && len(frame.payload) > c.limits.MaxFramePayloadBytes-bytes {
 			err = reject("group payload limit exceeded")
 		}

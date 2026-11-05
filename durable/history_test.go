@@ -59,8 +59,8 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 		verify := func(s Storage) {
 			h := history(t, s)
 			q := EntryQuery{Conversation: grandchild}
-			page := requireHistory(t, h, q, 2, "", tail, head)
-			if page.Next == "" {
+			page := requireHistory(t, h, q, 2, nil, tail, head)
+			if page.Next == nil {
 				t.Fatal("missing continuation")
 			}
 			encoded, _ := json.Marshal(page.Next)
@@ -70,7 +70,7 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 			}
 			page = requireHistory(t, h, q, 2, roundTrip, childCut, cut)
 			page = requireHistory(t, h, q, 2, page.Next, first)
-			if page.Next != "" {
+			if page.Next != nil {
 				t.Fatal("continuation after end")
 			}
 			for _, check := range []struct{ at, id, head ID }{{0, head, head}, {childCut, cut, first}} {
@@ -82,8 +82,8 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 			if _, ok, err := h.FindLatestHeadMarker(bg, grandchild, first); err != nil || ok {
 				t.Fatal("unexpected earlier marker", ok, err)
 			}
-			requireHistory(t, h, EntryQuery{Conversation: grandchild, MinEntryID: head}, 10, "", tail, head)
-			requireHistory(t, h, EntryQuery{Conversation: grandchild, MinEntryID: first, MaxEntryID: childCut}, 10, "", childCut, cut, first)
+			requireHistory(t, h, EntryQuery{Conversation: grandchild, MinEntryID: head}, 10, nil, tail, head)
+			requireHistory(t, h, EntryQuery{Conversation: grandchild, MinEntryID: first, MaxEntryID: childCut}, 10, nil, childCut, cut, first)
 			for _, check := range []struct {
 				id, owner ID
 				seq       uint64
@@ -103,7 +103,7 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 			}
 			v, _, _ := h.VisibleEntry(bg, grandchild, first)
 			v.Value["nested"].(map[string]any)["value"] = "mutated"
-			page = requireHistory(t, h, EntryQuery{Conversation: grandchild, MaxEntryID: first}, 1, "", first)
+			page = requireHistory(t, h, EntryQuery{Conversation: grandchild, MaxEntryID: first}, 1, nil, first)
 			if page.Items[0].Value["nested"].(map[string]any)["value"] != "original" {
 				t.Fatal("visible lookup aliases storage")
 			}
@@ -118,7 +118,7 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 		// immediate parent still controls current-copy policy in the next slice.
 		ancestorFork := mint(t, s)
 		apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: ancestorFork, Parent: grandchild, ParentAt: first}})
-		requireHistory(t, history(t, s), EntryQuery{Conversation: ancestorFork}, 10, "", first)
+		requireHistory(t, history(t, s), EntryQuery{Conversation: ancestorFork}, 10, nil, first)
 		s = b.reopen()
 		verify(s)
 	})
@@ -131,21 +131,17 @@ func TestHistoryCursorStableNewCommitAndValidation(t *testing.T) {
 		apply(t, s, entry(three, JSON{}), entry(one, JSON{}), entry(two, JSON{}))
 		h := history(t, s)
 		q := EntryQuery{Conversation: 1}
-		page := requireHistory(t, h, q, 2, "", three, two)
+		page := requireHistory(t, h, q, 2, nil, three, two)
 		apply(t, s, entry(mint(t, s), JSON{}))
 		next := requireHistory(t, h, q, 2, page.Next, one)
-		if next.Next != "" {
+		if next.Next != nil {
 			t.Fatal("unexpected continuation")
 		}
 		for _, run := range []func() error{
-			func() error { _, e := h.ScanEntries(bg, q, 0, ""); return e },
-			func() error { _, e := h.ScanEntries(bg, q, 1, Cursor(strings.Repeat("x", 1025))); return e },
-			func() error { _, e := h.ScanEntries(bg, q, 1, "!bad"); return e },
-			func() error {
-				_, e := h.ScanEntries(bg, EntryQuery{Conversation: 1, MinEntryID: one}, 1, page.Next)
-				return e
-			},
-			func() error { _, e := h.ScanEntries(bg, EntryQuery{Conversation: ID(MaxID)}, 1, ""); return e },
+			func() error { _, e := h.ScanEntries(bg, q, 0, nil); return e },
+			func() error { _, e := h.ScanEntries(bg, q, 1, Cursor{"after": strings.Repeat("x", 3)}); return e },
+			func() error { _, e := h.ScanEntries(bg, q, 1, Cursor{"order": "descending"}); return e },
+			func() error { _, e := h.ScanEntries(bg, EntryQuery{Conversation: ID(MaxID)}, 1, nil); return e },
 			func() error { _, _, e := h.VisibleEntry(bg, ID(MaxID), one); return e },
 			func() error { _, _, e := h.VisibleEntry(bg, 1, 0); return e },
 			func() error { _, _, e := h.FindLatestHeadMarker(bg, 1, ID(MaxID+1)); return e },
@@ -156,7 +152,7 @@ func TestHistoryCursorStableNewCommitAndValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, run := range []func() error{
-			func() error { _, e := h.ScanEntries(bg, q, 1, ""); return e },
+			func() error { _, e := h.ScanEntries(bg, q, 1, nil); return e },
 			func() error { _, _, e := h.VisibleEntry(bg, 1, one); return e },
 			func() error { _, _, e := h.FindLatestHeadMarker(bg, 1, 0); return e },
 		} {
@@ -308,7 +304,7 @@ func TestHistoryProductionHTTPInheritedContextAndHead(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "message", Value: value})
+		return tx.appendMessage(id, 1, 0, value)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +347,7 @@ func TestHistoryUncertainSQLiteWinnerAndCorruptAncestry(t *testing.T) {
 		if !errors.Is(err, ErrPoisoned) {
 			t.Fatal(err)
 		}
-		if _, err = s.ScanEntries(bg, EntryQuery{Conversation: child}, 1, ""); !errors.Is(err, ErrPoisoned) {
+		if _, err = s.ScanEntries(bg, EntryQuery{Conversation: child}, 1, nil); !errors.Is(err, ErrPoisoned) {
 			t.Fatal("poisoned history published", err)
 		}
 		if err = s.Close(bg); err != nil {
@@ -362,7 +358,7 @@ func TestHistoryUncertainSQLiteWinnerAndCorruptAncestry(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer r.Close(bg)
-		requireHistory(t, r, EntryQuery{Conversation: child}, 1, "", cut)
+		requireHistory(t, r, EntryQuery{Conversation: child}, 1, nil, cut)
 	})
 	t.Run("valid-frame-invalid-ancestry", func(t *testing.T) {
 		s, dir := newSQLiteTestStore(t)

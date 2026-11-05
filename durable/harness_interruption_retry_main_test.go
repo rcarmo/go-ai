@@ -135,7 +135,7 @@ func TestMainHarnessInterruptedRequestRetryPolicy(t *testing.T) {
 					if err != nil || !exists {
 						t.Fatal(err)
 					}
-					if record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 1060000 || record.State.Checkpoint["phase"] != "retry" || record.Restarts != 0 {
+					if record.State.Status != "sleeping" || record.State.Until == nil || *record.State.Until != 1060000 || taskCheckpointMap(record.State.Checkpoint)["phase"] != "retry" || record.Restarts != 0 {
 						t.Errorf("crash retry must sleep until 1060000 and clear restarts: %+v", record)
 					}
 					state, err := f.h.Snapshot(bg)

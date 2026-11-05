@@ -56,7 +56,7 @@ func taskMadeProgress(before, after Task) bool {
 	}
 	if before.Execution != nil && before.Execution.Native != nil && after.Execution != nil && after.Execution.Native != nil {
 		a, b := before.Execution.Native.State, after.Execution.Native.State
-		return a.Status != b.Status || a.Policy != b.Policy || !reflect.DeepEqual(a.On, b.On) || !equalDeltaJSON(map[string]any(a.Checkpoint), map[string]any(b.Checkpoint))
+		return a.Status != b.Status || a.Policy != b.Policy || !reflect.DeepEqual(a.On, b.On) || !equalJSONValue(a.Checkpoint, b.Checkpoint)
 	}
 	if builtinToolCheckpoint(before) && builtinToolCheckpoint(after) {
 		// Native tool checkpoints also carry recoverable presentation. Updating

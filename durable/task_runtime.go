@@ -119,6 +119,14 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 		if state.Status != "running" && state.Status != "waiting" && state.Status != "sleeping" && state.Status != "terminal" {
 			return reject("runtime next state union")
 		}
+		// A current definition executes phases by string key. Raw storage still
+		// retains older opaque checkpoint values until migration.
+		if state.Status == "running" || state.Status == "waiting" || state.Status == "sleeping" {
+			phase, ok := taskCheckpointMap(state.Checkpoint)["phase"].(string)
+			if !ok || !validKind(phase) {
+				return reject("runtime checkpoint phase")
+			}
+		}
 		if (state.Status == "waiting" || state.Status == "sleeping") && r.abortMode {
 			return reject("abort handler cannot wait")
 		}
@@ -145,8 +153,8 @@ func (r *TaskRuntime) commit(ctx context.Context, change func(*Tx, TaskRecord) (
 			task.Status = state.Status
 		}
 		task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &native}
-		nextPhase, nextOK := state.Checkpoint["phase"].(string)
-		previousPhase, _ := view.State.Checkpoint["phase"].(string)
+		nextPhase, nextOK := taskCheckpointMap(state.Checkpoint)["phase"].(string)
+		previousPhase, _ := taskCheckpointMap(view.State.Checkpoint)["phase"].(string)
 		checkpointChanged = state.Status == "running" && nextOK && nextPhase != previousPhase
 		return tx.stage(Write{Op: "put-task", Task: &task})
 	}, false, r.taskID, progress)

@@ -172,7 +172,7 @@ func subagentReporterDefinition() (*TaskDefinition, error) {
 			})
 		},
 		"report": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
-			if text, ok := task.State.Checkpoint["report"].(string); ok {
+			if text, ok := taskCheckpointMap(task.State.Checkpoint)["report"].(string); ok {
 				parent, err := r.Conversation(ctx, r.ConversationID())
 				if err != nil {
 					return err

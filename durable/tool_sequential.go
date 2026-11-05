@@ -82,7 +82,7 @@ func (h *Harness) abortPendingSequentialTools(parent Task, cp *generationCheckpo
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: parent.Conversation, Kind: "message", ByTask: parent.ID, Value: value}); err != nil {
+			if err := tx.appendMessage(id, parent.Conversation, parent.ID, value); err != nil {
 				return err
 			}
 		}
