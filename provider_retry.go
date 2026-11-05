@@ -3,6 +3,7 @@ package goai
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -87,6 +88,18 @@ func doProviderRequestWithRetry(ctx context.Context, client *http.Client, req *h
 		}
 		if attempt >= cfg.MaxRetries {
 			return resp, nil
+		}
+		if stopOnTransportError {
+			// Classifier fetch reads the error body before constructing the
+			// retryable HTTP error. Bound this read like the final response.
+			bytesRead, readErr := io.Copy(io.Discard, io.LimitReader(resp.Body, (1<<20)+1))
+			if readErr != nil || bytesRead > 1<<20 {
+				resp.Body.Close()
+				if readErr != nil {
+					return nil, readErr
+				}
+				return nil, fmt.Errorf("provider error response exceeds 1 MiB")
+			}
 		}
 		attempt++
 		headers := resp.Header.Clone()

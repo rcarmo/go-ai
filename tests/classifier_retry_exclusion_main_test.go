@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,6 +77,41 @@ func TestMainDecisionsProviderFetchErrorDoesNotRetry(t *testing.T) {
 	})}
 	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, MaxRetries: 2})
 	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || !strings.Contains(result.ErrorMessage, "fetch fixture failure") {
+		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
+	}
+}
+
+type classifierFailingBody struct{ closed *atomic.Int32 }
+
+func (b classifierFailingBody) Read([]byte) (int, error) {
+	return 0, errors.New("body fixture failure")
+}
+func (b classifierFailingBody) Close() error { b.closed.Add(1); return nil }
+
+// A rejected response.text() is not an HTTP provider error in the pinned source.
+func TestMainDecisionsProviderErrorBodyFailureDoesNotRetry(t *testing.T) {
+	var calls, closes atomic.Int32
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		if calls.Add(1) == 1 {
+			return &http.Response{StatusCode: 503, Header: http.Header{"Retry-After-Ms": []string{"0"}}, Body: classifierFailingBody{closed: &closes}}, nil
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"answers":[]}`))}, nil
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, MaxRetries: 2})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || closes.Load() != 1 {
+		t.Fatalf("calls=%d, closes=%d, result=%+v, error=%v", calls.Load(), closes.Load(), result, err)
+	}
+}
+
+// The classifier's native 1 MiB response limit applies before retry too.
+func TestMainDecisionsProviderOversizedErrorBodyDoesNotRetry(t *testing.T) {
+	var calls atomic.Int32
+	client := &http.Client{Transport: providerRetryTransportMain(func(*http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return &http.Response{StatusCode: 503, Header: http.Header{"Retry-After-Ms": []string{"0"}}, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", (1<<20)+1)))}, nil
+	})}
+	result, err := goai.Classify(decisionsModel110("http://example.invalid"), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", HTTPClient: client, MaxRetries: 2})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || !strings.Contains(result.ErrorMessage, "exceeds 1 MiB") {
 		t.Fatalf("calls=%d, result=%+v, error=%v", calls.Load(), result, err)
 	}
 }
