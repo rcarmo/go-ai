@@ -3,7 +3,6 @@ package goai
 import (
 	"math"
 	"reflect"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -153,15 +152,15 @@ func (v *toolSchemaValidator) acceptsRaw(value, raw interface{}) bool {
 }
 
 type toolSchemaPattern struct {
-	re     *regexp.Regexp
+	source string
 	schema interface{}
 }
 
 type toolSchemaMembers struct {
-	properties         map[string]interface{}
-	patterns           []toolSchemaPattern
-	additional         interface{}
-	unsupportedPattern bool
+	validator  *toolSchemaValidator
+	properties map[string]interface{}
+	patterns   []toolSchemaPattern
+	additional interface{}
 }
 
 func (v *toolSchemaValidator) membersFor(schema map[string]interface{}) *toolSchemaMembers {
@@ -169,16 +168,11 @@ func (v *toolSchemaValidator) membersFor(schema map[string]interface{}) *toolSch
 	if members := v.members[id]; members != nil {
 		return members
 	}
-	m := &toolSchemaMembers{additional: schema["additionalProperties"]}
+	m := &toolSchemaMembers{validator: v, additional: schema["additionalProperties"]}
 	m.properties, _ = schema["properties"].(map[string]interface{})
 	patterns, _ := schema["patternProperties"].(map[string]interface{})
 	for _, pattern := range sortedSchemaKeys(patterns) {
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			m.unsupportedPattern = true
-			continue
-		}
-		m.patterns = append(m.patterns, toolSchemaPattern{re: re, schema: patterns[pattern]})
+		m.patterns = append(m.patterns, toolSchemaPattern{source: pattern, schema: patterns[pattern]})
 	}
 	v.members[id] = m
 	return m
@@ -195,16 +189,18 @@ func (m *toolSchemaMembers) each(key string, visit func(interface{}) bool) bool 
 	}
 	matched := false
 	for _, pattern := range m.patterns {
-		if pattern.re.MatchString(key) {
+		result := m.validator.matchSchemaPattern(pattern.source, key)
+		if result.err != nil || !result.valid {
+			return false
+		}
+		if result.matched {
 			matched = true
 			if !visit(pattern.schema) {
 				return false
 			}
 		}
 	}
-	// Keep the existing conservative additional-property behaviour outside
-	// Go's regex domain. Full ECMAScript pattern semantics remain unported.
-	if !declared && !matched && !m.unsupportedPattern && m.additional != nil {
+	if !declared && !matched && m.additional != nil {
 		return visit(m.additional)
 	}
 	return true
@@ -318,7 +314,7 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 		members := v.membersFor(schema)
 		for _, key := range sortedSchemaKeys(object) {
 			var failure *toolSchemaIssue
-			members.each(key, func(raw interface{}) bool {
+			accepted := members.each(key, func(raw interface{}) bool {
 				if v.acceptsRaw(object[key], raw) {
 					return true
 				}
@@ -332,6 +328,9 @@ func (v *toolSchemaValidator) issue(value interface{}, schema map[string]interfa
 			})
 			if failure != nil {
 				return failure
+			}
+			if !accepted {
+				return &toolSchemaIssue{schemaIssuePath(path, key), "pattern property checker unavailable or invalid"}
 			}
 		}
 	}

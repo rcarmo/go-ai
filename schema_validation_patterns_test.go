@@ -28,6 +28,20 @@ func TestValidationStringPatternMemoAndFailure(t *testing.T) {
 	}
 }
 
+func TestValidationPatternPropertyFailureIsNotAccepted(t *testing.T) {
+	schema := map[string]interface{}{"type": "object", "patternProperties": map[string]interface{}{`(?<!x)y`: true}}
+	v := newToolSchemaValidator(schema)
+	v.patterns = map[toolSchemaPatternKey]toolSchemaPatternResult{{`(?<!x)y`, "y"}: {err: errors.New("engine unavailable")}}
+	value := map[string]interface{}{"y": 1}
+	if v.schemaAcceptsValue(value, schema) {
+		t.Fatal("pattern property engine failure accepted")
+	}
+	issue := v.issue(value, schema, "v", make(map[toolSchemaMemoKey]bool))
+	if issue == nil || !strings.Contains(issue.Error(), "pattern property checker") {
+		t.Fatalf("issue=%v", issue)
+	}
+}
+
 func TestValidationStringPatternDeadlineFailClosed(t *testing.T) {
 	schema := map[string]interface{}{"pattern": `^(a+)+$`}
 	v := newToolSchemaValidator(schema)

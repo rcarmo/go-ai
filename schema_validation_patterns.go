@@ -24,6 +24,20 @@ func (v *toolSchemaValidator) stringPatternReason(value interface{}, schema map[
 	if !ok {
 		return ""
 	}
+	result := v.matchSchemaPattern(pattern, text)
+	if result.err != nil {
+		return "pattern checker unavailable: " + result.err.Error()
+	}
+	if !result.valid {
+		return "invalid regular expression: " + pattern
+	}
+	if !result.matched {
+		return "expected to match " + pattern
+	}
+	return ""
+}
+
+func (v *toolSchemaValidator) matchSchemaPattern(pattern, text string) toolSchemaPatternResult {
 	key := toolSchemaPatternKey{pattern, text}
 	result, found := v.patterns[key]
 	if !found {
@@ -42,14 +56,5 @@ func (v *toolSchemaValidator) stringPatternReason(value interface{}, schema map[
 		}
 		v.patterns[key] = result
 	}
-	if result.err != nil {
-		return "pattern checker unavailable: " + result.err.Error()
-	}
-	if !result.valid {
-		return "invalid regular expression: " + pattern
-	}
-	if !result.matched {
-		return "expected to match " + pattern
-	}
-	return ""
+	return result
 }

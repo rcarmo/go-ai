@@ -226,32 +226,23 @@ func (validator *toolSchemaValidator) normalizeOptionalNulls(value interface{}, 
 				out[key] = validator.normalizeOptionalNulls(current, propertySchema)
 			}
 		}
-		patterns, _ := schema["patternProperties"].(map[string]interface{})
-		// Go's RE2 syntax covers these upstream probes; ECMAScript-only regex
-		// constructs and full pattern validation still need separate review.
-		matchedKeys := make(map[string]bool)
-		unsupportedPattern := false
-		for pattern, rawPattern := range patterns {
-			patternSchema, _ := rawPattern.(map[string]interface{})
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-				unsupportedPattern = true
-				continue
-			}
-			for key, current := range out {
-				if re.MatchString(key) {
-					matchedKeys[key] = true
-					out[key] = validator.normalizeOptionalNulls(current, patternSchema)
+		members := validator.membersFor(schema)
+		for key, current := range out {
+			// Declared children were already normalized above, including the
+			// optional-null deletion rule. Apply matching patterns as well.
+			declared := false
+			_, declared = properties[key]
+			members.each(key, func(raw interface{}) bool {
+				if declared {
+					declared = false
+					return true
 				}
-			}
-		}
-		if additional, ok := schema["additionalProperties"].(map[string]interface{}); ok && !unsupportedPattern {
-			for key, current := range out {
-				if _, declared := properties[key]; declared || matchedKeys[key] {
-					continue
+				if child, ok := raw.(map[string]interface{}); ok {
+					current = validator.normalizeOptionalNulls(current, child)
 				}
-				out[key] = validator.normalizeOptionalNulls(current, additional)
-			}
+				return true
+			})
+			out[key] = current
 		}
 		return out
 	default:
