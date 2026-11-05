@@ -1,0 +1,344 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "package": "@earendil-works/pi-durable",
+  "version": "1.5.0",
+  "producer": "original Session -> MemoryStorage.commit batches",
+  "types": [
+    "conversation",
+    "document.change",
+    "document.copy",
+    "document.create",
+    "document.retire",
+    "entry",
+    "submission",
+    "task"
+  ],
+  "batches": [
+    [
+      {
+        "type": "document.create",
+        "record": {
+          "id": 2,
+          "kind": "t.session",
+          "scope": {
+            "kind": "session"
+          }
+        },
+        "content": {
+          "version": 1,
+          "kind": "base",
+          "value": {
+            "value": 1
+          }
+        }
+      }
+    ],
+    [
+      {
+        "type": "conversation",
+        "value": {
+          "id": 3
+        }
+      }
+    ],
+    [
+      {
+        "type": "entry",
+        "value": {
+          "kind": "note",
+          "data": {
+            "n": 1
+          },
+          "id": 5,
+          "conversationId": 3
+        }
+      },
+      {
+        "type": "document.create",
+        "record": {
+          "id": 4,
+          "kind": "t.rewind",
+          "scope": {
+            "kind": "conversation",
+            "conversationId": 3
+          },
+          "history": "rewindable",
+          "fork": "asOf"
+        },
+        "content": {
+          "version": 1,
+          "kind": "base",
+          "value": {
+            "value": 1
+          }
+        }
+      }
+    ],
+    [
+      {
+        "type": "entry",
+        "value": {
+          "kind": "note",
+          "model": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "hi"
+                }
+              ],
+              "timestamp": 1
+            }
+          ],
+          "id": 6,
+          "conversationId": 3,
+          "head": 6
+        }
+      },
+      {
+        "type": "document.change",
+        "id": 4,
+        "content": {
+          "version": 1,
+          "kind": "delta",
+          "ops": [
+            [
+              "s",
+              [
+                "value"
+              ],
+              2
+            ]
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "type": "task",
+        "value": {
+          "id": 7,
+          "conversationId": 3,
+          "kind": "t.work",
+          "version": 1,
+          "input": {
+            "path": "a"
+          },
+          "background": false,
+          "abortRequested": false,
+          "state": {
+            "status": "pending",
+            "checkpoint": {
+              "phase": "start"
+            }
+          }
+        }
+      }
+    ],
+    [
+      {
+        "type": "conversation",
+        "value": {
+          "id": 8,
+          "owner": {
+            "conversationId": 3,
+            "taskId": 7
+          }
+        }
+      }
+    ],
+    [
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "write",
+          "status": "queued",
+          "requestId": "r1",
+          "id": 9
+        }
+      }
+    ],
+    [
+      {
+        "type": "conversation",
+        "value": {
+          "id": 10,
+          "parent": {
+            "conversationId": 3,
+            "at": 5
+          }
+        }
+      },
+      {
+        "type": "document.copy",
+        "record": {
+          "id": 11,
+          "kind": "t.rewind",
+          "scope": {
+            "kind": "conversation",
+            "conversationId": 10
+          },
+          "history": "rewindable",
+          "fork": "asOf"
+        },
+        "source": {
+          "id": 4,
+          "at": 3
+        }
+      }
+    ],
+    [
+      {
+        "type": "document.retire",
+        "id": 2
+      }
+    ],
+    [
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "input",
+          "status": "queued",
+          "requestId": "",
+          "id": 12
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "input",
+          "status": "placed",
+          "entry": 5,
+          "id": 13
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "input",
+          "status": "done",
+          "entry": 5,
+          "answer": 5,
+          "id": 14
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "input",
+          "status": "unanswered",
+          "reason": "",
+          "detail": null,
+          "id": 15
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "input",
+          "status": "unanswered",
+          "entry": 5,
+          "reason": "failed",
+          "detail": {
+            "n": 9007199254740991
+          },
+          "id": 16
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "write",
+          "status": "done",
+          "entry": 5,
+          "id": 17
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "write",
+          "status": "unanswered",
+          "reason": "failed",
+          "detail": false,
+          "id": 18
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "continue",
+          "status": "placed",
+          "trace": {},
+          "id": 19
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "continue",
+          "status": "done",
+          "answer": 5,
+          "id": 20
+        }
+      },
+      {
+        "type": "submission",
+        "value": {
+          "conversationId": 3,
+          "type": "continue",
+          "status": "unanswered",
+          "reason": "failed",
+          "detail": [
+            "x"
+          ],
+          "id": 21
+        }
+      }
+    ],
+    [
+      {
+        "type": "document.create",
+        "record": {
+          "id": 22,
+          "kind": "t.task",
+          "scope": {
+            "kind": "task",
+            "taskId": 7
+          }
+        },
+        "content": {
+          "version": 1,
+          "kind": "base",
+          "value": {
+            "value": 1
+          }
+        }
+      }
+    ],
+    [
+      {
+        "type": "document.change",
+        "id": 22,
+        "content": {
+          "version": 1,
+          "kind": "base",
+          "value": {
+            "value": 2
+          }
+        }
+      }
+    ]
+  ]
+}

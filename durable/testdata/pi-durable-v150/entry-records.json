@@ -1,0 +1,93 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "package": "@earendil-works/pi-durable",
+  "version": "1.5.0",
+  "producer": "original MemoryStorage.conversation/entry",
+  "conversations": [
+    {
+      "id": 1
+    },
+    {
+      "id": 8,
+      "parent": {
+        "conversationId": 1,
+        "at": 4
+      }
+    },
+    {
+      "id": 9,
+      "owner": {
+        "conversationId": 1,
+        "taskId": 7
+      }
+    }
+  ],
+  "entries": [
+    {
+      "id": 2,
+      "conversationId": 1,
+      "kind": "note"
+    },
+    {
+      "id": 3,
+      "conversationId": 1,
+      "kind": "note",
+      "data": null
+    },
+    {
+      "id": 4,
+      "conversationId": 1,
+      "kind": "message",
+      "model": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "hi"
+            }
+          ],
+          "timestamp": 1
+        }
+      ],
+      "data": {
+        "text": "hi"
+      },
+      "head": 4
+    },
+    {
+      "id": 5,
+      "conversationId": 1,
+      "kind": "edit",
+      "edits": [
+        {
+          "target": 2,
+          "action": "omit"
+        },
+        {
+          "target": 4,
+          "action": "replace",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "hi"
+                }
+              ],
+              "timestamp": 1
+            }
+          ]
+        }
+      ],
+      "byTaskId": 7
+    },
+    {
+      "id": 6,
+      "conversationId": 8,
+      "kind": "note",
+      "data": 0
+    }
+  ]
+}

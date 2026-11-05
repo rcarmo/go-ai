@@ -1,0 +1,486 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "package": "@earendil-works/pi-durable",
+  "version": "1.5.0",
+  "producer": "original MemoryStorage scans",
+  "ids": {
+    "c2": 2,
+    "c3": 3,
+    "e1": 4,
+    "e2": 5,
+    "e3": 6,
+    "t1": 7,
+    "t2": 8,
+    "s1": 9,
+    "s2": 10
+  },
+  "pages": [
+    {
+      "name": "conversations-default-1",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        1,
+        2
+      ],
+      "next": {
+        "after": 2,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "conversations-default-2",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 2,
+      "cursor": {
+        "after": 2,
+        "order": "ascending"
+      },
+      "items": [
+        3
+      ],
+      "next": null
+    },
+    {
+      "name": "entries-default-1",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1
+      },
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        6,
+        5
+      ],
+      "next": {
+        "after": 5,
+        "order": "descending"
+      }
+    },
+    {
+      "name": "entries-default-2",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1
+      },
+      "limit": 2,
+      "cursor": {
+        "after": 5,
+        "order": "descending"
+      },
+      "items": [
+        4
+      ],
+      "next": null
+    },
+    {
+      "name": "tasks-default-1",
+      "method": "scanTasks",
+      "query": {},
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        7
+      ],
+      "next": {
+        "after": 7,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "tasks-default-2",
+      "method": "scanTasks",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 7,
+        "order": "ascending"
+      },
+      "items": [
+        8
+      ],
+      "next": null
+    },
+    {
+      "name": "submissions-default-1",
+      "method": "scanSubmissions",
+      "query": {},
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        9
+      ],
+      "next": {
+        "after": 9,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "submissions-default-2",
+      "method": "scanSubmissions",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 9,
+        "order": "ascending"
+      },
+      "items": [
+        10
+      ],
+      "next": null
+    },
+    {
+      "name": "conversations-ascending-1",
+      "method": "scanConversations",
+      "query": {
+        "order": "ascending"
+      },
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        1,
+        2
+      ],
+      "next": {
+        "after": 2,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "conversations-ascending-2",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 2,
+      "cursor": {
+        "after": 2,
+        "order": "ascending"
+      },
+      "items": [
+        3
+      ],
+      "next": null
+    },
+    {
+      "name": "entries-ascending-1",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1,
+        "order": "ascending"
+      },
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        4,
+        5
+      ],
+      "next": {
+        "after": 5,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "entries-ascending-2",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1
+      },
+      "limit": 2,
+      "cursor": {
+        "after": 5,
+        "order": "ascending"
+      },
+      "items": [
+        6
+      ],
+      "next": null
+    },
+    {
+      "name": "tasks-ascending-1",
+      "method": "scanTasks",
+      "query": {
+        "order": "ascending"
+      },
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        7
+      ],
+      "next": {
+        "after": 7,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "tasks-ascending-2",
+      "method": "scanTasks",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 7,
+        "order": "ascending"
+      },
+      "items": [
+        8
+      ],
+      "next": null
+    },
+    {
+      "name": "submissions-ascending-1",
+      "method": "scanSubmissions",
+      "query": {
+        "order": "ascending"
+      },
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        9
+      ],
+      "next": {
+        "after": 9,
+        "order": "ascending"
+      }
+    },
+    {
+      "name": "submissions-ascending-2",
+      "method": "scanSubmissions",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 9,
+        "order": "ascending"
+      },
+      "items": [
+        10
+      ],
+      "next": null
+    },
+    {
+      "name": "conversations-descending-1",
+      "method": "scanConversations",
+      "query": {
+        "order": "descending"
+      },
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        3,
+        2
+      ],
+      "next": {
+        "after": 2,
+        "order": "descending"
+      }
+    },
+    {
+      "name": "conversations-descending-2",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 2,
+      "cursor": {
+        "after": 2,
+        "order": "descending"
+      },
+      "items": [
+        1
+      ],
+      "next": null
+    },
+    {
+      "name": "entries-descending-1",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1,
+        "order": "descending"
+      },
+      "limit": 2,
+      "cursor": null,
+      "items": [
+        6,
+        5
+      ],
+      "next": {
+        "after": 5,
+        "order": "descending"
+      }
+    },
+    {
+      "name": "entries-descending-2",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1
+      },
+      "limit": 2,
+      "cursor": {
+        "after": 5,
+        "order": "descending"
+      },
+      "items": [
+        4
+      ],
+      "next": null
+    },
+    {
+      "name": "tasks-descending-1",
+      "method": "scanTasks",
+      "query": {
+        "order": "descending"
+      },
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        8
+      ],
+      "next": {
+        "after": 8,
+        "order": "descending"
+      }
+    },
+    {
+      "name": "tasks-descending-2",
+      "method": "scanTasks",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 8,
+        "order": "descending"
+      },
+      "items": [
+        7
+      ],
+      "next": null
+    },
+    {
+      "name": "submissions-descending-1",
+      "method": "scanSubmissions",
+      "query": {
+        "order": "descending"
+      },
+      "limit": 1,
+      "cursor": null,
+      "items": [
+        10
+      ],
+      "next": {
+        "after": 10,
+        "order": "descending"
+      }
+    },
+    {
+      "name": "submissions-descending-2",
+      "method": "scanSubmissions",
+      "query": {},
+      "limit": 1,
+      "cursor": {
+        "after": 10,
+        "order": "descending"
+      },
+      "items": [
+        9
+      ],
+      "next": null
+    },
+    {
+      "name": "tasks-filter-changed",
+      "method": "scanTasks",
+      "query": {
+        "kind": "test.task"
+      },
+      "limit": 5,
+      "cursor": {
+        "after": 7,
+        "order": "ascending"
+      },
+      "items": [
+        8
+      ],
+      "next": null
+    },
+    {
+      "name": "conversations-legacy-no-order",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 5,
+      "cursor": {
+        "after": 1
+      },
+      "items": [
+        2,
+        3
+      ],
+      "next": null
+    },
+    {
+      "name": "entries-legacy-no-order",
+      "method": "scanEntries",
+      "query": {
+        "conversationId": 1
+      },
+      "limit": 5,
+      "cursor": {
+        "after": 6
+      },
+      "items": [
+        5,
+        4
+      ],
+      "next": null
+    },
+    {
+      "name": "conversations-extra-field",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 5,
+      "cursor": {
+        "after": 1,
+        "order": "ascending",
+        "extra": true
+      },
+      "items": [
+        2,
+        3
+      ],
+      "next": null
+    },
+    {
+      "name": "conversations-order-mismatch",
+      "method": "scanConversations",
+      "query": {
+        "order": "descending"
+      },
+      "limit": 5,
+      "cursor": {
+        "after": 1,
+        "order": "ascending"
+      },
+      "error": "StorageRequestError",
+      "message": "The cursor continues a ascending scan; the query asks for descending"
+    },
+    {
+      "name": "conversations-bad-after",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 5,
+      "cursor": {
+        "after": "x"
+      },
+      "error": "StorageRequestError",
+      "message": "Invalid storage cursor"
+    },
+    {
+      "name": "conversations-bad-order",
+      "method": "scanConversations",
+      "query": {},
+      "limit": 5,
+      "cursor": {
+        "after": 1,
+        "order": "up"
+      },
+      "error": "StorageRequestError",
+      "message": "Invalid storage cursor"
+    }
+  ]
+}
