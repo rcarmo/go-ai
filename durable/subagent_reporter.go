@@ -31,7 +31,7 @@ func (c *ConversationHandle) SendBackground(ctx context.Context, key string, inp
 		if !ok {
 			return reject("unknown background subagent")
 		}
-		if input.RequestID != "" {
+		if input.RequestID != "" || input.RequestIDPresent {
 			if reporters, ok := doc.Value["reporters"].(map[string]any); ok {
 				if value, exists := reporters[input.RequestID]; exists {
 					number, valid := exactNumber(value)
@@ -56,7 +56,7 @@ func (c *ConversationHandle) SendBackground(ctx context.Context, key string, inp
 		if err != nil {
 			return err
 		}
-		if input.RequestID != "" {
+		if input.RequestID != "" || input.RequestIDPresent {
 			handle, err := tx.Document(doc.ID)
 			if err != nil {
 				return err

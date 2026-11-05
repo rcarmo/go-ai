@@ -226,7 +226,7 @@ type commitRecord struct {
 // accepting a struct through the trusted DTO envelope must not grant document
 // input a custom native representation or marshaler authority.
 func validateBatchJSON(b Batch, l Limits) error {
-	if len(b.Writes) == 0 || len(b.Writes) > l.MaxWrites {
+	if b.Writes == nil || len(b.Writes) > l.MaxWrites {
 		return reject("invalid write count")
 	}
 	for _, w := range b.Writes {
@@ -367,7 +367,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 	if s.Seq >= MaxID || r.Seq != s.Seq+1 || r.Seq > MaxID {
 		return Snapshot{}, reject("invalid commit sequence")
 	}
-	if len(r.Writes) == 0 || len(r.Writes) > l.MaxWrites {
+	if r.Writes == nil || len(r.Writes) > l.MaxWrites {
 		return Snapshot{}, reject("invalid write count")
 	}
 	resolved, err := resolveDocumentCopies(s, r.Writes, l)
@@ -490,7 +490,7 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 			n.Tasks[id] = v
 		case "put-submission":
 			v := *w.Submission
-			if old, ok := n.Submissions[id]; ok && (old.Conversation != v.Conversation || old.RequestID != v.RequestID || old.Type != v.Type) {
+			if old, ok := n.Submissions[id]; ok && (old.Conversation != v.Conversation || old.RequestID != v.RequestID || old.hasRequestID() != v.hasRequestID() || old.Type != v.Type) {
 				return Snapshot{}, reject("submission identity changed")
 			}
 			n.Submissions[id] = v
@@ -778,7 +778,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				}
 			}
 		}
-		if v.RequestID != "" {
+		if v.hasRequestID() {
 			key := requestKey{v.Conversation, v.RequestID}
 			if _, ok := requests[key]; ok {
 				return reject("request ID conflict")
@@ -985,7 +985,7 @@ func validateContinueSubmission(s Snapshot, sub Submission, final bool) error {
 	reason, hasReason := sub.Value["errorCode"]
 	_, hasDetail := sub.Value["detail"]
 	if terminalStatus(sub.Status) && sub.Status != "done" {
-		if text, ok := reason.(string); !ok || text == "" {
+		if _, ok := reason.(string); !ok {
 			return reject("unanswered continue submission requires a reason")
 		}
 	} else if hasReason || hasDetail {
@@ -1149,11 +1149,11 @@ func (c *storeCore) Request(ctx context.Context, conversation ID, request string
 	if e != nil {
 		return Submission{}, false, e
 	}
-	if request == "" || len(request) > c.limits.MaxRequestIDBytes {
+	if len(request) > c.limits.MaxRequestIDBytes {
 		return Submission{}, false, storageRequest("invalid request ID")
 	}
 	for _, v := range s.Submissions {
-		if v.Conversation == conversation && v.RequestID == request {
+		if v.Conversation == conversation && v.hasRequestID() && v.RequestID == request {
 			return v, true, nil
 		}
 	}

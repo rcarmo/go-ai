@@ -7,8 +7,9 @@ import (
 
 // CommitResult reports what one public grouped Storage.Commit call stored and
 // why the next batch was refused, if one was. Refused is nil when every batch
-// in the call became durable. It mirrors the original CommitResult
+// in the call became durable. This is the error-valued subset of the original
 // `{ stored, refused? }`, which resolves rather than rejects on a refusal.
+// Lossless arbitrary/falsy refusal values remain an open parity gap (D03).
 type CommitResult struct {
 	Stored  int
 	Refused error
@@ -50,7 +51,7 @@ func (c *storeCore) Commit(ctx context.Context, batches [][]StorageWrite, receiv
 // address of a document change or retirement comes from the running base image,
 // which the caller holds the core line for.
 func publicBatch(base Snapshot, writes []StorageWrite, l Limits) (Batch, error) {
-	if len(writes) == 0 || len(writes) > l.MaxWrites {
+	if len(writes) > l.MaxWrites {
 		return Batch{}, reject("invalid batch count")
 	}
 	batch := Batch{Writes: make([]Write, 0, len(writes))}

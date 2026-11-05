@@ -24,7 +24,7 @@ const inventory = readTSV("upstream-tests-f9a26365.tsv")
   .filter((row) => row.upstream_path.startsWith("packages/durable/"));
 const ids = new Set(register.entries.map((entry) => entry.id));
 assert.equal(ids.size, register.entries.length, "duplicate gap IDs");
-const states = new Set(["confirmed", "unverified", "scope-exclusion", "verification-gap"]);
+const states = new Set(["confirmed", "unverified", "scope-exclusion", "verification-gap", "fixed"]);
 const markdown = readFileSync(join(base, "durable-deviations.md"), "utf8");
 for (const entry of register.entries) {
   assert(states.has(entry.state), `state: ${entry.id}`);
@@ -36,6 +36,10 @@ for (const entry of register.entries) {
     assert(entry[key].length, `${entry.id}.${key} empty`);
   }
   for (const file of entry.native) assert(existsSync(join(root, file)), `missing native: ${file}`);
+  if (entry.state === "fixed") {
+    assert(entry.resolution?.trim(), `missing resolution: ${entry.id}`);
+    assert(entry.verification?.length, `missing verification: ${entry.id}`);
+  }
   for (const dep of entry.depends) assert(ids.has(dep) && dep !== entry.id, `dependency: ${entry.id}/${dep}`);
   assert(markdown.includes(`### ${entry.id} — ${entry.title}`), `missing detail: ${entry.id}`);
 }

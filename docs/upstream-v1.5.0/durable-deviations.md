@@ -1,6 +1,6 @@
 # Durable deviations from pi-durable v1.5.0
 
-The native durable package is not yet semantically equivalent to pi-durable v1.5.0. This register records **17 confirmed incompatibility groups**, **10 unverified areas**, **one verification gap** and **one approved backend exclusion**. Every entry has evidence, a fix path and acceptance criteria. These groups are not a count of individual failing assertions.
+The native durable package is not yet semantically equivalent to pi-durable v1.5.0. This register records **15 open confirmed incompatibility groups**, **two fixed groups**, **10 unverified areas**, **one verification gap** and **one approved backend exclusion**. Every entry has evidence, a fix path and acceptance criteria. These groups are not a count of individual failing assertions.
 
 Target: `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native baseline: `a89368c99be4f270baf1108a143b82fb08f849e9`. The uncommitted `session_writer.go` and direct writer tests are a prototype, excluded from implementation and parity receipts here. The inventory includes currently known deviations; the assertion-level audit is incomplete and may find more.
 
@@ -11,10 +11,10 @@ Target: `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native baseline: `a89368c99b
 
 ## What can be fixed
 
-Each confirmed gap has an implementation route. No external blocker has been identified. Four representation decisions must be settled before promising complete equivalence:
+Each open confirmed gap has an implementation route. No external blocker has been identified. Four representation decisions must be settled before promising complete equivalence:
 
 1. Public task/message/error values must be lossless, including arbitrary refusal values and empty/absent fields (D03, D07–D09, D12).
-2. Existing native SQLite data must remain readable. Record evolution and original-database interoperability need explicit format detection and migration rules (D08, D11).
+2. Existing native SQLite data must remain readable. D08 now retains presence using the existing optional string field; metadata already lost by older writers cannot be recovered. Original-database interoperability still needs explicit format detection and migration rules (D11).
 3. Shared readonly views need an enforceable immutable representation and revision identity. Writable Go maps and detached copies cannot both satisfy the original contract (D14–D17).
 4. Go admission, callback results and publication scheduling need an agreed language mapping that preserves observable order and caller semantics (D01–D06, D10, D13).
 
@@ -42,7 +42,7 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 | [D05](#d05--256-started-but-undelivered-job-bound-and-ordered-outcomes) | confirmed | 256 started-but-undelivered job bound and ordered outcomes |
 | [D06](#d06--deferred-changes-unload-reload-deadlines-and-close-during-writer-flight) | unverified | Deferred changes, unload, reload, deadlines and close during writer flight |
 | [D07](#d07--original-harness-message-kinds-and-model-payloads) | confirmed | Original harness message kinds and model payloads |
-| [D08](#d08--present-but-empty-submission-requestid-and-deduplication) | confirmed | Present-but-empty submission requestId and deduplication |
+| [D08](#d08--present-but-empty-submission-requestid-and-deduplication) | fixed | Present-but-empty submission requestId and deduplication |
 | [D09](#d09--built-in-public-task-writes-are-refused) | confirmed | Built-in public task writes are refused |
 | [D10](#d10--opensession-rejects-arbitrary-conforming-storage-implementations) | confirmed | OpenSession rejects arbitrary conforming Storage implementations |
 | [D11](#d11--persisted-sqlite-schema-and-record-envelopes-differ) | confirmed | Persisted SQLite schema and record envelopes differ |
@@ -63,11 +63,11 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 | [D26](#d26--assertion-level-crosswalk-and-release-verification-are-incomplete) | verification-gap | Assertion-level crosswalk and release verification are incomplete |
 | [D27](#d27--read-only-sessionharness-mode-and-concurrent-external-viewers) | confirmed | Read-only Session/Harness mode and concurrent external viewers |
 | [D28](#d28--raw-storage-initial-state-explicit-ids-and-empty-batches) | confirmed | Raw Storage initial state, explicit IDs and empty batches |
-| [D29](#d29--empty-unanswered-reason-remains-rejected-for-continue-submissions) | confirmed | Empty unanswered reason remains rejected for continue submissions |
+| [D29](#d29--empty-unanswered-reason-for-continue-submissions) | fixed | Empty unanswered reason for continue submissions |
 
 ## Evidence and acceptance
 
-`confirmed` means either a reproduced failing oracle or a direct source/native API/representation contradiction. `unverified` means incomplete source coverage, not an asserted runtime failure. Line numbers below refer to the pinned source. Each evidence statement distinguishes a fresh result from historical measurements or static review.
+`confirmed` means either a reproduced failing oracle or a direct source/native API/representation contradiction. `unverified` means incomplete source coverage, not an asserted runtime failure. `fixed` closes only the named bounded deviation with the listed controls; it does not promote whole upstream files or establish full package parity. Line numbers below refer to the pinned source. Each evidence statement distinguishes a fresh result from historical measurements or static review.
 
 ### D01 — Independent Session admission and storage batching
 
@@ -148,14 +148,16 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 ### D08 — Present-but-empty submission requestId and deduplication
 
-**confirmed.** Fresh strict replay fails submission12: original requestId empty string becomes absent. Native RequestID string plus omitempty and empty-key index skip cannot preserve presence. Existing normalised replay is partial evidence only.
+**fixed.** Baseline strict replay lost requestId empty string on submission12. The replay now compares every captured record exactly, without dropEmptyRequestID. Present-empty request keys survive public/native codecs, transaction and Harness admission, lookup, lifecycle updates, frame replay and checkpoint replay.
 
+- Resolution: RequestIDPresent on SubmissionRecord, Input and private Submission retains optional-string presence. The existing requestId JSON field encodes the bit: present empty remains an empty string; absent and nonempty legacy encodings are unchanged. Nonempty RequestID still implies presence. Empty-key lookup and dedup distinguish absent keys. Native replacement/uniqueness guards remain enforced.
 - Source: [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts); [`src/storage/memory.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/memory.ts); [`test/store-storage.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/store-storage.test.ts).
-- Native/evidence: [`durable/storage_replay_v150_test.go`](../../durable/storage_replay_v150_test.go); [`durable/submission_transaction.go`](../../durable/submission_transaction.go); [`durable/submission_status.go`](../../durable/submission_status.go); [`durable/storage.go`](../../durable/storage.go).
-- Fix: Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.
+- Native/evidence: [`durable/storage_replay_v150_test.go`](../../durable/storage_replay_v150_test.go); [`durable/submission_transaction.go`](../../durable/submission_transaction.go); [`durable/submission_status.go`](../../durable/submission_status.go); [`durable/storage.go`](../../durable/storage.go); [`durable/submission_native_wire.go`](../../durable/submission_native_wire.go); [`durable/submission_presence_v150_test.go`](../../durable/submission_presence_v150_test.go).
+- Original fix path: Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.
 - Acceptance: All12 captured batches with exact JSON equality and no dropEmptyRequestID; empty vs absent dedup/lookups before and after reopen; transitions, duplicates and caller ownership.
-- Dependencies: D11.
-- Blocker/decision: Requires deliberate private-envelope evolution; no silent persisted-format rewrite.
+- Verification: TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches: unchanged captured records, seq1..12, exact comparison. TestV150SubmissionRequestPresenceLegacyWire, TestV150SubmissionRequestPresenceReopenAndCheckpoint, TestV150SubmissionRequestPresenceSessionAndHarness.
+- Dependencies: none recorded.
+- Blocker/decision: No new persisted field, schema change or automatic migration. Presence already lost by older writers cannot be reconstructed; old absent fields stay absent. General raw Storage duplicate-request/update policy still needs D12 conformance review.
 
 ### D09 — Built-in public task writes are refused
 
@@ -368,29 +370,66 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 ### D28 — Raw Storage initial state, explicit IDs and empty batches
 
-**confirmed.** Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState preinstalls root1, publicBatch refuses empty writes, and adoption refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs.
+**confirmed.** Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState still preinstalls root1 and adoption still refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs. The baseline empty-batch rejection is fixed by the tested slice below.
+
+**Fixed slice; remainder open.** Empty batches fixed: each inner empty array is stored with its own sequence and receipt, including grouped calls, reopen and checkpoint replay. An empty outer call does not advance the sequence. Real SQLite rollback and a later refusal preserve the correct prefix. Native writes:null remains invalid. Root preinstallation and explicit unminted IDs remain open; D28 is not closed.
 
 - Source: [`src/storage/memory.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/memory.ts); [`src/storage/store/commit.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/store/commit.ts); [`test/store-storage.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/store-storage.test.ts).
-- Native/evidence: [`durable/storage.go`](../../durable/storage.go); [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/storage_public_v150_test.go`](../../durable/storage_public_v150_test.go); [`durable/testdata/pi-durable-v150/storage-boundaries.json`](../../durable/testdata/pi-durable-v150/storage-boundaries.json).
+- Native/evidence: [`durable/storage.go`](../../durable/storage.go); [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/storage_public_v150_test.go`](../../durable/storage_public_v150_test.go); [`durable/testdata/pi-durable-v150/storage-boundaries.json`](../../durable/testdata/pi-durable-v150/storage-boundaries.json); [`durable/storage_boundaries_v150_test.go`](../../durable/storage_boundaries_v150_test.go).
 - Fix: Separate raw Storage initialisation from Session root bootstrap. Implement original raw empty-batch sequence semantics and atomic allocator advancement for explicit IDs, with global type collision checks. Preserve native transaction ID reservation and writer ownership rather than deleting them.
 - Acceptance: Replay storage-boundaries.json through the public native SQLite boundary with no preparatory minting: fresh root absent, empty batch accepted at seq1, explicit99 accepted, next mint100; original outbox replay and reopen. Concurrent allocator/explicit-ID, collisions, backend rollback and uncertain outcomes must preserve uniqueness.
+- Verification: TestV150StorageEmptyBatch, TestV150StorageEmptyBatchRollback, TestV150StorageEmptyBatchRealRollback, TestV150StorageEmptyBatchRefusalKeepsPrefix.
 - Dependencies: D10, D11, D12.
 - Blocker/decision: Raw initial state and explicit-ID allocator semantics affect existing persisted native files; require explicit legacy compatibility and Session root bootstrap rules.
 
-### D29 — Empty unanswered reason remains rejected for continue submissions
+### D29 — Empty unanswered reason for continue submissions
 
-**confirmed.** Fresh original capture accepts an unanswered continue submission with reason empty string. nativeSubmission now permits empty unanswered reasons, but validateContinueSubmission still rejects errorCode empty string. The earlier input-submission replay fix does not cover this subtype.
+**fixed.** Baseline rejected the captured empty unanswered continue reason and empty typed settlements. Continue storage validation and input/write/continue settlement now accept present empty strings. Missing/non-string private reasons, missing public-wire reasons and illegal answer/entry/detail combinations remain rejected.
 
+- Resolution: Removed the stricter nonempty-string checks from validateContinueSubmission and SettleSubmission. Reconciled three legacy test expectations against the original fixture and retained positive empty-reason plus negative missing/invalid union controls.
 - Source: [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts); [`src/storage/memory.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/memory.ts); [`test/store-storage.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/store-storage.test.ts).
-- Native/evidence: [`durable/storage.go`](../../durable/storage.go); [`durable/submission_transaction.go`](../../durable/submission_transaction.go); [`durable/submission_status.go`](../../durable/submission_status.go); [`durable/testdata/pi-durable-v150/storage-boundaries.json`](../../durable/testdata/pi-durable-v150/storage-boundaries.json).
-- Fix: Preserve reason presence independently of its string contents through all submission subtypes and transitions. Remove only the stricter continue nonempty requirement after a retained original-derived failing control; do not allow missing reason or illegal answer/detail combinations.
+- Native/evidence: [`durable/storage.go`](../../durable/storage.go); [`durable/submission_transaction.go`](../../durable/submission_transaction.go); [`durable/submission_status.go`](../../durable/submission_status.go); [`durable/testdata/pi-durable-v150/storage-boundaries.json`](../../durable/testdata/pi-durable-v150/storage-boundaries.json); [`durable/storage_boundaries_v150_test.go`](../../durable/storage_boundaries_v150_test.go).
+- Original fix path: Preserve reason presence independently of its string contents through all submission subtypes and transitions. Remove only the stricter continue nonempty requirement after a retained original-derived failing control; do not allow missing reason or illegal answer/detail combinations.
 - Acceptance: Original storedSubmission in storage-boundaries.json round-trips exactly for continue; input/write/continue unanswered empty, missing and nonempty reasons; dedup and reopen; invalid union controls and submission settlement remain green.
-- Dependencies: D08, D12.
-- Blocker/decision: No new representation blocker beyond presence tracking; current private validator conflicts with the original union.
+- Verification: TestV150SubmissionEmptyContinueReason: exact original storedSubmission payload before and after reopen. TestV150SubmissionEmptyReasonSettlement and TestV150ContinueReasonStillRequired; complete existing TestMainSubmissionContinue group.
+- Dependencies: none recorded.
+- Blocker/decision: No envelope or schema migration; old data remains readable. Broader submission/runtime corpus review remains D20.
 
-## Reproduced red controls
+## Three-deviation implementation checkpoint
 
-At the native baseline, a temporary Go compile overlay activates parked tests without altering their assertions. The replay overlay removes only `dropEmptyRequestID` so the comparison uses exact `canonicalJSON`. Results:
+D08 and D29 are fixed within their named scope. D28 has a passing empty-batch slice; its raw root/explicit-ID differences remain open. No whole-file disposition has been promoted. The Session writer prototype is excluded from the compiled verification candidate and the commit.
+
+Test-first baseline results:
+
+- Exact 12-batch replay lost submission 12's present empty requestId.
+- Empty batch was refused as invalid count; the grouped backend-failure control never reached storage.
+- Original continue empty reason was refused after the preceding conversation batch; typed input/write/continue empty settlements were also refused.
+
+After the fixes, the broader focused selection (V150/public-wire, grouped storage, SQLite, continue lifecycle, request dedup and storage-request controls) passes normally and with count=3/shuffle=42 (**99.942s** for the repeated durable selection). The complete durable/tools suite passes (**21.942s**). Repository-wide vet and Staticcheck pass with CGO_ENABLED=0. Staticcheck initially found two uncalled message-conversion prototypes from the earlier wire checkpoint; those unused functions were removed without changing message producers/readers (D07 remains open).
+
+The first integrated full run failed in **966.531s**: the new standard native submission marshaler emitted nested map keys in varying order, causing snapshot byte-comparison failures, and a receipt test still classified a newly valid empty write array as corrupt. A dedicated deterministic-marshal test reproduced the ordering bug before correction. Native standard marshaling now sorts map keys; the corrupt receipt uses writes:null, and a positive empty-part reconstruction test is retained. The affected snapshot/ownership/receipt controls plus V150 tests pass count=3/shuffle=42 (**81.483s**). The corrected complete durable regression passes in **725.786s**, with the uncommitted writer production/test prototype excluded through a compile overlay. Vet, Staticcheck and logging checks pass. These ordinary development tests are unprofiled; they provide no CGO race-detector or pre-release profiling coverage.
+
+Compatibility details:
+
+- Existing absent/nonempty private requestId JSON is unchanged. Presence is retained in the existing scalar field; no extra SQLite field, table/configuration version change or automatic migration is introduced. Previously lost presence cannot be reconstructed.
+- Newly valid empty batches use the existing writes array with zero members. Private writes:null remains invalid. Older binaries do not implement the new empty-batch/empty-key semantics and may reject newly valid records.
+- Native request identity/uniqueness guards remain in force. General raw Storage duplicate-request/update policy still needs D12's conformance review.
+- Real SQL rollback, logical checkpoint/reopen and refusal-prefix controls cover the new empty-batch path. Missing/non-string reasons and illegal submission union fields remain rejected.
+
+Reproduce the focused tests:
+
+```sh
+source scripts/project-env.sh
+export CGO_ENABLED=0 GOMAXPROCS=4
+make test PACKAGES=./durable TEST_FLAGS='-run TestV150|TestPiDurableV150|TestInternalGroup|TestSQLite|TestMainSubmissionContinue|TestM1bRequest|Test.*StorageRequest -count=3 -shuffle=42 -timeout=3m'
+make test PACKAGES=./durable/tools TEST_FLAGS='-count=1 -timeout=3m'
+make vet
+make staticcheck
+```
+
+## Reproduced red controls at the baseline
+
+At native baseline a89368c, a temporary Go compile overlay activated parked tests without altering their assertions. The replay overlay removes only `dropEmptyRequestID` so the comparison uses exact `canonicalJSON`. Results:
 
 | Control | Observed mismatch |
 | --- | --- |
@@ -403,11 +442,11 @@ At the native baseline, a temporary Go compile overlay activates parked tests wi
 
 Retained red assertions live in [pending fixtures](../../durable/testdata/upstream-main/pending/). A fixture overlay must alias the original files into the compiled durable package, preserving the original hold/read/observer seam. The current native-core restriction (D10) limits some wrapper-based oracles; an after-core hold cannot substitute for before-storage admission.
 
-The committed replay test intentionally uses `dropEmptyRequestID`. Its 12 accepted batches and sequence/order checks are partial evidence; exact original-record equality fails. Built-in task rejection is also an incompatibility, even though its current safety test passes.
+That baseline replay failure is fixed: the committed test now compares every original field exactly, and the normalisation helper is removed. The replay still pre-mints IDs (D28), so it does not establish raw allocator/bootstrap parity. Built-in task rejection remains an incompatibility (D09).
 
 ## Additional original boundary capture
 
-[storage-boundaries.json](../../durable/testdata/pi-durable-v150/storage-boundaries.json) captures actual original MemoryStorage output for D28/D29. The corresponding SQLite source boundary also raises allocation above explicit IDs. Native contradictions are currently established by code inspection and existing stricter ownership tests; complete native acceptance tests for these new cases have not yet been added. Reproduce the original capture with:
+[storage-boundaries.json](../../durable/testdata/pi-durable-v150/storage-boundaries.json) captures actual original MemoryStorage output for D28/D29. The corresponding SQLite source boundary also raises allocation above explicit IDs. Native tests now execute the captured empty-reason payload unchanged and test the original empty-batch result/receipt, with reopen and real rollback controls. The root/explicit-ID parts remain established by code inspection and the stricter native ownership tests; their complete acceptance tests are still outstanding. Reproduce the original capture with:
 
 ```sh
 bun run scripts/capture-durable-storage-boundaries.mjs /path/to/reference durable/testdata/pi-durable-v150/storage-boundaries.json
@@ -426,7 +465,7 @@ These controls remain useful but do not close the groups above:
 - Empty unanswered reason and present empty errorCode conversion, subject to complete submission lifecycle coverage.
 - Source202 watch threshold/default resource-policy slice; old persisted limits are retained.
 
-The last complete native durable run passed in **720.342s**, and vet/format checks passed before baseline publication. One earlier full run failed `TestMainBoundaryEligibilityLocallyDecidedFailFast/held/failFast/sqlite` with `scheduler context canceled`; isolated repetitions and the later full run passed. The root cause is unconfirmed. This register-only change does not constitute a fresh full-suite result. Direct writer-prototype tests pass independently; they do not exercise Session integration or establish publication parity.
+Before this implementation, a complete native durable run passed in **720.342s**, and vet/format checks passed before baseline publication. One earlier full run failed `TestMainBoundaryEligibilityLocallyDecidedFailFast/held/failFast/sqlite` with `scheduler context canceled`; isolated repetitions and the later full run passed. The root cause is unconfirmed. The inventory-only checkpoint 4f0ae62 did not include a fresh full-suite run; the current implementation results are recorded above. Direct writer-prototype tests pass independently; they do not exercise Session integration or establish publication parity.
 
 ## Review and validation
 
@@ -444,6 +483,6 @@ With the pinned source snapshot available, also verify all 165 hashes, every sou
 bun run scripts/check-durable-parity-register.mjs --upstream /path/to/pi-f9a26365568127461c47a07a37dcb42c140a3ac5
 ```
 
-Register checkpoint: both validation modes pass (29 entries, 165 obligations, 101 test files). Negative controls reject a missing historical obligation, an unknown dependency and source hash drift. The original boundary capture reproduces byte-for-byte, both scripts pass Node syntax checks, and git diff --check passes. No production Go file changed in this checkpoint.
+Inventory-only checkpoint 4f0ae62: both validation modes pass (29 entries, 165 obligations, 101 test files). Negative controls reject a missing historical obligation, an unknown dependency and source hash drift. The original boundary capture reproduces byte-for-byte, both scripts pass Node syntax checks, and git diff --check passes. No production Go file changed in that inventory-only checkpoint.
 
 These checks validate inventory integrity. They do not execute the source assertions. Continue to run test-first bounded packets, full native regression, fault/static checks and allocation/CPU profiles at implementation checkpoints. Keep failed required assertions visible until they pass without adapters that change meaning.

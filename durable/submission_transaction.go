@@ -45,7 +45,7 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 		}
 		value = owned
 	}
-	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, Value: value, Trace: copyTelemetryCarrier(record.Trace)}
+	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Value: value, Trace: copyTelemetryCarrier(record.Trace)}
 	switch record.Type {
 	case "input":
 		sub.Type = "follow-up"
@@ -218,7 +218,7 @@ func (t *Tx) SettleSubmission(id ID, settlement SubmissionRecord) error {
 		sub.Status = "done"
 		sub.Value["answerEntry"] = settlement.Answer
 	case "unanswered":
-		if settlement.Reason == "" || settlement.Answer != 0 {
+		if settlement.Answer != 0 {
 			return reject("invalid unanswered submission settlement")
 		}
 		if settlement.Detail != nil {

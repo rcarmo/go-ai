@@ -263,7 +263,7 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		if v.Type() == nativeToolCallType || v.Type() == nativeContentBlockType {
 			members--
 		}
-		if v.Type() == nativeUsageType {
+		if v.Type() == nativeUsageType || v.Type() == reflect.TypeFor[Submission]() {
 			members = len(structJSONFields(v.Type()))
 		}
 		if depth > b.l.MaxDepth || members > b.l.MaxMembers {

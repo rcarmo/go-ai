@@ -143,7 +143,7 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 			{"done-missing-answer", SubmissionRecord{Type: "continue", Status: "done", Answer: ID(MaxID)}, false},
 			{"done-reason", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID, Reason: "host"}, false},
 			{"done-detail", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID, Detail: &TaskValue{Present: true}}, false},
-			{"unanswered-no-reason", SubmissionRecord{Type: "continue", Status: "unanswered"}, false},
+			{"unanswered-empty-reason", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: ""}, true},
 			{"unanswered-entry", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Entry: entryID}, false},
 			{"unanswered-answer", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Answer: entryID}, false},
 			{"input-entryless-placed", SubmissionRecord{Type: "input", Status: "placed"}, false},
@@ -229,7 +229,7 @@ func TestMainSubmissionContinueStorageUnion(t *testing.T) {
 			{"done-reason", "done", JSON{"answerEntry": answer, "errorCode": "host"}, false},
 			{"done-detail", "done", JSON{"answerEntry": answer, "detail": nil}, false},
 			{"failed-no-reason", "failed", JSON{}, false},
-			{"failed-empty-reason", "failed", JSON{"errorCode": ""}, false},
+			{"failed-empty-reason", "failed", JSON{"errorCode": ""}, true},
 			{"failed-nonstring-reason", "failed", JSON{"errorCode": 3}, false},
 			{"failed-answer", "failed", JSON{"errorCode": "host", "answerEntry": answer}, false},
 		}
@@ -325,7 +325,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			{Status: "done"}, {Status: "done", Answer: foreign}, {Status: "done", Answer: ID(MaxID)},
 			{Status: "done", Entry: answer, Answer: answer}, {Status: "done", Answer: answer, Reason: "host"},
 			{Status: "done", Answer: answer, Detail: &TaskValue{Present: true}},
-			{Status: "unanswered"}, {Status: "unanswered", Reason: "host", Answer: answer},
+			{Status: "unanswered", Reason: "host", Answer: answer},
 			{Status: "unanswered", Reason: "host", Entry: answer}, {Status: "queued"},
 		} {
 			_, err := h.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, settlement) })

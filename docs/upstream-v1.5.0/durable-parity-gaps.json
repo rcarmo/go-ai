@@ -172,7 +172,7 @@
     {
       "id": "D08",
       "title": "Present-but-empty submission requestId and deduplication",
-      "state": "confirmed",
+      "state": "fixed",
       "source": [
         "packages/durable/src/types.ts",
         "packages/durable/src/storage/memory.ts",
@@ -182,17 +182,23 @@
         "durable/storage_replay_v150_test.go",
         "durable/submission_transaction.go",
         "durable/submission_status.go",
-        "durable/storage.go"
+        "durable/storage.go",
+        "durable/submission_native_wire.go",
+        "durable/submission_presence_v150_test.go"
       ],
-      "evidence": "Fresh strict replay fails submission12: original requestId empty string becomes absent. Native RequestID string plus omitempty and empty-key index skip cannot preserve presence. Existing normalised replay is partial evidence only.",
+      "evidence": "Baseline strict replay lost requestId empty string on submission12. The replay now compares every captured record exactly, without dropEmptyRequestID. Present-empty request keys survive public/native codecs, transaction and Harness admission, lookup, lifecycle updates, frame replay and checkpoint replay.",
       "fix": "Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.",
       "acceptance": [
         "All12 captured batches with exact JSON equality and no dropEmptyRequestID; empty vs absent dedup/lookups before and after reopen; transitions, duplicates and caller ownership."
       ],
-      "depends": [
-        "D11"
-      ],
-      "blocker": "Requires deliberate private-envelope evolution; no silent persisted-format rewrite."
+      "depends": [],
+      "blocker": "No new persisted field, schema change or automatic migration. Presence already lost by older writers cannot be reconstructed; old absent fields stay absent. General raw Storage duplicate-request/update policy still needs D12 conformance review.",
+      "resolution": "RequestIDPresent on SubmissionRecord, Input and private Submission retains optional-string presence. The existing requestId JSON field encodes the bit: present empty remains an empty string; absent and nonempty legacy encodings are unchanged. Nonempty RequestID still implies presence. Empty-key lookup and dedup distinguish absent keys. Native replacement/uniqueness guards remain enforced.",
+      "verification": [
+        "TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches: unchanged captured records, seq1..12, exact comparison.",
+        "TestV150SubmissionRequestPresenceLegacyWire, TestV150SubmissionRequestPresenceReopenAndCheckpoint, TestV150SubmissionRequestPresenceSessionAndHarness.",
+        "TestV150SubmissionNativeMarshalDeterministic: repeated native marshaling has stable nested map ordering; snapshot rollback/ownership controls pass."
+      ]
     },
     {
       "id": "D09",
@@ -706,9 +712,10 @@
         "durable/storage.go",
         "durable/storage_public.go",
         "durable/storage_public_v150_test.go",
-        "durable/testdata/pi-durable-v150/storage-boundaries.json"
+        "durable/testdata/pi-durable-v150/storage-boundaries.json",
+        "durable/storage_boundaries_v150_test.go"
       ],
-      "evidence": "Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState preinstalls root1, publicBatch refuses empty writes, and adoption refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs.",
+      "evidence": "Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState still preinstalls root1 and adoption still refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs. The baseline empty-batch rejection is fixed by the tested slice below.",
       "fix": "Separate raw Storage initialisation from Session root bootstrap. Implement original raw empty-batch sequence semantics and atomic allocator advancement for explicit IDs, with global type collision checks. Preserve native transaction ID reservation and writer ownership rather than deleting them.",
       "acceptance": [
         "Replay storage-boundaries.json through the public native SQLite boundary with no preparatory minting: fresh root absent, empty batch accepted at seq1, explicit99 accepted, next mint100; original outbox replay and reopen. Concurrent allocator/explicit-ID, collisions, backend rollback and uncertain outcomes must preserve uniqueness."
@@ -718,12 +725,17 @@
         "D11",
         "D12"
       ],
-      "blocker": "Raw initial state and explicit-ID allocator semantics affect existing persisted native files; require explicit legacy compatibility and Session root bootstrap rules."
+      "blocker": "Raw initial state and explicit-ID allocator semantics affect existing persisted native files; require explicit legacy compatibility and Session root bootstrap rules.",
+      "progress": "Empty batches fixed: each inner empty array is stored with its own sequence and receipt, including grouped calls, reopen and checkpoint replay. An empty outer call does not advance the sequence. Real SQLite rollback and a later refusal preserve the correct prefix. Native writes:null remains invalid. Root preinstallation and explicit unminted IDs remain open; D28 is not closed.",
+      "verification": [
+        "TestV150StorageEmptyBatch, TestV150StorageEmptyBatchRollback, TestV150StorageEmptyBatchRealRollback, TestV150StorageEmptyBatchRefusalKeepsPrefix.",
+        "TestInternalReceiptImageAcceptsEmptyPart; wrong-frame negative controls retain writes:null rejection."
+      ]
     },
     {
       "id": "D29",
-      "title": "Empty unanswered reason remains rejected for continue submissions",
-      "state": "confirmed",
+      "title": "Empty unanswered reason for continue submissions",
+      "state": "fixed",
       "source": [
         "packages/durable/src/types.ts",
         "packages/durable/src/storage/memory.ts",
@@ -733,18 +745,49 @@
         "durable/storage.go",
         "durable/submission_transaction.go",
         "durable/submission_status.go",
-        "durable/testdata/pi-durable-v150/storage-boundaries.json"
+        "durable/testdata/pi-durable-v150/storage-boundaries.json",
+        "durable/storage_boundaries_v150_test.go"
       ],
-      "evidence": "Fresh original capture accepts an unanswered continue submission with reason empty string. nativeSubmission now permits empty unanswered reasons, but validateContinueSubmission still rejects errorCode empty string. The earlier input-submission replay fix does not cover this subtype.",
+      "evidence": "Baseline rejected the captured empty unanswered continue reason and empty typed settlements. Continue storage validation and input/write/continue settlement now accept present empty strings. Missing/non-string private reasons, missing public-wire reasons and illegal answer/entry/detail combinations remain rejected.",
       "fix": "Preserve reason presence independently of its string contents through all submission subtypes and transitions. Remove only the stricter continue nonempty requirement after a retained original-derived failing control; do not allow missing reason or illegal answer/detail combinations.",
       "acceptance": [
         "Original storedSubmission in storage-boundaries.json round-trips exactly for continue; input/write/continue unanswered empty, missing and nonempty reasons; dedup and reopen; invalid union controls and submission settlement remain green."
       ],
-      "depends": [
-        "D08",
-        "D12"
-      ],
-      "blocker": "No new representation blocker beyond presence tracking; current private validator conflicts with the original union."
+      "depends": [],
+      "blocker": "No envelope or schema migration; old data remains readable. Broader submission/runtime corpus review remains D20.",
+      "resolution": "Removed the stricter nonempty-string checks from validateContinueSubmission and SettleSubmission. Reconciled three legacy test expectations against the original fixture and retained positive empty-reason plus negative missing/invalid union controls.",
+      "verification": [
+        "TestV150SubmissionEmptyContinueReason: exact original storedSubmission payload before and after reopen.",
+        "TestV150SubmissionEmptyReasonSettlement and TestV150ContinueReasonStillRequired; complete existing TestMainSubmissionContinue group."
+      ]
     }
-  ]
+  ],
+  "checkpoint": "D08 and D29 fixed; D28 empty-batch slice fixed, root/explicit-ID remainder open. Writer prototype excluded from verification and commit.",
+  "validation": {
+    "fullDurable": {
+      "result": "pass",
+      "seconds": 725.786,
+      "prototype": "session_writer.go and session_writer_v150_test.go excluded by compile overlay"
+    },
+    "focused": {
+      "result": "pass",
+      "count": 3,
+      "shuffle": 42,
+      "seconds": 99.942
+    },
+    "correctedSnapshotReceiptControls": {
+      "result": "pass",
+      "count": 3,
+      "shuffle": 42,
+      "seconds": 81.483
+    },
+    "durableTools": {
+      "result": "pass",
+      "seconds": 21.942
+    },
+    "vet": "pass; repository-wide CGO_ENABLED=0",
+    "staticcheck": "pass; repository-wide v0.8.2 CGO_ENABLED=0",
+    "logging": "pass",
+    "profile": "ordinary development tests; no pre-release profiling or CGO race coverage"
+  }
 }

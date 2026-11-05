@@ -8,7 +8,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Current durable deviations
 
-The [durable deviation register](durable-deviations.md) records 17 confirmed incompatibility groups, ten unverified areas, one verification gap and the approved backend exclusion, with evidence, fix paths, dependencies and acceptance tests. Its [review obligations](durable-review-obligations.tsv) cover all 165 pinned durable test/support/fixture paths, including 101 test files. The [semantic-port receipts](durable-semantic-port.md) record the current implementation slices. No complete parity result is established.
+The [durable deviation register](durable-deviations.md) records 15 open confirmed incompatibility groups, two fixed groups, ten unverified areas, one verification gap and the approved backend exclusion, with evidence, fix paths, dependencies and acceptance tests. Its [review obligations](durable-review-obligations.tsv) cover all 165 pinned durable test/support/fixture paths, including 101 test files. The [semantic-port receipts](durable-semantic-port.md) record the current implementation slices. No complete parity result is established.
 
 ## Historical parity backlog and contract decisions
 

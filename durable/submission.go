@@ -15,6 +15,9 @@ type Input struct {
 	// its model contribution. ID/placement are assigned at admission.
 	Entry     *Entry
 	RequestID string
+	// RequestIDPresent supplies an explicitly empty deduplication key. Nonempty
+	// RequestID implies presence, preserving existing callers.
+	RequestIDPresent bool
 	// Type accepts "input", "write" and "continue". Empty, "follow-up" and
 	// "steer" remain accepted as legacy input spellings.
 	Type string
@@ -157,7 +160,7 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 			return reject("unknown conversation")
 		}
 		for _, sub := range current.Submissions {
-			if input.RequestID != "" && sub.Conversation == c.id && sub.RequestID == input.RequestID {
+			if (input.RequestID != "" || input.RequestIDPresent) && sub.hasRequestID() && sub.Conversation == c.id && sub.RequestID == input.RequestID {
 				// Steer and follow-up are queue modes of the same upstream
 				// input submission type; deduplication precedes mode checks.
 				if publicSubmission(sub).Type != publicSubmission(Submission{Type: input.Type}).Type {
@@ -228,7 +231,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			if err != nil {
 				return err
 			}
-			return h.startExplicitContinue(tx, c.id, subID, input.RequestID, carrier)
+			return h.startExplicitContinue(tx, c.id, subID, input.RequestID, input.RequestIDPresent, carrier)
 		}
 		receipt, err := inputReceipt(input.Content, input.Blocks, tx.limits)
 		if err != nil {
@@ -300,7 +303,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				value["entry"] = map[string]any(wire)
 			}
 		}
-		if err = tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: input.Type, Status: status, Value: value, Trace: carrier}); err != nil {
+		if err = tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: input.Type, Status: status, Value: value, Trace: carrier}); err != nil {
 			return err
 		}
 		if input.Type == "write" {
@@ -325,12 +328,12 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				}
 				if stale {
 					value["errorCode"] = "stale"
-					return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "failed", Value: value, Trace: carrier})
+					return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "failed", Value: value, Trace: carrier})
 				}
 				if err := appendPassiveWrite(tx, c.id, value); err != nil {
 					return err
 				}
-				return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value, Trace: carrier})
+				return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "done", Value: value, Trace: carrier})
 			}
 			id, err := tx.MintID()
 			if err != nil {
@@ -344,7 +347,7 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 				return err
 			}
 			value["placedEntry"] = id
-			return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, Type: "write", Status: "done", Value: value, Trace: carrier})
+			return tx.PutSubmission(Submission{ID: subID, Conversation: c.id, RequestID: input.RequestID, RequestIDPresent: input.RequestIDPresent, Type: "write", Status: "done", Value: value, Trace: carrier})
 		}
 		// Only a genuinely new user input releases a kept queue. Deduplication
 		// and passive writes have returned before this point.

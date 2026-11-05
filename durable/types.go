@@ -304,9 +304,12 @@ type Submission struct {
 	ID           ID     `json:"id"`
 	Conversation ID     `json:"conversation"`
 	RequestID    string `json:"requestId,omitempty"`
-	Type         string `json:"type"`
-	Status       string `json:"status"`
-	Value        JSON   `json:"value"`
+	// RequestIDPresent distinguishes a present empty key from absence. It is
+	// encoded using the existing requestId field, never an extra storage field.
+	RequestIDPresent bool   `json:"-"`
+	Type             string `json:"type"`
+	Status           string `json:"status"`
+	Value            JSON   `json:"value"`
 	// Trace is optional data-only propagation metadata; an empty carrier is
 	// distinct from absence. Backend span objects are never stored here.
 	Trace *goai.TelemetryCarrier `json:"trace,omitempty"`

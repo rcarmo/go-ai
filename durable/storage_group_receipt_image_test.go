@@ -182,7 +182,8 @@ func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
 			case "high":
 				r.frame.high = MaxID + 1
 			case "payload":
-				r.frame.payload = []byte(`{"seq":1,"writes":[]}`)
+				// Empty arrays are valid commits; a null write list is corrupt.
+				r.frame.payload = []byte(`{"seq":1,"writes":null}`)
 			case "gap":
 				b.Seq = 1
 			}
@@ -193,5 +194,29 @@ func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
 				t.Fatal("failed reconstruction changed base")
 			}
 		})
+	}
+}
+
+func TestInternalReceiptImageAcceptsEmptyPart(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close(bg)
+	base := store.state
+	seen := false
+	result, err := store.commitParts(bg, []Batch{{Writes: []Write{}}}, func(receipt commitReceipt) error {
+		next, err := receipt.nextImage(base, store.limits)
+		if err != nil {
+			return err
+		}
+		if next.Seq != 1 || next.HighWater != base.HighWater || len(next.Conversations) != len(base.Conversations) || len(next.Entries) != 0 {
+			t.Fatal("wrong empty prefix", next)
+		}
+		seen = true
+		return nil
+	}, false)
+	if err != nil || result.refused != nil || result.stored != 1 || !seen {
+		t.Fatalf("empty receipt: %+v %v seen=%v", result, err, seen)
 	}
 }

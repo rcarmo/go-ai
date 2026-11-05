@@ -397,7 +397,7 @@ func callOnYield(ctx context.Context, hook func(context.Context, MessageReceipt,
 	return hook(ctx, message, &HookAPI{r})
 }
 func (h *Harness) continueYield(runtime *TaskRuntime, task Task, cp generationCheckpoint, message MessageReceipt, input Input, extension string) (continued bool, err error) {
-	if input.Type != "" && input.Type != "follow-up" || input.Entry != nil || input.RequestID != "" {
+	if input.Type != "" && input.Type != "follow-up" || input.Entry != nil || input.RequestID != "" || input.RequestIDPresent {
 		runtime.reportExtensionError(reject("invalid onYield continuation"), extension)
 		return false, nil
 	}

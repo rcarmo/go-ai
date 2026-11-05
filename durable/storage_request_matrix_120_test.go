@@ -14,6 +14,12 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	// The pinned source accepts an empty request string as a real lookup key.
+	// Missing is a successful lookup; presence/dedup/reopen controls live in
+	// submission_presence_v150_test.go.
+	if _, found, err := store.Request(bg, 1, ""); err != nil || found {
+		t.Fatalf("empty request lookup: %v %v", found, err)
+	}
 	initial, e := store.Snapshot(bg)
 	if e != nil {
 		t.Fatal(e)
@@ -27,7 +33,6 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 		{"conversation-missing", func() error { _, e := store.Entries(bg, 99, EntryCursor{}, 1); return e }},
 		{"entry-cursor-owner", func() error { _, e := store.Entries(bg, 1, EntryCursor{Conversation: 2}, 1); return e }},
 		{"entry-cursor-range", func() error { _, e := store.Entries(bg, 1, EntryCursor{Seq: MaxID + 1}, 1); return e }},
-		{"request-empty", func() error { _, _, e := store.Request(bg, 1, ""); return e }},
 		{"request-owner-range", func() error { _, _, e := store.Request(bg, ID(MaxID+1), "x"); return e }},
 		{"task-owner-range", func() error { _, e := store.ScanTasks(bg, TaskQuery{Conversation: ID(MaxID + 1)}, 1, nil); return e }},
 		{"query-after-range", func() error { _, e := store.Documents(bg, Query{After: ID(MaxID + 1), Limit: 1}); return e }},

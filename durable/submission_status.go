@@ -11,18 +11,20 @@ import (
 // SubmissionRecord exposes the reference lifecycle while Snapshot retains
 // native storage envelopes. Value is detached compatibility data.
 type SubmissionRecord struct {
-	ID                   ID
-	Conversation         ID
-	RequestID            string
-	Type                 string
-	Status               string
-	Entry                ID
-	Answer               ID
-	Reason               string
-	Detail               *TaskValue // Optional arbitrary JSON; Present distinguishes null.
-	Value                JSON
-	Trace                *goai.TelemetryCarrier `json:"trace,omitempty"`
-	wireRequestIDPresent bool
+	ID           ID
+	Conversation ID
+	RequestID    string
+	Type         string
+	Status       string
+	Entry        ID
+	Answer       ID
+	Reason       string
+	Detail       *TaskValue // Optional arbitrary JSON; Present distinguishes null.
+	Value        JSON
+	Trace        *goai.TelemetryCarrier `json:"trace,omitempty"`
+	// RequestIDPresent distinguishes an explicitly empty requestId from absence.
+	// Nonempty RequestID implies presence.
+	RequestIDPresent bool `json:"-"`
 }
 
 // Status reads committed lifecycle without enabling scheduling.
@@ -283,7 +285,7 @@ func submissionEntryID(value any) ID {
 	return ID(n.Num().Uint64())
 }
 func publicSubmission(sub Submission) SubmissionRecord {
-	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, Type: sub.Type, Value: sub.Value, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
+	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, RequestIDPresent: sub.hasRequestID(), Type: sub.Type, Value: sub.Value, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
 	if sub.Type != "write" && sub.Type != "continue" {
 		record.Type = "input"
 	}

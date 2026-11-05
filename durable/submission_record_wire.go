@@ -16,7 +16,7 @@ func (r SubmissionRecord) MarshalJSON() ([]byte, error) {
 	out.field("conversationId", r.Conversation)
 	out.field("type", r.Type)
 	out.field("status", r.Status)
-	if r.RequestID != "" || r.wireRequestIDPresent {
+	if r.RequestID != "" || r.RequestIDPresent {
 		out.field("requestId", r.RequestID)
 	}
 	if r.Entry != 0 {
@@ -94,7 +94,7 @@ func (r *SubmissionRecord) UnmarshalJSON(data []byte) error {
 		result.Reason = *wire.Reason
 	}
 	if wire.RequestID != nil {
-		result.RequestID, result.wireRequestIDPresent = *wire.RequestID, true
+		result.RequestID, result.RequestIDPresent = *wire.RequestID, true
 	}
 	if len(wire.Detail) != 0 {
 		var detail any

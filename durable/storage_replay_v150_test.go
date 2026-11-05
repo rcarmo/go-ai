@@ -185,12 +185,8 @@ func TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches(t *testi
 				continue
 			}
 			expected = command.Value
-			// The original keeps an explicitly empty requestId as a present key.
-			// The private native envelope has one optional string field without a
-			// separate presence bit, so an empty requestId reads back as absent.
-			// This is a recorded gap, not an accepted equivalence: everything else
-			// must match exactly.
-			if !reflect.DeepEqual(dropEmptyRequestID(t, stored), dropEmptyRequestID(t, expected)) {
+			// Every original field, including present-empty requestId, must match.
+			if !reflect.DeepEqual(canonicalJSON(t, stored), canonicalJSON(t, expected)) {
 				t.Fatalf("%s %v re-encoded differently:\n stored: %s\n wrote:  %s", command.Type, storageWriteID(command), marshalOrFail(t, stored), marshalOrFail(t, expected))
 			}
 		}
@@ -233,20 +229,4 @@ func canonicalJSON(t *testing.T, value any) any {
 		t.Fatal(err)
 	}
 	return decoded
-}
-
-// dropEmptyRequestID removes a present-but-empty requestId so the recorded
-// native gap does not mask any other difference.
-func dropEmptyRequestID(t *testing.T, value any) map[string]any {
-	t.Helper()
-	object, ok := canonicalJSON(t, value).(map[string]any)
-	if !ok {
-		t.Fatalf("record %T is not an object", value)
-	}
-	if request, present := object["requestId"]; present {
-		if text, isString := request.(string); isString && text == "" {
-			delete(object, "requestId")
-		}
-	}
-	return object
 }
