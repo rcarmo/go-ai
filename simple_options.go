@@ -212,10 +212,24 @@ func CalculateCost(model *Model, usage *Usage) CostBreakdown {
 	}
 	shortWrite := usage.CacheWrite - longWrite
 	rates := model.Cost
-	inputTokens := usage.Input + usage.CacheRead + usage.CacheWrite
+	// Three int-sized counters need two extra magnitude bits. Keep an exact
+	// sign-extended sum so overflow and float rounding cannot change strict
+	// tier boundaries, including when a caller supplies negative counters.
+	lo, hi := uint64(0), int64(0)
+	for _, count := range [...]int{usage.Input, usage.CacheRead, usage.CacheWrite} {
+		if count < 0 {
+			hi--
+		}
+		next := lo + uint64(int64(count))
+		if next < lo {
+			hi++
+		}
+		lo = next
+	}
 	matchedThreshold := -1
 	for _, tier := range model.Cost.Tiers {
-		if inputTokens > tier.InputTokensAbove && tier.InputTokensAbove > matchedThreshold {
+		// Only nonnegative thresholds can exceed the initial -1 match.
+		if tier.InputTokensAbove > matchedThreshold && (hi > 0 || (hi == 0 && lo > uint64(tier.InputTokensAbove))) {
 			rates.Input = tier.Input
 			rates.Output = tier.Output
 			rates.CacheRead = tier.CacheRead
