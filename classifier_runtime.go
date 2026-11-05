@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -321,6 +322,16 @@ func classifierRequestTimeout(opts *ClassifierOptions) (time.Duration, error) {
 	return timeout, nil
 }
 
+func classifierResponseReadError(label string, err error, timeout time.Duration, ctx context.Context) error {
+	if err != nil {
+		if ctx.Err() == nil && timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("Request timed out after %dms", timeout.Milliseconds())
+		}
+		return fmt.Errorf("%s could not read response: %w", label, err)
+	}
+	return fmt.Errorf("%s could not read response", label)
+}
+
 func withClassifierTimeout(client *http.Client, cfg RetryConfig) *http.Client {
 	if client != nil && cfg.RequestTimeout == 0 {
 		return client
@@ -497,7 +508,7 @@ func postClassifierRequest(ctx context.Context, label, endpoint string, model *C
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
-		return nil, fmt.Errorf("%s could not read response", label)
+		return nil, classifierResponseReadError(label, err, retryCfg.RequestTimeout, ctx)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &classifierHTTPError{status: resp.StatusCode, body: string(data), label: label}

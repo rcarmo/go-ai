@@ -151,6 +151,61 @@ func TestMainDecisionsProviderExplicitZeroTimeout(t *testing.T) {
 	}
 }
 
+// Source-derived: timeout covers the response body and reports the attempt timeout.
+func TestMainDecisionsProviderBodyTimeout(t *testing.T) {
+	var calls, observed atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+		case <-time.After(150 * time.Millisecond):
+		}
+	}))
+	defer srv.Close()
+	result, err := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{
+		APIKey: "fixture", TimeoutMs: 20, OnResponse: func(goai.ClassifierResponseMetadata, *goai.ClassifierModel) error { observed.Add(1); return nil },
+	})
+	if err != nil || result.StopReason != goai.StopReasonError || calls.Load() != 1 || observed.Load() != 0 || !strings.Contains(result.ErrorMessage, "timed out after 20ms") {
+		t.Fatalf("calls=%d, observed=%d, result=%+v, error=%v", calls.Load(), observed.Load(), result, err)
+	}
+}
+
+// Caller cancellation takes precedence over attempt timeout during body reads.
+func TestMainDecisionsProviderBodyCallerCancellation(t *testing.T) {
+	ready := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		close(ready)
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan *goai.ClassifierResult, 1)
+	go func() {
+		result, _ := goai.Classify(decisionsModel110(srv.URL), issue1Context(), &goai.ClassifierOptions{APIKey: "fixture", TimeoutMs: 2000, Context: ctx})
+		done <- result
+	}()
+	select {
+	case <-ready:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("server did not send headers")
+	}
+	cancel()
+	select {
+	case result := <-done:
+		if result == nil || result.StopReason != goai.StopReasonAborted {
+			t.Fatalf("result=%+v", result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("classification did not stop after cancellation")
+	}
+}
+
 // Source-derived from the generic retry predicate and OpenAI Decisions' 504 exclusion.
 func TestMainDecisionsProviderRetriesServerStatusesAndDirective(t *testing.T) {
 	for _, tc := range []struct {

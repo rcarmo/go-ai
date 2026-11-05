@@ -409,7 +409,7 @@ func llamaPost(request llamaCPPRequest, path string, body map[string]any, observ
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(responseBody) > 1<<20 {
-		return nil, fmt.Errorf("%s could not read response", llamaCPPLabel)
+		return nil, classifierResponseReadError(llamaCPPLabel, err, cfg.RequestTimeout, request.ctx)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("%s returned %d", llamaCPPLabel, resp.StatusCode)
