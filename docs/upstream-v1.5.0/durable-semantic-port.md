@@ -71,3 +71,62 @@ Transport recovery checkpoint: ECONNRESET was reported after the source audit. W
 The pending overlay `task_record_dropin_json_test.go` exercises genuine Go public TaskRecord/TaskState JSON import/export. Baseline: all13 TaskRecord cases and8 TaskState cases fail. These failures are required compatibility work, not accepted adaptations. The public/private type and codec boundary must be corrected before these assertions can be promoted. Raw native execution envelopes must remain private and old stored data must not be corrupted during the refactor.
 
 A local checkpoint may preserve the independently tested lifecycle/read/watch fixes and these explicit red baselines; it is not a drop-in candidate or release, and must not be described as such. Native suite pass counts exclude these known-failing overlay tests until their original assertions pass.
+
+## Original scan cursor contract
+
+`scripts/capture-durable-cursors.mjs` captures 31 original MemoryStorage scan pages (conversations, entries, tasks, submissions; default/ascending/descending; legacy no-order, extra-field, changed-filter, order-mismatch and invalid cursors) into `durable/testdata/pi-durable-v150/scan-cursors.json`. `scan_cursor_wire_v150_test.go` replays them against native SQLite with unchanged item and `next` assertions.
+
+Native `Cursor` changed from a base64, query-bound string to the original plain JSON object `{after, order}` (`type Cursor map[string]any`, nil = start/end). As in the original `scanStart`, filters are not bound to the cursor, order mismatches and non-safe-integer `after`/invalid `order` are `StorageRequestError`, and an order-less cursor continues in the scan default. Document cursors read only `after`. Old native tests that asserted query binding or base64 shape were changed to the original semantics; this is a caller-visible API break for Go consumers holding persisted string cursors (none found in this repo or `gi`).
+
+Verification: vet clean; cursor/scan/history/document/request tests pass; full `./durable` passes (965s with `-timeout 1500s`; an earlier run hit Go's default 600s deadline while `TestTaskRecoveryRejectedCascadeExactOwnerVariants` was running, and that test passes count5 in isolation). The 351s→965s wall-time difference is unexplained and not yet profiled. Entry/StorageWrite wire shapes and the 40-test group-commit port remain open.
+
+## Original Conversation/Entry record wire
+
+- Fixture: `durable/testdata/pi-durable-v150/entry-records.json` (3 conversations, 5 entries), captured from original MemoryStorage by `scripts/capture-durable-entry-records.mjs`. Test: `durable/entry_record_wire_v150_test.go`. Red baseline: `parent`/`owner` objects were rejected, and entries emitted native `conversation`/`value` keys.
+- `Conversation` and `Entry` now marshal to the original shape in declared key order, with canonical nested map keys. Conversation emits `id`, `parent{conversationId,at}` and `owner{conversationId,taskId}`. Entry emits `id`, `conversationId`, `kind`, `model`, `data`, `head`, `edits` and `byTaskId`. Absent, `null` and `0` data stay distinct through `HasData`.
+- The native SQLite envelope is unchanged. `Write` and `storageCheckpoint` decode through method-free `storedConversation`/`storedEntry` mirrors, and the native encoder bypasses the public codec (`isNativeJSONType`). Three internal re-decode sites now use `storedEntry`: two passive submission drafts and the generation checkpoint's `inputMetadata`.
+- `Conversation.OwnerConversation` is derived from the owner task on prepare and checkpoint restore. It is never persisted.
+- Remaining differences: native message entries keep their payload in `Value`, which the public form emits as `value` only when it is non-empty; the original stores messages in `model`. `Conversation.Name` is not part of the original record and is not emitted.
+- Verification: `go vet` is clean. The full `./durable` suite passes in 356s, which resolves the earlier 965s timeout run.
+
+## Original StorageWrite wire slice
+
+`scripts/capture-durable-storage-writes.mjs` wraps the official 1.5.0 `MemoryStorage.commit` while a real original Session runs. `durable/testdata/pi-durable-v150/storage-writes.json` contains 12 batches (24 commands) covering all eight tags, all submission lifecycle branches, conversation/task/session document scopes, and both base and delta document changes. The first nine batches retain the original capture. Additional batches cover empty `requestId`/`reason`, explicit null and primitive details, an empty trace, and task document changes.
+
+`StorageWrite` now imports and exports those commands with unchanged JSON assertions in `storage_write_wire_v150_test.go`. Its Go `Value` must match the tag (`Conversation`, `Entry`, `TaskRecord` or `SubmissionRecord`, by value or pointer). Document commands use `DocumentCreate`, `DocumentContent` and `DocumentCopySource`; the union codec emits numeric or `"current"` copy points without changing the private point representation. An optional `*string` document key distinguishes an empty family key from a singleton. The public submission codec emits direct optional `detail` JSON, never the private `TaskValue` wrapper or compatibility `Value`.
+
+The initial red baseline dropped every command's payload. All 24 original commands now round-trip. Additional controls cover malformed/unknown/mixed unions, empty bases and operation arrays, zero/current copy points, exact large JSON numbers, failed-decode destination ownership, caller marshal authority and depth limits. A fixed native-envelope control retains `op`, scalar owner/ancestry, `conversation`, `value` and the private copy-point object. No SQLite frame/checkpoint schema or persistence path changed.
+
+The first full regression run found three old trace DTO fixtures still importing native `conversation` drafts into the newly public `SubmissionRecord`. These now import original records (`id`, `conversationId`) and explicitly remove the ID when passing the existing ID-less creation API. Trace presence, mutation isolation, malformed-carrier and reopen assertions are unchanged. Final verification: the full `./durable` suite passes in 358.260s; focused `TestPiDurableV150|TestMainSubmissionTrace` tests pass count10/shuffle42 in 8.444s; repository vet and diff checks pass. The original capture reproduces byte-for-byte. Commands use Go1.27.3, `CGO_ENABLED=0`, `GOMAXPROCS=4`, the project environment and Makefile targets. Raw run logs and overlays were removed after recording these results.
+
+This completes a wire slice, not public storage integration. `Storage` still exposes the native `Apply(Batch)` contract, and `OpenSession` still requires native storage. There is no public grouped `commit(batches, receive, context)` path yet. The message-entry `value`/`model` gap also remains. The new union must be integrated into that storage contract before a drop-in API claim.
+
+### Group-commit baseline after the wire slice
+
+The existing source-170 pending test was compiled through a temporary Go overlay, with its assertions unchanged. Result: expected failure in 1.081s. Independent callbacks b/c did not run before a's held storage call was released, and calls were `[1,1,1]` instead of `[1,2]`. No group-publisher runtime change was made; the full 40-test port remains open. This test holds native append after the core gate is taken, whereas original `BatchStorage` holds before delegation. It therefore remains a narrower native seam baseline; it cannot establish source-faithful overlap of durable ID allocation. See `session-group-design.md` and `group-port-proposal.md` for the required dependency, allocator, receipt-prefix, outcome and publication-scope work.
+
+## Message-entry slice (partial)
+
+- Readers accept both the original v1.5.0 shape (`pi.user` / `pi.assistant` / `pi.tool-result` with `model[]`, see `src/harness/generation.ts:880,1154`) and the legacy native shape (`kind:"message"` with `value`). Helpers are in `durable/message_entry.go`.
+- Producers still write the legacy native shape. Switching them to `model[]` caused 37 failures and 1 hang (`TestMainContinueAfterAbortedToolRound`). The cause: native receipts carry `errorCode` and tagged `details`, and `copyMessages` rejects those as an "invalid entry contribution details/error union".
+- The red conformance test is parked in `durable/testdata/upstream-main/pending/entry_message_kinds_v150_test.go`.
+- Still needed: map native receipts to original message fields (error/details placement) before producers can switch. Existing SQLite stores keep the legacy shape and need no migration.
+- Verification: full `./durable` suite passes (344.7s); `make vet` and `git diff --check` are clean.
+
+## Public grouped storage commit
+
+- `Storage` now exposes the original grouped `Commit(ctx, batches, receive) (CommitResult, error)` in addition to the native `Apply(Batch)` contract. `durable/storage_public.go` translates the public `StorageWrite` union to the private native `Write` envelope under the core line and settles each batch as one atomic commit with its own sequence.
+- `CommitResult{Stored, Refused}` mirrors the original `{stored, refused?}`: a Durable-check refusal resolves with `Refused` set rather than rejecting, batches before the refused one stay durable, and a backend failure still rejects. `receive` is a durability receipt (index, sequence), not publication.
+- Internal split: `commitPartsAt` is a thin wrapper over `commitResolvedParts`, which evaluates a per-batch resolver while the core line is held, so a document change, retirement or copy resolves its address from the running base image instead of from caller-supplied state.
+- Records the native store cannot represent in its own envelope are refused before becoming durable rather than written in a different shape. A public task record for a built-in (`pi.*`) kind is refused because its raw checkpoint contract is not reversible from the public record alone; `Conversation.OwnerConversation` supplied by a caller is discarded, since storage derives ownership on adoption.
+- `durable/storage_replay_v150_test.go` replays all 12 captured original batches (`testdata/pi-durable-v150/storage-writes.json`) through `Commit`: 12 accepted batches, no refusal, sequence 1..12, and every stored record re-encodes to the record the original wrote. It also checks the effects the batch order implies, including the copy at sequence 3 materialising the pre-delta base value and the retired session document.
+- Verification: `durable/storage_public_v150_test.go` and the replay test cover grouped ordering, refusal stopping a call, refusal of unrepresentable records, ID ownership and full original-wire replay. `go vet ./durable` is clean.
+
+### Submission fidelity fixes found by the replay
+
+- The original stores an explicitly empty failure `reason` and reads it back empty. Native `nativeSubmission` rejected an empty reason for `unanswered`, so the captured batch was refused. The check now accepts it; the write union already requires the `reason` key to be present for that status.
+- `publicSubmission` now treats a present `errorCode` as the reason and falls back to the native status only when the key is absent, so an empty reason no longer reads back as `failed`.
+
+### Recorded gap: present-but-empty `requestId`
+
+The original keeps `requestId: ""` as a present key and indexes it as a real deduplication key (`storage/memory.ts:430`). Native stores `Submission.RequestID` as one optional string with no presence bit and skips the empty value in its request index (`durable/storage.go:781`), so an explicitly empty `requestId` reads back as absent. The replay test drops only that key before comparing (`dropEmptyRequestID`) and states the gap explicitly; it is not treated as equivalence. Closing it needs presence tracking on the private envelope, which this change does not make.
