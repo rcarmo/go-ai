@@ -364,6 +364,17 @@ func prepare(s Snapshot, r commitRecord, l Limits) (Snapshot, error) {
 	return prepareWithReferences(s, r, l, true)
 }
 func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Snapshot, error) {
+	return prepareRecord(s, r, l, final, false)
+}
+
+// prepareExplicit is the raw Storage rule from pi-durable v1.5.0: an unused
+// explicit ID in the safe-integer domain is accepted and the allocator rises
+// to the highest such ID in the same atomic commit. Session-owned writers keep
+// native reservation through prepare/prepareWithReferences.
+func prepareExplicit(s Snapshot, r commitRecord, l Limits) (Snapshot, error) {
+	return prepareRecord(s, r, l, true, true)
+}
+func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (Snapshot, error) {
 	if s.Seq >= MaxID || r.Seq != s.Seq+1 || r.Seq > MaxID {
 		return Snapshot{}, reject("invalid commit sequence")
 	}
@@ -454,8 +465,11 @@ func prepareWithReferences(s Snapshot, r commitRecord, l Limits, final bool) (Sn
 		default:
 			return Snapshot{}, fmt.Errorf("%w: command", ErrUnsupported)
 		}
-		if id < 1 || uint64(id) > MaxID || uint64(id) > n.HighWater {
+		if id < 1 || uint64(id) > MaxID || (!explicit && uint64(id) > s.HighWater) {
 			return Snapshot{}, reject("unreserved ID")
+		}
+		if uint64(id) > n.HighWater {
+			n.HighWater = uint64(id)
 		}
 		old, exists := used[id]
 		if exists && (!replace || old != kind) {

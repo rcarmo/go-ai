@@ -143,3 +143,7 @@ Each inner empty batch now commits with its own sequence and receipt. Empty oute
 ### Three-deviation verification checkpoint
 
 Full durable regression passes in 725.786s with the separate writer prototype excluded by compile overlay. The broader focused selection passes count3/shuffle42 in 99.942s; corrected snapshot/receipt controls plus V150 cases pass count3/shuffle42 in 81.483s. The complete durable/tools suite passes in 21.942s; repository-wide vet, Staticcheck and logging checks pass with CGO_ENABLED=0. The first full run caught nondeterministic native JSON map ordering and an obsolete empty-receipt rejection assertion; both were corrected before the passing full run. See the [deviation register](durable-deviations.md#three-deviation-implementation-checkpoint) for baseline failures, compatibility limits and remaining scope.
+
+### D28 explicit IDs
+
+Raw `Storage.Commit`/`Apply` (not Session-owned) accept unused explicit IDs in the safe-integer domain and raise the allocator in the same atomic frame; replay verifies the recorded high-water value. Session transactions keep reservation. Fresh-root preinstallation is the remaining D28 gap. Verification: see the [explicit-ID checkpoint](durable-deviations.md#explicit-id-checkpoint).

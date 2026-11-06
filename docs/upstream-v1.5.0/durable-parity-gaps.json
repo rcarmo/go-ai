@@ -713,9 +713,12 @@
         "durable/storage_public.go",
         "durable/storage_public_v150_test.go",
         "durable/testdata/pi-durable-v150/storage-boundaries.json",
-        "durable/storage_boundaries_v150_test.go"
+        "durable/storage_boundaries_v150_test.go",
+        "durable/storage_group.go",
+        "durable/storage_sqlite.go",
+        "durable/storage_explicit_id_v150_test.go"
       ],
-      "evidence": "Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState still preinstalls root1 and adoption still refuses unreserved IDs. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs. The baseline empty-batch rejection is fixed by the tested slice below.",
+      "evidence": "Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Native initialState still preinstalls root1. Native raw commits refused unreserved IDs until the explicit-ID slice below. The replay fixture pre-mints IDs, masking that mismatch. Original SQLite DurableCommit also raises allocation above explicit IDs. The baseline empty-batch rejection is fixed by the tested slice below.",
       "fix": "Separate raw Storage initialisation from Session root bootstrap. Implement original raw empty-batch sequence semantics and atomic allocator advancement for explicit IDs, with global type collision checks. Preserve native transaction ID reservation and writer ownership rather than deleting them.",
       "acceptance": [
         "Replay storage-boundaries.json through the public native SQLite boundary with no preparatory minting: fresh root absent, empty batch accepted at seq1, explicit99 accepted, next mint100; original outbox replay and reopen. Concurrent allocator/explicit-ID, collisions, backend rollback and uncertain outcomes must preserve uniqueness."
@@ -726,10 +729,11 @@
         "D12"
       ],
       "blocker": "Raw initial state and explicit-ID allocator semantics affect existing persisted native files; require explicit legacy compatibility and Session root bootstrap rules.",
-      "progress": "Empty batches fixed: each inner empty array is stored with its own sequence and receipt, including grouped calls, reopen and checkpoint replay. An empty outer call does not advance the sequence. Real SQLite rollback and a later refusal preserve the correct prefix. Native writes:null remains invalid. Root preinstallation and explicit unminted IDs remain open; D28 is not closed.",
+      "progress": "Empty batches fixed: each inner empty array is stored with its own sequence and receipt, including grouped calls, reopen and checkpoint replay. An empty outer call does not advance the sequence; native writes:null remains invalid. Explicit IDs fixed for raw (non-Session) Storage commits: an unused ID in 1..MaxID is accepted and the allocator rises to the highest such ID atomically with the commit; global type collisions, immutable recreation and out-of-domain IDs are still refused. Session-owned transactions keep native reservation. Commit frames record their post-commit high-water value in the existing highwater column; replay recomputes it and rejects any mismatch as corruption. Old commit frames (high equal to pre-commit value, no raising) replay unchanged. Earlier binaries refuse files containing raised commit frames as corrupt rather than misreading them. Root preinstallation (freshRootPresent) remains open; D28 is not closed.",
       "verification": [
         "TestV150StorageEmptyBatch, TestV150StorageEmptyBatchRollback, TestV150StorageEmptyBatchRealRollback, TestV150StorageEmptyBatchRefusalKeepsPrefix.",
-        "TestInternalReceiptImageAcceptsEmptyPart; wrong-frame negative controls retain writes:null rejection."
+        "TestInternalReceiptImageAcceptsEmptyPart; wrong-frame negative controls retain writes:null rejection.",
+        "TestV150StorageExplicitIDRaisesAllocator (fixture conversation99, next mint100, reopen), TestV150StorageExplicitIDGroupAndCollisions (grouped raise, lower unused ID, collision refusal leaves allocator, MaxID+1 refused, checkpoint reclaim), TestV150StorageExplicitIDRealRollback (SQL trigger rollback leaves allocator), TestV150StorageExplicitIDReplayRejectsForgedHighWater, TestV150SessionStillRequiresReservedIDs."
       ]
     },
     {
@@ -788,6 +792,20 @@
     "vet": "pass; repository-wide CGO_ENABLED=0",
     "staticcheck": "pass; repository-wide v0.8.2 CGO_ENABLED=0",
     "logging": "pass",
-    "profile": "ordinary development tests; no pre-release profiling or CGO race coverage"
+    "profile": "ordinary development tests; no pre-release profiling or CGO race coverage",
+    "explicitIDSlice": {
+      "fullDurable": {
+        "result": "pass",
+        "seconds": 339.226,
+        "flags": "GOMAXPROCS=2 -p 1; writer prototype excluded by overlay"
+      },
+      "durableTools": {
+        "result": "pass",
+        "seconds": 17.07
+      },
+      "vet": "pass",
+      "staticcheck": "pass",
+      "logging": "pass"
+    }
   }
 }

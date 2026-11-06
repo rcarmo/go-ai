@@ -200,7 +200,8 @@ func TestPiDurableV150PublicStorageCommitRefusesUnrepresentableCommand(t *testin
 }
 
 // The command union is translated without letting a caller's Go value bypass
-// the native ownership rules: an unreserved ID is refused, not stored.
+// global identity rules. Explicit unminted IDs are accepted (pinned capture,
+// storage_explicit_id_v150_test.go); recreating an existing record is refused.
 func TestPiDurableV150PublicStorageCommitEnforcesIDOwnership(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
@@ -209,7 +210,7 @@ func TestPiDurableV150PublicStorageCommitEnforcesIDOwnership(t *testing.T) {
 	defer store.Close(context.Background())
 	ctx := context.Background()
 	result, err := store.Commit(ctx, [][]StorageWrite{{
-		{Type: "conversation", Value: Conversation{ID: 99}},
+		{Type: "conversation", Value: Conversation{ID: 1}},
 	}}, nil)
 	if err != nil {
 		t.Fatal(err)

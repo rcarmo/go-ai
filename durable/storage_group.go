@@ -79,7 +79,7 @@ func (r commitReceipt) nextImage(base Snapshot, l Limits) (Snapshot, error) {
 
 // prepareCommit detaches input and validates against an immutable candidate.
 // It neither writes nor changes the live image/allocator/ordinal.
-func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64) (storageFrame, Snapshot, error) {
+func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64, owned bool) (storageFrame, Snapshot, error) {
 	if base.Seq >= MaxID || ordinal >= MaxID {
 		return storageFrame{}, Snapshot{}, reject("sequence exhausted")
 	}
@@ -94,11 +94,17 @@ func (c *storeCore) prepareCommit(base Snapshot, b Batch, ordinal uint64) (stora
 	if err := decodeStrict(payload, c.limits, c.limits.MaxFramePayloadBytes, &record); err != nil {
 		return storageFrame{}, Snapshot{}, err
 	}
-	next, err := prepare(base, record, c.limits)
+	prepareFor := prepare
+	if !owned && !c.sessionOwned {
+		prepareFor = prepareExplicit
+	}
+	next, err := prepareFor(base, record, c.limits)
 	if err != nil {
 		return storageFrame{}, Snapshot{}, err
 	}
-	return storageFrame{kind: 2, ordinal: ordinal + 1, high: base.HighWater, payload: payload}, next, nil
+	// The frame records the post-commit allocator so replay restores explicit
+	// raw IDs atomically with the records that introduced them.
+	return storageFrame{kind: 2, ordinal: ordinal + 1, high: next.HighWater, payload: payload}, next, nil
 }
 
 // commitBatches owns one storage admission through all settlement/receipts. The
@@ -164,7 +170,7 @@ func (c *storeCore) commitResolvedParts(ctx context.Context, count int, resolve 
 		var frame storageFrame
 		var next Snapshot
 		if err == nil {
-			frame, next, err = c.prepareCommit(base, batch, ordinal)
+			frame, next, err = c.prepareCommit(base, batch, ordinal, owned)
 		}
 		if err == nil && len(frame.payload) > c.limits.MaxFramePayloadBytes-bytes {
 			err = reject("group payload limit exceeded")

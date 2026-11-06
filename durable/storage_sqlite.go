@@ -192,15 +192,14 @@ func (s *SQLiteStorage) replayFrames() error {
 			}
 			s.state.HighWater = uint64(high)
 		case 2:
-			if uint64(high) != s.state.HighWater {
-				return ErrCorrupt
-			}
 			var record commitRecord
 			if decodeStrict(data, s.limits, s.limits.MaxFramePayloadBytes, &record) != nil {
 				return ErrCorrupt
 			}
-			next, err := prepare(s.state, record, s.limits)
-			if err != nil {
+			// A commit frame may raise the allocator only to its own highest
+			// explicit ID; any other high-water value is corruption.
+			next, err := prepareExplicit(s.state, record, s.limits)
+			if err != nil || next.HighWater != uint64(high) {
 				return ErrCorrupt
 			}
 			s.state = next

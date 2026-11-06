@@ -57,11 +57,11 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer s.Close(bg)
-		frame, first, err := s.core.prepareCommit(s.readImage, batches[0], s.core.ordinal)
+		frame, first, err := s.core.prepareCommit(s.readImage, batches[0], s.core.ordinal, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, second, err := s.core.prepareCommit(first, batches[1], frame.ordinal)
+		_, second, err := s.core.prepareCommit(first, batches[1], frame.ordinal, true)
 		if err != nil {
 			t.Fatal(err)
 		}

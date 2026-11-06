@@ -10,9 +10,9 @@ import (
 )
 
 // Source-derived from the actual original output in storage-boundaries.json.
-// This packet isolates empty batches and empty continue reasons. Root bootstrap
-// and explicit-ID allocation remain D28 gaps, so record identities are reserved
-// before the submission assertion; no fixture payload is rewritten.
+// This packet isolates empty batches and empty continue reasons; explicit IDs
+// are covered in storage_explicit_id_v150_test.go. Root bootstrap remains a D28
+// gap. No fixture payload is rewritten.
 func TestV150StorageEmptyBatch(t *testing.T) {
 	raw, err := os.ReadFile("testdata/pi-durable-v150/storage-boundaries.json")
 	if err != nil {
