@@ -175,7 +175,29 @@ func (c *storeCore) settlementError(err error) error {
 		return err
 	}
 	c.poison()
-	return fmt.Errorf("%w: append settlement failed", ErrPoisoned)
+	// The store is poisoned, but the value the append reported is still the
+	// failure the original would have thrown. It stays reachable through the error
+	// chain next to the poison marker, without changing the diagnostic text.
+	return &poisonedSettlement{cause: err, failure: asFailure(err)}
+}
+
+// poisonedSettlement reports an uncertain append settlement. It matches
+// ErrPoisoned as before and also carries the reported failure value, so a caller
+// can recover the original value without any change to the message.
+type poisonedSettlement struct {
+	cause   error
+	failure *Failure
+}
+
+func (e *poisonedSettlement) Error() string {
+	return ErrPoisoned.Error() + ": append settlement failed"
+}
+func (e *poisonedSettlement) Unwrap() []error { return []error{ErrPoisoned, e.failure} }
+func (e *poisonedSettlement) Failure() *Failure {
+	if e == nil {
+		return nil
+	}
+	return e.failure
 }
 func (c *storeCore) MintID(ctx context.Context) (ID, error) { return c.mintID(ctx, false) }
 func (c *storeCore) mintID(ctx context.Context, owned bool) (ID, error) {

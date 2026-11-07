@@ -93,14 +93,14 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 ### D03 — Failure boundaries and arbitrary rejection/refusal values
 
-**confirmed.** Original accepts unknown error values, including null/undefined/falsy. Public CommitResult.Refused and SessionFailed.Cause only carry Go errors. Native private refusal has presence tracking, public boundary does not preserve the original value. Single-commit wrapping does not establish multipart own-error outcomes.
+**confirmed.** Closed: public boundaries carry the reported value with presence, independently of Go diagnostics. `CommitResult.Refused` is `*Refusal` (nil = absent) and returns the value verbatim; the Session failure slot keeps the cause chain intact for classification and exposes the thrown value through `*Failure` (`SessionFailed.Failure`, `SessionEnd.Failure`), including present null/undefined/false/0/empty string; uncertain-append poisoning keeps the reported value reachable without changing its diagnostic text. Open: multipart own-error set, first-failing-job recording and prefix publication before fencing still require the independent writer flight.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/writer.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/writer.ts); [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts).
-- Native/evidence: [`durable/session_failure.go`](../../durable/session_failure.go); [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/storage_group.go`](../../durable/storage_group.go).
-- Fix: Retain presence and original value independently of Go error diagnostics. Record first failing job and same-call own-error set. Publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause.
+- Native/evidence: [`durable/session_failure.go`](../../durable/session_failure.go); [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/storage_group.go`](../../durable/storage_group.go); [`durable/storage.go`](../../durable/storage.go); [`durable/session_failure_value_v150_test.go`](../../durable/session_failure_value_v150_test.go); [`durable/storage_refusal_value_v150_test.go`](../../durable/storage_refusal_value_v150_test.go).
+- Fix: Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in `durable/session_failure.go` and `durable/storage_public.go`.
 - Acceptance: All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen.
 - Dependencies: D01.
-- Blocker/decision: Needs a lossless public error-value representation and compatibility review; converting everything to strings is unacceptable.
+- Blocker/decision: Remaining scope depends on D01: without an independent writer flight there is no single place that owns multipart publication, fencing order and the same-call own-error set.
 
 ### D04 — Publication turns, continuations and storage publication scope
 

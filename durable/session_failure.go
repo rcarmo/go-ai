@@ -5,18 +5,95 @@ import (
 	"errors"
 )
 
+// Failure carries the value a storage operation failed with. The original models
+// the slot as `{ error: unknown }`, so the value itself is observable and presence
+// is not the same question: a present null, undefined or falsy value is still a
+// failure. A nil *Failure therefore means "no failure".
+type Failure struct{ value any }
+
+func newFailure(value any) *Failure { return &Failure{value: value} }
+
+// asFailure classifies an incoming backend error. A value-carrying *Failure is
+// kept exactly as reported; any other error becomes a Failure whose value is that
+// error, so its identity survives for errors.Is/errors.As classification.
+func asFailure(err error) *Failure {
+	var existing *Failure
+	if errors.As(err, &existing) {
+		return existing
+	}
+	return newFailure(err)
+}
+
+// Value returns the failure value exactly as the backend reported it.
+func (f *Failure) Value() any {
+	if f == nil {
+		return nil
+	}
+	return f.value
+}
+
+// AsError gives the failure a Go error view without losing the original value:
+// an error value is returned as itself, and any other value is represented by
+// this *Failure, which is never nil, so a present failure cannot read as absent.
+func (f *Failure) AsError() error {
+	if f == nil {
+		return nil
+	}
+	if err, ok := f.value.(error); ok && err != nil {
+		return err
+	}
+	return f
+}
+
+func (f *Failure) Error() string {
+	if err, ok := f.value.(error); ok && err != nil {
+		return err.Error()
+	}
+	return "durable: storage failure"
+}
+
+func (f *Failure) Unwrap() error {
+	if err, ok := f.value.(error); ok {
+		return err
+	}
+	return nil
+}
+
 // SessionFailed preserves the first backend cause across subsequent operations.
 // It never asserts that a failed admitted write is absent after recovery.
-type SessionFailed struct{ Cause error }
+// Failure returns the cause exactly as the backend reported it; Cause is the Go
+// error view kept for existing classification.
+type SessionFailed struct {
+	Cause   error
+	failure *Failure
+}
+
+// Failure returns the original failure value behind this cause.
+func (e *SessionFailed) Failure() *Failure {
+	if e == nil {
+		return nil
+	}
+	if e.failure != nil {
+		return e.failure
+	}
+	return asFailure(e.Cause)
+}
 
 func (e *SessionFailed) Error() string {
+	if e.Cause == nil {
+		return "durable: session failed; close and reopen required"
+	}
 	return "durable: session failed; close and reopen required: " + e.Cause.Error()
 }
 func (e *SessionFailed) Unwrap() error { return e.Cause }
 
+// SessionEnd reports how a Session ended. Failure carries the value the Session
+// failed with, exactly as the backend reported it; nil means the Session did not
+// fail. Error keeps the Go error view for existing classification.
 type SessionEnd struct {
-	Reason string
-	Error  error
+	Reason  string
+	Error   error
+	Failure *Failure
 }
 
 func (s *Session) failure() error {
@@ -25,7 +102,7 @@ func (s *Session) failure() error {
 	if s.failureCause == nil {
 		return nil
 	}
-	return &SessionFailed{Cause: s.failureCause}
+	return &SessionFailed{Cause: s.failureCause, failure: s.failureValue}
 }
 func (s *Session) backendResult(ctx context.Context, err error, mutation bool) error {
 	if failure := s.failure(); failure != nil {
@@ -50,12 +127,18 @@ func (s *Session) backendResult(ctx context.Context, err error, mutation bool) e
 	s.failureMu.Lock()
 	first := s.failureCause == nil
 	if first {
+		// The value view and the Go error view answer different questions. The
+		// cause chain must stay exactly as the backend reported it so classification
+		// (poison, rejection, cancellation, injected identity) still works, while the
+		// value is what the original would have thrown.
+		s.failureValue = asFailure(err)
 		s.failureCause = err
 	}
 	cause := s.failureCause
+	value := s.failureValue
 	s.failureMu.Unlock()
 	if !first {
-		return &SessionFailed{Cause: cause}
+		return &SessionFailed{Cause: cause, failure: value}
 	}
 	s.closeWatches()
 	// Failure fences Session admission immediately. A harness must join actual
@@ -86,7 +169,11 @@ func (s *Session) Closed(ctx context.Context) (SessionEnd, error) {
 	case <-s.done:
 	}
 	if err := s.failure(); err != nil {
-		return SessionEnd{Reason: "failed", Error: err}, nil
+		var failed *SessionFailed
+		if errors.As(err, &failed) {
+			return SessionEnd{Reason: "failed", Error: err, Failure: failed.Failure()}, nil
+		}
+		return SessionEnd{Reason: "failed", Error: err, Failure: asFailure(err)}, nil
 	}
 	if s.closeErr != nil {
 		return SessionEnd{Reason: "failed", Error: s.closeErr}, nil

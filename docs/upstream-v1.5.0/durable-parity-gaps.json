@@ -61,17 +61,20 @@
       "native": [
         "durable/session_failure.go",
         "durable/storage_public.go",
-        "durable/storage_group.go"
+        "durable/storage_group.go",
+        "durable/storage.go",
+        "durable/session_failure_value_v150_test.go",
+        "durable/storage_refusal_value_v150_test.go"
       ],
-      "evidence": "Original accepts unknown error values, including null/undefined/falsy. Public CommitResult.Refused and SessionFailed.Cause only carry Go errors. Native private refusal has presence tracking, public boundary does not preserve the original value. Single-commit wrapping does not establish multipart own-error outcomes.",
-      "fix": "Retain presence and original value independently of Go error diagnostics. Record first failing job and same-call own-error set. Publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause.",
+      "evidence": "Closed: public boundaries now carry the reported value with presence, independently of Go diagnostics. CommitResult.Refused is *Refusal (nil = absent) and returns the value verbatim; the Session failure slot keeps the cause chain intact for classification and exposes the thrown value through *Failure (SessionFailed.Failure, SessionEnd.Failure), including present null/undefined/false/0/empty string. Uncertain-append poisoning keeps the reported value reachable without changing its diagnostic text. Open: multipart own-error set, first-failing-job recording and prefix publication before fencing require the independent writer flight.",
+      "fix": "Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in durable/session_failure.go and durable/storage_public.go.",
       "acceptance": [
         "All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen."
       ],
       "depends": [
         "D01"
       ],
-      "blocker": "Needs a lossless public error-value representation and compatibility review; converting everything to strings is unacceptable."
+      "blocker": "Remaining scope depends on D01: without an independent writer flight there is no single place that owns multipart publication, fencing order and the same-call own-error set."
     },
     {
       "id": "D04",

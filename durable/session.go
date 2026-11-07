@@ -13,7 +13,8 @@ import (
 type Session struct {
 	store                 Storage
 	failureMu             sync.Mutex
-	failureCause          error
+	failureCause          error    // Go error view of the first failure
+	failureValue          *Failure // the first failure value exactly as reported
 	now                   func() int64 // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
 	readImage             Snapshot // immutable receipted image; owned by the Session line
