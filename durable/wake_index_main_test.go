@@ -17,6 +17,8 @@ func mainWakeIndexFixture(tb testing.TB, history int) (*Harness, ID, ID) {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	// Tasks live in the reserved root, which its owner creates.
+	seedRootConversation(tb, store)
 	ids := make([]ID, history+2)
 	for i := range ids {
 		ids[i], err = store.MintID(bg)

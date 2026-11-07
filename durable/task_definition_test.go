@@ -202,6 +202,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 			t.Fatal("raw Tasks detached", err)
 		}
 		page[0].Execution.Native.Memos["winner"].Value.(map[string]any)["label"] = "page"
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -234,6 +235,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	id, err := store.MintID(bg)
 	if err != nil {
 		t.Fatal(err)
@@ -250,6 +252,7 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, reopened)
 	defer reopened.Close(bg)
 	state, err := reopened.Snapshot(bg)
 	if err != nil || state.Tasks[id].Execution.Native.Input.Value.([]any)[0].(map[string]any)["label"] != "image" {
@@ -309,6 +312,7 @@ func TestTaskDefinitionPublicCreateTaskBoundOwnershipAndSealed(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -373,6 +377,7 @@ func TestTaskDefinitionOptionalFailedAbortedResultAndRawForgery(t *testing.T) {
 		}
 	}
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -431,6 +436,7 @@ func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
 			var err error
 
 			store, err = openSQLiteTestDirectory(t.TempDir()+"/private", SQLiteOptions{Limits: &l})
+			seedRootConversation(t, store)
 
 			if err != nil {
 				t.Fatal(err)

@@ -26,6 +26,7 @@ func TestMainSQLiteStatementRollbackContinues(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, s)
 			defer s.Close(context.Background())
 			first, seed := mainSQLiteCommitBatch(t, s, "seed")
 			last, err := s.Apply(context.Background(), seed)
@@ -62,6 +63,7 @@ func TestMainSQLiteStatementRollbackContinues(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, reopened)
 			defer reopened.Close(context.Background())
 			snap, err = reopened.Snapshot(context.Background())
 			if err != nil {
@@ -83,6 +85,7 @@ func TestMainSQLiteFailedCommitStillPoisons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, s)
 	defer s.Close(context.Background())
 	id, batch := mainSQLiteCommitBatch(t, s, "uncertain")
 	// The INSERT succeeds. A deferred FK check rejects only COMMIT.
@@ -107,18 +110,19 @@ func TestMainSQLiteFailedCommitStillPoisons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, reopened)
 	defer reopened.Close(context.Background())
 	snap, err := reopened.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Seq != 0 || len(snap.Entries) != 0 {
+	if snap.Seq != 1 || len(snap.Entries) != 0 {
 		t.Fatal("failed COMMIT persisted", snap.Seq)
 	}
 	if err = reopened.exec("DROP TRIGGER fail_commit"); err != nil {
 		t.Fatal(err)
 	}
-	if seq, err := reopened.Apply(context.Background(), batch); err != nil || seq != 1 {
+	if seq, err := reopened.Apply(context.Background(), batch); err != nil || seq != 2 {
 		t.Fatalf("reopened retry seq=%d err=%v id=%d", seq, err, id)
 	}
 }
@@ -128,6 +132,7 @@ func TestMainSQLiteUnconfirmedRollbackStillPoisons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, s)
 	defer s.Close(context.Background())
 	_, batch := mainSQLiteCommitBatch(t, s, "rollback")
 	// SQLite already ends the transaction; explicit rollback confirmation fails.

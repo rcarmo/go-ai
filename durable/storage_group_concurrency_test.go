@@ -109,15 +109,15 @@ func TestInternalGroupQueuedReadAndWriter(t *testing.T) {
 		}
 		// Readers and the second writer need no assumed FIFO ordering. Either
 		// seq 3 or 4 is valid, but all three earlier entries must be visible.
-		if result.state.Seq != 3 && result.state.Seq != 4 {
+		if result.state.Seq != 4 && result.state.Seq != 5 {
 			t.Fatal("read observed a partial first group", result.state.Seq)
 		}
 		for index, id := range ids[:3] {
-			if result.state.Entries[id].Seq != uint64(index+1) {
+			if result.state.Entries[id].Seq != uint64(index+2) {
 				t.Fatal("read missed an earlier group member", id)
 			}
 		}
-		if !reflect.DeepEqual(events, []string{"first 0 1", "first 1 2", "first 2 3", "other 0 4"}) {
+		if !reflect.DeepEqual(events, []string{"first 0 2", "first 1 3", "first 2 4", "other 0 5"}) {
 			t.Fatal("receipts interleaved across calls", events)
 		}
 	})

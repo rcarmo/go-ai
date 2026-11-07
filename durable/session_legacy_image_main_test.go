@@ -62,6 +62,7 @@ func TestMainDocumentStateKeepsPublishedValue(t *testing.T) {
 		id := mint(t, b.store)
 		record := Document{ID: id, Scope: "session", Kind: "legacy.state", Version: 1, Value: JSON{"x": 1}}
 		apply(t, b.store, Write{Op: "put-document", Document: &record})
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -103,13 +104,13 @@ func TestMainLegacyEntriesPagingAdmissionAndAdapter(t *testing.T) {
 			t.Fatal(err)
 		}
 		first, err := c.Entries(bg, EntryCursor{}, 1)
-		if err != nil || len(first) != 1 || first[0].Seq != 1 {
+		if err != nil || len(first) != 1 || first[0].Seq != 2 {
 			t.Fatal(first, err)
 		}
 		cursor := EntryCursor{Conversation: 1, Seq: first[0].Seq, Position: first[0].Position}
 		first[0].Value["text"] = "mutated"
 		second, err := c.Entries(bg, cursor, 1)
-		if err != nil || len(second) != 1 || second[0].Seq != 2 || second[0].Value["text"] == "mutated" {
+		if err != nil || len(second) != 1 || second[0].Seq != 3 || second[0].Value["text"] == "mutated" {
 			t.Fatal(second, err)
 		}
 		again, err := c.Entries(bg, EntryCursor{}, 1)

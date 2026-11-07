@@ -17,6 +17,7 @@ func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 		t.Run(outcome, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				batches, ids := groupEntryBatches(t, b.store, 1)
+				seedRootConversation(t, b.store)
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)
@@ -57,7 +58,7 @@ func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 				ctx, cancel := context.WithTimeout(bg, 2*time.Second)
 				state, err := s.Snapshot(ctx)
 				cancel()
-				if err != nil || state.Seq != 0 || len(state.Entries) != 0 || state.HighWater != uint64(ids[0]) {
+				if err != nil || state.Seq != 1 || len(state.Entries) != 0 || state.HighWater != uint64(ids[0]) {
 					t.Fatalf("published read waited for writer or imported raw data: seq=%d high=%d err=%v", state.Seq, state.HighWater, err)
 				}
 				ctx, cancel = context.WithCancel(bg)
@@ -80,7 +81,7 @@ func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 				writeErr := <-finished
 				workers.Wait()
 				if outcome == "closing" {
-					if writeErr != nil || receipt.seq != 1 {
+					if writeErr != nil || receipt.seq != 2 {
 						t.Fatal("close abandoned admitted settlement", writeErr, receipt.seq)
 					}
 					if err := s.Close(bg); err != nil {
@@ -100,7 +101,7 @@ func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 				if writeErr != nil {
 					t.Fatal(writeErr)
 				}
-				if state, err := s.Snapshot(bg); err != nil || state.Seq != 0 || len(state.Entries) != 0 {
+				if state, err := s.Snapshot(bg); err != nil || state.Seq != 1 || len(state.Entries) != 0 {
 					t.Fatal("unpublished append became visible", state, err)
 				}
 				s.taskBookkeeping(func() {
@@ -112,7 +113,7 @@ func TestMainSessionPublishedReadDuringNativeAppend(t *testing.T) {
 				if err != nil || id != ids[0]+1 {
 					t.Fatal(id, err)
 				}
-				if state, err := s.Snapshot(bg); err != nil || state.Seq != 1 || len(state.Entries) != 1 || state.HighWater != uint64(id) {
+				if state, err := s.Snapshot(bg); err != nil || state.Seq != 2 || len(state.Entries) != 1 || state.HighWater != uint64(id) {
 					t.Fatal("adoption/reservation lost", state, err)
 				}
 			})
@@ -192,7 +193,7 @@ func TestMainSessionWrappedReadRetainsWriterAdmission(t *testing.T) {
 		}
 		workers.Wait()
 		state, err := s.Snapshot(bg)
-		if err != nil || state.Seq != 1 || len(state.Entries) != 1 || adapter.reads.Load() != 2 {
+		if err != nil || state.Seq != 2 || len(state.Entries) != 1 || adapter.reads.Load() != 2 {
 			t.Fatal("adapter data lost", state, err, adapter.reads.Load())
 		}
 	})

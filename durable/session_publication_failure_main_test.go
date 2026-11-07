@@ -8,6 +8,7 @@ import (
 
 func TestMainSessionFailureDuringSettlementPreventsPublication(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -47,7 +48,7 @@ func TestMainSessionFailureDuringSettlementPreventsPublication(t *testing.T) {
 		reopened := utf16ReopenStore(t, b.store)
 		defer reopened.Close(bg)
 		state, err := reopened.Snapshot(bg)
-		if err != nil || state.Seq != 1 || len(state.Entries) != 1 {
+		if err != nil || state.Seq != 2 || len(state.Entries) != 1 {
 			t.Fatal("stored receipt lost after failed publication", state, err)
 		}
 	})
@@ -94,6 +95,7 @@ func TestMainSessionPublicationStageFailureAndCancellation(t *testing.T) {
 	for _, mode := range []string{"failure", "cancel-and-duplicate"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				seedRootConversation(t, b.store)
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)
@@ -120,7 +122,7 @@ func TestMainSessionPublicationStageFailureAndCancellation(t *testing.T) {
 						if _, err := s.publishSessionPublication(&prepared, receipt, &candidate); !errors.Is(err, cause) {
 							t.Fatal("publication ignored failure", err)
 						}
-						if s.readImage.Seq != 0 {
+						if s.readImage.Seq != 1 {
 							t.Fatal("failed Session adopted stored part")
 						}
 						return
@@ -129,7 +131,7 @@ func TestMainSessionPublicationStageFailureAndCancellation(t *testing.T) {
 					if _, err := s.publishSessionPublication(&prepared, receipt, &candidate); err != nil {
 						t.Fatal("cancellation abandoned stored part", err)
 					}
-					if s.readImage.Seq != 1 {
+					if s.readImage.Seq != 2 {
 						t.Fatal("missing publication")
 					}
 					sub.mu.Lock()
@@ -144,7 +146,7 @@ func TestMainSessionPublicationStageFailureAndCancellation(t *testing.T) {
 					sub.mu.Lock()
 					after := len(sub.pending)
 					sub.mu.Unlock()
-					if after != queued || s.readImage.Seq != 1 {
+					if after != queued || s.readImage.Seq != 2 {
 						t.Fatal("duplicate publication changed observers or state")
 					}
 				})

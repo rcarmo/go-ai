@@ -20,6 +20,7 @@ func mainPureGoSQLiteOpen(t *testing.T, path string) *SQLiteStorage {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	t.Cleanup(func() {
 		if err := store.Close(context.Background()); err != nil {
 			t.Error("SQLite cleanup:", err)
@@ -87,7 +88,7 @@ func TestMainSQLitePureGoLiteralPathsOwnExpectedFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			seq, err := store.Apply(ctx, Batch{Writes: []Write{{Op: "append-entry", Entry: &Entry{ID: id, Conversation: 1, Kind: "fixture", Value: JSON{"body": tc.filename}}}}})
-			if err != nil || seq != 1 {
+			if err != nil || seq != 2 {
 				t.Fatalf("commit seq=%d: %v", seq, err)
 			}
 			if err := store.Close(ctx); err != nil {
@@ -403,7 +404,7 @@ func TestMainSQLitePureGoContentionAdmittedCancellationAndCloseOverlap(t *testin
 					t.Fatal("admitted writer released storeCore.line before SQL settlement")
 				}
 				var frames, commits int
-				if err := locker.QueryRowContext(ctx, "SELECT count(*),coalesce(sum(kind=2),0) FROM frames").Scan(&frames, &commits); err != nil || frames != 1 || commits != 0 {
+				if err := locker.QueryRowContext(ctx, "SELECT count(*),coalesce(sum(kind=2),0) FROM frames").Scan(&frames, &commits); err != nil || frames != 2 || commits != 1 {
 					t.Fatalf("external locked transaction observed premature frames: frames=%d commits=%d err=%v", frames, commits, err)
 				}
 			}
@@ -491,19 +492,19 @@ func TestMainSQLitePureGoContentionAdmittedCancellationAndCloseOverlap(t *testin
 			case <-time.After(time.Second):
 				t.Fatal("admitted Apply did not return after SQL release")
 			}
-			if settled.err != nil || settled.seq != 1 || !errors.Is(caller.Err(), context.Canceled) {
+			if settled.err != nil || settled.seq != 2 || !errors.Is(caller.Err(), context.Canceled) {
 				t.Fatalf("admitted caller cancellation changed SQL settlement: result=%+v caller=%v", settled, caller.Err())
 			}
 			if s.pool.Stats().OpenConnections != 0 {
 				t.Fatal("Close returned before physically closing the native SQL connection")
 			}
 			var frames, commits int
-			if err := locker.QueryRowContext(ctx, "SELECT count(*),coalesce(sum(kind=2),0) FROM frames").Scan(&frames, &commits); err != nil || frames != 2 || commits != 1 {
+			if err := locker.QueryRowContext(ctx, "SELECT count(*),coalesce(sum(kind=2),0) FROM frames").Scan(&frames, &commits); err != nil || frames != 3 || commits != 2 {
 				t.Fatalf("independent SQL did not observe the settled write: frames=%d commits=%d err=%v", frames, commits, err)
 			}
 			reopened := mainPureGoSQLiteOpen(t, path)
 			state, err = reopened.Snapshot(ctx)
-			if err != nil || state.Seq != 1 || state.HighWater != uint64(id) || len(state.Entries) != 1 || state.Entries[id].Seq != 1 || state.Entries[id].Position != 1 || state.Entries[id].Value["body"] != "settled after caller cancellation" {
+			if err != nil || state.Seq != 2 || state.HighWater != uint64(id) || len(state.Entries) != 1 || state.Entries[id].Seq != 2 || state.Entries[id].Position != 1 || state.Entries[id].Value["body"] != "settled after caller cancellation" {
 				t.Fatalf("reopen lost the admitted cancelled caller's write: state=%+v err=%v", state, err)
 			}
 			reopenedInfo, err := os.Stat(path)

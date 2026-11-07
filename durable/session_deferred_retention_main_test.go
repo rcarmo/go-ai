@@ -146,6 +146,7 @@ func TestMainSessionDeferredCrashLastStoredMemoryState(t *testing.T) {
 			t.Fatal(end, err)
 		}
 		reopened := utf16ReopenStore(t, b.store)
+		seedRootConversation(t, reopened)
 		session, err := OpenSession(reopened)
 		if err != nil {
 			t.Fatal(err)

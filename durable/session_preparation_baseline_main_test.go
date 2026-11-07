@@ -9,6 +9,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 	for _, advance := range []string{"published", "stored-unpublished"} {
 		t.Run(advance, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				seedRootConversation(t, b.store)
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)
@@ -51,7 +52,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 					if err == nil || !strings.Contains(err.Error(), "stale prepared") {
 						t.Fatal("stale preparation entered writer", err)
 					}
-					if rejected.seq != 0 || image.Seq != 0 || appends != 1 || s.core.state.Seq != 1 || len(s.core.state.Entries) != 1 {
+					if rejected.seq != 0 || image.Seq != 0 || appends != 1 || s.core.state.Seq != 2 || len(s.core.state.Entries) != 1 {
 						t.Fatal("stale preparation changed storage", rejected.seq, image.Seq, appends, s.core.state.Seq)
 					}
 					if _, ok := s.core.state.Entries[secondID]; ok {
@@ -64,7 +65,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 				reopened := utf16ReopenStore(t, b.store)
 				defer reopened.Close(bg)
 				state, err := reopened.Snapshot(bg)
-				if err != nil || state.Seq != 1 || len(state.Entries) != 1 {
+				if err != nil || state.Seq != 2 || len(state.Entries) != 1 {
 					t.Fatal("stale write recovered", state, err)
 				}
 			})

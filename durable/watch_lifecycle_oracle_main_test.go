@@ -14,6 +14,7 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 	for _, mode := range []string{"acquisition", "inflight"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				seedRootConversation(t, b.store)
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)

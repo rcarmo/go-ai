@@ -16,6 +16,8 @@ func mainSQLiteSnapshotSession(tb testing.TB) *Session {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	seedRootConversation(tb, store)
+	seedRootConversation(tb, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		store.Close(context.Background())
@@ -118,6 +120,7 @@ func TestMainSQLiteTaskSnapshotPreservesAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, base)
 	adapter := &mainSQLiteSnapshotAdapter{SQLiteStorage: base}
 	s, err := OpenSession(adapter)
 	if err != nil {

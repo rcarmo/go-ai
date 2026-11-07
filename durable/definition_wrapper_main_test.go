@@ -41,6 +41,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				id := mint(t, b.store)
 				apply(t, b.store, Write{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "test.wrapper-definition", Version: 1, Value: JSON{"origin": "native"}}})
+				seedRootConversation(t, b.store)
 				s, err := OpenSession(b.store)
 				if err != nil {
 					t.Fatal(err)
@@ -143,7 +144,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 					t.Fatal("native migration cache lost or contaminated", value, ok, err, calls, before)
 				}
 				snapshot, err := b.store.Snapshot(bg)
-				if err != nil || snapshot.Seq != 1 || snapshot.Documents[id].Version != 1 || snapshot.Documents[id].Value["origin"] != "native" {
+				if err != nil || snapshot.Seq != 2 || snapshot.Documents[id].Version != 1 || snapshot.Documents[id].Value["origin"] != "native" {
 					t.Fatal("read persisted projected migration", snapshot, err)
 				}
 			})
@@ -155,6 +156,7 @@ func TestMainDefinitionWrapperUnmigratedProjection(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		id := mint(t, b.store)
 		apply(t, b.store, Write{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "test.wrapper-plain", Version: 1, Value: JSON{"origin": "native"}}})
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)

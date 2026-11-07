@@ -15,6 +15,7 @@ func TestV150WatchTenThousandSetsRemainIncremental(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	session, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,7 @@ func TestV150WatchStopReleasesPendingReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	session, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)

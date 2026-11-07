@@ -8,6 +8,7 @@ import (
 
 func TestPlainSessionAbsentAgentEnvironmentAndNoModelSubmit(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)

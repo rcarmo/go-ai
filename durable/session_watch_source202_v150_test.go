@@ -14,6 +14,7 @@ func TestV150WatchSource202MoreThanTenThousandFoldedOps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)

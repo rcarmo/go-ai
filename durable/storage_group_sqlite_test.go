@@ -23,7 +23,7 @@ func TestInternalSQLiteGroupPostCommitReceipts(t *testing.T) {
 	}
 	received := 0
 	result, err := s.commitBatches(bg, batches, func(index int, seq uint64) error {
-		if index != received || seq != uint64(index+1) || s.state.Seq != 3 {
+		if index != received || seq != uint64(index+2) || s.state.Seq != 4 {
 			return errors.New("unordered receipt or incomplete adoption")
 		}
 		// BEGIN cannot succeed inside an unfinished SQLite transaction. This
@@ -72,7 +72,7 @@ func TestInternalSQLiteGroupFaultSettlement(t *testing.T) {
 				}
 				received := 0
 				result, err := s.commitBatches(bg, batches, func(int, uint64) error { received++; return nil }, false)
-				if err == nil || received != 0 || result.refused != nil || s.ordinal != ordinal || s.state.Seq != 0 || s.state.HighWater != high {
+				if err == nil || received != 0 || result.refused != nil || s.ordinal != ordinal || s.state.Seq != 1 || s.state.HighWater != high {
 					t.Fatalf("failed call result=%+v receipts=%d ordinal=%d err=%v", result, received, s.ordinal, err)
 				}
 				if mode == "statement-rollback" {
@@ -99,14 +99,14 @@ func TestInternalSQLiteGroupFaultSettlement(t *testing.T) {
 					t.Fatal(err)
 				}
 				state, err := s.Snapshot(bg)
-				if err != nil || state.Seq != 0 || len(state.Entries) != 0 || state.HighWater != high {
+				if err != nil || state.Seq != 1 || len(state.Entries) != 0 || state.HighWater != high {
 					t.Fatalf("rollback recovery=%+v err=%v", state, err)
 				}
 				if err := s.exec("DROP TRIGGER fail_group"); err != nil {
 					t.Fatal(err)
 				}
 				result, err = s.commitBatches(bg, batches, nil, false)
-				if err != nil || result.stored != 3 || result.refused != nil || result.lastSeq != 3 {
+				if err != nil || result.stored != 3 || result.refused != nil || result.lastSeq != 4 {
 					t.Fatalf("retry=%+v err=%v", result, err)
 				}
 				id, err := s.MintID(bg)

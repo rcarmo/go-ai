@@ -15,6 +15,7 @@ func TestContext110CacheAppendEditsBoundsAndDetachment(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
+		seedRootConversation(t, b.store)
 		s, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)

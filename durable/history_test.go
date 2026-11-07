@@ -202,6 +202,7 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 				}
 			})
 		}
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)

@@ -13,6 +13,7 @@ func TestObservation120LargeBaselineSharesTotalReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)

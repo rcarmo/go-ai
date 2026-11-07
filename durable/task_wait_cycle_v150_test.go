@@ -63,6 +63,8 @@ func TestV150PersistedWaitGraphEdges(t *testing.T) {
 func TestV150WaitAdmissionUsesAbortOverlay(t *testing.T) {
 	state := initialState()
 	state.HighWater = 4
+	// The overlay's tasks live in the reserved root, which its owner creates.
+	state.Conversations[1] = Conversation{ID: 1}
 	a := v150WaitGraphTask(2, []ID{3}, 0, false, true, "waiting")
 	b := v150WaitGraphTask(3, []ID{4}, 0, false, false, "waiting")
 	c := v150WaitGraphTask(4, []ID{2}, 0, false, false, "waiting")

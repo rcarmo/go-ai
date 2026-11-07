@@ -52,6 +52,7 @@ func TestMainContextReadPublicationWitness(t *testing.T) {
 					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 						root := mint(t, b.store)
 						apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
+						seedRootConversation(t, b.store)
 						s, err := OpenSession(b.store)
 						if err != nil {
 							t.Fatal(err)
@@ -294,6 +295,7 @@ func TestMainContextReadConcurrentHeaders(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -459,6 +461,7 @@ func TestMainContextReadEmptyAndInvalidBounds(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)

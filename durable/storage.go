@@ -31,8 +31,12 @@ type storeCore struct {
 	finish        func() error
 }
 
+// initialState is the original raw Storage state: it holds no records. The
+// allocator starts at the reserved root ID so minting never reuses it, but the
+// reserved root conversation is bootstrapped by its owner (Harness.Root), not
+// fabricated by Storage.
 func initialState() Snapshot {
-	return Snapshot{HighWater: 1, Conversations: map[ID]Conversation{1: {ID: 1}}, Entries: map[ID]Entry{}, Tasks: map[ID]Task{}, Submissions: map[ID]Submission{}, Documents: map[ID]Document{}}
+	return Snapshot{HighWater: 1, Conversations: map[ID]Conversation{}, Entries: map[ID]Entry{}, Tasks: map[ID]Task{}, Submissions: map[ID]Submission{}, Documents: map[ID]Document{}}
 }
 func newCore(l Limits) *storeCore {
 	c := &storeCore{line: make(chan struct{}, 1), closeDone: make(chan struct{}), state: initialState(), limits: l, ordinal: 1}

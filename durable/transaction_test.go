@@ -12,6 +12,7 @@ import (
 
 func sessionFor(t *testing.T, s Storage) *Session {
 	t.Helper()
+	seedRootConversation(t, s)
 	session, e := OpenSession(s)
 	if e != nil {
 		t.Fatal(e)
@@ -185,6 +186,7 @@ func TestNoCallerMarshalAuthority(t *testing.T) {
 		}
 	}
 	s, _ := newTestSQLite(t)
+	seedRootConversation(t, s)
 	h := sessionFor(t, s)
 	id, _ := h.MintID(bg)
 	_, e := h.Commit(bg, func(tx *Tx) error {
@@ -253,6 +255,7 @@ func TestRetainedStoreCannotBypassSession(t *testing.T) {
 
 func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	s, dir := newSQLiteTestStore(t)
+	seedRootConversation(t, s)
 	h := sessionFor(t, s)
 	id, e := h.MintID(bg)
 	if e != nil {
@@ -295,6 +298,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, r)
 	defer r.Close(bg)
 	if len(snap(t, r).Entries) != 1 {
 		t.Fatal("admitted winner not adopted")
@@ -328,7 +332,7 @@ func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
 			t.Fatal(e)
 		}
 		v, e := s.Snapshot(bg)
-		if e != nil || v.Seq != 1 || v.Tasks[task].Conversation != conversation || v.Documents[doc].Value["phase"] != "prepared" {
+		if e != nil || v.Seq != 2 || v.Tasks[task].Conversation != conversation || v.Documents[doc].Value["phase"] != "prepared" {
 			t.Fatal(v, e)
 		}
 		// Final unresolved references reject the whole batch, but intermediate schema
@@ -345,6 +349,7 @@ func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
 
 func TestStorageCloseSealsBeforeAdmittedWriteDrain(t *testing.T) {
 	s, dir := newSQLiteTestStore(t)
+	seedRootConversation(t, s)
 	id := mint(t, s)
 	entered, release := make(chan struct{}), make(chan struct{})
 	blockSQLiteAcknowledgement(s, entered, release)
@@ -378,6 +383,7 @@ func TestStorageCloseSealsBeforeAdmittedWriteDrain(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, r)
 	defer r.Close(bg)
 	if len(snap(t, r).Entries) != 1 {
 		t.Fatal("wrong drainwinner")

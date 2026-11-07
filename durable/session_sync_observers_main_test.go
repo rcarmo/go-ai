@@ -202,6 +202,7 @@ func (r *mainSyncRecorder) callsCopy() []mainSyncCall {
 }
 func mainSyncCounterSession(t *testing.T, b sqliteFixture) (*Session, func() error) {
 	t.Helper()
+	seedRootConversation(t, b.store)
 	s, err := OpenSession(b.store)
 	if err != nil {
 		t.Fatal(err)
@@ -245,6 +246,7 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)
@@ -310,6 +312,7 @@ func TestMainSyncCommitObserverSeparateCloseErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		seedRootConversation(t, store)
 		s, err := OpenSession(store)
 		if err != nil {
 			t.Fatal(err)

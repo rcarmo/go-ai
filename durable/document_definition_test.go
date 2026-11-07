@@ -25,6 +25,7 @@ func mustDefinition(t *testing.T, o DefinitionOptions) *DocumentDefinition {
 }
 func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)
@@ -112,6 +113,7 @@ func TestDocumentDefinitionFamilySeedScopeAndSealedOwnership(t *testing.T) {
 
 func TestDocumentDefinitionMigrationSnapshotsRequiredBaseAndRollback(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)
@@ -216,6 +218,7 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, s)
 	session, e := OpenSession(s)
 	if e != nil {
 		t.Fatal(e)
@@ -271,6 +274,7 @@ func TestDocumentDefinitionVersionPolicyInvalidCallbacksAndConcurrentReads(t *te
 func TestDocumentDefinitionHistoricalAncestorAndCopyMigration(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := b.store
+		seedRootConversation(t, s)
 		session, e := OpenSession(s)
 		if e != nil {
 			t.Fatal(e)
@@ -428,6 +432,7 @@ func TestDocumentDefinitionCacheBoundUnloadAndUnaccessedVersions(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	session, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -467,6 +472,7 @@ func TestDocumentDefinitionTaskScopeLiveAndPolicyMismatch(t *testing.T) {
 	}
 	task := mint(t, store)
 	apply(t, store, Write{Op: "put-task", Task: &Task{ID: task, Conversation: 1, Kind: "custom", Status: "pending", Checkpoint: JSON{}}})
+	seedRootConversation(t, store)
 	session, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -502,6 +508,7 @@ func TestDocumentDefinitionReadOnlyMigrationColdLoadOlderTokenAndRetirement(t *t
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	session, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -560,6 +567,7 @@ func TestDocumentDefinitionCacheOversizedMigrationNotRetained(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	session, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -595,6 +603,7 @@ func TestDocumentDefinitionInitializerFailureReentrancyAndClose(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	session, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -651,6 +660,7 @@ func TestDocumentDefinitionHistoricalMigrationDocumentBudget(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
+			seedRootConversation(t, store)
 			session, e := OpenSession(store)
 			if e != nil {
 				t.Fatal(e)

@@ -202,6 +202,10 @@ func TestPiDurableV150PublicStorageCommitRefusesUnrepresentableCommand(t *testin
 // The command union is translated without letting a caller's Go value bypass
 // global identity rules. Explicit unminted IDs are accepted (pinned capture,
 // storage_explicit_id_v150_test.go); recreating an existing record is refused.
+// TestPiDurableV150PublicStorageCommitEnforcesIDOwnership replays the original
+// conformance expectation: the reserved root may be created once by its owner,
+// and a second claim of the same identity is refused.
+// Source: storage-conformance.test.ts root creation and duplicate rejection.
 func TestPiDurableV150PublicStorageCommitEnforcesIDOwnership(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
@@ -210,6 +214,12 @@ func TestPiDurableV150PublicStorageCommitEnforcesIDOwnership(t *testing.T) {
 	defer store.Close(context.Background())
 	ctx := context.Background()
 	result, err := store.Commit(ctx, [][]StorageWrite{{
+		{Type: "conversation", Value: Conversation{ID: 1}},
+	}}, nil)
+	if err != nil || result.Stored != 1 || result.Refused != nil {
+		t.Fatalf("root creation: %+v %v", result, err)
+	}
+	result, err = store.Commit(ctx, [][]StorageWrite{{
 		{Type: "conversation", Value: Conversation{ID: 1}},
 	}}, nil)
 	if err != nil {

@@ -21,6 +21,7 @@ func TestMainDocumentObserverLocalPublicationSeam(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, store)
 			session, err := OpenSession(store)
 			if err != nil {
 				_ = store.Close(context.Background())

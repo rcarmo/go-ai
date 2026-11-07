@@ -439,11 +439,14 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 	if e != nil {
 		return e
 	}
-	if _, ok := s.Conversations[id]; !ok {
+	// Harness.Root bootstraps the reserved root conversation, matching the
+	// original tx.createRootConversation() inside the root commit. Storage never
+	// fabricates it.
+	rootBootstrap := initializeOnly && id == 1
+	if _, ok := s.Conversations[id]; !ok && !rootBootstrap {
 		return reject("unknown conversation")
 	}
-	doc, found := agentDocument(s, id)
-	if initializeOnly && found {
+	if _, found := agentDocument(s, id); initializeOnly && found {
 		return nil
 	}
 	state, e := h.agent(c)
@@ -458,6 +461,34 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 		if h.closing.Load() {
 			return h.closedError()
 		}
+		if _, ok := tx.state.Conversations[id]; !ok {
+			if !rootBootstrap {
+				return reject("unknown conversation")
+			}
+			if e := tx.CreateConversation(Conversation{ID: id}); e != nil {
+				return e
+			}
+			candidate, err := tx.current()
+			if err != nil {
+				return err
+			}
+			created, ok := agentDocument(candidate, id)
+			if !ok {
+				return reject("created agent unavailable")
+			}
+			handle, err := tx.Document(created.ID)
+			if err != nil {
+				return err
+			}
+			if err := handle.Set(value); err != nil {
+				return err
+			}
+			if init != nil {
+				return callConversationInit(init, tx, id)
+			}
+			return nil
+		}
+		doc, found := agentDocument(tx.state, id)
 		firstRoot := initializeOnly && id == 1 && !found
 		if firstRoot {
 			for _, retained := range tx.state.Documents {

@@ -1025,6 +1025,7 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 	if _, err := registry.RegisterTask(parent); err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	h, err = Open(bg, store, Options{Registry: registry})
 	if err != nil {
 		t.Fatal(err)
@@ -4191,6 +4192,7 @@ func TestTaskRecoveryOpenFailureClosesStoreAndRetainsNoSubscription(t *testing.T
 					registry.nextListener = MaxID
 					registry.mu.Unlock()
 				}
+				seedRootConversation(t, b.store)
 				h, err := Open(bg, b.store, Options{Registry: registry})
 				if err == nil || h != nil {
 					if h != nil {
@@ -4529,7 +4531,9 @@ func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
 			if _, err := registry.RegisterTask(def); err != nil {
 				t.Fatal(err)
 			}
-			first, err := Open(bg, open(), Options{Registry: registry})
+			firstStore := open()
+				seedRootConversation(t, firstStore)
+				first, err := Open(bg, firstStore, Options{Registry: registry})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4556,7 +4560,8 @@ func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
 				t.Fatal(err)
 			}
 			secondStore := open()
-			second, err := Open(bg, secondStore, Options{Registry: registry})
+			seedRootConversation(t, secondStore)
+				second, err := Open(bg, secondStore, Options{Registry: registry})
 			if err != nil {
 				_ = secondStore.Close(bg)
 				t.Fatal("valid multi-host recovery exceeded persisted write budget", err)
@@ -4768,6 +4773,7 @@ func TestTaskRecoveryOpenFailurePrefixMixedMetadataPreserved(t *testing.T) {
 						t.Fatal("recovery full execution/memo/mark/input metadata changed", id)
 					}
 				}
+				seedRootConversation(t, reopenedStore)
 				second, err := Open(bg, reopenedStore, Options{Registry: registry})
 				if err != nil {
 					t.Fatal("retryOpen failed remaining valid prefix", err)

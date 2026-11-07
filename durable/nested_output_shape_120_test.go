@@ -54,6 +54,7 @@ func TestNestedTool120SchemalessOutputShapeReplayAndIsolation(t *testing.T) {
 				t.Fatal(err)
 			}
 			store, _ := newTestSQLite(t)
+			seedRootConversation(t, store)
 			h, err := Open(context.Background(), store, Options{Registry: registry})
 			if err != nil {
 				t.Fatal(err)

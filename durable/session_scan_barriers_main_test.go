@@ -18,6 +18,7 @@ func TestMainSessionUnpublishedScanBarriers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, store)
 			s, err := OpenSession(store)
 			if err != nil {
 				store.Close(context.Background())

@@ -53,7 +53,19 @@ func openSQLiteTestDirectory(dir string, options SQLiteOptions) (*SQLiteStorage,
 	return OpenSQLite(filepath.Join(dir, "store.sqlite"), options)
 }
 
+// sqliteStore provides a store whose reserved root conversation already exists.
+// Native Storage no longer fabricates conversation 1, so the fixture creates it
+// as its first committed write, the way the original tests acquire the root.
 func sqliteStore(t *testing.T, fn func(*testing.T, sqliteFixture), configured ...Limits) {
+	t.Helper()
+	sqliteStoreFresh(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
+		fn(t, b)
+	}, configured...)
+}
+
+// sqliteStoreFresh provides a store in its untouched initial state.
+func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configured ...Limits) {
 	t.Helper()
 	if len(configured) > 1 {
 		t.Fatal("multiple SQLite limit profiles")
@@ -88,6 +100,23 @@ func sqliteStore(t *testing.T, fn func(*testing.T, sqliteFixture), configured ..
 		fn(t, sqliteFixture{store: store, reopen: func() Storage { closeStore(); store = open(); return store }})
 	})
 }
+// seedRootConversation mirrors the original tests acquiring the reserved root
+// through Harness.Root()/tx.createRootConversation(). Native Storage no longer
+// fabricates it, so fixtures that address conversation 1 must create it first.
+func seedRootConversation(t testing.TB, s Storage) {
+	t.Helper()
+	state, err := s.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := state.Conversations[1]; ok {
+		return
+	}
+	if _, err := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func mint(t *testing.T, s Storage) ID {
 	t.Helper()
 	id, e := s.MintID(bg)
@@ -98,6 +127,23 @@ func mint(t *testing.T, s Storage) ID {
 }
 func apply(t *testing.T, s Storage, ws ...Write) uint64 {
 	t.Helper()
+	// Fixtures that address the reserved root create it explicitly, matching the
+	// original tests acquiring conversation 1 through tx.createRootConversation().
+	creates, references := false, false
+	for _, w := range ws {
+		if w.Conversation != nil && w.Conversation.ID == 1 {
+			creates = true
+		}
+		if (w.Entry != nil && w.Entry.Conversation == 1) ||
+			(w.Task != nil && w.Task.Conversation == 1) ||
+			(w.Submission != nil && w.Submission.Conversation == 1) ||
+			(w.Document != nil && w.Document.Scope == "conversation" && w.Document.Owner == 1) {
+			references = true
+		}
+	}
+	if references && !creates {
+		seedRootConversation(t, s)
+	}
 	seq, e := s.Apply(bg, Batch{ws})
 	if e != nil {
 		t.Fatal(e)
@@ -124,15 +170,16 @@ func rejected(t *testing.T, e error) {
 }
 
 func TestStorageConformance(t *testing.T) {
-	sqliteStore(t, runStorageConformance)
+	sqliteStoreFresh(t, runStorageConformance)
 }
 func runStorageConformance(t *testing.T, b sqliteFixture) {
 	s := b.store
-	t.Run("01_reserved_root_immutable", func(t *testing.T) {
+	t.Run("01_reserved_root_absent_then_immutable", func(t *testing.T) {
 		v := snap(t, s)
-		if v.HighWater != 1 || len(v.Conversations) != 1 || v.Conversations[1].ID != 1 {
+		if v.HighWater != 1 || len(v.Conversations) != 0 {
 			t.Fatal(v)
 		}
+		apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: 1}})
 		_, e := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
 		rejected(t, e)
 	})
@@ -143,7 +190,7 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 	seq := apply(t, s, Write{Op: "create-conversation", Conversation: &Conversation{ID: conv, Owner: task}}, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "waiting", Checkpoint: JSON{"step": 1}}}, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: " \x00exact ", Type: "write", Status: "pending", Value: JSON{}}}, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "conversation", Owner: conv, Kind: "app.state", Key: "\x00 exact ", Version: 1, Value: value}}, entry(e2, JSON{"secondID": "first"}), entry(e1, JSON{"firstID": "second"}))
 	value["\x00 key "].([]any)[0] = "mutated"
 	v := snap(t, s)
-	if seq != 1 || v.Seq != 1 || v.Documents[doc].Value["\x00 key "].([]any)[0] != "original" {
+	if seq != 2 || v.Seq != 2 || v.Documents[doc].Value["\x00 key "].([]any)[0] != "original" {
 		t.Fatal("02/03/04 mixed/detached state")
 	}
 	v.Documents[doc].Value["__proto__"].(map[string]any)["constructor"] = "changed"
@@ -154,7 +201,7 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		id := mint(t, s)
 		_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{}), {Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "app.state", Version: 1, Value: JSON{}}}}})
 		rejected(t, e)
-		if len(snap(t, s).Entries) != 2 || snap(t, s).Seq != 1 {
+		if len(snap(t, s).Entries) != 2 || snap(t, s).Seq != 2 {
 			t.Fatal("partial batch visibility")
 		}
 	})
@@ -317,6 +364,7 @@ func TestStrictJSONAndBudgets(t *testing.T) {
 				t.Fatal(e)
 			}
 			s, _ := newTestSQLite(t)
+			seedRootConversation(t, s)
 			_, e = s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &c}}})
 			_ = s.Close(bg)
 		}
@@ -375,6 +423,11 @@ func TestLimitsPreAdmissionSQLite(t *testing.T) {
 						t.Fatal(e)
 					}
 					defer s.Close(bg)
+					// The reserved root is created only when the profile can encode
+					// its own write; MaxStringBytes is below the operation name length.
+					if name != "MaxStringBytes" {
+						seedRootConversation(t, s)
+					}
 					id := mint(t, s)
 					ws := []Write{entry(id, JSON{})}
 					switch name {
@@ -387,7 +440,9 @@ func TestLimitsPreAdmissionSQLite(t *testing.T) {
 							ws = append(ws, entry(mint(t, s), JSON{"v": strings.Repeat("x", 128)}))
 						}
 					case "MaxStringBytes":
-						ws = []Write{entry(id, JSON{"v": strings.Repeat("x", 17)})}
+						// A session document keeps the check on the string budget itself:
+						// this profile cannot even encode a conversation-creating write.
+						ws = []Write{{Op: "put-document", Document: &Document{ID: id, Scope: "session", Kind: "state", Version: 1, Value: JSON{"v": strings.Repeat("x", 17)}}}}
 					case "MaxRequestIDBytes":
 						ws = []Write{{Op: "put-submission", Submission: &Submission{ID: id, Conversation: 1, RequestID: "abc", Type: "write", Status: "pending", Value: JSON{}}}}
 					case "MaxDepth":
@@ -408,6 +463,9 @@ func TestLimitsPreAdmissionSQLite(t *testing.T) {
 					before := snap(t, s)
 					_, e = s.Apply(bg, Batch{ws})
 					rejected(t, e)
+					if name == "MaxStringBytes" && !strings.Contains(e.Error(), "string") {
+						t.Fatalf("string budget not exercised: %v", e)
+					}
 					after := snap(t, s)
 					if !equalSnapshot(before, after) {
 						t.Fatal("rejected limit changed state")
@@ -460,6 +518,7 @@ func TestSequenceAndOrdinalExhaustionBeforeIO(t *testing.T) {
 	for _, kind := range []string{"seq", "ordinal"} {
 		t.Run(kind, func(t *testing.T) {
 			s, dir := newSQLiteTestStore(t)
+			seedRootConversation(t, s)
 			_ = dir
 			id := mint(t, s)
 			if kind == "seq" {
@@ -489,7 +548,7 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 			_, e := s.Apply(bg, Batch{[]Write{entry(id, JSON{"v": value})}})
 			rejected(t, e)
 		}
-		if marshalCalls.Load() != 0 || snap(t, s).Seq != 0 {
+		if marshalCalls.Load() != 0 || snap(t, s).Seq != 1 {
 			t.Fatal("marshal/visibility")
 		}
 	})
@@ -504,6 +563,7 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, s)
 	defer s.Close(bg)
 	var ws []Write
 	for k := 0; k < 5; k++ {
@@ -511,7 +571,7 @@ func TestPublicLowLevelJSONAndEnvelopeBounds(t *testing.T) {
 	}
 	_, e = s.Apply(bg, Batch{ws})
 	rejected(t, e)
-	if snap(t, s).Seq != 0 {
+	if snap(t, s).Seq != 1 {
 		t.Fatal("frame split/partialadoption")
 	}
 }
@@ -645,6 +705,7 @@ func TestPrivateCandidateTablesNeverModifyBaseTables(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	base.Conversations[1] = Conversation{ID: 1}
 	base.Documents[2] = Document{ID: 2, Scope: "session", Kind: "state", Version: 1, Value: obj, CreatedAt: 1}
 	base.Entries[3] = Entry{ID: 3, Conversation: 1, Kind: "message", Value: obj, Seq: 1, Position: 1}
 	base.Seq = 1
@@ -761,5 +822,6 @@ func newSQLiteTestStore(t *testing.T) (*SQLiteStorage, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	return store, dir
 }

@@ -9,10 +9,67 @@ import (
 	"testing"
 )
 
+// Source-derived from the original output in storage-boundaries.json: a fresh
+// raw Storage holds no conversation at all, including no reserved root 1. The
+// reserved root is bootstrapped by its owner (Harness.Root), never fabricated by
+// Storage.
+func TestV150StorageFreshRootAbsent(t *testing.T) {
+	raw, err := os.ReadFile("testdata/pi-durable-v150/storage-boundaries.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		FreshRootPresent bool
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.FreshRootPresent {
+		t.Fatal("fixture recapture disagrees with the original fresh root")
+	}
+	sqliteStoreFresh(t, func(t *testing.T, b sqliteFixture) {
+		state := snap(t, b.store)
+		if _, ok := state.Conversations[1]; ok != fixture.FreshRootPresent {
+			t.Fatalf("fresh root present %v want %v", ok, fixture.FreshRootPresent)
+		}
+		if len(state.Conversations) != 0 || state.HighWater != 1 {
+			t.Fatalf("fresh raw state %+v", state)
+		}
+		rows, err := b.store.Conversations(bg, Query{Limit: 10})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("fresh raw conversations %v %v", rows, err)
+		}
+		// The original allocator starts above the reserved root (nextId = 2), so the
+		// first mint is 2 and never reproduces the reserved root ID.
+		if got := mint(t, b.store); got != 2 {
+			t.Fatalf("first mint %d want 2", got)
+		}
+		// The reserved root can still be created explicitly by its owner, matching
+		// tx.createRootConversation() staging conversation 1.
+		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: 1}})
+		if _, ok := snap(t, b.store).Conversations[1]; !ok {
+			t.Fatal("root bootstrap not stored")
+		}
+		rejected(t, secondCreateRoot(b.store))
+		store := b.reopen()
+		if _, ok := snap(t, store).Conversations[1]; !ok {
+			t.Fatal("root bootstrap lost on reopen")
+		}
+		if got := mint(t, store); got != 3 {
+			t.Fatalf("reopened mint %d want 3", got)
+		}
+	})
+}
+
+func secondCreateRoot(s Storage) error {
+	_, err := s.Apply(bg, Batch{[]Write{{Op: "create-conversation", Conversation: &Conversation{ID: 1}}}})
+	return err
+}
+
 // Source-derived from the actual original output in storage-boundaries.json.
 // This packet isolates empty batches and empty continue reasons; explicit IDs
-// are covered in storage_explicit_id_v150_test.go. Root bootstrap remains a D28
-// gap. No fixture payload is rewritten.
+// are covered in storage_explicit_id_v150_test.go. No fixture payload is
+// rewritten.
 func TestV150StorageEmptyBatch(t *testing.T) {
 	raw, err := os.ReadFile("testdata/pi-durable-v150/storage-boundaries.json")
 	if err != nil {
@@ -125,6 +182,7 @@ func TestV150SubmissionEmptyReasonSettlement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, store)
 			session, err := OpenSession(store)
 			if err != nil {
 				t.Fatal(err)
@@ -214,7 +272,7 @@ func TestV150StorageEmptyBatchRealRollback(t *testing.T) {
 }
 
 func TestV150StorageEmptyBatchRefusalKeepsPrefix(t *testing.T) {
-	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+	sqliteStoreFresh(t, func(t *testing.T, b sqliteFixture) {
 		var receipts []uint64
 		result, err := b.store.Commit(bg, [][]StorageWrite{{}, {{Type: "unknown"}}, {}}, func(_ int, seq uint64) { receipts = append(receipts, seq) })
 		if err != nil || result.Stored != 1 || result.Refused == nil || !reflect.DeepEqual(receipts, []uint64{1}) {

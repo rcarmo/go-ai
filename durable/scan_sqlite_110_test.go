@@ -11,6 +11,7 @@ func TestSQLite110OrderedScanCursorAndReopen(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	first, second := mint(t, store), mint(t, store)
 	apply(t, store, Write{Op: "create-conversation", Conversation: &Conversation{ID: first}}, Write{Op: "create-conversation", Conversation: &Conversation{ID: second}})
 	page, e := store.ScanConversations(bg, ConversationQuery{Order: Descending}, 1, nil)
@@ -24,6 +25,7 @@ func TestSQLite110OrderedScanCursorAndReopen(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	defer store.Close(bg)
 	last, e := store.ScanConversations(bg, ConversationQuery{}, 2, page.Next)
 	if e != nil || len(last.Items) != 2 || last.Items[0].ID != first || last.Items[1].ID != 1 || last.Next != nil {

@@ -22,6 +22,7 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+					seedRootConversation(t, b.store)
 					s, err := OpenSession(b.store)
 					if err != nil {
 						t.Fatal(err)
@@ -145,6 +146,7 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 
 func TestMainWatchAddressAbsentIsolationAndRollback(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		s, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)

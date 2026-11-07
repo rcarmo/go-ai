@@ -33,6 +33,7 @@ func setupFakeAPI(t *testing.T, fn goai.ProviderStream) (ModelRef, Options) {
 }
 func openHarness(t *testing.T, s Storage, options Options) *Harness {
 	t.Helper()
+	seedRootConversation(t, s)
 	h, e := Open(bg, s, options)
 	if e != nil {
 		t.Fatal(e)

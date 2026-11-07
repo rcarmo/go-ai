@@ -10,6 +10,7 @@ import (
 func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -43,7 +44,7 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 		reopened := utf16ReopenStore(t, b.store)
 		defer reopened.Close(bg)
 		state, err := reopened.Snapshot(bg)
-		if err != nil || state.Seq != 2 || len(state.Entries) != 2 {
+		if err != nil || state.Seq != 3 || len(state.Entries) != 2 {
 			t.Fatal("gap appended stale legacy writes", state, err)
 		}
 	})
@@ -52,6 +53,7 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -69,21 +71,21 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 			t.Fatalf("group=%+v err=%v", result, err)
 		}
 		s.taskBookkeeping(func() {
-			if err := s.adoptReadImage(second, 1); err == nil || s.readImage.Seq != 0 {
+			if err := s.adoptReadImage(second, 2); err == nil || s.readImage.Seq != 1 {
 				t.Fatal("final raw image accepted for first receipt")
 			}
-			if err := s.adoptReadImage(second, 2); err == nil || s.readImage.Seq != 0 {
+			if err := s.adoptReadImage(second, 3); err == nil || s.readImage.Seq != 1 {
 				t.Fatal("skipped publication accepted")
 			}
-			if err := s.adoptReadImage(first, 1); err != nil {
+			if err := s.adoptReadImage(first, 2); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.adoptReadImage(first, 1); err == nil {
+			if err := s.adoptReadImage(first, 2); err == nil {
 				t.Fatal("duplicate publication accepted")
 			}
 		})
 		if err := s.readTasks(bg, func(view Snapshot) error {
-			if view.Seq != 1 || len(view.Entries) != 1 || view.Entries[ids[0]].Seq != 1 {
+			if view.Seq != 2 || len(view.Entries) != 1 || view.Entries[ids[0]].Seq != 2 {
 				t.Fatal("read did not stay at first publication", view.Seq)
 			}
 			if _, exists := view.Entries[ids[1]]; exists {
@@ -94,7 +96,7 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 			t.Fatal(err)
 		}
 		s.taskBookkeeping(func() {
-			if err := s.adoptReadImage(second, 2); err != nil {
+			if err := s.adoptReadImage(second, 3); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -106,11 +108,11 @@ func TestMainSessionReadImageAdoptsOnlyReceiptedPrefix(t *testing.T) {
 		seq, err := s.Commit(bg, func(tx *Tx) error {
 			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after", Value: JSON{}})
 		})
-		if err != nil || seq != 3 {
+		if err != nil || seq != 4 {
 			t.Fatalf("legacy commit seq=%d err=%v", seq, err)
 		}
 		if err := s.readTasks(bg, func(view Snapshot) error {
-			if view.Seq != 3 || len(view.Entries) != 3 || view.HighWater < uint64(id) {
+			if view.Seq != 4 || len(view.Entries) != 3 || view.HighWater < uint64(id) {
 				t.Fatal("legacy publication or allocator not adopted")
 			}
 			return nil

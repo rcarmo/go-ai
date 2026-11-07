@@ -29,6 +29,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 		}
 		return original(typ, ordinal, high, payload)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		store.appendFrame = original
@@ -109,6 +110,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		_ = store.Close(context.Background())

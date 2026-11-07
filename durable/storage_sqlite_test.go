@@ -14,6 +14,7 @@ func TestSQLiteTransactionHistoryLimitsAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	if duplicate, err := OpenSQLite(path, SQLiteOptions{}); !errors.Is(err, ErrOwned) {
 		if duplicate != nil {
 			duplicate.Close(bg)
@@ -52,6 +53,7 @@ func TestSQLiteTransactionHistoryLimitsAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, reopened)
 	defer reopened.Close(bg)
 	historical, ok, err := reopened.DocumentAt(bg, id, DocumentPoint{Seq: seq})
 	if err != nil || !ok || historical.Value["text"] != "base" {
@@ -84,6 +86,7 @@ func TestSQLiteHarnessGenerationAndTerminalReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	first := openHarness(t, store, options)
 	conversation := root(t, first, ref)
 	sub, err := conversation.Submit(bg, Input{Content: "go"})
@@ -101,6 +104,7 @@ func TestSQLiteHarnessGenerationAndTerminalReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, reopened)
 	second := openHarness(t, reopened, options)
 	handle, err := second.Submission(bg, sub.ID())
 	if err != nil {

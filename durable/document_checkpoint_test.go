@@ -24,6 +24,7 @@ func checkpointSQLite(t *testing.T, fn func(*testing.T, *Session, func() *Sessio
 				if err != nil {
 					t.Fatal(err)
 				}
+				seedRootConversation(t, store)
 				session, err := OpenSession(store)
 				if err != nil {
 					t.Fatal(err)
@@ -430,6 +431,7 @@ func TestDocumentCheckpointSealedPredicateAndTypedExactBudget(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, s0)
 	s, e := OpenSession(s0)
 	if e != nil {
 		t.Fatal(e)

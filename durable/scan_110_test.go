@@ -194,6 +194,7 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 				t.Fatal("bad page limit")
 			}
 		}
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)

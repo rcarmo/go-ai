@@ -24,6 +24,7 @@ import (
 // settlement, or scheduler-driven boundary timing/publication.
 func mainEligibilityHarness(t *testing.T, b sqliteFixture, owned bool, settings *HarnessSettings) (*Harness, *ConversationHandle, ID) {
 	t.Helper()
+	seedRootConversation(t, b.store)
 	plainSession, err := OpenSession(b.store)
 	if err != nil {
 		t.Fatal(err)

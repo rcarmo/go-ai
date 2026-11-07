@@ -2,6 +2,7 @@ package durable
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -26,6 +27,7 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 		for index := range referenceBatches {
 			referenceBatches[index].Writes = append(referenceBatches[index].Writes, Write{Op: "put-document", Document: &Document{ID: doc, Scope: "session", Kind: "receipt.prefix", Version: 1, Value: JSON{"n": index + 1}}})
 		}
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -41,24 +43,24 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 		batches[0].Writes[0].Entry.Value["text"] = "caller mutation"
 		batches[0].Writes[1].Document.Value["n"] = "caller mutation"
 		raw, err := b.store.Snapshot(bg)
-		if err != nil || raw.Seq != 3 || len(raw.Entries) != 3 {
+		if err != nil || raw.Seq != 4 || len(raw.Entries) != 3 {
 			t.Fatal(raw, err)
 		}
 		before, err := s.Snapshot(bg)
-		if err != nil || before.Seq != 0 || len(before.Entries) != 0 {
+		if err != nil || before.Seq != 1 || len(before.Entries) != 0 {
 			t.Fatal(before, err)
 		}
 		// Consume one receipt at a time. No final raw image or array of all prefix
 		// candidates is used. Public reads must exclude every later durable part.
 		for index, r := range receipts {
-			if r.index != index || r.seq != uint64(index+1) {
+			if r.index != index || r.seq != uint64(index+2) {
 				t.Fatal(r.index, r.seq)
 			}
 			previous := s.readImage
 			if _, err := r.nextImage(previous, s.limits); err != nil {
 				t.Fatal(err)
 			}
-			if previous.Seq != uint64(index) || len(previous.Entries) != index {
+			if previous.Seq != uint64(index+1) || len(previous.Entries) != index {
 				t.Fatal("replay mutated base")
 			}
 			s.taskBookkeeping(func() {
@@ -75,7 +77,7 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 				if ok != (j <= index) {
 					t.Fatal("wrong published membership", id, ok, index)
 				}
-				if ok && (entry.Seq != uint64(j+1) || entry.Value["text"] != "original") {
+				if ok && (entry.Seq != uint64(j+2) || entry.Value["text"] != "original") {
 					t.Fatal("wrong detached prefix", entry)
 				}
 			}
@@ -98,7 +100,7 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 		seq, err := s.Commit(bg, func(tx *Tx) error {
 			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "after-prefix", Value: JSON{}})
 		})
-		if err != nil || seq != 4 {
+		if err != nil || seq != 5 {
 			t.Fatal("legacy continuation", seq, err)
 		}
 	})
@@ -128,7 +130,7 @@ func TestInternalGroupReceiptFrameRefusalAndSinkFailure(t *testing.T) {
 					}
 					return nil
 				}, false)
-				if count != 1 || base.Seq != 1 || len(base.Entries) != 1 {
+				if count != 1 || base.Seq != 2 || len(base.Entries) != 1 {
 					t.Fatal("wrong accepted publication", count, base.Seq)
 				}
 				wantStored := 1
@@ -174,7 +176,8 @@ func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
 			case "sequence":
 				r.seq++
 			case "payload-sequence":
-				r.frame.payload = []byte(`{"seq":2,"writes":[]}`)
+				// The frame payload must disagree with the receipt's own sequence.
+				r.frame.payload = []byte(fmt.Sprintf(`{"seq":%d,"writes":[]}`, r.seq+1))
 			case "kind":
 				r.frame.kind = 1
 			case "ordinal":
@@ -185,12 +188,13 @@ func TestInternalReceiptImageRejectsWrongFrame(t *testing.T) {
 				// Empty arrays are valid commits; a null write list is corrupt.
 				r.frame.payload = []byte(`{"seq":1,"writes":null}`)
 			case "gap":
-				b.Seq = 1
+				// A base at the receipt's own sequence leaves no contiguous slot.
+				b.Seq = r.seq
 			}
 			if _, err := r.nextImage(b, store.limits); err == nil {
 				t.Fatal("invalid receipt accepted")
 			}
-			if base.Seq != 0 || len(base.Entries) != 0 {
+			if base.Seq != 1 || len(base.Entries) != 0 {
 				t.Fatal("failed reconstruction changed base")
 			}
 		})

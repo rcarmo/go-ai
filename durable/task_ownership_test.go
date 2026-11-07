@@ -1577,6 +1577,7 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					if _, err := registry.RegisterTask(definition); err != nil {
 						t.Fatal(err)
 					}
+					seedRootConversation(t, b.store)
 					h, err := Open(bg, b.store, Options{Registry: registry, Now: func() int64 { clocks.Add(1); return 1 }})
 					if err != nil {
 						t.Fatal(err)
@@ -1655,7 +1656,9 @@ func TestTaskOwnershipInspectPausedReopenNativeBuiltinWaitBeforeDefinitionFit(t 
 					if err := h.Close(bg); err != nil {
 						t.Fatal(err)
 					}
-					second, err := Open(bg, reopenStoreAfterHarnessClose(t, b.store), Options{Registry: registry, Now: func() int64 { clocks.Add(1); return 1 }})
+					secondStore := reopenStoreAfterHarnessClose(t, b.store)
+					seedRootConversation(t, secondStore)
+					second, err := Open(bg, secondStore, Options{Registry: registry, Now: func() int64 { clocks.Add(1); return 1 }})
 					if err != nil {
 						t.Fatal(err)
 					}

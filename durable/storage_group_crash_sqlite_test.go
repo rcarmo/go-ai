@@ -40,7 +40,7 @@ func TestGroupSQLiteCrashChild(t *testing.T) {
 	}
 	received := 0
 	result, err := s.commitBatches(bg, batches, func(index int, seq uint64) error {
-		if index != received || seq != uint64(index+1) {
+		if index != received || seq != uint64(index+2) {
 			return fmt.Errorf("unexpected receipt index=%d seq=%d", index, seq)
 		}
 		received++
@@ -110,12 +110,12 @@ func TestInternalSQLiteGroupCrashRecovery(t *testing.T) {
 				if phase == "returned" {
 					high = 5
 				}
-				if err != nil || state.Seq != 3 || state.HighWater != high || len(state.Entries) != 3 {
+				if err != nil || state.Seq != 4 || state.HighWater != high || len(state.Entries) != 3 {
 					t.Fatalf("recovery=%+v receipts=%d err=%v", state, wantReceipts, err)
 				}
 				for index := 0; index < 3; index++ {
 					entry := state.Entries[ID(index+2)]
-					if entry.Seq != uint64(index+1) || entry.Position != 1 || entry.Value["text"] != "original" {
+					if entry.Seq != uint64(index+2) || entry.Position != 1 || entry.Value["text"] != "original" {
 						t.Fatal("recovery lost a batch or its sequence", entry)
 					}
 				}
@@ -124,7 +124,7 @@ func TestInternalSQLiteGroupCrashRecovery(t *testing.T) {
 					t.Fatal("recovery reused a reservation", id, err)
 				}
 				seq, err := s.Apply(bg, Batch{Writes: []Write{{Op: "append-entry", Entry: &Entry{ID: id, Conversation: 1, Kind: "after-crash", Value: JSON{}}}}})
-				if err != nil || seq != 4 {
+				if err != nil || seq != 5 {
 					t.Fatalf("post-crash apply seq=%d err=%v", seq, err)
 				}
 			})

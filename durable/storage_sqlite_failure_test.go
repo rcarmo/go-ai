@@ -16,6 +16,7 @@ func TestSQLiteRealInsertFailureRollsBackAndKeepsReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	defer store.Close(bg)
 	id := mint(t, store)
 	before := snap(t, store)
@@ -39,6 +40,7 @@ func TestSQLiteRealInsertFailureRollsBackAndKeepsReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, next)
 	defer next.Close(bg)
 	if value := snap(t, next); value.HighWater != uint64(id) || len(value.Entries) != 1 || value.Entries[id].Value["value"] != "committed" {
 		t.Fatal("rollback/reopen", value)
@@ -50,6 +52,7 @@ func TestSQLiteReclaimDeleteFailureRollsBackCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	defer store.Close(bg)
 	id := mint(t, store)
 	apply(t, store, entry(id, JSON{"persisted": true}))
@@ -64,6 +67,7 @@ func TestSQLiteReclaimDeleteFailureRollsBackCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal("reclaim rollback left duplicate checkpoint+frames", err)
 	}
+	seedRootConversation(t, next)
 	defer next.Close(bg)
 	if len(snap(t, next).Entries) != 1 {
 		t.Fatal("failed reclamation lost entry")
@@ -81,6 +85,7 @@ func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	id := mint(t, store)
 	// Per-instance transport seam: the actual SQLite COMMIT succeeds, then its
 	// acknowledgement is lost. This is uncertainty injection, not an OS fault.
@@ -103,8 +108,9 @@ func TestSQLiteLostCommitAcknowledgementPoisonsThenReopenAdopts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, next)
 	defer next.Close(bg)
-	if state := snap(t, next); state.Seq != 1 || state.Entries[id].Value["adopted"] != true {
+	if state := snap(t, next); state.Seq != 2 || state.Entries[id].Value["adopted"] != true {
 		t.Fatal("confirmed SQLite prefix not adopted", state)
 	}
 }
@@ -115,6 +121,7 @@ func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		seedRootConversation(t, store)
 		id := mint(t, store)
 		apply(t, store, entry(id, JSON{"before": "checkpoint"}))
 		if err := store.Reclaim(bg); err != nil {
@@ -145,9 +152,10 @@ func TestSQLiteProcessExitWithoutClosePreservesCommittedPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	defer store.Close(bg)
 	state := snap(t, store)
-	if state.Seq != 2 || state.HighWater != 4 || len(state.Entries) != 2 || state.Entries[2].Value["before"] != "checkpoint" || state.Entries[3].Value["after"] != "checkpoint" {
+	if state.Seq != 3 || state.HighWater != 4 || len(state.Entries) != 2 || state.Entries[2].Value["before"] != "checkpoint" || state.Entries[3].Value["after"] != "checkpoint" {
 		t.Fatal("crash prefix mismatch", state)
 	}
 	if id := mint(t, store); id != 5 {

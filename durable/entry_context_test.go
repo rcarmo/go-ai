@@ -115,6 +115,7 @@ func TestEntryContextContributionControlsRejectBeforeStage(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)

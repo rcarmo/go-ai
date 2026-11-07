@@ -14,6 +14,7 @@ func TestPiDurableV150OpaqueCheckpointMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	var seen any
 	definition, err := DefineTask(TaskDefinitionOptions{Kind: "compat.opaque-checkpoint", Version: 2, Initial: func(any) (JSON, error) { return JSON{"phase": "work"}, nil }, Migrate: func(input any, checkpoint any, version uint64) (any, JSON, error) {
 		seen = checkpoint
@@ -54,6 +55,7 @@ func TestPiDurableV150UnknownPhaseFaultsOnlyOnExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	calls := 0
 	definition := taskDefinition(t, "compat.unknown-phase", func(context.Context, TaskRecord, *TaskRuntime) error { calls++; return nil })
 	id, err := store.MintID(bg)

@@ -14,6 +14,7 @@ func TestMainWatchPendingDelivery(t *testing.T) {
 	for _, mode := range []string{"before-start", "blocked", "retired"} {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				seedRootConversation(t, b.store)
 				s, e := OpenSession(b.store)
 				if e != nil {
 					t.Fatal(e)
@@ -214,6 +215,7 @@ func TestMainWatchPendingNativeBounds(t *testing.T) {
 
 func TestMainWatchPendingRecreation(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		s, e := OpenSession(b.store)
 		if e != nil {
 			t.Fatal(e)

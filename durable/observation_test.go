@@ -188,6 +188,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -235,6 +236,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 		t.Fatal("late start", e)
 	}
 	store, _ = openTestSQLite(t, sqliteFixtureOptions{})
+	seedRootConversation(t, store)
 	s, _ = OpenSession(store)
 	defer s.Close(bg)
 	def = watchDoc(t, s)
@@ -268,6 +270,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -322,6 +325,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 		t.Fatal(e)
 	}
 	reopened := reopenStoreAfterHarnessClose(t, store)
+	seedRootConversation(t, reopened)
 	s, e = OpenSession(reopened)
 	if e != nil {
 		t.Fatal(e)
@@ -512,6 +516,7 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -569,6 +574,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -631,6 +637,7 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, another)
 	s2, e := OpenSession(another)
 	if e != nil {
 		t.Fatal(e)

@@ -27,6 +27,7 @@ func TestMainContextBusyUsesPublishedImage(t *testing.T) {
 func TestMainSessionInternalReadImageExcludesUnpublishedGroup(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -37,11 +38,11 @@ func TestMainSessionInternalReadImageExcludesUnpublishedGroup(t *testing.T) {
 			t.Fatalf("raw group=%+v err=%v", result, err)
 		}
 		raw, err := b.store.Snapshot(bg)
-		if err != nil || raw.Seq != 2 || len(raw.Entries) != 2 {
+		if err != nil || raw.Seq != 3 || len(raw.Entries) != 2 {
 			t.Fatal("raw group did not settle", raw.Seq, err)
 		}
 		if err := s.readTasks(bg, func(view Snapshot) error {
-			if view.Seq != 0 || len(view.Entries) != 0 {
+			if view.Seq != 1 || len(view.Entries) != 0 {
 				t.Fatalf("unpublished raw data escaped into internal Session read: seq=%d entries=%d", view.Seq, len(view.Entries))
 			}
 			return nil

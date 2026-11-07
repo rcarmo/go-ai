@@ -25,6 +25,7 @@ func TestSession120FatalReadLatchedAndClosed(t *testing.T) {
 		t.Fatal(e)
 	}
 	wrapper := &failingSnapshot120{SQLiteStorage: store}
+	seedRootConversation(t, wrapper)
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)
@@ -59,6 +60,7 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 	for _, operation := range []string{"commit", "mint", "caught-mint"} {
 		t.Run(operation, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				seedRootConversation(t, b.store)
 				s, e := OpenSession(b.store)
 				if e != nil {
 					t.Fatal(e)
@@ -168,6 +170,7 @@ func TestSession120LocalValidationDoesNotFailBackend(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedRootConversation(t, store)
 	s, e := OpenSession(store)
 	if e != nil {
 		t.Fatal(e)
@@ -197,6 +200,7 @@ func TestSession120CallerCancelledBackendReadDoesNotFailSession(t *testing.T) {
 		t.Fatal(e)
 	}
 	wrapper := &cancelRead120{SQLiteStorage: store}
+	seedRootConversation(t, wrapper)
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)
@@ -241,6 +245,7 @@ func TestSession120InvalidReadAndCallerCancellationAreRecoverable(t *testing.T) 
 		t.Fatal(e)
 	}
 	wrapper := &failingSnapshot120{SQLiteStorage: store}
+	seedRootConversation(t, wrapper)
 	s, e := OpenSession(wrapper)
 	if e != nil {
 		t.Fatal(e)

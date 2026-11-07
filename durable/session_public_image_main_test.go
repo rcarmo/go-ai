@@ -8,6 +8,7 @@ import (
 func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, ids := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -23,7 +24,7 @@ func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 		}
 		t.Run("snapshot", func(t *testing.T) {
 			image, err := s.Snapshot(bg)
-			if err != nil || image.Seq != 0 || len(image.Entries) != 0 || image.HighWater < uint64(ids[1]) {
+			if err != nil || image.Seq != 1 || len(image.Entries) != 0 || image.HighWater < uint64(ids[1]) {
 				t.Fatalf("published: %#v %v", image, err)
 			}
 			delete(image.Conversations, 1)
@@ -44,6 +45,7 @@ func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		ids := []ID{mint(t, b.store), mint(t, b.store), mint(t, b.store)}
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -86,7 +88,7 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 		}
 		check(false)
 		s.taskBookkeeping(func() {
-			if err := s.adoptReadImage(s.core.state, 1); err != nil {
+			if err := s.adoptReadImage(s.core.state, 2); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -117,6 +119,7 @@ func (a *mainPublicImageAdapter) ScanEntries(ctx context.Context, q EntryQuery, 
 func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -129,7 +132,7 @@ func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 			t.Fatal(result, err)
 		}
 		image, err := s.Snapshot(bg)
-		if err != nil || image.Seq != 2 || image.Conversations[1].Name != "adapter" || adapter.snapshots != 1 {
+		if err != nil || image.Seq != 3 || image.Conversations[1].Name != "adapter" || adapter.snapshots != 1 {
 			t.Fatal(image, err, adapter.snapshots)
 		}
 		page, err := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, nil)

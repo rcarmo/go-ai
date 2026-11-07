@@ -18,6 +18,7 @@ func sourceDocumentObserverSession(t *testing.T, conversation bool) (*Session, *
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	session, err := OpenSession(store)
 	if err != nil {
 		_ = store.Close(context.Background())
@@ -688,6 +689,7 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		t.Fatal(err)

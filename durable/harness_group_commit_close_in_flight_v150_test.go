@@ -152,6 +152,7 @@ func TestV150GroupCommitCloseSignalsInvocationDuringCallInFlight(t *testing.T) {
 	}
 	reopened := reopenStoreAfterHarnessClose(t, store)
 	defer reopened.Close(ctx)
+	seedRootConversation(t, reopened)
 	s, err := OpenSession(reopened)
 	if err != nil {
 		t.Fatal(err)

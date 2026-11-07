@@ -38,6 +38,7 @@ func taskTestHarness(t *testing.T, store Storage, definitions ...*TaskDefinition
 }
 func taskTestHarnessOptions(t *testing.T, store Storage, options Options, definitions ...*TaskDefinition) *Harness {
 	t.Helper()
+	seedRootConversation(t, store)
 	registry := NewRegistry()
 	for _, def := range definitions {
 		if _, err := registry.RegisterTask(def); err != nil {
@@ -3686,6 +3687,7 @@ func TestTaskSchedulerPhaseRegistryToolsCapturedPersistedLimits(t *testing.T) {
 				if _, err := registry.RegisterTask(definition); err != nil {
 					t.Fatal(err)
 				}
+				seedRootConversation(t, store)
 				h, err := Open(bg, store, Options{Registry: registry})
 				if err != nil {
 					t.Fatal(err)

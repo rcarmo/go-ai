@@ -381,6 +381,7 @@ func (a *mainDeferredAdapter) nativeCore() *storeCore { return a.Storage.(native
 
 func openMainDeferredSession(t *testing.T, b sqliteFixture) (*Session, ID, ID) {
 	t.Helper()
+	seedRootConversation(t, b.store)
 	s, err := OpenSession(b.store)
 	if err != nil {
 		t.Fatal(err)

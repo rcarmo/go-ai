@@ -12,6 +12,8 @@ import (
 
 func groupEntryBatches(t *testing.T, store Storage, count int) ([]Batch, []ID) {
 	t.Helper()
+	// Fixtures address the reserved root, which its owner must create.
+	seedRootConversation(t, store)
 	batches, ids := make([]Batch, count), make([]ID, count)
 	for index := range batches {
 		id, err := store.MintID(bg)
@@ -34,16 +36,16 @@ func TestInternalGroupReceiptsAndReopen(t *testing.T) {
 			receipts = append(receipts, [2]uint64{uint64(index), seq})
 			return nil
 		}, false)
-		if err != nil || result.stored != 3 || result.lastSeq != 3 || result.refused != nil {
+		if err != nil || result.stored != 3 || result.lastSeq != 4 || result.refused != nil {
 			t.Fatalf("result=%+v err=%v", result, err)
 		}
-		if !reflect.DeepEqual(receipts, [][2]uint64{{0, 1}, {1, 2}, {2, 3}}) || core.ordinal != ordinal+3 {
+		if !reflect.DeepEqual(receipts, [][2]uint64{{0, 2}, {1, 3}, {2, 4}}) || core.ordinal != ordinal+3 {
 			t.Fatalf("receipts=%v ordinal=%d", receipts, core.ordinal)
 		}
 		batches[0].Writes[0].Entry.Value["text"] = "mutated"
 		reopened := b.reopen()
 		state, err := reopened.Snapshot(bg)
-		if err != nil || state.Seq != 3 || len(state.Entries) != 3 || state.Entries[ids[0]].Value["text"] != "original" {
+		if err != nil || state.Seq != 4 || len(state.Entries) != 3 || state.Entries[ids[0]].Value["text"] != "original" {
 			t.Fatalf("reopened=%+v err=%v", state, err)
 		}
 		id, err := reopened.MintID(bg)
@@ -71,7 +73,7 @@ func TestInternalGroupPrefixRefusal(t *testing.T) {
 				t.Fatalf("prefix=%d result=%+v receipts=%v err=%v", refusedAt, result, receipts, err)
 			}
 			state, err := b.reopen().Snapshot(bg)
-			if err != nil || state.Seq != uint64(refusedAt) || len(state.Entries) != refusedAt {
+			if err != nil || state.Seq != uint64(refusedAt+1) || len(state.Entries) != refusedAt {
 				t.Fatalf("reopened prefix=%+v err=%v", state, err)
 			}
 			for index, id := range ids {
@@ -97,7 +99,7 @@ func TestInternalGroupReceiptErrorPreservesDurability(t *testing.T) {
 			}
 			return nil
 		}, false)
-		if err != failure || !reflect.DeepEqual(received, []uint64{1, 2}) {
+		if err != failure || !reflect.DeepEqual(received, []uint64{2, 3}) {
 			t.Fatalf("received=%v err=%v", received, err)
 		}
 		// SQLite committed the complete transaction before the first receipt.
@@ -107,7 +109,7 @@ func TestInternalGroupReceiptErrorPreservesDurability(t *testing.T) {
 			want = 3
 		}
 		state, err := b.reopen().Snapshot(bg)
-		if err != nil || len(state.Entries) != want || state.Seq != uint64(want) {
+		if err != nil || len(state.Entries) != want || state.Seq != uint64(want+1) {
 			t.Fatalf("reopened=%+v err=%v", state, err)
 		}
 	})
@@ -136,9 +138,10 @@ func TestInternalGroupOwnershipAndEmptyCall(t *testing.T) {
 		batches, _ := groupEntryBatches(t, b.store, 1)
 		core := b.store.(nativeStorage).nativeCore()
 		result, err := core.commitBatches(bg, nil, nil, false)
-		if err != nil || result.stored != 0 || result.refused != nil || result.lastSeq != 0 {
+		if err != nil || result.stored != 0 || result.refused != nil || result.lastSeq != 1 {
 			t.Fatalf("empty call=%+v err=%v", result, err)
 		}
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -179,14 +182,14 @@ func TestInternalGroupAtomicBackendError(t *testing.T) {
 			}
 			received := 0
 			result, err := core.commitBatches(bg, batches, func(int, uint64) error { received++; return nil }, false)
-			if err == nil || result.refused != nil || received != 0 || core.state.Seq != 1 || calls != 1 || errors.Is(err, ErrPoisoned) == knownRollback {
+			if err == nil || result.refused != nil || received != 0 || core.state.Seq != 2 || calls != 1 || errors.Is(err, ErrPoisoned) == knownRollback {
 				t.Fatalf("rollback=%v result=%+v receipts=%d calls=%d err=%v", knownRollback, result, received, calls, err)
 			}
 			if knownRollback && !errors.Is(err, failure) {
 				t.Fatalf("rollback lost its cause: %v", err)
 			}
 			state, err := b.reopen().Snapshot(bg)
-			if err != nil || state.Seq != 1 || len(state.Entries) != 1 {
+			if err != nil || state.Seq != 2 || len(state.Entries) != 1 {
 				t.Fatalf("confirmed prior call lost: %+v error=%v", state, err)
 			}
 		})
@@ -282,7 +285,7 @@ func TestInternalGroupAdmissionCancelAndClose(t *testing.T) {
 	if err := store.Close(bg); err != nil {
 		t.Fatal(err)
 	}
-	if store.state.Seq != 3 || len(store.state.Entries) != 3 {
+	if store.state.Seq != 4 || len(store.state.Entries) != 3 {
 		t.Fatal("close lost admitted group")
 	}
 }

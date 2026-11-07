@@ -13,8 +13,9 @@ func TestSQLite130PrefixIsolationReopenAndReclaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(prefix, err)
 		}
+		seedRootConversation(t, store)
 		initial, err := store.Snapshot(bg)
-		if err != nil || initial.Seq != 0 {
+		if err != nil || initial.Seq != 1 {
 			t.Fatal(prefix, initial.Seq, err)
 		}
 		s, err := OpenSession(store)
@@ -44,8 +45,9 @@ func TestSQLite130PrefixIsolationReopenAndReclaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		seedRootConversation(t, store)
 		snapshot, err := store.Snapshot(bg)
-		if err != nil || snapshot.Seq != 1 || len(snapshot.Documents) != 1 {
+		if err != nil || snapshot.Seq != 2 || len(snapshot.Documents) != 1 {
 			t.Fatal(prefix, snapshot, err)
 		}
 		if err = store.Close(bg); err != nil {

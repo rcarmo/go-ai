@@ -262,6 +262,7 @@ func TestDocumentHistoryTxForkAncestorPoliciesSourceFenceAndReincarnation(t *tes
 		current := historyDocument(mint(t, s), 1, "fork.current", "root-current", "latest", "current")
 		initial := historyDocument(mint(t, s), 1, "fork.initial", "not-copied", "latest", "initial")
 		apply(t, s, entry(cut, JSON{}), putDocument(asOf), putDocument(current), putDocument(initial), entry(mint(t, s), JSON{"excluded": "same-commit"}))
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)
@@ -541,6 +542,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		}
 		// Default MaxWrites256 cannot hold 261 fork commands: reject atomically
 		// rather than silently splitting a single transaction or dropping members.
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)
@@ -565,6 +567,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		if err != nil {
 			t.Fatal(err)
 		}
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)
@@ -632,6 +635,7 @@ func TestDocumentHistoryForkFamilyPagesAndDuplicatePolicyRollback(t *testing.T) 
 		apply(t, s, retireDocument(d))
 		d.ID, d.History, d.Fork = mint(t, s), "latest", "current"
 		apply(t, s, putDocument(d))
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)
@@ -737,6 +741,7 @@ func TestDocumentHistoryForkCurrentParentNewDocumentFence(t *testing.T) {
 		cut, other := mint(t, s), mint(t, s)
 		unselectedSource := historyDocument(mint(t, s), other, "copy.unselected", "committed-source", "latest", "current")
 		apply(t, s, entry(cut, JSON{}), Write{Op: "create-conversation", Conversation: &Conversation{ID: other}}, putDocument(unselectedSource))
+		seedRootConversation(t, s)
 		session, err := OpenSession(s)
 		if err != nil {
 			t.Fatal(err)
@@ -830,6 +835,7 @@ func TestDocumentHistoryForkCurrentFenceKeepsLowLevelCopyAndAncestorWrites(t *te
 		cut, other := mint(t, s), mint(t, s)
 		d := historyDocument(mint(t, s), 1, "ancestor.current", "root", "latest", "current")
 		apply(t, s, entry(cut, JSON{}), putDocument(d), Write{Op: "create-conversation", Conversation: &Conversation{ID: other}})
+		seedRootConversation(t, s)
 		session, e := OpenSession(s)
 		if e != nil {
 			t.Fatal(e)

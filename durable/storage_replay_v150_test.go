@@ -4,9 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
+
+// downgradeSQLiteConfig rewrites a freshly created store's config row to an older
+// persisted version so the legacy compatibility path can be exercised end to end.
+func downgradeSQLiteConfig(store *SQLiteStorage, version uint64) error {
+	var data []byte
+	if err := store.db.QueryRowContext(context.Background(), store.schemaSQL("SELECT value FROM config WHERE id=1")).Scan(&data); err != nil {
+		return err
+	}
+	var config sqliteConfig
+	if err := decodeStrict(data, DefaultLimits(), 16<<10, &config); err != nil {
+		return err
+	}
+	config.Version = version
+	encoded, err := encodeBounded(config, DefaultLimits(), 16<<10)
+	if err != nil {
+		return err
+	}
+	return store.exec("UPDATE config SET value=? WHERE id=1", encoded)
+}
 
 // TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches replays the
 // exact command batches the original pi-durable 1.5.0 Session handed to
@@ -42,12 +62,30 @@ func TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches(t *testi
 		t.Fatalf("batches %d", len(fixture.Batches))
 	}
 
-	store, err := newTestSQLite(t)
+	// The captured stream never writes the reserved root: it predates the raw/fresh
+	// root split, exactly like a persisted version 1 store. Downgrade the config row
+	// so the production legacy compatibility path supplies the implicit root, then
+	// reopen. This keeps every captured sequence number and document point intact.
+	path := filepath.Join(t.TempDir(), "store.sqlite")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := downgradeSQLiteConfig(store, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenSQLite(path, SQLiteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close(context.Background())
 	ctx := context.Background()
+	if _, ok := store.state.Conversations[1]; !ok {
+		t.Fatal("version 1 store did not adopt the implicit reserved root")
+	}
 
 	// The original assigned every identity before its Session handed the batches
 	// over; reserve the same range here so the caller-supplied IDs are owned.

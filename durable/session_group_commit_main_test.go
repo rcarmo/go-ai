@@ -31,6 +31,8 @@ func TestMainSessionUnpublishedReadBarriers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			seedRootConversation(t, store)
+			seedRootConversation(t, store)
 			s, err := OpenSession(store)
 			if err != nil {
 				store.Close(context.Background())
@@ -159,6 +161,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	cause := errors.New("connection lost")
 	original := store.appendFrame
 	stored := 0
@@ -174,6 +177,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	}
 	defer func() { store.appendFrame = original }()
 
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		store.Close(context.Background())
@@ -251,6 +255,7 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	// Earlier parts stayed durable; the failed part never landed.
 	reopened := reopenStoreAfterHarnessClose(t, store)
 	defer reopened.Close(ctx)
+	seedRootConversation(t, reopened)
 	s2, err := OpenSession(reopened)
 	if err != nil {
 		t.Fatal(err)
@@ -967,10 +972,12 @@ func openGatesSession(t *testing.T) (*Session, *SQLiteStorage, *mainGatesHeld, c
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedRootConversation(t, store)
 	held := &mainGatesHeld{entered: make(chan struct{}), release: make(chan struct{})}
 	original := store.appendFrame
 	store.appendFrame = held.install(original)
 	t.Cleanup(func() { store.appendFrame = original })
+	seedRootConversation(t, store)
 	s, err := OpenSession(store)
 	if err != nil {
 		store.Close(context.Background())

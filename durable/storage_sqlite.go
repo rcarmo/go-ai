@@ -122,15 +122,20 @@ func OpenSQLite(path string, options SQLiteOptions) (store *SQLiteStorage, err e
 	switch {
 	case err == nil:
 		var config sqliteConfig
-		if decodeStrict(data, DefaultLimits(), 16<<10, &config) != nil || config.Version != 1 || config.Limits.validate() != nil {
+		if decodeStrict(data, DefaultLimits(), 16<<10, &config) != nil || (config.Version != 1 && config.Version != sqliteConfigVersion) || config.Limits.validate() != nil {
 			return nil, ErrCorrupt
 		}
 		if options.Limits != nil && *options.Limits != config.Limits {
 			return nil, reject("persisted SQLite limits conflict")
 		}
 		store.limits = config.Limits
+		// Version 1 predates the raw/fresh root split and never persisted a root
+		// conversation write, so the reserved root stays implicit there.
+		if config.Version == 1 {
+			store.state.Conversations[1] = Conversation{ID: 1}
+		}
 	case errors.Is(err, sql.ErrNoRows):
-		data, err = encodeBounded(sqliteConfig{Version: 1, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
+		data, err = encodeBounded(sqliteConfig{Version: sqliteConfigVersion, Sync: true, Limits: limits}, DefaultLimits(), 16<<10)
 		if err != nil {
 			return nil, err
 		}

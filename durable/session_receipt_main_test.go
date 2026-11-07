@@ -8,6 +8,7 @@ import (
 func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
+		seedRootConversation(t, b.store)
 		s, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -17,21 +18,21 @@ func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 		var firstImage, secondImage Snapshot
 		s.taskBookkeeping(func() {
 			var err error
-			first, firstImage, err = s.settleBatch(bg, batches[0], 0)
+			first, firstImage, err = s.settleBatch(bg, batches[0], 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			second, secondImage, err = s.settleBatch(bg, batches[1], 1)
+			second, secondImage, err = s.settleBatch(bg, batches[1], 2)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if first.seq != 1 || second.seq != 2 || firstImage.Seq != 1 || len(firstImage.Entries) != 1 || secondImage.Seq != 2 || len(secondImage.Entries) != 2 {
+			if first.seq != 2 || second.seq != 3 || firstImage.Seq != 2 || len(firstImage.Entries) != 1 || secondImage.Seq != 3 || len(secondImage.Entries) != 2 {
 				t.Fatal("serial receipt captured a later image")
 			}
 			if err := s.adoptReceipt(first, &secondImage); err == nil {
 				t.Fatal("accepted future candidate")
 			}
-			if s.readImage.Seq != 0 {
+			if s.readImage.Seq != 1 {
 				t.Fatal("failed adoption advanced publication")
 			}
 			if err := s.adoptReceipt(first, &firstImage); err != nil {
@@ -39,7 +40,7 @@ func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 			}
 		})
 		state, err := s.Snapshot(bg)
-		if err != nil || state.Seq != 1 || len(state.Entries) != 1 {
+		if err != nil || state.Seq != 2 || len(state.Entries) != 1 {
 			t.Fatal("raw future leaked", state, err)
 		}
 		s.taskBookkeeping(func() {
@@ -60,11 +61,11 @@ func TestMainSessionSerialReceiptCapturesExactCandidate(t *testing.T) {
 		seq, err := s.Commit(bg, func(tx *Tx) error {
 			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "legacy", Value: JSON{}})
 		})
-		if err != nil || seq != 3 {
+		if err != nil || seq != 4 {
 			t.Fatal(seq, err)
 		}
 		s.taskBookkeeping(func() {
-			if s.readImage.Seq != 3 || reflect.ValueOf(s.readImage.Entries).Pointer() != reflect.ValueOf(s.core.state.Entries).Pointer() {
+			if s.readImage.Seq != 4 || reflect.ValueOf(s.readImage.Entries).Pointer() != reflect.ValueOf(s.core.state.Entries).Pointer() {
 				t.Fatal("serial commit did not reuse validated native candidate")
 			}
 		})

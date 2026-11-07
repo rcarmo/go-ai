@@ -8,6 +8,7 @@ import (
 
 func TestTool120ConstraintContributionReopenAndProjectionIsolation(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
 			t.Fatal(err)
@@ -28,6 +29,7 @@ func TestTool120ConstraintContributionReopenAndProjectionIsolation(t *testing.T)
 			t.Fatal(err)
 		}
 		store := reopenStoreAfterHarnessClose(t, b.store)
+		seedRootConversation(t, store)
 		next, err := OpenSession(store)
 		if err != nil {
 			t.Fatal(err)
