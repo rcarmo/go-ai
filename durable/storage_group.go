@@ -19,6 +19,34 @@ type commitGroupResult struct {
 	refused *commitRefusal
 }
 
+// Refusal is the public view of one refused batch. The original boundary types
+// the refusal as `refused?: unknown`, so both presence and the refused value are
+// observable: a nil *Refusal means no batch was refused, while a present one may
+// carry null, undefined, any falsy value or an error whose identity is retained.
+type Refusal struct{ refusal *commitRefusal }
+
+func newCommitRefusal(value any) *Refusal {
+	return &Refusal{refusal: &commitRefusal{value: value}}
+}
+
+// Value returns the refused value exactly as the store reported it.
+func (r *Refusal) Value() any {
+	if r == nil || r.refusal == nil {
+		return nil
+	}
+	return r.refusal.value
+}
+
+// AsError gives the refusal a Go error view without losing the original cause:
+// an error value is returned as itself, and any other value is represented by a
+// non-nil error so a present refusal is never mistaken for an absent one.
+func (r *Refusal) AsError() error {
+	if r == nil || r.refusal == nil {
+		return nil
+	}
+	return commitGroupResult{refused: r.refusal}.refusalError()
+}
+
 // refusalError preserves legacy native diagnostics while representing a
 // present null/undefined/falsy refusal with a non-nil error at Go boundaries.
 func (r commitGroupResult) refusalError() error {

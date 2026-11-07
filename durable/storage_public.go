@@ -6,13 +6,14 @@ import (
 )
 
 // CommitResult reports what one public grouped Storage.Commit call stored and
-// why the next batch was refused, if one was. Refused is nil when every batch
-// in the call became durable. This is the error-valued subset of the original
-// `{ stored, refused? }`, which resolves rather than rejects on a refusal.
-// Lossless arbitrary/falsy refusal values remain an open parity gap (D03).
+// which batch was refused, if one was. Refused is nil when every batch in the
+// call became durable. It mirrors the original `{ stored, refused?: unknown }`,
+// which resolves rather than rejects on a refusal and carries the refused value
+// verbatim; this call still rejects on a backend failure, and the receipts
+// already delivered still stand in that case.
 type CommitResult struct {
 	Stored  int
-	Refused error
+	Refused *Refusal
 }
 
 // Commit persists the original public storage command batches in order, each as
@@ -41,8 +42,8 @@ func (c *storeCore) Commit(ctx context.Context, batches [][]StorageWrite, receiv
 	if err != nil {
 		return CommitResult{Stored: result.stored}, err
 	}
-	if refused := result.refusalError(); refused != nil {
-		return CommitResult{Stored: result.stored, Refused: refused}, nil
+	if result.refused != nil {
+		return CommitResult{Stored: result.stored, Refused: &Refusal{refusal: result.refused}}, nil
 	}
 	return CommitResult{Stored: result.stored}, nil
 }
