@@ -137,9 +137,6 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 	// Message fields are trusted DTO envelopes, but content arguments/details
 	// still cannot gain struct/marshaler authority through that envelope.
 	for _, m := range messages {
-		if m.ErrorCode != "" || (m.HasDetails && m.Details != nil) || (!m.HasDetails && m.DetailsValue != nil) {
-			return nil, reject("invalid entry contribution details/error union")
-		}
 		for _, tool := range m.ToolsAdded {
 			if _, e := copyObject(tool.Parameters, l); e != nil {
 				return nil, e
