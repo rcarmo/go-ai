@@ -54,12 +54,12 @@ func TestGenerationAbortConvertsOnlyCommittedPartialAndNoSyntheticAssistant(t *t
 			}
 			count := 0
 			for _, entry := range state.Entries {
-				if entry.Value["role"] != string(goai.RoleAssistant) {
+				if legacyEntryValue(entry)["role"] != string(goai.RoleAssistant) {
 					continue
 				}
 				count++
 				var receipt MessageReceipt
-				if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil || receipt.StopReason != goai.StopReasonAborted || receipt.Content[0].Text != "committed partial" || receipt.ErrorCode != "" {
+				if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil || receipt.StopReason != goai.StopReasonAborted || receipt.Content[0].Text != "committed partial" || receipt.ErrorCode != "" {
 					t.Fatal("partial changed on abort", receipt, err)
 				}
 			}

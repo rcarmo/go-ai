@@ -111,7 +111,7 @@ func TestAgentEventsCommittedToolLifecycleAndReentrantListener(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, entry := range state.Entries {
-			if entry.Value["caller"] != nil {
+			if legacyEntryValue(entry)["caller"] != nil {
 				t.Fatal("event mutation reached storage")
 			}
 		}

@@ -128,7 +128,7 @@ func TestMainRunFailurePostToolsResetRetainsOnlyImmediateSuccessor(t *testing.T)
 				t.Fatalf("%s must own its actual input/first: run=%v checkpoint=%+v status=%+v", name, run, cp, status)
 			}
 			entry, ok := state.Entries[status.Entry]
-			if !ok || entry.Conversation != c.ID() || entry.Value["role"] != "user" {
+			if !ok || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "user" {
 				t.Fatalf("%s first is not its persisted user entry: %+v", name, entry)
 			}
 			if held, _ := live["failedRun"].(bool); held {

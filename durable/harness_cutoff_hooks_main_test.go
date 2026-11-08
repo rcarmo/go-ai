@@ -126,9 +126,9 @@ func mainCutoffHooksReceipt(t *testing.T, h *Harness, id ID) MessageReceipt {
 		t.Fatal(err)
 	}
 	for _, e := range snap.Entries {
-		if e.ByTask == id && e.Value["role"] == "toolResult" {
+		if e.ByTask == id && messageEntryValue(e)["role"] == "toolResult" {
 			var receipt MessageReceipt
-			if err := fromObject(e.Value, &receipt, h.session.limits); err != nil {
+			if err := decodeEntryMessage(e, h.session.limits, &receipt); err != nil {
 				t.Fatal(err)
 			}
 			return receipt

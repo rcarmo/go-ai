@@ -199,14 +199,14 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				bStatus := publicSubmission(state.Submissions[bSub.ID()])
 				wEntry, wExists := state.Entries[wStatus.Entry]
 				bEntry, bExists := state.Entries[bStatus.Entry]
-				if wStatus.Status != "done" || wStatus.Entry == 0 || wStatus.Answer != 0 || !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || wEntry.Value["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Text != "W" {
+				if wStatus.Status != "done" || wStatus.Entry == 0 || wStatus.Answer != 0 || !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || legacyEntryValue(wEntry)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Text != "W" {
 					t.Fatal("W must settle done at its own persisted model-contributing entry", wStatus, wEntry)
 				}
-				if bStatus.Status != "placed" || bStatus.Entry == 0 || bStatus.Entry == wStatus.Entry || bStatus.Entry == aStatus.Entry || bStatus.Answer != 0 || !bExists || bEntry.Conversation != c.ID() || bEntry.Kind != "message" {
+				if bStatus.Status != "placed" || bStatus.Entry == 0 || bStatus.Entry == wStatus.Entry || bStatus.Entry == aStatus.Entry || bStatus.Answer != 0 || !bExists || bEntry.Conversation != c.ID() || !isMessageEntry(bEntry) {
 					t.Fatal("gated B must be placed at its own distinct persisted input entry", bStatus, bEntry)
 				}
 				var bMessage MessageReceipt
-				if err := fromObject(bEntry.Value, &bMessage, h.session.limits); err != nil {
+				if err := decodeEntryMessage(bEntry, h.session.limits, &bMessage); err != nil {
 					t.Fatal(err)
 				}
 				if bMessage.Role != goai.RoleUser || len(bMessage.Content) != 1 || bMessage.Content[0].Text != "B" {

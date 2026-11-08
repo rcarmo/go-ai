@@ -27,7 +27,7 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 				for i, id := range results {
 					entry, ok, err := api.Entry(ctx, id)
 					wantCall := []string{"first-call", "second-call"}[i]
-					if err != nil || !ok || entry.ID <= assistant || entry.Value["toolCallId"] != wantCall {
+					if err != nil || !ok || entry.ID <= assistant || legacyEntryValue(entry)["toolCallId"] != wantCall {
 						t.Errorf("ordered committed result %d: %+v %v", i, entry, err)
 					}
 				}
@@ -88,11 +88,11 @@ func TestToolControlsUnavailableOrThrowingCallCannotTerminateRound(t *testing.T)
 					}
 				}
 				for _, entry := range state.Entries {
-					if entry.Kind != "message" {
+					if !isMessageEntry(entry) {
 						continue
 					}
 					var receipt MessageReceipt
-					if err := fromObject(entry.Value, &receipt, h.session.limits); err == nil && receipt.Role == goai.RoleToolResult && receipt.ToolCallID == "second-call" {
+					if err := decodeEntryMessage(entry, h.session.limits, &receipt); err == nil && receipt.Role == goai.RoleToolResult && receipt.ToolCallID == "second-call" {
 						if !receipt.IsError || receipt.ErrorCode != "tool_unavailable" {
 							t.Fatal("unoffered result", receipt)
 						}

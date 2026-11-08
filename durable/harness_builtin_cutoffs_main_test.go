@@ -234,8 +234,8 @@ func TestMainCutoffSafeToolKeepsStoredOutput(t *testing.T) {
 			}
 		}
 		for _, entry := range snap.Entries {
-			if entry.ByTask == id && entry.Value["role"] == "toolResult" {
-				if err := fromObject(entry.Value, &result, h.session.limits); err != nil {
+			if entry.ByTask == id && legacyEntryValue(entry)["role"] == "toolResult" {
+				if err := decodeEntryMessage(entry, h.session.limits, &result); err != nil {
 					t.Fatal(err)
 				}
 			}

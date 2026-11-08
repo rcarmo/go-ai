@@ -18,7 +18,7 @@ func v150HistoryKinds(t *testing.T, entries []Entry) []string {
 		kind := entry.Kind
 		if kind == "message" {
 			var message MessageReceipt
-			if err := fromObject(entry.Value, &message, DefaultLimits()); err != nil {
+			if err := decodeEntryMessage(entry, DefaultLimits(), &message); err != nil {
 				t.Fatal(err)
 			}
 			switch message.Role {
@@ -44,7 +44,7 @@ func TestV150HookReadsCommittedRawHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	userToken, err := DefineEntry("message")
+	userToken, err := DefineEntry(userEntryKind)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -71,7 +71,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 	for _, doc := range before.Documents {
 		if doc.Kind == codemodeJournalKind {
 			var journal codemodeJournalState
-			if err := fromObject(doc.Value, &journal, h.session.limits); err != nil {
+			if err := decodeDocumentValue(doc, h.session.limits, &journal); err != nil {
 				unblock()
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func TestMainCodemodeLateGlobalResultIsNotJournalled(t *testing.T) {
 	for _, doc := range state.Documents {
 		if doc.Kind == codemodeJournalKind {
 			var journal codemodeJournalState
-			if err := fromObject(doc.Value, &journal, h.session.limits); err != nil {
+			if err := decodeDocumentValue(doc, h.session.limits, &journal); err != nil {
 				t.Fatal(err)
 			}
 			if len(journal.Issued) != 2 || len(journal.Deliveries) != 1 || journal.Deliveries[0].Call.Name != "host.quickly" {

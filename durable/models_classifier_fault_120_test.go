@@ -96,7 +96,7 @@ func TestModels120PaidClassifierSettlementFailureNeverRepeatsPaidEffect(t *testi
 				for _, doc := range state.Documents {
 					if doc.Kind == nestedCallDocument {
 						var call nestedCallState
-						if e = fromObject(doc.Value, &call, h.session.limits); e != nil || (call.Result != nil) != confirmed {
+						if e = decodeDocumentValue(doc, h.session.limits, &call); e != nil || (call.Result != nil) != confirmed {
 							t.Fatal("partial paid result", call, e)
 						}
 					}

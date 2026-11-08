@@ -64,9 +64,9 @@ func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
 				noteEntry = entry
 				continue
 			}
-			if entry.Kind == "message" {
+			if isMessageEntry(entry) {
 				var receipt MessageReceipt
-				if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 					t.Fatal(err)
 				}
 				for _, block := range receipt.Content {

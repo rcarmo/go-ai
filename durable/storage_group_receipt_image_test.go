@@ -77,7 +77,7 @@ func TestInternalGroupReceiptFramesPublishExactPrefixes(t *testing.T) {
 				if ok != (j <= index) {
 					t.Fatal("wrong published membership", id, ok, index)
 				}
-				if ok && (entry.Seq != uint64(j+2) || entry.Value["text"] != "original") {
+				if ok && (entry.Seq != uint64(j+2) || legacyEntryValue(entry)["text"] != "original") {
 					t.Fatal("wrong detached prefix", entry)
 				}
 			}

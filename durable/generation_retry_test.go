@@ -78,9 +78,9 @@ func TestGenerationDurableRetryUsageAndReopenDeadline(t *testing.T) {
 		}
 		errorEntries := 0
 		for _, entry := range before.Entries {
-			if entry.Value["role"] == string(goai.RoleAssistant) && entry.Value["stopReason"] == string(goai.StopReasonError) {
+			if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) && legacyEntryValue(entry)["stopReason"] == string(goai.StopReasonError) {
 				errorEntries++
-				if entry.Value["errorMessage"] != "overloaded_error" {
+				if legacyEntryValue(entry)["errorMessage"] != "overloaded_error" {
 					t.Fatal("retry error text lost", entry)
 				}
 			}

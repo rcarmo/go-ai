@@ -41,10 +41,10 @@ func TestUnconfiguredConversationNoModelFailsWithoutSyntheticAssistantAndCanConf
 		}
 		users := 0
 		for _, entry := range state.Entries {
-			if entry.Value["role"] == string(goai.RoleUser) {
+			if legacyEntryValue(entry)["role"] == string(goai.RoleUser) {
 				users++
 			}
-			if entry.Value["role"] == string(goai.RoleAssistant) {
+			if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 				t.Fatal("no-model invented assistant", entry)
 			}
 		}

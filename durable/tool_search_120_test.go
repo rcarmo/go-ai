@@ -158,7 +158,7 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 			t.Fatal("agent missing")
 		}
 		var agent agentState
-		if e = fromObject(doc.Value, &agent, h.session.limits); e != nil || agent.ModelTools == nil || len(agent.ModelTools.Add) == 0 || agent.ModelTools.Add[0] != "github_get_issue" {
+		if e = decodeDocumentValue(doc, h.session.limits, &agent); e != nil || agent.ModelTools == nil || len(agent.ModelTools.Add) == 0 || agent.ModelTools.Add[0] != "github_get_issue" {
 			t.Fatal(agent, e)
 		}
 		var latest ID
@@ -180,7 +180,7 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 			t.Fatal("fork lost branch-local model tools")
 		}
 		var forkAgent agentState
-		if e = fromObject(forkDoc.Value, &forkAgent, h.session.limits); e != nil || forkAgent.ModelTools == nil || forkAgent.ModelTools.Add[0] != "github_get_issue" {
+		if e = decodeDocumentValue(forkDoc, h.session.limits, &forkAgent); e != nil || forkAgent.ModelTools == nil || forkAgent.ModelTools.Add[0] != "github_get_issue" {
 			t.Fatal(forkAgent, e)
 		}
 		compact, e := conv.Compact(bg, CompactionOptions{KeepRecentTokensOverride: func() *int { n := 0; return &n }()})
@@ -229,7 +229,7 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 		if !ok {
 			t.Fatal("agent disappeared")
 		}
-		if e = fromObject(doc.Value, &agent, next.session.limits); e != nil || agent.ModelTools == nil || agent.ModelTools.Add[0] != "github_get_issue" {
+		if e = decodeDocumentValue(doc, next.session.limits, &agent); e != nil || agent.ModelTools == nil || agent.ModelTools.Add[0] != "github_get_issue" {
 			t.Fatal(agent, e)
 		}
 	})

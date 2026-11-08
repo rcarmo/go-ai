@@ -113,7 +113,7 @@ func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 		for _, entry := range state.Entries {
 			if entry.Kind == "pi.compaction" {
 				found = true
-				if entry.Value["reason"] != "manual" || entry.Model[0].Timestamp == 0 {
+				if legacyEntryValue(entry)["reason"] != "manual" || entry.Model[0].Timestamp == 0 {
 					t.Fatal("compaction metadata missing", entry)
 				}
 			}

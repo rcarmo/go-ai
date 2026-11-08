@@ -40,12 +40,12 @@ func mainContinueOwnedUser(t *testing.T, state Snapshot, child, owner, first ID)
 	t.Helper()
 	users := 0
 	for _, entry := range state.Entries {
-		if entry.Conversation != child || entry.Value["role"] != "user" {
+		if entry.Conversation != child || legacyEntryValue(entry)["role"] != "user" {
 			continue
 		}
 		users++
 		var message MessageReceipt
-		if err := fromObject(entry.Value, &message, DefaultLimits()); err != nil {
+		if err := decodeEntryMessage(entry, DefaultLimits(), &message); err != nil {
 			t.Fatal("decode child user receipt", err)
 		}
 		if entry.ID != first || entry.ByTask != owner || message.Role != goai.RoleUser || len(message.Content) != 1 || message.Content[0].Type != "text" || message.Content[0].Text != "work" {
@@ -226,7 +226,7 @@ func TestMainContinueOwnedToolAfterModelError(t *testing.T) {
 		}
 		answer := state.Entries[settled.Record.Answer]
 		var answerMessage MessageReceipt
-		if err := fromObject(answer.Value, &answerMessage, h.session.limits); err != nil {
+		if err := decodeEntryMessage(answer, h.session.limits, &answerMessage); err != nil {
 			t.Fatal("decode recovered answer", err)
 		}
 		if settled.Record.Type != "continue" || settled.Record.Status != "done" || settled.Record.Entry != 0 || settled.Task.ID != generationID || answer.ID == 0 || answer.Conversation != o.child || answer.ByTask != generationID || answerMessage.Role != goai.RoleAssistant || len(answerMessage.Content) != 1 || answerMessage.Content[0].Type != "text" || answerMessage.Content[0].Text != "child recovered" || state.Tasks[o.owner].Status != "done" || calls.Load() != 4 {

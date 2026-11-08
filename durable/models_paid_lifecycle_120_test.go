@@ -81,7 +81,7 @@ func TestModels120PaidImageUnsafeRestartDoesNotRedispatch(t *testing.T) {
 		for _, doc := range state.Documents {
 			if doc.Kind == nestedCallDocument {
 				var call nestedCallState
-				if e := fromObject(doc.Value, &call, next.session.limits); e != nil {
+				if e := decodeDocumentValue(doc, next.session.limits, &call); e != nil {
 					t.Fatal(e)
 				}
 				if call.Name == imagesToolName {

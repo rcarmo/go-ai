@@ -10,7 +10,7 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 	if err != nil {
 		return err
 	}
-	draft := Entry{ID: id, Conversation: conversation, Kind: legacyMessageKind}
+	draft := Entry{ID: id, Conversation: conversation, Kind: userEntryKind}
 	if raw, ok := value["entry"].(map[string]any); ok {
 		// Native submission drafts use the stored envelope, not the public codec.
 		stored := storedEntry(draft)
@@ -20,16 +20,14 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 		draft = Entry(stored)
 		draft.ID, draft.Conversation, draft.Seq, draft.Position = id, conversation, 0, 0
 	} else if message, ok := value["inputMessage"].(map[string]any); ok {
-		draft.Value, err = copyObject(JSON(message), tx.limits)
-		if err != nil {
+		var mr MessageReceipt
+		if err = fromObject(JSON(message), &mr, tx.limits); err != nil {
 			return err
 		}
+		draft.Model = []MessageReceipt{mr}
 	} else {
 		text, _ := value["content"].(string)
-		draft.Value, err = dtoObject(userReceipt(text), tx.limits)
-		if err != nil {
-			return err
-		}
+		draft.Model = []MessageReceipt{userReceipt(text)}
 	}
 	if err := tx.AppendEntry(draft); err != nil {
 		return err

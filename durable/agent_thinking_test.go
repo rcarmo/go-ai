@@ -44,7 +44,7 @@ func TestAgentThinkingPinnedLevelsClearRequestForkAndReopen(t *testing.T) {
 		if level == "high" {
 			snapshot, _ := h.Snapshot(bg)
 			for _, entry := range snapshot.Entries {
-				if entry.Conversation == conv.ID() && entry.Kind == "message" && entry.ID > at {
+				if entry.Conversation == conv.ID() && isMessageEntry(entry) && entry.ID > at {
 					at = entry.ID
 				}
 			}

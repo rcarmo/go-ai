@@ -122,7 +122,7 @@ func TestInternalGroupReleasesInputContainersAndReceipt(t *testing.T) {
 			t.Fatal("open backend lost its materialised state", err)
 		}
 		for _, entry := range state.Entries {
-			if entry.Value["text"] != "original" {
+			if legacyEntryValue(entry)["text"] != "original" {
 				t.Fatal("input collection changed durable data", entry)
 			}
 		}

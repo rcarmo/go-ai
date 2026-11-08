@@ -1025,9 +1025,9 @@ func TestTaskSchedulerBoundWriteAttributionAndEscapedSettlementSeal(t *testing.T
 		}
 		var writes int
 		for _, entry := range state.Entries {
-			if entry.Kind == "message" {
+			if isMessageEntry(entry) {
 				var receipt MessageReceipt
-				if fromObject(entry.Value, &receipt, h.session.limits) == nil && receipt.Role == goai.RoleUser {
+				if decodeEntryMessage(entry, h.session.limits, &receipt) == nil && receipt.Role == goai.RoleUser {
 					writes++
 					if entry.ByTask != id || entry.Conversation != 1 {
 						t.Fatal("bound write attribution", entry)

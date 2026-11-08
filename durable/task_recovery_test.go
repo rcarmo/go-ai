@@ -659,7 +659,7 @@ func TestTaskRecoveryBuiltinHoldFinalFailureAndReopen(t *testing.T) {
 				}
 				var receipts int
 				for _, entry := range final.Entries {
-					if entry.ByTask == toolID && entry.Kind == "message" {
+					if entry.ByTask == toolID && isMessageEntry(entry) {
 						receipts++
 					}
 				}
@@ -3953,7 +3953,7 @@ func TestTaskRecoveryGenerationDecidingFinalFailureMatrix(t *testing.T) {
 					}
 					var receipts int
 					for _, entry := range final.Entries {
-						if entry.ByTask == generation && entry.Kind == "message" {
+						if entry.ByTask == generation && isMessageEntry(entry) {
 							receipts++
 						}
 					}
@@ -5156,11 +5156,11 @@ func TestTaskRecoveryGenerationHostCallbacksPreparationAndDispatchedReceipts(t *
 					}
 					var assistant, user int
 					for _, entry := range state.Entries {
-						if entry.Kind != "message" {
+						if !isMessageEntry(entry) {
 							continue
 						}
 						var receipt messageReceipt
-						if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+						if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 							t.Fatal(err)
 						}
 						if receipt.Role == goai.RoleUser {
@@ -5417,7 +5417,7 @@ func TestTaskRecoveryHostPanicDecidingStoragePrefixAndReopen(t *testing.T) {
 								continue
 							}
 							var receipt messageReceipt
-							if err := fromObject(entry.Value, &receipt, second.session.limits); err != nil {
+							if err := decodeEntryMessage(entry, second.session.limits, &receipt); err != nil {
 								t.Fatal(err)
 							}
 							wantCode := ""
@@ -5528,9 +5528,9 @@ func TestTaskRecoveryToolValidatorHostFailureBeforeIntentAndDecidingReopen(t *te
 						t.Fatal("call-phase validation lacks admitted tool", tools)
 					}
 					for _, entry := range prefix.Entries {
-						if entry.Kind == "message" {
+						if isMessageEntry(entry) {
 							var r messageReceipt
-							if err := fromObject(entry.Value, &r, h.session.limits); err != nil {
+							if err := decodeEntryMessage(entry, h.session.limits, &r); err != nil {
 								t.Fatal(err)
 							}
 							if r.Role == goai.RoleAssistant {
@@ -6357,11 +6357,11 @@ func TestTaskRecoverySuccessfulValidatorIntentStoragePrefixAndReopen(t *testing.
 				}
 				toolReceipts, toolCallReceipts := 0, 0
 				for _, entry := range final.Entries {
-					if entry.Kind != "message" {
+					if !isMessageEntry(entry) {
 						continue
 					}
 					var receipt messageReceipt
-					if err := fromObject(entry.Value, &receipt, second.session.limits); err != nil {
+					if err := decodeEntryMessage(entry, second.session.limits, &receipt); err != nil {
 						t.Fatal(err)
 					}
 					if entry.ByTask == finalTool {
@@ -6515,11 +6515,11 @@ func TestTaskRecoveryOrderedToolContinuationAdmissionCloseAndLateOwnedWork(t *te
 					var callSeq, callPosition, resultSeq, resultPosition uint64
 					calls, results := 0, 0
 					for _, entry := range snapshot.Entries {
-						if entry.Kind != "message" {
+						if !isMessageEntry(entry) {
 							continue
 						}
 						var receipt messageReceipt
-						if err := fromObject(entry.Value, &receipt, limits); err != nil {
+						if err := decodeEntryMessage(entry, limits, &receipt); err != nil {
 							t.Fatal(err)
 						}
 						if receipt.Role == goai.RoleAssistant && receipt.StopReason == goai.StopReasonToolUse {

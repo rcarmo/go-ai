@@ -128,11 +128,11 @@ func mainToolResults(t *testing.T, f *mainRecoveryHarness) []string {
 	var results []string
 	for _, id := range ids(state.Entries) {
 		e := state.Entries[id]
-		if e.Conversation != f.c.ID() || e.Value["role"] != "toolResult" {
+		if e.Conversation != f.c.ID() || messageEntryValue(e)["role"] != "toolResult" {
 			continue
 		}
 		var receipt MessageReceipt
-		if err := fromObject(e.Value, &receipt, f.h.session.limits); err != nil {
+		if err := decodeEntryMessage(e, f.h.session.limits, &receipt); err != nil {
 			t.Fatal(err)
 		}
 		var texts []string

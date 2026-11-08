@@ -107,7 +107,7 @@ func TestNestedTool120RejectedProgressFailsSessionWithoutAdoption(t *testing.T) 
 		for _, doc := range state.Documents {
 			if doc.Kind == nestedCallDocument {
 				var call nestedCallState
-				if e = fromObject(doc.Value, &call, h.session.limits); e != nil || call.Result != nil {
+				if e = decodeDocumentValue(doc, h.session.limits, &call); e != nil || call.Result != nil {
 					t.Fatal("progress failure adopted result", call, e)
 				}
 			}

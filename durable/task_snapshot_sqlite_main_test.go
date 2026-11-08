@@ -65,13 +65,13 @@ func TestMainSQLiteAdoptedTaskSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	for id, entry := range public.Entries {
-		entry.Value["body"] = "changed"
+		legacyEntryValue(entry)["body"] = "changed"
 		public.Entries[id] = entry
 		break
 	}
 	if err = s.readTasks(context.Background(), func(state Snapshot) error {
 		for _, entry := range state.Entries {
-			if entry.Value["body"] != strings.Repeat("x", 4096) {
+			if legacyEntryValue(entry)["body"] != strings.Repeat("x", 4096) {
 				t.Error("public snapshot aliases adopted image")
 			}
 		}

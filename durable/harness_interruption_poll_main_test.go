@@ -150,7 +150,7 @@ func TestMainInterruptedPollRetryEdges(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					answer := state.Entries[status.Answer].Value
+					answer := messageEntryValue(state.Entries[status.Answer])
 					var message MessageReceipt
 					if err := fromObject(answer, &message, f.h.session.limits); err != nil || len(message.Content) != 1 || message.Content[0].Text != "deferred answer" {
 						t.Errorf("poll retry answer: %+v, %v", message, err)

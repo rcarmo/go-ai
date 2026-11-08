@@ -40,7 +40,7 @@ func TestDeferredPollThrowFaultsTaskWithoutAssistantErrorReceipt(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, entry := range state.Entries {
-			if entry.Value["role"] == string(goai.RoleAssistant) {
+			if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 				t.Fatal("poll throw invented receipt", entry)
 			}
 		}

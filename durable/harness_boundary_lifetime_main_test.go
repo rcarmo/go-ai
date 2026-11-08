@@ -77,10 +77,10 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				}
 				entry, exists := before.Entries[first]
 				var input MessageReceipt
-				if !exists || entry.Conversation != c.ID() || entry.ByTask != 0 || entry.Kind != "message" || entry.Seq == 0 {
+				if !exists || entry.Conversation != c.ID() || entry.ByTask != 0 || !isMessageEntry(entry) || entry.Seq == 0 {
 					t.Fatal("admission first must be its actual persisted input, not a synthetic ID", entry)
 				}
-				if err := fromObject(entry.Value, &input, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil {
 					t.Fatal(err)
 				}
 				if input.Role != goai.RoleUser || len(input.Content) != 1 || input.Content[0].Text != "admitted before model resolution" {
@@ -239,7 +239,7 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				if got := mainAbortFailureLive(t, state, c.ID()); !equalJSONValue(got, want) {
 					t.Errorf("abort must clear run/presentation and record its actual failure: got %v; want %v", got, want)
 				}
-				if len(state.Entries) != len(before.Entries) || !equalJSONValue(state.Entries[first].Value, entry.Value) {
+				if len(state.Entries) != len(before.Entries) || !equalJSONValue(messageEntryValue(state.Entries[first]), messageEntryValue(entry)) {
 					t.Error("abort changed transcript or synthesized an assistant without a committed partial")
 				}
 				for id, doc := range before.Documents {
@@ -437,10 +437,10 @@ func TestMainBoundaryLegacyRecoveryBusyControl(t *testing.T) {
 		first := submissionEntryID(run["first"])
 		entry, exists := prepared.Entries[first]
 		var receipt MessageReceipt
-		if !exists || first == 0 || entry.Conversation != c.ID() || entry.Kind != "message" || entry.Seq == 0 {
+		if !exists || first == 0 || entry.Conversation != c.ID() || !isMessageEntry(entry) || entry.Seq == 0 {
 			t.Fatal("preparation must append an actual first entry", run, entry)
 		}
-		if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+		if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 			t.Fatal(err)
 		}
 		inputs, ok := run["inputs"].([]any)

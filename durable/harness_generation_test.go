@@ -108,7 +108,7 @@ func TestM1bProductionHTTPPersistentGeneration(t *testing.T) {
 	}
 	assistantSeq := uint64(0)
 	for _, entry := range snapshot.Entries {
-		if entry.Value["role"] == string(goai.RoleAssistant) {
+		if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 			assistantSeq = entry.Seq
 		}
 	}
@@ -439,9 +439,9 @@ func TestM1bPinnedTerminalIdentityUsageAndReopen(t *testing.T) {
 					t.Fatal(e)
 				}
 				for _, entry := range state.Entries {
-					if entry.Value["role"] == string(goai.RoleAssistant) {
+					if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 						var message MessageReceipt
-						if e = fromObject(entry.Value, &message, h.session.limits); e != nil {
+						if e = decodeEntryMessage(entry, h.session.limits, &message); e != nil {
 							t.Fatal(e)
 						}
 						if message.Provider != ref.Provider || message.Model != ref.ID || message.Api != options.Models(ref.Provider, ref.ID).Api {

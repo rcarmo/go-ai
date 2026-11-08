@@ -79,7 +79,7 @@ func testParallelRuntime120(t *testing.T, reopen, remote bool) {
 			for _, doc := range snap.Documents {
 				if doc.Owner == r.taskID && doc.Kind == codemodeJournalKind {
 					var j codemodeJournalState
-					if err := fromObject(doc.Value, &j, r.harness.session.limits); err != nil {
+					if err := decodeDocumentValue(doc, r.harness.session.limits, &j); err != nil {
 						return err
 					}
 					if len(j.Deliveries) != 3 || j.Deliveries[0].Call.ID != 2 || j.FirstIssued == nil || *j.FirstIssued != 2 {

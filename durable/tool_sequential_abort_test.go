@@ -94,11 +94,11 @@ func TestSequentialRoundAbortHasNoLaterTaskAndOneUnstartedResult(t *testing.T) {
 			}
 		}
 		for _, entry := range state.Entries {
-			if entry.Kind != "message" {
+			if !isMessageEntry(entry) {
 				continue
 			}
 			var receipt MessageReceipt
-			if err := fromObject(entry.Value, &receipt, h.session.limits); err == nil && receipt.Role == goai.RoleToolResult && receipt.ToolCallID == "second-call" {
+			if err := decodeEntryMessage(entry, h.session.limits, &receipt); err == nil && receipt.Role == goai.RoleToolResult && receipt.ToolCallID == "second-call" {
 				if receipt.ErrorCode != "aborted" || !receipt.IsError {
 					t.Fatal("unstarted abort result", receipt)
 				}

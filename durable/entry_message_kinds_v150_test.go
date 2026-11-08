@@ -33,7 +33,7 @@ func TestPiDurableV150HarnessMessageEntriesUseOriginalKindsAndModel(t *testing.T
 		}
 		kinds := map[string]goai.Role{}
 		for _, entry := range snapshot.Entries {
-			if entry.Conversation != conv.ID() || (entry.Kind != "message" && entry.Kind != "pi.user" && entry.Kind != "pi.assistant") {
+			if entry.Conversation != conv.ID() || (!isMessageEntry(entry) && entry.Kind != "pi.user" && entry.Kind != "pi.assistant") {
 				continue
 			}
 			encoded, err := json.Marshal(entry)

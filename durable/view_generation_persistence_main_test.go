@@ -130,9 +130,7 @@ func TestMainViewUpstreamGenerationOracle(t *testing.T) {
 				items := owned[0][4].([]any)
 				if len(items) == 1 {
 					e := items[0].(map[string]any)
-					v, _ := e["value"].(map[string]any)
-					// Native message/role:user envelope maps source kind:pi.user.
-					foundUser = e["kind"] == "message" && v["role"] == "user"
+					foundUser = opItemIsUserMessage(e)
 				}
 			}
 		}

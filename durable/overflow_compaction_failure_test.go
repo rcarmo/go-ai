@@ -83,7 +83,7 @@ func TestOverflowFailedOrDeclinedCompactionEndsWithoutAnotherRequestOrReceipt(t 
 			}
 			assistants := 0
 			for _, entry := range state.Entries {
-				if entry.Value["role"] == string(goai.RoleAssistant) {
+				if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 					assistants++
 				}
 			}

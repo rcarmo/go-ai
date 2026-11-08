@@ -111,7 +111,7 @@ func TestResetIdleAndPostToolsStartsFollowUpInNewContext(t *testing.T) {
 		}
 		resetCount := 0
 		for _, entry := range state.Entries {
-			if entry.ByTask == oldGeneration && entry.Kind == "message" {
+			if entry.ByTask == oldGeneration && isMessageEntry(entry) {
 				oldReceipts++
 			}
 			if entry.Kind == "pi.reset" {

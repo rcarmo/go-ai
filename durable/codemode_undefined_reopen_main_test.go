@@ -55,7 +55,7 @@ func TestMainCodemodeGlobalUndefinedAndNullReopen(t *testing.T) {
 	found := false
 	for _, doc := range state.Documents {
 		if doc.Kind == codemodeJournalKind {
-			if err := fromObject(doc.Value, &journal, h.session.limits); err != nil {
+			if err := decodeDocumentValue(doc, h.session.limits, &journal); err != nil {
 				t.Fatal(err)
 			}
 			found = true

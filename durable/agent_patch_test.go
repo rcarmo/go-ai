@@ -54,7 +54,7 @@ func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.
 		}
 		doc, _ := agentDocument(snapshot, c.ID())
 		var agent agentState
-		fromObject(doc.Value, &agent, h.session.limits)
+		decodeDocumentValue(doc, h.session.limits, &agent)
 		if agent.Cwd != "/new" || agent.SystemPrompt != "retained" || agent.Model != ref || (*agent.Tools)[0] != "second" {
 			t.Fatal("partial patch lost fields/detachment", agent)
 		}
@@ -83,7 +83,7 @@ func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.
 			t.Fatal(err)
 		}
 		doc, _ = agentDocument(snapshot, fork.ID())
-		fromObject(doc.Value, &agent, h.session.limits)
+		decodeDocumentValue(doc, h.session.limits, &agent)
 		if agent.Cwd != "/new" || agent.Tools == nil || (*agent.Tools)[0] != "second" {
 			t.Fatal("historical patch state", agent)
 		}
@@ -105,7 +105,7 @@ func TestAgentPatchPinnedPartialClearOrderingHistoricalForkAndReopen(t *testing.
 		}
 		doc, _ = agentDocument(snapshot, c.ID())
 		agent = agentState{}
-		if err := fromObject(doc.Value, &agent, second.session.limits); err != nil {
+		if err := decodeDocumentValue(doc, second.session.limits, &agent); err != nil {
 			t.Fatal(err)
 		}
 		if agent.Cwd != "" || agent.Tools != nil || agent.Extensions != nil || agent.SystemPrompt != "retained" {

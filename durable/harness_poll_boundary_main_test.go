@@ -119,8 +119,8 @@ func (f *mainPollBoundary) noPartial(t *testing.T, state Snapshot) {
 		t.Error("poll created a harness partial", live)
 	}
 	for _, entry := range state.Entries {
-		if entry.Conversation == f.c.ID() && entry.Value["role"] == string(goai.RoleAssistant) {
-			for _, block := range generationObject(entry.Value)["content"].([]any) {
+		if entry.Conversation == f.c.ID() && legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
+			for _, block := range generationObject(legacyEntryValue(entry))["content"].([]any) {
 				if generationObject(block)["text"] == "ignored poll delta" {
 					t.Error("poll delta became transcript", entry)
 				}
@@ -212,9 +212,9 @@ func TestMainPollTerminalOnlyBoundaryDerived(t *testing.T) {
 					}
 					found := false
 					for _, entry := range state.Entries {
-						if entry.Value["role"] == string(goai.RoleAssistant) {
+						if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 							var m MessageReceipt
-							if err := fromObject(entry.Value, &m, f.h.session.limits); err != nil {
+							if err := decodeEntryMessage(entry, f.h.session.limits, &m); err != nil {
 								t.Fatal(err)
 							}
 							found = len(m.Content) == 1 && m.Content[0].Text == "terminal answer"

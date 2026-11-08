@@ -87,7 +87,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 	}
 	var kept, refused, later int
 	for _, entry := range snapshot.Entries {
-		switch entry.Value["body"] {
+		switch legacyEntryValue(entry)["body"] {
 		case "p04-kept-marker":
 			kept++
 		case "p04-refused-marker":
@@ -196,7 +196,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	}
 	var kept, refused, later int
 	for _, entry := range snapshot.Entries {
-		switch entry.Value["body"] {
+		switch legacyEntryValue(entry)["body"] {
 		case "p04-sqlite-kept":
 			kept++
 		case "p04-sqlite-refused":

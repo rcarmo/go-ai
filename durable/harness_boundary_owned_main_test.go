@@ -74,11 +74,11 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 		run := generationObject(mainAbortFailureLive(t, state, childID)["run"])
 		generationID := submissionEntryID(run["task"])
 		entry, exists := state.Entries[status.Entry]
-		if childID == c.ID() || state.Conversations[childID].Owner != callerID || status.Status != "placed" || status.Answer != 0 || !exists || entry.Conversation != childID || entry.ByTask != callerID || entry.Kind != "message" {
+		if childID == c.ID() || state.Conversations[childID].Owner != callerID || status.Status != "placed" || status.Answer != 0 || !exists || entry.Conversation != childID || entry.ByTask != callerID || !isMessageEntry(entry) {
 			t.Fatal("bound idle admission must commit its real input attributed to the caller", status, entry, state.Conversations[childID])
 		}
 		var input MessageReceipt
-		if err := fromObject(entry.Value, &input, h.session.limits); err != nil || input.Role != goai.RoleUser || len(input.Content) != 1 || input.Content[0].Text != "child input" {
+		if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil || input.Role != goai.RoleUser || len(input.Content) != 1 || input.Content[0].Text != "child input" {
 			t.Fatal("bound input payload", input, err)
 		}
 		wantRun, err := dtoObject(JSON{"task": generationID, "inputs": []any{subID}, "first": entry.ID}, h.session.limits)
@@ -239,7 +239,7 @@ func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 					if mode == "passive-write" {
 						status := publicSubmission(placed.Submissions[next.ID()])
 						entry := placed.Entries[status.Entry]
-						if status.Status != "done" || entry.ID == 0 || entry.Kind != "app.boundary.note" || entry.Conversation != c.ID() || entry.ByTask != 0 || entry.Value["text"] != "W" || len(entry.Model) != 1 || entry.Model[0].Content[0].Text != "W" {
+						if status.Status != "done" || entry.ID == 0 || entry.Kind != "app.boundary.note" || entry.Conversation != c.ID() || entry.ByTask != 0 || entry.Value["text"] != "W" || len(entry.Model) != 1 || entry.Model[0].Role != goai.RoleUser || entry.Model[0].Content[0].Text != "W" {
 							t.Fatal("model-contributing passive write stranded behind held A", status, entry)
 						}
 					} else {

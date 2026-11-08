@@ -51,9 +51,9 @@ func mainSalvageRoles(t *testing.T, state Snapshot, c ID) []goai.Role {
 	var roles []goai.Role
 	for _, id := range ids(state.Entries) {
 		e := state.Entries[id]
-		if e.Conversation == c && e.Kind == "message" {
+		if e.Conversation == c && isMessageEntry(e) {
 			var m MessageReceipt
-			if err := fromObject(e.Value, &m, DefaultLimits()); err != nil {
+			if err := decodeEntryMessage(e, DefaultLimits(), &m); err != nil {
 				t.Fatal(err)
 			}
 			roles = append(roles, m.Role)
@@ -89,9 +89,9 @@ func mainSalvageCheck(t *testing.T, h *Harness, c *ConversationHandle, sub, task
 	}
 	if keep {
 		for _, e := range state.Entries {
-			if e.ByTask == task && e.Value["role"] == string(goai.RoleAssistant) {
+			if e.ByTask == task && messageEntryValue(e)["role"] == string(goai.RoleAssistant) {
 				var m MessageReceipt
-				if err := fromObject(e.Value, &m, h.session.limits); err != nil {
+				if err := decodeEntryMessage(e, h.session.limits, &m); err != nil {
 					t.Fatal(err)
 				}
 				if len(m.Content) != 1 || m.Content[0].Text != strings.Repeat("partial ", 12) || m.StopReason != goai.StopReasonAborted {

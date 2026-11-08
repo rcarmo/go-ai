@@ -64,7 +64,7 @@ func TestBashFailedTruncatedOutputPublishesSpillTailAndOriginalError(t *testing.
 		t.Fatal(err)
 	}
 	for _, entry := range state.Entries {
-		if entry.Value["role"] != string(goai.RoleToolResult) {
+		if legacyEntryValue(entry)["role"] != string(goai.RoleToolResult) {
 			continue
 		}
 		var receipt durable.MessageReceipt

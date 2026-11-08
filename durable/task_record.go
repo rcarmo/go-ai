@@ -707,9 +707,21 @@ func validateTaskReferences(s Snapshot, task Task, l Limits) error {
 					return reject("hold generation receipt/attribution disagreement")
 				}
 				if hold.Stage == "final" && hold.Action == "generation-receipt" {
-					sub := s.Submissions[hold.Submission]
-					raw, ok := sub.Value["message"].(map[string]any)
-					if !ok || sub.Status != hold.FinalStatus || !entryValueEquals(entry, raw, l) {
+					// The entry is the durable record of the receipt. The cross-check
+					// is that the submission it settles names that same entry as its
+					// answer and carries the matching terminal status. Comparing a
+					// duplicated message payload off the submission coupled two records
+					// upstream keeps independent, and upstream SubmissionRecord has no
+					// value bag to hold such a copy.
+					// Upstream answers a submission with `answer: EntryId`, so a settled
+					// `done` must name exactly this receipt. Terminal failure carries no
+					// answer field at all, so only the status is cross-checked there.
+					sub, okSub := s.Submissions[hold.Submission]
+					if !okSub || sub.Status != hold.FinalStatus {
+						return reject("final hold submission/receipt disagreement")
+					}
+					answer := submissionEntryID(sub.Value["answerEntry"])
+					if hold.FinalStatus == "done" && answer != hold.Entry || hold.FinalStatus != "done" && answer != 0 && answer != hold.Entry {
 						return reject("final hold submission/receipt disagreement")
 					}
 				}

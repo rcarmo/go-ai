@@ -127,7 +127,7 @@ func TestMainTranscriptWindowOperationNativeBounds(t *testing.T) {
 			for i := 15; i <= 17; i++ {
 				entry := Entry{ID: ID(i), Conversation: 100, Kind: "app.note", Value: JSON{"text": ""}}
 				if mode == "insert-record-bytes" {
-					entry.Value["text"] = strings.Repeat("x", 180000)
+					legacyEntryValue(entry)["text"] = strings.Repeat("x", 180000)
 				}
 				publication.Tables = append(publication.Tables, Write{Op: "append-entry", Entry: &entry})
 			}

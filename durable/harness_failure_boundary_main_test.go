@@ -162,7 +162,7 @@ func TestMainRunFailureAttachedInputsWithoutQueuedSuccessor(t *testing.T) {
 				for _, sub := range inputs {
 					status := publicSubmission(state.Submissions[sub.ID()])
 					entry, exists := state.Entries[status.Entry]
-					if status.Status != "placed" || status.Entry == 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || entry.Value["role"] != "user" || sub == primary && status.Entry != first {
+					if status.Status != "placed" || status.Entry == 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "user" || sub == primary && status.Entry != first {
 						t.Fatalf("attached input must own its distinct persisted user entry: %+v, %+v", status, entry)
 					}
 					entries[sub.ID()], seen[status.Entry] = status.Entry, true

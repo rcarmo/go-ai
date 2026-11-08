@@ -238,7 +238,7 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 						successor := state.Tasks[successorID]
 						next := checkpoint(successor)
 						assistant := state.Entries[previous.AssistantEntry]
-						if successorID == 0 || successorID == currentID || successor.Owner != 0 || successor.Conversation != c.ID() || state.Tasks[currentID].Status != "done" || assistant.ID == 0 || assistant.ByTask != currentID || assistant.Conversation != c.ID() || assistant.Value["role"] != "assistant" || assistant.Value["stopReason"] != string(goai.StopReasonToolUse) {
+						if successorID == 0 || successorID == currentID || successor.Owner != 0 || successor.Conversation != c.ID() || state.Tasks[currentID].Status != "done" || assistant.ID == 0 || assistant.ByTask != currentID || assistant.Conversation != c.ID() || legacyEntryValue(assistant)["role"] != "assistant" || legacyEntryValue(assistant)["stopReason"] != string(goai.StopReasonToolUse) {
 							t.Fatal("handoff must transfer from the real tool-calling assistant", previous, successor, assistant)
 						}
 						if next.Submission != resumed.ID() || next.InputEntry != 0 || !reflect.DeepEqual(append([]ID{}, next.Steered...), steered) {
@@ -297,9 +297,9 @@ func TestMainContinueToolHandoffOrderedInputs(t *testing.T) {
 						}
 						var persisted []goai.Message
 						for _, entry := range state.Entries {
-							if entry.Conversation == c.ID() && entry.Value["role"] == "user" {
+							if entry.Conversation == c.ID() && legacyEntryValue(entry)["role"] == "user" {
 								var receipt MessageReceipt
-								if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+								if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 									t.Fatal(err)
 								}
 								persisted = append(persisted, receiptMessage(receipt))

@@ -59,7 +59,7 @@ func TestCodemode120CustomGlobalRejectedDeliveryRepeatsUnconfirmedCallback(t *te
 					}
 					if write.Document != nil && write.Document.Kind == codemodeJournalKind {
 						var journal codemodeJournalState
-						if e := fromObject(write.Document.Value, &journal, h.session.limits); e != nil {
+						if e := decodeDocumentValue(*write.Document, h.session.limits, &journal); e != nil {
 							return e
 						}
 						if len(journal.Deliveries) > 0 {
@@ -100,7 +100,7 @@ func TestCodemode120CustomGlobalRejectedDeliveryRepeatsUnconfirmedCallback(t *te
 			}
 			if doc.Kind == codemodeJournalKind {
 				var journal codemodeJournalState
-				if e = fromObject(doc.Value, &journal, h.session.limits); e != nil || len(journal.Issued) != 1 || len(journal.Deliveries) != 0 {
+				if e = decodeDocumentValue(doc, h.session.limits, &journal); e != nil || len(journal.Issued) != 1 || len(journal.Deliveries) != 0 {
 					t.Fatal("rejected delivery prefix", journal, e)
 				}
 			}

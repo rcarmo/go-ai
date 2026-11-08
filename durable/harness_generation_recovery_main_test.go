@@ -234,11 +234,11 @@ func mainFinishRecovery(t *testing.T, f *mainRecoveryHarness, streams <-chan *ma
 	var answers []JSON
 	for _, id := range ids(state.Entries) {
 		entry := state.Entries[id]
-		if entry.Conversation != f.c.ID() || entry.Value["role"] != string(goai.RoleAssistant) {
+		if entry.Conversation != f.c.ID() || legacyEntryValue(entry)["role"] != string(goai.RoleAssistant) {
 			continue
 		}
 		var message MessageReceipt
-		if err := fromObject(entry.Value, &message, f.h.session.limits); err != nil {
+		if err := decodeEntryMessage(entry, f.h.session.limits, &message); err != nil {
 			t.Fatal(err)
 		}
 		answers = append(answers, JSON{"text": message.Content[0].Text, "stopReason": string(message.StopReason)})
@@ -442,7 +442,7 @@ func TestMainHarnessRecoveryCrashAfterConversion(t *testing.T) {
 					return err
 				}
 				for _, write := range commit.Writes {
-					if write.Entry != nil && write.Entry.Value["role"] == string(goai.RoleAssistant) && write.Entry.Value["stopReason"] == string(goai.StopReasonAborted) {
+					if write.Entry != nil && messageEntryValue(*write.Entry)["role"] == string(goai.RoleAssistant) && messageEntryValue(*write.Entry)["stopReason"] == string(goai.StopReasonAborted) {
 						converts = true
 					}
 				}

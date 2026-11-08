@@ -199,7 +199,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 						}
 						if write.Op == "append-entry" && write.Entry != nil && write.Entry.Conversation == c.ID() {
 							entries = append(entries, write.Entry.ID)
-							if write.Entry.Seq != seq || !equalJSONValue(write.Entry.Value, state.Entries[write.Entry.ID].Value) {
+							if write.Entry.Seq != seq || !equalJSONValue(messageEntryValue(*write.Entry), messageEntryValue(state.Entries[write.Entry.ID])) {
 								t.Errorf("%s: appended entry has wrong adopted sequence: %+v", lane, write.Entry)
 							}
 						}

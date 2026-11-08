@@ -36,7 +36,7 @@ func TestCodemode120RuntimePersistsQuickJSDrains(t *testing.T) {
 			for _, doc := range snap.Documents {
 				if doc.Owner == r.taskID && doc.Kind == codemodeJournalKind {
 					var j codemodeJournalState
-					if err := fromObject(doc.Value, &j, r.harness.session.limits); err != nil {
+					if err := decodeDocumentValue(doc, r.harness.session.limits, &j); err != nil {
 						return err
 					}
 					if j.FirstIssued == nil || *j.FirstIssued != 1 || len(j.Deliveries) != 1 || j.Deliveries[0].IssuedAfter == nil || *j.Deliveries[0].IssuedAfter != 1 {

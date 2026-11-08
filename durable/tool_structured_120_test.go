@@ -59,8 +59,8 @@ func TestTool120ModelStructuredValidationReportsWithoutTranscriptField(t *testin
 		}
 		found := false
 		for _, entry := range state.Entries {
-			if entry.Kind == "message" && entry.ByTask != 0 {
-				value := entry.Value
+			if isMessageEntry(entry) && entry.ByTask != 0 {
+				value := legacyEntryValue(entry)
 				if _, ok := value["structuredOutput"]; ok {
 					t.Fatal("structured value added to transcript")
 				}

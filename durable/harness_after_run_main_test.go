@@ -154,11 +154,11 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 		}
 		var first, answer ID
 		for _, entry := range entries {
-			if entry.Kind != "message" {
+			if !isMessageEntry(entry) {
 				continue
 			}
 			var receipt MessageReceipt
-			if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+			if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 				t.Fatal(err)
 			}
 			if receipt.Role == goai.RoleUser && first == 0 {
@@ -220,7 +220,7 @@ func TestMainAfterRunHookReadsCommittedEntryBoundaries(t *testing.T) {
 				return nil, nil
 			}
 			var user MessageReceipt
-			if err := fromObject(first.Value, &user, h.session.limits); err != nil || user.Role != goai.RoleUser {
+			if err := decodeEntryMessage(first, h.session.limits, &user); err != nil || user.Role != goai.RoleUser {
 				t.Errorf("run first entry must remain user-visible: receipt=%+v kind=%q err=%v", user, first.Kind, err)
 			}
 			answer, ok, err := api.Entry(ctx, run.Answer)
@@ -229,7 +229,7 @@ func TestMainAfterRunHookReadsCommittedEntryBoundaries(t *testing.T) {
 				return nil, nil
 			}
 			var assistant MessageReceipt
-			if err := fromObject(answer.Value, &assistant, h.session.limits); err != nil || assistant.Role != goai.RoleAssistant {
+			if err := decodeEntryMessage(answer, h.session.limits, &assistant); err != nil || assistant.Role != goai.RoleAssistant {
 				t.Errorf("run answer entry must remain assistant-visible: receipt=%+v kind=%q err=%v", assistant, answer.Kind, err)
 			}
 			return nil, nil
@@ -304,11 +304,11 @@ func TestMainAfterRunContinueAfterFailureSummaryUsesFailedFirst(t *testing.T) {
 		}
 		var first ID
 		for _, entry := range state.Entries {
-			if entry.Conversation != c.ID() || entry.Kind != "message" {
+			if entry.Conversation != c.ID() || !isMessageEntry(entry) {
 				continue
 			}
 			var receipt MessageReceipt
-			if err := fromObject(entry.Value, &receipt, h.session.limits); err != nil {
+			if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 				t.Fatal(err)
 			}
 			if receipt.Role == goai.RoleUser {
@@ -631,9 +631,9 @@ func TestMainAfterRunTerminateSummary(t *testing.T) {
 						if entry.Kind == "pi.reset" {
 							last = entry.ID
 						}
-					} else if entry.Kind == "message" {
+					} else if isMessageEntry(entry) {
 						var m MessageReceipt
-						if err := fromObject(entry.Value, &m, h.session.limits); err != nil {
+						if err := decodeEntryMessage(entry, h.session.limits, &m); err != nil {
 							t.Fatal(err)
 						}
 						if m.Role == goai.RoleToolResult {
@@ -893,9 +893,9 @@ func TestMainAfterRunQueuedBoundary(t *testing.T) {
 			switch entry.Kind {
 			case "test.tests", "test.result", "test.note":
 				got = append(got, entry.Kind)
-			case "message":
+			case userEntryKind, assistantEntryKind, toolResultEntryKind:
 				var m MessageReceipt
-				if err := fromObject(entry.Value, &m, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &m); err != nil {
 					t.Fatal(err)
 				}
 				text := ""

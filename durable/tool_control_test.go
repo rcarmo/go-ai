@@ -104,7 +104,7 @@ func TestToolControlsPinnedUnanimousTerminationLastHandoffAndAddTools(t *testing
 					}
 					doc, _ := agentDocument(snapshot, c.ID())
 					var agent agentState
-					if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
+					if err := decodeDocumentValue(doc, h.session.limits, &agent); err != nil {
 						t.Fatal(err)
 					}
 					if agent.Tools == nil || len(*agent.Tools) != 3 {

@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+
 	goai "github.com/rcarmo/go-ai"
 )
 
@@ -130,6 +131,16 @@ func contributionReceipts(messages []goai.Message, l Limits) ([]MessageReceipt, 
 	}
 	return result, nil
 }
+// boundMessageEnvelope re-encodes one receipt under the durable size limits and
+// decodes it back through its own schema. Decoding into the typed receipt, not
+// an untyped object, keeps the UTF-16 ranges that tool-call arguments and
+// argument diagnostics are schema-authorised to carry; an untyped projection
+// would reject the very witnesses the receipt is allowed to persist.
+func boundMessageEnvelope(m MessageReceipt, l Limits) error {
+	_, e := encodeBounded(m, l, l.MaxDocumentBytes)
+	return e
+}
+
 func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error) {
 	if messages == nil {
 		return nil, nil
@@ -142,7 +153,7 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 				return nil, e
 			}
 		}
-		if _, e := dtoObject(m, l); e != nil {
+		if e := boundMessageEnvelope(m, l); e != nil {
 			return nil, e
 		}
 		checked := m
@@ -150,7 +161,22 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 		if e := restoreReceiptArguments(&checked, l); e != nil {
 			return nil, e
 		}
-		if _, e := contributionReceipt(receiptMessage(checked), l); e != nil {
+		// The contribution check rebuilds a receipt from the message and encodes it
+		// again. That rebuild keeps content but cannot carry the native tool-error
+		// witness the UTF-16 projection is gated on, so a marked block would reach
+		// the DTO as plain text holding unpaired surrogates and be rejected as
+		// invalid UTF-8. Dropping the witness text in this validation-only copy
+		// keeps every role, shape and field check while leaving the persisted
+		// payload, which the bound above already encoded and re-decoded, untouched.
+		contribution := checked
+		contribution.Content = append([]goai.ContentBlock(nil), checked.Content...)
+		for i, block := range contribution.Content {
+			if !block.HasToolArgumentDiagnostic() && !block.HasToolArgumentTranscript() {
+				continue
+			}
+			contribution.Content[i] = goai.ContentBlock{Type: block.Type, TextSignature: block.TextSignature, TextSignaturePresent: block.TextSignaturePresent}
+		}
+		if _, e := contributionReceipt(receiptMessage(contribution), l); e != nil {
 			return nil, e
 		}
 	}
@@ -191,9 +217,17 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 	return owned, nil
 }
 func copyEntry(v Entry, l Limits) (Entry, error) {
-	value, e := copyObject(v.Value, l)
-	if e != nil {
-		return Entry{}, e
+	var value JSON
+	var e error
+	if v.Value != nil {
+		if value, e = copyObject(v.Value, l); e != nil {
+			return Entry{}, e
+		}
+	} else {
+		// Entries whose payload lives in `model` have no value bag. Normalising it
+		// to an empty object keeps every owned entry safe for hosts that touch
+		// Value, and matches the decoder, which already yields an empty object.
+		value = JSON{}
 	}
 	v.Value = value
 	if v.HasData {

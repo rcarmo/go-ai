@@ -412,7 +412,10 @@ func receiptMessage(r messageReceipt) goai.Message {
 		}
 	}
 	m := goai.Message{Role: r.Role, Content: content, Api: r.Api, Provider: r.Provider, Model: r.Model, Usage: r.Usage, StopReason: r.StopReason, Timestamp: r.Timestamp, DurationMs: copyTaskTime(r.DurationMs), ErrorMessage: r.ErrorMessage, ResponseID: r.ResponseID, ResponseModel: r.ResponseModel, ProviderThinkingLevel: r.ProviderThinkingLevel, ThinkingLevel: r.ThinkingLevel, Diagnostics: r.AssistantDiagnostics, RawStopReason: r.RawStopReason, EndTurn: r.EndTurn, ToolCallID: r.ToolCallID, ToolName: r.ToolName, IsError: r.IsError, Sections: r.Sections, ToolsRemoved: r.ToolsRemoved}
-	if m.ErrorMessage == "" {
+	// Upstream ToolResultMessage has no errorMessage field; errorCode is a native
+	// tool witness and must not masquerade as assistant protocol state when the
+	// persisted receipt is projected back to a message.
+	if m.ErrorMessage == "" && r.Role == goai.RoleAssistant {
 		m.ErrorMessage = r.ErrorCode
 	}
 	if r.Details != nil {
@@ -472,7 +475,19 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 			if c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.MimeType != "" || c.Thinking != "" {
 				return messageReceipt{}, reject("text contribution shape")
 			}
-			r.Content = append(r.Content, goai.ContentBlock{Type: "text", Text: c.Text, TextSignature: c.TextSignature, TextSignaturePresent: c.TextSignaturePresent})
+			block := goai.ContentBlock{Type: "text", Text: c.Text, TextSignature: c.TextSignature, TextSignaturePresent: c.TextSignaturePresent}
+			// A text block may carry the provider's raw argument text as a tool
+			// argument diagnostic or as compaction transcript. Those markers are
+			// the only thing that lets the UTF-16 witness be re-projected, so the
+			// rebuild has to carry them; dropping them would put unpaired
+			// surrogates in front of a validator that reads them as plain text.
+			switch {
+			case c.HasToolArgumentDiagnostic():
+				block.SetToolArgumentDiagnostic(c.Text)
+			case c.HasToolArgumentTranscript():
+				block.SetToolArgumentTranscript(c.Text)
+			}
+			r.Content = append(r.Content, block)
 		case "thinking":
 			if m.Role != goai.RoleAssistant || c.Arguments != nil || c.ID != "" || c.Name != "" || c.Data != "" || c.Text != "" {
 				return messageReceipt{}, reject("thinking contribution shape")

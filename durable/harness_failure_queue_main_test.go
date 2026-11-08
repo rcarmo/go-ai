@@ -94,7 +94,7 @@ func TestMainRunFailureContinueQueueClearsFailureAfterAnswer(t *testing.T) {
 				t.Fatalf("%s must own only its input: %v", name, run)
 			}
 			entry, ok := state.Entries[status.Entry]
-			if !ok || entry.Conversation != c.ID() || entry.Value["role"] != "user" {
+			if !ok || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "user" {
 				t.Fatalf("%s first must be its persisted user entry: %+v", name, entry)
 			}
 			if held, _ := live["failedRun"].(bool); held {

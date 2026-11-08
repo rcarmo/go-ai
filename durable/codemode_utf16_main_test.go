@@ -75,7 +75,7 @@ func TestCodemodeUTF16MainQuickJSExecutionReopen(t *testing.T) {
 				for _, doc := range state.Documents {
 					if doc.Kind == codemodeJournalKind {
 						var journal codemodeJournalState
-						if err = fromObject(doc.Value, &journal, first.session.limits); err != nil {
+						if err = decodeDocumentValue(doc, first.session.limits, &journal); err != nil {
 							t.Fatal(err)
 						}
 						if len(journal.Issued) == 1 {

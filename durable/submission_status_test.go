@@ -107,9 +107,9 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 			t.Fatal(err)
 		}
 		for _, entry := range state.Entries {
-			if entry.Value["role"] == string(goai.RoleUser) {
+			if legacyEntryValue(entry)["role"] == string(goai.RoleUser) {
 				var message MessageReceipt
-				if err := fromObject(entry.Value, &message, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
 					t.Fatal(err)
 				}
 				for _, block := range message.Content {

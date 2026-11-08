@@ -65,7 +65,7 @@ func TestIdlePassiveEntryRetainsPayloadAndRejectsStaleHead(t *testing.T) {
 	for _, entry := range state.Entries {
 		if entry.Kind == "app.note" {
 			old = entry.ID
-			if entry.Value["text"] != "retained" || len(entry.Model) != 1 {
+			if legacyEntryValue(entry)["text"] != "retained" || len(entry.Model) != 1 {
 				t.Fatal("passive draft lost", entry)
 			}
 		}

@@ -91,7 +91,7 @@ func mainContinueOracleOneUser(t *testing.T, state Snapshot, conversation ID) {
 	t.Helper()
 	users := 0
 	for _, entry := range state.Entries {
-		if entry.Conversation == conversation && entry.Value["role"] == "user" {
+		if entry.Conversation == conversation && legacyEntryValue(entry)["role"] == "user" {
 			users++
 		}
 	}
@@ -145,7 +145,7 @@ func TestMainContinueFailedRunWithoutNewUserEntry(t *testing.T) {
 		// Native v1.4 message entries store their receipt in Value; Model is
 		// the separate application-entry contribution field, not this format.
 		var receipt MessageReceipt
-		decodeErr := fromObject(answer.Value, &receipt, f.h.session.limits)
+		decodeErr := decodeEntryMessage(answer, f.h.session.limits, &receipt)
 		if !ok || answer.Conversation != c.ID() || decodeErr != nil || receipt.Role != goai.RoleAssistant || len(receipt.Content) != 1 || receipt.Content[0].Type != "text" || receipt.Content[0].Text != "recovered" {
 			t.Fatalf("persisted answer = %+v, decode=%v; want recovered", answer, decodeErr)
 		}

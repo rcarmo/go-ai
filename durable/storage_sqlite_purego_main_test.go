@@ -226,7 +226,7 @@ func TestMainSQLitePureGoV140SchemaReplay(t *testing.T) {
 				}
 				for i, body := range []string{"v1.4 α", "v1.4 β"} {
 					entry := state.Entries[ID(i+2)]
-					if entry.ID != ID(i+2) || entry.Conversation != 1 || entry.Kind != "fixture" || entry.Seq != 1 || entry.Position != uint64(i+1) || entry.Value["body"] != body {
+					if entry.ID != ID(i+2) || entry.Conversation != 1 || entry.Kind != "fixture" || entry.Seq != 1 || entry.Position != uint64(i+1) || legacyEntryValue(entry)["body"] != body {
 						t.Fatalf("legacy entry changed: %+v", entry)
 					}
 				}

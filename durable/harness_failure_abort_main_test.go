@@ -46,7 +46,7 @@ func mainAbortFailureOwner(t *testing.T, h *Harness, c *ConversationHandle, sub 
 	}
 	first := submissionEntryID(run["first"])
 	entry, exists := state.Entries[first]
-	if status.Status != "placed" || first == 0 || first != status.Entry || !exists || entry.Conversation != c.ID() || entry.Value["role"] != "user" {
+	if status.Status != "placed" || first == 0 || first != status.Entry || !exists || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "user" {
 		t.Fatalf("run.first is not this input's actual persisted user entry: run=%v status=%+v entry=%+v", run, status, entry)
 	}
 	want, err := dtoObject(JSON{"inputs": []any{sub.ID()}}, h.session.limits)
@@ -251,7 +251,7 @@ func TestMainRunFailureAbortHandlerCutoffProjectionDerived(t *testing.T) {
 		}
 		mainRequireAbortFailure(t, state, c.ID(), task.ID, sub.ID(), first, &detail)
 		for _, entry := range state.Entries {
-			if entry.Conversation == c.ID() && entry.Value["role"] == string(goai.RoleAssistant) {
+			if entry.Conversation == c.ID() && legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) {
 				t.Errorf("abort cutoff must discard the partial, not convert it: %+v", entry)
 			}
 		}

@@ -158,7 +158,7 @@ func testParallelMidflight120(t *testing.T, acknowledged bool, mode string) {
 		for _, doc := range state.Documents {
 			if doc.Kind == codemodeJournalKind {
 				var j codemodeJournalState
-				if err := fromObject(doc.Value, &j, h.session.limits); err != nil {
+				if err := decodeDocumentValue(doc, h.session.limits, &j); err != nil {
 					t.Fatal(err)
 				}
 				if len(j.Issued) != 2 || len(j.Deliveries) != 1 || j.Deliveries[0].Call.ID != 2 || (j.Deliveries[0].IssuedAfter != nil) != acknowledged || j.FirstIssued == nil || *j.FirstIssued != 2 {

@@ -244,14 +244,14 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		}
 		wEntry, wExists := state.Entries[wStatus.Entry]
 		bEntry, bExists := state.Entries[bStatus.Entry]
-		if !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || wEntry.Value["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Type != "text" || wEntry.Model[0].Content[0].Text != "W" {
+		if !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || legacyEntryValue(wEntry)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Type != "text" || wEntry.Model[0].Content[0].Text != "W" {
 			t.Fatal("W must retain its real model contribution and application entry", wEntry)
 		}
-		if !bExists || bEntry.Conversation != c.ID() || bEntry.Kind != "message" || bEntry.ID == wEntry.ID || bEntry.ID == aStatus.Entry || wEntry.ID == aStatus.Entry {
+		if !bExists || bEntry.Conversation != c.ID() || !isMessageEntry(bEntry) || bEntry.ID == wEntry.ID || bEntry.ID == aStatus.Entry || wEntry.ID == aStatus.Entry {
 			t.Fatal("B must own a distinct persisted user entry, not W or A", bEntry, wEntry)
 		}
 		var bMessage MessageReceipt
-		if err := fromObject(bEntry.Value, &bMessage, h.session.limits); err != nil {
+		if err := decodeEntryMessage(bEntry, h.session.limits, &bMessage); err != nil {
 			t.Fatal(err)
 		}
 		if bMessage.Role != goai.RoleUser || len(bMessage.Content) != 1 || bMessage.Content[0].Type != "text" || bMessage.Content[0].Text != "second" {
@@ -355,7 +355,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		state = snapshot()
 		answer, exists := state.Entries[byContinue.Record.Answer]
 		var receipt MessageReceipt // Native message receipts persist in Value.
-		decodeErr := fromObject(answer.Value, &receipt, h.session.limits)
+		decodeErr := decodeEntryMessage(answer, h.session.limits, &receipt)
 		if !exists || answer.Conversation != c.ID() || decodeErr != nil || receipt.Role != goai.RoleAssistant || len(receipt.Content) != 1 || receipt.Content[0].Type != "text" || receipt.Content[0].Text != "both handled" {
 			t.Error("shared persisted answer must contain upstream 'both handled'", answer, decodeErr)
 		}
@@ -371,7 +371,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		}
 		var users []ID
 		for _, entry := range state.Entries {
-			if entry.Conversation == c.ID() && entry.Kind == "message" && entry.Value["role"] == "user" {
+			if entry.Conversation == c.ID() && isMessageEntry(entry) && legacyEntryValue(entry)["role"] == "user" {
 				users = append(users, entry.ID)
 				if entry.ID != aStatus.Entry && entry.ID != bEntry.ID {
 					t.Error("continue fabricated a user entry", entry)

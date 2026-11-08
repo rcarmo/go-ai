@@ -111,7 +111,7 @@ func testQuickJSUnsettledReopen120(t *testing.T, drains, drift bool) {
 		for _, doc := range state.Documents {
 			if doc.Kind == codemodeJournalKind {
 				var journal codemodeJournalState
-				if err = fromObject(doc.Value, &journal, h.session.limits); err != nil {
+				if err = decodeDocumentValue(doc, h.session.limits, &journal); err != nil {
 					t.Fatal(err)
 				}
 				if len(journal.Issued) != 3 || len(journal.Deliveries) != 3 || !journal.Issued[0].Global || !journal.Issued[1].Global || journal.Issued[2].Global {

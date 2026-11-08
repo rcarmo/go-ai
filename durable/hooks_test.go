@@ -55,7 +55,7 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 					return err
 				}
 				result, ok, err := api.Entry(ctx, results[0])
-				if err != nil || !ok || result.Conversation != entry.Conversation || result.Value["toolCallId"] != "hook-call" {
+				if err != nil || !ok || result.Conversation != entry.Conversation || legacyEntryValue(result)["toolCallId"] != "hook-call" {
 					t.Errorf("committed afterTools result: %+v %v", result, err)
 				}
 				results[0] = 0 // callback owns its entry ID collection
@@ -148,9 +148,9 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 					}
 				}
 			}
-			if entry.Kind == "message" {
+			if isMessageEntry(entry) {
 				var message MessageReceipt
-				if err := fromObject(entry.Value, &message, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
 					t.Fatal(err)
 				}
 				for _, block := range message.Content {
@@ -224,11 +224,11 @@ func TestBeforeToolBlockOrThrowPreventsEffectAndRevalidatesReplacement(t *testin
 			}
 			found := false
 			for _, entry := range state.Entries {
-				if entry.Kind != "message" {
+				if !isMessageEntry(entry) {
 					continue
 				}
 				var message MessageReceipt
-				if err := fromObject(entry.Value, &message, h.session.limits); err != nil {
+				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
 					t.Fatal(err)
 				}
 				if message.Role == goai.RoleToolResult {
@@ -422,7 +422,7 @@ func TestBeforeCompactDecisionDetachmentAndFirstWins(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, entry := range state.Entries {
-				if entry.Value["changed"] != nil {
+				if legacyEntryValue(entry)["changed"] != nil {
 					t.Fatal("compaction entries escaped")
 				}
 			}

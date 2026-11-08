@@ -211,13 +211,13 @@ func TestMainInterruptedBudgetAndCloseAccounting(t *testing.T) {
 				var roles, aborted []string
 				for _, id := range ids(state.Entries) {
 					entry := state.Entries[id]
-					if entry.Conversation != f.c.ID() || entry.Value["role"] == nil {
+					if entry.Conversation != f.c.ID() || legacyEntryValue(entry)["role"] == nil {
 						continue
 					}
-					roles = append(roles, fmt.Sprint(entry.Value["role"]))
-					if entry.Value["stopReason"] == "aborted" {
+					roles = append(roles, fmt.Sprint(legacyEntryValue(entry)["role"]))
+					if legacyEntryValue(entry)["stopReason"] == "aborted" {
 						var message MessageReceipt
-						if err := fromObject(entry.Value, &message, f.h.session.limits); err != nil || len(message.Content) != 1 {
+						if err := decodeEntryMessage(entry, f.h.session.limits, &message); err != nil || len(message.Content) != 1 {
 							t.Fatal("aborted receipt", message, err)
 						}
 						aborted = append(aborted, message.Content[0].Text)

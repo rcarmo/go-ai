@@ -406,10 +406,10 @@ func TestM1cAbortDrainsChildBeforeParentAndFencesEscapedAPI(t *testing.T) {
 	}
 	childTerminalSeq := uint64(0)
 	for _, entry := range state.Entries {
-		if entry.Value["role"] == string(goai.RoleToolResult) {
+		if legacyEntryValue(entry)["role"] == string(goai.RoleToolResult) {
 			childTerminalSeq = entry.Seq
 		}
-		if entry.Value["role"] == string(goai.RoleAssistant) && entry.Value["errorCode"] == "aborted" {
+		if legacyEntryValue(entry)["role"] == string(goai.RoleAssistant) && legacyEntryValue(entry)["errorCode"] == "aborted" {
 			t.Fatal("abort invented assistant receipt", entry)
 		}
 	}
@@ -809,7 +809,7 @@ func TestM1cInvalidToolUsageSettlesOnceNoAppOrReplay(t *testing.T) {
 			} else {
 				for _, entry := range state.Entries {
 					var receipt MessageReceipt
-					if entry.Kind == "message" && fromObject(entry.Value, &receipt, h.session.limits) == nil && receipt.Role == goai.RoleToolResult && receipt.ToolName == "usage" {
+					if isMessageEntry(entry) && decodeEntryMessage(entry, h.session.limits, &receipt) == nil && receipt.Role == goai.RoleToolResult && receipt.ToolName == "usage" {
 						t.Fatal("invalid tool result invented transcript receipt", receipt)
 					}
 				}
@@ -1129,7 +1129,7 @@ func assertStoredOriginalAndExecutionArgs(t *testing.T, state Snapshot, name, ke
 	calls, children := 0, 0
 	for _, entry := range state.Entries {
 		var receipt MessageReceipt
-		if e := fromObject(entry.Value, &receipt, l); e != nil {
+		if e := decodeEntryMessage(entry, l, &receipt); e != nil {
 			t.Fatal(e)
 		}
 		if receipt.Role != goai.RoleAssistant {
@@ -1186,11 +1186,11 @@ func assertToolUsageReceipts(t *testing.T, state Snapshot, name string, want *go
 		}
 	}
 	for _, entry := range state.Entries {
-		if entry.Kind != "message" {
+		if !isMessageEntry(entry) {
 			continue
 		}
 		var receipt MessageReceipt
-		if e := fromObject(entry.Value, &receipt, l); e != nil {
+		if e := decodeEntryMessage(entry, l, &receipt); e != nil {
 			t.Fatal(e)
 		}
 		if receipt.Role == goai.RoleToolResult && receipt.ToolName == name {

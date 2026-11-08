@@ -36,7 +36,7 @@ func TestHarnessSettingsReferenceDefaultsPartialZeroFalseAndRuntimeGetter(t *tes
 		for _, doc := range state.Documents {
 			if doc.Kind == "pi.agent" {
 				var stored agentState
-				if err := fromObject(doc.Value, &stored, h.session.limits); err != nil {
+				if err := decodeDocumentValue(doc, h.session.limits, &stored); err != nil {
 					t.Fatal(err)
 				}
 				if stored.Settings.Retry != (RetryPolicy{}) {

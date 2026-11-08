@@ -104,7 +104,7 @@ func TestCodingToolsProductionHTTPSQLiteAndReopen(t *testing.T) {
 	}
 	results := map[string]string{}
 	for _, entry := range snapshot.Entries {
-		if entry.Value["role"] == string(goai.RoleToolResult) {
+		if legacyEntryValue(entry)["role"] == string(goai.RoleToolResult) {
 			encoded, _ := json.Marshal(entry.Value)
 			var message durable.MessageReceipt
 			if err := json.Unmarshal(encoded, &message); err != nil {

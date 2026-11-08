@@ -14,7 +14,7 @@ import (
 // hiding arbitrary fields. first is an actual placed entry ID, not a clock.
 func mainRequireRunFailure(t *testing.T, state Snapshot, conversation, task, input, first ID, reason, detail string, held bool) {
 	t.Helper()
-	if entry, ok := state.Entries[first]; !ok || entry.Conversation != conversation || entry.Value["role"] != "user" {
+	if entry, ok := state.Entries[first]; !ok || entry.Conversation != conversation || legacyEntryValue(entry)["role"] != "user" {
 		t.Fatal("failure first is not its persisted user entry", first)
 	}
 	var live JSON

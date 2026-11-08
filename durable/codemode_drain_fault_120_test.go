@@ -85,7 +85,7 @@ func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
 					}
 					if write.Document != nil && write.Document.Kind == codemodeJournalKind {
 						var journal codemodeJournalState
-						if e := fromObject(write.Document.Value, &journal, h.session.limits); e != nil {
+						if e := decodeDocumentValue(*write.Document, h.session.limits, &journal); e != nil {
 							return e
 						}
 						if rejectCount(journal) {
@@ -124,7 +124,7 @@ func testRejectedDrainCommit120(t *testing.T, initial, parallel bool) {
 				if parallel && initial {
 					wantIssued = 0
 				}
-				if e = fromObject(doc.Value, &journal, h.session.limits); e != nil || len(journal.Issued) != wantIssued {
+				if e = decodeDocumentValue(doc, h.session.limits, &journal); e != nil || len(journal.Issued) != wantIssued {
 					t.Fatal("rejected drain prefix", journal, e)
 				}
 				if initial {

@@ -122,10 +122,10 @@ func TestMainRunFailureNoModelBeforeRequest(t *testing.T) {
 							if entry.Conversation != c.ID() {
 								continue
 							}
-							if entry.Value["role"] == "assistant" {
+							if legacyEntryValue(entry)["role"] == "assistant" {
 								t.Error("no-model invented assistant", entry)
 							}
-							if entry.Value["role"] == "user" {
+							if legacyEntryValue(entry)["role"] == "user" {
 								users++
 							}
 						}
@@ -191,7 +191,7 @@ func TestMainRunFailureNoModelReplacesPreviousModelError(t *testing.T) {
 			t.Error("removing model must not invoke provider again", calls.Load())
 		}
 		for id, entry := range after.Entries {
-			if entry.Conversation == c.ID() && entry.Value["role"] == "assistant" {
+			if entry.Conversation == c.ID() && legacyEntryValue(entry)["role"] == "assistant" {
 				if _, existed := before.Entries[id]; !existed {
 					t.Error("fresh no-model run invented assistant", entry)
 				}
@@ -259,12 +259,12 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 		t.Fatal(err)
 	}
 	entry, exists := state.Entries[r.Entry]
-	if !exists || entry.Conversation != c.ID() || entry.Kind != "message" || !equalJSONValue(entry.Value, wire) {
+	if !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) {
 		t.Fatal("settlement must name its exact persisted user input", entry, wire)
 	}
 	copies := 0
 	for _, entry := range state.Entries {
-		if entry.Conversation == c.ID() && entry.Kind == "message" && equalJSONValue(entry.Value, wire) {
+		if entry.Conversation == c.ID() && isMessageEntry(entry) && equalJSONValue(messageEntryValue(entry), wire) {
 			copies++
 		}
 	}
@@ -276,7 +276,7 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 		if write.Submission != nil && write.Submission.ID == sub.ID() {
 			final = write.Submission
 		}
-		if write.Op == "append-entry" && write.Entry != nil && (write.Entry.ID == r.Entry || write.Entry.Conversation == c.ID() && equalJSONValue(write.Entry.Value, wire)) {
+		if write.Op == "append-entry" && write.Entry != nil && (write.Entry.ID == r.Entry || write.Entry.Conversation == c.ID() && equalJSONValue(messageEntryValue(*write.Entry), wire)) {
 			t.Fatal("terminal decision must reuse its input placement, not append it again", publication, r)
 		}
 	}
@@ -323,19 +323,19 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 			t.Fatal(err)
 		}
 		entry, exists := state.Entries[status.Entry]
-		if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || entry.Kind != "message" || !equalJSONValue(entry.Value, wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
+		if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
 			t.Fatal("successor must already own its distinct placed input before resolution", status, entry, next)
 		}
 		copies, appends, placements := 0, 0, 0
 		for _, candidate := range state.Entries {
-			if candidate.Conversation == c.ID() && candidate.Kind == "message" && equalJSONValue(candidate.Value, wire) {
+			if candidate.Conversation == c.ID() && isMessageEntry(candidate) && equalJSONValue(messageEntryValue(candidate), wire) {
 				copies++
 			}
 		}
 		for _, write := range publication.Tables {
 			if write.Op == "append-entry" && write.Entry != nil && write.Entry.ID == status.Entry {
 				appends++
-				if write.Entry.Conversation != c.ID() || write.Entry.Kind != "message" || write.Entry.ByTask != entry.ByTask || !equalJSONValue(write.Entry.Value, wire) {
+				if write.Entry.Conversation != c.ID() || !isMessageEntry(*write.Entry) || write.Entry.ByTask != entry.ByTask || !equalJSONValue(messageEntryValue(*write.Entry), wire) {
 					t.Fatal("start publication must append the exact persisted successor input", write, entry)
 				}
 			}
@@ -380,7 +380,7 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 		}
 	}
 	for _, write := range publication.Tables {
-		if write.Op == "append-entry" && write.Entry != nil && write.Entry.Conversation == c.ID() && write.Entry.Value["role"] == "user" {
+		if write.Op == "append-entry" && write.Entry != nil && write.Entry.Conversation == c.ID() && messageEntryValue(*write.Entry)["role"] == "user" {
 			userAppends++
 		}
 		if write.Task != nil && write.Task.ID == owner {
@@ -665,7 +665,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 							t.Fatal(err)
 						}
 						entry, exists := state.Entries[status.Entry]
-						if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entries[sub.ID()] != 0 && entries[sub.ID()] != status.Entry || entries[sub.ID()] == 0 && seen[status.Entry] || !exists || entry.Conversation != c.ID() || entry.Kind != "message" || !equalJSONValue(entry.Value, wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
+						if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entries[sub.ID()] != 0 && entries[sub.ID()] != status.Entry || entries[sub.ID()] == 0 && seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
 							t.Fatal("successor input must retain its exact distinct boundary placement", status, entry, next)
 						}
 						entries[sub.ID()], seen[status.Entry] = status.Entry, true
@@ -702,17 +702,17 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 						t.Fatal(err)
 					}
 					entry := state.Entries[r.Answer]
-					want, err := dtoObject(JSON{"taskId": owner, "placedEntry": entries[sub.ID()], "answerEntry": r.Answer, "message": entry.Value}, h.session.limits)
+					want, err := dtoObject(JSON{"taskId": owner, "placedEntry": entries[sub.ID()], "answerEntry": r.Answer, "message": legacyEntryValue(entry)}, h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || entry.Value["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" || !equalJSONValue(r.Value, want) || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(state.Submissions[sub.ID()].Value, want) {
+					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" || !equalJSONValue(r.Value, want) || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(state.Submissions[sub.ID()].Value, want) {
 						t.Fatal("successor must settle uniformly with its own entry and actual shared answer", result, entry, want)
 					}
 					placedInput := state.Entries[entries[sub.ID()]]
 					copies := 0
 					for _, candidate := range state.Entries {
-						if candidate.Conversation == c.ID() && candidate.Kind == "message" && equalJSONValue(candidate.Value, placedInput.Value) {
+						if candidate.Conversation == c.ID() && isMessageEntry(candidate) && equalJSONValue(messageEntryValue(candidate), messageEntryValue(placedInput)) {
 							copies++
 						}
 					}
@@ -721,7 +721,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 					}
 					var final *Submission
 					for _, write := range publication.Tables {
-						if write.Op == "append-entry" && write.Entry != nil && (write.Entry.ID == r.Entry || write.Entry.Conversation == c.ID() && equalJSONValue(write.Entry.Value, placedInput.Value)) {
+						if write.Op == "append-entry" && write.Entry != nil && (write.Entry.ID == r.Entry || write.Entry.Conversation == c.ID() && equalJSONValue(messageEntryValue(*write.Entry), messageEntryValue(placedInput))) {
 							t.Fatal("successor settlement must not append its input again", sub.ID(), write)
 						}
 						if write.Submission != nil && write.Submission.ID == sub.ID() {

@@ -63,7 +63,7 @@ func TestAgentFiltersPinnedLiveDefaultsAddRemoveAndToolControl(t *testing.T) {
 	}
 	doc, _ := agentDocument(snapshot, c.ID())
 	var agent agentState
-	if err := fromObject(doc.Value, &agent, h.session.limits); err != nil {
+	if err := decodeDocumentValue(doc, h.session.limits, &agent); err != nil {
 		t.Fatal(err)
 	}
 	if agent.ToolsRemoved == nil || len(*agent.ToolsRemoved) != 0 || agent.ExtensionFilter == nil {
@@ -90,7 +90,7 @@ func TestAgentFiltersPinnedLiveDefaultsAddRemoveAndToolControl(t *testing.T) {
 	snapshot, _ = h.Snapshot(bg)
 	doc, _ = agentDocument(snapshot, c.ID())
 	agent = agentState{}
-	fromObject(doc.Value, &agent, h.session.limits)
+	decodeDocumentValue(doc, h.session.limits, &agent)
 	selected := registry.selectedHooks(agent)
 	if len(selected) != 2 {
 		t.Fatal("add/remove selected count", len(selected))

@@ -115,7 +115,7 @@ func TestInternalSQLiteGroupCrashRecovery(t *testing.T) {
 				}
 				for index := 0; index < 3; index++ {
 					entry := state.Entries[ID(index+2)]
-					if entry.Seq != uint64(index+2) || entry.Position != 1 || entry.Value["text"] != "original" {
+					if entry.Seq != uint64(index+2) || entry.Position != 1 || legacyEntryValue(entry)["text"] != "original" {
 						t.Fatal("recovery lost a batch or its sequence", entry)
 					}
 				}

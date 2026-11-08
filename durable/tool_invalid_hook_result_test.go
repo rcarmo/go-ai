@@ -75,7 +75,7 @@ func TestInvalidToolResultWithAfterToolStillFaultsWithoutReceipt(t *testing.T) {
 					}
 				}
 				for _, entry := range state.Entries {
-					if entry.Value["role"] == string(goai.RoleToolResult) {
+					if legacyEntryValue(entry)["role"] == string(goai.RoleToolResult) {
 						t.Fatal("invalid result invented receipt", entry)
 					}
 				}

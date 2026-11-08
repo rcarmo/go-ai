@@ -272,7 +272,7 @@ func validateBatchJSON(b Batch, l Limits) error {
 			if _, e := copyEntry(*w.Entry, l); e != nil {
 				return e
 			}
-			value = w.Entry.Value
+			continue
 		case w.Task != nil:
 			if _, e := copyTask(*w.Task, l); e != nil {
 				return e
