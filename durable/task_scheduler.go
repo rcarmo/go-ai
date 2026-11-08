@@ -1811,7 +1811,7 @@ func (s *taskScheduler) toolRoundChildren(state Snapshot, parent Task, cp genera
 				// execution envelope may use that historical placement; native
 				// Holds retain their strict producing-task reference validation.
 				attributed := entry.ByTask == child.ID || child.Execution == nil && entry.ByTask == 0
-				if entry.Conversation == child.Conversation && attributed && entry.Kind == legacyMessageKind && equalJSONValue(entry.Value, value) {
+				if entry.Conversation == child.Conversation && attributed && isMessageEntry(entry) && entryValueEquals(entry, value, s.h.session.limits) {
 					found = true
 					break
 				}

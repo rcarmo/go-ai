@@ -290,7 +290,7 @@ func deriveContextHistory(history []Entry, l Limits) (ContextView, error) {
 	}
 	for _, entry := range view.Entries {
 		contribution := entry.Model
-		if contribution == nil && entry.Kind == legacyMessageKind {
+		if contribution == nil && isMessageEntry(entry) {
 			var receipt MessageReceipt
 			receipt, e = entryMessage(entry, l)
 			if e != nil {

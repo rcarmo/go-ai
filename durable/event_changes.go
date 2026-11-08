@@ -138,7 +138,7 @@ func eventEntryMessage(entry Entry, limits Limits) (*MessageReceipt, error) {
 		}
 		return &messages[0], nil
 	}
-	if entry.Kind != legacyMessageKind {
+	if !isMessageEntry(entry) {
 		return nil, nil
 	}
 	message, err := entryMessage(entry, limits)
