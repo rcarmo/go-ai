@@ -213,3 +213,47 @@ and was reverted.
   differently once publication no longer precedes commit return.
 
 Both are read-path and scheduler-path questions inside the same change, not one-line fixes.
+
+## Admission flip, fifth attempt: both original failures fixed, full suite deadlocks
+
+Furthest the flip has got, and it still does not land. Diff kept in
+`notes/writer-install-crosswalk.patch`.
+
+**Both earlier failures are fixed, for known reasons:**
+
+1. `TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation/{document,historical-document}/seal`.
+   `TaskRuntime.SnapshotDefinition` and `SnapshotDefinitionAsOf` entered the line with receiver
+   name `session`, so the regex sweep that gates reads on `touchAll` skipped them - the only two
+   capability kinds left ungated, which is why 20 of 22 kinds passed. Adding the gate fixed them.
+   Recorded here because a gate sweep keyed to one variable name silently misses entry points; the
+   sweep must match the enter/leave pair, not an identifier.
+   Note: `enterKeyed` does not exist in the tree; an earlier hypothesis about it was wrong.
+
+2. `TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission` - "fatal reservation
+   leaked provisional authority". Real race, not a test quirk: the reservation's `taskRollback`
+   clears provisional authority, and the invariant is native's own
+   (`taskRollback func(error) // trusted bounded bookkeeping BEFORE Session.leave`). With the
+   handoff there is no leave after Storage, so the rollback ran after the part's outcome closed and
+   a gated reader could pass `touchAll` and observe the un-rolled-back invocation. Upstream has no
+   `rollback` or `provisional` in `session.ts` at all, so there is nothing to copy; the invariant is
+   native's to preserve.
+   Fix: the writer's `discard` hook runs *before* `settle()` closes the outcome and gate, which is
+   exactly the required ordering. `discard` took no argument, so it became `discard func(error)`,
+   and the commit's rollback is now once-guarded so Storage failure and the deferred teardown
+   cannot both run it. All 22 capability kinds and the reservation case pass.
+
+**New blocker, structural:** the full suite deadlocks in `TestMainHarnessRecoveryBeforeFirstStore`.
+The scheduler's `run` defer calls `taskBookkeeping`, which blocks on the line for 19 minutes. The
+holder is a publish callback: the flip makes publication re-acquire the line to adopt, and the
+adoption path reaches scheduler bookkeeping that calls `taskBookkeeping` again. The line is not
+reentrant, so publication waits on itself while owning the line, and every line entrant behind it
+strands. `taskBookkeeping` has 19 non-test call sites, several on adoption-adjacent paths.
+
+Upstream cannot deadlock this way: `#adopt` runs synchronously on the same promise chain that
+admits readers, with no lock to re-enter. The line-owned memory model needs the publication path to
+be provably re-entrancy-free. That is a design task - thread line ownership explicitly through the
+bookkeeping the publication path reaches, or make adoption call the inner functions directly rather
+than the acquiring wrappers. It is not a one-line fix, and `taskBookkeeping` using
+`context.Background()` rules out passing ownership by context without touching every site.
+
+Nothing half-gated is left in the tree.

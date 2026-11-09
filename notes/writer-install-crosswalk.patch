@@ -1,0 +1,668 @@
+diff --git a/durable/context_read.go b/durable/context_read.go
+index b85cef7..1dcadf9 100644
+--- a/durable/context_read.go
++++ b/durable/context_read.go
+@@ -33,6 +33,11 @@ func (s *Session) installContextRead(ctx context.Context, read preparedContextRe
+ 	if err := s.enter(ctx); err != nil {
+ 		return err
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if err := s.touchAll(ctx); err != nil {
++		return err
++	}
+ 	defer s.leave()
+ 	// Native health can change while derivation is off line, independently of
+ 	// Session publication (for example an uncertain raw write or storage Close).
+diff --git a/durable/document_definition.go b/durable/document_definition.go
+index 37f7c7d..b90e0d7 100644
+--- a/durable/document_definition.go
++++ b/durable/document_definition.go
+@@ -153,6 +153,11 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
+ 	if err := s.enter(ctx); err != nil {
+ 		return err
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if err := s.touchAll(ctx); err != nil {
++		return err
++	}
+ 	defer s.leave()
+ 	// Poisoned storage must not appear usable even for a cache operation.
+ 	if _, err := s.guardedStorage().Limits(); err != nil {
+@@ -199,6 +204,11 @@ func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinitio
+ 	if err := s.enter(ctx); err != nil {
+ 		return nil, false, err
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if err := s.touchAll(ctx); err != nil {
++		return nil, false, err
++	}
+ 	defer s.leave()
+ 	return s.snapshotDefinition(ctx, def, owner, key)
+ }
+@@ -232,6 +242,11 @@ func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
+ 	if err := s.enter(ctx); err != nil {
+ 		return nil, false, err
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if err := s.touchAll(ctx); err != nil {
++		return nil, false, err
++	}
+ 	defer s.leave()
+ 	return s.snapshotDefinitionAsOf(ctx, def, conversation, key, at)
+ }
+diff --git a/durable/entry_definition.go b/durable/entry_definition.go
+index c708e1f..6a23ba6 100644
+--- a/durable/entry_definition.go
++++ b/durable/entry_definition.go
+@@ -99,6 +99,11 @@ func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversa
+ 	if e := s.enter(ctx); e != nil {
+ 		return Entry{}, false, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Entry{}, false, e
++	}
+ 	defer s.leave()
+ 	if def == nil {
+ 		return Entry{}, false, reject("nil entry definition")
+@@ -131,6 +136,7 @@ func contributionReceipts(messages []goai.Message, l Limits) ([]MessageReceipt,
+ 	}
+ 	return result, nil
+ }
++
+ // boundMessageEnvelope re-encodes one receipt under the durable size limits and
+ // decodes it back through its own schema. Decoding into the typed receipt, not
+ // an untyped object, keeps the UTF-16 ranges that tool-call arguments and
+diff --git a/durable/harness_root_bootstrap_v150_test.go b/durable/harness_root_bootstrap_v150_test.go
+index a31cee0..6a157c5 100644
+--- a/durable/harness_root_bootstrap_v150_test.go
++++ b/durable/harness_root_bootstrap_v150_test.go
+@@ -50,7 +50,6 @@ func TestHarnessRootBootstrapsReservedConversation(t *testing.T) {
+ 		t.Fatal("root bootstrap was not a committed write")
+ 	}
+ 
+-
+ 	// Reopening proves the root is persisted, not an in-memory convenience.
+ 	if err := h.Close(bg); err != nil {
+ 		t.Fatal(err)
+diff --git a/durable/observation.go b/durable/observation.go
+index 051131d..ab244e8 100644
+--- a/durable/observation.go
++++ b/durable/observation.go
+@@ -448,6 +448,11 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition,
+ 	if e := s.enter(ctx); e != nil {
+ 		return nil, false, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return nil, false, e
++	}
+ 	defer s.leave()
+ 	record, value, ok, e := s.watchDefinitionValue(ctx, def, owner, key)
+ 	if e != nil || !ok {
+@@ -746,6 +751,11 @@ func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *C
+ 	if e := s.enter(ctx); e != nil {
+ 		return Snapshot{}, nil, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Snapshot{}, nil, e
++	}
+ 	defer s.leave()
+ 	snapshot, e := s.guardedStorage().Snapshot(ctx)
+ 	if e != nil {
+@@ -964,6 +974,11 @@ func (s *Session) DocumentState(ctx context.Context, def *DocumentDefinition, ow
+ 	if e := s.enter(ctx); e != nil {
+ 		return nil, false, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return nil, false, e
++	}
+ 	defer s.leave()
+ 	record, value, ok, e := s.watchDefinitionValue(ctx, def, owner, key)
+ 	if e != nil || !ok {
+diff --git a/durable/scan.go b/durable/scan.go
+index 2a20521..9b5e8de 100644
+--- a/durable/scan.go
++++ b/durable/scan.go
+@@ -305,6 +305,11 @@ func (s *Session) ScanConversations(ctx context.Context, q ConversationQuery, li
+ 	if e := s.enter(ctx); e != nil {
+ 		return Page[Conversation]{}, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Page[Conversation]{}, e
++	}
+ 	defer s.leave()
+ 	if !s.hasNativeReadImage() {
+ 		return s.guardedStorage().ScanConversations(ctx, q, limit, cursor)
+@@ -319,6 +324,11 @@ func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, curs
+ 	if e := s.enter(ctx); e != nil {
+ 		return Page[Entry]{}, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Page[Entry]{}, e
++	}
+ 	defer s.leave()
+ 	if !s.hasNativeReadImage() {
+ 		return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
+@@ -333,6 +343,11 @@ func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor
+ 	if e := s.enter(ctx); e != nil {
+ 		return Page[Task]{}, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Page[Task]{}, e
++	}
+ 	defer s.leave()
+ 	if !s.hasNativeReadImage() {
+ 		return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
+@@ -347,6 +362,11 @@ func (s *Session) ScanSubmissions(ctx context.Context, q SubmissionQuery, limit
+ 	if e := s.enter(ctx); e != nil {
+ 		return Page[Submission]{}, e
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if e := s.touchAll(ctx); e != nil {
++		return Page[Submission]{}, e
++	}
+ 	defer s.leave()
+ 	if !s.hasNativeReadImage() {
+ 		return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
+diff --git a/durable/session.go b/durable/session.go
+index 113b445..5ee0e40 100644
+--- a/durable/session.go
++++ b/durable/session.go
+@@ -13,8 +13,8 @@ import (
+ type Session struct {
+ 	store                 Storage
+ 	failureMu             sync.Mutex
+-	failureCause          error    // Go error view of the first failure
+-	failureValue          *Failure // the first failure value exactly as reported
++	failureCause          error        // Go error view of the first failure
++	failureValue          *Failure     // the first failure value exactly as reported
+ 	now                   func() int64 // line-owned wall clock for lifecycle stamps
+ 	core                  *storeCore
+ 	readImage             Snapshot // immutable receipted image; owned by the Session line
+@@ -22,10 +22,12 @@ type Session struct {
+ 	memoryImage           *Snapshot // immutable document overlay, never a durable receipt
+ 	persistWithinMs       func() float64
+ 	persistenceTimer      *sessionTimer
+-	persistenceReady      chan struct{} // stored-only publication released with the line
+-	line                  *sessionLine // admission-ordered job line
+-	writer                *sessionWriter // owns admitted writes from storage to publication
+-	currentJobHit         bool           // line-owned: the running job waited at a gate
++	persistenceReady      chan struct{}        // stored-only publication released with the line
++	line                  *sessionLine         // admission-ordered job line
++	nextJobIndex          uint64               // line-owned: jobs are numbered in admission order
++	flushImages           map[uint64]*Snapshot // writer flush goroutine only: image at each receipt
++	writer                *sessionWriter       // owns admitted writes from storage to publication
++	currentJobHit         bool                 // line-owned: the running job waited at a gate
+ 	closing               atomic.Bool
+ 	once                  sync.Once
+ 	done                  chan struct{}
+@@ -214,6 +216,9 @@ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
+ 		return Snapshot{}, e
+ 	}
+ 	defer s.leave()
++	if e := s.touchAll(ctx); e != nil {
++		return Snapshot{}, e
++	}
+ 	return s.guardedStorage().Snapshot(ctx)
+ }
+ func (s *Session) MintID(ctx context.Context) (ID, error) {
+@@ -253,6 +258,12 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+ 	if err = s.enter(ctx); err != nil {
+ 		return 0, err
+ 	}
++	// Native transactions capture whole state, so a commit waits for everything
++	// admitted before it: it must never settle against a baseline that misses an
++	// admitted write.
++	if err = s.touchAll(ctx); err != nil {
++		return 0, err
++	}
+ 	if deferred && (!s.hasNativeReadImage() || (s.taskScheduler != nil && taskID == 0)) {
+ 		s.leave()
+ 		return 0, ErrUnsupported
+@@ -279,9 +290,38 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+ 	ready := make(chan struct{})
+ 	var tx *Tx
+ 	var telemetryEvents *durableEventBatch
++	// The handoff gives the line up before the outcome is awaited, so teardown has
++	// to work either way: still on the line, or after taking it back.
++	lineHeld := true
++	var readyClosed bool
++	// Task authority is released before the job stops being visible on the line, so
++	// a later line entrant can never observe a rejected provisional runtime. The
++	// writer's discard hook owns that ordering once a commit hands the line off.
++	var taskRolledBack bool
++	rollbackTask := func(failure error) {
++		if failure == nil || taskRolledBack || tx == nil || tx.taskRollback == nil {
++			return
++		}
++		taskRolledBack = true
++		tx.taskRollback(failure)
++	}
++	afterRelease := func() {
++		if !readyClosed {
++			readyClosed = true
++			close(ready)
++		}
++		s.kickWatches()
++		if s.taskScheduler != nil {
++			s.taskScheduler.dispatchStops()
++		}
++	}
+ 	defer func() {
+-		if err != nil && tx != nil && tx.taskRollback != nil {
+-			tx.taskRollback(err)
++		// Teardown is line-owned, so take the line back if the handoff gave it up.
++		if !lineHeld && s.reacquire(context.Background()) == nil {
++			lineHeld = true
++		}
++		if err != nil {
++			rollbackTask(err)
+ 		}
+ 		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
+ 			s.taskScheduler.h.wakeAllSubmissionWaiters()
+@@ -290,13 +330,11 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+ 				s.taskScheduler.failTicket(target, ErrPoisoned)
+ 			}
+ 		}
+-		s.leaveThen(func() {
+-			close(ready)
+-			s.kickWatches()
+-			if s.taskScheduler != nil {
+-				s.taskScheduler.dispatchStops()
+-			}
+-		})
++		if lineHeld {
++			s.leaveThen(afterRelease)
++		} else {
++			afterRelease()
++		}
+ 		if telemetryEvents != nil {
+ 			if buffer := eventBufferFromContext(ctx); buffer != nil {
+ 				buffer.enqueue(telemetryEvents)
+@@ -363,15 +401,21 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+ 		}
+ 		return state.Seq, nil
+ 	}
+-	receipt, adopted, err := s.settlePreparedPublication(&prepared)
+-	seq = receipt.seq
+-	err = s.backendResult(ctx, err, true)
+-	if err != nil {
+-		return seq, err
++	pub := &admittedPublication{}
++	part, e := s.admitPreparedPublication(&prepared, s.jobIndex(), pub, rollbackTask)
++	if e != nil {
++		return 0, e
+ 	}
+-	telemetryEvents, err = s.publishSessionPublication(&prepared, receipt, &adopted)
+-	if err != nil {
+-		return 0, s.backendResult(ctx, err, true)
++	// The handoff. From here the line is free while the writer stores this commit
++	// and then publishes it; the outcome is awaited off the line.
++	lineHeld = false
++	s.leaveThen(afterRelease)
++	<-part.outcome
++	telemetryEvents = pub.telemetry
++	seq = pub.seq
++	if part.err != nil {
++		err = s.backendResult(ctx, part.err, true)
++		return seq, err
+ 	}
+ 	return seq, nil
+ }
+@@ -418,6 +462,9 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
+ 		return err
+ 	}
+ 	defer s.leave()
++	if err := s.touchAll(ctx); err != nil {
++		return err
++	}
+ 	state, published, err := s.taskSnapshotView(ctx)
+ 	if err != nil {
+ 		return err
+@@ -476,6 +523,11 @@ func (s *Session) Close(ctx context.Context) error {
+ 		s.closing.Store(true)
+ 		s.closeWatches()
+ 		go func() {
++			// Every commit admitted before the seal publishes before the line job that
++			// clears the state its publication adopts into.
++			if drained := s.writer.drained(); drained != nil {
++				<-drained
++			}
+ 			if s.line.acquire(context.Background()) != nil {
+ 				return
+ 			}
+diff --git a/durable/session_document_observers.go b/durable/session_document_observers.go
+index ff4e930..e130dc8 100644
+--- a/durable/session_document_observers.go
++++ b/durable/session_document_observers.go
+@@ -38,6 +38,11 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
+ 	if err := s.enter(ctx); err != nil {
+ 		return nil, nil, false, err
+ 	}
++	// Upstream gates every read: a job must not observe state an admitted
++	// write has not published.
++	if err := s.touchAll(ctx); err != nil {
++		return nil, nil, false, err
++	}
+ 	defer s.leave()
+ 	// Validate the address before checking owner liveness: malformed task
+ 	// scopes and family keys must reject, not appear to be absent.
+diff --git a/durable/session_line.go b/durable/session_line.go
+index e3d0302..57f3f49 100644
+--- a/durable/session_line.go
++++ b/durable/session_line.go
+@@ -18,6 +18,13 @@ import "context"
+ // commits and full-state reads use.
+ const ALL_KEYS = "*"
+ 
++// jobIndex numbers jobs in admission order. The writer records part indices so a
++// failure can name the jobs it covers, as upstream's admission index does.
++func (s *Session) jobIndex() uint64 {
++	s.nextJobIndex++
++	return s.nextJobIndex
++}
++
+ // touch waits for the part that writes `key` to publish, then returns holding
+ // the line. The caller must hold the line on entry and must treat everything it
+ // captured before the call as possibly stale: the line was released.
+diff --git a/durable/session_line_v150_test.go b/durable/session_line_v150_test.go
+index e400cb9..5085cd0 100644
+--- a/durable/session_line_v150_test.go
++++ b/durable/session_line_v150_test.go
+@@ -66,7 +66,7 @@ func holdingQueue(t *testing.T, s *Session, keys ...string) chan struct{} {
+ 		keys:    keys,
+ 		ctx:     bg,
+ 		publish: func(*commitReceipt) *writerPublishFailure { return nil },
+-		discard: func() {},
++		discard: func(error) {},
+ 	})
+ 	<-entered
+ 	return release
+diff --git a/durable/session_preparation_baseline_main_test.go b/durable/session_preparation_baseline_main_test.go
+index a52ecc2..1c67140 100644
+--- a/durable/session_preparation_baseline_main_test.go
++++ b/durable/session_preparation_baseline_main_test.go
+@@ -39,7 +39,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T)
+ 				s.taskBookkeeping(func() {
+ 					first := mainPrepareOnlyPublication(t, s, bg, firstID, ready)
+ 					second := mainPrepareOnlyPublication(t, s, bg, secondID, ready)
+-					receipt, candidate, err := s.settlePreparedPublication(&first)
++					receipt, candidate, err := mainSettleSerially(s, bg, &first)
+ 					if err != nil {
+ 						t.Fatal(err)
+ 					}
+@@ -48,7 +48,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T)
+ 							t.Fatal(err)
+ 						}
+ 					}
+-					rejected, image, err := s.settlePreparedPublication(&second)
++					rejected, image, err := mainSettleSerially(s, bg, &second)
+ 					if err == nil || !strings.Contains(err.Error(), "stale prepared") {
+ 						t.Fatal("stale preparation entered writer", err)
+ 					}
+diff --git a/durable/session_publication.go b/durable/session_publication.go
+index 81822cb..86f75be 100644
+--- a/durable/session_publication.go
++++ b/durable/session_publication.go
+@@ -58,18 +58,61 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
+ // baseline. Finalisation currently scans ownership/task/document state, so a
+ // narrower footprint is not yet safe. The writer independently checks the raw
+ // baseline inside its gate to exclude stored-but-unpublished changes.
+-func (s *Session) settlePreparedPublication(p *preparedSessionPublication) (commitReceipt, Snapshot, error) {
++// admittedPublication carries what one commit's publication produced. It is read
++// only after the part's outcome closes, so the publication's write and the channel
++// close give the commit its happens-before edge.
++type admittedPublication struct {
++	seq       uint64
++	telemetry *durableEventBatch
++}
++
++// admitPreparedPublication is the admission handoff, ported from pinned v1.5.0
++// src/session/session.ts: once preparation is done, nothing but Storage can fail,
++// so the commit hands its sealed batch and write keys to the writer and the line
++// goes on. Storage, then publication, run from the writer, and the commit's outcome
++// is awaited OFF the line.
++func (s *Session) admitPreparedPublication(p *preparedSessionPublication, index uint64, pub *admittedPublication, rollback func(error)) (*sessionWriterPart, error) {
+ 	if err := s.failure(); err != nil {
+-		return commitReceipt{}, Snapshot{}, err
++		return nil, err
+ 	}
+-	if p.base.Seq != s.readImage.Seq {
+-		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
++	if p.base.Seq != s.readImage.Seq || s.core.state.Seq != s.readImage.Seq {
++		return nil, reject("stale prepared publication baseline")
++	}
++	keys, err := p.tx.writeKeys()
++	if err != nil {
++		return nil, err
+ 	}
+ 	writes := p.storageWrites
+ 	if writes == nil {
+ 		writes = p.tx.writes
+ 	}
+-	return s.settleBatch(p.ctx, Batch{Writes: writes}, p.base.Seq)
++	batch := Batch{Writes: writes}
++	return s.writer.admit(sessionWriterSpec{
++		index:   index,
++		batch:   &batch,
++		keys:    keys,
++		ctx:     p.ctx,
++		discard: rollback,
++		publish: func(r *commitReceipt) *writerPublishFailure {
++			// A stored commit must be published even while the Session is closing, so
++			// this joins the line rather than going through admission's failure/close
++			// fences. Close takes the line behind every admitted publication.
++			if s.line.acquire(context.Background()) != nil {
++				return &writerPublishFailure{adoption: true, err: ErrClosed}
++			}
++			defer s.leave()
++			if err := s.failure(); err != nil {
++				return &writerPublishFailure{adoption: true, err: err}
++			}
++			candidate := s.flushImages[r.seq]
++			telemetry, err := s.publishSessionPublication(p, *r, candidate)
++			if err != nil {
++				return &writerPublishFailure{adoption: true, err: err}
++			}
++			pub.seq, pub.telemetry = r.seq, telemetry
++			return nil
++		},
++	}), nil
+ }
+ 
+ // publishSessionPublication owns the line and rechecks the first fatal cause.
+diff --git a/durable/session_publication_failure_main_test.go b/durable/session_publication_failure_main_test.go
+index e10fc6f..5e45d6c 100644
+--- a/durable/session_publication_failure_main_test.go
++++ b/durable/session_publication_failure_main_test.go
+@@ -81,10 +81,26 @@ func mainPrepareOnlyPublication(t *testing.T, s *Session, ctx context.Context, i
+ 	return prepared
+ }
+ 
++// mainSettleSerially settles a prepared publication directly with Storage. These
++// tests isolate one stage of the publication pipeline, so they need the pre-writer
++// serial path: admitting through the writer would hand the settle and the publish to
++// a background flight and collapse the stages they are testing apart. The baseline
++// guard is kept here because that is exactly the stage under test.
++func mainSettleSerially(s *Session, ctx context.Context, prepared *preparedSessionPublication) (commitReceipt, Snapshot, error) {
++	if prepared.base.Seq != s.readImage.Seq || s.core.state.Seq != s.readImage.Seq {
++		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
++	}
++	writes := prepared.storageWrites
++	if writes == nil {
++		writes = prepared.tx.writes
++	}
++	return s.settleBatch(ctx, Batch{Writes: writes}, prepared.base.Seq)
++}
++
+ func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id ID, ready <-chan struct{}) (preparedSessionPublication, commitReceipt, Snapshot) {
+ 	t.Helper()
+ 	prepared := mainPrepareOnlyPublication(t, s, ctx, id, ready)
+-	receipt, candidate, err := s.settlePreparedPublication(&prepared)
++	receipt, candidate, err := mainSettleSerially(s, ctx, &prepared)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/durable/session_read_line.go b/durable/session_read_line.go
+index b428562..84a7917 100644
+--- a/durable/session_read_line.go
++++ b/durable/session_read_line.go
+@@ -16,6 +16,10 @@ func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) er
+ 	if err := s.enter(ctx); err != nil {
+ 		return err
+ 	}
++	// Upstream pairs `readOnLine` with `touch`.
++	if err := s.touchAll(ctx); err != nil {
++		return err
++	}
+ 	defer s.leave()
+ 	state, err := s.taskSnapshot(ctx)
+ 	if err != nil {
+diff --git a/durable/session_write_keys_v150_test.go b/durable/session_write_keys_v150_test.go
+index 3656d88..360fa68 100644
+--- a/durable/session_write_keys_v150_test.go
++++ b/durable/session_write_keys_v150_test.go
+@@ -12,10 +12,10 @@ import (
+ func writeKeysDefinition(t *testing.T) *DocumentDefinition {
+ 	t.Helper()
+ 	def, err := DefineDocument(DefinitionOptions{
+-		Kind:      "test.writekeys",
+-		Scope:     "conversation",
+-		Version:   1,
+-		Initial:   func(JSON) (JSON, error) { return JSON{"x": 0}, nil },
++		Kind:           "test.writekeys",
++		Scope:          "conversation",
++		Version:        1,
++		Initial:        func(JSON) (JSON, error) { return JSON{"x": 0}, nil },
+ 		CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil },
+ 	})
+ 	if err != nil {
+diff --git a/durable/session_writer.go b/durable/session_writer.go
+index c31b4cc..f6f876e 100644
+--- a/durable/session_writer.go
++++ b/durable/session_writer.go
+@@ -19,7 +19,10 @@ type sessionWriterSpec struct {
+ 	keys    []string
+ 	ctx     context.Context
+ 	publish func(*commitReceipt) *writerPublishFailure // nil receipt for held part
+-	discard func()
++	// discard runs before the part stops being observable to gated readers,
++	// with the failure that discarded it. Hosts use it for bookkeeping that must
++	// be ordered ahead of any later line entrant.
++	discard func(error)
+ }
+ type sessionWriterPart struct {
+ 	spec    sessionWriterSpec
+@@ -318,7 +321,7 @@ func (w *sessionWriter) settle(p *sessionWriterPart, err error) {
+ }
+ func (w *sessionWriter) unpublish(p *sessionWriterPart, err error) {
+ 	// Discard must not strand gates even if a buggy host cleanup panics.
+-	func() { defer func() { _ = recover() }(); p.spec.discard() }()
++	func() { defer func() { _ = recover() }(); p.spec.discard(err) }()
+ 	w.unregister(p)
+ 	w.settle(p, err)
+ }
+diff --git a/durable/session_writer_host.go b/durable/session_writer_host.go
+index f8e9ebc..eb2a3a0 100644
+--- a/durable/session_writer_host.go
++++ b/durable/session_writer_host.go
+@@ -32,7 +32,22 @@ func (s *Session) newSessionWriterFromSession() *sessionWriter {
+ // writerCommit settles batches off the Session line. Core admission owns the
+ // state the receipts witness, so candidate capture stays inside the sink.
+ func (s *Session) writerCommit(ctx context.Context, batches []Batch, receive func(commitReceipt)) (commitGroupResult, error) {
++	// Adoption takes the exact image storage holds at that receipt, so an internal
++	// read can share its backing rather than copy it. Only a single-part flush can
++	// witness that: in a multi-part group the state at a later receipt has already
++	// moved past an earlier part, and adoption then rebuilds from the receipt frame.
++	single := len(batches) == 1
++	if s.flushImages == nil {
++		s.flushImages = make(map[uint64]*Snapshot)
++	}
++	for seq := range s.flushImages {
++		delete(s.flushImages, seq)
++	}
+ 	return s.core.commitParts(ctx, batches, func(r commitReceipt) error {
++		if single {
++			image := s.core.state
++			s.flushImages[r.seq] = &image
++		}
+ 		if receive != nil {
+ 			receive(r)
+ 		}
+@@ -54,13 +69,10 @@ func (s *Session) writerFail(cause error, _ uint64, _ []uint64) {
+ 	if cause == nil {
+ 		return
+ 	}
+-	s.failureMu.Lock()
+-	if s.failureCause == nil {
+-		s.failureValue = asFailure(cause)
+-		s.failureCause = cause
+-	}
+-	s.failureMu.Unlock()
+-	s.closeWatches()
++	// Once the writer settles storage it is the only writer, so a failure it sees
++	// must also drive the shutdown a serial settle used to trigger from
++	// backendResult. Upstream's fail() closes fire-and-forget too (session.ts:450).
++	_ = s.backendResult(context.Background(), cause, true)
+ }
+ 
+ func (s *Session) writerReport(err error, _ context.Context) {
+diff --git a/durable/session_writer_v150_test.go b/durable/session_writer_v150_test.go
+index a92d0b1..0299a17 100644
+--- a/durable/session_writer_v150_test.go
++++ b/durable/session_writer_v150_test.go
+@@ -56,7 +56,7 @@ func (h *writerTestHost) spec(index uint64, key string, held bool) sessionWriter
+ 			h.mu.Unlock()
+ 			return nil
+ 		},
+-		discard: func() { h.mu.Lock(); h.discarded = append(h.discarded, int(index)); h.mu.Unlock() },
++		discard: func(error) { h.mu.Lock(); h.discarded = append(h.discarded, int(index)); h.mu.Unlock() },
+ 	}
+ 	if !held {
+ 		spec.batch = &Batch{Writes: []Write{{Op: "test"}}}
+diff --git a/durable/task_runtime.go b/durable/task_runtime.go
+index eceeeb4..dfbd873 100644
+--- a/durable/task_runtime.go
++++ b/durable/task_runtime.go
+@@ -466,6 +466,11 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
+ 		return nil, false, err
+ 	}
+ 	defer session.leave()
++	// Upstream gates every read on the line: a queued read must not answer
++	// from state an admitted commit has not published yet.
++	if err := session.touchAll(ctx); err != nil {
++		return nil, false, err
++	}
+ 	if err := r.check(); err != nil {
+ 		return nil, false, err
+ 	}
+@@ -480,6 +485,11 @@ func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentD
+ 		return nil, false, err
+ 	}
+ 	defer session.leave()
++	// Upstream gates every read on the line: a queued read must not answer
++	// from state an admitted commit has not published yet.
++	if err := session.touchAll(ctx); err != nil {
++		return nil, false, err
++	}
+ 	if err := r.check(); err != nil {
+ 		return nil, false, err
+ 	}
