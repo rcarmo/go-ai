@@ -24,6 +24,8 @@ type Session struct {
 	persistenceTimer      *sessionTimer
 	persistenceReady      chan struct{} // stored-only publication released with the line
 	line                  chan struct{}
+	writer                *sessionWriter // owns admitted writes from storage to publication
+	currentJobHit         bool           // line-owned: the running job waited at a gate
 	closing               atomic.Bool
 	once                  sync.Once
 	done                  chan struct{}
@@ -116,6 +118,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 		retention = *options.DocumentRetentionMs
 	}
 	s.documentRetentionMs = func() int64 { return retention }
+	s.writer = s.newSessionWriterFromSession()
 	s.line <- struct{}{}
 	return s, nil
 }
@@ -129,6 +132,8 @@ func (s *Session) enter(ctx context.Context) error {
 	if s.closing.Load() {
 		return ErrClosed
 	}
+	// A gate hit belongs to one job, exactly as upstream's per-job `hit` does.
+	s.currentJobHit = false
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
