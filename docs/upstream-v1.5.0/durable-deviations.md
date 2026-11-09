@@ -490,3 +490,20 @@ These checks validate inventory integrity. They do not execute the source assert
 ## Explicit-ID checkpoint
 
 Raw Storage commits now accept unused explicit IDs and raise the allocator atomically, matching storage-boundaries.json (conversation99, next mint100). Session transactions still require reserved IDs. Commit frames carry the post-commit high-water value in the existing column; replay recomputes and verifies it, so forged values fail as corruption. Earlier binaries refuse such files rather than misread them. The native-only assertion that ID99 must be refused was replaced by an immutable-recreation refusal. Full durable suite passes in **339.226s** (GOMAXPROCS=2, -p1, writer prototype excluded); durable/tools 17.070s; vet, Staticcheck, logging pass. An earlier attempt running the full suite concurrently with Staticcheck exhausted workspace memory; checks now run sequentially. Root preinstallation remains open.
+
+## Checked against source and cleared (not deviations)
+
+Each of these looked like a deviation and was tested against the pinned tree before any code was
+written. None of them is a gap; recording them so the next pass does not spend effort "fixing" a
+thing upstream does not have.
+
+| Candidate | Why it looked wrong | What the pinned source says |
+| --- | --- | --- |
+| `storeCore.line` is a contended one-slot token | The Session line had exactly this defect and was a real gap (see `8a4d06a`) | `GuardedStorage` (session.ts:1922) does not serialise backend calls at all — it tracks `#underway` so close can wait, and latches failures. Upstream needs no storage ordering because it has no storage contention. `storeCore.line` is Go standing in for single-threaded execution, so making it FIFO would align with nothing |
+| Native `Storage` has no `publishing` scope, and the writer host runs publications directly | The hook exists in the source contract | `publishing` is optional (`types.ts:1353`) and `scopeOf` (cached-storage.ts:337) returns `undefined` when a backend omits it; no pinned backend implements it. Running the publication directly is upstream's documented no-scope path, not an omission |
+| Failure-driven shutdown routed through the writer's `fail` hook | Felt like a native addition to the failure path | `fail()` closes fire-and-forget itself: `this.close(BACKGROUND_CONTEXT).catch(() => {})` (session.ts:450). Routing shutdown from the failure hook is the upstream behaviour |
+| Passing a `nil` adoption candidate | Looked like a latent lossy projection in HEAD | Every production adoption site already passes the exact image captured at that receipt (`session.go:372`, `session_deferred.go:384/447`, `close_requeue.go:47`). The loss existed only inside the reverted flip, so no fix is owed in HEAD |
+
+The Session line order (D02/D05 evidence) is now aligned at `8a4d06a`: jobs are granted in
+admission order, matching `#tail`. D01/D02/D03-remainder/D04 remain open — publication still runs
+on the line, so admission is still not handed off.
