@@ -62,10 +62,8 @@ func (s *Session) gateFor(key string) <-chan struct{} {
 // reacquire takes the line back after an off-line wait, honouring cancellation
 // and the failure/close fences the ordinary admission applies.
 func (s *Session) reacquire(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.line:
+	if err := s.line.acquire(ctx); err != nil {
+		return err
 	}
 	if err := s.failure(); err != nil {
 		s.leave()

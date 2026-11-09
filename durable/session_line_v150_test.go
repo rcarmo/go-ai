@@ -91,18 +91,19 @@ func TestSessionV150TouchReleasesLineAcrossGate(t *testing.T) {
 
 	// The waiter is off the line, so the line must still be acquirable. If touch
 	// held the line across a gate wait, this admission would block and fail here.
-	select {
-	case <-s.line:
-	case <-time.After(5 * time.Second):
-		t.Fatal("line stayed held across a gate wait")
+	gateLine, cancelGate := context.WithTimeout(bg, 5*time.Second)
+	if err := s.line.acquire(gateLine); err != nil {
+		cancelGate()
+		t.Fatal("line stayed held across a gate wait:", err)
 	}
+	cancelGate()
 	// The waiter is still gated while the line is free: the wait is not holding it.
 	select {
 	case <-waited:
 		t.Fatal("touch returned before its gate opened")
 	default:
 	}
-	s.leave()
+	s.line.release()
 	close(release)
 
 	if err := <-waited; err != nil {
@@ -131,17 +132,18 @@ func TestSessionV150TouchAllWaitsForNewestPart(t *testing.T) {
 		}
 		errCh <- s.touchAll(bg)
 	}()
-	select {
-	case <-s.line:
-	case <-time.After(5 * time.Second):
-		t.Fatal("ALL_KEYS barrier held the line")
+	allLine, cancelAll := context.WithTimeout(bg, 5*time.Second)
+	if err := s.line.acquire(allLine); err != nil {
+		cancelAll()
+		t.Fatal("ALL_KEYS barrier held the line:", err)
 	}
+	cancelAll()
 	select {
 	case <-errCh:
 		t.Fatal("touchAll returned before drained")
 	default:
 	}
-	s.leave()
+	s.line.release()
 	close(release)
 	if err := <-errCh; err != nil {
 		t.Fatalf("touchAll after drained: %v", err)
@@ -177,7 +179,7 @@ func TestSessionV150TouchRecordsPerJobHit(t *testing.T) {
 		t.Error("the hit must not leak from a previous job")
 	}
 	gate := s.gateFor(key)
-	s.leave()
+	s.line.release()
 	close(release)
 	<-gate
 

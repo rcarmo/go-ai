@@ -23,7 +23,7 @@ type Session struct {
 	persistWithinMs       func() float64
 	persistenceTimer      *sessionTimer
 	persistenceReady      chan struct{} // stored-only publication released with the line
-	line                  chan struct{}
+	line                  *sessionLine // admission-ordered job line
 	writer                *sessionWriter // owns admitted writes from storage to publication
 	currentJobHit         bool           // line-owned: the running job waited at a gate
 	closing               atomic.Bool
@@ -103,7 +103,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	image := core.state
 	core.leave()
-	s := &Session{store: store, core: core, readImage: image, now: now, line: make(chan struct{}, 1), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -119,7 +119,6 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	s.documentRetentionMs = func() int64 { return retention }
 	s.writer = s.newSessionWriterFromSession()
-	s.line <- struct{}{}
 	return s, nil
 }
 func (s *Session) enter(ctx context.Context) error {
@@ -134,10 +133,8 @@ func (s *Session) enter(ctx context.Context) error {
 	}
 	// A gate hit belongs to one job, exactly as upstream's per-job `hit` does.
 	s.currentJobHit = false
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.line:
+	if err := s.line.acquire(ctx); err != nil {
+		return err
 	}
 	if err := s.failure(); err != nil {
 		s.leave()
@@ -187,7 +184,7 @@ func (s *Session) leaveThen(afterRelease func()) {
 	if hasChanges {
 		s.timerDispatch.Add(1)
 	}
-	s.line <- struct{}{}
+	s.line.release()
 	if hasChanges {
 		defer s.timerDispatch.Done()
 	}
@@ -401,7 +398,13 @@ func (s *Session) adoptTaskEffects(seq uint64, tx *Tx) {
 
 // taskBookkeeping holds the line without any store snapshot. Poison cannot
 // prevent reservation rollback or Close from seeing every retained host join.
-func (s *Session) taskBookkeeping(work func()) { <-s.line; defer s.leave(); work() }
+func (s *Session) taskBookkeeping(work func()) {
+	if s.line.acquire(context.Background()) != nil {
+		return
+	}
+	defer s.leave()
+	work()
+}
 
 // readTasks runs only bounded internal bookkeeping on the line. It is not a
 // host callback API and never executes phases/migrations/provider effects.
@@ -473,7 +476,9 @@ func (s *Session) Close(ctx context.Context) error {
 		s.closing.Store(true)
 		s.closeWatches()
 		go func() {
-			<-s.line
+			if s.line.acquire(context.Background()) != nil {
+				return
+			}
 			if s.failure() == nil {
 				s.closeErr = s.flushHeldOnClose()
 			}

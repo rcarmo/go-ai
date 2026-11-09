@@ -127,7 +127,9 @@ func TestMainLegacyEntriesPagingAdmissionAndAdapter(t *testing.T) {
 		}
 		// Hold the Session line to establish that cancellation, rather than a raw
 		// backend read, ends this admission. No timer/scheduler ordering assumption.
-		<-h.session.line
+		if h.session.line.acquire(bg) != nil {
+			t.Fatal("could not hold the Session line")
+		}
 		ctx, cancel := context.WithCancel(bg)
 		cancel()
 		_, err = c.Entries(ctx, EntryCursor{}, 1)
@@ -161,7 +163,7 @@ type mainLegacyEntriesAdapter struct {
 
 func (a *mainLegacyEntriesAdapter) Entries(ctx context.Context, id ID, c EntryCursor, n int) ([]Entry, error) {
 	a.calls++
-	a.lineOwned = len(a.session.line) == 0
+	a.lineOwned = a.session.line.held()
 	if a.err != nil {
 		return nil, a.err
 	}
