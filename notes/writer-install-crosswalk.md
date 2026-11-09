@@ -83,3 +83,34 @@ Full durable suite sequential (`CGO_ENABLED=0 GOMAXPROCS=2 ... -p 1`), then vet,
 v0.8.2, `scripts/check-logging.sh`, and the parity-register check against the pinned tree. Claim
 D01/D02/D03-remainder/D04 only when the keyed-read and off-line-publication guarantees are
 actually exercised, not merely present.
+
+## Admission flip: attempted 2026-11, reverted (stash: "writer admission flip")
+
+The step-3 handoff was implemented and driven to two passing fixes before it was reverted.
+What was established, in the order it was found:
+
+1. **Teardown ownership.** The commit job's teardown (`taskRollback`, poison wakes) is
+   line-owned. Releasing the line for the publication wait means teardown must take the line
+   back; it cannot run off it. Handled by a held/released flag plus reacquire before teardown.
+2. **Failure-driven shutdown must move with the failure.** Once the writer settles storage, a
+   storage failure is seen by the writer, not by `commitPersistence`. If the writer's `fail`
+   hook only latches the cause, nothing drives shutdown and callers waiting in `Closed` hang
+   forever. The hook has to run the same first-cause + shutdown path `backendResult` ran.
+3. **The read gate is load-bearing, not decorative.** `TestMainGroupCommitLineReadsWaitForPendingMembership`
+   asserts a read cannot complete inside the pending window. With the line released, only
+   `touch` delivers that. Gating `Snapshot` and the commit entry point is not enough: harness
+   task reads go through `readTaskView`, and each whole-state read path has to be found and
+   gated individually.
+4. **Blocked (revert cause): failure-driven `Harness.Close` deadlocks.** With the failure
+   reported from the writer's flush goroutine, `backendResult`'s `go scheduler.h.Close(...)`
+   joins hosts through a path that also wants the Session line, while the publication that
+   would settle the failing part wants that same line. `Close` additionally waits the writer
+   drained *before* taking the line, and the drain cannot complete while a publication waits
+   for a line held by a close that is waiting for the drain. This is a real ordering cycle
+   between host joins, the line, and `drained()`; it needs a designed answer, not a patch.
+
+Implication for the next attempt: the failure boundary is not the last detail of the flip, it
+is the part the flip changes most. The cycle above should be resolved on paper first — which
+of {host joins, line, drained} may be crossed, and in what order — because the native line is
+a mutex and upstream's is a suspending chain, so upstream's ordering is not portable by
+inspection.
