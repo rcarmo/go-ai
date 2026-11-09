@@ -114,3 +114,35 @@ is the part the flip changes most. The cycle above should be resolved on paper f
 of {host joins, line, drained} may be crossed, and in what order — because the native line is
 a mutex and upstream's is a suspending chain, so upstream's ordering is not portable by
 inspection.
+
+## Second attempt: same cycle, now located
+
+Restoring the flip and instrumenting the line with an acquire/release token guard ruled out
+double-release: the guard never fired. The hang is ordering, not accounting.
+
+Failing shape (`TestCodemode120RejectedDeliveryNeverResolvesVMAndReopensKey`): storage fails
+inside the writer's settle -> `writerFail` -> `backendResult` -> failure-driven `Harness.Close`.
+That close joins hosts and takes the line; the writer's publication for the same part also wants
+the line; and `Close` waits `writer.drained()` before taking it. Three waits, one line.
+
+The single fact behind all of it: **publication needs the Session line.** Upstream's publication
+does not need a line at all - it runs off the line, and it is safe there only because JS is
+single-threaded, so adopting into memory is atomic with respect to jobs. Go has no such
+accident. Native memory (`readImage`, caches, scheduler state) is line-owned, so publication
+must hold the line, and a mutex held across the publication is exactly what the handoff exists
+to avoid.
+
+So the flip is not blocked on a detail of the flip. It is blocked on one of these, neither of
+which is a patch:
+
+1. **Convert the line to upstream's suspending job model** - jobs are queued continuations that
+   release the line at an await point, so `touch` and publication both suspend rather than hold.
+   This is the faithful port and the largest one: every line-owned invariant that currently
+   assumes continuous ownership has to be re-examined.
+2. **Move line-owned memory behind its own ownership**, so publication mutates state without the
+   line and the line stays a job-ordering mutex. Smaller, but it redefines what "line-owned"
+   means across the package and needs the same invariant sweep.
+
+Choosing and designing one of these is the actual next step for D01/D02/D04. Until then the
+installed-but-not-admitting writer at HEAD is the correct state: every guarantee it would relax
+is one it now cannot relax safely, and it claims none.
