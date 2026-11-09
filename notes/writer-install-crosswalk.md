@@ -178,3 +178,38 @@ interleave with publication jobs. (a) is well-defined. (b) and (c) are each open
 HEAD stands at the ordered line with the writer installed and admitting nothing. The one real
 deviation this attempt could have introduced - a weaker line - is now fixed and verified
 independently, which is progress that does not depend on the flip landing.
+
+## Admission flip, fourth attempt: candidate capture fixed, read gates mapped, two failures left
+
+Re-applied the flip on the ordered line with the adoption candidate captured inside the storage
+sink, and mapped upstream's read gate across the native read surface. This is the furthest the
+flip has got, and it still does not land.
+
+**Fixed by capture:** the SQLite adopted-image regression. `TestMainSQLiteAdoptedTaskSnapshot`
+asserts an internal task read shares the backing array of `core.state`, so adoption must take the
+exact image storage holds at that receipt, not a rebuilt one. Capturing `s.core.state` inside the
+receipt sink satisfies it; single-part flushes only, because in a multi-part group the state at a
+later receipt has already moved past an earlier part and adoption must rebuild from the receipt
+frame. Checked against source first: upstream's `#adopt` calls `tx.adopt(seq)`, so the candidate is
+a native mechanism with no upstream equivalent - the requirement is native's own, not a deviation.
+
+**Read gate sweep, where it belongs:** upstream pairs `readOnLine` with `touch`, and gates every
+read. `ReadOnLine` is the direct analogue. Gating `Snapshot`, commit entry, `readTaskView` and the
+definition/observation/scan entry points (`document_definition.go`, `context_read.go`,
+`observation.go`, `scan.go`, `entry_definition.go`, `session_document_observers.go`) fixed the
+context and document capability cases and the queued-observer case.
+
+**What is NOT a gate site:** `document_history.go` and `submission_transaction.go` use `t.enter()`,
+which is transaction-scoped. A Tx runs inside a commit that already owns the line; releasing it
+mid-transaction is something upstream never does. The first attempt to add gates there was wrong
+and was reverted.
+
+**Two failures remain:**
+- `TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation/historical-document/seal` - the last
+  capability kind, so a historical-document read path still answers from state the admitted commit
+  has not published. Not yet located.
+- `TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission` - "fatal reservation
+  leaked provisional authority". Unrelated to read gating: the reservation/authority path behaves
+  differently once publication no longer precedes commit return.
+
+Both are read-path and scheduler-path questions inside the same change, not one-line fixes.
