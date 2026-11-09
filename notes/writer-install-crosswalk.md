@@ -146,3 +146,35 @@ which is a patch:
 Choosing and designing one of these is the actual next step for D01/D02/D04. Until then the
 installed-but-not-admitting writer at HEAD is the correct state: every guarantee it would relax
 is one it now cannot relax safely, and it claims none.
+
+## Admission flip, third attempt: the cycle is gone, the cost is elsewhere
+
+Landed the admission-ordered line first (`8a4d06a`, full suite ok 392.560s on its own merits),
+then re-applied the flip on top of it. The ordered line **did** break the cycle: both tests that
+had hung for 20+ minutes - `TestMainGroupCommitLineReadsWaitForPendingMembership` and
+`TestCodemode120RejectedDeliveryNeverResolvesVMAndReopensKey` - passed, and the failure family
+passed. That confirms the diagnosis: the deadlock was a contended token letting close and host
+joins get ahead of the publication that had to settle them.
+
+The flip still does not land. Reverting it produced four behavioural regressions plus a new
+hang, and they are not one bug:
+
+- `TestMainSQLiteAdoptedTaskSnapshot` - "internal task read copied the adopted SQLite image".
+  Self-inflicted: adoption was given a nil candidate, so `adoptReceipt` rebuilt the image from
+  the receipt frame instead of adopting the exact image native storage captured at that receipt.
+  Correct but a real deviation, and a measurable one.
+- `TestMainHarnessDocumentObserverQueuedAttachment`, `TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation`,
+  `TestTaskRecoveryProvisionalReservationRollbackBeforeFrontierAdmission` - publication no longer
+  completes before the commit returns, and several paths reason about state as though it did.
+- A scheduler `taskBookkeeping` blocked on the line indefinitely: ordering is fair now, but the
+  scheduler's line jobs and the new publication jobs queue against each other in a way that needs
+  working out, not a patch.
+
+So the honest shape of the remaining work: the flip costs (a) threading the adoption candidate
+through the writer so memory adoption still uses the exact stored image, (b) re-examining every
+path that assumes publication preceded commit return, and (c) settling how scheduler line jobs
+interleave with publication jobs. (a) is well-defined. (b) and (c) are each open-ended.
+
+HEAD stands at the ordered line with the writer installed and admitting nothing. The one real
+deviation this attempt could have introduced - a weaker line - is now fixed and verified
+independently, which is progress that does not depend on the flip landing.
