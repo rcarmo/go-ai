@@ -183,3 +183,97 @@ func TestImmutableDocumentRequiresBoundedObject(t *testing.T) {
 		t.Fatal("invalid document kind accepted")
 	}
 }
+
+// Chord applyImmutable (used by pinned harness/view.ts) copies only changed
+// containers. Copying and freezing a whole replay is value-equivalent but loses
+// the object identity that source view160/330/525 assert.
+func TestImmutableReplaySharesUntouchedNodesAcrossRevisions(t *testing.T) {
+	before, err := NewImmutableValue(JSON{"docs": JSON{"pi.live": JSON{"text": "old"}, "pi.agent": JSON{"level": "low"}}, "entries": []any{JSON{"id": 1}, JSON{"id": 2}}}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, _ := before.Get("docs")
+	live, _ := docs.Get("pi.live")
+	entries, _ := before.Get("entries")
+	first, _ := entries.Index(0)
+	after, err := applyImmutableValue(before, []Operation{{"s", []any{"docs", "pi.agent", "level"}, "high"}}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextDocs, _ := after.Get("docs")
+	nextLive, _ := nextDocs.Get("pi.live")
+	nextEntries, _ := after.Get("entries")
+	if after == before || nextDocs == docs || nextLive != live || nextEntries != entries {
+		t.Fatal("immutable replay did not preserve source structural sharing")
+	}
+	appended, err := applyImmutableValue(after, []Operation{{"p", []any{"entries"}, 2, 0, []any{JSON{"id": 3}}}}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendedDocs, _ := appended.Get("docs")
+	appendedEntries, _ := appended.Get("entries")
+	retained, _ := appendedEntries.Index(0)
+	if appendedDocs != nextDocs || appendedEntries == entries || retained != first {
+		t.Fatal("append copied unchanged document/entry nodes")
+	}
+	moved, err := applyImmutableValue(appended, []Operation{{"m", []any{"entries"}, []any{2, 0, 1}}}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	movedEntries, _ := moved.Get("entries")
+	retained, _ = movedEntries.Index(1)
+	if retained != first || entries.Len() != 2 || appendedEntries.Len() != 3 {
+		t.Fatal("reorder lost identity or mutated an earlier revision")
+	}
+}
+
+func TestImmutableReplayMatchesDeltaOperationsAndPreservesOldRevision(t *testing.T) {
+	base := JSON{"items": []any{JSON{"id": 1}, JSON{"id": 2}, JSON{"id": 3}}, "meta": JSON{"text": "a😀z", "keep": true}}
+	cases := []struct {
+		name string
+		ops  []Operation
+	}{
+		{"set", []Operation{{"s", []any{"meta", "added"}, JSON{"value": 4}}}},
+		{"delete-object", []Operation{{"d", []any{"meta", "keep"}}}},
+		{"delete-array", []Operation{{"d", []any{"items", 1}}}},
+		{"append-string", []Operation{{"a", []any{"meta", "text"}, "!"}}},
+		{"truncate", []Operation{{"t", []any{"meta", "text"}, 1}}},
+		{"splice", []Operation{{"p", []any{"items"}, 1, 1, []any{JSON{"id": 4}, JSON{"id": 5}}}}},
+		{"reorder", []Operation{{"m", []any{"items"}, []any{2, 0, 1}}}},
+		{"replace", []Operation{{"r", JSON{"next": []any{1, 2}}}}},
+		{"missing-path", []Operation{{"s", []any{"absent", "value"}, 1}}},
+		{"scalar-path", []Operation{{"s", []any{"meta", "text", "value"}, 1}}},
+		{"unsafe-path", []Operation{{"s", []any{"__proto__", "value"}, 1}}},
+		{"bad-order", []Operation{{"m", []any{"items"}, []any{0, 0, 1}}}},
+		{"surrogate-split", []Operation{{"t", []any{"meta", "text"}, 2}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			value, err := NewImmutableValue(base, DefaultLimits())
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := value.Copy()
+			want, wantErr := ApplyOperations(base, tc.ops, DefaultLimits())
+			got, gotErr := applyImmutableValue(value, tc.ops, DefaultLimits())
+			if (gotErr == nil) != (wantErr == nil) {
+				t.Fatalf("error mismatch: immutable=%v ordinary=%v", gotErr, wantErr)
+			}
+			if gotErr == nil && !reflect.DeepEqual(got.Copy(), want) {
+				t.Fatal("immutable replay differs", got.Copy(), want)
+			}
+			if !reflect.DeepEqual(old, value.Copy()) {
+				t.Fatal("replay mutated old revision")
+			}
+		})
+	}
+	limits := DefaultLimits()
+	limits.MaxMembers = 3
+	value, err := NewImmutableValue(JSON{"items": []any{1, 2, 3}}, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := applyImmutableValue(value, []Operation{{"p", []any{"items"}, 3, 0, []any{4}}}, limits); err == nil {
+		t.Fatal("immutable replay bypassed growth limit")
+	}
+}

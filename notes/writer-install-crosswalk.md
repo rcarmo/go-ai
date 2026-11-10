@@ -622,3 +622,26 @@ User additionally requested test-file consolidation. Next mechanical change will
 merge related Session admission, outcome, key, cache and watch tests, preserving
 all discovered test/benchmark/example/fuzz names and normalised declaration hashes.
 Runtime fixes and file reorganisation remain separate commits.
+
+## Shared-view replay groundwork (public integration still open)
+
+Extended the reproducible oracle runner to include the 23 unchanged
+harness-view tests: 95 unchanged pinned tests plus five focused source probes
+now pass (100 total). The source160/330/525 assertions require structural node
+identity and one shared mount, not just equal contents from independent copies.
+
+Added a path-copy replay primitive over ImmutableValue. The new assertion in the
+existing immutable-value suite failed with the native whole-copy replay: unchanged
+entries and pi.live nodes lost identity. Path copying now retains those node
+pointers, including entry identity through append/permutation, while earlier
+revisions remain unchanged. Other tests compare every operation family, invalid
+paths/orders, surrogate boundaries and growth limits against ordinary replay.
+
+This primitive is not yet integrated into ConversationWatch.Value/callbacks.
+Those public surfaces still copy maps, and D14–D17 remain open. No helper-only
+result is credited as conversation-view parity. Public shared-mount/readonly API
+migration and its source identity oracles are the next implementation step.
+
+Verification: immutable tests five repeats; full durable 365.253s/tools18.648s;
+repository-wide vet/Staticcheck, logging and pinned-source oracle checks pass.
+These are ordinary development checks, not acceptance profiling.
