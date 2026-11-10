@@ -202,8 +202,17 @@ func TestRestartLimit140InterruptedAbortFaultsBeforeDefinitionResolution(t *test
 				}}
 				h := taskTestHarnessOptions(t, b.store, options, definition)
 				id := createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
-				if _, err = h.AbortTask(bg, id); err != nil {
+				// This fixture seeds interrupted aborts. AbortTask enables scheduling
+				// and can finish the abort before the first synthetic interruption.
+				// Seed only its mark, as the adjacent cutoff-rejection fixture does.
+				if _, err = h.session.Commit(bg, func(tx *Tx) error {
+					task := markTask(tx.state.Tasks[id])
+					return tx.stage(Write{Op: "put-task", Task: &task})
+				}); err != nil {
 					t.Fatal(err)
+				}
+				if h.scheduler.enabled.Load() || abortCalls.Load() != 0 {
+					t.Fatal("interruption fixture enabled abort execution before recovery")
 				}
 				for interruption := uint64(1); interruption <= limit; interruption++ {
 					seedInterrupted140(t, h, id)
