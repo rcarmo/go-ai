@@ -434,3 +434,22 @@ Verification: full durable suite 406.652s; vet and Staticcheck; batching, read-k
 capability lifetime, reservation rollback and admission-count tests ten repeats.
 D01–D04 remain open for scheduler admission, precise non-document Tx dependencies,
 ordered outcome delivery/failure boundaries and publication continuations.
+
+## Harness disjoint document admission
+
+Removed the scheduler-presence condition from public keyed transaction admission.
+The source170-style test now runs through both Session.Commit and Harness.Commit,
+including initially absent conversation documents. Both pass ten repeats and the
+full durable suite passes in 406.673s (vet and Staticcheck also pass).
+
+Internal adapters that still consume a whole graph now declare ALL_KEYS at that
+read boundary. CommitTasks only touches its bound conversation before checking it.
+Private scheduler/invocation admissions remain whole-state until their graph walks
+are ported to source membership/record dependencies. This is no longer a blanket
+barrier on public Harness document transactions.
+
+The abort-cutoff recovery fixture was nondeterministic: public AbortTask resumes
+execution, so a generation could finish before the fixture rewrote it to simulate
+an interrupted host. It now seeds the intended durable running+abort-marked input
+through a private task admission without enabling execution. Assertions are unchanged;
+the fixture and batching/lifetime regression group pass ten repeats.

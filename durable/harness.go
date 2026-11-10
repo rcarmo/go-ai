@@ -311,6 +311,9 @@ func (h *Harness) createConversation(ctx context.Context, change AgentChange, in
 		return nil, e
 	}
 	_, e = h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return h.closedError()
 		}
@@ -458,6 +461,9 @@ func (h *Harness) configureLockedWithInit(ctx context.Context, id ID, c AgentCha
 		return e
 	}
 	_, e = h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return h.closedError()
 		}
@@ -805,6 +811,9 @@ func (h *Harness) CommitTasks(ctx context.Context, conversation ID, callback fun
 			return h.closedError()
 		}
 		if conversation != 0 {
+			if err := tx.touchKeys(conversationKey(conversation)); err != nil {
+				return err
+			}
 			if _, ok := tx.state.Conversations[conversation]; !ok {
 				return reject("unknown conversation")
 			}
@@ -908,6 +917,9 @@ func (h *Harness) AbortTask(ctx context.Context, id ID) (string, error) {
 	var join <-chan struct{}
 	var cancel context.CancelFunc
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return h.closedError()
 		}

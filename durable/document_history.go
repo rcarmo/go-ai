@@ -416,6 +416,9 @@ func (c *ConversationHandle) fork(ctx context.Context, at ID, change *AgentChang
 	}
 	var child Conversation
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if !entryVisible(tx.state, c.id, at) {
 			return reject("fork entry is not visible from parent")
 		}

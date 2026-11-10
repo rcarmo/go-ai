@@ -315,11 +315,11 @@ func TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission(t *testing
 		if id == 0 {
 			t.Fatal("generation missing")
 		}
-		if _, err = h.AbortTask(bg, id); err != nil {
-			t.Fatal(err)
-		}
-		if _, err = h.session.Commit(bg, func(tx *Tx) error {
-			task := tx.state.Tasks[id]
+		// Seed the durable interrupted+abort-marked input without enabling
+		// execution. Public AbortTask resumes the scheduler and may finish the
+		// generation before this recovery fixture has simulated host loss.
+		if _, err = h.session.taskCommit(bg, func(tx *Tx) error {
+			task := markTask(tx.state.Tasks[id])
 			task.Status = "running"
 			return tx.stage(Write{Op: "put-task", Task: &task})
 		}); err != nil {

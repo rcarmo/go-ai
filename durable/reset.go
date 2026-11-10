@@ -15,6 +15,9 @@ func (c *ConversationHandle) Reset(ctx context.Context, text string) error {
 		return ErrClosed
 	}
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return ErrClosed
 		}

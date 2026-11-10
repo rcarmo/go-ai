@@ -111,6 +111,9 @@ func (h *Harness) abortSubmission(ctx context.Context, id ID, scope *ID, binding
 	}
 	result := "not_found"
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return ErrClosed
 		}

@@ -202,6 +202,9 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 	var subID ID
 	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return ErrClosed
 		}
@@ -576,6 +579,9 @@ func (s *SubmissionHandle) Withdraw(ctx context.Context) error {
 		return ErrClosed
 	}
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return ErrClosed
 		}

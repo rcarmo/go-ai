@@ -290,8 +290,8 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	}
 	// Scheduler callbacks still consume whole-state private bookkeeping. Public
 	// Session transactions read through the Transaction host's dependency keys.
-	keyedReads := s.hasNativeReadImage() && s.taskScheduler == nil && !deferred
-	if !keyedReads {
+	keyedReads := s.hasNativeReadImage() && !deferred
+	if !keyedReads || !external {
 		if err = s.touchAll(ctx); err != nil {
 			s.leave()
 			return 0, err

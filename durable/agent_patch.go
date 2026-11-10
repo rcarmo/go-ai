@@ -33,6 +33,9 @@ func (c *ConversationHandle) ConfigurePatch(ctx context.Context, patch AgentPatc
 		return ErrClosed
 	}
 	_, err := h.session.Commit(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
 		if h.closing.Load() {
 			return ErrClosed
 		}
