@@ -348,9 +348,9 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 				var found bool
 				var value JSON
 				if historical {
-					value, found, err = s.SnapshotDefinitionAsOf(ctx, def, 1, nil, at)
+					value, found, err = detachedDefinitionSnapshotAsOf(s, ctx, def, 1, nil, at)
 				} else {
-					value, found, err = s.SnapshotDefinition(ctx, def, 1, nil)
+					value, found, err = detachedDefinitionSnapshot(s, ctx, def, 1, nil)
 				}
 				if err == nil && !found {
 					return reject("document missing")

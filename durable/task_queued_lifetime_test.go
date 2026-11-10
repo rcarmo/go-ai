@@ -77,10 +77,10 @@ func TestTaskRuntimeQueuedCapabilitySealAndCallerCancellation(t *testing.T) {
 							_, err := runtime.ContextView(ctx, 1, 0)
 							return err
 						case "document":
-							_, _, err := runtime.SnapshotDefinition(ctx, migrated, 1, nil)
+							_, _, err := detachedDefinitionSnapshot(runtime, ctx, migrated, 1, nil)
 							return err
 						case "historical-document":
-							_, _, err := runtime.SnapshotDefinitionAsOf(ctx, migrated, 1, nil, entry)
+							_, _, err := detachedDefinitionSnapshotAsOf(runtime, ctx, migrated, 1, nil, entry)
 							return err
 						case "conversation":
 							_, err := runtime.Conversation(ctx, 1)

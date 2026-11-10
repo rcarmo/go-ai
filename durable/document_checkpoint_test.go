@@ -255,12 +255,12 @@ func TestDocumentCheckpointFinalDetachedArgumentsAndWholeRollback(t *testing.T) 
 		}
 		fail = false
 		checkpointCommit(t, s, mutation)
-		value, ok, err := s.SnapshotDefinition(bg, first, 0, nil)
+		value, ok, err := detachedDefinitionSnapshot(s, bg, first, 0, nil)
 		if err != nil || !ok || value["n"].(json.Number) != "3" {
 			t.Fatal("callback retained authority", value, err)
 		}
 		s = reopen()
-		value, _, err = s.SnapshotDefinition(bg, first, 0, nil)
+		value, _, err = detachedDefinitionSnapshot(s, bg, first, 0, nil)
 		if err != nil || value["n"].(json.Number) != "3" {
 			t.Fatal("replay callback mutation", err)
 		}
@@ -291,7 +291,7 @@ func TestDocumentCheckpointOperationErrorHandledAndForkFence(t *testing.T) {
 			}
 			return h.ApplyOperations([]Operation{{"a", []any{"s"}, "c"}})
 		})
-		value, _, err := s.SnapshotDefinition(bg, def, 1, nil)
+		value, _, err := detachedDefinitionSnapshot(s, bg, def, 1, nil)
 		if err != nil || value["s"] != "ac" {
 			t.Fatal("partial failed method landed", value, err)
 		}
@@ -384,7 +384,7 @@ func TestDocumentCheckpointMigrationResetCopyAndRetirement(t *testing.T) {
 			t.Fatal("copy/migration called predicate")
 		}
 		s = reopen()
-		value, ok, e := s.SnapshotDefinitionAsOf(bg, current, child.ID, nil, cutoff)
+		value, ok, e := detachedDefinitionSnapshotAsOf(s, bg, current, child.ID, nil, cutoff)
 		if e != nil || !ok || value["n"].(json.Number) != "1" {
 			t.Fatal("ancestor delta/migration", value, e)
 		}

@@ -20,10 +20,10 @@ func (a *InvocationReader) ConversationID() ID { return a.runtime.ConversationID
 func (a *InvocationReader) ContextView(ctx context.Context, conversation, at ID) (ContextView, error) {
 	return a.runtime.ContextView(ctx, conversation, at)
 }
-func (a *InvocationReader) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (a *InvocationReader) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (ReadonlyValue, bool, error) {
 	return a.runtime.SnapshotDefinition(ctx, def, owner, key)
 }
-func (a *InvocationReader) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (JSON, bool, error) {
+func (a *InvocationReader) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (ReadonlyValue, bool, error) {
 	return a.runtime.SnapshotDefinitionAsOf(ctx, def, owner, key, at)
 }
 func (a *InvocationReader) Entry(ctx context.Context, id ID) (Entry, bool, error) {

@@ -39,7 +39,7 @@ func TestMainSessionLegacyReadsExcludeUnpublishedGroup(t *testing.T) {
 			}
 		})
 		t.Run("definition", func(t *testing.T) {
-			_, ok, err := s.SnapshotDefinition(bg, def, 0, nil)
+			_, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 			if err != nil || ok {
 				t.Fatalf("unpublished definition=%v err=%v", ok, err)
 			}

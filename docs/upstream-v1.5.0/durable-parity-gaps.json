@@ -408,10 +408,13 @@
         "durable/session_document_observers.go",
         "durable/session_public_document_observer_main_test.go",
         "durable/observation.go",
-        "durable/document_observer.go"
+        "durable/document_observer.go",
+        "durable/document_readonly.go",
+        "durable/document_definition.go",
+        "durable/session_document_cache_test.go"
       ],
-      "evidence": "Public Session/Harness/ConversationHandle ObserveDefinition now returns ReadonlyValue and delivers DocumentCall rather than mutable WatchFrame maps. Source132 retirement retains attachment-value identity; the current literal two-commit test includes missing-address reattachment, count2/count9 and exact replacement ops. Concurrent observers share initial/adopted nodes, untouched branches persist and late attachment reuses a live adopted node. Existing absent/stored/memory/guard/cancellation/owner-retirement controls pass through the readonly API. Snapshot/watch cache identity, reload/eviction lifetime, arbitrary cancellation reasons and complete observer assertion acceptance remain open.",
-      "fix": "Complete shared readonly materialization across snapshots/watches/observers, version reload and cache lifetime; port exact queued cancellation/error causes and remaining observer assertions. Keep synchronous callback, detach/end, pinning and scheduler ownership contracts.",
+      "evidence": "Public Session/Harness/ConversationHandle ObserveDefinition now returns ReadonlyValue and delivers DocumentCall rather than mutable WatchFrame maps. Source132 retirement retains attachment-value identity; the current literal two-commit test includes missing-address reattachment, count2/count9 and exact replacement ops. Concurrent observers share initial/adopted nodes, untouched branches persist and late attachment reuses a live adopted node. Existing absent/stored/memory/guard/cancellation/owner-retirement controls pass through the readonly API. Snapshot/watch cache identity, reload/eviction lifetime, arbitrary cancellation reasons and complete observer assertion acceptance remain open. Current/historical typed snapshots now return ReadonlyValue across all reader facades. Cache adoption preserves shared snapshot/observer revisions and unchanged children; storing an unedited migration base or already-adopted hold preserves identity. Holds retain readonly ownership with zero idle retention. Independent pinned-source probes establish these contracts; native mutable-copy/held-identity baselines failed before their fixes. Async document-watch and mounted-builtin cross-surface sharing, task-bound warm reads, version/cache-pressure lifetime and full assertion acceptance remain open.",
+      "fix": "Integrate the same readonly materialisation into asynchronous watches and mounted builtin views; finish version/reload/eviction/pin lifetime, task-bound warm reads, exact cancellation causes and remaining observer assertions. Complete public stored-observer dispatch separately.",
       "acceptance": [
         "Source77/87/105/132/162/241/254/308/469/496/520, detach/end guards, queued acquisition/cancellation, retirement/recreation, scheduler publication and immutable values."
       ],

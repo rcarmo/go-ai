@@ -30,15 +30,15 @@ func (h *Harness) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 	return state, sub, err
 }
 
-// SnapshotDefinition forwards a detached, read-only typed Session snapshot.
+// SnapshotDefinition forwards a shared readonly typed Session snapshot.
 // Reads admitted before Close retain Session ordering; fresh reads reject.
-func (h *Harness) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (h *Harness) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (ReadonlyValue, bool, error) {
 	if h.closing.Load() {
 		return nil, false, ErrClosed
 	}
 	return h.session.SnapshotDefinition(ctx, def, owner, key)
 }
-func (h *Harness) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (JSON, bool, error) {
+func (h *Harness) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (ReadonlyValue, bool, error) {
 	if h.closing.Load() {
 		return nil, false, ErrClosed
 	}
@@ -107,14 +107,14 @@ func (c *ConversationHandle) documentOwner(def *DocumentDefinition) (ID, error) 
 		return 0, reject("conversation document requires conversation or session scope")
 	}
 }
-func (c *ConversationHandle) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, key *string) (JSON, bool, error) {
+func (c *ConversationHandle) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, key *string) (ReadonlyValue, bool, error) {
 	owner, err := c.documentOwner(def)
 	if err != nil {
 		return nil, false, err
 	}
 	return c.h.SnapshotDefinition(ctx, def, owner, key)
 }
-func (c *ConversationHandle) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, key *string, at ID) (JSON, bool, error) {
+func (c *ConversationHandle) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, key *string, at ID) (ReadonlyValue, bool, error) {
 	if _, err := c.documentOwner(def); err != nil {
 		return nil, false, err
 	}

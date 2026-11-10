@@ -15,7 +15,7 @@ func TestMainSessionDeferredUnloadDocuments(t *testing.T) {
 		f := openMainDeadlineSession(t, b, nil)
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
-		if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
+		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
 			t.Fatal(value, ok, err)
 		}
 		if err := f.session.UnloadDocuments(bg); err != nil {
@@ -29,7 +29,7 @@ func TestMainSessionDeferredUnloadDocuments(t *testing.T) {
 				t.Fatal("unload retained cache/hold")
 			}
 		})
-		if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
+		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
 			t.Fatal("cold reload", value, ok, err)
 		}
 	})
@@ -43,7 +43,7 @@ func TestMainSessionDeferredDefinitionVersionReload(t *testing.T) {
 		old, next := mainDeferredLifecycleDefinitions(t)
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
 		batches := mainDeferredLifecycleBatches(t, f.session)
-		value, ok, err := f.session.SnapshotDefinition(bg, next, 1, nil)
+		value, ok, err := detachedDefinitionSnapshot(f.session, bg, next, 1, nil)
 		if err != nil || !ok || !equalJSONValue(value, JSON{"text": "held", "migrated": true}) {
 			t.Fatal(value, ok, err)
 		}
@@ -96,7 +96,7 @@ func TestMainSessionDeferredRetirement(t *testing.T) {
 				t.Fatal("retirement left hold")
 			}
 		})
-		if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || ok {
+		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || ok {
 			t.Fatal("retired definition visible", value, ok, err)
 		}
 	})
@@ -221,7 +221,7 @@ func TestMainSessionDeferredReloadMigrationFailure(t *testing.T) {
 		mainDeferredLifecycleAppend(t, f.session, old, 1, "held")
 		failure := errors.New("migration failed")
 		next.options.Migrate = func(JSON, uint64) (JSON, error) { return nil, failure }
-		if _, _, err := f.session.SnapshotDefinition(bg, next, 1, nil); err != failure {
+		if _, _, err := detachedDefinitionSnapshot(f.session, bg, next, 1, nil); err != failure {
 			t.Fatal(err)
 		}
 		if value := mainDeferredSnapshot(t, b.store).Documents[f.doc].Value; !equalJSONValue(value, JSON{"text": "held"}) {
@@ -259,7 +259,7 @@ func TestMainSessionDeferredReloadCancellation(t *testing.T) {
 							return nil
 						}
 					})
-					if _, _, err := f.session.SnapshotDefinition(ctx, next, 1, nil); !errors.Is(err, context.Canceled) {
+					if _, _, err := detachedDefinitionSnapshot(f.session, ctx, next, 1, nil); !errors.Is(err, context.Canceled) {
 						t.Fatal("admitted reader did not cancel", err)
 					}
 				} else {
@@ -275,7 +275,7 @@ func TestMainSessionDeferredReloadCancellation(t *testing.T) {
 				} else if raw.Seq != before || !equalJSONValue(raw.Documents[f.doc].Value, JSON{"text": ""}) {
 					t.Fatal("cancel admitted reload", raw)
 				}
-				value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil)
+				value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil)
 				if err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
 					t.Fatal("cancel lost Session/image", value, ok, err)
 				}

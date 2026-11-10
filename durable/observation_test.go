@@ -372,7 +372,7 @@ func TestObservationPublicationSubscriptionAndProcessBounds(t *testing.T) {
 			t.Fatal("publication", frame)
 		}
 		frame.Publication.Documents[0].Value["n"] = 999
-		v, _, e := s.SnapshotDefinition(bg, def, 0, nil)
+		v, _, e := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 		if e != nil || v["n"].(json.Number) != "1" {
 			t.Fatal("publication mutation", e)
 		}

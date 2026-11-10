@@ -60,7 +60,7 @@ func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 			defer s.Close(bg)
 			def := documentTimerFixture140(t, s, &calls)
 			for range 2 {
-				if _, ok, err := s.SnapshotDefinition(bg, def, 0, nil); err != nil || !ok {
+				if _, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil || !ok {
 					t.Fatal(ok, err)
 				}
 			}
@@ -85,7 +85,7 @@ func TestSessionTimer140BackgroundDeclineAndFailureSweepOnCommit(t *testing.T) {
 					t.Error("declined timer prevented commit-time eviction")
 				}
 			})
-			if _, ok, err := s.SnapshotDefinition(bg, def, 0, nil); err != nil || !ok {
+			if _, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil || !ok {
 				t.Fatal(ok, err)
 			}
 			if calls.Load() != 2 {
@@ -136,7 +136,7 @@ func TestSessionTimer140DocumentEarlyFireAndClose(t *testing.T) {
 			}
 		}
 		def := documentTimerFixture140(t, s, &calls)
-		if _, _, err = s.SnapshotDefinition(bg, def, 0, nil); err != nil {
+		if _, _, err = detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		first := next()
@@ -158,7 +158,7 @@ func TestSessionTimer140DocumentEarlyFireAndClose(t *testing.T) {
 				t.Error("due timer did not evict")
 			}
 		})
-		if _, _, err = s.SnapshotDefinition(bg, def, 0, nil); err != nil {
+		if _, _, err = detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		third := next()
@@ -190,7 +190,7 @@ func TestSessionTimer140CloseJoinsInFlightArm(t *testing.T) {
 		defer releaseTaskGate(release)
 		def := documentTimerFixture140(t, s, &calls)
 		read := make(chan error, 1)
-		go func() { _, _, err := s.SnapshotDefinition(bg, def, 0, nil); read <- err }()
+		go func() { _, _, err := detachedDefinitionSnapshot(s, bg, def, 0, nil); read <- err }()
 		awaitTaskSignal(t, entered)
 		closed := make(chan error, 1)
 		go func() { closed <- s.Close(bg) }()

@@ -207,27 +207,7 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 			}
 		}
 	}
-	// Only changed incarnations invalidate migration cache entries. An
-	// unrelated commit never turns a warm migration into a cold load.
-	for _, write := range p.tx.writes {
-		var changed ID
-		if write.Document != nil {
-			changed = write.Document.ID
-		}
-		if write.Delta != nil {
-			changed = write.Delta.ID
-		}
-		if changed == 0 {
-			continue
-		}
-		for key, value := range s.definitionCache {
-			if value.record.ID == changed {
-				delete(s.definitionCache, key)
-				s.definitionCacheBytes -= value.bytes
-			}
-		}
-	}
-	if err := s.installDefinitionPlans(p.tx, adopted); err != nil {
+	if err := s.adoptDefinitionPlans(p.tx, adopted, p.observed.Documents); err != nil {
 		return nil, err
 	}
 	s.adoptTaskEffects(receipt.seq, p.tx)

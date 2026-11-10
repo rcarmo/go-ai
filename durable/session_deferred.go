@@ -8,6 +8,7 @@ import (
 // heldDocument owns a bounded fold for one existing latest/initial document.
 // Its content is visible in memory; readImage and its history remain receipted.
 type heldDocument struct {
+	readonly ReadonlyValue
 	record   Document
 	ops      []Operation
 	base     bool
@@ -137,8 +138,23 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 		if deadline.compare(held.deadline) < 0 {
 			held.deadline = deadline
 		}
+		previous := held.readonly
+		if previous == nil {
+			previous = s.cachedReadonlyDocument(id, held.record.Version)
+		}
 		var err error
 		held, err = s.extendHeld(held, p.tx.writes)
+		if err != nil {
+			return err
+		}
+		var own []Operation
+		for _, change := range p.observed.Documents {
+			if change.Record.ID == id {
+				own = change.Ops
+				break
+			}
+		}
+		held.readonly, err = persistentDocumentValue(previous, held.record.Value, own, s.limits)
 		if err != nil {
 			return err
 		}
@@ -176,13 +192,7 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 	// An equal durable sequence cannot witness a cached/off-line memory read.
 	s.contextRevision++
 	s.invalidateContextRanges(s.memoryReadImage(), p.tx.writes)
-	for key, cached := range s.definitionCache {
-		if changed[cached.record.ID] {
-			delete(s.definitionCache, key)
-			s.definitionCacheBytes -= cached.bytes
-		}
-	}
-	if err := s.installDefinitionPlans(p.tx, s.memoryReadImage()); err != nil {
+	if err := s.adoptDefinitionPlans(p.tx, s.memoryReadImage(), p.observed.Documents); err != nil {
 		return s.backendResult(p.ctx, err, true)
 	}
 	if s.taskScheduler != nil {

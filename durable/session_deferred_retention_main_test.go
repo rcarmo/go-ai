@@ -29,7 +29,7 @@ func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
 		if _, err := f.session.Commit(bg, func(*Tx) error { return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
+		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
 			t.Fatal(value, ok, err)
 		}
 		f.session.taskBookkeeping(func() {
@@ -52,7 +52,7 @@ func TestMainSessionDeferredRetentionZeroOwnedValue(t *testing.T) {
 				t.Fatal("stored hold retained process-local roots")
 			}
 		})
-		if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
+		if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": "held"}) {
 			t.Fatal("stored cold read", value, ok, err)
 		}
 	})
@@ -106,7 +106,7 @@ func TestMainSessionDeferredHeldOverlayLifetime(t *testing.T) {
 				if !mainDeferredOverlayCollected(ref) {
 					t.Fatal("stored overlay remains reachable")
 				}
-				if value, ok, err := f.session.SnapshotDefinition(bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": text}) {
+				if value, ok, err := detachedDefinitionSnapshot(f.session, bg, old, 1, nil); err != nil || !ok || !equalJSONValue(value, JSON{"text": text}) {
 					t.Fatal("collection changed durable value", value, ok, err)
 				}
 				runtime.KeepAlive(f.session)
@@ -152,7 +152,7 @@ func TestMainSessionDeferredCrashLastStoredMemoryState(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer session.Close(bg)
-		value, ok, err := session.SnapshotDefinition(bg, old, 1, nil)
+		value, ok, err := detachedDefinitionSnapshot(session, bg, old, 1, nil)
 		if err != nil || !ok || !equalJSONValue(value, JSON{"text": "a"}) {
 			t.Fatal("recovery did not use stored prefix", value, ok, err)
 		}
@@ -177,7 +177,7 @@ func TestMainSessionDeferredCrashLastStoredMemoryState(t *testing.T) {
 //go:noinline
 func mainDeferredOverlayWitness(t *testing.T, s *Session, def *DocumentDefinition, retain bool) (weak.Pointer[Snapshot], *Snapshot) {
 	t.Helper()
-	if _, ok, err := s.SnapshotDefinition(bg, def, 1, nil); err != nil || !ok {
+	if _, ok, err := detachedDefinitionSnapshot(s, bg, def, 1, nil); err != nil || !ok {
 		t.Fatal(ok, err)
 	}
 	var ref weak.Pointer[Snapshot]

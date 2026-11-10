@@ -271,7 +271,7 @@ func TestSessionV150FailureBoundaryPoisonsLaterUndeliveredOutcomes(t *testing.T)
 		awaitTaskSignal(t, ran)
 	}
 	readResult := make(chan error, 1)
-	go func() { _, _, err := s.SnapshotDefinition(bg, cold, 0, nil); readResult <- err }()
+	go func() { _, _, err := detachedDefinitionSnapshot(s, bg, cold, 0, nil); readResult <- err }()
 	awaitTaskSignal(t, migrated)
 	unblock()
 	if err := <-first; err != cause {

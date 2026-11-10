@@ -90,3 +90,57 @@ it("shares one materialized version per address rather than per definition-token
  expect([first,second]).toEqual([1,0]);
  await session.close(context);
 });
+
+it("shares the adopted document revision between snapshots and synchronous observers",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const Doc=defineDoc({kind:"oracle.readonly.snapshot",scope:"session",version:1,initial:()=>({n:0,keep:{text:"original"}}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(Doc)},context);
+ const first=await session.snapshot(Doc,context);
+ expect(await session.snapshot(Doc,context)).toBe(first);
+ const values:any[]=[];
+ const observed=await session.observeDoc(Doc,{advance:call=>{if(call.kind==="value")values.push(call.value)},end:()=>{}},context);
+ expect(observed!.value).toBe(first);
+ await session.commit(async tx=>{(await tx.doc(Doc)).n=1},context);
+ const next=await session.snapshot(Doc,context);
+ expect(values).toHaveLength(1);
+ expect(next).toBe(values[0]);
+ expect(next).not.toBe(first);
+ expect(next!.keep).toBe(first!.keep);
+ expect(first!.n).toBe(0);
+ observed!.detach();await session.close(context);
+});
+
+it("retains a materialized snapshot identity when its required migration base is stored without edits",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const Old=defineDoc({kind:"oracle.readonly.migration",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(Old)},context);
+ const Next=defineDoc({kind:"oracle.readonly.migration",scope:"session",version:2,initial:()=>({n:0}),migrate:value=>({...value,n:10}),checkpointWhen:()=>false});
+ const before=await session.snapshot(Next,context);
+ await session.commit(async tx=>{await tx.doc(Next)},context);
+ expect(await session.snapshot(Next,context)).toBe(before);
+ await session.close(context);
+});
+
+it("keeps one held snapshot revision even with zero idle document retention",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>0);
+ const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const Doc=defineDoc({kind:"oracle.readonly.held",scope:"conversation",history:"latest",fork:"initial",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(Doc,conversation.id)},context);
+ await session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).n=1},context,{persistence:{kind:"deferred",withinMs:Infinity}});
+ const before=await session.snapshot(Doc,conversation.id,context);
+ expect(await session.snapshot(Doc,conversation.id,context)).toBe(before);
+ expect(before).toEqual({n:1});
+ await session.unloadDocuments();await session.close(context);
+});
+
+it("stores a held document without replacing its already-adopted snapshot revision",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const Doc=defineDoc({kind:"oracle.readonly.persisted",scope:"conversation",history:"latest",fork:"initial",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(Doc,conversation.id)},context);
+ await session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).n=1},context,{persistence:{kind:"deferred",withinMs:Infinity}});
+ const before=await session.snapshot(Doc,conversation.id,context);
+ await session.commit(async tx=>{await tx.doc(Doc,conversation.id);await tx.appendEntry(conversation.id,{kind:"note"})},context);
+ expect(await session.snapshot(Doc,conversation.id,context)).toBe(before);
+ await session.close(context);
+});

@@ -85,7 +85,7 @@ type definitionCacheKey struct {
 type definitionCacheValue struct {
 	record       Document // stored incarnation metadata; Value is kept separately
 	valueVersion uint64
-	value        JSON
+	value        ReadonlyValue
 	bytes        int64
 	lastUsed     int64
 }
@@ -108,7 +108,7 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 		cached.lastUsed = s.now()
 		s.definitionCache[key] = cached
 		s.scheduleDocumentExpiry()
-		return copyObject(cached.value, s.limits)
+		return copyReadonlyDocument(cached.value, s.limits)
 	}
 	// A cache has one materialized version per address, not one value per
 	// definition-token identity. Reloading a different version replaces it.
@@ -149,7 +149,15 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	}
 	record := d
 	record.Value = nil
-	s.definitionCache[key] = definitionCacheValue{record: record, valueVersion: def.options.Version, value: value, bytes: int64(len(encoded)), lastUsed: s.now()}
+	frozenValue := s.cachedReadonlyDocument(d.ID, def.options.Version)
+	if frozenValue == nil {
+		frozen, err := freezeImmutableValue(map[string]any(value))
+		if err != nil {
+			return nil, err
+		}
+		frozenValue = readonlyValue(frozen)
+	}
+	s.definitionCache[key] = definitionCacheValue{record: record, valueVersion: def.options.Version, value: frozenValue, bytes: int64(len(encoded)), lastUsed: s.now()}
 	s.definitionCacheBytes += int64(len(encoded))
 	s.sweepDocumentCache()
 	s.scheduleDocumentExpiry()
@@ -251,9 +259,9 @@ func (s *Session) touchDefinition(ctx context.Context, def *DocumentDefinition, 
 	return nil
 }
 
-// SnapshotDefinition returns a detached typed-policy value without initialising
+// SnapshotDefinition returns the shared readonly typed-policy value without initialising
 // or persisting migration. Callback credentials/code are never serialized.
-func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value JSON, found bool, err error) {
+func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value ReadonlyValue, found bool, err error) {
 	if value, found, cached, err := s.cachedDefinitionSnapshot(ctx, def, owner, key); cached || err != nil {
 		return value, found, err
 	}
@@ -277,7 +285,7 @@ func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinitio
 
 // snapshotDefinition runs on the Session line. Invocation callers check their
 // lifetime on that same line before migration callbacks or cache admission.
-func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (ReadonlyValue, bool, error) {
 	address, err := definitionAddress(def, owner, key)
 	if err != nil {
 		return nil, false, err
@@ -295,12 +303,22 @@ func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinitio
 		return nil, false, err
 	}
 	value, err := s.definitionValue(def, d)
-	return value, err == nil, err
+	if err != nil {
+		return nil, false, err
+	}
+	if cached := s.cachedReadonlyDocument(d.ID, def.options.Version); cached != nil {
+		return cached, true, nil
+	}
+	frozen, err := NewImmutableValue(value, s.limits)
+	if err != nil {
+		return nil, false, err
+	}
+	return readonlyValue(frozen), true, nil
 }
 
 // SnapshotDefinitionAsOf resolves the visible cutoff's owning ancestor and
 // original commit sequence, independently of the descendant's copied content.
-func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (value JSON, found bool, err error) {
+func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (value ReadonlyValue, found bool, err error) {
 	if err := s.enter(ctx); err != nil {
 		return nil, false, err
 	}
@@ -321,7 +339,7 @@ func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 
 // snapshotDefinitionAsOf shares historical materialisation between public
 // Session reads and invocation-fenced reads; caller holds the Session line.
-func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (JSON, bool, error) {
+func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (ReadonlyValue, bool, error) {
 	address, err := definitionAddress(def, conversation, key)
 	if err != nil {
 		return nil, false, err
@@ -367,7 +385,11 @@ func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 	if _, err = encodeBounded(value, s.limits, s.limits.MaxDocumentBytes); err != nil {
 		return nil, false, err
 	}
-	return value, true, nil
+	frozen, err := NewImmutableValue(value, s.limits)
+	if err != nil {
+		return nil, false, err
+	}
+	return readonlyValue(frozen), true, nil
 }
 
 // AcquireDocument acquires a singleton or family member on this transaction.
@@ -536,7 +558,7 @@ func (t *Tx) RetireDefinition(def *DocumentDefinition, owner ID, key *string) er
 // cachedDefinitionSnapshot is Session.snapshot's no-enqueue branch. It observes
 // the last adopted tracker value, even while that address has an unpublished
 // writer, and does not send the caller's cancelled context through Storage.
-func (s *Session) cachedDefinitionSnapshot(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, bool, error) {
+func (s *Session) cachedDefinitionSnapshot(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (ReadonlyValue, bool, bool, error) {
 	if !s.hasNativeReadImage() {
 		return nil, false, false, nil
 	}
@@ -562,6 +584,18 @@ func (s *Session) cachedDefinitionSnapshot(ctx context.Context, def *DocumentDef
 	if err != nil {
 		return nil, false, false, err
 	}
+	for _, held := range s.heldDocuments {
+		if documentAddress(held.record) == address && held.record.Version == def.options.Version && held.readonly != nil {
+			if err := checkDefinition(def, held.record); err != nil {
+				return nil, false, true, err
+			}
+			if err := s.cacheHeldReadonly(held); err != nil {
+				return nil, false, true, err
+			}
+			flush = true
+			return held.readonly, true, true, nil
+		}
+	}
 	cacheKey := definitionCacheKey{address}
 	cached, ok := s.definitionCache[cacheKey]
 	if !ok || cached.valueVersion != def.options.Version {
@@ -580,8 +614,7 @@ func (s *Session) cachedDefinitionSnapshot(ctx context.Context, def *DocumentDef
 	s.definitionCache[cacheKey] = cached
 	s.scheduleDocumentExpiry()
 	flush = true
-	value, err := copyObject(cached.value, s.limits)
-	return value, err == nil, true, err
+	return cached.value, true, true, nil
 }
 
 // installDefinitionPlans is receipt/memory-time tracker installation for typed

@@ -2338,12 +2338,12 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		def := taskDefinition(t, "task.runtime.reads", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
 			captured = r
 			handlerContext = ctx
-			current, ok, err := r.SnapshotDefinition(ctx, notes, 1, nil)
+			current, ok, err := detachedDefinitionSnapshot(r, ctx, notes, 1, nil)
 			if err != nil || !ok {
 				return errors.New("runtime committed notes missing")
 			}
 			seen = append(seen, current["text"])
-			asOf, ok, err := r.SnapshotDefinitionAsOf(ctx, notes, 1, nil, firstEntry)
+			asOf, ok, err := detachedDefinitionSnapshotAsOf(r, ctx, notes, 1, nil, firstEntry)
 			if err != nil || !ok {
 				return errors.New("runtime historical notes missing")
 			}
@@ -2418,7 +2418,7 @@ func TestTaskSchedulerRuntimeCommittedReadsClockReportsAndWatchLifetime(t *testi
 		if end, ok := watch.End(); !ok || end.Reason != "stopped" {
 			t.Fatal("invocation watch not stopped", end)
 		}
-		if _, _, err := captured.SnapshotDefinition(bg, notes, 1, nil); !errors.Is(err, ErrSealed) {
+		if _, _, err := detachedDefinitionSnapshot(captured, bg, notes, 1, nil); !errors.Is(err, ErrSealed) {
 			t.Fatal("ended snapshot", err)
 		}
 		if _, err := captured.ContextView(bg, 1, 0); !errors.Is(err, ErrSealed) {

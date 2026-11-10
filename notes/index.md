@@ -14,6 +14,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Readonly document observers](document-readonly-observers.md) — source132 retirement identity,
   shared synchronous revisions, API migration and remaining cross-surface cache contracts.
 
+- [Readonly document snapshots](readonly-document-snapshots.md) — shared snapshot/observer cache
+  revisions, held-value identity, API migration and remaining materialisation/dispatch work.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

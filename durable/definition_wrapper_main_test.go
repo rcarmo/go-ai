@@ -63,7 +63,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				initial, ok, err := s.SnapshotDefinition(bg, def, 0, nil)
+				initial, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 				if err != nil || !ok || initial["origin"] != "native" || calls != 1 {
 					t.Fatal(initial, ok, err, calls)
 				}
@@ -106,7 +106,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 						}
 						return nil, false, err
 					default:
-						return s.SnapshotDefinition(bg, def, 0, nil)
+						return detachedDefinitionSnapshot(s, bg, def, 0, nil)
 					}
 				}
 				for _, origin := range []string{"projection-one", "projection-two"} {
@@ -139,7 +139,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 				// Returning to native storage must recover the original warm value. Reads
 				// of projected data must neither refresh nor overwrite that cache entry.
 				s.taskBookkeeping(func() { s.store = b.store })
-				value, ok, err := s.SnapshotDefinition(bg, def, 0, nil)
+				value, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 				if err != nil || !ok || value["origin"] != "native" || calls != before {
 					t.Fatal("native migration cache lost or contaminated", value, ok, err, calls, before)
 				}
@@ -166,17 +166,17 @@ func TestMainDefinitionWrapperUnmigratedProjection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := s.SnapshotDefinition(bg, def, 0, nil); err != nil {
+		if _, _, err := detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		adapter := &mainDefinitionProjection{nativeStorage: b.store.(nativeStorage), id: id, origin: "projected"}
 		s.taskBookkeeping(func() { s.store = adapter })
-		value, ok, err := s.SnapshotDefinition(bg, def, 0, nil)
+		value, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 		if err != nil || !ok || value["origin"] != "projected" {
 			t.Fatal("plain projection bypassed", value, ok, err)
 		}
 		s.taskBookkeeping(func() { adapter.missing = true })
-		if value, ok, err := s.SnapshotDefinition(bg, def, 0, nil); err != nil || ok || value != nil {
+		if value, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil); err != nil || ok || value != nil {
 			t.Fatal("absent projection revived", value, ok, err)
 		}
 	})
@@ -216,7 +216,7 @@ func TestMainDefinitionWrapperNeverAdmitsMigrationCache(t *testing.T) {
 		for _, next := range []string{"valid", "callback-error", "invalid-value", "valid"} {
 			mode = next
 			before := calls
-			value, ok, err := s.SnapshotDefinition(bg, def, 0, nil)
+			value, ok, err := detachedDefinitionSnapshot(s, bg, def, 0, nil)
 			switch mode {
 			case "callback-error":
 				if !errors.Is(err, sentinel) || ok {

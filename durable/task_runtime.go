@@ -457,7 +457,7 @@ func (r *TaskRuntime) ContextView(ctx context.Context, conversation, at ID) (Con
 	}
 	return view, err
 }
-func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value JSON, found bool, err error) {
+func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value ReadonlyValue, found bool, err error) {
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
@@ -489,7 +489,7 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 	}
 	return session.snapshotDefinition(ctx, def, owner, key)
 }
-func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (value JSON, found bool, err error) {
+func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (value ReadonlyValue, found bool, err error) {
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}

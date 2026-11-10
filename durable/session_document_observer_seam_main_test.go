@@ -54,7 +54,7 @@ func TestMainDocumentObserverLocalPublicationSeam(t *testing.T) {
 				return err
 			}
 			if mode == "absent" {
-				value, ok, err := session.SnapshotDefinition(ctx, definition, owner, nil)
+				value, ok, err := detachedDefinitionSnapshot(session, ctx, definition, owner, nil)
 				if err != nil || ok || value != nil {
 					t.Fatalf("absent lookup: value=%v exists=%v err=%v", value, ok, err)
 				}

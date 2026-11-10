@@ -850,10 +850,10 @@ func (a *ToolAPI) Conversation(ctx context.Context, id ID) (*InvocationConversat
 func (a *ToolAPI) WatchDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (*DocumentWatch, error) {
 	return a.runtime.WatchDefinition(ctx, def, owner, key)
 }
-func (a *ToolAPI) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (a *ToolAPI) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (ReadonlyValue, bool, error) {
 	return a.runtime.SnapshotDefinition(ctx, def, owner, key)
 }
-func (a *ToolAPI) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (JSON, bool, error) {
+func (a *ToolAPI) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (ReadonlyValue, bool, error) {
 	return a.runtime.SnapshotDefinitionAsOf(ctx, def, owner, key, at)
 }
 

@@ -58,7 +58,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, read := range []func() (JSON, bool, error){func() (JSON, bool, error) { return h.SnapshotDefinition(bg, notes, root.ID(), nil) }, func() (JSON, bool, error) { return root.SnapshotDefinition(bg, notes, nil) }} {
+		for _, read := range []func() (JSON, bool, error){func() (JSON, bool, error) { return detachedDefinitionSnapshot(h, bg, notes, root.ID(), nil) }, func() (JSON, bool, error) { return detachedConversationDefinitionSnapshot(root, bg, notes, nil) }} {
 			value, found, err := read()
 			if err != nil || !found || value["text"] != "second" {
 				t.Fatal(value, found, err)
@@ -82,7 +82,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if err != nil || !found || entry.ID != at {
 			t.Fatal(entry, found, err)
 		}
-		value, found, err := root.SnapshotDefinitionAsOf(bg, notes, nil, at)
+		value, found, err := detachedConversationDefinitionSnapshotAsOf(root, bg, notes, nil, at)
 		if err != nil || !found || value["text"] != "first" {
 			t.Fatal(value, found, err)
 		}
@@ -124,7 +124,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if _, err := h.Commit(bg, func(*Tx) error { return nil }); !errors.Is(err, ErrClosed) {
 			t.Fatal(err)
 		}
-		if _, _, err := h.SnapshotDefinition(bg, notes, root.ID(), nil); !errors.Is(err, ErrClosed) {
+		if _, _, err := detachedDefinitionSnapshot(h, bg, notes, root.ID(), nil); !errors.Is(err, ErrClosed) {
 			t.Fatal(err)
 		}
 		if _, _, err := h.DocumentState(bg, notes, root.ID(), nil); !errors.Is(err, ErrClosed) {

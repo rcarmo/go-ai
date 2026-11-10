@@ -272,7 +272,8 @@ func (o *sessionDocumentObservation) advance(ctx context.Context, publication Co
 				frozen = o.readonly
 				o.readonly = nil
 			} else {
-				if len(shared) > 0 {
+				frozen = o.session.cachedReadonlyDocument(change.Record.ID, change.Version)
+				if frozen == nil && len(shared) > 0 {
 					frozen = shared[0][index]
 				}
 				if frozen == nil {
@@ -338,6 +339,9 @@ func (s *Session) endDocumentObservers() {
 // Registration runs on the Session line. Existing address/version observers
 // already own its adopted readonly node; attachment must reuse that identity.
 func (s *Session) documentObservationReadonly(id ID, version uint64, value JSON) (ReadonlyValue, error) {
+	if cached := s.cachedReadonlyDocument(id, version); cached != nil {
+		return cached, nil
+	}
 	s.observerMu.Lock()
 	for _, observation := range s.documentObservers {
 		observation.mu.Lock()
