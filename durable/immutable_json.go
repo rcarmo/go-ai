@@ -8,6 +8,9 @@ import (
 // immutableJSONValue recognises only this package's exact frozen type. Caller
 // marshal methods, wrappers and look-alike structs gain no encoding authority.
 func immutableJSONValue(v reflect.Value) (*ImmutableValue, bool) {
+	if v.Type() == reflect.TypeFor[readonlyJSON]() {
+		return v.Interface().(readonlyJSON).node, true
+	}
 	if v.Type() == reflect.TypeFor[*ImmutableValue]() {
 		if v.IsNil() {
 			return nil, true

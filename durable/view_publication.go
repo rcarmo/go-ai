@@ -8,9 +8,10 @@ import (
 // A queued projection owns a bounded window, never a complete history snapshot.
 // Values/ops are immutable internally; callback values are detached at delivery.
 type conversationPublicationFrame struct {
-	value ConversationView
-	ops   []Operation
-	err   error
+	value    ConversationViewCopy
+	readonly ConversationView
+	ops      []Operation
+	err      error
 }
 
 func conversationPublicationRelevant(publication CommitPublication, id ID) bool {
@@ -28,10 +29,10 @@ func conversationPublicationRelevant(publication CommitPublication, id ID) bool 
 	return false
 }
 
-func advanceConversationWindow(before ConversationView, publication CommitPublication, limits Limits, bounds conversationWindowBounds) (ConversationView, []Entry, int, error) {
+func advanceConversationWindow(before ConversationViewCopy, publication CommitPublication, limits Limits, bounds conversationWindowBounds) (ConversationViewCopy, []Entry, int, error) {
 	next, err := copyConversationView(before, limits)
 	if err != nil {
-		return ConversationView{}, nil, 0, err
+		return ConversationViewCopy{}, nil, 0, err
 	}
 	for _, change := range publication.Documents {
 		d := change.Record
@@ -43,7 +44,7 @@ func advanceConversationWindow(before ConversationView, publication CommitPublic
 		} else {
 			next.Docs[d.Kind], err = copyObject(change.Value, limits)
 			if err != nil {
-				return ConversationView{}, nil, 0, err
+				return ConversationViewCopy{}, nil, 0, err
 			}
 		}
 	}
@@ -57,7 +58,7 @@ func advanceConversationWindow(before ConversationView, publication CommitPublic
 		}
 		entry, err := copyEntry(*write.Entry, limits)
 		if err != nil {
-			return ConversationView{}, nil, 0, err
+			return ConversationViewCopy{}, nil, 0, err
 		}
 		appended = append(appended, entry)
 	}
@@ -99,9 +100,15 @@ func conversationWindowOperations(before, after JSON, appended []Entry, drop int
 		// Strict decoding requires an object root. This envelope is smaller
 		// and shallower than the actual splice tuple; it uses the record,
 		// not document, byte limit because trimmed inserts may be larger.
-		encoded, err := encodeBounded(struct {
-			Entries []Entry `json:"entries"`
-		}{appended}, limits, limits.MaxRecordBytes)
+		records := make([]any, len(appended))
+		for i, entry := range appended {
+			object, err := conversationEntryObject(entry, limits)
+			if err != nil {
+				return fallback()
+			}
+			records[i] = object
+		}
+		encoded, err := encodeBounded(JSON{"entries": records}, limits, limits.MaxRecordBytes)
 		if err != nil {
 			return fallback()
 		}
@@ -135,9 +142,10 @@ func conversationWindowOperations(before, after JSON, appended []Entry, drop int
 // Session-line preparation must never advance the head or fail its transaction
 // because a listener's projection cannot be represented. Such errors are queued
 // for this watch only, behind the same post-publication readiness fence.
-func (w *ConversationWatch) preparePublication(ctx context.Context, publication CommitPublication, ready <-chan struct{}) *preparedSubscription {
+func (w *ConversationWatch) preparePublication(ctx context.Context, publication CommitPublication, ready <-chan struct{}, shared ...map[ID]*ImmutableValue) *preparedSubscription {
 	w.mu.Lock()
 	before, mounted, failed := w.head, w.incarnations, w.projectionErr
+	readonlyBefore := w.readonlyHead
 	w.mu.Unlock()
 	if failed != nil || !conversationPublicationRelevant(publication, before.Conversation.ID) {
 		return nil
@@ -170,15 +178,23 @@ func (w *ConversationWatch) preparePublication(ctx context.Context, publication 
 	if err != nil {
 		return failure(err)
 	}
+	var sharedDocs map[ID]*ImmutableValue
+	if len(shared) > 0 {
+		sharedDocs = shared[0]
+	}
+	readonly, err := advanceReadonlyConversation(readonlyBefore, next, appended, drop, documentOps, w.limits, sharedDocs)
+	if err != nil {
+		return failure(err)
+	}
 	if len(ops) == 0 {
 		// An unrepresentable net-zero batch may still replace incarnations.
 		// Adopt that witness after receipt without consuming a delivery slot.
-		frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{value: next}}
+		frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{readonly: readonly, value: next}}
 		return &preparedSubscription{sub: w.sub, frame: frame, view: &next, incarnations: incarnations, headOnly: true}
 	}
 	root := []Operation{{"r", map[string]any(b)}}
-	frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{value: next, ops: ops}}
-	reset := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{value: next, ops: root}}
+	frame := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{readonly: readonly, value: next, ops: ops}}
+	reset := PublicationFrame{Context: frameContext, ready: ready, conversation: &conversationPublicationFrame{readonly: readonly, value: next, ops: root}}
 	// Charge both retained graphs, but validate them independently as before.
 	// A joint envelope would lower the effective node/depth limits. The root
 	// tuple adds exactly eight bytes to its already-validated JSON value.
@@ -209,6 +225,11 @@ func (w *ConversationWatch) adoptPublication(item preparedSubscription) {
 	}
 	if item.view != nil {
 		w.head = *item.view
+		if item.frame.conversation != nil {
+			w.readonlyHead = item.frame.conversation.readonly
+		} else if item.reset.conversation != nil {
+			w.readonlyHead = item.reset.conversation.readonly
+		}
 		w.incarnations = item.incarnations
 	}
 }
@@ -225,7 +246,7 @@ func (w *ConversationWatch) projectionStatus() (enabled, failed bool) {
 func (w *ConversationWatch) deliverAuthoritative(ctx context.Context, frame PublicationFrame, listener func(context.Context, ConversationView, []Operation) error) error {
 	w.mu.Lock()
 	before := w.current
-	var next ConversationView
+	var next ConversationViewCopy
 	var err error
 	if frame.Snapshot != nil {
 		bounds := w.window
@@ -251,8 +272,11 @@ func (w *ConversationWatch) deliverAuthoritative(ctx context.Context, frame Publ
 	}
 	var detached ConversationView
 	if err == nil {
-		w.current = next
-		detached, err = copyConversationView(next, w.limits)
+		detached, err = freezeConversationView(next, w.limits)
+		if err == nil {
+			w.current = next
+			w.readonlyCurrent = detached
+		}
 	}
 	w.mu.Unlock()
 	if err != nil {

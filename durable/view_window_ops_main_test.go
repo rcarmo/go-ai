@@ -19,7 +19,7 @@ func TestMainTranscriptWindowEntryOperationSequence(t *testing.T) {
 		t.Run(bounds.name, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
-				watch, err := c.Watch(bg, transcriptBounds(bounds.min, bounds.max))
+				watch, err := detachedWatch(c, bg, transcriptBounds(bounds.min, bounds.max))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -33,11 +33,11 @@ func TestMainTranscriptWindowEntryOperationSequence(t *testing.T) {
 					t.Fatal(err)
 				}
 				type delivered struct {
-					value ConversationView
+					value ConversationViewCopy
 					ops   []Operation
 				}
 				frames := make(chan delivered, 1)
-				if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+				if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 					next, err := ApplyOperations(replay, ops, h.session.limits)
 					if err != nil {
 						return err
@@ -73,7 +73,7 @@ func TestMainTranscriptWindowEntryOperationSequence(t *testing.T) {
 					}
 					inserted := make([]any, 0, count)
 					for _, id := range added {
-						record, err := dtoObject(snapshot.Entries[id], h.session.limits)
+						record, err := conversationEntryObject(snapshot.Entries[id], h.session.limits)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -119,7 +119,7 @@ func TestMainTranscriptWindowOperationNativeBounds(t *testing.T) {
 	for _, mode := range []string{"members", "document-bytes", "insert-record-bytes"} {
 		t.Run(mode, func(t *testing.T) {
 			limits := DefaultLimits()
-			before := ConversationView{Conversation: Conversation{ID: 100}, Docs: map[string]JSON{}, Entries: []Entry{}}
+			before := ConversationViewCopy{Conversation: Conversation{ID: 100}, Docs: map[string]JSON{}, Entries: []Entry{}}
 			for i := 1; i <= 14; i++ {
 				before.Entries = append(before.Entries, Entry{ID: ID(i), Conversation: 100, Kind: "app.note", Value: JSON{"text": ""}})
 			}
@@ -135,7 +135,11 @@ func TestMainTranscriptWindowOperationNativeBounds(t *testing.T) {
 				limits.MaxMembers = 16
 			}
 			if mode == "document-bytes" {
-				wire, err := encodeBounded(before, limits, limits.MaxDocumentBytes)
+				body, err := dtoObject(before, limits)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wire, err := encodeBounded(body, limits, limits.MaxDocumentBytes)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -155,7 +159,7 @@ func TestMainTranscriptWindowOperationNativeBounds(t *testing.T) {
 			}
 			inserted := []any{}
 			for _, entry := range appended {
-				object, err := dtoObject(entry, limits)
+				object, err := conversationEntryObject(entry, limits)
 				if err != nil {
 					t.Fatal(err)
 				}

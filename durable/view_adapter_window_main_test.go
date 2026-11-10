@@ -30,7 +30,7 @@ func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 				future := ID(MaxID)
 				bounds := transcriptBounds(3, 6)
 				bounds.From = &future
-				watch, err := c.Watch(bg, bounds)
+				watch, err := detachedWatch(c, bg, bounds)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -44,13 +44,13 @@ func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 				var once sync.Once
 				defer once.Do(func() { close(release) })
 				type delivery struct {
-					value ConversationView
+					value ConversationViewCopy
 					ops   []Operation
 				}
 				frames := make(chan delivery, 120)
 				calls := 0
 				start := func() {
-					if err := watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+					if err := watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 						calls++
 						if blocked && calls == 1 {
 							close(initial)
@@ -62,7 +62,7 @@ func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				expected := map[ID]ConversationView{}
+				expected := map[ID]ConversationViewCopy{}
 				ids := []ID{}
 				previous := ID(0)
 				appendOne := func(n int) {
@@ -77,7 +77,7 @@ func TestMainTranscriptAdapterPublicationWindow(t *testing.T) {
 					for i, id := range ids {
 						entries[i].ID = id
 					}
-					expected[id] = ConversationView{Entries: entries, Before: previous}
+					expected[id] = ConversationViewCopy{Entries: entries, Before: previous}
 				}
 				if blocked {
 					start()
@@ -146,7 +146,7 @@ func TestMainTranscriptAdapterResetPreparation(t *testing.T) {
 				ids := transcriptNotes(t, h, 4)
 				bounds := transcriptBounds(3, 6)
 				bounds.From = &ids[0]
-				watch, err := c.Watch(bg, bounds)
+				watch, err := detachedWatch(c, bg, bounds)
 				if err != nil {
 					t.Fatal(err)
 				}

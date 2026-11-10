@@ -53,23 +53,23 @@ func resolveConversationWindow(options []ConversationWindow) (conversationWindow
 	return bounds, nil
 }
 
-func buildConversationWindow(state Snapshot, id ID, limits Limits, bounds conversationWindowBounds) (ConversationView, error) {
+func buildConversationWindow(state Snapshot, id ID, limits Limits, bounds conversationWindowBounds) (ConversationViewCopy, error) {
 	value, err := buildConversationBase(state, id, limits)
 	if err != nil {
-		return ConversationView{}, err
+		return ConversationViewCopy{}, err
 	}
 	var entries []Entry
 	useNewest := !bounds.hasFrom
 	if bounds.hasFrom {
 		entries, err = visibleHistory(state, EntryQuery{Conversation: id, MinEntryID: bounds.from, Order: Ascending})
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationViewCopy{}, err
 		}
 		if len(entries) <= bounds.max {
 			if bounds.from > 1 {
 				preceding, err := visibleHistory(state, EntryQuery{Conversation: id, MaxEntryID: bounds.from - 1, Order: Descending})
 				if err != nil {
-					return ConversationView{}, err
+					return ConversationViewCopy{}, err
 				}
 				if len(preceding) > 0 {
 					value.Before = preceding[0].ID
@@ -83,7 +83,7 @@ func buildConversationWindow(state Snapshot, id ID, limits Limits, bounds conver
 	if useNewest {
 		newest, err := visibleHistory(state, EntryQuery{Conversation: id, Order: Ascending})
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationViewCopy{}, err
 		}
 		start := len(newest) - bounds.min
 		if start < 0 {
@@ -98,7 +98,7 @@ func buildConversationWindow(state Snapshot, id ID, limits Limits, bounds conver
 	for i, entry := range entries {
 		value.Entries[i], err = copyEntry(entry, limits)
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationViewCopy{}, err
 		}
 	}
 	return value, nil

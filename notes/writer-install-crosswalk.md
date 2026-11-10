@@ -645,3 +645,23 @@ migration and its source identity oracles are the next implementation step.
 Verification: immutable tests five repeats; full durable 365.253s/tools18.648s;
 repository-wide vet/Staticcheck, logging and pinned-source oracle checks pass.
 These are ordinary development checks, not acceptance profiling.
+
+## Public readonly watch integration
+
+The preceding groundwork status is superseded for public view watches.
+`ConversationView` now carries sealed comparable readonly entries/docs handles.
+The public Value accessor and callbacks share those values; copying is explicit.
+Source160/330/525 watch identities, including the empty entries node, now pass.
+Source274-shaped controls verify adopted-doc reuse, peer stop and new remount
+identity. Retained entry nodes survive trimming. An actual readonly entry-node
+weak target now exercises source570's lifetime scenario with a positive control.
+View records and append operations also use public EntryRecord fields instead
+of native storage envelopes. Existing content/operation/ownership tests use an
+explicit detached conversion; identity tests inspect the public readonly values.
+
+Final full development verification: durable713.829s/tools22.450s; targeted readonly
+functions count5/shuffle42 and repository-wide static/logging checks pass.
+Source oracle runner:95 unchanged tests +5 probes. Remaining D14/D15 scope
+includes synchronous observeConversation, wrapper/lifetime audit and the full
+assertion crosswalk. D16/D17 dispatch/document observation remain separate.
+See notes/shared-readonly-views.md and docs/upstream-v1.5.0/view-shared-identity.md.

@@ -45,7 +45,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 				if mode == "hydrated" {
 					create()
 				}
-				watch, e := conversation.Watch(bg)
+				watch, e := detachedWatch(conversation, bg)
 				if e != nil {
 					t.Fatal(e)
 				}
@@ -54,7 +54,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				empty, e := conversation.View(bg)
+				empty, e := detachedView(conversation, bg)
 				if e != nil || empty.Entries == nil || len(empty.Entries) != 0 {
 					t.Fatal("empty transcript must expose an array", empty, e)
 				}
@@ -62,7 +62,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 					if initial.Docs["pi.provider"]["sessionId"] != identity {
 						t.Fatal("watch omitted provider baseline", initial.Docs)
 					}
-					view, e := conversation.View(bg)
+					view, e := detachedView(conversation, bg)
 					if e != nil || view.Docs["pi.provider"]["sessionId"] != identity {
 						t.Fatal("snapshot omitted provider", view.Docs, e)
 					}
@@ -94,8 +94,8 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				frames := make(chan ConversationView, 4)
-				if e = watch.Start(func(ctx context.Context, v ConversationView, ops []Operation) error {
+				frames := make(chan ConversationViewCopy, 4)
+				if e = watch.Start(func(ctx context.Context, v ConversationViewCopy, ops []Operation) error {
 					// Publication data must replay, and callbacks must stay off the Session line.
 					next, e := ApplyOperations(replica, ops, h.session.limits)
 					if e != nil {
@@ -109,7 +109,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 						t.Error("provider view operations do not replay", ops, "replayed", next, "wire", wire)
 					}
 					replica = wire
-					if _, e = conversation.View(ctx); e != nil {
+					if _, e = detachedView(conversation, ctx); e != nil {
 						return e
 					}
 					frames <- v
@@ -155,7 +155,7 @@ func TestMainConversationViewProviderProjection(t *testing.T) {
 				if _, found := f.Docs["pi.provider"]; found {
 					t.Fatal("retired provider still mounted", f.Docs)
 				}
-				if current, e := conversation.View(bg); e != nil || current.Docs["pi.provider"] != nil {
+				if current, e := detachedView(conversation, bg); e != nil || current.Docs["pi.provider"] != nil {
 					t.Fatal("retired provider snapshot", current.Docs, e)
 				}
 			})

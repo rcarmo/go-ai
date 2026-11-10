@@ -225,25 +225,25 @@ boundary and continuation assertions have not been established. See
 
 ### D14 — Shared readonly conversation-view and observer values
 
-**confirmed.** Fresh source 160/330/525 oracles fail unchanged pi.live/docs identity and shared docs across windows/observers. Public Value/callbacks deep-copy mutable maps. Immutable primitives exist but are not integrated.
+**confirmed.** Public ConversationHandle.View and ConversationWatch.Value/callbacks now expose sealed, comparable ReadonlyValue handles. Source160/330/525 watch identity assertions pass, including empty entries identity; entry-only revisions preserve docs, document-only revisions preserve entries and unaffected docs, concurrent windows share adopted docs. Explicit Copy preserves detached-content/operation tests. Public synchronous observeConversation is still absent; complete observer/API and wrapper contracts remain open.
 
 - Source: [`test/harness-view.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-view.test.ts); [`src/harness/view.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/view.ts).
 - Native/evidence: [`durable/view.go`](../../durable/view.go); [`durable/view_publication.go`](../../durable/view_publication.go); [`durable/immutable_value.go`](../../durable/immutable_value.go).
-- Fix: Integrate revision-stable immutable shared values and mounted view ownership. Reconcile legacy tests that allow mutating detached maps; do not expose mutable aliases or provide an optional alternate view instead of the original contract.
-- Acceptance: All three pending identity oracles unchanged; source160/274/330/525 content/window/identity, mutation prevention, peer-listener isolation and remount-new-identity controls.
+- Fix: Complete the synchronous observeConversation surface and its guard/dispatch contracts using the same readonly values. Audit wrapper fallback identity, bounded retention and every pinned assertion. Keep the watch API readonly; mutable data requires explicit Copy.
+- Acceptance: Promoted source160/330/525 identity assertions retain object-identity semantics through comparable readonly handles; source160/274/330/525 content/window/identity, readonly authority, peer isolation, remount and complete synchronous-observer acceptance.
 - Dependencies: none recorded.
-- Blocker/decision: Representation/API migration is required. Ordinary writable Go maps cannot enforce shared readonly ownership.
+- Blocker/decision: none identified; synchronous observeConversation and complete assertion-level acceptance still required
 
 ### D15 — View/entry identity lifetime, mount collection and empty-array identity
 
-**unverified.** Existing Go GC controls establish backing-array lifetimes; they do not establish source 570 individual EntryRecord retention or JavaScript empty-array object identity. Internal last-observer mount reuse/rebuild identity remains unverified.
+**unverified.** Public readonly handles now represent empty-array and individual entry-node identity. New production-watch tests verify retained entries through append/trim, late attachment shares the adopted docs, last stop removes all mount owners, and remount creates equal docs with new identity. A source570-shaped first-note/200-more SQLite test collects the actual readonly EntryRecord node within three GCs after releasing a positive retention control. Existing backing-array GC tests remain. Broader observation surfaces and repeated lifecycle stress remain open.
 
 - Source: [`test/harness-view.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-view.test.ts); [`src/harness/transcript.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/transcript.ts); [`src/harness/view.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/view.ts).
 - Native/evidence: [`durable/view_gc_oracle_main_test.go`](../../durable/view_gc_oracle_main_test.go); [`durable/view_identity_oracle_main_test.go`](../../durable/view_identity_oracle_main_test.go); [`durable/view_window.go`](../../durable/view_window.go).
-- Fix: Tie immutable entry identity and mount lifetime to retained handles/revisions. Define a testable language representation for empty collections and weak ownership. Retain no full prior snapshots just to preserve identity.
+- Fix: Finish lifetime coverage across synchronous observeConversation, wrappers and repeated attachment/detachment. Preserve individual node identity and bounded cleanup without retaining prior histories.
 - Acceptance: Source274 remount, source570 individual record lifetime, shared slices/windows and last-detach cleanup; bounded retention and repeated attach/detach stress.
 - Dependencies: D14.
-- Blocker/decision: WeakRef/GC timing differs between runtimes; observable ownership must be established without flaky forced-GC timing claims.
+- Blocker/decision: none identified; the remaining public observation path and complete lifetime crosswalk require acceptance
 
 ### D16 — Public observeCommits host dispatch and waiter ordering
 

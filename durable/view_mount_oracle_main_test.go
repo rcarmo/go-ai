@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-func startUpstreamMountRecord(t *testing.T, w *ConversationWatch) <-chan upstreamWindowFrame {
+func startUpstreamMountRecord(t *testing.T, w *detachedConversationWatch) <-chan upstreamWindowFrame {
 	t.Helper()
 	ch := make(chan upstreamWindowFrame, 16)
-	if err := w.Start(func(_ context.Context, v ConversationView, ops []Operation) error {
+	if err := w.Start(func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 		ch <- upstreamWindowFrame{v, ops}
 		return nil
 	}); err != nil {
@@ -59,7 +59,7 @@ func TestMainViewUpstreamMountOracles(t *testing.T) {
 						t.Fatal("extra source recreation frames")
 					}
 				case "undelivered-101":
-					w, err := c.Watch(bg)
+					w, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -82,13 +82,13 @@ func TestMainViewUpstreamMountOracles(t *testing.T) {
 					}
 					assertUpstreamWindowFresh(t, h.session, c, replayUpstreamWindow(t, h.session, initial, frames), 50)
 				case "independent-remount":
-					kept, err := c.Watch(bg)
+					kept, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer kept.Stop()
 					keptCh := startUpstreamMountRecord(t, kept)
-					peer, err := c.Watch(bg)
+					peer, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -111,7 +111,7 @@ func TestMainViewUpstreamMountOracles(t *testing.T) {
 					if len(peerCh) != 0 {
 						t.Fatal("stopped peer received another frame")
 					}
-					fresh, err := c.Watch(bg)
+					fresh, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}

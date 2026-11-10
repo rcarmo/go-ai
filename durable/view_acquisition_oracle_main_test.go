@@ -42,7 +42,7 @@ func TestMainViewUpstreamAcquisitionOracles(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				if mode == "close-late" {
-					w, err := c.Watch(bg)
+					w, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -62,20 +62,20 @@ func TestMainViewUpstreamAcquisitionOracles(t *testing.T) {
 					if value.Entries == nil || len(value.Entries) != 0 {
 						t.Fatal("source retained empty entries array", value.Entries)
 					}
-					late, err := c.Watch(bg)
+					late, err := detachedWatch(c, bg)
 					if late != nil || !errors.Is(err, ErrClosed) {
 						t.Fatal("late acquisition", late, err)
 					}
 					return
 				}
 				type result struct {
-					w   *ConversationWatch
+					w   *detachedConversationWatch
 					err error
 				}
 				acquire := func(ctx context.Context) <-chan result {
 					ch := make(chan result, 1)
 					go func() {
-						w, err := c.Watch(ctx)
+						w, err := detachedWatch(c, ctx)
 						if w != nil {
 							w.Stop()
 						}

@@ -11,12 +11,12 @@ func TestMainTranscriptWindowLargeDeclaration(t *testing.T) {
 		min := h.session.limits.MaxMembers + 1
 		max := 2 * min
 		window := ConversationWindow{Min: &min, Max: &max}
-		value, err := c.View(bg, window)
+		value, err := detachedView(c, bg, window)
 		if err != nil {
 			t.Fatal(err)
 		}
 		transcriptIDs(t, value, ids, 0)
-		watch, err := c.Watch(bg, window)
+		watch, err := detachedWatch(c, bg, window)
 		if err != nil {
 			t.Fatal(err)
 		}

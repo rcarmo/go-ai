@@ -118,7 +118,9 @@ Return: starting/ending revision; exact source assertion; files changed; baselin
 - Stage acceptance: source77/87/105, then132/162, then241/254, then469/496/520. Keep JS rejected-thenable and WeakRef timing gaps separate. Preserve stored-lane source389/403/414/427 tests; wire Harness only with scheduler publication-order tests.
 - Stop: no asynchronous-watch substitution and no shared mutable maps without P07's ownership decision.
 
-## P07 — View identity and mount lifetime (design before runtime change)
+## P07 — View identity and mount lifetime
+
+Public readonly watch integration is implemented and development-verified. Source160/330/525 identity assertions are active as `TestMainSharedView*`; sealed comparable handles also cover empty arrays, actual entry-node lifetime, trimming and remount identity. `ConversationView.Copy` is the explicit mutable conversion. The following design/baseline bullets are historical; remaining work is synchronous observeConversation, wrapper/observer acceptance and the complete assertion crosswalk. See [the current receipt](view-shared-identity.md).
 
 - Source: pinned `harness-view.test.ts` source160/274/330/525/570.
 - Native: `durable/view.go`, `view_publication.go`, `view_window.go`, `view_gc_oracle_main_test.go`, `view_identity_oracle_main_test.go`.

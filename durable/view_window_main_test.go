@@ -9,7 +9,7 @@ import (
 func transcriptBounds(min, max int) ConversationWindow {
 	return ConversationWindow{Min: &min, Max: &max}
 }
-func transcriptIDs(t *testing.T, value ConversationView, want []ID, before ID) {
+func transcriptIDs(t *testing.T, value ConversationViewCopy, want []ID, before ID) {
 	t.Helper()
 	if len(value.Entries) != len(want) || value.Before != before {
 		t.Fatalf("window: entries=%v before=%d; want IDs=%v before=%d", value.Entries, value.Before, want, before)
@@ -20,7 +20,7 @@ func transcriptIDs(t *testing.T, value ConversationView, want []ID, before ID) {
 		}
 	}
 }
-func transcriptListener(t *testing.T, w *ConversationWatch, limits Limits) <-chan ConversationView {
+func transcriptListener(t *testing.T, w *detachedConversationWatch, limits Limits) <-chan ConversationViewCopy {
 	t.Helper()
 	initial, err := w.Value()
 	if err != nil {
@@ -30,8 +30,8 @@ func transcriptListener(t *testing.T, w *ConversationWatch, limits Limits) <-cha
 	if err != nil {
 		t.Fatal(err)
 	}
-	frames := make(chan ConversationView, 16)
-	if err = w.Start(func(_ context.Context, v ConversationView, ops []Operation) error {
+	frames := make(chan ConversationViewCopy, 16)
+	if err = w.Start(func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 		next, err := ApplyOperations(replay, ops, limits)
 		if err != nil {
 			return err
@@ -73,12 +73,12 @@ func TestMainTranscriptWindowHydration(t *testing.T) {
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				value, err := c.View(bg, test.window)
+				value, err := detachedView(c, bg, test.window)
 				if err != nil {
 					t.Fatal(err)
 				}
 				transcriptIDs(t, value, test.want, test.before)
-				watch, err := c.Watch(bg, test.window)
+				watch, err := detachedWatch(c, bg, test.window)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -103,7 +103,7 @@ func TestMainTranscriptWindowShortBeginningAndDefaults(t *testing.T) {
 		for _, from := range []ID{0, 1, ids[0]} {
 			window := transcriptBounds(3, 6)
 			window.From = &from
-			value, err := c.View(bg, window)
+			value, err := detachedView(c, bg, window)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,7 +117,7 @@ func TestMainTranscriptWindowShortBeginningAndDefaults(t *testing.T) {
 			}
 		}
 		min := 3
-		watch, err := c.Watch(bg, ConversationWindow{Min: &min})
+		watch, err := detachedWatch(c, bg, ConversationWindow{Min: &min})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,12 +134,12 @@ func TestMainTranscriptIndependentWindowGrowthAndTrim(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 10)
-		small, err := c.Watch(bg, transcriptBounds(2, 3))
+		small, err := detachedWatch(c, bg, transcriptBounds(2, 3))
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer small.Stop()
-		large, err := c.Watch(bg, transcriptBounds(3, 6))
+		large, err := detachedWatch(c, bg, transcriptBounds(3, 6))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,7 +164,7 @@ func TestMainTranscriptFromOnlyConstrainsAttachment(t *testing.T) {
 		ids := transcriptNotes(t, h, 5)
 		from := ids[4] + 1000
 		min, max := 2, 3
-		watch, err := c.Watch(bg, ConversationWindow{From: &from, Min: &min, Max: &max})
+		watch, err := detachedWatch(c, bg, ConversationWindow{From: &from, Min: &min, Max: &max})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,31 +207,31 @@ func TestMainTranscriptWindowRejectsInvalidOptions(t *testing.T) {
 			tests = append(tests, ConversationWindow{Min: &tooLarge}, ConversationWindow{Max: &tooLarge})
 		}
 		for i, w := range tests {
-			if _, err := c.View(bg, w); err == nil {
+			if _, err := detachedView(c, bg, w); err == nil {
 				t.Fatalf("View accepted invalid option %d", i)
 			} else {
 				rejected(t, err)
 			}
-			if watch, err := c.Watch(bg, w); err == nil {
+			if watch, err := detachedWatch(c, bg, w); err == nil {
 				watch.Stop()
 				t.Fatalf("Watch accepted invalid option %d", i)
 			} else {
 				rejected(t, err)
 			}
 		}
-		if _, err := c.View(bg, ConversationWindow{}, ConversationWindow{}); err == nil {
+		if _, err := detachedView(c, bg, ConversationWindow{}, ConversationWindow{}); err == nil {
 			t.Fatal("View ignored extra window")
 		}
-		if watch, err := c.Watch(bg, ConversationWindow{}, ConversationWindow{}); err == nil {
+		if watch, err := detachedWatch(c, bg, ConversationWindow{}, ConversationWindow{}); err == nil {
 			watch.Stop()
 			t.Fatal("Watch ignored extra window")
 		}
 		// Source's final assertion accepts equal bounds on the empty view.
-		if _, err := c.View(bg, transcriptBounds(3, 3)); err != nil {
+		if _, err := detachedView(c, bg, transcriptBounds(3, 3)); err != nil {
 			t.Fatal(err)
 		}
 		// Rejections do not poison ordinary admitted reads/acquisition.
-		if _, err := c.View(bg); err != nil {
+		if _, err := detachedView(c, bg); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -245,7 +245,7 @@ func TestMainTranscriptWindowForkHistory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		watch, err := fork.Watch(bg, transcriptBounds(2, 3))
+		watch, err := detachedWatch(fork, bg, transcriptBounds(2, 3))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -280,7 +280,7 @@ func TestMainTranscriptWindowPendingReplay(t *testing.T) {
 		future := ID(MaxID)
 		window := transcriptBounds(3, 6)
 		window.From = &future
-		watch, err := c.Watch(bg, window)
+		watch, err := detachedWatch(c, bg, window)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,9 +297,9 @@ func TestMainTranscriptWindowPendingReplay(t *testing.T) {
 		for i := 0; i < 105; i++ {
 			ids = append(ids, transcriptNotes(t, h, 1)...)
 		}
-		latest := make(chan ConversationView, 1)
+		latest := make(chan ConversationViewCopy, 1)
 		replaced := false
-		if err = watch.Start(func(_ context.Context, v ConversationView, ops []Operation) error {
+		if err = watch.Start(func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 			if len(ops) > 0 && ops[0][0] == "r" {
 				replaced = true
 			}
@@ -331,5 +331,40 @@ func TestMainTranscriptWindowPendingReplay(t *testing.T) {
 		}
 		start := len(ids) - len(value.Entries)
 		transcriptIDs(t, value, ids[start:], ids[start-1])
+	})
+}
+
+// Legacy content/operation assertions explicitly request detached data. Identity
+// assertions use ConversationWatch directly, without this conversion.
+type detachedConversationWatch struct{ *ConversationWatch }
+
+func detachedWatch(c *ConversationHandle, ctx context.Context, window ...ConversationWindow) (*detachedConversationWatch, error) {
+	w, err := c.Watch(ctx, window...)
+	if err != nil {
+		return nil, err
+	}
+	return &detachedConversationWatch{w}, nil
+}
+func detachedView(c *ConversationHandle, ctx context.Context, window ...ConversationWindow) (ConversationViewCopy, error) {
+	value, err := c.View(ctx, window...)
+	if err != nil {
+		return ConversationViewCopy{}, err
+	}
+	return value.Copy(c.h.session.limits)
+}
+func (w *detachedConversationWatch) Value() (ConversationViewCopy, error) {
+	value, err := w.ConversationWatch.Value()
+	if err != nil {
+		return ConversationViewCopy{}, err
+	}
+	return value.Copy(w.limits)
+}
+func (w *detachedConversationWatch) Start(listener func(context.Context, ConversationViewCopy, []Operation) error) error {
+	return w.ConversationWatch.Start(func(ctx context.Context, value ConversationView, ops []Operation) error {
+		detached, err := value.Copy(w.limits)
+		if err != nil {
+			return err
+		}
+		return listener(ctx, detached, ops)
 	})
 }

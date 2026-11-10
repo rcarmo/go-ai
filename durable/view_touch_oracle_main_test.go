@@ -22,7 +22,7 @@ func upstreamCompletedChat(t *testing.T, b sqliteFixture, text string) (*Harness
 
 // Pinned harness-view.test.ts:113-126,160-176. The real provider/submission
 // path uses the native fake terminal provider instead of Source faux text.
-// Shared JS reference assertions from line160 remain explicitly unported.
+// Shared reference assertions from line160 are in view_identity_oracle_main_test.go.
 func TestMainViewUpstreamTouchOracles(t *testing.T) {
 	for _, mode := range []string{"completed-hydration", "unmounted-silence"} {
 		t.Run(mode, func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestMainViewUpstreamTouchOracles(t *testing.T) {
 					if settled.Message == nil || settled.Message.Content[0].Text != "hello" {
 						t.Fatal("source answer", settled)
 					}
-					fresh, err := c.Watch(bg)
+					fresh, err := detachedWatch(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -64,11 +64,11 @@ func TestMainViewUpstreamTouchOracles(t *testing.T) {
 						t.Fatal("source all entries count", len(value.Entries), len(all))
 					}
 					for i, e := range all {
-						got, err := dtoObject(value.Entries[i], h.session.limits)
+						got, err := conversationEntryObject(value.Entries[i], h.session.limits)
 						if err != nil {
 							t.Fatal(err)
 						}
-						want, err := dtoObject(e, h.session.limits)
+						want, err := conversationEntryObject(e, h.session.limits)
 						if err != nil {
 							t.Fatal(err)
 						}

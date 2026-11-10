@@ -198,3 +198,55 @@ func NewImmutableDocument(kind string, value JSON, limits Limits) (*ImmutableDoc
 func (d *ImmutableDocument) Key() string            { return d.key }
 func (d *ImmutableDocument) Value() *ImmutableValue { return d.value }
 func (d *ImmutableDocument) Copy() any              { return d.value.Copy() }
+
+// ReadonlyValue is a comparable JSON handle. Object/array identity is preserved
+// by handle equality. It exposes neither mutable containers nor a pointer that
+// callers could overwrite; Copy is the explicit detached conversion.
+type ReadonlyValue interface {
+	Kind() string
+	IsObject() bool
+	IsArray() bool
+	Get(string) (ReadonlyValue, bool)
+	Index(int) (ReadonlyValue, bool)
+	Len() int
+	Keys() []string
+	String() string
+	Number() json.Number
+	Bool() bool
+	Copy() any
+	immutableNode() *ImmutableValue
+}
+
+type readonlyJSON struct{ node *ImmutableValue }
+
+func readonlyValue(node *ImmutableValue) ReadonlyValue { return readonlyJSON{node} }
+func (v readonlyJSON) immutableNode() *ImmutableValue  { return v.node }
+func (v readonlyJSON) Kind() string                    { return v.node.Kind() }
+func (v readonlyJSON) IsObject() bool                  { return v.node.IsObject() }
+func (v readonlyJSON) IsArray() bool                   { return v.node.IsArray() }
+func (v readonlyJSON) Get(key string) (ReadonlyValue, bool) {
+	node, ok := v.node.Get(key)
+	if !ok {
+		return nil, false
+	}
+	return readonlyValue(node), true
+}
+func (v readonlyJSON) Index(index int) (ReadonlyValue, bool) {
+	node, ok := v.node.Index(index)
+	if !ok {
+		return nil, false
+	}
+	return readonlyValue(node), true
+}
+func (v readonlyJSON) Len() int            { return v.node.Len() }
+func (v readonlyJSON) Keys() []string      { return v.node.Keys() }
+func (v readonlyJSON) String() string      { return v.node.String() }
+func (v readonlyJSON) Number() json.Number { return v.node.Number() }
+func (v readonlyJSON) Bool() bool          { return v.node.Bool() }
+func (v readonlyJSON) Copy() any           { return v.node.Copy() }
+func (v readonlyJSON) MarshalJSON() ([]byte, error) {
+	if v.node == nil {
+		return []byte("null"), nil
+	}
+	return v.node.MarshalJSON()
+}

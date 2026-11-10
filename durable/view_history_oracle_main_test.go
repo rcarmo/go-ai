@@ -19,7 +19,7 @@ func appendUpstreamHistory(t *testing.T, h *Harness, c *ConversationHandle, kind
 	return id
 }
 
-func assertUpstreamKinds(t *testing.T, value ConversationView, want ...string) {
+func assertUpstreamKinds(t *testing.T, value ConversationViewCopy, want ...string) {
 	t.Helper()
 	got := make([]string, len(value.Entries))
 	for i, e := range value.Entries {
@@ -51,7 +51,7 @@ func TestMainViewUpstreamHistoryOracles(t *testing.T) {
 						t.Fatal(err)
 					}
 					// Observe the committed final ID, not callback scheduling, after all writes.
-					fresh, err := c.View(bg)
+					fresh, err := detachedView(c, bg)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -69,7 +69,7 @@ func TestMainViewUpstreamHistoryOracles(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					record, err := dtoObject(state.Entries[summary], h.session.limits)
+					record, err := conversationEntryObject(state.Entries[summary], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}

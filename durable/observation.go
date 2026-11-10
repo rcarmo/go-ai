@@ -843,7 +843,7 @@ type preparedSubscription struct {
 	reset             PublicationFrame
 	size, resetSize   int64
 	overflow          bool
-	view              *ConversationView // installed only after receipted adoption
+	view              *ConversationViewCopy // installed only after receipted adoption
 	incarnations      map[string]conversationIncarnation
 	headOnly          bool // a bounded empty diff still advances the private witness
 	disableProjection bool // a published wrapper fallback invalidates this head
@@ -874,6 +874,7 @@ func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication Comm
 	}
 	state := *tx.publicationState
 	result := []preparedSubscription{}
+	sharedDocs := map[ID]*ImmutableValue{}
 	for _, p := range list {
 		if p.conversation != nil {
 			enabled, failed := p.conversation.projectionStatus()
@@ -881,7 +882,7 @@ func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication Comm
 				continue
 			}
 			if enabled && s.hasNativeReadImage() {
-				if item := p.conversation.preparePublication(ctx, publication, ready); item != nil {
+				if item := p.conversation.preparePublication(ctx, publication, ready, sharedDocs); item != nil {
 					result = append(result, *item)
 				}
 				continue

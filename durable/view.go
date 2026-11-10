@@ -5,10 +5,10 @@ import (
 	"sync"
 )
 
-// ConversationView is a committed transcript window, independent of model context.
+// ConversationViewCopy is a committed transcript window, independent of model context.
 // Docs contains pi.agent, pi.live, pi.inbox, pi.provider and pi.usage singletons.
 // Before is the preceding transcript entry ID, omitted at the transcript start.
-type ConversationView struct {
+type ConversationViewCopy struct {
 	Conversation Conversation    `json:"conversation"`
 	Entries      []Entry         `json:"entries"`
 	Before       ID              `json:"before,omitempty"`
@@ -25,17 +25,17 @@ func mountedKind(kind string) bool {
 
 // buildConversationBase owns the metadata/documents common to transcript and
 // legacy event projections, without deriving a model context as a side effect.
-func buildConversationBase(state Snapshot, id ID, limits Limits) (ConversationView, error) {
+func buildConversationBase(state Snapshot, id ID, limits Limits) (ConversationViewCopy, error) {
 	conversation, ok := state.Conversations[id]
 	if !ok {
-		return ConversationView{}, reject("unknown conversation")
+		return ConversationViewCopy{}, reject("unknown conversation")
 	}
-	value := ConversationView{Conversation: conversation, Entries: []Entry{}, Docs: map[string]JSON{}}
+	value := ConversationViewCopy{Conversation: conversation, Entries: []Entry{}, Docs: map[string]JSON{}}
 	for _, doc := range state.Documents {
 		if doc.Scope == "conversation" && doc.Owner == id && !doc.Retired && !doc.Family && mountedKind(doc.Kind) {
 			copy, err := copyObject(doc.Value, limits)
 			if err != nil {
-				return ConversationView{}, err
+				return ConversationViewCopy{}, err
 			}
 			value.Docs[doc.Kind] = copy
 		}
@@ -45,17 +45,17 @@ func buildConversationBase(state Snapshot, id ID, limits Limits) (ConversationVi
 
 // Legacy event snapshots still pair active-head entries with model receipts.
 // Transcript windows must not silently change that separate event API.
-func buildActiveConversationView(state Snapshot, id ID, limits Limits) (ConversationView, error) {
+func buildActiveConversationView(state Snapshot, id ID, limits Limits) (ConversationViewCopy, error) {
 	if _, ok := state.Conversations[id]; !ok {
-		return ConversationView{}, reject("unknown conversation")
+		return ConversationViewCopy{}, reject("unknown conversation")
 	}
 	active, err := deriveContextView(state, id, 0, limits)
 	if err != nil {
-		return ConversationView{}, err
+		return ConversationViewCopy{}, err
 	}
 	value, err := buildConversationBase(state, id, limits)
 	if err != nil {
-		return ConversationView{}, err
+		return ConversationViewCopy{}, err
 	}
 	if active.Entries != nil {
 		value.Entries = active.Entries
@@ -63,33 +63,33 @@ func buildActiveConversationView(state Snapshot, id ID, limits Limits) (Conversa
 	return value, nil
 }
 
-func buildConversationView(state Snapshot, id ID, limits Limits, options ...ConversationWindow) (ConversationView, error) {
+func buildConversationView(state Snapshot, id ID, limits Limits, options ...ConversationWindow) (ConversationViewCopy, error) {
 	bounds, err := resolveConversationWindow(options)
 	if err != nil {
-		return ConversationView{}, err
+		return ConversationViewCopy{}, err
 	}
 	return buildConversationWindow(state, id, limits, bounds)
 }
 
-func copyConversationView(value ConversationView, limits Limits) (ConversationView, error) {
-	copy := ConversationView{Conversation: value.Conversation, Before: value.Before, Entries: make([]Entry, len(value.Entries)), Docs: make(map[string]JSON, len(value.Docs))}
+func copyConversationView(value ConversationViewCopy, limits Limits) (ConversationViewCopy, error) {
+	copy := ConversationViewCopy{Conversation: value.Conversation, Before: value.Before, Entries: make([]Entry, len(value.Entries)), Docs: make(map[string]JSON, len(value.Docs))}
 	var err error
 	for i, entry := range value.Entries {
 		copy.Entries[i], err = copyEntry(entry, limits)
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationViewCopy{}, err
 		}
 	}
 	for kind, doc := range value.Docs {
 		copy.Docs[kind], err = copyObject(doc, limits)
 		if err != nil {
-			return ConversationView{}, err
+			return ConversationViewCopy{}, err
 		}
 	}
 	return copy, nil
 }
 func (c *ConversationHandle) View(ctx context.Context, window ...ConversationWindow) (ConversationView, error) {
-	var value ConversationView
+	var value ConversationViewCopy
 	err := c.h.session.readTasks(ctx, func(state Snapshot) error {
 		if c.h.closing.Load() {
 			return ErrClosed
@@ -98,7 +98,10 @@ func (c *ConversationHandle) View(ctx context.Context, window ...ConversationWin
 		value, err = buildConversationView(state, c.id, c.h.session.limits, window...)
 		return err
 	})
-	return value, err
+	if err != nil {
+		return ConversationView{}, err
+	}
+	return freezeConversationView(value, c.h.session.limits)
 }
 
 // ConversationWatch shares the Session's bounded committed subscription. Its
@@ -106,11 +109,13 @@ func (c *ConversationHandle) View(ctx context.Context, window ...ConversationWin
 // replacement; listeners are serial and off the mutation line.
 type ConversationWatch struct {
 	mu                 sync.Mutex
-	current            ConversationView
+	current            ConversationViewCopy
+	readonlyCurrent    ConversationView
+	readonlyHead       ConversationView
 	sub                *CommitSubscription
 	limits             Limits
 	window             conversationWindowBounds
-	head               ConversationView // publication-time window; current remains last delivered
+	head               ConversationViewCopy // publication-time window; current remains last delivered
 	incarnations       map[string]conversationIncarnation
 	projectionDisabled bool  // wrappers retain authoritative raw resnapshots
 	projectionErr      error // failed projections end only this watch, after readiness
@@ -130,7 +135,12 @@ func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWi
 		if err != nil {
 			return err
 		}
-		watch = &ConversationWatch{current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
+		frozen, err := freezeConversationView(value, c.h.session.limits)
+		if err != nil {
+			return err
+		}
+		frozen = c.h.session.shareConversationDocuments(frozen)
+		watch = &ConversationWatch{readonlyCurrent: frozen, readonlyHead: frozen, current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
 		p.conversation = watch
 		return nil
 	})
@@ -146,7 +156,7 @@ func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWi
 func (w *ConversationWatch) Value() (ConversationView, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return copyConversationView(w.current, w.limits)
+	return w.readonlyCurrent, nil
 }
 func (w *ConversationWatch) Closed() <-chan struct{} { return w.sub.Closed() }
 func (w *ConversationWatch) End() (WatchEnd, bool)   { return w.sub.End() }
@@ -163,12 +173,10 @@ func (w *ConversationWatch) Start(listener func(context.Context, ConversationVie
 		if projection.err != nil {
 			return projection.err
 		}
-		value, err := copyConversationView(projection.value, w.limits)
-		if err != nil {
-			return err
-		}
+		value := projection.readonly
 		w.mu.Lock()
 		w.current = projection.value
+		w.readonlyCurrent = value
 		w.mu.Unlock()
 		return listener(ctx, value, projection.ops)
 	})

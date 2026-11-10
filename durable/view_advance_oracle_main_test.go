@@ -6,13 +6,13 @@ import (
 )
 
 type upstreamWindowFrame struct {
-	value ConversationView
+	value ConversationViewCopy
 	ops   []Operation
 }
 
-func recordUpstreamWindow(t *testing.T, c *ConversationHandle, options ...ConversationWindow) (ConversationView, <-chan upstreamWindowFrame) {
+func recordUpstreamWindow(t *testing.T, c *ConversationHandle, options ...ConversationWindow) (ConversationViewCopy, <-chan upstreamWindowFrame) {
 	t.Helper()
-	w, err := c.Watch(bg, options...)
+	w, err := detachedWatch(c, bg, options...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func recordUpstreamWindow(t *testing.T, c *ConversationHandle, options ...Conver
 		t.Fatal(err)
 	}
 	frames := make(chan upstreamWindowFrame, 16)
-	if err = w.Start(func(_ context.Context, v ConversationView, ops []Operation) error {
+	if err = w.Start(func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 		frames <- upstreamWindowFrame{v, ops}
 		return nil
 	}); err != nil {
@@ -44,14 +44,14 @@ func awaitUpstreamWindow(t *testing.T, ch <-chan upstreamWindowFrame, last ID) [
 		}
 	}
 }
-func replayUpstreamWindow(t *testing.T, s *Session, initial ConversationView, frames []upstreamWindowFrame) ConversationView {
+func replayUpstreamWindow(t *testing.T, s *Session, initial ConversationViewCopy, frames []upstreamWindowFrame) ConversationViewCopy {
 	t.Helper()
 	before, err := dtoObject(initial, s.limits)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var replica any = map[string]any(before)
-	var last ConversationView
+	var last ConversationViewCopy
 	for _, f := range frames {
 		replica, err = ApplyOperations(replica, f.ops, s.limits)
 		if err != nil {
@@ -68,9 +68,9 @@ func replayUpstreamWindow(t *testing.T, s *Session, initial ConversationView, fr
 	}
 	return last
 }
-func assertUpstreamWindowFresh(t *testing.T, s *Session, c *ConversationHandle, value ConversationView, min int) {
+func assertUpstreamWindowFresh(t *testing.T, s *Session, c *ConversationHandle, value ConversationViewCopy, min int) {
 	t.Helper()
-	fresh, err := c.View(bg, ConversationWindow{Min: &min})
+	fresh, err := detachedView(c, bg, ConversationWindow{Min: &min})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestMainViewUpstreamAdvanceOracles(t *testing.T) {
 					}
 					// Source expectations use the commit's returned records. Read
 					// native committed records independently of delivered values.
-					e5, err := dtoObject(state.Entries[appended[0]], h.session.limits)
+					e5, err := conversationEntryObject(state.Entries[appended[0]], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
-					e7, err := dtoObject(state.Entries[appended[2]], h.session.limits)
+					e7, err := conversationEntryObject(state.Entries[appended[2]], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -178,11 +178,11 @@ func TestMainViewUpstreamAdvanceOracles(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					got, err := dtoObject(frames[len(frames)-1].value.Entries[0], h.session.limits)
+					got, err := conversationEntryObject(frames[len(frames)-1].value.Entries[0], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
-					want, err := dtoObject(state.Entries[next[0]], h.session.limits)
+					want, err := conversationEntryObject(state.Entries[next[0]], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}

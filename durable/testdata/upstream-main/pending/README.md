@@ -34,6 +34,9 @@ Fixture-capability limits in the same file, recorded without execution (no dispo
 
 ## Conversation-view document identity (v1.5.0 source330)
 
+**Historical fixture:** the following overlay recipe targets the old mutable-map API. The three assertions now run as `TestMainSharedView*` in `durable/view_identity_oracle_main_test.go`, using sealed readonly handles and comparable identity. They pass through the public watch API. The retained file records the earlier failing baseline; do not use its overlay against the migrated API. See the current [identity receipt](../../../../docs/upstream-v1.5.0/view-shared-identity.md).
+
+
 `harness_view_shared_docs_test.go` retains `harness-view.test.ts:330`'s assertion that simultaneous observers share the same `docs` object. Native `ConversationWatch.Value()` deep-copies its result: equal contents have different live map identities. The fixture records that failure and continues through the listener-isolation assertions, which pass. Initial failure 0.058s; count3 after adding the content-equality precondition: three expected failures, 0.074s. This measures the public accessor contract; internal mount sharing is unverified. Native's detached-copy ownership control also passes, so an identity fix needs contract reconciliation. See `docs/upstream-v1.5.0/view-shared-identity.md`.
 
 Use a directory beneath the resolved project run root. Create `prototype_stub.go` containing `package durable` and an `overlay.json` with these replacements (absolute paths):

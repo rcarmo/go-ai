@@ -10,7 +10,7 @@ import (
 
 func TestMainConversationPendingNativeBounds(t *testing.T) {
 	l := DefaultLimits()
-	before := ConversationView{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"n": JSON{"i": -1}}}}
+	before := ConversationViewCopy{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"n": JSON{"i": -1}}}}
 	for _, count := range []int{maxPendingWatchOperations, maxPendingWatchOperations + 1} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			frames := make([]PublicationFrame, 2)
@@ -67,7 +67,7 @@ func TestMainConversationPendingIndependentDTOBudgets(t *testing.T) {
 	for i := range items {
 		items[i] = i
 	}
-	before := ConversationView{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"items": items}}}
+	before := ConversationViewCopy{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"items": items}}}
 	frames := make([]PublicationFrame, 2)
 	value, err := copyConversationView(before, l)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestMainConversationPendingReadiness(t *testing.T) {
 		t.Run(fmt.Sprint(first), func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
-				watch, err := c.Watch(bg)
+				watch, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -134,8 +134,11 @@ func TestMainConversationPendingReadiness(t *testing.T) {
 						}
 					}
 				})
-				delivered := make(chan ConversationView, 2)
-				if err := watch.Start(func(_ context.Context, value ConversationView, _ []Operation) error { delivered <- value; return nil }); err != nil {
+				delivered := make(chan ConversationViewCopy, 2)
+				if err := watch.Start(func(_ context.Context, value ConversationViewCopy, _ []Operation) error {
+					delivered <- value
+					return nil
+				}); err != nil {
 					t.Fatal(err)
 				}
 				deadline := time.Now().Add(3 * time.Second)
@@ -168,7 +171,7 @@ func TestMainConversationPendingReadiness(t *testing.T) {
 // even though each publication and the folded operation DTO independently fit.
 func TestMainConversationPendingIntermediateBudget(t *testing.T) {
 	l := DefaultLimits()
-	before := ConversationView{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"a": "", "b": strings.Repeat("x", 64)}}}
+	before := ConversationViewCopy{Conversation: Conversation{ID: 1}, Entries: []Entry{}, Docs: map[string]JSON{"pi.live": {"a": "", "b": strings.Repeat("x", 64)}}}
 	baseline, err := dtoObject(before, l)
 	if err != nil {
 		t.Fatal(err)

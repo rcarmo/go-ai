@@ -15,7 +15,7 @@ func TestMainConversationPendingDelivery(t *testing.T) {
 		t.Run(fmt.Sprintf("blocked=%v", blocked), func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
-				watch, err := c.Watch(bg)
+				watch, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -43,15 +43,15 @@ func TestMainConversationPendingDelivery(t *testing.T) {
 				defer once.Do(func() { close(release) })
 				type key struct{}
 				type delivery struct {
-					value ConversationView
+					value ConversationViewCopy
 					ops   []Operation
 					ctx   context.Context
 				}
 				got := make(chan delivery, 110)
 				calls := 0
 				start := func() {
-					if err := watch.Start(func(ctx context.Context, value ConversationView, ops []Operation) error {
-						if _, err := c.View(bg); err != nil {
+					if err := watch.Start(func(ctx context.Context, value ConversationViewCopy, ops []Operation) error {
+						if _, err := detachedView(c, bg); err != nil {
 							return err
 						} // callback stays off-line
 						calls++

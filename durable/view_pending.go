@@ -4,7 +4,7 @@ package durable
 // projections, off the Session line. Adapters, raw subscriptions and projection
 // errors retain their individual delivery boundary. Values and operations have
 // independent DTO budgets, as in preparePublication.
-func coalesceConversationFrames(frames []PublicationFrame, before ConversationView, limits Limits, quota int64) (PublicationFrame, error) {
+func coalesceConversationFrames(frames []PublicationFrame, before ConversationViewCopy, limits Limits, quota int64) (PublicationFrame, error) {
 	frame := frames[len(frames)-1]
 	if len(frames) == 1 {
 		return frame, nil
@@ -38,7 +38,7 @@ func coalesceConversationFrames(frames []PublicationFrame, before ConversationVi
 			var encoded []byte
 			encoded, err = encodeBounded(ops, limits, limits.MaxFramePayloadBytes)
 			if err == nil && int64(len(encodedValue)+len(encoded)) <= quota {
-				frame.conversation = &conversationPublicationFrame{value: frame.conversation.value, ops: ops}
+				frame.conversation = &conversationPublicationFrame{readonly: frame.conversation.readonly, value: frame.conversation.value, ops: ops}
 				return frame, nil
 			}
 		}
@@ -54,6 +54,6 @@ func coalesceConversationFrames(frames []PublicationFrame, before ConversationVi
 	if int64(len(encodedValue)+len(encoded)) > quota {
 		return PublicationFrame{}, reject("conversation folded root exceeds process quota")
 	}
-	frame.conversation = &conversationPublicationFrame{value: frame.conversation.value, ops: ops}
+	frame.conversation = &conversationPublicationFrame{readonly: frame.conversation.readonly, value: frame.conversation.value, ops: ops}
 	return frame, nil
 }

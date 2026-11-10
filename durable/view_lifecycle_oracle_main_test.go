@@ -12,22 +12,22 @@ import (
 func TestMainViewUpstreamListenerIsolation(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		left, err := c.Watch(bg)
+		left, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer left.Stop()
-		right, err := c.Watch(bg)
+		right, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer right.Stop()
 		failure := errors.New("listener failed")
-		if err = left.Start(func(context.Context, ConversationView, []Operation) error { return failure }); err != nil {
+		if err = left.Start(func(context.Context, ConversationViewCopy, []Operation) error { return failure }); err != nil {
 			t.Fatal(err)
 		}
-		frames := make(chan ConversationView, 4)
-		if err = right.Start(func(_ context.Context, v ConversationView, _ []Operation) error { frames <- v; return nil }); err != nil {
+		frames := make(chan ConversationViewCopy, 4)
+		if err = right.Start(func(_ context.Context, v ConversationViewCopy, _ []Operation) error { frames <- v; return nil }); err != nil {
 			t.Fatal(err)
 		}
 		upstreamLiveText(t, h.session, c.ID(), "x")
@@ -58,7 +58,7 @@ func TestMainViewUpstreamListenerIsolation(t *testing.T) {
 func TestMainViewUpstreamAtomicPublication(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		w, err := c.Watch(bg)
+		w, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,11 +68,11 @@ func TestMainViewUpstreamAtomicPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		type delivery struct {
-			value ConversationView
+			value ConversationViewCopy
 			ops   []Operation
 		}
 		frames := make(chan delivery, 4)
-		if err = w.Start(func(_ context.Context, v ConversationView, ops []Operation) error {
+		if err = w.Start(func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 			frames <- delivery{v, ops}
 			return nil
 		}); err != nil {
@@ -116,7 +116,7 @@ func TestMainViewUpstreamAtomicPublication(t *testing.T) {
 			t.Fatal("publication replay")
 		}
 		// Source fresh() acquires and stops a separate watch, not a model context.
-		fresh, err := c.Watch(bg)
+		fresh, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}

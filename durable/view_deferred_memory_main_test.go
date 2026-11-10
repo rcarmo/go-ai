@@ -51,7 +51,7 @@ func mainMemoryLive(t *testing.T, f *mainDeadlineSession, live ID, ops []Operati
 }
 
 // Wait for actual subscription work, not a guessed asynchronous callback delay.
-func mainMemoryViewDrained(t *testing.T, watch *ConversationWatch) {
+func mainMemoryViewDrained(t *testing.T, watch *detachedConversationWatch) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
@@ -73,7 +73,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 		t.Run(flush, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				f, c, live := mainMemoryConversation(t, b)
-				watch, err := c.Watch(bg)
+				watch, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -83,7 +83,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 					t.Fatal(err)
 				}
 				frames := make(chan upstreamWindowFrame, 8)
-				if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+				if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 					frames <- upstreamWindowFrame{value, ops}
 					return nil
 				}); err != nil {
@@ -115,7 +115,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 				if len(disk.Documents[live].Value) != 0 {
 					t.Fatal("attempt was stored before its memory frame", disk.Documents[live].Value)
 				}
-				late, err := c.Watch(bg)
+				late, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -189,7 +189,7 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 					t.Fatal("flush duplicated memory delivery or storage", len(frames), len(stored))
 				}
 				last := replayUpstreamWindow(t, f.session, initial, seen)
-				fresh, err := c.View(bg)
+				fresh, err := detachedView(c, bg)
 				if err != nil || !reflect.DeepEqual(last, fresh) {
 					t.Fatal("replay differs from current memory view", last, fresh, err)
 				}
@@ -215,7 +215,7 @@ func TestMainSessionConversationMemoryBacklog(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		watch, err := c.Watch(bg)
+		watch, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestMainSessionConversationMemoryBacklog(t *testing.T) {
 			t.Fatal("timer did not store the pending memory value", disk.Documents[live].Value, err)
 		}
 		frames := make(chan upstreamWindowFrame, 8)
-		if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+		if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 			frames <- upstreamWindowFrame{value, ops}
 			return nil
 		}); err != nil {

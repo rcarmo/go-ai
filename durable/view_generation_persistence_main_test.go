@@ -94,7 +94,7 @@ func TestMainViewUpstreamGenerationOracle(t *testing.T) {
 		if err = h.WaitForIdle(bg); err != nil {
 			t.Fatal(err)
 		}
-		fresh, err := c.View(bg)
+		fresh, err := detachedView(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}

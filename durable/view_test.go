@@ -32,7 +32,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		watch, err := conversation.Watch(bg)
+		watch, err := detachedWatch(conversation, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,8 +46,8 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 			t.Fatal(err)
 		}
 		baseline.Entries[0].Value["text"] = "caller mutation"
-		frames := make(chan ConversationView, 4)
-		if err := watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+		frames := make(chan ConversationViewCopy, 4)
+		if err := watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 			next, err := ApplyOperations(initial, ops, h.session.limits)
 			if err != nil {
 				return err
@@ -60,7 +60,7 @@ func TestConversationWatchTranscriptDeltasDetachedAndOffLine(t *testing.T) {
 				t.Error("watch ops do not reconstruct value", ops, next, wire)
 			}
 			initial = wire
-			if _, err := conversation.View(bg); err != nil {
+			if _, err := detachedView(conversation, bg); err != nil {
 				return err
 			}
 			value.Docs["pi.live"]["escaped"] = true
@@ -117,7 +117,7 @@ func TestConversationWatchPendingStructuralOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	watch, err := conversation.Watch(bg)
+	watch, err := detachedWatch(conversation, bg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestConversationWatchPendingStructuralOperations(t *testing.T) {
 		}
 	}
 	latest := make(chan []Operation, 1)
-	if err := watch.Start(func(_ context.Context, _ ConversationView, ops []Operation) error { latest <- ops; return nil }); err != nil {
+	if err := watch.Start(func(_ context.Context, _ ConversationViewCopy, ops []Operation) error { latest <- ops; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	select {

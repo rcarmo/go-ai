@@ -11,7 +11,7 @@ import (
 )
 
 type transcriptDelivery struct {
-	value ConversationView
+	value ConversationViewCopy
 	ops   []Operation
 }
 
@@ -26,7 +26,7 @@ func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 				future := ID(MaxID)
 				window := transcriptBounds(3, 6)
 				window.From = &future
-				watch, err := c.Watch(bg, window)
+				watch, err := detachedWatch(c, bg, window)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -50,7 +50,7 @@ func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 					}
 				}()
 				first := true
-				listen := func(_ context.Context, v ConversationView, ops []Operation) error {
+				listen := func(_ context.Context, v ConversationViewCopy, ops []Operation) error {
 					if blocked && first {
 						first = false
 						close(entered)
@@ -64,7 +64,7 @@ func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				expected := map[ID]ConversationView{}
+				expected := map[ID]ConversationViewCopy{}
 				ids := []ID{}
 				var before ID
 				for index := 0; index < 105; index++ {
@@ -75,7 +75,7 @@ func TestMainTranscriptPublicationWindowPendingFold(t *testing.T) {
 						before = ids[drop-1]
 						ids = append([]ID{}, ids[drop:]...)
 					}
-					want := ConversationView{Before: before, Entries: make([]Entry, len(ids))}
+					want := ConversationViewCopy{Before: before, Entries: make([]Entry, len(ids))}
 					for j, id := range ids {
 						want.Entries[j].ID = id
 					}
@@ -153,7 +153,7 @@ func TestMainTranscriptPreparationDoesNotPublishWindow(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 2)
-		watch, err := c.Watch(bg, transcriptBounds(3, 6))
+		watch, err := detachedWatch(c, bg, transcriptBounds(3, 6))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,12 +207,12 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 		if _, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
 			t.Fatal(err)
 		}
-		bad, err := c.Watch(bg, transcriptBounds(1, 20))
+		bad, err := detachedWatch(c, bg, transcriptBounds(1, 20))
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer bad.Stop()
-		good, err := c.Watch(bg, transcriptBounds(1, 1))
+		good, err := detachedWatch(c, bg, transcriptBounds(1, 1))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -245,7 +245,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 			t.Fatal("projection reported before Start", err)
 		default:
 		}
-		if err = bad.Start(func(context.Context, ConversationView, []Operation) error {
+		if err = bad.Start(func(context.Context, ConversationViewCopy, []Operation) error {
 			t.Error("invalid projection reached callback")
 			return nil
 		}); err != nil {
@@ -286,7 +286,7 @@ func TestMainTranscriptProjectionFailureIsLocalAndOffLine(t *testing.T) {
 func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		watch, err := c.Watch(bg, transcriptBounds(1, 3))
+		watch, err := detachedWatch(c, bg, transcriptBounds(1, 3))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,7 +321,7 @@ func TestMainTranscriptProjectionRetainsByteQuota(t *testing.T) {
 func TestMainTranscriptConsumedProjectionSlotReleased(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		watch, err := c.Watch(bg, transcriptBounds(1, 3))
+		watch, err := detachedWatch(c, bg, transcriptBounds(1, 3))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -335,7 +335,7 @@ func TestMainTranscriptConsumedProjectionSlotReleased(t *testing.T) {
 		}
 		entered, release := make(chan struct{}), make(chan struct{})
 		defer close(release)
-		if err = watch.Start(func(context.Context, ConversationView, []Operation) error { close(entered); <-release; return nil }); err != nil {
+		if err = watch.Start(func(context.Context, ConversationViewCopy, []Operation) error { close(entered); <-release; return nil }); err != nil {
 			t.Fatal(err)
 		}
 		select {
@@ -355,7 +355,7 @@ func TestMainTranscriptConsumedProjectionSlotReleased(t *testing.T) {
 func TestMainTranscriptProjectionDoesNotCombineDTOValidationBudgets(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		watch, err := c.Watch(bg, transcriptBounds(50, 100))
+		watch, err := detachedWatch(c, bg, transcriptBounds(50, 100))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -402,20 +402,20 @@ func TestMainTranscriptPreparedDeliveryReadinessAndEnd(t *testing.T) {
 				h, c := transcriptFixture(t, b)
 				watchCtx, cancelWatch := context.WithCancel(bg)
 				defer cancelWatch()
-				watch, err := c.Watch(watchCtx, transcriptBounds(1, 3))
+				watch, err := detachedWatch(c, watchCtx, transcriptBounds(1, 3))
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer watch.Stop()
-				frames := make(chan ConversationView, 1)
+				frames := make(chan ConversationViewCopy, 1)
 				type publicationKey struct{}
 				var called atomic.Int32
-				if err = watch.Start(func(ctx context.Context, value ConversationView, _ []Operation) error {
+				if err = watch.Start(func(ctx context.Context, value ConversationViewCopy, _ []Operation) error {
 					called.Add(1)
 					if ctx.Err() != nil || ctx.Value(publicationKey{}) != "publication" {
 						return fmt.Errorf("wrong publication context")
 					}
-					if _, err := c.View(bg); err != nil {
+					if _, err := detachedView(c, bg); err != nil {
 						return err
 					}
 					frames <- value
@@ -537,7 +537,7 @@ func TestMainTranscriptProjectionPreservesAdapterResnapshot(t *testing.T) {
 				if install == "at-acquire" {
 					h.session.taskBookkeeping(func() { h.session.store = adapter })
 				}
-				watch, err := c.Watch(bg, transcriptBounds(3, 6))
+				watch, err := detachedWatch(c, bg, transcriptBounds(3, 6))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -567,7 +567,7 @@ func TestMainTranscriptProjectionPreservesAdapterResnapshot(t *testing.T) {
 				if len(value.Entries) == 0 || value.Entries[len(value.Entries)-1].ID != added[0] {
 					t.Fatal("restored native publication lost", value)
 				}
-				fresh, err := c.Watch(bg, transcriptBounds(3, 6))
+				fresh, err := detachedWatch(c, bg, transcriptBounds(3, 6))
 				if err != nil {
 					t.Fatal(err)
 				}

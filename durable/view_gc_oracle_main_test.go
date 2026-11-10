@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"sync"
 	"testing"
@@ -22,9 +23,9 @@ type viewEntryWitness struct {
 }
 
 //go:noinline
-func runViewEntryLifetime(t *testing.T, h *Harness, c *ConversationHandle, retain bool) (*ConversationWatch, viewEntryWeak, *viewEntryHold) {
+func runViewEntryLifetime(t *testing.T, h *Harness, c *ConversationHandle, retain bool) (*detachedConversationWatch, viewEntryWeak, *viewEntryHold) {
 	t.Helper()
-	w, err := c.Watch(bg, transcriptBounds(5, 10))
+	w, err := detachedWatch(c, bg, transcriptBounds(5, 10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func runViewEntryLifetime(t *testing.T, h *Harness, c *ConversationHandle, retai
 		count int
 	}, 256)
 	var once sync.Once
-	if err = w.Start(func(_ context.Context, value ConversationView, _ []Operation) error {
+	if err = w.Start(func(_ context.Context, value ConversationViewCopy, _ []Operation) error {
 		if len(value.Entries) == 0 {
 			return nil
 		}
@@ -126,4 +127,69 @@ func TestMainViewUpstreamDroppedEntryLifetime(t *testing.T) {
 			})
 		})
 	}
+}
+
+// Source570's actual EntryRecord-object counterpart, in addition to the
+// original native backing-array controls above.
+func TestMainSharedViewDroppedReadonlyEntryLifetime(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		w, err := c.Watch(bg, transcriptBounds(5, 10))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer w.Stop()
+		captured := make(chan weak.Pointer[ImmutableValue], 1)
+		delivered := make(chan ID, 256)
+		var once sync.Once
+		if err := w.Start(func(_ context.Context, value ConversationView, _ []Operation) error {
+			if value.Entries.Len() > 10 {
+				return errors.New("window exceeded max")
+			}
+			first, ok := value.Entries.Index(0)
+			if !ok {
+				return nil
+			}
+			once.Do(func() { captured <- weak.Make(first.immutableNode()) })
+			last, _ := value.Entries.Index(value.Entries.Len() - 1)
+			id, err := immutableViewMember(t, last, "id").Number().Int64()
+			if err != nil {
+				return err
+			}
+			delivered <- ID(id)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		source525Notes(t, h.session, c.ID(), 1)
+		ref := watchReceive(t, captured)
+		hold := readonlyValue(ref.Value())
+		watchReceive(t, delivered)
+		ids := source525Notes(t, h.session, c.ID(), 200)
+		for watchReceive(t, delivered) != ids[len(ids)-1] {
+		}
+		for cycle := 0; cycle < 3; cycle++ {
+			runtime.GC()
+			if ref.Value() == nil {
+				t.Fatal("positive control lost retained readonly record")
+			}
+			runtime.KeepAlive(hold)
+		}
+		hold = nil
+		for cycle := 0; cycle < 3; cycle++ {
+			runtime.GC()
+			if ref.Value() == nil {
+				break
+			}
+		}
+		if ref.Value() != nil {
+			t.Fatal("dropped readonly EntryRecord remains reachable")
+		}
+		if _, closed := w.End(); closed {
+			t.Fatal("lifetime test ended the watch")
+		}
+		runtime.KeepAlive(w)
+		runtime.KeepAlive(h)
+		runtime.KeepAlive(b.store)
+	})
 }

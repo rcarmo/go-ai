@@ -36,8 +36,8 @@ func TestMainViewUpstreamHydrationOracles(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
 				written := upstreamViewNotes(t, h, count)
-				fresh := func(options ...ConversationWindow) ConversationView {
-					watch, err := c.Watch(bg, options...)
+				fresh := func(options ...ConversationWindow) ConversationViewCopy {
+					watch, err := detachedWatch(c, bg, options...)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -48,7 +48,7 @@ func TestMainViewUpstreamHydrationOracles(t *testing.T) {
 					}
 					return value
 				}
-				assertNoBefore := func(value ConversationView) {
+				assertNoBefore := func(value ConversationViewCopy) {
 					body, err := dtoObject(value, h.session.limits)
 					if err != nil {
 						t.Fatal(err)

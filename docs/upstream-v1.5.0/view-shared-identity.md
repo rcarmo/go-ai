@@ -1,5 +1,21 @@
 # Conversation view document identity
 
+## Public readonly watch migration
+
+The three source160/330/525 identity oracles now pass through `ConversationWatch.Value()` and callbacks. `ConversationView` exposes `Entries` and `Docs` as sealed, comparable `ReadonlyValue` handles. Unchanged nodes retain identity; callbacks and initial access use the same readonly representation. `Copy(limits)` explicitly returns detached data. Legacy content/operation tests request that conversion through test helpers; the identity tests use the public readonly values directly.
+
+New controls verify empty-array identity, retained entry nodes through trimming, late attachment to adopted docs, peer stop/failure isolation, equal-content/new-identity remounts and protection against writable pointer/container authority. The source570-shaped SQLite test now tracks an individual readonly entry node, alongside the earlier backing-array controls. It keeps a positive retention control through three GCs, releases it, then verifies collection within three further GCs.
+
+A public wire regression first failed because views exposed native entry envelopes. View values and append operations now project public `EntryRecord` fields (`conversationId`, without native `conversation`/`seq`/`position`). Storage envelopes retain their existing codecs.
+
+Verification: eight readonly-watch functions pass five shuffled repetitions (seed42); final full durable713.829s/tools22.450s; repository-wide vet/Staticcheck, logging and diff checks pass. The preceding full run passed376.429s/15.796s. No performance conclusion is established from this timing variance; notes/shared-readonly-views.md records the subsequent disk-pressure observation and project-cache cleanup.
+
+D14/D15 stay open: synchronous `observeConversation` is absent, wrapper/lifetime acceptance needs a complete assertion crosswalk, and the broader observer dispatch work is separate. Row314 remains `partial`. This is development verification; acceptance profiling and release gates are outstanding.
+
+## Historical failing baselines
+
+The records below describe the former mutable-map API and are superseded by the public migration above.
+
 Pinned `harness-view.test.ts:330` requires two simultaneous observers to share the same `docs` object. Native watches expose equal contents through different maps. Row 314 stays `partial`.
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`.

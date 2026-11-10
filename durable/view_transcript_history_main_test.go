@@ -46,7 +46,7 @@ func transcriptNotes(t *testing.T, h *Harness, count int) []ID {
 	return ids
 }
 
-func transcriptFrame(t *testing.T, frames <-chan ConversationView) ConversationView {
+func transcriptFrame(t *testing.T, frames <-chan ConversationViewCopy) ConversationViewCopy {
 	t.Helper()
 	select {
 	case value := <-frames:
@@ -54,7 +54,7 @@ func transcriptFrame(t *testing.T, frames <-chan ConversationView) ConversationV
 	case <-time.After(3 * time.Second):
 		t.Fatal("missing transcript frame")
 	}
-	return ConversationView{}
+	return ConversationViewCopy{}
 }
 
 // Port of harness-view.test.ts's default newest-50 hydration assertion. The
@@ -63,7 +63,7 @@ func TestMainTranscriptDefaultHydration(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 65)
-		value, err := c.View(bg)
+		value, err := detachedView(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
 		ids := transcriptNotes(t, h, 3)
-		watch, err := c.Watch(bg)
+		watch, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,8 +104,8 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		frames := make(chan ConversationView, 4)
-		if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+		frames := make(chan ConversationViewCopy, 4)
+		if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 			next, err := ApplyOperations(replay, ops, h.session.limits)
 			if err != nil {
 				return err
@@ -121,7 +121,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 				return fmt.Errorf("transcript ops failed replay")
 			}
 			replay = wire
-			if _, err = c.View(bg); err != nil {
+			if _, err = detachedView(c, bg); err != nil {
 				return err
 			}
 			frames <- value
@@ -168,7 +168,7 @@ func TestMainTranscriptHeadMarkersAppend(t *testing.T) {
 		if len(active.Entries) != 1 || active.Entries[0].Kind != "pi.reset" {
 			t.Fatalf("transcript leaked into model context: %+v", active.Entries)
 		}
-		point, err := c.View(bg)
+		point, err := detachedView(c, bg)
 		if err != nil || len(point.Entries) != 6 {
 			t.Fatal("point transcript lost history", point, err)
 		}

@@ -31,7 +31,7 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
-				watch, err := c.Watch(bg)
+				watch, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -45,11 +45,11 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 					t.Fatal(err)
 				}
 				type delivery struct {
-					value ConversationView
+					value ConversationViewCopy
 					ops   []Operation
 				}
 				frames := make(chan delivery, 1)
-				if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+				if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 					next, err := ApplyOperations(replay, ops, h.session.limits)
 					if err != nil {
 						return err
@@ -129,7 +129,7 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					entry, err := dtoObject(snapshot.Entries[entryID], h.session.limits)
+					entry, err := conversationEntryObject(snapshot.Entries[entryID], h.session.limits)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -165,13 +165,13 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 		if _, err = h.session.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
 			t.Fatal(err)
 		}
-		watch, err := c.Watch(bg)
+		watch, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer watch.Stop()
 		frames := make(chan []Operation, 2)
-		if err = watch.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+		if err = watch.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 			if value.Docs["pi.live"]["detail"] != "new" {
 				return fmt.Errorf("late old retirement removed new mount")
 			}
@@ -224,12 +224,12 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 		t.Run(fmt.Sprintf("version-change-%v", versionChange), func(t *testing.T) {
 			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 				h, c := transcriptFixture(t, b)
-				first, err := c.Watch(bg)
+				first, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer first.Stop()
-				peer, err := c.Watch(bg)
+				peer, err := detachedWatch(c, bg)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -253,7 +253,7 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 					t.Fatal(err)
 				}
 				mutated := make(chan struct{})
-				if err = first.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+				if err = first.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 					ops[0][1].([]any)[1] = "escaped-path"
 					ops[0][2].(map[string]any)["detail"] = "escaped-op"
 					value.Docs["pi.live"]["detail"] = "escaped-value"
@@ -272,7 +272,7 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 					t.Fatal("operation mutation escaped to private head", own, err)
 				}
 				frames := make(chan []Operation, 1)
-				if err = peer.Start(func(_ context.Context, value ConversationView, ops []Operation) error {
+				if err = peer.Start(func(_ context.Context, value ConversationViewCopy, ops []Operation) error {
 					if value.Docs["pi.live"]["detail"] != "committed" {
 						return fmt.Errorf("peer value escaped")
 					}
@@ -295,7 +295,7 @@ func TestMainConversationDocumentOperationOwnership(t *testing.T) {
 func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		watch, err := c.Watch(bg)
+		watch, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -325,7 +325,7 @@ func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
 			t.Fatal("unreceipted incarnation installed")
 		}
 		frames := make(chan []Operation, 1)
-		if err = watch.Start(func(_ context.Context, _ ConversationView, ops []Operation) error { frames <- ops; return nil }); err != nil {
+		if err = watch.Start(func(_ context.Context, _ ConversationViewCopy, ops []Operation) error { frames <- ops; return nil }); err != nil {
 			t.Fatal(err)
 		}
 		if _, err = h.session.Commit(bg, func(tx *Tx) error {
@@ -348,7 +348,7 @@ func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
 
 func TestMainConversationDocumentTransientViewBudget(t *testing.T) {
 	limits := DefaultLimits()
-	view := ConversationView{Conversation: Conversation{ID: 1}, Entries: []Entry{{ID: 2, Conversation: 1, Kind: "app.note", Value: JSON{"text": strings.Repeat("x", 128)}}}, Docs: map[string]JSON{"pi.live": {}}}
+	view := ConversationViewCopy{Conversation: Conversation{ID: 1}, Entries: []Entry{{ID: 2, Conversation: 1, Kind: "app.note", Value: JSON{"text": strings.Repeat("x", 128)}}}, Docs: map[string]JSON{"pi.live": {}}}
 	before, err := dtoObject(view, limits)
 	if err != nil {
 		t.Fatal(err)
@@ -377,7 +377,7 @@ func TestMainConversationDocumentTransientViewBudget(t *testing.T) {
 func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h, c := transcriptFixture(t, b)
-		watch, err := c.Watch(bg)
+		watch, err := detachedWatch(c, bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -434,7 +434,7 @@ func TestMainConversationDocumentBoundedEmptyDiffAdoptsWitness(t *testing.T) {
 		watch.mu.Unlock()
 		watch.limits = h.session.limits
 		frames := make(chan []Operation, 1)
-		if err = watch.Start(func(_ context.Context, _ ConversationView, ops []Operation) error { frames <- ops; return nil }); err != nil {
+		if err = watch.Start(func(_ context.Context, _ ConversationViewCopy, ops []Operation) error { frames <- ops; return nil }); err != nil {
 			t.Fatal(err)
 		}
 		if _, err = h.session.Commit(bg, func(tx *Tx) error {

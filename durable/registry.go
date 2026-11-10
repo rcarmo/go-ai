@@ -217,6 +217,24 @@ func cloneOptions(o *goai.StreamOptions, l Limits) (*goai.StreamOptions, error) 
 	return &n, nil
 }
 func dtoObject(v any, l Limits) (JSON, error) {
+	switch value := v.(type) {
+	case ConversationViewCopy:
+		projected, err := conversationViewObject(value, l)
+		if err != nil {
+			return nil, err
+		}
+		v = projected
+	case ConversationView:
+		conversation, err := conversationRecordObject(value.Conversation, l)
+		if err != nil {
+			return nil, err
+		}
+		body := JSON{"conversation": conversation, "entries": value.Entries, "docs": value.Docs}
+		if value.Before != 0 {
+			body["before"] = value.Before
+		}
+		v = body
+	}
 	p, e := encodeBounded(v, l, l.MaxDocumentBytes)
 	if e != nil {
 		return nil, e

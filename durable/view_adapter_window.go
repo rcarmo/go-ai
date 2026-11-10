@@ -5,13 +5,13 @@ import "context"
 // Adapter recovery retains the publication-time window shape, but reads every
 // retained entry/document body from the authoritative candidate. This head is
 // bookkeeping only: it never enables exact-native delta projection.
-func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publication CommitPublication, state Snapshot, ready <-chan struct{}) (ConversationView, PublicationFrame, int64, error) {
+func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publication CommitPublication, state Snapshot, ready <-chan struct{}) (ConversationViewCopy, PublicationFrame, int64, error) {
 	w.mu.Lock()
 	before := w.head
 	w.mu.Unlock()
 	base, err := buildConversationBase(state, before.Conversation.ID, w.limits)
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
 	layout := before
 	layout.Docs = nil
@@ -31,7 +31,7 @@ func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publi
 		}
 		layout.Entries[i] = current
 	}
-	var next ConversationView
+	var next ConversationViewCopy
 	if valid {
 		entries := publication
 		entries.Documents = nil
@@ -45,24 +45,28 @@ func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publi
 		next, err = buildConversationWindow(state, before.Conversation.ID, w.limits, bounds)
 	}
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
 	body, err := dtoObject(next, w.limits)
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
 	root, err := ownOperations([]Operation{{"r", map[string]any(body)}}, w.limits)
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
 	valueBytes, err := encodeBounded(body, w.limits, w.limits.MaxDocumentBytes)
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
 	opBytes, err := encodeBounded(root, w.limits, w.limits.MaxRecordBytes)
 	if err != nil {
-		return ConversationView{}, PublicationFrame{}, 0, err
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
 	}
-	frame := PublicationFrame{Context: context.WithoutCancel(ctx), ready: ready, conversation: &conversationPublicationFrame{value: next, ops: root}}
+	readonly, err := freezeConversationView(next, w.limits)
+	if err != nil {
+		return ConversationViewCopy{}, PublicationFrame{}, 0, err
+	}
+	frame := PublicationFrame{Context: context.WithoutCancel(ctx), ready: ready, conversation: &conversationPublicationFrame{readonly: readonly, value: next, ops: root}}
 	return next, frame, int64(len(valueBytes) + len(opBytes)), nil
 }
