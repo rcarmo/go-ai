@@ -172,7 +172,7 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 	if _, err := s.guardedStorage().Limits(); err != nil {
 		return err
 	}
-	if err := s.storeHeldDocuments(context.Background(), ids(s.heldDocuments)); err != nil {
+	if err := s.storeHeldDocuments(context.Background(), nil); err != nil {
 		return s.backendResult(ctx, err, true)
 	}
 	s.definitionCache = nil

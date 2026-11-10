@@ -352,3 +352,87 @@ func (f *mainDeadlineSession) fire(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Source-derived session.ts #storeHolds: drain the writer, THEN select holds.
+// A real receipt is held before publication. The maintenance signal is emitted
+// only after its Session-line acquisition; no goroutine-start assumption or
+// polling is used. Seeding the fired flag models the already-fired timer job.
+func TestMainDeferredMaintenanceDrainsBeforeSelectingHolds(t *testing.T) {
+	for _, consumed := range []bool{false, true} {
+		name := "retained"
+		if consumed {
+			name = "released-by-earlier-part"
+		}
+		t.Run(name, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				f := openMainDeadlineSession(t, b, nil)
+				if err := f.append(f.doc, "held"); err != nil {
+					t.Fatal(err)
+				}
+				before := mainDeferredSnapshot(t, b.store)
+				stored, release := make(chan struct{}), make(chan struct{})
+				var once sync.Once
+				unblock := func() { once.Do(func() { close(release) }) }
+				defer unblock()
+				commit := f.session.writer.host.commit
+				f.session.writer.host.commit = func(ctx context.Context, batches []Batch, receive func(commitReceipt)) (commitGroupResult, error) {
+					result, err := commit(ctx, batches, receive)
+					close(stored)
+					<-release
+					return result, err
+				}
+				committed := make(chan error, 1)
+				go func() {
+					_, err := f.session.Commit(bg, func(tx *Tx) error {
+						if consumed {
+							doc, err := tx.Document(f.doc)
+							if err != nil {
+								return err
+							}
+							return doc.ApplyOperations([]Operation{{"s", []any{"text"}, "stored"}})
+						}
+						id, err := tx.MintID()
+						if err != nil {
+							return err
+						}
+						return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+					})
+					committed <- err
+				}()
+				watchReceive(t, stored)
+				maintaining, maintained := make(chan struct{}), make(chan error, 1)
+				go func() {
+					err := f.session.enter(bg)
+					if err == nil {
+						f.session.persistenceTimer.fired.Store(true)
+						close(maintaining)
+						err = f.session.flushFiredPersistence()
+						f.session.leave()
+					}
+					maintained <- err
+				}()
+				watchReceive(t, maintaining)
+				unblock()
+				if err := watchReceive(t, committed); err != nil {
+					t.Fatal(err)
+				}
+				if err := watchReceive(t, maintained); err != nil {
+					t.Fatal(err)
+				}
+				after := mainDeferredSnapshot(t, b.store)
+				want := before.Seq + 2
+				text := "held"
+				if consumed {
+					want = before.Seq + 1
+					text = "stored"
+				}
+				if after.Seq != want || !equalJSONValue(after.Documents[f.doc].Value, JSON{"text": text}) {
+					t.Fatal("maintenance selected stale holds/image", after.Seq, want, after.Documents[f.doc].Value)
+				}
+				if _, err := f.session.Snapshot(bg); err != nil {
+					t.Fatal("maintenance poisoned a healthy Session", err)
+				}
+			})
+		})
+	}
+}

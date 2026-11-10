@@ -343,7 +343,7 @@ func (s *Session) flushFiredPersistence() error {
 		return nil
 	}
 	ctx := context.Background()
-	if err := s.storeHeldDocuments(ctx, ids(s.heldDocuments)); err != nil {
+	if err := s.storeHeldDocuments(ctx, nil); err != nil {
 		return s.backendResult(ctx, err, true)
 	}
 	return nil
@@ -352,6 +352,23 @@ func (s *Session) flushFiredPersistence() error {
 // The Session line owns selection, preparation, settlement and adoption. Only
 // stored observers receive this publication: memory already contains the value.
 func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
+	// Pinned session.ts #storeHolds drains BEFORE calling its selector. A
+	// receipted-but-unpublished earlier part can otherwise put raw storage
+	// ahead of readImage, or release/change the holds we are about to store.
+	if err := s.touchAll(ctx); err != nil {
+		return err
+	}
+	if selected == nil {
+		selected = ids(s.heldDocuments)
+	} else {
+		live := make([]ID, 0, len(selected))
+		for _, id := range selected {
+			if _, exists := s.heldDocuments[id]; exists {
+				live = append(live, id)
+			}
+		}
+		selected = live
+	}
 	if len(selected) == 0 {
 		return nil
 	}
