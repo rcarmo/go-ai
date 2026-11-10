@@ -26,6 +26,8 @@ type Session struct {
 	jobs                  *sessionLine         // upstream #tail: held across read gates
 	jobHeld               bool                 // memory-line owned: current holder also owns jobs
 	line                  *sessionLine         // admission-ordered job line
+	deliveryTail          <-chan struct{}      // #enqueue delivery fence
+	jobOutcome            *sessionOutcome      // memory-line owned; nil during off-line publication
 	nextJobIndex          uint64               // line-owned: jobs are numbered in admission order
 	flushImages           map[uint64]*Snapshot // writer flush goroutine only: image at each receipt
 	writer                *sessionWriter       // owns admitted writes from storage to publication
@@ -144,6 +146,7 @@ func (s *Session) enter(ctx context.Context) error {
 	}
 	s.jobHeld = true
 	s.currentJobHit = false
+	s.jobOutcome = s.enqueueOutcome()
 	if err := s.failure(); err != nil {
 		s.leave()
 		return err
@@ -174,6 +177,8 @@ func (s *Session) enter(ctx context.Context) error {
 }
 func (s *Session) leave() { s.leaveThen(nil) }
 func (s *Session) leaveThen(afterRelease func()) {
+	outcome := s.jobOutcome
+	s.jobOutcome = nil
 	changes := s.pendingTimers
 	s.pendingTimers = [3]sessionTimerChange{}
 	persistenceReady := s.persistenceReady
@@ -193,6 +198,7 @@ func (s *Session) leaveThen(afterRelease func()) {
 		s.timerDispatch.Add(1)
 	}
 	s.releaseLine()
+	outcome.deliver()
 	if hasChanges {
 		defer s.timerDispatch.Done()
 	}
@@ -235,6 +241,7 @@ func (s *Session) releaseLine() {
 }
 
 func (s *Session) handoffLeave(afterRelease func()) {
+	s.jobOutcome = nil
 	s.releaseLine()
 	if afterRelease != nil {
 		afterRelease()
@@ -288,6 +295,8 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	if err = s.enter(ctx); err != nil {
 		return 0, err
 	}
+	outcome := s.jobOutcome
+	defer outcome.deliver()
 	// Scheduler callbacks still consume whole-state private bookkeeping. Public
 	// Session transactions read through the Transaction host's dependency keys.
 	keyedReads := s.hasNativeReadImage() && !deferred
@@ -456,6 +465,9 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	lineHeld = false
 	s.handoffLeave(afterRelease)
 	<-part.outcome
+	// Deliver before reentrant host timer flushes in teardown; a host cancel
+	// may read the Session and must not await the job invoking it.
+	outcome.deliver()
 	telemetryEvents = pub.telemetry
 	seq = pub.seq
 	if part.err != nil {
@@ -496,6 +508,30 @@ func (s *Session) taskBookkeeping(work func()) {
 	s.jobHeld = true
 	defer s.leave()
 	work()
+}
+
+// readWakeImage observes the scheduler's already-published graph. Upstream
+// Scheduler.wake() is synchronous and does not touch unpublished storage keys.
+// Maintenance acquires Go memory without adding an outcome fence or draining
+// unrelated writes.
+func (s *Session) readWakeImage(ctx context.Context, read func(Snapshot) error) error {
+	if err := s.jobs.acquire(ctx); err != nil {
+		return err
+	}
+	if err := s.line.acquire(ctx); err != nil {
+		s.jobs.release()
+		return err
+	}
+	s.jobHeld = true
+	defer s.leave()
+	if err := s.failure(); err != nil {
+		return err
+	}
+	state, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	return read(state)
 }
 
 // readTasks runs only bounded internal bookkeeping on the line. It is not a

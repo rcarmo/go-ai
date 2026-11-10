@@ -31,6 +31,8 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	// lock is released, so the writer can publish; later jobs remain queued.
 	s.currentJobHit = true
 	jobHeld := s.jobHeld
+	outcome := s.jobOutcome
+	s.jobOutcome = nil
 	s.jobHeld = false
 	s.line.release()
 	var err error
@@ -43,15 +45,16 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	// failure/cancellation. Never release someone else's token on an error.
 	_ = s.line.acquire(context.Background())
 	s.jobHeld = jobHeld
+	s.jobOutcome = outcome
 	if failure := s.failure(); failure != nil {
 		return failure
 	}
 	if err != nil {
 		return err
 	}
-	if s.closing.Load() {
-		return ErrClosed
-	}
+	// This job was admitted before Close sealed new admission. Upstream's
+	// touch continuation asserts health, not usability; Close cannot replace
+	// the admitted job's own cancellation with a fresh ErrClosed outcome.
 	return ctx.Err()
 }
 

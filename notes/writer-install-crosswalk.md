@@ -453,3 +453,36 @@ execution, so a generation could finish before the fixture rewrote it to simulat
 an interrupted host. It now seeds the intended durable running+abort-marked input
 through a private task admission without enabling execution. Assertions are unchanged;
 the fixture and batching/lifetime regression group pass ten repeats.
+
+## Outcome fences cover ordinary reads (corrects the earlier read assertion)
+
+Re-reading #enqueue showed that the earlier historical read test conflated
+execution progress with outcome delivery. A cold read may execute its disjoint
+storage reads before a held write publishes, but its public outcome still follows
+all earlier outcomes. The earlier assertion that historical reads *return* before
+storage release was wrong.
+
+Session now registers an outcome at ordinary line admission. Gate waits retain
+that outcome while suspending only the memory lock; publication and maintenance
+have no ordinary outcome. Commit handoff retains its outcome until the part
+settles. Delivery waits off both lines, so later disjoint callbacks keep running.
+Cold document tests now witness migration/read execution before storage release
+and separately assert fenced delivery. Read-only commit delivery has its own
+source-derived regression, observed failing without the fence.
+
+Scheduler.wake() in source is a synchronous observation of its published graph,
+not a storage scan. Native Wake now reads the published graph through maintenance
+without an ALL_KEYS gate or ordinary delivery fence; a background wake scan must
+not block disjoint document admission behind an unrelated write.
+
+An admitted touch asserts health rather than fresh usability after its wait:
+Close cannot replace its own cancellation with ErrClosed. The cancellation/Close
+fixture now waits for the actual read deadline signal and tests the fenced error
+outcome asynchronously. A native SIGKILL helper now retains a timer while every
+host intentionally parks, preventing Go's deadlock detector from exiting status 2
+before the parent sends SIGKILL. Stage witnesses and SIGKILL assertions are unchanged.
+
+Verification: full durable suite 404.787s; vet/Staticcheck; read-key, read-only fence,
+batching and cancellation/Close tests ten repeats; real SIGKILL stages five repeats.
+Remaining source enqueue work includes exempt internal outcomes, outstanding-job
+backpressure, failure-boundary poisoning and cached-snapshot fast-path delivery.

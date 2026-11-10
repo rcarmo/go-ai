@@ -61,7 +61,7 @@ func (s *taskScheduler) sleepingForWake(state Snapshot) map[ID]Task {
 
 func (h *Harness) readWake(ctx context.Context) (wakeDetails, error) {
 	var details wakeDetails
-	err := h.session.readTasks(ctx, func(state Snapshot) error {
+	err := h.session.readWakeImage(ctx, func(state Snapshot) error {
 		if h.closing.Load() {
 			return ErrClosed
 		}

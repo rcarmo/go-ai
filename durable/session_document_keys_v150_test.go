@@ -2,13 +2,15 @@ package durable
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
 // Source: session.ts #loadDocument, snapshotAsOf, and keys.ts GatedStorage.
-// An address read waits for that address, not every unrelated admitted write.
+// Address reads execute behind only their dependencies; #enqueue still fences
+// their outcomes behind preceding jobs. Cold tokens witness the read itself.
 func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 	for _, historical := range []bool{false, true} {
 		name := "current"
@@ -25,6 +27,20 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 				return d
 			}
 			a, b := definition("keyed.a"), definition("keyed.b")
+			coldToken := func(original *DocumentDefinition) (*DocumentDefinition, <-chan struct{}) {
+				ran := make(chan struct{})
+				var once sync.Once
+				options := original.options
+				options.Version = 2
+				options.Migrate = func(value JSON, _ uint64) (JSON, error) { once.Do(func() { close(ran) }); return value, nil }
+				token, err := DefineDocument(options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return token, ran
+			}
+			readA, _ := coldToken(a)
+			readB, ranB := coldToken(b)
 			var at ID
 			if _, err := s.Commit(bg, func(tx *Tx) error {
 				if _, err := tx.AcquireDocument(a, 1, nil, nil); err != nil {
@@ -83,7 +99,7 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 					return reject("document missing")
 				}
 				want := 0
-				if def == a && !historical {
+				if def == readA && !historical {
 					want = 1
 				}
 				n, ok := exactNumber(value["n"])
@@ -93,22 +109,24 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 				return err
 			}
 			disjoint := make(chan error, 1)
-			go func() { disjoint <- read(bg, b) }()
+			go func() { disjoint <- read(bg, readB) }()
 			select {
-			case err := <-disjoint:
-				if err != nil {
-					t.Fatal(err)
-				}
+			case <-ranB:
 			case <-time.After(2 * time.Second):
 				unblock()
 				<-stored
 				<-disjoint
-				t.Fatal("unrelated address read waited for the held storage call")
+				t.Fatal("unrelated document read did not execute before storage release")
+			}
+			select {
+			case err := <-disjoint:
+				t.Fatalf("cold read outcome escaped its fence: %v", err)
+			default:
 			}
 			dependent := make(chan error, 1)
 			queued := make(chan struct{})
 			ctx := &documentGateContext{Context: bg, queued: queued}
-			go func() { dependent <- read(ctx, a) }()
+			go func() { dependent <- read(ctx, readA) }()
 			// The third Done consultation is touch's select, after both queues.
 			// The signal witnesses the actual gate wait, not goroutine launch.
 			awaitTaskSignal(t, queued)
@@ -122,6 +140,9 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := <-dependent; err != nil {
+				t.Fatal(err)
+			}
+			if err := <-disjoint; err != nil {
 				t.Fatal(err)
 			}
 		})

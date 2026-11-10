@@ -273,12 +273,17 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	}()
 	<-entered
 	cancel()
-	// A queued read cannot observe staged data or release the admitted line.
+	// #enqueue fences the read's outcome, including cancellation, behind the
+	// admitted writer. Cancellation must not release the writer's authority.
 	readCtx, readCancel := context.WithTimeout(bg, 20*time.Millisecond)
 	defer readCancel()
-	if _, e = h.Snapshot(readCtx); !errors.Is(e, context.DeadlineExceeded) {
-		t.Fatal("read escaped barrier", e)
-	}
+	readResult := make(chan error, 1)
+	queuedRead := make(chan struct{})
+	go func() {
+		_, err := h.Snapshot(&documentGateContext{Context: readCtx, queued: queuedRead})
+		readResult <- err
+	}()
+	awaitTaskSignal(t, queuedRead)
 	closeCtx, closeCancel := context.WithTimeout(bg, 20*time.Millisecond)
 	defer closeCancel()
 	if e = h.Close(closeCtx); !errors.Is(e, context.DeadlineExceeded) {
@@ -287,9 +292,19 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	if _, e = openSQLiteTestDirectory(dir, SQLiteOptions{}); !errors.Is(e, ErrOwned) {
 		t.Fatal("premature successor", e)
 	}
+	// Expiring Close's timer does not prove the read's timer callback ran.
+	<-readCtx.Done()
+	select {
+	case err := <-readResult:
+		t.Fatal("queued read outcome escaped the earlier writer", err)
+	default:
+	}
 	close(release)
 	if e = <-commit; e != nil {
 		t.Fatal("admitted canceled commit did not settle", e)
+	}
+	if err := <-readResult; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("read cancellation lost after its fence", err)
 	}
 	if e = h.Close(bg); e != nil {
 		t.Fatal(e)

@@ -950,6 +950,12 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 	}
 	registry := NewRegistry()
 	var h *Harness
+	// This subprocess intentionally parks every host until the parent sends
+	// SIGKILL. Keep a timer alive so Go's global deadlock detector cannot exit
+	// the helper with status 2 between its durable witness and the parent's kill.
+	// This timer is not used for test synchronisation or stage observation.
+	keepAlive := time.NewTimer(time.Hour)
+	defer keepAlive.Stop()
 	never := make(chan struct{})
 	hostReady := make(chan struct{})
 	child := taskDefinition(t, "task.crash.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-never; return ctx.Err() })
@@ -4532,8 +4538,8 @@ func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
 				t.Fatal(err)
 			}
 			firstStore := open()
-				seedRootConversation(t, firstStore)
-				first, err := Open(bg, firstStore, Options{Registry: registry})
+			seedRootConversation(t, firstStore)
+			first, err := Open(bg, firstStore, Options{Registry: registry})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4561,7 +4567,7 @@ func TestTaskRecoveryOpenMoreRunningHostsThanPersistedWrites(t *testing.T) {
 			}
 			secondStore := open()
 			seedRootConversation(t, secondStore)
-				second, err := Open(bg, secondStore, Options{Registry: registry})
+			second, err := Open(bg, secondStore, Options{Registry: registry})
 			if err != nil {
 				_ = secondStore.Close(bg)
 				t.Fatal("valid multi-host recovery exceeded persisted write budget", err)
