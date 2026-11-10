@@ -11,6 +11,11 @@ func (s *Session) newSessionWriterFromSession() *sessionWriter {
 		// Native Storage exposes no publication scope, so this is upstream's
 		// documented no-scope path: run the publication here, immediately.
 		publishing: func(_ context.Context, publish func()) <-chan struct{} {
+			// Source unregisters keys and adopts synchronously in this scope.
+			// Lock before the closure unregisters, not inside the part callback:
+			// otherwise readers can see no gate while memory is still stale.
+			_ = s.line.acquire(context.Background())
+			defer s.handoffLeave(nil)
 			publish()
 			return nil
 		},

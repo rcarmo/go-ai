@@ -105,13 +105,9 @@ func (s *Session) admitPreparedPublication(p *preparedSessionPublication, index 
 			rollback(failure)
 		},
 		publish: func(r *commitReceipt) *writerPublishFailure {
-			// A stored commit must be published even while the Session is closing, so
-			// this joins the line rather than going through admission's failure/close
-			// fences. Close takes the line behind every admitted publication.
-			if s.line.acquire(context.Background()) != nil {
-				return &writerPublishFailure{adoption: true, err: ErrClosed}
-			}
-			defer s.handoffLeave(nil)
+			// The host publication scope holds memory across key unregistration
+			// and this adoption. It bypasses fresh admission's Close fence because
+			// an already-stored part must still be published.
 			if err := s.failure(); err != nil {
 				return &writerPublishFailure{adoption: true, err: err}
 			}

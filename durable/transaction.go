@@ -241,11 +241,30 @@ func (t *Tx) CreateConversation(v Conversation) error {
 	}
 	return nil
 }
+
+// requireConversation mirrors Transaction.#requireConversation: an own creation
+// is visible immediately; otherwise the conversation's keyed committed record
+// must already exist. Other reference checks remain Storage's responsibility.
+func (t *Tx) requireConversation(id ID) error {
+	for _, write := range t.writes {
+		if write.Op == "create-conversation" && write.Conversation.ID == id {
+			return nil
+		}
+	}
+	if _, ok := t.state.Conversations[id]; !ok {
+		return reject("conversation does not exist")
+	}
+	return nil
+}
+
 func (t *Tx) AppendEntry(v Entry) error {
-	if e := t.enter(); e != nil {
+	if e := t.enterKeys(conversationKey(v.Conversation)); e != nil {
 		return e
 	}
 	defer t.leave()
+	if err := t.requireConversation(v.Conversation); err != nil {
+		return err
+	}
 	owned, e := copyEntry(v, t.limits)
 	if e != nil {
 		return e
@@ -362,23 +381,24 @@ func (t *Tx) CreateDocument(v Document) (*DocumentHandle, error) {
 		return nil, e
 	}
 	defer t.leave()
-	if v.Scope == "task" {
-		state := t.state
-		if len(t.writes) > 0 {
-			var err error
-			state, err = t.current()
-			if err != nil {
-				return nil, err
-			}
+	// Document acquisition requires an existing or already-staged scope, as
+	// Transaction's requireScope does. Do not defer missing owners to storage.
+	state, err := t.current()
+	if err != nil {
+		return nil, err
+	}
+	if v.Scope == "conversation" {
+		if _, ok := state.Conversations[v.Owner]; !ok {
+			return nil, reject("document conversation missing")
 		}
-		// New raw acquisition observes the same candidate lifetime as typed
-		// acquisition for native/metadata owners. Existing document handles
-		// can still edit before final retirement; absentExecution legacy and
-		// forward raw references retain their final-reference validation.
-		if _, exists := state.Documents[v.ID]; !exists {
-			if owner, known := state.Tasks[v.Owner]; known && owner.Execution != nil && terminalStatus(owner.Status) {
-				return nil, reject("native task document owner is terminal")
-			}
+	}
+	if v.Scope == "task" {
+		owner, known := state.Tasks[v.Owner]
+		if !known {
+			return nil, reject("document task owner missing")
+		}
+		if _, exists := state.Documents[v.ID]; !exists && owner.Execution != nil && terminalStatus(owner.Status) {
+			return nil, reject("native task document owner is terminal")
 		}
 	}
 	if _, e := copyObject(v.Value, t.limits); e != nil {
@@ -642,10 +662,29 @@ func (t *Tx) finalizeDocuments() error {
 	if len(t.writes) == 0 {
 		return nil
 	}
-	// Validate all provisional table/document references before host predicates.
-	candidate, err := t.prepareCandidate(t.writes, true)
+	// Prepare local document values before host predicates. Cross-record
+	// references belong to Storage's ordered batch admission: an earlier
+	// admitted, unpublished part can legitimately supply them.
+	candidate, err := t.prepareCandidate(t.writes, false)
 	if err != nil {
 		return err
+	}
+	// Native executable envelopes have private authority invariants. Keep
+	// these local capability checks separate from Storage's graph references;
+	// forged nested results/journals must fail the callback, not the Session.
+	for _, task := range candidate.Tasks {
+		if task.Kind == nestedToolKind {
+			if err := validateNestedReferences(candidate, task, t.limits); err != nil {
+				return err
+			}
+		}
+	}
+	for _, doc := range candidate.Documents {
+		if doc.Kind == codemodeRunKind || doc.Kind == codemodeJournalKind {
+			if err := validateCodemodeDocuments(candidate, doc, t.limits); err != nil {
+				return err
+			}
+		}
 	}
 	last := map[ID]int{}
 	for i, w := range t.writes {

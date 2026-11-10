@@ -320,7 +320,7 @@ func TestAdmittedCancellationAndCloseFence(t *testing.T) {
 	}
 }
 
-func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
+func TestPublicTransactionStagedReferencesAtomic(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		s := sessionFor(t, b.store)
 		conversation, _ := s.MintID(bg)
@@ -328,6 +328,11 @@ func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
 		doc, _ := s.MintID(bg)
 		ent, _ := s.MintID(bg)
 		_, e := s.Commit(bg, func(tx *Tx) error {
+			// Source resolves a scope when it is acquired. Stage the task in
+			// the existing root before creating its conversation/documents.
+			if e := tx.PutTask(Task{ID: task, Conversation: 1, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}}); e != nil {
+				return e
+			}
 			if e := tx.CreateConversation(Conversation{ID: conversation, Owner: task}); e != nil {
 				return e
 			}
@@ -341,13 +346,13 @@ func TestPublicTransactionForwardReferencesAtomic(t *testing.T) {
 			if e = tx.AppendEntry(Entry{ID: ent, Conversation: conversation, Kind: "message", Value: JSON{}}); e != nil {
 				return e
 			}
-			return tx.PutTask(Task{ID: task, Conversation: conversation, Kind: "generation", Status: "pending", Checkpoint: JSON{"step": 1}})
+			return nil
 		})
 		if e != nil {
 			t.Fatal(e)
 		}
 		v, e := s.Snapshot(bg)
-		if e != nil || v.Seq != 2 || v.Tasks[task].Conversation != conversation || v.Documents[doc].Value["phase"] != "prepared" {
+		if e != nil || v.Seq != 2 || v.Tasks[task].Conversation != 1 || v.Documents[doc].Value["phase"] != "prepared" {
 			t.Fatal(v, e)
 		}
 		// Final unresolved references reject the whole batch, but intermediate schema

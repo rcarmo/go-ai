@@ -37,12 +37,15 @@ type ContextEdit struct {
 }
 
 func (t *Tx) AppendTypedEntry(def *EntryDefinition, conversation ID, c EntryContent) (Entry, error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterKeys(conversationKey(conversation)); e != nil {
 		return Entry{}, e
 	}
 	defer t.leave()
 	if def == nil {
 		return Entry{}, reject("nil entry definition")
+	}
+	if err := t.requireConversation(conversation); err != nil {
+		return Entry{}, err
 	}
 	id, e := t.store.mintID(t.ctx, true)
 	if e != nil {
@@ -77,7 +80,7 @@ func (t *Tx) AppendTypedEntry(def *EntryDefinition, conversation ID, c EntryCont
 
 // TypedEntry reads the latest transaction overlay through an entry token.
 func (t *Tx) TypedEntry(def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
-	if err := t.enter(); err != nil {
+	if err := t.enterKeys(conversationKey(conversation), entryKey(id)); err != nil {
 		return Entry{}, false, err
 	}
 	defer t.leave()

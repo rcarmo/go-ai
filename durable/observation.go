@@ -509,7 +509,7 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 	if len(t.writes) == 0 {
 		return publication, nil
 	}
-	state, e := t.prepareCandidate(t.writes, true)
+	state, e := t.prepareCandidate(t.writes, false)
 	if e != nil {
 		return CommitPublication{}, e
 	}

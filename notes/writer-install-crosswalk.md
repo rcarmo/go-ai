@@ -540,3 +540,53 @@ Verification: full durable suite 407.927s; vet/Staticcheck; failure classificati
 and prefix-boundary regressions three repeats. Precise private scheduler read
 footprints, remaining public read/observer delivery surfaces and cached-snapshot
 fast paths still need source-level acceptance before closing the register.
+
+## Blind appends and atomic publication scope: upstream executed as oracle
+
+Blind entry appends now touch the conversation creation key, not ALL_KEYS or its
+append key. Typed entry reads touch conversation+entry. Transaction requires the
+conversation before appending, matching #requireConversation. Full final graph
+reference validation no longer runs in native document/publication preparation:
+an earlier admitted part can supply an entry head that Storage will see before
+the later ordered batch. Local value/operation checks and native executable-envelope
+capability checks remain before predicates. Missing document scopes reject during
+acquisition, before initializers, as source #acquire does. The old native atomic
+fixture was changed to stage the owner before acquiring its dependent scopes;
+source does not allow acquisition from a future, not-yet-staged scope.
+
+The new blind-append test first failed because the callback waited globally, then
+failed because native final prevalidation could not see an earlier pending head.
+It now verifies [1,2] calls, all heads, distinct actual receipt sequences and the
+native within-batch entry placement. Position resets within each commit; it is not
+a conversation-wide counter.
+
+Exact-key conversation reads exposed an atomicity bug masked by ALL_KEYS: the
+writer unregistered keys before the part callback acquired Go memory. A job that
+had waited on native ID reservation could then observe no gate and stale memory.
+The host publication scope now acquires memory *before* the closure unregisters
+keys, then adopts in that same scope. Source unregisters+adopts synchronously in
+one JS turn; Go readers now see that atomic boundary too. Conversation creation
+and dependent append regressions pass five repeats.
+
+### Reproducible pinned-source verification
+
+Run from go-ai:
+
+```sh
+source scripts/project-env.sh
+bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi
+```
+
+The runner checks retained pinned hashes before running unmodified group-commit,
+checkpoints/migrations and Session-table tests (72 passed). It then runs three
+focused probes against the same unmodified source: pending-head blind appends
+produce [1,2] batches; missing conversation rejects before checkpoint predicates;
+missing document scope rejects before initializers. Both rejection probes confirm
+the Session remains usable. All three passed. The fixture and runner are retained
+in the repository, not just ephemeral logs. Published version-1.5.0 dependencies
+are used; only durable resolves to the pinned source, avoiding missing source
+exports in dependency packages.
+
+Native verification: full durable suite 393.952s; vet, Staticcheck; relevant
+scope/integrity/dependency assertions three repeats. These checks establish this
+slice's behavior, not full parity for all remaining register entries.
