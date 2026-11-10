@@ -207,9 +207,6 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 			}
 		}
 	}
-	s.adoptTaskEffects(receipt.seq, p.tx)
-	s.enqueueWatchFrames(p.frames)
-	s.enqueueSubscriptions(p.subs)
 	// Only changed incarnations invalidate migration cache entries. An
 	// unrelated commit never turns a warm migration into a cold load.
 	for _, write := range p.tx.writes {
@@ -224,12 +221,18 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 			continue
 		}
 		for key, value := range s.definitionCache {
-			if key.id == changed {
+			if value.record.ID == changed {
 				delete(s.definitionCache, key)
 				s.definitionCacheBytes -= value.bytes
 			}
 		}
 	}
+	if err := s.installDefinitionPlans(p.tx, adopted); err != nil {
+		return nil, err
+	}
+	s.adoptTaskEffects(receipt.seq, p.tx)
+	s.enqueueWatchFrames(p.frames)
+	s.enqueueSubscriptions(p.subs)
 	// Background expiry is optional even if the host declines its timer.
 	s.sweepDocumentCache()
 	s.scheduleDocumentExpiry()

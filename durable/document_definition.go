@@ -80,16 +80,17 @@ func findDocumentState(s Snapshot, address DocumentAddress, at DocumentPoint) (D
 }
 
 type definitionCacheKey struct {
-	token *DocumentDefinition
-	id    ID
+	address DocumentAddress
 }
 type definitionCacheValue struct {
-	value    JSON
-	bytes    int64
-	lastUsed int64
+	record       Document // stored incarnation metadata; Value is kept separately
+	valueVersion uint64
+	value        JSON
+	bytes        int64
+	lastUsed     int64
 }
 
-// Native definitionValue runs at most once per token/incarnation until that
+// Native definitionValue runs at most once per version/incarnation until that
 // document changes or the bounded cache unloads. Adapters own their Snapshot
 // projection; neither a token/ID nor an unchanged sequence witnesses its value.
 // Stored versions remain authoritative: an older token may still read its stored
@@ -102,12 +103,18 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	if cacheable {
 		s.sweepDocumentCache()
 	}
-	key := definitionCacheKey{def, d.ID}
-	if cached, ok := s.definitionCache[key]; cacheable && ok {
+	key := definitionCacheKey{documentAddress(d)}
+	if cached, ok := s.definitionCache[key]; cacheable && ok && cached.record.ID == d.ID && cached.valueVersion == def.options.Version {
 		cached.lastUsed = s.now()
 		s.definitionCache[key] = cached
 		s.scheduleDocumentExpiry()
 		return copyObject(cached.value, s.limits)
+	}
+	// A cache has one materialized version per address, not one value per
+	// definition-token identity. Reloading a different version replaces it.
+	if cached, ok := s.definitionCache[key]; cacheable && ok {
+		delete(s.definitionCache, key)
+		s.definitionCacheBytes -= cached.bytes
 	}
 	value, err := copyObject(d.Value, s.limits)
 	if err != nil {
@@ -140,7 +147,9 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	if s.definitionCache == nil {
 		s.definitionCache = map[definitionCacheKey]definitionCacheValue{}
 	}
-	s.definitionCache[key] = definitionCacheValue{value: value, bytes: int64(len(encoded)), lastUsed: s.now()}
+	record := d
+	record.Value = nil
+	s.definitionCache[key] = definitionCacheValue{record: record, valueVersion: def.options.Version, value: value, bytes: int64(len(encoded)), lastUsed: s.now()}
 	s.definitionCacheBytes += int64(len(encoded))
 	s.sweepDocumentCache()
 	s.scheduleDocumentExpiry()
@@ -245,6 +254,9 @@ func (s *Session) touchDefinition(ctx context.Context, def *DocumentDefinition, 
 // SnapshotDefinition returns a detached typed-policy value without initialising
 // or persisting migration. Callback credentials/code are never serialized.
 func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value JSON, found bool, err error) {
+	if value, found, cached, err := s.cachedDefinitionSnapshot(ctx, def, owner, key); cached || err != nil {
+		return value, found, err
+	}
 	if err := s.enter(ctx); err != nil {
 		return nil, false, err
 	}
@@ -519,4 +531,77 @@ func (t *Tx) RetireDefinition(def *DocumentDefinition, owner ID, key *string) er
 		return err
 	}
 	return t.stage(Write{Op: "retire-document", Document: &d})
+}
+
+// cachedDefinitionSnapshot is Session.snapshot's no-enqueue branch. It observes
+// the last adopted tracker value, even while that address has an unpublished
+// writer, and does not send the caller's cancelled context through Storage.
+func (s *Session) cachedDefinitionSnapshot(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, bool, error) {
+	if !s.hasNativeReadImage() {
+		return nil, false, false, nil
+	}
+	if ctx == nil {
+		return nil, false, false, reject("nil context")
+	}
+	_ = s.line.acquire(context.Background())
+	flush := false
+	defer func() {
+		if flush {
+			s.leave()
+		} else {
+			s.handoffLeave(nil)
+		}
+	}()
+	if err := s.failure(); err != nil {
+		return nil, false, false, err
+	}
+	if s.closing.Load() {
+		return nil, false, false, ErrClosed
+	}
+	address, err := definitionAddress(def, owner, key)
+	if err != nil {
+		return nil, false, false, err
+	}
+	cacheKey := definitionCacheKey{address}
+	cached, ok := s.definitionCache[cacheKey]
+	if !ok || cached.valueVersion != def.options.Version {
+		return nil, false, false, nil
+	}
+	if s.documentRetentionMs() <= 0 && !s.documentPinned(cached.record.ID) {
+		return nil, false, false, nil
+	}
+	if _, err := s.core.sessionReadAdmission(context.Background()); err != nil {
+		return nil, false, false, s.backendResult(ctx, err, false)
+	}
+	if err := checkDefinition(def, cached.record); err != nil {
+		return nil, false, false, err
+	}
+	cached.lastUsed = s.now()
+	s.definitionCache[cacheKey] = cached
+	s.scheduleDocumentExpiry()
+	flush = true
+	value, err := copyObject(cached.value, s.limits)
+	return value, err == nil, true, err
+}
+
+// installDefinitionPlans is receipt/memory-time tracker installation for typed
+// document changes. Migration/initialisation already ran during preparation.
+func (s *Session) installDefinitionPlans(tx *Tx, image Snapshot) error {
+	if !s.hasNativeReadImage() {
+		return nil
+	}
+	for id, plan := range tx.documentPlans {
+		def := plan.definition
+		if def == nil {
+			continue
+		}
+		record, ok := image.Documents[id]
+		if !ok || record.Retired || record.Version != def.options.Version {
+			continue
+		}
+		if _, err := s.definitionValue(def, record); err != nil {
+			return err
+		}
+	}
+	return nil
 }

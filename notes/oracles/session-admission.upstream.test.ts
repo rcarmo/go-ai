@@ -54,3 +54,39 @@ it("rejects a missing document scope before its initializer and leaves the Sessi
  await session.commit(()=>{},context);
  await session.close(context);
 });
+
+it("serves a cached snapshot without admission, cancellation or an unrelated outcome fence",async()=>{
+ const entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>();
+ class Held extends ControlledStorage {
+  held=false;
+  override async commit(batches:any,receive:any,ctx:any){
+   if(this.held){this.held=false;entered.resolve();await release.promise}
+   return super.commit(batches,receive,ctx);
+  }
+ }
+ const storage=new Held();const session=new SessionImpl(storage,Date.now,()=>600000);
+ const Doc=defineDoc({kind:"oracle.cached",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(Doc)},context);
+ storage.held=true;
+ const writing=session.commit(async tx=>{(await tx.doc(Doc)).n=1},context);
+ await entered.promise;
+ const cancellation=new AbortController();cancellation.abort();
+ const value=await Promise.race([session.snapshot(Doc,{...context,abortSignal:cancellation.signal}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("cached read waited")),1000))]).finally(()=>release.resolve());
+ expect(value).toEqual({n:0});
+ await writing;
+ expect(await session.snapshot(Doc,context)).toEqual({n:1});
+ await session.close(context);
+});
+
+it("shares one materialized version per address rather than per definition-token identity",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const V1=defineDoc({kind:"oracle.token",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{await tx.doc(V1)},context);
+ let first=0,second=0;
+ const A=defineDoc({kind:"oracle.token",scope:"session",version:2,initial:()=>({n:0}),migrate:()=>{first++;return {n:10}},checkpointWhen:()=>false});
+ const B=defineDoc({kind:"oracle.token",scope:"session",version:2,initial:()=>({n:0}),migrate:()=>{second++;return {n:99}},checkpointWhen:()=>false});
+ expect(await session.snapshot(A,context)).toEqual({n:10});
+ expect(await session.snapshot(B,context)).toEqual({n:10});
+ expect([first,second]).toEqual([1,0]);
+ await session.close(context);
+});

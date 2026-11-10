@@ -177,10 +177,13 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 	s.contextRevision++
 	s.invalidateContextRanges(s.memoryReadImage(), p.tx.writes)
 	for key, cached := range s.definitionCache {
-		if changed[key.id] {
+		if changed[cached.record.ID] {
 			delete(s.definitionCache, key)
 			s.definitionCacheBytes -= cached.bytes
 		}
+	}
+	if err := s.installDefinitionPlans(p.tx, s.memoryReadImage()); err != nil {
+		return s.backendResult(p.ctx, err, true)
 	}
 	if s.taskScheduler != nil {
 		// Publish the logical memory image before waking task/idle waiters.

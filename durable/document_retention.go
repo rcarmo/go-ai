@@ -30,7 +30,10 @@ func (s *Session) sweepDocumentCache() {
 	retention := s.documentRetentionMs()
 	now := s.now()
 	for key, value := range s.definitionCache {
-		if s.documentPinned(key.id) {
+		if s.writer.gate(documentKey(key.address)) != nil {
+			continue
+		}
+		if s.documentPinned(value.record.ID) {
 			value.lastUsed = now
 			s.definitionCache[key] = value
 			continue
@@ -53,7 +56,12 @@ func (s *Session) scheduleDocumentExpiry() {
 	now := s.now()
 	var delay time.Duration
 	for key, value := range s.definitionCache {
-		if s.documentPinned(key.id) {
+		// Publication will touch this address again. Do not spin cleanup
+		// timers over an expired value whose write is still unpublished.
+		if s.writer.gate(documentKey(key.address)) != nil {
+			continue
+		}
+		if s.documentPinned(value.record.ID) {
 			continue
 		}
 		elapsed := uint64(0)

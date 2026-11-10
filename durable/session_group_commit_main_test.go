@@ -277,20 +277,13 @@ func TestMainSessionFailureFenceKeepsEarlierPartsAfterSettlementError(t *testing
 	}
 }
 
-// Actual f9a26365 session-group-commit.test.ts gates cases 217, 240, 292, 323, and the two deferred-commit
-// ordering cases 662 and 680, in the shape native can express. Native admits one writer on the line, so a
-// second job cannot run its callback inside the pending window; what native does is block at admission and
-// then observe the published work. Measured: the creating job reaches storage while publication is held, the
-// second job does not settle inside the window, and after release it sees the published document (217),
-// writes to the published conversation (240), includes the published conversation in an unkeyed scan (292),
-// a line read issued after an un-awaited commit waits for that commit and then sees its entry (323), and
-// publication order follows admission order (662, 680).
-//
-// Shape difference recorded: the source counts a write of type document.create, native has no create-type
-// write at storage level - an initial document write is put-document and a later change delta-document - so
-// the measured equivalent for case 217 is one put-document from the creating job and one delta-document on
-// the same id from the waiting job. Cases 662 and 680 are approximations: native cannot have a deferred part
-// inside one pending group, so the deferred job is a later writer.
+// Source-derived gate scenarios 217, 240, 292 and 323. Keyed dependencies
+// wait for publication while unrelated transaction callbacks may progress.
+// Case 662 uses an actual eligible deferred document and asserts stored/memory
+// publication order. Case 680 below remains a native failed-write fence control;
+// it is not credited as the complete source deferred-refusal scenario.
+// Native put-document/delta-document commands are checked explicitly rather than
+// relabelled as the original document.create representation.
 //
 // Fixture shape notes: values must be reported from inside the callback and settlement awaited separately,
 // because a job that reports after its own commit cannot be observed inside the pending window and a subtest
@@ -617,65 +610,76 @@ func TestMainSessionGatesJobsWaitForPublication(t *testing.T) {
 
 	t.Run("case-662-deferred-commit-publishes-after-the-previous", func(t *testing.T) {
 		s, _, held, ctx := openGatesSession(t)
+		deferred, err := DefineDocument(DefinitionOptions{Kind: "gc.deferred", Scope: "conversation", Version: 1, History: "latest", Fork: "initial", Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var owner ID
+		if _, err := s.Commit(ctx, func(tx *Tx) error {
+			var err error
+			owner, err = tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateConversation(Conversation{ID: owner}); err != nil {
+				return err
+			}
+			_, err = tx.AcquireDocument(deferred, owner, nil, nil)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var mu sync.Mutex
+		var kinds []string
+		detach, err := s.followSessionCommits(&sessionCommitListener{callback: func(_ context.Context, p sessionObservedCommit) error {
+			mu.Lock()
+			kinds = append(kinds, p.kind)
+			mu.Unlock()
+			return nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer detach()
 		held.holdCommits()
-
-		values := make(chan ID, 4)
 		firstSettled := make(chan error, 1)
-		secondSettled := make(chan error, 1)
-
 		runGatesJob(t, s, ctx, func(tx *Tx) error {
 			id, err := tx.MintID()
 			if err != nil {
 				return err
 			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "first"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
+			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "first", Value: JSON{}})
 		}, firstSettled)
-
-		select {
-		case id := <-values:
-			if id == 0 {
-				t.Fatal("no entry written")
-			}
-		case err := <-firstSettled:
-			t.Fatalf("first commit settled inside the pending window: %v", err)
-		case <-time.After(3 * time.Second):
-			t.Fatal("first commit did not reach storage while held")
+		awaitTaskSignal(t, held.entered)
+		secondSettled := make(chan error, 1)
+		admission := &mainCommitAdmissionContext{Context: ctx, entered: make(chan struct{})}
+		go func() {
+			_, err := s.commitDeferred(admission, func(tx *Tx) error {
+				doc, err := tx.AcquireDocument(deferred, owner, nil, nil)
+				if err != nil {
+					return err
+				}
+				return doc.Set(JSON{"n": 1})
+			})
+			secondSettled <- err
+		}()
+		awaitTaskSignal(t, admission.entered)
+		mu.Lock()
+		early := len(kinds)
+		mu.Unlock()
+		if early != 0 {
+			t.Fatal("publication escaped held storage", early)
 		}
-
-		runGatesJob(t, s, ctx, func(tx *Tx) error {
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{"text": "second"}}); err != nil {
-				return err
-			}
-			values <- id
-			return nil
-		}, secondSettled)
-
-		select {
-		case id := <-values:
-			t.Fatalf("deferred job ran inside the pending window (entry %d)", id)
-		case err := <-secondSettled:
-			t.Fatalf("deferred job errored inside the pending window: %v", err)
-		case <-time.After(400 * time.Millisecond):
-		}
-
 		held.releaseHold()
-		if err := settleWithinGate(t, firstSettled, 3); err != nil {
-			t.Fatalf("first commit did not settle: %v", err)
+		for _, result := range []chan error{firstSettled, secondSettled} {
+			if err := settleWithinGate(t, result, 3); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err := settleWithinGate(t, secondSettled, 3); err != nil {
-			t.Fatalf("deferred commit did not settle: %v", err)
-		}
-		ordinals := held.landedOrdinals()
-		if len(ordinals) != 2 || ordinals[0] > ordinals[1] {
-			t.Fatalf("publication order must follow admission order, got %v", ordinals)
+		mu.Lock()
+		defer mu.Unlock()
+		if len(kinds) != 2 || kinds[0] != "stored" || kinds[1] != "memory" {
+			t.Fatalf("publications=%v, want [stored memory]", kinds)
 		}
 	})
 

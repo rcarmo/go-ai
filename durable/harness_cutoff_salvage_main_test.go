@@ -6,6 +6,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,7 +30,26 @@ func mainSalvageCrash(t *testing.T, b sqliteFixture, limit uint64) (*mainRecover
 		t.Fatal(err)
 	}
 	stream := watchReceive(t, streams)
+	// A memory-window update is not evidence that progress survived storage.
+	// This recovery fixture needs a committed partial before simulating loss.
+	storedPartial := make(chan struct{})
+	var storedOnce sync.Once
+	observation, err := h.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+		for _, change := range p.Documents {
+			if change.Record.Kind == "pi.live" && change.Record.Owner == c.ID() {
+				if text, ok := mainRecoveryText(change.Value); ok && text == strings.Repeat("partial ", 12) {
+					storedOnce.Do(func() { close(storedPartial) })
+				}
+			}
+		}
+		return nil
+	}, end: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observation.detach()
 	f.partial(stream, strings.Repeat("partial ", 12))
+	awaitTaskSignal(t, storedPartial)
 	task, cp, ok, err := h.nextTask(c.ID())
 	if err != nil || !ok || cp.Phase != "intent" {
 		t.Fatal("stream fixture", task, cp, err)

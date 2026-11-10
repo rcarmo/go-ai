@@ -590,3 +590,35 @@ exports in dependency packages.
 Native verification: full durable suite 393.952s; vet, Staticcheck; relevant
 scope/integrity/dependency assertions three repeats. These checks establish this
 slice's behavior, not full parity for all remaining register entries.
+
+## Cached snapshot execution and address/version materialisation
+
+Pinned Session.snapshot returns an already-cached same-version value without
+#enqueue. A cancelled context is not sent to Storage on that branch, and a pending
+writer's draft is not visible before adoption. A new probe against unmodified
+upstream confirms this; the native assertion failed before the change and now passes.
+
+Replaced per-definition-token cache entries with one materialised version per
+address. A second token of that version reuses the first materialisation, as source
+does, instead of running a second migrate callback. This behavior is tested on both
+upstream and native. Typed changes install the current value at stored or memory
+adoption, before observers run. Expiry skips unpublished addresses when sweeping
+and scheduling; their publications touch them again. Cached native public results
+are still detached JSON, so these checks do not establish shared-readonly identity
+or mutation enforcement (D14–D17 remain open).
+
+Source oracle runner now passes 72 unchanged tests plus five focused probes (77).
+Native cache/dependency/retention group passes five repeats; final full durable run
+through make test passed in 381.130s. Vet/Staticcheck also pass.
+
+Two stale/flaky fixtures were corrected before this checkpoint: source662's old
+ordinary-append approximation expected callback serialization that source does not
+require; it now uses a real eligible deferred document and asserts [stored,memory].
+The salvage crash helper previously treated a memory-view update as proof of stored
+progress; it now waits for the actual stored-publication signal before simulated
+host loss. Both scenarios pass ten repeats without changing their source outcomes.
+
+User additionally requested test-file consolidation. Next mechanical change will
+merge related Session admission, outcome, key, cache and watch tests, preserving
+all discovered test/benchmark/example/fuzz names and normalised declaration hashes.
+Runtime fixes and file reorganisation remain separate commits.
