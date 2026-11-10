@@ -81,10 +81,26 @@ func mainPrepareOnlyPublication(t *testing.T, s *Session, ctx context.Context, i
 	return prepared
 }
 
+// mainSettleSerially settles a prepared publication directly with Storage. These
+// tests isolate one stage of the publication pipeline, so they need the pre-writer
+// serial path: admitting through the writer would hand the settle and the publish to
+// a background flight and collapse the stages they are testing apart. The baseline
+// guard is kept here because that is exactly the stage under test.
+func mainSettleSerially(s *Session, ctx context.Context, prepared *preparedSessionPublication) (commitReceipt, Snapshot, error) {
+	if prepared.base.Seq != s.readImage.Seq || s.core.state.Seq != s.readImage.Seq {
+		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
+	}
+	writes := prepared.storageWrites
+	if writes == nil {
+		writes = prepared.tx.writes
+	}
+	return s.settleBatch(ctx, Batch{Writes: writes}, prepared.base.Seq)
+}
+
 func mainPreparedPublication(t *testing.T, s *Session, ctx context.Context, id ID, ready <-chan struct{}) (preparedSessionPublication, commitReceipt, Snapshot) {
 	t.Helper()
 	prepared := mainPrepareOnlyPublication(t, s, ctx, id, ready)
-	receipt, candidate, err := s.settlePreparedPublication(&prepared)
+	receipt, candidate, err := mainSettleSerially(s, ctx, &prepared)
 	if err != nil {
 		t.Fatal(err)
 	}

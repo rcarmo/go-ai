@@ -17,6 +17,10 @@ func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) er
 		return err
 	}
 	defer s.leave()
+	// Upstream pairs `readOnLine` with `touch`.
+	if err := s.touchAll(ctx); err != nil {
+		return err
+	}
 	state, err := s.taskSnapshot(ctx)
 	if err != nil {
 		return err

@@ -69,6 +69,15 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 `confirmed` means either a reproduced failing oracle or a direct source/native API/representation contradiction. `unverified` means incomplete source coverage, not an asserted runtime failure. `fixed` closes only the named bounded deviation with the listed controls; it does not promote whole upstream files or establish full package parity. Line numbers below refer to the pinned source. Each evidence statement distinguishes a fresh result from historical measurements or static review.
 
+### Writer installation status
+
+The writer is installed on Session and the full native suite passes. Admission
+ordering now survives read-gate waits while publication takes only the memory lock.
+D01–D04 remain open: ALL_KEYS barriers still serialise whole-state transactions;
+source170 disjoint admission/batching and the Session-level outcome fence, failure
+boundary and continuation assertions have not been established. See
+[the current crosswalk](../../notes/writer-install-crosswalk.md#writer-installed-admission-queue-retained-across-touch-supersedes-attempts-57).
+
 ### D01 — Independent Session admission and storage batching
 
 **confirmed.** Fresh adapted source170 oracle: callbacks b/c do not run during held a; calls [1,1,1], expected [1,2]. Storage multi-batch support alone passes.
@@ -104,7 +113,7 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 ### D04 — Publication turns, continuations and storage publication scope
 
-**confirmed.** Native publication runs on the Session line synchronously; no general Storage publication-scope interface. Source 698/721/753/770/796/815 require deferred scopes and inter-part continuation turns. Draft writer host only accepts a synchronous scope and cannot yet implement those cases.
+**confirmed.** The installed writer publishes off the admission queue and supports awaitable internal publication scopes. The native host uses the no-scope path. Source 698/721/753/770/796/815 continuation-order assertions still require Session-level verification.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/writer.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/writer.ts); [`src/session/session.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/session.ts).
 - Native/evidence: [`durable/session_publication.go`](../../durable/session_publication.go); [`durable/session_receipt.go`](../../durable/session_receipt.go); [`durable/session_sync_observers.go`](../../durable/session_sync_observers.go).

@@ -19,7 +19,10 @@ type sessionWriterSpec struct {
 	keys    []string
 	ctx     context.Context
 	publish func(*commitReceipt) *writerPublishFailure // nil receipt for held part
-	discard func()
+	// discard runs before the part stops being observable to gated readers,
+	// with the failure that discarded it. Hosts use it for bookkeeping that must
+	// be ordered ahead of any later line entrant.
+	discard func(error)
 }
 type sessionWriterPart struct {
 	spec    sessionWriterSpec
@@ -318,7 +321,7 @@ func (w *sessionWriter) settle(p *sessionWriterPart, err error) {
 }
 func (w *sessionWriter) unpublish(p *sessionWriterPart, err error) {
 	// Discard must not strand gates even if a buggy host cleanup panics.
-	func() { defer func() { _ = recover() }(); p.spec.discard() }()
+	func() { defer func() { _ = recover() }(); p.spec.discard(err) }()
 	w.unregister(p)
 	w.settle(p, err)
 }

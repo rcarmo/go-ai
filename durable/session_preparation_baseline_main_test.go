@@ -39,7 +39,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 				s.taskBookkeeping(func() {
 					first := mainPrepareOnlyPublication(t, s, bg, firstID, ready)
 					second := mainPrepareOnlyPublication(t, s, bg, secondID, ready)
-					receipt, candidate, err := s.settlePreparedPublication(&first)
+					receipt, candidate, err := mainSettleSerially(s, bg, &first)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -48,7 +48,7 @@ func TestMainPreparedPublicationRejectsStaleBaselineBeforeStorage(t *testing.T) 
 							t.Fatal(err)
 						}
 					}
-					rejected, image, err := s.settlePreparedPublication(&second)
+					rejected, image, err := mainSettleSerially(s, bg, &second)
 					if err == nil || !strings.Contains(err.Error(), "stale prepared") {
 						t.Fatal("stale preparation entered writer", err)
 					}

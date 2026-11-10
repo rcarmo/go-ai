@@ -306,6 +306,11 @@ func (s *Session) ScanConversations(ctx context.Context, q ConversationQuery, li
 		return Page[Conversation]{}, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Page[Conversation]{}, e
+	}
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanConversations(ctx, q, limit, cursor)
 	}
@@ -320,6 +325,11 @@ func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, curs
 		return Page[Entry]{}, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Page[Entry]{}, e
+	}
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanEntries(ctx, q, limit, cursor)
 	}
@@ -334,6 +344,11 @@ func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor 
 		return Page[Task]{}, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Page[Task]{}, e
+	}
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
 	}
@@ -348,6 +363,11 @@ func (s *Session) ScanSubmissions(ctx context.Context, q SubmissionQuery, limit 
 		return Page[Submission]{}, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Page[Submission]{}, e
+	}
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
 	}

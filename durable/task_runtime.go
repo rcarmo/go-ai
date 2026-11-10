@@ -466,6 +466,11 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 		return nil, false, err
 	}
 	defer session.leave()
+	// Upstream gates every read on the line: a queued read must not answer
+	// from state an admitted commit has not published yet.
+	if err := session.touchAll(ctx); err != nil {
+		return nil, false, err
+	}
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
@@ -480,6 +485,11 @@ func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentD
 		return nil, false, err
 	}
 	defer session.leave()
+	// Upstream gates every read on the line: a queued read must not answer
+	// from state an admitted commit has not published yet.
+	if err := session.touchAll(ctx); err != nil {
+		return nil, false, err
+	}
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}

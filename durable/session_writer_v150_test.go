@@ -56,7 +56,7 @@ func (h *writerTestHost) spec(index uint64, key string, held bool) sessionWriter
 			h.mu.Unlock()
 			return nil
 		},
-		discard: func() { h.mu.Lock(); h.discarded = append(h.discarded, int(index)); h.mu.Unlock() },
+		discard: func(error) { h.mu.Lock(); h.discarded = append(h.discarded, int(index)); h.mu.Unlock() },
 	}
 	if !held {
 		spec.batch = &Batch{Writes: []Write{{Op: "test"}}}

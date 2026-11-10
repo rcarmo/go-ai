@@ -333,3 +333,46 @@ masked reject to a real coalescing failure.
 
 Full suite: 409s, no hangs, 6 failures. Attempt 7 is the closest yet, and the failure list is now
 honest - none of it is my own reject masking the real mechanism.
+
+## Writer installed: admission queue retained across touch (supersedes attempts 5–7)
+
+The admission flip is installed and the full durable suite passes twice (412.016s,
+409.146s). This change remains in production code. The saved attempt patch is historical.
+
+The missing invariant was upstream's `#tail`: `#onLine` awaits `work`, including a
+`touch` wait. Later jobs do not run while that job is waiting. Earlier notes claimed
+otherwise. Releasing the sole native line during touch allowed later jobs to
+pass a suspended job and use stale scheduler authority.
+
+Session now has two queues: `jobs` preserves the upstream admission slot across
+read gates; `line` protects Go memory and can be released while the writer publishes.
+Normal line release drops both. A gated read drops only the memory lock, and every
+exit (including failure/cancellation) reacquires it before caller cleanup. Publication
+and discard acquire only the memory lock: they must resolve the part a queued job
+is waiting for. Discard rolls back provisional authority before opening the gate.
+
+This resolves owner visibility, reporter coalescence and builtin status failures.
+Own-listener errors are returned to the writer as listener failures, so the stored
+call resolves before failure fences later work, matching writer.ts. A lifecycle
+cancellation of Submission.Wait checks the Session failure before returning ErrClosed.
+A native owned-store prefix gap is checked under the store lock after the publication
+barrier, before preparing or appending a new batch.
+
+Timer changes remain pending across admission and publication memory releases.
+The commit reacquires memory after its part settles, then flushes changes before
+returning. Host cancellation may read the Session without gating on its own open
+part. This preserves the deadline tests' arming-before-return ordering.
+
+Verification: full durable suite twice; go vet; Staticcheck v0.8.2; logging gates;
+parity-register checker. The gate regression now verifies that publication can
+acquire memory while a later ordinary job stays queued. Gate tests pass three repeats.
+
+### Parity still requires acceptance evidence
+
+Installing the writer does not close D01–D04. Whole-state transactions still use an
+ALL_KEYS barrier. Upstream source170 requires disjoint callbacks to finish and admit
+while another storage call is held, then batches those parts in a single call.
+That acceptance has not been established by this suite. The source's per-job outcome
+fence, failure-boundary index/own-outcome set and publication continuation ordering
+also need Session-level acceptance tests. Shared readonly views and the assertion-level
+crosswalk remain open. Do not infer full semantic equivalence from a green native suite.

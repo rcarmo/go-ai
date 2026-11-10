@@ -34,6 +34,11 @@ func (s *Session) installContextRead(ctx context.Context, read preparedContextRe
 		return err
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if err := s.touchAll(ctx); err != nil {
+		return err
+	}
 	// Native health can change while derivation is off line, independently of
 	// Session publication (for example an uncertain raw write or storage Close).
 	if _, err := s.core.sessionReadAdmission(ctx); err != nil {

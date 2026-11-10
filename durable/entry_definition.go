@@ -100,6 +100,11 @@ func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversa
 		return Entry{}, false, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Entry{}, false, e
+	}
 	if def == nil {
 		return Entry{}, false, reject("nil entry definition")
 	}
@@ -131,6 +136,7 @@ func contributionReceipts(messages []goai.Message, l Limits) ([]MessageReceipt, 
 	}
 	return result, nil
 }
+
 // boundMessageEnvelope re-encodes one receipt under the durable size limits and
 // decodes it back through its own schema. Decoding into the typed receipt, not
 // an untyped object, keeps the UTF-16 ranges that tool-call arguments and

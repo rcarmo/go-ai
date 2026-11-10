@@ -39,6 +39,11 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 		return nil, nil, false, err
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if err := s.touchAll(ctx); err != nil {
+		return nil, nil, false, err
+	}
 	// Validate the address before checking owner liveness: malformed task
 	// scopes and family keys must reject, not appear to be absent.
 	address, err := definitionAddress(def, owner, key)

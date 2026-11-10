@@ -449,6 +449,11 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 		return nil, false, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return nil, false, e
+	}
 	record, value, ok, e := s.watchDefinitionValue(ctx, def, owner, key)
 	if e != nil || !ok {
 		return nil, ok, e
@@ -747,6 +752,11 @@ func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *C
 		return Snapshot{}, nil, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return Snapshot{}, nil, e
+	}
 	snapshot, e := s.guardedStorage().Snapshot(ctx)
 	if e != nil {
 		return Snapshot{}, nil, e
@@ -965,6 +975,11 @@ func (s *Session) DocumentState(ctx context.Context, def *DocumentDefinition, ow
 		return nil, false, e
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if e := s.touchAll(ctx); e != nil {
+		return nil, false, e
+	}
 	record, value, ok, e := s.watchDefinitionValue(ctx, def, owner, key)
 	if e != nil || !ok {
 		return nil, ok, e

@@ -66,7 +66,7 @@ func holdingQueue(t *testing.T, s *Session, keys ...string) chan struct{} {
 		keys:    keys,
 		ctx:     bg,
 		publish: func(*commitReceipt) *writerPublishFailure { return nil },
-		discard: func() {},
+		discard: func(error) {},
 	})
 	<-entered
 	return release
@@ -81,13 +81,16 @@ func TestSessionV150TouchReleasesLineAcrossGate(t *testing.T) {
 	}
 
 	waited := make(chan error, 1)
+	entered := make(chan struct{})
 	go func() {
 		if err := s.enter(bg); err != nil {
 			waited <- err
 			return
 		}
+		close(entered)
 		waited <- s.touch(bg, key)
 	}()
+	<-entered
 
 	// The waiter is off the line, so the line must still be acquirable. If touch
 	// held the line across a gate wait, this admission would block and fail here.
@@ -104,13 +107,33 @@ func TestSessionV150TouchReleasesLineAcrossGate(t *testing.T) {
 	default:
 	}
 	s.line.release()
+	// Upstream's #tail awaits the gated job. A later ordinary job cannot
+	// overtake it even though the off-line publisher can acquire memory.
+	later := make(chan error, 1)
+	go func() {
+		if err := s.enter(bg); err != nil {
+			later <- err
+			return
+		}
+		s.leave()
+		later <- nil
+	}()
+	s.jobs.waitPending(1)
+	select {
+	case <-later:
+		t.Fatal("later job overtook a gated read")
+	default:
+	}
 	close(release)
 
 	if err := <-waited; err != nil {
 		t.Fatalf("touch after the gate: %v", err)
 	}
-	// touch returns holding the line.
+	// touch returns holding both the memory line and its admission slot.
 	s.leave()
+	if err := <-later; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSessionV150TouchAllWaitsForNewestPart(t *testing.T) {
@@ -179,7 +202,7 @@ func TestSessionV150TouchRecordsPerJobHit(t *testing.T) {
 		t.Error("the hit must not leak from a previous job")
 	}
 	gate := s.gateFor(key)
-	s.line.release()
+	s.leave()
 	close(release)
 	<-gate
 
@@ -216,6 +239,7 @@ func TestSessionV150TouchReassertsFailure(t *testing.T) {
 	if !errors.As(err, &failed) || !errors.Is(failed.Cause, cause) {
 		t.Fatalf("touch must re-assert the failure that arrived off-line, got %v", err)
 	}
+	s.leave()
 }
 
 func TestSessionV150TouchHonoursCancellation(t *testing.T) {
@@ -238,4 +262,5 @@ func TestSessionV150TouchHonoursCancellation(t *testing.T) {
 	if err := <-errCh; !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation while gated: %v", err)
 	}
+	s.leave()
 }

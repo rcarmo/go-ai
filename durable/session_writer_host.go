@@ -5,11 +5,6 @@ import "context"
 // Session-side writer host, ported from the host hooks pinned v1.5.0 Session
 // passes to its Writer (src/session/session.ts). The queue itself lives in
 // session_writer.go; this file owns only what a Session must mean for each hook.
-//
-// The queue is installed but no ordinary commit admits to it yet: the admission
-// handoff, the keyed read barriers and the close/failure boundary are one
-// change, and installing admission before its readers is not safe.
-
 func (s *Session) newSessionWriterFromSession() *sessionWriter {
 	return newSessionWriter(sessionWriterHost{
 		commit: s.writerCommit,
@@ -32,7 +27,22 @@ func (s *Session) newSessionWriterFromSession() *sessionWriter {
 // writerCommit settles batches off the Session line. Core admission owns the
 // state the receipts witness, so candidate capture stays inside the sink.
 func (s *Session) writerCommit(ctx context.Context, batches []Batch, receive func(commitReceipt)) (commitGroupResult, error) {
+	// Adoption takes the exact image storage holds at that receipt, so an internal
+	// read can share its backing rather than copy it. Only a single-part flush can
+	// witness that: in a multi-part group the state at a later receipt has already
+	// moved past an earlier part, and adoption then rebuilds from the receipt frame.
+	single := len(batches) == 1
+	if s.flushImages == nil {
+		s.flushImages = make(map[uint64]*Snapshot)
+	}
+	for seq := range s.flushImages {
+		delete(s.flushImages, seq)
+	}
 	return s.core.commitParts(ctx, batches, func(r commitReceipt) error {
+		if single {
+			image := s.core.state
+			s.flushImages[r.seq] = &image
+		}
 		if receive != nil {
 			receive(r)
 		}
@@ -54,13 +64,10 @@ func (s *Session) writerFail(cause error, _ uint64, _ []uint64) {
 	if cause == nil {
 		return
 	}
-	s.failureMu.Lock()
-	if s.failureCause == nil {
-		s.failureValue = asFailure(cause)
-		s.failureCause = cause
-	}
-	s.failureMu.Unlock()
-	s.closeWatches()
+	// Once the writer settles storage it is the only writer, so a failure it sees
+	// must also drive the shutdown a serial settle used to trigger from
+	// backendResult. Upstream's fail() closes fire-and-forget too (session.ts:450).
+	_ = s.backendResult(context.Background(), cause, true)
 }
 
 func (s *Session) writerReport(err error, _ context.Context) {

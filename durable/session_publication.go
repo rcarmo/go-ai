@@ -3,18 +3,20 @@ package durable
 import "context"
 
 // A prepared publication owns detached observer work for one sealed transaction.
-// Preparation, settlement and publication still run on the same Session line.
-// Keeping the stages explicit does not enable overlap or relax wrapper gates.
+// Preparation runs on the admission line. Storage and publication belong to
+// the writer; publication acquires only the memory lock, never the admission slot.
 type preparedSessionPublication struct {
-	ctx           context.Context
-	tx            *Tx
-	base          Snapshot
-	frames        []preparedWatchFrame
-	subs          []preparedSubscription
-	stored        CommitPublication // actual durable writes, including selected holds
-	observed      CommitPublication // this transaction's OWN changes, never folded holds
-	storageWrites []Write
-	storedHeld    []ID
+	writerOwned     bool
+	listenerFailure error
+	ctx             context.Context
+	tx              *Tx
+	base            Snapshot
+	frames          []preparedWatchFrame
+	subs            []preparedSubscription
+	stored          CommitPublication // actual durable writes, including selected holds
+	observed        CommitPublication // this transaction's OWN changes, never folded holds
+	storageWrites   []Write
+	storedHeld      []ID
 }
 
 func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Snapshot, ready <-chan struct{}) (preparedSessionPublication, error) {
@@ -54,22 +56,76 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	return p, nil
 }
 
-// settlePreparedPublication retains a global dependency on the preparation
-// baseline. Finalisation currently scans ownership/task/document state, so a
-// narrower footprint is not yet safe. The writer independently checks the raw
-// baseline inside its gate to exclude stored-but-unpublished changes.
-func (s *Session) settlePreparedPublication(p *preparedSessionPublication) (commitReceipt, Snapshot, error) {
+// admittedPublication carries what one commit's publication produced. It is read
+// only after the part's outcome closes, so the publication's write and the channel
+// close give the commit its happens-before edge.
+type admittedPublication struct {
+	seq       uint64
+	telemetry *durableEventBatch
+}
+
+// admitPreparedPublication is the admission handoff, ported from pinned v1.5.0
+// src/session/session.ts: once preparation is done, nothing but Storage can fail,
+// so the commit hands its sealed batch and write keys to the writer and the line
+// goes on. Storage, then publication, run from the writer, and the commit's outcome
+// is awaited OFF the line.
+func (s *Session) admitPreparedPublication(p *preparedSessionPublication, index uint64, pub *admittedPublication, rollback func(error)) (*sessionWriterPart, error) {
 	if err := s.failure(); err != nil {
-		return commitReceipt{}, Snapshot{}, err
+		return nil, err
 	}
+	// Only the prepared baseline is compared. Held changes stored independently while
+	// a callback runs can put the store image ahead of the read image, and native
+	// rebases on the transaction's own state for that (see commitPersistence); the
+	// publication's baseline is what must not have moved.
 	if p.base.Seq != s.readImage.Seq {
-		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
+		return nil, reject("stale prepared publication baseline")
+	}
+	keys, err := p.tx.writeKeys()
+	if err != nil {
+		return nil, err
 	}
 	writes := p.storageWrites
 	if writes == nil {
 		writes = p.tx.writes
 	}
-	return s.settleBatch(p.ctx, Batch{Writes: writes}, p.base.Seq)
+	p.writerOwned = true
+	batch := Batch{Writes: writes}
+	return s.writer.admit(sessionWriterSpec{
+		index: index,
+		batch: &batch,
+		keys:  keys,
+		ctx:   p.ctx,
+		discard: func(failure error) {
+			// Roll back provisional authority before the writer opens its gate.
+			// This is memory bookkeeping, not a new #tail job: a reader may be
+			// holding that admission slot while waiting for this very part.
+			_ = s.line.acquire(context.Background())
+			defer s.handoffLeave(nil)
+			rollback(failure)
+		},
+		publish: func(r *commitReceipt) *writerPublishFailure {
+			// A stored commit must be published even while the Session is closing, so
+			// this joins the line rather than going through admission's failure/close
+			// fences. Close takes the line behind every admitted publication.
+			if s.line.acquire(context.Background()) != nil {
+				return &writerPublishFailure{adoption: true, err: ErrClosed}
+			}
+			defer s.handoffLeave(nil)
+			if err := s.failure(); err != nil {
+				return &writerPublishFailure{adoption: true, err: err}
+			}
+			candidate := s.flushImages[r.seq]
+			telemetry, err := s.publishSessionPublication(p, *r, candidate)
+			if err != nil {
+				return &writerPublishFailure{adoption: true, err: err}
+			}
+			pub.seq, pub.telemetry = r.seq, telemetry
+			if p.listenerFailure != nil {
+				return &writerPublishFailure{err: p.listenerFailure}
+			}
+			return nil
+		},
+	}), nil
 }
 
 // publishSessionPublication owns the line and rechecks the first fatal cause.
@@ -157,7 +213,10 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	// not latch an own error until hosts see the already-adopted publication.
 	listenerFailure := s.publishLocalCommit(p.ctx, "stored", p.observed)
 	s.publishStoredCommit(p.ctx, p.stored)
-	if listenerFailure != nil {
+	if listenerFailure != nil && p.writerOwned {
+		p.listenerFailure = listenerFailure
+	}
+	if listenerFailure != nil && !p.writerOwned {
 		_ = s.backendResult(p.ctx, listenerFailure, true)
 	}
 	return telemetryEvents, nil

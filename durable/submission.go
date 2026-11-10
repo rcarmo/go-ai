@@ -557,6 +557,9 @@ func (s *SubmissionHandle) wait(ctx context.Context, binding *TaskRuntime) (Sett
 		case <-ctx.Done():
 			return Settlement{}, ctx.Err()
 		case <-s.h.life.Done():
+			if failure := s.h.session.failure(); failure != nil {
+				return Settlement{}, failure
+			}
 			return Settlement{}, ErrClosed
 		case <-wake:
 		}

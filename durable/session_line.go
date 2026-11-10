@@ -2,21 +2,22 @@ package durable
 
 import "context"
 
-// Line job identity and read gates, ported from pinned v1.5.0 src/session/session.ts.
-//
-// Upstream's line is a promise chain: a job that awaits a gate suspends and the
-// line is free for the next job, so `touch(key)` can be awaited from inside a
-// job. The native line is a mutex, so the same await would deadlock against a
-// publication that needs that line. `touch` therefore RELEASES the line across
-// the wait and re-acquires it, re-asserting health afterwards: the two designs
-// give a waiting reader the same observable behaviour, and the line is never
-// held across a gate.
+// Line job identity and read gates ported from pinned v1.5.0 session.ts.
+// jobs mirrors #tail and remains held across touch(). line protects Go memory;
+// only that lock is suspended so an off-line writer can publish the dependency.
 
 // ALL_KEYS mirrors upstream's `*`: a read that cannot name the keys it touches
 // (a whole-state snapshot) waits for every admitted part to publish. Native
 // transaction state is a whole-state snapshot, so this is the barrier its
 // commits and full-state reads use.
 const ALL_KEYS = "*"
+
+// jobIndex numbers jobs in admission order. The writer records part indices so a
+// failure can name the jobs it covers, as upstream's admission index does.
+func (s *Session) jobIndex() uint64 {
+	s.nextJobIndex++
+	return s.nextJobIndex
+}
 
 // touch waits for the part that writes `key` to publish, then returns holding
 // the line. The caller must hold the line on entry and must treat everything it
@@ -26,22 +27,32 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	if gate == nil {
 		return s.failure()
 	}
+	// #tail does not advance while the job awaits touch(). Only the memory
+	// lock is released, so the writer can publish; later jobs remain queued.
 	s.currentJobHit = true
-	s.leave()
+	jobHeld := s.jobHeld
+	s.jobHeld = false
+	s.line.release()
+	var err error
 	select {
 	case <-ctx.Done():
-		if err := s.reacquire(ctx); err != nil {
-			return err
-		}
-		return ctx.Err()
+		err = ctx.Err()
 	case <-gate:
 	}
-	if err := s.reacquire(ctx); err != nil {
+	// Every exit owns the memory line; callers always release it, including
+	// failure/cancellation. Never release someone else's token on an error.
+	_ = s.line.acquire(context.Background())
+	s.jobHeld = jobHeld
+	if failure := s.failure(); failure != nil {
+		return failure
+	}
+	if err != nil {
 		return err
 	}
-	// A gate can complete while the Session fails; the caller must not read
-	// behind a failure that arrived while it was off the line.
-	return s.failure()
+	if s.closing.Load() {
+		return ErrClosed
+	}
+	return ctx.Err()
 }
 
 // touchAll is the ALL_KEYS barrier: it waits for everything admitted so far.
@@ -57,25 +68,4 @@ func (s *Session) gateFor(key string) <-chan struct{} {
 		return s.writer.drained()
 	}
 	return s.writer.gate(key)
-}
-
-// reacquire takes the line back after an off-line wait, honouring cancellation
-// and the failure/close fences the ordinary admission applies.
-func (s *Session) reacquire(ctx context.Context) error {
-	if err := s.line.acquire(ctx); err != nil {
-		return err
-	}
-	if err := s.failure(); err != nil {
-		s.leave()
-		return err
-	}
-	if s.closing.Load() {
-		s.leave()
-		return ErrClosed
-	}
-	if e := ctx.Err(); e != nil {
-		s.leave()
-		return e
-	}
-	return nil
 }

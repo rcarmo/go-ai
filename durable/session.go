@@ -13,8 +13,8 @@ import (
 type Session struct {
 	store                 Storage
 	failureMu             sync.Mutex
-	failureCause          error    // Go error view of the first failure
-	failureValue          *Failure // the first failure value exactly as reported
+	failureCause          error        // Go error view of the first failure
+	failureValue          *Failure     // the first failure value exactly as reported
 	now                   func() int64 // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
 	readImage             Snapshot // immutable receipted image; owned by the Session line
@@ -22,10 +22,14 @@ type Session struct {
 	memoryImage           *Snapshot // immutable document overlay, never a durable receipt
 	persistWithinMs       func() float64
 	persistenceTimer      *sessionTimer
-	persistenceReady      chan struct{} // stored-only publication released with the line
-	line                  *sessionLine // admission-ordered job line
-	writer                *sessionWriter // owns admitted writes from storage to publication
-	currentJobHit         bool           // line-owned: the running job waited at a gate
+	persistenceReady      chan struct{}        // stored-only publication released with the line
+	jobs                  *sessionLine         // upstream #tail: held across read gates
+	jobHeld               bool                 // memory-line owned: current holder also owns jobs
+	line                  *sessionLine         // admission-ordered job line
+	nextJobIndex          uint64               // line-owned: jobs are numbered in admission order
+	flushImages           map[uint64]*Snapshot // writer flush goroutine only: image at each receipt
+	writer                *sessionWriter       // owns admitted writes from storage to publication
+	currentJobHit         bool                 // line-owned: the running job waited at a gate
 	closing               atomic.Bool
 	once                  sync.Once
 	done                  chan struct{}
@@ -103,7 +107,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	image := core.state
 	core.leave()
-	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -131,11 +135,15 @@ func (s *Session) enter(ctx context.Context) error {
 	if s.closing.Load() {
 		return ErrClosed
 	}
-	// A gate hit belongs to one job, exactly as upstream's per-job `hit` does.
-	s.currentJobHit = false
-	if err := s.line.acquire(ctx); err != nil {
+	if err := s.jobs.acquire(ctx); err != nil {
 		return err
 	}
+	if err := s.line.acquire(ctx); err != nil {
+		s.jobs.release()
+		return err
+	}
+	s.jobHeld = true
+	s.currentJobHit = false
 	if err := s.failure(); err != nil {
 		s.leave()
 		return err
@@ -184,7 +192,7 @@ func (s *Session) leaveThen(afterRelease func()) {
 	if hasChanges {
 		s.timerDispatch.Add(1)
 	}
-	s.line.release()
+	s.releaseLine()
 	if hasChanges {
 		defer s.timerDispatch.Done()
 	}
@@ -209,11 +217,38 @@ func (s *Session) leaveThen(afterRelease func()) {
 		}
 	}
 }
+
+// handoffLeave gives up the line without running the pending timer changes. Two paths
+// need that. A commit hands its batch to the writer here, and upstream arms the hold
+// timer in the after-store publication, so the changes belong to the publication's
+// owner. A publication releases the line the same way: disarming here would run host
+// code while the part's gate is still open, and a host cancel that reads the Session
+// would gate on the publication that is calling it. Whoever holds the line next -
+// normally the commit, after its outcome closes and before it returns - flushes them.
+func (s *Session) releaseLine() {
+	jobHeld := s.jobHeld
+	s.jobHeld = false
+	s.line.release()
+	if jobHeld {
+		s.jobs.release()
+	}
+}
+
+func (s *Session) handoffLeave(afterRelease func()) {
+	s.releaseLine()
+	if afterRelease != nil {
+		afterRelease()
+	}
+}
+
 func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
 	if e := s.enter(ctx); e != nil {
 		return Snapshot{}, e
 	}
 	defer s.leave()
+	if e := s.touchAll(ctx); e != nil {
+		return Snapshot{}, e
+	}
 	return s.guardedStorage().Snapshot(ctx)
 }
 func (s *Session) MintID(ctx context.Context) (ID, error) {
@@ -226,8 +261,8 @@ func (s *Session) MintID(ctx context.Context) (ID, error) {
 }
 
 // Commit seals every escaped handle after callback return, including panic. A
-// canceled preparation may reject before Apply; after storage admission the
-// native store completes adopt-or-poison without releasing the mutation line.
+// canceled preparation may reject before admission; afterwards the writer
+// completes adopt-or-poison off the admission line.
 func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
 	return s.commit(ctx, callback, true, 0)
 }
@@ -252,6 +287,25 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	}
 	if err = s.enter(ctx); err != nil {
 		return 0, err
+	}
+	// Native transactions capture whole state, so a commit waits for everything
+	// admitted before it: it must never settle against a baseline that misses an
+	// admitted write.
+	if err = s.touchAll(ctx); err != nil {
+		s.leave()
+		return 0, err
+	}
+	// The owned store cannot have an untracked committed prefix after the
+	// publication barrier. Check under its own line, before preparing writes.
+	if s.hasNativeReadImage() {
+		<-s.core.line
+		gap := s.core.state.Seq != s.readImage.Seq
+		s.core.leave()
+		if gap {
+			err = s.backendResult(ctx, reject("non-contiguous publication image"), true)
+			s.leave()
+			return 0, err
+		}
 	}
 	if deferred && (!s.hasNativeReadImage() || (s.taskScheduler != nil && taskID == 0)) {
 		s.leave()
@@ -279,9 +333,38 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	ready := make(chan struct{})
 	var tx *Tx
 	var telemetryEvents *durableEventBatch
+	// The handoff gives the line up before the outcome is awaited, so teardown has
+	// to work either way: still on the line, or after taking it back.
+	lineHeld := true
+	var readyClosed bool
+	// Task authority is released before the job stops being visible on the line, so
+	// a later line entrant can never observe a rejected provisional runtime. The
+	// writer's discard hook owns that ordering once a commit hands the line off.
+	var taskRolledBack bool
+	rollbackTask := func(failure error) {
+		if failure == nil || taskRolledBack || tx == nil || tx.taskRollback == nil {
+			return
+		}
+		taskRolledBack = true
+		tx.taskRollback(failure)
+	}
+	afterRelease := func() {
+		if !readyClosed {
+			readyClosed = true
+			close(ready)
+		}
+		s.kickWatches()
+		if s.taskScheduler != nil {
+			s.taskScheduler.dispatchStops()
+		}
+	}
 	defer func() {
-		if err != nil && tx != nil && tx.taskRollback != nil {
-			tx.taskRollback(err)
+		// Teardown is line-owned, so take the line back if the handoff gave it up.
+		if !lineHeld && s.line.acquire(context.Background()) == nil {
+			lineHeld = true
+		}
+		if err != nil {
+			rollbackTask(err)
 		}
 		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
 			s.taskScheduler.h.wakeAllSubmissionWaiters()
@@ -290,13 +373,11 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 				s.taskScheduler.failTicket(target, ErrPoisoned)
 			}
 		}
-		s.leaveThen(func() {
-			close(ready)
-			s.kickWatches()
-			if s.taskScheduler != nil {
-				s.taskScheduler.dispatchStops()
-			}
-		})
+		if lineHeld {
+			s.leaveThen(afterRelease)
+		} else {
+			afterRelease()
+		}
 		if telemetryEvents != nil {
 			if buffer := eventBufferFromContext(ctx); buffer != nil {
 				buffer.enqueue(telemetryEvents)
@@ -363,15 +444,21 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 		}
 		return state.Seq, nil
 	}
-	receipt, adopted, err := s.settlePreparedPublication(&prepared)
-	seq = receipt.seq
-	err = s.backendResult(ctx, err, true)
-	if err != nil {
-		return seq, err
+	pub := &admittedPublication{}
+	part, e := s.admitPreparedPublication(&prepared, s.jobIndex(), pub, rollbackTask)
+	if e != nil {
+		return 0, e
 	}
-	telemetryEvents, err = s.publishSessionPublication(&prepared, receipt, &adopted)
-	if err != nil {
-		return 0, s.backendResult(ctx, err, true)
+	// The handoff. From here the line is free while the writer stores this commit
+	// and then publishes it; the outcome is awaited off the line.
+	lineHeld = false
+	s.handoffLeave(afterRelease)
+	<-part.outcome
+	telemetryEvents = pub.telemetry
+	seq = pub.seq
+	if part.err != nil {
+		err = s.backendResult(ctx, part.err, true)
+		return seq, err
 	}
 	return seq, nil
 }
@@ -399,9 +486,12 @@ func (s *Session) adoptTaskEffects(seq uint64, tx *Tx) {
 // taskBookkeeping holds the line without any store snapshot. Poison cannot
 // prevent reservation rollback or Close from seeing every retained host join.
 func (s *Session) taskBookkeeping(work func()) {
+	_ = s.jobs.acquire(context.Background())
 	if s.line.acquire(context.Background()) != nil {
+		s.jobs.release()
 		return
 	}
+	s.jobHeld = true
 	defer s.leave()
 	work()
 }
@@ -418,6 +508,9 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
 		return err
 	}
 	defer s.leave()
+	if err := s.touchAll(ctx); err != nil {
+		return err
+	}
 	state, published, err := s.taskSnapshotView(ctx)
 	if err != nil {
 		return err
@@ -476,6 +569,11 @@ func (s *Session) Close(ctx context.Context) error {
 		s.closing.Store(true)
 		s.closeWatches()
 		go func() {
+			// Every commit admitted before the seal publishes before the line job that
+			// clears the state its publication adopts into.
+			if drained := s.writer.drained(); drained != nil {
+				<-drained
+			}
 			if s.line.acquire(context.Background()) != nil {
 				return
 			}

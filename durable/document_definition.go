@@ -154,6 +154,11 @@ func (s *Session) UnloadDocuments(ctx context.Context) error {
 		return err
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if err := s.touchAll(ctx); err != nil {
+		return err
+	}
 	// Poisoned storage must not appear usable even for a cache operation.
 	if _, err := s.guardedStorage().Limits(); err != nil {
 		return err
@@ -200,6 +205,11 @@ func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinitio
 		return nil, false, err
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if err := s.touchAll(ctx); err != nil {
+		return nil, false, err
+	}
 	return s.snapshotDefinition(ctx, def, owner, key)
 }
 
@@ -233,6 +243,11 @@ func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 		return nil, false, err
 	}
 	defer s.leave()
+	// Upstream gates every read: a job must not observe state an admitted
+	// write has not published.
+	if err := s.touchAll(ctx); err != nil {
+		return nil, false, err
+	}
 	return s.snapshotDefinitionAsOf(ctx, def, conversation, key, at)
 }
 

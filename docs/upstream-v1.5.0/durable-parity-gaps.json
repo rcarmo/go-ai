@@ -16,7 +16,7 @@
         "durable/session.go",
         "durable/storage_group.go"
       ],
-      "evidence": "Fresh adapted source170 oracle: callbacks b/c do not run during held a; calls [1,1,1], expected [1,2]. Storage multi-batch support alone passes.",
+      "evidence": "The writer is now installed: Session hands off sealed parts, publication/discard acquire the memory lock, and the admission queue remains held across read gates. Full native durable suite passes. Whole-state transactions still drain ALL_KEYS; source170 disjoint admission and [1,2] batching acceptance is not established.",
       "fix": "Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.",
       "acceptance": [
         "Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order."
@@ -41,7 +41,7 @@
         "durable/session_read_line.go",
         "durable/transaction.go"
       ],
-      "evidence": "Current global Session line blocks all reads/callbacks through settlement. Existing serial barrier tests cannot establish keyed overlap.",
+      "evidence": "Write keys and read gates are installed. Admission queue ownership is retained across touch while only the memory lock is suspended. Native whole-state transactions/read surfaces still use ALL_KEYS, so disjoint keyed overlap remains open.",
       "fix": "Register exact write keys, including newly created identities, document addresses, ancestry and selected held changes. Touch newest-key gates; unkeyable scans drain the admitted prefix. Revalidate candidate graph against effective pending state.",
       "acceptance": [
         "Source201-380: leaked entry, duplicate document creation, new conversation, all line reads, unkeyable scans, held-document reads. Verify disjoint jobs progress and dependent jobs wait."
@@ -66,7 +66,7 @@
         "durable/session_failure_value_v150_test.go",
         "durable/storage_refusal_value_v150_test.go"
       ],
-      "evidence": "Closed: public boundaries now carry the reported value with presence, independently of Go diagnostics. CommitResult.Refused is *Refusal (nil = absent) and returns the value verbatim; the Session failure slot keeps the cause chain intact for classification and exposes the thrown value through *Failure (SessionFailed.Failure, SessionEnd.Failure), including present null/undefined/false/0/empty string. Uncertain-append poisoning keeps the reported value reachable without changing its diagnostic text. Open: multipart own-error set, first-failing-job recording and prefix publication before fencing require the independent writer flight.",
+      "evidence": "Value/presence representation and writer installation are implemented. Stored own-listener failures now resolve their own commit before failing the Session. Session-level per-job fence, failure-boundary index and same-call own-outcome acceptance remain open.",
       "fix": "Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in durable/session_failure.go and durable/storage_public.go.",
       "acceptance": [
         "All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen."
@@ -90,7 +90,7 @@
         "durable/session_receipt.go",
         "durable/session_sync_observers.go"
       ],
-      "evidence": "Native publication runs on the Session line synchronously; no general Storage publication-scope interface. Source 698/721/753/770/796/815 require deferred scopes and inter-part continuation turns. Draft writer host only accepts a synchronous scope and cannot yet implement those cases.",
+      "evidence": "Session now publishes through the installed writer off the admission queue, with memory-lock adoption and host timer flushing after the part settles. Awaitable publication scope exists in the internal writer. Session continuation ordering/source698-815 acceptance remains open.",
       "fix": "Design one serial publication dispatcher with awaitable scope completion, explicit continuation/outcome ordering and failure rechecks immediately inside the deferred scope. Retain detached exact-prefix receipts and contain scope throws according to the source.",
       "acceptance": [
         "Source698-815 unchanged ordering assertions; defer a scope, throw without executing it, fail between parts and while scope is pending. No later part publishes."
