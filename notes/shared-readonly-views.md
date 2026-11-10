@@ -1,6 +1,6 @@
 # Shared readonly conversation views
 
-Public view watches now return shared readonly values. D14–D17 remain open because synchronous conversation observation, other observer surfaces and the complete assertion crosswalk still need work.
+Public view watches now return shared readonly values. D14–D17 remain open because wrapper/lifecycle acceptance, other observer surfaces and the complete assertion crosswalk still need work.
 
 ## Pinned contract
 
@@ -30,9 +30,20 @@ Final full development run passed durable713.829s/tools22.450s; the preceding fu
 
 Repository-wide vet/Staticcheck, logging, formatting and diff checks passed. The pinned oracle runner passes95 unchanged upstream tests and5 source probes. Acceptance profiling and release gates are outstanding.
 
+## Synchronous conversation observation
+
+`Harness.ObserveConversation` now uses the same readonly mounts. It delivers synchronously before commit outcomes return, retains its initial `Value`, and treats its context as acquisition-only. Detach suppresses future advance/end calls. Guard failures and end faults are contained and reported; normal Session close ends a synchronous observer `failed` with `session closed`, as `closeEndOf` requires. Watch endings retain their separate contract.
+
+Mount and observer order are explicit: first registration sets mount order, the last owner removes it, and removing its first observer does not reorder a surviving mount. A new membership test first failed with `[peer,first]` from map iteration; registration/mount ordering fixes it. The literal source525 synchronous-observer/window scenario passes. Stored settlement of a memory-only document change does not deliver a duplicate revision.
+
+Final combined verification after the maintenance fix below: durable384.947s/tools18.434s; repository-wide vet/Staticcheck and focused observer/maintenance suites pass. Synchronous observer functions pass ten shuffled repetitions (seed42).
+
+## Deferred maintenance regression
+
+A full run exposed stale prepared storage baselines during withdrawal/recovery. Source `#storeHolds` drains the writer before invoking its selector. Native maintenance selected and wrote holds before earlier receipts were published. It now drains first, then selects all current holds or filters a specific selection against current membership. The deterministic retained/released-hold cases fail the historical code overlay with the exact stale-baseline error and pass the correction. The original withdrawal/recovery test passes30 shuffled repetitions. This closes that reproduced race; full maintenance writer-path acceptance is separate.
+
 ## Remaining work
 
-1. Implement public synchronous `observeConversation` with source attachment, guard, membership and error/close semantics using the same readonly values. An asynchronous watch is not that interface.
-2. Complete wrapper fallback and repeated attach/detach lifetime acceptance. Audit every pinned view assertion; keep source-runtime GC timing differences explicit.
-3. Integrate readonly values into document/stored observation and finish host dispatch/waiter ordering (D16/D17).
-4. Continue private scheduler dependency, continuation and full durable assertion-crosswalk work. Green view slices do not establish complete upstream alignment.
+1. Complete wrapper fallback and repeated attach/detach lifetime acceptance, queued cancellation/close races, and every pinned view assertion.
+2. Integrate readonly values into document/stored observation and finish host dispatch/waiter ordering (D16/D17).
+3. Continue precise private scheduler dependencies, continuation and full durable assertion-crosswalk work. Acceptance profiling and release gates are outstanding.

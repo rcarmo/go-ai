@@ -60,6 +60,8 @@ type Session struct {
 	observerMu            sync.Mutex
 	watches               map[*DocumentWatch]bool
 	subscriptions         map[*CommitSubscription]bool
+	subscriptionOrder     uint64                        // observerMu; immutable registration ordinals
+	conversationMounts    map[ID]*conversationViewMount // observerMu; last-owner release
 	syncCommitObservers   []*sessionCommitObservation   // observerMu; insertion order
 	localCommitListeners  []*sessionCommitListener      // observerMu; copied Set order
 	documentObservers     []*sessionDocumentObservation // observerMu; private standalone lane

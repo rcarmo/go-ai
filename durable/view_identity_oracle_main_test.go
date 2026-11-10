@@ -394,3 +394,297 @@ func TestMainSharedViewRetainedEntryIdentityThroughTrim(t *testing.T) {
 		}
 	})
 }
+
+// Source view.ts observe()/attach(): synchronous membership, shared mount,
+// acquisition-only cancellation and isolated guard termination.
+func TestMainSharedViewSynchronousObservation(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		w, err := c.Watch(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer w.Stop()
+		baseline, err := w.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(bg)
+		defer cancel()
+		var advances []ConversationView
+		ends := 0
+		observation, err := h.ObserveConversation(ctx, c.ID(), ViewObserver{
+			Advance: func(_ context.Context, value ConversationView, _ []Operation) error {
+				advances = append(advances, value)
+				return nil
+			},
+			End: func(WatchEnd) error { ends++; return nil },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if observation.Value.Docs != baseline.Docs {
+			t.Fatal("synchronous observation does not share the watch mount")
+		}
+		cancel()
+		source525Notes(t, h.session, c.ID(), 1)
+		if len(advances) != 1 || ends != 0 {
+			t.Fatal("synchronous delivery or acquisition-only context mismatch", len(advances), ends)
+		}
+		if observation.Value.Entries.Len() != 0 || advances[0].Entries.Len() != 1 {
+			t.Fatal("observation must retain its initial revision")
+		}
+		observation.Detach()
+		observation.Detach()
+		source525Notes(t, h.session, c.ID(), 1)
+		if len(advances) != 1 || ends != 0 {
+			t.Fatal("detach delivered a later advance/end")
+		}
+	})
+}
+
+func TestMainSharedViewSynchronousObserverFailureAndClose(t *testing.T) {
+	for _, mode := range []string{"failure", "close"} {
+		t.Run(mode, func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				h, c := transcriptFixture(t, b)
+				failure := errors.New("observer failed")
+				var ends []WatchEnd
+				calls := 0
+				peerCalls := 0
+				observer, err := h.ObserveConversation(bg, c.ID(), ViewObserver{
+					Advance: func(context.Context, ConversationView, []Operation) error {
+						calls++
+						if mode == "failure" {
+							return failure
+						}
+						return nil
+					},
+					End: func(end WatchEnd) error { ends = append(ends, end); return nil },
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer observer.Detach()
+				peer, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error { peerCalls++; return nil }, End: func(WatchEnd) error { return nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer peer.Detach()
+				source525Notes(t, h.session, c.ID(), 1)
+				if calls != 1 || peerCalls != 1 {
+					t.Fatal("observer callbacks ran after commit delivery", calls, peerCalls)
+				}
+				if mode == "failure" {
+					if len(ends) != 1 || ends[0].Reason != "listener_error" || ends[0].Error != failure {
+						t.Fatal("listener failure ending", ends)
+					}
+					source525Notes(t, h.session, c.ID(), 1)
+					if calls != 1 || peerCalls != 2 {
+						t.Fatal("failing observer affected its peer", calls, peerCalls)
+					}
+				} else {
+					if err := h.Close(bg); err != nil {
+						t.Fatal(err)
+					}
+					if len(ends) != 1 || ends[0].Reason != "failed" || ends[0].Error == nil || ends[0].Error.Error() != "session closed" {
+						t.Fatal("close ending", ends)
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestMainSharedViewSynchronousMembershipOrder(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		var peer *ViewObservation
+		var calls []string
+		first, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error {
+			calls = append(calls, "first")
+			peer.Detach()
+			return nil
+		}, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer first.Detach()
+		peer, err = h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error { calls = append(calls, "peer"); return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer peer.Detach()
+		source525Notes(t, h.session, c.ID(), 1)
+		if !reflect.DeepEqual(calls, []string{"first"}) {
+			t.Fatal("source Set registration/detach order", calls)
+		}
+	})
+}
+
+// Literal source525 observer/watch inputs: six note records (data=index),
+// min2/max3 observation and min5 watch, followed by one note.
+func TestMainSharedViewSource525SynchronousWindow(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		written := upstreamViewNotes(t, h, 6)
+		var changes []ConversationView
+		observation, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(_ context.Context, value ConversationView, _ []Operation) error {
+			changes = append(changes, value)
+			return nil
+		}, End: func(WatchEnd) error { return nil }}, transcriptBounds(2, 3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer observation.Detach()
+		wide, err := c.Watch(bg, ConversationWindow{Min: source525Int(5)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer wide.Stop()
+		initial, err := wide.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(readonlyEntryIDs(t, observation.Value), written[4:]) || !reflect.DeepEqual(readonlyEntryIDs(t, initial), written[1:]) {
+			t.Fatal("source525 initial windows")
+		}
+		frames := make(chan ConversationView, 1)
+		if err := wide.Start(func(_ context.Context, value ConversationView, _ []Operation) error { frames <- value; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		next := upstreamViewNotes(t, h, 1)
+		frame := watchReceive(t, frames)
+		if len(changes) != 1 || !reflect.DeepEqual(readonlyEntryIDs(t, changes[0]), append(append([]ID{}, written[4:]...), next...)) || !reflect.DeepEqual(readonlyEntryIDs(t, frame), append(append([]ID{}, written[1:]...), next...)) {
+			t.Fatal("source525 independent append windows")
+		}
+		if changes[0].Docs != frame.Docs {
+			t.Fatal("source525 observation and watch do not share one mount")
+		}
+	})
+}
+func readonlyEntryIDs(t *testing.T, value ConversationView) []ID {
+	t.Helper()
+	ids := make([]ID, value.Entries.Len())
+	for i := range ids {
+		entry, _ := value.Entries.Index(i)
+		id, err := immutableViewMember(t, entry, "id").Number().Int64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[i] = ID(id)
+	}
+	return ids
+}
+
+func TestMainSharedViewSynchronousMemoryAdoption(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		f, c, live := mainMemoryConversation(t, b)
+		calls := 0
+		var value ConversationView
+		observation, err := c.h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(_ context.Context, next ConversationView, _ []Operation) error { calls++; value = next; return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer observation.Detach()
+		before, err := b.store.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mainMemoryLive(t, f, live, []Operation{{"s", []any{"text"}, "memory"}})
+		if calls != 1 || immutableViewMember(t, immutableViewMember(t, value.Docs, "pi.live"), "text").String() != "memory" {
+			t.Fatal("synchronous memory adoption missing", calls)
+		}
+		after, err := b.store.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Seq != before.Seq {
+			t.Fatal("memory-only publication already stored")
+		}
+		if err := f.session.UnloadDocuments(bg); err != nil {
+			t.Fatal(err)
+		}
+		if calls != 1 {
+			t.Fatal("held storage settlement duplicated observation", calls)
+		}
+	})
+}
+
+func TestMainSharedViewSynchronousMountAndCloseOrder(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		other, err := h.CreateConversation(bg, AgentChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var calls, ends []string
+		attach := func(id ID, label string) *ViewObservation {
+			observation, err := h.ObserveConversation(bg, id, ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error { calls = append(calls, label); return nil }, End: func(WatchEnd) error { ends = append(ends, label); return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return observation
+		}
+		first := attach(c.ID(), "removed")
+		peer := attach(other.ID(), "other")
+		defer peer.Detach()
+		retained := attach(c.ID(), "retained")
+		defer retained.Detach()
+		first.Detach()
+		checkpointCommit(t, h.session, func(tx *Tx) error {
+			for _, conversation := range []ID{c.ID(), other.ID()} {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if err := tx.AppendEntry(Entry{ID: id, Conversation: conversation, Kind: "note", Value: JSON{}}); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if !reflect.DeepEqual(calls, []string{"retained", "other"}) {
+			t.Fatal("mount Set order changed with first observer detachment", calls)
+		}
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(ends, []string{"retained", "other"}) {
+			t.Fatal("close did not preserve mount/observer Set order", ends)
+		}
+		h.session.observerMu.Lock()
+		mounts := len(h.session.conversationMounts)
+		h.session.observerMu.Unlock()
+		if mounts != 0 {
+			t.Fatal("last observer end retained mount owners", mounts)
+		}
+	})
+}
+
+func TestMainSharedViewSynchronousReportsAndContainsEndFault(t *testing.T) {
+	store, _ := newTestSQLite(t)
+	advanceFailure := errors.New("advance fault")
+	endFailure := errors.New("end fault")
+	var reports []error
+	h := taskTestHarnessOptions(t, store, Options{OnReportWithInfo: func(_ context.Context, err error, _ ReportInfo) { reports = append(reports, err) }})
+	c, err := h.Root(bg, AgentChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error { return advanceFailure }, End: func(WatchEnd) error { return endFailure }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bad.Detach()
+	calls := 0
+	peer, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(context.Context, ConversationView, []Operation) error { calls++; return nil }, End: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Detach()
+	source525Notes(t, h.session, c.ID(), 1)
+	if calls != 1 || !reflect.DeepEqual(reports, []error{advanceFailure, endFailure}) {
+		t.Fatal("observer/End faults were not isolated and reported", calls, reports)
+	}
+}

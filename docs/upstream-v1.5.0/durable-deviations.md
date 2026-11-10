@@ -80,7 +80,7 @@ boundary and continuation assertions have not been established. See
 
 ### D01 — Independent Session admission and storage batching
 
-**confirmed.** Fresh adapted source170 oracle: callbacks b/c do not run during held a; calls [1,1,1], expected [1,2]. Storage multi-batch support alone passes.
+**confirmed.** Writer installed and disjoint document transaction admission verified through Session.Commit and Harness.Commit. Source170-style held-storage test verifies new documents, callback progress, no early publication, [1,2] batches, consecutive receipt sequences and receipt-time createdAt. Public non-document and private scheduler dependency migration, and complete source outcome-order acceptance, remain open. Deferred persistence now drains earlier writer publications before selecting holds, matching session.ts #storeHolds. A deterministic receipted-but-unpublished two-case regression failed the old code with stale prepared storage baseline and now passes; the full suite and 30 repeated withdrawal/recovery runs pass. Maintenance still needs complete writer-path acceptance.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/writer.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/writer.ts).
 - Native/evidence: [`durable/session.go`](../../durable/session.go); [`durable/storage_group.go`](../../durable/storage_group.go).
@@ -225,25 +225,25 @@ boundary and continuation assertions have not been established. See
 
 ### D14 — Shared readonly conversation-view and observer values
 
-**confirmed.** Public ConversationHandle.View and ConversationWatch.Value/callbacks now expose sealed, comparable ReadonlyValue handles. Source160/330/525 watch identity assertions pass, including empty entries identity; entry-only revisions preserve docs, document-only revisions preserve entries and unaffected docs, concurrent windows share adopted docs. Explicit Copy preserves detached-content/operation tests. Public synchronous observeConversation is still absent; complete observer/API and wrapper contracts remain open.
+**confirmed.** Public View/Watch and Harness.ObserveConversation use sealed comparable readonly values. Source160/330/525 identities, empty entries identity, peer isolation and canonical public entry fields pass. Synchronous observation shares the watch mount and delivers before commit return; source525 now exercises the literal synchronous-observer/min2-max3 plus min5-watch scenario. Context governs attachment only. Guard failures and end faults are isolated/reported; ordinary close ends synchronous observers failed with session closed. Mount/observer insertion order survives first-observer detachment. Complete wrapper/lifecycle/API assertion acceptance remains open.
 
 - Source: [`test/harness-view.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-view.test.ts); [`src/harness/view.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/view.ts).
 - Native/evidence: [`durable/view.go`](../../durable/view.go); [`durable/view_publication.go`](../../durable/view_publication.go); [`durable/immutable_value.go`](../../durable/immutable_value.go).
-- Fix: Complete the synchronous observeConversation surface and its guard/dispatch contracts using the same readonly values. Audit wrapper fallback identity, bounded retention and every pinned assertion. Keep the watch API readonly; mutable data requires explicit Copy.
+- Fix: Complete the wrapper fallback, acquisition/lifecycle stress and full assertion-level view audit. Reconcile remaining cross-surface observer ownership/dispatch and error-value contracts without exposing mutable aliases.
 - Acceptance: Promoted source160/330/525 identity assertions retain object-identity semantics through comparable readonly handles; source160/274/330/525 content/window/identity, readonly authority, peer isolation, remount and complete synchronous-observer acceptance.
 - Dependencies: none recorded.
-- Blocker/decision: none identified; synchronous observeConversation and complete assertion-level acceptance still required
+- Blocker/decision: none identified; complete assertion-level acceptance still required
 
 ### D15 — View/entry identity lifetime, mount collection and empty-array identity
 
-**unverified.** Public readonly handles now represent empty-array and individual entry-node identity. New production-watch tests verify retained entries through append/trim, late attachment shares the adopted docs, last stop removes all mount owners, and remount creates equal docs with new identity. A source570-shaped first-note/200-more SQLite test collects the actual readonly EntryRecord node within three GCs after releasing a positive retention control. Existing backing-array GC tests remain. Broader observation surfaces and repeated lifecycle stress remain open.
+**unverified.** Public readonly handles now represent empty-array and individual entry-node identity. New production-watch tests verify retained entries through append/trim, late attachment shares the adopted docs, last stop removes all mount owners, and remount creates equal docs with new identity. A source570-shaped first-note/200-more SQLite test collects the actual readonly EntryRecord node within three GCs after releasing a positive retention control. Existing backing-array GC tests remain. Broader observation surfaces and repeated lifecycle stress remain open. Synchronous observations now share those mounts; explicit owner counts release the last mount, preserve mount insertion order after first-observer detachment, and govern close order.
 
 - Source: [`test/harness-view.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-view.test.ts); [`src/harness/transcript.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/transcript.ts); [`src/harness/view.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/view.ts).
 - Native/evidence: [`durable/view_gc_oracle_main_test.go`](../../durable/view_gc_oracle_main_test.go); [`durable/view_identity_oracle_main_test.go`](../../durable/view_identity_oracle_main_test.go); [`durable/view_window.go`](../../durable/view_window.go).
-- Fix: Finish lifetime coverage across synchronous observeConversation, wrappers and repeated attachment/detachment. Preserve individual node identity and bounded cleanup without retaining prior histories.
+- Fix: Complete synchronous/wrapper lifetime stress and the full assertion crosswalk. Preserve individual node identity and bounded cleanup without retaining prior histories.
 - Acceptance: Source274 remount, source570 individual record lifetime, shared slices/windows and last-detach cleanup; bounded retention and repeated attach/detach stress.
 - Dependencies: D14.
-- Blocker/decision: none identified; the remaining public observation path and complete lifetime crosswalk require acceptance
+- Blocker/decision: none identified; complete lifecycle and assertion-level acceptance still required
 
 ### D16 — Public observeCommits host dispatch and waiter ordering
 

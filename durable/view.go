@@ -112,6 +112,8 @@ type ConversationWatch struct {
 	current            ConversationViewCopy
 	readonlyCurrent    ConversationView
 	readonlyHead       ConversationView
+	observer           *ViewObservation
+	mount              *conversationViewMount
 	sub                *CommitSubscription
 	limits             Limits
 	window             conversationWindowBounds
@@ -122,6 +124,9 @@ type ConversationWatch struct {
 }
 
 func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWindow) (*ConversationWatch, error) {
+	return c.attachWatch(ctx, nil, window...)
+}
+func (c *ConversationHandle) attachWatch(ctx context.Context, observation *ViewObservation, window ...ConversationWindow) (*ConversationWatch, error) {
 	if c.h.closing.Load() {
 		return nil, ErrClosed
 	}
@@ -141,9 +146,17 @@ func (c *ConversationHandle) Watch(ctx context.Context, window ...ConversationWi
 		}
 		frozen = c.h.session.shareConversationDocuments(frozen)
 		watch = &ConversationWatch{readonlyCurrent: frozen, readonlyHead: frozen, current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if observation != nil {
+			observation.watch = watch
+			observation.Value = frozen
+			watch.observer = observation
+		}
 		p.conversation = watch
 		return nil
-	})
+	}, observation != nil)
 	if err != nil {
 		return nil, err
 	}

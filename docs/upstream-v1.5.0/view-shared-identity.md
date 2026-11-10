@@ -10,7 +10,7 @@ A public wire regression first failed because views exposed native entry envelop
 
 Verification: eight readonly-watch functions pass five shuffled repetitions (seed42); final full durable713.829s/tools22.450s; repository-wide vet/Staticcheck, logging and diff checks pass. The preceding full run passed376.429s/15.796s. No performance conclusion is established from this timing variance; notes/shared-readonly-views.md records the subsequent disk-pressure observation and project-cache cleanup.
 
-D14/D15 stay open: synchronous `observeConversation` is absent, wrapper/lifetime acceptance needs a complete assertion crosswalk, and the broader observer dispatch work is separate. Row314 remains `partial`. This is development verification; acceptance profiling and release gates are outstanding.
+D14/D15 stay open for the complete wrapper/lifetime/API assertion crosswalk. Public synchronous `Harness.ObserveConversation` is now implemented on the same mounts, including literal source525 windows, acquisition-only cancellation, guard fault isolation/reporting, failed-with-session-closed endings and stable mount/observer registration order. Synchronous controls pass ten shuffled repetitions. Final combined full run after the reproduced deferred-maintenance race fix: durable384.947s/tools18.434s. The broader stored/document observer work remains separate. Row314 remains `partial`. This is development verification; acceptance profiling and release gates are outstanding.
 
 ## Historical failing baselines
 

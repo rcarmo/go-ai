@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 )
 
@@ -408,6 +409,7 @@ func (s *Session) kickWatches() {
 		subs = append(subs, p)
 	}
 	s.observerMu.Unlock()
+	sort.Slice(subs, func(i, j int) bool { return subscriptionLess(subs[i], subs[j]) })
 	for _, w := range watchers {
 		w.kick()
 	}
@@ -426,6 +428,7 @@ func (s *Session) closeWatches() {
 		subs = append(subs, p)
 	}
 	s.observerMu.Unlock()
+	sort.Slice(subs, func(i, j int) bool { return subscriptionLess(subs[i], subs[j]) })
 	end := WatchEnd{Reason: "session_closed"}
 	if err := s.failure(); err != nil {
 		end = WatchEnd{Reason: "session_failed", Error: err}
@@ -594,6 +597,7 @@ type PublicationFrame struct {
 type CommitSubscription struct {
 	mu                      sync.Mutex
 	session                 *Session
+	order                   uint64 // immutable Session registration ordinal
 	pending                 []PublicationFrame
 	sizes                   []int64
 	bytes                   int64
@@ -650,7 +654,11 @@ func (p *CommitSubscription) stop(end WatchEnd) {
 	p.mu.Unlock()
 	p.session.observerMu.Lock()
 	delete(p.session.subscriptions, p)
+	p.session.releaseConversationMountLocked(p)
 	p.session.observerMu.Unlock()
+	if p.conversation != nil && p.conversation.observer != nil {
+		p.conversation.observer.end(end)
+	}
 }
 func (p *CommitSubscription) kick() {
 	p.mu.Lock()
@@ -747,7 +755,7 @@ func (s *Session) SubscribeCommits(ctx context.Context) (Snapshot, *CommitSubscr
 }
 
 // attach is internal projection setup, under the same line as registration.
-func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *CommitSubscription) error) (Snapshot, *CommitSubscription, error) {
+func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *CommitSubscription) error, acquisitionOnly ...bool) (Snapshot, *CommitSubscription, error) {
 	if e := s.enter(ctx); e != nil {
 		return Snapshot{}, nil, e
 	}
@@ -794,9 +802,13 @@ func (s *Session) subscribeCommits(ctx context.Context, attach func(Snapshot, *C
 	if s.subscriptions == nil {
 		s.subscriptions = map[*CommitSubscription]bool{}
 	}
+	p.order = s.subscriptionOrder
+	s.subscriptionOrder++
+	s.registerConversationMountLocked(p)
 	s.subscriptions[p] = true
 	s.observerMu.Unlock()
-	if ctx.Done() != nil {
+	onlyAttach := len(acquisitionOnly) > 0 && acquisitionOnly[0]
+	if !onlyAttach && ctx.Done() != nil {
 		go func() {
 			select {
 			case <-ctx.Done():
@@ -863,6 +875,7 @@ func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication Comm
 		}
 	}
 	s.observerMu.Unlock()
+	sort.Slice(list, func(i, j int) bool { return subscriptionLess(list[i], list[j]) })
 	if len(list) == 0 {
 		return nil, nil
 	}
@@ -935,6 +948,22 @@ func (s *Session) enqueueSubscriptions(prepared []preparedSubscription) {
 		}
 		if item.headOnly {
 			p.mu.Unlock()
+			continue
+		}
+		if w := p.conversation; w != nil && w.observer != nil {
+			frame, size := item.frame, item.size
+			if frame.conversation == nil {
+				frame, size = item.reset, item.resetSize
+			}
+			if size > p.quota {
+				frame, size = item.reset, item.resetSize
+			}
+			p.mu.Unlock()
+			if size > p.quota {
+				p.stop(WatchEnd{Reason: "budget_exceeded"})
+			} else {
+				w.observer.advance(frame)
+			}
 			continue
 		}
 		frame, size := item.frame, item.size

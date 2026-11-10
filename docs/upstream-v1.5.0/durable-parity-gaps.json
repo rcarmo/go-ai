@@ -16,7 +16,7 @@
         "durable/session.go",
         "durable/storage_group.go"
       ],
-      "evidence": "Writer installed and disjoint document transaction admission verified through Session.Commit and Harness.Commit. Source170-style held-storage test verifies new documents, callback progress, no early publication, [1,2] batches, consecutive receipt sequences and receipt-time createdAt. Public non-document and private scheduler dependency migration, and complete source outcome-order acceptance, remain open.",
+      "evidence": "Writer installed and disjoint document transaction admission verified through Session.Commit and Harness.Commit. Source170-style held-storage test verifies new documents, callback progress, no early publication, [1,2] batches, consecutive receipt sequences and receipt-time createdAt. Public non-document and private scheduler dependency migration, and complete source outcome-order acceptance, remain open. Deferred persistence now drains earlier writer publications before selecting holds, matching session.ts #storeHolds. A deterministic receipted-but-unpublished two-case regression failed the old code with stale prepared storage baseline and now passes; the full suite and 30 repeated withdrawal/recovery runs pass. Maintenance still needs complete writer-path acceptance.",
       "fix": "Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.",
       "acceptance": [
         "Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order."
@@ -335,15 +335,16 @@
         "durable/view_publication.go",
         "durable/immutable_value.go",
         "durable/view_readonly.go",
-        "durable/view_identity_oracle_main_test.go"
+        "durable/view_identity_oracle_main_test.go",
+        "durable/view_observer.go"
       ],
-      "evidence": "Public ConversationHandle.View and ConversationWatch.Value/callbacks now expose sealed, comparable ReadonlyValue handles. Source160/330/525 watch identity assertions pass, including empty entries identity; entry-only revisions preserve docs, document-only revisions preserve entries and unaffected docs, concurrent windows share adopted docs. Explicit Copy preserves detached-content/operation tests. Public synchronous observeConversation is still absent; complete observer/API and wrapper contracts remain open.",
-      "fix": "Complete the synchronous observeConversation surface and its guard/dispatch contracts using the same readonly values. Audit wrapper fallback identity, bounded retention and every pinned assertion. Keep the watch API readonly; mutable data requires explicit Copy.",
+      "evidence": "Public View/Watch and Harness.ObserveConversation use sealed comparable readonly values. Source160/330/525 identities, empty entries identity, peer isolation and canonical public entry fields pass. Synchronous observation shares the watch mount and delivers before commit return; source525 now exercises the literal synchronous-observer/min2-max3 plus min5-watch scenario. Context governs attachment only. Guard failures and end faults are isolated/reported; ordinary close ends synchronous observers failed with session closed. Mount/observer insertion order survives first-observer detachment. Complete wrapper/lifecycle/API assertion acceptance remains open.",
+      "fix": "Complete the wrapper fallback, acquisition/lifecycle stress and full assertion-level view audit. Reconcile remaining cross-surface observer ownership/dispatch and error-value contracts without exposing mutable aliases.",
       "acceptance": [
         "Promoted source160/330/525 identity assertions retain object-identity semantics through comparable readonly handles; source160/274/330/525 content/window/identity, readonly authority, peer isolation, remount and complete synchronous-observer acceptance."
       ],
       "depends": [],
-      "blocker": "none identified; synchronous observeConversation and complete assertion-level acceptance still required"
+      "blocker": "none identified; complete assertion-level acceptance still required"
     },
     {
       "id": "D15",
@@ -359,15 +360,15 @@
         "durable/view_identity_oracle_main_test.go",
         "durable/view_window.go"
       ],
-      "evidence": "Public readonly handles now represent empty-array and individual entry-node identity. New production-watch tests verify retained entries through append/trim, late attachment shares the adopted docs, last stop removes all mount owners, and remount creates equal docs with new identity. A source570-shaped first-note/200-more SQLite test collects the actual readonly EntryRecord node within three GCs after releasing a positive retention control. Existing backing-array GC tests remain. Broader observation surfaces and repeated lifecycle stress remain open.",
-      "fix": "Finish lifetime coverage across synchronous observeConversation, wrappers and repeated attachment/detachment. Preserve individual node identity and bounded cleanup without retaining prior histories.",
+      "evidence": "Public readonly handles now represent empty-array and individual entry-node identity. New production-watch tests verify retained entries through append/trim, late attachment shares the adopted docs, last stop removes all mount owners, and remount creates equal docs with new identity. A source570-shaped first-note/200-more SQLite test collects the actual readonly EntryRecord node within three GCs after releasing a positive retention control. Existing backing-array GC tests remain. Broader observation surfaces and repeated lifecycle stress remain open. Synchronous observations now share those mounts; explicit owner counts release the last mount, preserve mount insertion order after first-observer detachment, and govern close order.",
+      "fix": "Complete synchronous/wrapper lifetime stress and the full assertion crosswalk. Preserve individual node identity and bounded cleanup without retaining prior histories.",
       "acceptance": [
         "Source274 remount, source570 individual record lifetime, shared slices/windows and last-detach cleanup; bounded retention and repeated attach/detach stress."
       ],
       "depends": [
         "D14"
       ],
-      "blocker": "none identified; the remaining public observation path and complete lifetime crosswalk require acceptance"
+      "blocker": "none identified; complete lifecycle and assertion-level acceptance still required"
     },
     {
       "id": "D16",
