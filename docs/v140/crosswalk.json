@@ -628,7 +628,7 @@
         "durable/document_checkpoint_test.go",
         "durable/document_definition_test.go",
         "durable/document_history_test.go",
-        "durable/document_retention_120_test.go",
+        "durable/session_document_cache_test.go",
         "durable/harness_documents_test.go"
       ],
       "note": "Native deterministic contracts; no live credential claim."
@@ -941,7 +941,7 @@
         "durable/tool_sequential_abort_test.go",
         "durable/tool_structured_120_test.go",
         "durable/tool_truncation_test.go",
-        "durable/tools/bash_failure_receipt_test.go",
+        "durable/tools/integration_test.go",
         "durable/tools/bash_options_test.go",
         "durable/tools/bash_test.go",
         "durable/tools/edit_fuzzy_test.go",

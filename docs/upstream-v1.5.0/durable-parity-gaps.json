@@ -63,7 +63,7 @@
         "durable/storage_public.go",
         "durable/storage_group.go",
         "durable/storage.go",
-        "durable/session_failure_value_v150_test.go",
+        "durable/session_group_commit_outcomes_test.go",
         "durable/storage_refusal_value_v150_test.go"
       ],
       "evidence": "Arbitrary failure-value presence, own backend-error identity, admission job indices, first-failure boundary, last fenced delivery and same-call own-error set are installed. New Session tests cover poisoning later successful/error callbacks and cold reads, plus receipted parts in a call rejected after storage with undefined/null/falsy values and durable-prefix reopen. Complete source parameter/entry-surface audit remains open.",
