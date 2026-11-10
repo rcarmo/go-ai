@@ -59,7 +59,7 @@ func TestMainPublicDocumentObserverQueuedAttachment(t *testing.T) {
 			admission := &mainCommitAdmissionContext{Context: base, entered: make(chan struct{})}
 			calls := make(chan struct{}, 1)
 			go func() {
-				obs, found, err := s.ObserveDefinition(admission, def, owner, nil, DocumentObserver{Advance: func(context.Context, WatchFrame) error { calls <- struct{}{}; return nil }, End: func(WatchEnd) error { return nil }})
+				obs, found, err := s.ObserveDefinition(admission, def, owner, nil, DocumentObserver{Advance: func(context.Context, DocumentCall) error { calls <- struct{}{}; return nil }, End: func(WatchEnd) error { return nil }})
 				attachDone <- struct {
 					observation *DocumentObservation
 					found       bool
@@ -88,7 +88,7 @@ func TestMainPublicDocumentObserverQueuedAttachment(t *testing.T) {
 					t.Fatalf("cancelled: %+v", got)
 				}
 			} else {
-				if got.err != nil || !got.found || got.observation == nil || got.observation.Value["count"] != json.Number("11") {
+				if got.err != nil || !got.found || got.observation == nil || immutableViewMember(t, got.observation.Value, "count").Number() != json.Number("11") {
 					t.Fatalf("baseline: %+v", got)
 				}
 				got.observation.Detach()

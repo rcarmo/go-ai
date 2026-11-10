@@ -14,8 +14,8 @@ import (
 // Source f9a26365 harness-observers.test.ts:308: a task-owned document
 // observation gets its retirement and then ends at the task's deciding commit,
 // both outside storage adoption. Go uses explicit TaskRuntime/document IDs,
-// detached values and synchronous error-return callbacks; JS reference
-// identity is not represented by this fixture.
+// readonly values and synchronous error-return callbacks. Document identity
+// assertions are in session_public_document_observer_main_test.go.
 func TestMainHarnessDocumentObserverOwnerRetirement(t *testing.T) {
 	runHarnessDocumentObserverOwnerRetirement(t, false)
 }
@@ -108,14 +108,14 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 	}
 	type call struct {
 		kind     string
-		frame    WatchFrame
+		frame    DocumentCall
 		end      WatchEnd
 		adopting bool
 		coreHeld bool
 	}
 	calls := make(chan call, 3)
 	observation, ok, err := h.ObserveDefinition(context.Background(), def, id, nil, DocumentObserver{
-		Advance: func(_ context.Context, frame WatchFrame) error {
+		Advance: func(_ context.Context, frame DocumentCall) error {
 			calls <- call{kind: "advance", frame: frame, adopting: adopting.Load(), coreHeld: insideCore()}
 			return nil
 		},
@@ -130,7 +130,7 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 		return
 	}
 	defer observation.Detach()
-	if !reflect.DeepEqual(observation.Value["lines"], []any{"started"}) {
+	if !reflect.DeepEqual(immutableViewMember(t, observation.Value, "lines").Copy(), []any{"started"}) {
 		t.Fatalf("observation baseline: %v", observation.Value)
 	}
 	if testRollback {
@@ -160,7 +160,7 @@ func runHarnessDocumentObserverOwnerRetirement(t *testing.T, testRollback bool) 
 			if got.kind != expected || got.adopting || got.coreHeld {
 				t.Errorf("source308 %s: kind=%s append=%v core-held=%v", expected, got.kind, got.adopting, got.coreHeld)
 			}
-			if expected == "advance" && (!got.frame.Retired || !reflect.DeepEqual(got.frame.Value["lines"], []any{"started"}) || len(got.frame.Ops) != 0) {
+			if expected == "advance" && (!got.frame.Retired || !reflect.DeepEqual(immutableViewMember(t, got.frame.Value, "lines").Copy(), []any{"started"}) || len(got.frame.Ops) != 0) {
 				t.Errorf("source308 retirement: %+v", got.frame)
 			}
 			if expected == "end" && (got.end.Reason != "ended" || got.end.Error != nil) {

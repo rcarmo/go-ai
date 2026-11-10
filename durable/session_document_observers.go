@@ -10,9 +10,11 @@ import (
 // and must not block or synchronously call Session/Storage APIs. Public API
 // ownership and re-entry semantics remain separate work.
 type sessionDocumentObserver struct {
-	advance func(context.Context, WatchFrame) error
-	end     func(WatchEnd) error
-	report  func(context.Context, error, ReportInfo)
+	advance         func(context.Context, WatchFrame) error
+	readonlyAdvance func(context.Context, DocumentCall) error
+	initialReadonly func(ReadonlyValue)
+	end             func(WatchEnd) error
+	report          func(context.Context, error, ReportInfo)
 }
 
 type sessionDocumentObservation struct {
@@ -23,6 +25,7 @@ type sessionDocumentObservation struct {
 	address  DocumentAddress
 	id       ID
 	version  uint64
+	readonly ReadonlyValue
 	value    JSON  // current followed value; cleared on retirement/detach
 	quota    int64 // immutable registration reservation, read under observerMu
 	limits   Limits
@@ -32,7 +35,7 @@ type sessionDocumentObservation struct {
 // it. Attachment and baseline are captured together under the Session line.
 // Its context governs acquisition only, not the lifetime of the returned guard.
 func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string, observer sessionDocumentObserver) (*sessionDocumentObservation, JSON, bool, error) {
-	if observer.advance == nil || observer.end == nil {
+	if (observer.advance == nil && observer.readonlyAdvance == nil) || observer.end == nil {
 		return nil, nil, false, reject("incomplete synchronous document observer")
 	}
 	if err := s.enter(ctx); err != nil {
@@ -89,7 +92,18 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 	if err != nil {
 		return nil, nil, false, err
 	}
-	observation := &sessionDocumentObservation{session: s, observer: observer, address: documentAddress(record), id: record.ID, version: def.options.Version, value: value, quota: quota, limits: s.limits}
+	var frozen ReadonlyValue
+	if observer.readonlyAdvance != nil {
+		frozen, err = s.documentObservationReadonly(record.ID, def.options.Version, value)
+		if err != nil {
+			return nil, nil, false, err
+		}
+	}
+	if observer.initialReadonly != nil {
+		observer.initialReadonly(frozen)
+		observer.initialReadonly = nil
+	}
+	observation := &sessionDocumentObservation{readonly: frozen, session: s, observer: observer, address: documentAddress(record), id: record.ID, version: def.options.Version, value: value, quota: quota, limits: s.limits}
 	s.observerMu.Lock()
 	if err := s.failure(); err != nil {
 		s.observerMu.Unlock()
@@ -127,6 +141,7 @@ func (o *sessionDocumentObservation) release() (sessionDocumentObserver, bool) {
 	o.mu.Lock()
 	s, observer, listener := o.session, o.observer, o.listener
 	o.session, o.observer, o.listener, o.value, o.id = nil, sessionDocumentObserver{}, nil, nil, 0
+	o.readonly = nil
 	o.mu.Unlock()
 	if s == nil {
 		return sessionDocumentObserver{}, false
@@ -191,7 +206,7 @@ func (o *sessionDocumentObservation) fail(ctx context.Context, observer sessionD
 
 // Each change is delivered separately. Recheck attachment on every iteration:
 // an earlier callback may detach this guard or a later captured guard.
-func (o *sessionDocumentObservation) advance(ctx context.Context, publication CommitPublication) {
+func (o *sessionDocumentObservation) advance(ctx context.Context, publication CommitPublication, shared ...[]ReadonlyValue) {
 	ownerEnd := false
 	if o.address.Scope == "task" {
 		for _, write := range publication.Tables {
@@ -200,7 +215,7 @@ func (o *sessionDocumentObservation) advance(ctx context.Context, publication Co
 			}
 		}
 	}
-	for _, change := range publication.Documents {
+	for index, change := range publication.Documents {
 		o.mu.Lock()
 		if o.session == nil {
 			o.mu.Unlock()
@@ -251,13 +266,44 @@ func (o *sessionDocumentObservation) advance(ctx context.Context, publication Co
 		if err != nil {
 			o.id, o.value = 0, nil
 		}
+		var frozen ReadonlyValue
+		if err == nil && observer.readonlyAdvance != nil {
+			if retired {
+				frozen = o.readonly
+				o.readonly = nil
+			} else {
+				if len(shared) > 0 {
+					frozen = shared[0][index]
+				}
+				if frozen == nil {
+					var node *ImmutableValue
+					if o.readonly == nil || len(operations) == 0 || operations[0][0] == "r" {
+						node, err = NewImmutableValue(value, o.limits)
+					} else {
+						node, err = applyImmutableValue(o.readonly.immutableNode(), operations, o.limits)
+					}
+					if err == nil {
+						frozen = readonlyValue(node)
+						if len(shared) > 0 {
+							shared[0][index] = frozen
+						}
+					}
+				}
+				o.readonly = frozen
+			}
+		}
 		o.mu.Unlock()
 		if err != nil {
 			o.fail(ctx, observer, err)
 			return
 		}
 		frame := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: value, Ops: operations, Context: ctx}
-		if err := callSessionCommitObserver(func() error { return observer.advance(ctx, frame) }); err != nil {
+		if err := callSessionCommitObserver(func() error {
+			if observer.readonlyAdvance != nil {
+				return observer.readonlyAdvance(ctx, DocumentCall{Kind: "value", Value: frozen, Ops: operations, Retired: retired})
+			}
+			return observer.advance(ctx, frame)
+		}); err != nil {
 			o.fail(ctx, observer, err)
 			return
 		}
@@ -287,4 +333,26 @@ func (s *Session) endDocumentObservers() {
 			endDocumentObserver(observer, WatchEnd{Reason: "failed", Error: cause})
 		}
 	}
+}
+
+// Registration runs on the Session line. Existing address/version observers
+// already own its adopted readonly node; attachment must reuse that identity.
+func (s *Session) documentObservationReadonly(id ID, version uint64, value JSON) (ReadonlyValue, error) {
+	s.observerMu.Lock()
+	for _, observation := range s.documentObservers {
+		observation.mu.Lock()
+		node := observation.readonly
+		matches := observation.id == id && observation.version == version && node != nil
+		observation.mu.Unlock()
+		if matches {
+			s.observerMu.Unlock()
+			return node, nil
+		}
+	}
+	s.observerMu.Unlock()
+	node, err := NewImmutableValue(value, s.limits)
+	if err != nil {
+		return nil, err
+	}
+	return readonlyValue(node), nil
 }

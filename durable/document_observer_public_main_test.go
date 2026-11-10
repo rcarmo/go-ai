@@ -42,14 +42,14 @@ func TestMainPublicHarnessDocumentObserverIsolationAndClose(t *testing.T) {
 	var badEnds, goodEnds []WatchEnd
 	var badCalls, goodCalls int
 	bad, found, err := h.ObserveDefinition(bg, def, root.ID(), nil, DocumentObserver{
-		Advance: func(context.Context, WatchFrame) error { badCalls++; return failure },
+		Advance: func(context.Context, DocumentCall) error { badCalls++; return failure },
 		End:     func(end WatchEnd) error { badEnds = append(badEnds, end); return nil },
 	})
 	if err != nil || !found || bad == nil {
 		t.Fatal(found, err)
 	}
 	good, found, err := root.ObserveDefinition(bg, def, nil, DocumentObserver{
-		Advance: func(context.Context, WatchFrame) error { goodCalls++; return nil },
+		Advance: func(context.Context, DocumentCall) error { goodCalls++; return nil },
 		End:     func(end WatchEnd) error { goodEnds = append(goodEnds, end); return nil },
 	})
 	if err != nil || !found || good == nil {

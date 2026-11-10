@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// Source session-observers.test.ts:132, 469, 496 and 520. Values are detached
-// Go maps and returned errors adapt source throws; JS identity is not tested.
+// Source session-observers.test.ts:132, 469, 496 and 520. Public values are
+// readonly handles; returned Go errors adapt source throws.
 func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 	for _, mode := range []string{"follow", "self-detach", "peer-detach", "error"} {
 		t.Run(mode, func(t *testing.T) {
@@ -19,11 +19,11 @@ func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 			}
 			var first, second *DocumentObservation
 			var calls []string
-			var firstFrames, secondFrames []WatchFrame
+			var firstFrames, secondFrames []DocumentCall
 			var firstEnds, secondEnds []WatchEnd
 			failure := errors.New("retirement callback failed")
 			first, found, err := s.ObserveDefinition(bg, def, owner, nil, DocumentObserver{
-				Advance: func(_ context.Context, frame WatchFrame) error {
+				Advance: func(_ context.Context, frame DocumentCall) error {
 					calls = append(calls, "first")
 					firstFrames = append(firstFrames, frame)
 					if frame.Retired {
@@ -44,7 +44,7 @@ func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 				t.Fatal(found, err)
 			}
 			second, found, err = s.ObserveDefinition(bg, def, owner, nil, DocumentObserver{
-				Advance: func(_ context.Context, frame WatchFrame) error {
+				Advance: func(_ context.Context, frame DocumentCall) error {
 					calls = append(calls, "second")
 					secondFrames = append(secondFrames, frame)
 					return nil
@@ -79,11 +79,11 @@ func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 			if !reflect.DeepEqual(calls, want) {
 				t.Fatalf("calls %v want %v", calls, want)
 			}
-			if len(firstFrames) == 0 || !firstFrames[0].Retired || firstFrames[0].Value["count"] != json.Number("1") || len(firstFrames[0].Ops) != 0 {
+			if len(firstFrames) == 0 || !firstFrames[0].Retired || immutableViewMember(t, firstFrames[0].Value, "count").Number() != json.Number("1") || len(firstFrames[0].Ops) != 0 {
 				t.Fatalf("retirement %+v", firstFrames)
 			}
 			if mode == "follow" || mode == "peer-detach" {
-				if len(firstFrames) != 2 || firstFrames[1].Retired || firstFrames[1].Value["count"] != json.Number("2") || len(firstFrames[1].Ops) != 1 || firstFrames[1].Ops[0][0] != "r" {
+				if len(firstFrames) != 2 || firstFrames[1].Retired || immutableViewMember(t, firstFrames[1].Value, "count").Number() != json.Number("2") || len(firstFrames[1].Ops) != 1 || firstFrames[1].Ops[0][0] != "r" {
 					t.Fatalf("replacement %+v", firstFrames)
 				}
 			}

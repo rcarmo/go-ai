@@ -258,11 +258,11 @@ boundary and continuation assertions have not been established. See
 
 ### D17 — Synchronous document observer readonly identity and full contract
 
-**unverified.** Public Session/Harness/ConversationHandle ObserveDefinition has focused passing guards and lifecycle tests; returned values are detached. Some mutation fault probes survived. TaskRuntime source uses watchDoc, not synchronous observeDoc; earlier ownership-gap diagnoses need reconciliation.
+**unverified.** Public Session/Harness/ConversationHandle ObserveDefinition now returns ReadonlyValue and delivers DocumentCall rather than mutable WatchFrame maps. Source132 retirement retains attachment-value identity; the current literal two-commit test includes missing-address reattachment, count2/count9 and exact replacement ops. Concurrent observers share initial/adopted nodes, untouched branches persist and late attachment reuses a live adopted node. Existing absent/stored/memory/guard/cancellation/owner-retirement controls pass through the readonly API. Snapshot/watch cache identity, reload/eviction lifetime, arbitrary cancellation reasons and complete observer assertion acceptance remain open.
 
 - Source: [`test/session-observers.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-observers.test.ts); [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts).
 - Native/evidence: [`durable/session_document_observers.go`](../../durable/session_document_observers.go); [`durable/session_public_document_observer_main_test.go`](../../durable/session_public_document_observer_main_test.go); [`durable/observation.go`](../../durable/observation.go).
-- Fix: Map the exact original DocumentObserver vs Session observer surfaces. Preserve synchronous forbidden-reentry rules and readonly identity; port remaining acquisition, cancellation, lifecycle and listener assertions before expanding APIs.
+- Fix: Complete shared readonly materialization across snapshots/watches/observers, version reload and cache lifetime; port exact queued cancellation/error causes and remaining observer assertions. Keep synchronous callback, detach/end, pinning and scheduler ownership contracts.
 - Acceptance: Source77/87/105/132/162/241/254/308/469/496/520, detach/end guards, queued acquisition/cancellation, retirement/recreation, scheduler publication and immutable values.
 - Dependencies: D14, D16.
 - Blocker/decision: none identified; acceptance still required

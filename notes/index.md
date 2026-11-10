@@ -9,7 +9,10 @@ Compact index. Read a linked note only when it is relevant to the current task.
   discovery and normalized declaration inventories; verification and remaining scope.
 
 - [Shared readonly views](shared-readonly-views.md) — pinned identity contracts,
-  immutable replay/encoding groundwork, and the public mount migration still required.
+  implemented public readonly mounts, persistent replay, and remaining lifecycle acceptance.
+
+- [Readonly document observers](document-readonly-observers.md) — source132 retirement identity,
+  shared synchronous revisions, API migration and remaining cross-surface cache contracts.
 
 ## Related
 

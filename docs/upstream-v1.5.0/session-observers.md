@@ -1,5 +1,17 @@
 # Session observers at v1.5.0
 
+## Current readonly document-observer slice
+
+Public `ObserveDefinition` returns sealed comparable readonly values and delivers `DocumentCall`. Source132 retirement identity now passes; its current literal scenario uses two separate commits, absent-address reattachment between them, count2/count9, and exact replacement operations. Concurrent observations share each adopted node, keep unchanged child identity and reuse an active revision on late attachment. Explicit Copy returns mutable data. Public callers were migrated; private trusted WatchFrame controls retain their narrower content adapter.
+
+The source132 identity assertion initially failed in a same-commit native probe. That failing probe was supplemented by the literal upstream two-commit scenario; they are distinct receipts. The source remains `f9a26365568127461c47a07a37dcb42c140a3ac5`. No upstream test/source files were edited.
+
+Verification: public document-observer functions pass ten shuffled repetitions (seed42); full durable401.912s/tools18.420s; repository-wide vet/Staticcheck pass. The oracle runner now includes all22 unchanged session-observers tests:117 unchanged source tests +5 probes pass. The full native run preceded only the final source132 test-strengthening and comment changes; the strengthened cases pass the focused gate.
+
+D16/D17 and row338 remain open. Snapshot/watch shared cache identity, version/reload/eviction lifetimes, exact cancellation reasons and full stored-observer host dispatch are not established. The historical sections below describe earlier states and are superseded where this slice changes them.
+
+## Historical checkpoints
+
 Private stored-commit and synchronous document-observer lanes pass selected source-shaped controls. `Session`, `Harness` and `ConversationHandle` expose synchronous typed document observation with detached Go values. Full readonly identity, task-runtime attachment and Harness integration remain incomplete. Row 338 stays `reviewed-open`.
 
 Source: `packages/durable/test/session-observers.test.ts` and `packages/durable/src/session/session.ts` at `f9a26365568127461c47a07a37dcb42c140a3ac5`.

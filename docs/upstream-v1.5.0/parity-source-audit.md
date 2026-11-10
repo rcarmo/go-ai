@@ -19,6 +19,10 @@ The target is upstream `f9a26365568127461c47a07a37dcb42c140a3ac5`; local source 
 | P12 | `packages/ai/test/providers.test.ts:55` checks built-in provider metadata; `retry.test.ts:18` checks provider retry classification. `release-metadata.md` covers selected catalogue metadata, not transport parity. Inspect each provider wire, cancellation and credential path separately using offline fixtures. |
 | P13 | Source inspection cannot replace current acceptance gates. Full-suite, security, profiling, hosted CI, release and push remain separately authorised. Profiling must analyse CPU and allocation outliers, then remove raw captures after use. |
 
+## Current observer/view follow-up
+
+P06 public document observation now returns sealed readonly values. Source132 retirement identity and shared active-observer revisions pass; snapshots/watch cache identity and full cancellation/lifetime acceptance remain open. P07 public watch and synchronous conversation-observation mounts are integrated and development-verified, with source160/330/525 and individual entry-node lifetime controls. The historical rows above keep their earlier source/checkpoint scope; current receipts are [session-observers.md](session-observers.md) and [view-shared-identity.md](view-shared-identity.md).
+
 ## Evidence limitations
 
 Full public observer parity, source `entries` path, multipart group publisher, exact view identity and watch-bound fixture remain unverified. P10–P12 rows identify source entry points only; they are not full audits of those subsystems. The older standalone P06 receipt records 24 functions and 72 passes; a claimed later 25-function/75-pass final receipt has not been located in the inspected repository or timeline. Preserve the recorded numbers until primary evidence is recovered rather than rewriting the historical result.

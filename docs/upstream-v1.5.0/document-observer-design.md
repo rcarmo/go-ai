@@ -1,5 +1,7 @@
 # Synchronous document observer design
 
+Current implementation: public typed document observers now use sealed readonly values and `DocumentCall`, including retirement identity and shared revisions across active observers. [The current observer receipt](session-observers.md) records exact coverage and remaining cache/dispatch/cancellation work. The design and dated starting points below are historical.
+
 P06 needs a synchronous document-observation lane. `DocumentWatch` is asynchronous, coalesces pending frames and cannot establish the pinned `observeDoc` contract. The first implementation slice should cover source77/87/105, followed by retirement/guard/lifetime cases; this design is not an implementation or a parity claim.
 
 Source: `packages/durable/src/session/session.ts:666–716, 1412–1527, 1770–1810` and `packages/durable/test/session-observers.test.ts` at `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native examined at `0013b9d`.

@@ -89,9 +89,10 @@ func (s *Session) publishLocalCommit(ctx context.Context, kind string, publicati
 	}
 	ctx = context.WithoutCancel(ctx)
 	var first error
+	readonlyValues := make([]ReadonlyValue, len(publication.Documents))
 	for _, listener := range listeners {
 		if listener.document != nil {
-			listener.document.advance(ctx, publication)
+			listener.document.advance(ctx, publication, readonlyValues)
 			continue
 		}
 		if err := callSessionCommitObserver(func() error { return listener.callback(ctx, event) }); first == nil {
