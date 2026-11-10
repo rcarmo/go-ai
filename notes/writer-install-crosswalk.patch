@@ -183,7 +183,7 @@ index 2a20521..9b5e8de 100644
  	if !s.hasNativeReadImage() {
  		return s.guardedStorage().ScanSubmissions(ctx, q, limit, cursor)
 diff --git a/durable/session.go b/durable/session.go
-index 113b445..5ee0e40 100644
+index 113b445..169bb07 100644
 --- a/durable/session.go
 +++ b/durable/session.go
 @@ -13,8 +13,8 @@ import (
@@ -214,7 +214,27 @@ index 113b445..5ee0e40 100644
  	closing               atomic.Bool
  	once                  sync.Once
  	done                  chan struct{}
-@@ -214,6 +216,9 @@ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
+@@ -209,11 +211,29 @@ func (s *Session) leaveThen(afterRelease func()) {
+ 		}
+ 	}
+ }
++
++// handoffLeave gives up the line without running the pending timer changes. Two paths
++// need that. A commit hands its batch to the writer here, and upstream arms the hold
++// timer in the after-store publication, so the changes belong to the publication's
++// owner. A publication releases the line the same way: disarming here would run host
++// code while the part's gate is still open, and a host cancel that reads the Session
++// would gate on the publication that is calling it. Whoever holds the line next -
++// normally the commit, after its outcome closes and before it returns - flushes them.
++func (s *Session) handoffLeave(afterRelease func()) {
++	s.line.release()
++	if afterRelease != nil {
++		afterRelease()
++	}
++}
++
+ func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
+ 	if e := s.enter(ctx); e != nil {
  		return Snapshot{}, e
  	}
  	defer s.leave()
@@ -224,7 +244,7 @@ index 113b445..5ee0e40 100644
  	return s.guardedStorage().Snapshot(ctx)
  }
  func (s *Session) MintID(ctx context.Context) (ID, error) {
-@@ -253,6 +258,12 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+@@ -253,6 +273,12 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
  	if err = s.enter(ctx); err != nil {
  		return 0, err
  	}
@@ -237,7 +257,7 @@ index 113b445..5ee0e40 100644
  	if deferred && (!s.hasNativeReadImage() || (s.taskScheduler != nil && taskID == 0)) {
  		s.leave()
  		return 0, ErrUnsupported
-@@ -279,9 +290,38 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+@@ -279,9 +305,38 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
  	ready := make(chan struct{})
  	var tx *Tx
  	var telemetryEvents *durableEventBatch
@@ -278,7 +298,7 @@ index 113b445..5ee0e40 100644
  		}
  		if s.taskScheduler != nil && err != nil && errors.Is(err, ErrPoisoned) {
  			s.taskScheduler.h.wakeAllSubmissionWaiters()
-@@ -290,13 +330,11 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+@@ -290,13 +345,11 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
  				s.taskScheduler.failTicket(target, ErrPoisoned)
  			}
  		}
@@ -297,7 +317,7 @@ index 113b445..5ee0e40 100644
  		if telemetryEvents != nil {
  			if buffer := eventBufferFromContext(ctx); buffer != nil {
  				buffer.enqueue(telemetryEvents)
-@@ -363,15 +401,21 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
+@@ -363,15 +416,21 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
  		}
  		return state.Seq, nil
  	}
@@ -317,7 +337,7 @@ index 113b445..5ee0e40 100644
 +	// The handoff. From here the line is free while the writer stores this commit
 +	// and then publishes it; the outcome is awaited off the line.
 +	lineHeld = false
-+	s.leaveThen(afterRelease)
++	s.handoffLeave(afterRelease)
 +	<-part.outcome
 +	telemetryEvents = pub.telemetry
 +	seq = pub.seq
@@ -327,7 +347,7 @@ index 113b445..5ee0e40 100644
  	}
  	return seq, nil
  }
-@@ -418,6 +462,9 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
+@@ -418,6 +477,9 @@ func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) er
  		return err
  	}
  	defer s.leave()
@@ -337,7 +357,7 @@ index 113b445..5ee0e40 100644
  	state, published, err := s.taskSnapshotView(ctx)
  	if err != nil {
  		return err
-@@ -476,6 +523,11 @@ func (s *Session) Close(ctx context.Context) error {
+@@ -476,6 +538,11 @@ func (s *Session) Close(ctx context.Context) error {
  		s.closing.Store(true)
  		s.closeWatches()
  		go func() {
@@ -419,7 +439,7 @@ index a52ecc2..1c67140 100644
  						t.Fatal("stale preparation entered writer", err)
  					}
 diff --git a/durable/session_publication.go b/durable/session_publication.go
-index 81822cb..86f75be 100644
+index 81822cb..cbb38d8 100644
 --- a/durable/session_publication.go
 +++ b/durable/session_publication.go
 @@ -58,18 +58,61 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
@@ -473,7 +493,7 @@ index 81822cb..86f75be 100644
 +			if s.line.acquire(context.Background()) != nil {
 +				return &writerPublishFailure{adoption: true, err: ErrClosed}
 +			}
-+			defer s.leave()
++			defer s.handoffLeave(nil)
 +			if err := s.failure(); err != nil {
 +				return &writerPublishFailure{adoption: true, err: err}
 +			}

@@ -257,3 +257,42 @@ than the acquiring wrappers. It is not a one-line fix, and `taskBookkeeping` usi
 `context.Background()` rules out passing ownership by context without touching every site.
 
 Nothing half-gated is left in the tree.
+
+## Sixth attempt: the deadlock was host timer code, not re-entrancy; flip direction confirmed upstream
+
+**My earlier root cause was wrong.** The dump showed the publication goroutine had already
+*released* the line, then blocked in `leaveThen` -> `sessionTimer.disarm` -> host `cancel()`.
+The test's host cancel performs a Session read (`Snapshot` -> `touchAll`), and that read gates on
+the very publication whose gate is still open because `settle` has not run yet. Cycle:
+publication -> disarm -> host cancel -> read -> gate on publication. Nothing to do with line
+re-entry.
+
+**Flip direction verified from source.** `#onLine` (session.ts:1670) holds the line for the line
+part, `work` returns `{value, after}`, the line is released when the line part resolves and
+`after` (publication) settles off it, with `#ended(job)` firing only after `after`. Releasing the
+line before publication completes is upstream behaviour.
+
+**Fix that made the targeted groups pass:** `handoffLeave` - release the line without consuming
+`pendingTimers`, used both at the commit's handoff and for the publication's release. Whoever holds
+the line next (normally the commit, after its outcome closes and before it returns) flushes them.
+This removed the deadlock *and* kept the arming ordered before `Commit` returns, which is what the
+earlier async-dispatch variant broke (`assertArmed` saw a stale armed timer). Also verified in
+source that the hold timer is re-armed in the after-store publication ("After their store: forget
+holds, unpin their documents, and move the ns to the next deadline"), so the changes belong to the
+publication's owner, not to the admission handoff - flushing at both points was what contended.
+
+`TestMainSessionDeferredDeadline*`, both capability kinds, the reservation rollback, the adopted
+SQLite image and the queued observer all pass with this. `go vet`, staticcheck v0.8.2 and
+check-logging.sh pass. The full suite no longer hangs (409s) but 8 tests fail.
+
+**Remaining blocker, one root cause:** after the handoff, `s.readImage` advances only at
+publication, so the next commit prepares against a baseline that misses parts already admitted.
+Six of the eight failures are `stale prepared publication baseline` - my own reject at admission,
+masking the real gap: native needs an *admitted* high-water image distinct from the published read
+image, the way upstream's line part keeps admission ordered. `TestMainSessionReadImageGapFailsClosed`
+is explicit that such a gap must fail the Session closed rather than reject the commit, so the
+reject must go and a real mechanism must replace it. The other two are group-commit live-owner
+ordering (`P must hold as completing while D is live`) and a submission poison/close case
+(`want durable: session failed, got durable: closed`).
+
+Attempt 6 is the furthest yet: no deadlock, no hangs, one named mechanism missing.
