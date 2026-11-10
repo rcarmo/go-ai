@@ -26,6 +26,7 @@ type Session struct {
 	jobs                  *sessionLine         // upstream #tail: held across read gates
 	jobHeld               bool                 // memory-line owned: current holder also owns jobs
 	line                  *sessionLine         // admission-ordered job line
+	outcomeSlots          chan struct{}        // MAX_OUTSTANDING started-but-undelivered jobs
 	deliveryTail          <-chan struct{}      // #enqueue delivery fence
 	jobOutcome            *sessionOutcome      // memory-line owned; nil during off-line publication
 	nextJobIndex          uint64               // line-owned: jobs are numbered in admission order
@@ -109,7 +110,7 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	}
 	image := core.state
 	core.leave()
-	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
+	s := &Session{store: store, core: core, readImage: image, now: now, line: newSessionLine(), jobs: newSessionLine(), outcomeSlots: make(chan struct{}, 256), done: make(chan struct{}), limits: l, setTimer: options.SetTimer, timerReport: options.OnReport, clockReport: options.OnReport}
 	if options.Now != nil {
 		s.now = func() int64 {
 			value, err := callClock(options.Now)
@@ -127,7 +128,9 @@ func OpenSessionWithOptions(store Storage, options SessionOptions) (*Session, er
 	s.writer = s.newSessionWriterFromSession()
 	return s, nil
 }
-func (s *Session) enter(ctx context.Context) error {
+func (s *Session) enter(ctx context.Context) error { return s.enterJob(ctx, false) }
+
+func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 	if ctx == nil {
 		return reject("nil context")
 	}
@@ -140,13 +143,23 @@ func (s *Session) enter(ctx context.Context) error {
 	if err := s.jobs.acquire(ctx); err != nil {
 		return err
 	}
+	// #tail waits for room before starting the next job. Keep admission order
+	// here, but never hold memory while a prior outcome is still pending.
+	select {
+	case s.outcomeSlots <- struct{}{}:
+	case <-ctx.Done():
+		s.jobs.release()
+		return ctx.Err()
+	}
 	if err := s.line.acquire(ctx); err != nil {
+		<-s.outcomeSlots
 		s.jobs.release()
 		return err
 	}
 	s.jobHeld = true
 	s.currentJobHit = false
 	s.jobOutcome = s.enqueueOutcome()
+	s.jobOutcome.exempt = exempt
 	if err := s.failure(); err != nil {
 		s.leave()
 		return err
@@ -274,8 +287,17 @@ func (s *Session) Commit(ctx context.Context, callback func(*Tx) error) (uint64,
 	return s.commit(ctx, callback, true, 0)
 }
 
+func (s *Session) commitInternal(ctx context.Context, callback func(*Tx) error) (uint64, error) {
+	return s.commitJob(ctx, callback, false, 0, false, true)
+}
+
 func (s *Session) taskCommit(ctx context.Context, callback func(*Tx) error) (uint64, error) {
-	return s.commit(ctx, callback, false, 0)
+	return s.commitInternal(ctx, func(tx *Tx) error {
+		if err := tx.touchKeys(ALL_KEYS); err != nil {
+			return err
+		}
+		return callback(tx)
+	})
 }
 func (s *Session) invocationCommit(ctx context.Context, taskID ID, callback func(*Tx) error) (uint64, error) {
 	return s.commit(ctx, callback, false, taskID)
@@ -288,11 +310,15 @@ func (s *Session) commit(ctx context.Context, callback func(*Tx) error, external
 	return s.commitPersistence(ctx, callback, external, taskID, false)
 }
 
-func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred bool, requestedWindow ...float64) (seq uint64, err error) {
+func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred bool, requestedWindow ...float64) (uint64, error) {
+	return s.commitJob(ctx, callback, external, taskID, deferred, false, requestedWindow...)
+}
+
+func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, external bool, taskID ID, deferred, exempt bool, requestedWindow ...float64) (seq uint64, err error) {
 	if callback == nil {
 		return 0, reject("nil transaction callback")
 	}
-	if err = s.enter(ctx); err != nil {
+	if err = s.enterJob(ctx, exempt); err != nil {
 		return 0, err
 	}
 	outcome := s.jobOutcome
@@ -300,7 +326,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	// Scheduler callbacks still consume whole-state private bookkeeping. Public
 	// Session transactions read through the Transaction host's dependency keys.
 	keyedReads := s.hasNativeReadImage() && !deferred
-	if !keyedReads || !external {
+	if !keyedReads || (!external && !exempt) {
 		if err = s.touchAll(ctx); err != nil {
 			s.leave()
 			return 0, err
@@ -447,6 +473,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 		return 0, e
 	}
 	if tx.memoryOnly {
+		outcome.after = true
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
@@ -462,6 +489,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	}
 	// The handoff. From here the line is free while the writer stores this commit
 	// and then publishes it; the outcome is awaited off the line.
+	outcome.after = true
 	lineHeld = false
 	s.handoffLeave(afterRelease)
 	<-part.outcome

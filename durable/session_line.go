@@ -30,6 +30,9 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	// #tail does not advance while the job awaits touch(). Only the memory
 	// lock is released, so the writer can publish; later jobs remain queued.
 	s.currentJobHit = true
+	if s.jobOutcome != nil {
+		s.jobOutcome.hit = true
+	}
 	jobHeld := s.jobHeld
 	outcome := s.jobOutcome
 	s.jobOutcome = nil

@@ -127,7 +127,7 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 			queued := make(chan struct{})
 			ctx := &documentGateContext{Context: bg, queued: queued}
 			go func() { dependent <- read(ctx, readA) }()
-			// The third Done consultation is touch's select, after both queues.
+			// The fourth Done consultation is touch's select, after room and both queues.
 			// The signal witnesses the actual gate wait, not goroutine launch.
 			awaitTaskSignal(t, queued)
 			select {
@@ -149,7 +149,7 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 	}
 }
 
-// Two queue acquisitions precede the read gate. Signal only at the gate so
+// Room and two queue acquisitions precede the read gate. Signal only at the gate so
 // launch/admission alone cannot satisfy a dependent-read assertion.
 type documentGateContext struct {
 	context.Context
@@ -158,7 +158,7 @@ type documentGateContext struct {
 }
 
 func (c *documentGateContext) Done() <-chan struct{} {
-	if c.calls.Add(1) == 3 {
+	if c.calls.Add(1) == 4 {
 		close(c.queued)
 	}
 	return c.Context.Done()

@@ -486,3 +486,24 @@ Verification: full durable suite 404.787s; vet/Staticcheck; read-key, read-only 
 batching and cancellation/Close tests ten repeats; real SIGKILL stages five repeats.
 Remaining source enqueue work includes exempt internal outcomes, outstanding-job
 backpressure, failure-boundary poisoning and cached-snapshot fast-path delivery.
+
+## Enqueue backpressure and internal exemptions
+
+Ported MAX_OUTSTANDING=256 at ordinary job start, before acquiring Go memory.
+The admission queue keeps its order while waiting for a delivery slot, but the
+writer can still publish and release slots. Delivery releases the slot; maintenance
+is not counted. The new source920-style assertion fails before this change and
+passes afterwards: job 257 cannot start until a preceding outcome is delivered,
+then every waiting job completes and retained outcomes/unpublished keys return to zero.
+
+Added the source commitInternal primitive. Only no-write/no-hit internal outcomes
+bypass preceding outcomes. Their own delivery releases capacity immediately, while
+the ordered fence still follows its predecessor for later ordinary jobs. Separate
+assertions prove a gate hit or a disjoint write removes the exemption. Native
+whole-graph taskCommit callbacks declare their ALL_KEYS dependency explicitly;
+invocation/public commits do not inherit the exemption.
+
+Verification: full durable suite 410.099s; vet and Staticcheck. New exemption/bound
+assertions failed before implementation and pass, including hit/write counter-cases.
+Failure-boundary poisoning, cached-snapshot delivery fast paths and precise private
+scheduler dependencies remain open.
