@@ -466,9 +466,14 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 		return nil, false, err
 	}
 	defer session.leave()
-	// Upstream gates every read on the line: a queued read must not answer
-	// from state an admitted commit has not published yet.
-	if err := session.touchAll(ctx); err != nil {
+	// Runtime reads also depend on their invocation's own task authority.
+	if err := session.touch(ctx, taskKey(r.taskID)); err != nil {
+		return nil, false, err
+	}
+	if err := r.check(); err != nil {
+		return nil, false, err
+	}
+	if err := session.touchDefinition(ctx, def, owner, key, 0, false); err != nil {
 		return nil, false, err
 	}
 	if err := r.check(); err != nil {
@@ -485,9 +490,14 @@ func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentD
 		return nil, false, err
 	}
 	defer session.leave()
-	// Upstream gates every read on the line: a queued read must not answer
-	// from state an admitted commit has not published yet.
-	if err := session.touchAll(ctx); err != nil {
+	// Runtime reads also depend on their invocation's own task authority.
+	if err := session.touch(ctx, taskKey(r.taskID)); err != nil {
+		return nil, false, err
+	}
+	if err := r.check(); err != nil {
+		return nil, false, err
+	}
+	if err := session.touchDefinition(ctx, def, owner, key, at, true); err != nil {
 		return nil, false, err
 	}
 	if err := r.check(); err != nil {

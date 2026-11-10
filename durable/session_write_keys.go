@@ -7,9 +7,6 @@ package durable
 // creates, changes, or retires, with the scope of every incarnation it creates
 // or retires.
 //
-// The writer has not been installed on Session yet, so nothing gates on these
-// keys; see notes/writer-install-crosswalk.md. No D01/D02/D04 parity claim.
-
 // writeKeys returns the keys this transaction writes. It must run after the
 // transaction is sealed and its document writes are finalized, because a delta
 // write carries only its incarnation: the address comes from the state the

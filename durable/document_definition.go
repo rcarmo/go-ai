@@ -198,6 +198,50 @@ func (s *Session) watchDefinitionValue(ctx context.Context, def *DocumentDefinit
 	return record, value, e == nil, e
 }
 
+// touchDefinition ports #loadDocument and GatedStorage's address/incarnation
+// dependencies. Historical visibility first touches the requested conversation and
+// entry, then uses the entry's actual ancestor as the document owner.
+func (s *Session) touchDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID, historical bool) error {
+	address, err := definitionAddress(def, owner, key)
+	if err != nil {
+		return err
+	}
+	if !historical {
+		return s.touch(ctx, documentKey(address))
+	}
+	if address.Scope != "conversation" || documentHistory(Document{Scope: def.options.Scope, History: def.options.History}) != "rewindable" {
+		return reject("historical definition requires rewindable conversation scope")
+	}
+	if err := s.touch(ctx, conversationKey(owner)); err != nil {
+		return err
+	}
+	if err := s.touch(ctx, entryKey(at)); err != nil {
+		return err
+	}
+	state, err := s.taskSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if at == 0 || uint64(at) > MaxID || !entryVisible(state, owner, at) {
+		return reject("historical entry is not visible")
+	}
+	entry := state.Entries[at]
+	address.Owner = entry.Conversation
+	if err := s.touch(ctx, documentKey(address)); err != nil {
+		return err
+	}
+	// The address gate may have published a different incarnation, so resolve
+	// from the current publication image rather than the pre-wait snapshot.
+	state, err = s.taskSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if record, ok := findDocumentState(state, address, DocumentPoint{Seq: entry.Seq}); ok {
+		return s.touch(ctx, incarnationKey(record.ID))
+	}
+	return nil
+}
+
 // SnapshotDefinition returns a detached typed-policy value without initialising
 // or persisting migration. Callback credentials/code are never serialized.
 func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
@@ -205,9 +249,7 @@ func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinitio
 		return nil, false, err
 	}
 	defer s.leave()
-	// Upstream gates every read: a job must not observe state an admitted
-	// write has not published.
-	if err := s.touchAll(ctx); err != nil {
+	if err := s.touchDefinition(ctx, def, owner, key, 0, false); err != nil {
 		return nil, false, err
 	}
 	return s.snapshotDefinition(ctx, def, owner, key)
@@ -243,9 +285,7 @@ func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 		return nil, false, err
 	}
 	defer s.leave()
-	// Upstream gates every read: a job must not observe state an admitted
-	// write has not published.
-	if err := s.touchAll(ctx); err != nil {
+	if err := s.touchDefinition(ctx, def, conversation, key, at, true); err != nil {
 		return nil, false, err
 	}
 	return s.snapshotDefinitionAsOf(ctx, def, conversation, key, at)

@@ -41,7 +41,7 @@
         "durable/session_read_line.go",
         "durable/transaction.go"
       ],
-      "evidence": "Write keys and read gates are installed. Admission queue ownership is retained across touch while only the memory lock is suspended. Native whole-state transactions/read surfaces still use ALL_KEYS, so disjoint keyed overlap remains open.",
+      "evidence": "Write keys and read gates are installed. Admission queue ownership is retained across touch while only the memory lock is suspended. Current/historical Session and TaskRuntime document reads now use exact address, visibility and incarnation dependencies; new held-storage assertions verify unrelated reads progress and related reads wait. Whole-state transaction admission still uses ALL_KEYS; keyed transaction overlap remains open.",
       "fix": "Register exact write keys, including newly created identities, document addresses, ancestry and selected held changes. Touch newest-key gates; unkeyable scans drain the admitted prefix. Revalidate candidate graph against effective pending state.",
       "acceptance": [
         "Source201-380: leaked entry, duplicate document creation, new conversation, all line reads, unkeyable scans, held-document reads. Verify disjoint jobs progress and dependent jobs wait."

@@ -376,3 +376,29 @@ That acceptance has not been established by this suite. The source's per-job out
 fence, failure-boundary index/own-outcome set and publication continuation ordering
 also need Session-level acceptance tests. Shared readonly views and the assertion-level
 crosswalk remain open. Do not infer full semantic equivalence from a green native suite.
+
+## Address-keyed current and historical document reads
+
+Replaced ALL_KEYS at Session.SnapshotDefinition and SnapshotDefinitionAsOf, and their
+TaskRuntime counterparts, with pinned source dependencies:
+
+- Current: document address (`session.ts #loadDocument`).
+- Historical: requested conversation and entry, then the document address owned by
+  the visible entry's actual ancestor, then its incarnation (`keys.ts GatedStorage`,
+  `session.ts snapshotAsOf`). Resolve the incarnation again after the address gate.
+- Invocation reads first touch their runtime's task record and recheck lifetime
+  after each suspension, before migration or cache callbacks.
+
+`TestSessionV150DocumentReadsTouchOnlyTheirDependencies` failed for both current and
+historical disjoint reads before the change. Both now finish while an unrelated
+storage call is held. Dependent reads are witnessed at their gate and remain pending
+until publication. Values are checked at the requested current/historical point.
+The test passes three repeats. Full durable suite: 404.792s; vet, Staticcheck and
+logging gates pass. This removes the global barrier on these read paths. It does
+not remove it from transaction admission or establish source170 batching.
+
+The user's scope is full pinned-upstream equivalence, including replacement or removal
+of incompatible native code. In particular, native whole-snapshot transaction
+preparation and prebuilt sequence-stamped publication frames are implementation
+choices to replace if they prevent keyed transaction admission and receipt-time adoption.
+Preserving those choices is not an acceptance criterion.

@@ -9,11 +9,6 @@ import (
 // commit records the keys it writes; a job on the line touches the key it
 // reads, so a read of an unpublished write waits for its publication.
 //
-// This file is the key model only. It is not yet installed on Session: the
-// admission handoff, keyed read gates, close/drained and the failure boundary
-// move together (see notes/writer-install-crosswalk.md). Nothing here claims
-// D01/D02/D04 parity.
-
 // idText formats an ID the way storage JSON does, so a key derived from two
 // equal IDs is byte-identical.
 func idText(id ID) string { return strconv.FormatUint(uint64(id), 10) }
