@@ -296,3 +296,40 @@ ordering (`P must hold as completing while D is live`) and a submission poison/c
 (`want durable: session failed, got durable: closed`).
 
 Attempt 6 is the furthest yet: no deadlock, no hangs, one named mechanism missing.
+
+## Seventh attempt: the "missing high-water image" was my own invented check
+
+**My previous root cause was wrong again, and the instrumented reject proved it.** The failures
+printed `base=26 readImage=26 coreState=27 unpublished=0`. The writer held no unpublished part, so
+the gate model was not leaking - `admit()` registers `unpublished[key]` and `newest` under its lock
+before returning, so `drained()` and `gate()` see a part the moment it is admitted. Nothing was
+missing.
+
+What was wrong was the check itself. The pre-flip serial settle compared only the prepared baseline
+(`p.base.Seq != s.readImage.Seq`). The flip added `s.core.state.Seq != s.readImage.Seq`, and native
+deliberately tolerates the store image running ahead of the read image: `commitPersistence` rebases
+on `tx.state` with the comment "A typed version reload can independently store held changes while
+this callback runs. Its rebased Tx owns the new receipt/history." Held (deferred) stores advance
+`s.core.state` without advancing `s.readImage`, so my extra clause rejected legitimate commits and
+six of eight failures were that reject masking nothing.
+
+Dropping the invented clause leaves only upstream's baseline comparison. `TestCodemode120Parallel*`
+and the nested auto-admission case go from failing to passing, and the reporter case changes from a
+masked reject to a real coalescing failure.
+
+**Six real failures remain, each distinct:**
+- `TestMainGroupCommitHoldsLiveOwnerRaceCreation` - "P must hold as completing while D is live, got
+  running": group-commit live-owner ordering depends on when a parent's state becomes visible.
+- `TestRestartLimit140BuiltinGenerationAbortCutoffSettlesSubmission` - "builtin hold raw status
+  disagreement": a hold's raw status is read from an image the flip advances differently.
+- `TestMainSessionLocalListenerFatalAfterPublication/stored` - a published call must resolve despite
+  its own listener error; it now reports session failed.
+- `TestMainSessionReadImageGapFailsClosed` - the gap must fail the Session closed; it now appends
+  stale legacy writes. This one is about the test's serial settle helper bypassing the writer.
+- `TestBackgroundReportersCoalescedSteersReportSharedAnswerOnce` - "shared answer reported more than
+  once [32 35]": keyed coalescence admits two where one should coalesce.
+- `TestSubmissionPendingPublicationWaitCloseAndPoisonRemoveRegistrations/poison` - poison reports
+  `durable: closed` instead of `durable: session failed`.
+
+Full suite: 409s, no hangs, 6 failures. Attempt 7 is the closest yet, and the failure list is now
+honest - none of it is my own reject masking the real mechanism.

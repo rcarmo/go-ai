@@ -439,10 +439,10 @@ index a52ecc2..1c67140 100644
  						t.Fatal("stale preparation entered writer", err)
  					}
 diff --git a/durable/session_publication.go b/durable/session_publication.go
-index 81822cb..cbb38d8 100644
+index 81822cb..ad055d4 100644
 --- a/durable/session_publication.go
 +++ b/durable/session_publication.go
-@@ -58,18 +58,61 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
+@@ -58,18 +58,65 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
  // baseline. Finalisation currently scans ownership/task/document state, so a
  // narrower footprint is not yet safe. The writer independently checks the raw
  // baseline inside its gate to exclude stored-but-unpublished changes.
@@ -465,9 +465,12 @@ index 81822cb..cbb38d8 100644
 -		return commitReceipt{}, Snapshot{}, err
 +		return nil, err
  	}
--	if p.base.Seq != s.readImage.Seq {
++	// Only the prepared baseline is compared. Held changes stored independently while
++	// a callback runs can put the store image ahead of the read image, and native
++	// rebases on the transaction's own state for that (see commitPersistence); the
++	// publication's baseline is what must not have moved.
+ 	if p.base.Seq != s.readImage.Seq {
 -		return commitReceipt{}, Snapshot{}, reject("stale prepared publication baseline")
-+	if p.base.Seq != s.readImage.Seq || s.core.state.Seq != s.readImage.Seq {
 +		return nil, reject("stale prepared publication baseline")
 +	}
 +	keys, err := p.tx.writeKeys()
