@@ -105,6 +105,10 @@ func (s *Session) failure() error {
 	return &SessionFailed{Cause: s.failureCause, failure: s.failureValue}
 }
 func (s *Session) backendResult(ctx context.Context, err error, mutation bool) error {
+	return s.backendResultAt(ctx, err, mutation, nil, nil)
+}
+
+func (s *Session) backendResultAt(ctx context.Context, err error, mutation bool, at *uint64, own []uint64) error {
 	if failure := s.failure(); failure != nil {
 		return failure
 	}
@@ -133,6 +137,16 @@ func (s *Session) backendResult(ctx context.Context, err error, mutation bool) e
 		// value is what the original would have thrown.
 		s.failureValue = asFailure(err)
 		s.failureCause = err
+		s.failureAt = s.lastDelivered
+		if at != nil {
+			s.failureAt = *at
+		} else if s.jobOutcome != nil {
+			s.failureAt = s.jobOutcome.index
+		}
+		s.failureOwn = make(map[uint64]bool, len(own))
+		for _, index := range own {
+			s.failureOwn[index] = true
+		}
 	}
 	cause := s.failureCause
 	value := s.failureValue
@@ -162,7 +176,10 @@ func (s *Session) backendResult(ctx context.Context, err error, mutation bool) e
 	} else {
 		go func() { _ = s.Close(context.Background()) }()
 	}
-	return &SessionFailed{Cause: cause}
+	// GuardedStorage.#call latches the first backend failure, then rethrows
+	// that call's own error. Only calls already failed by someone else receive
+	// SessionFailed. Delivery-boundary poisoning is handled separately.
+	return err
 }
 
 // Closed waits for normal or failure-driven shutdown; caller cancellation only
@@ -285,4 +302,18 @@ func (h *Harness) closedError() error {
 		return failure
 	}
 	return ErrClosed
+}
+
+// deliveredError ports #poisoned: later undelivered jobs inherit the first cause,
+// except parts whose outcome belongs to the rejected storage call itself.
+func (s *Session) deliveredError(outcome *sessionOutcome, err error) error {
+	if outcome == nil {
+		return err
+	}
+	s.failureMu.Lock()
+	defer s.failureMu.Unlock()
+	if s.failureCause != nil && outcome.index > s.failureAt && !s.failureOwn[outcome.index] {
+		return &SessionFailed{Cause: s.failureCause, failure: s.failureValue}
+	}
+	return err
 }

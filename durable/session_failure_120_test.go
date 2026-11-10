@@ -39,8 +39,8 @@ func TestSession120FatalReadLatchedAndClosed(t *testing.T) {
 	wrapper.fail = cause
 	_, e = s.Snapshot(bg)
 	var failure *SessionFailed
-	if !errors.As(e, &failure) || !errors.Is(e, cause) {
-		t.Fatal(e)
+	if e != cause || !errors.As(s.failure(), &failure) || failure.Cause != cause {
+		t.Fatal("read must keep its own error and latch it for later calls", e, s.failure())
 	}
 	watchEnd, ended := watch.End()
 	if !ended || watchEnd.Reason != "session_failed" || !errors.Is(watchEnd.Error, cause) {
@@ -91,8 +91,14 @@ func TestSession120BackendMutationFailureIsFatalEvenRejected(t *testing.T) {
 					})
 				}
 				var failed *SessionFailed
-				if !errors.As(e, &failed) || !errors.Is(e, cause) {
-					t.Fatal("backend rejection was not fatal", e)
+				if !errors.Is(e, cause) || !errors.As(s.failure(), &failed) || failed.Cause != cause {
+					t.Fatal("backend rejection was not latched", e, s.failure())
+				}
+				if operation != "caught-mint" && e != cause {
+					t.Fatal("originating call lost own error identity", e)
+				}
+				if operation == "caught-mint" && !errors.As(e, &failed) {
+					t.Fatal("caught backend error escaped the post-callback health fence", e)
 				}
 				end, ended := subscription.End()
 				if !ended || end.Reason != "session_failed" || !errors.Is(end.Error, cause) {

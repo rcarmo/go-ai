@@ -176,14 +176,17 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 					var failure *SessionFailed
 					// A lower-level append fault is an uncertain native settlement;
 					// retain that first adopted poison identity across every guard.
-					if !errors.As(err, &failure) || !errors.Is(err, ErrPoisoned) {
-						t.Fatal("timer uncertain failure", err)
+					if !errors.As(h.session.failure(), &failure) || !errors.Is(err, ErrPoisoned) || !errors.Is(err, failure.Cause) {
+						t.Fatal("timer uncertain failure was not latched", err, h.session.failure())
 					}
-					for _, err := range []error{watchReceive(t, failedWait), watchReceive(t, reports)} {
-						var guarded *SessionFailed
-						if !errors.As(err, &guarded) || guarded.Cause != failure.Cause {
-							t.Fatal("wait/report failure identity", err)
-						}
+					var guarded *SessionFailed
+					if err := watchReceive(t, failedWait); !errors.As(err, &guarded) || guarded.Cause != failure.Cause {
+						t.Fatal("later waiter lost first cause", err)
+					}
+					// The host report carries the originating failure; it is not
+					// itself a later Session call subject to #poisoned.
+					if err := watchReceive(t, reports); !errors.Is(err, failure.Cause) {
+						t.Fatal("report lost first cause", err)
 					}
 					ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 					defer cancel()

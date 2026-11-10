@@ -24,9 +24,12 @@ func TestV150FailurePrecedesHarnessClosedErrors(t *testing.T) {
 	_, err = harness.session.Commit(bg, func(tx *Tx) error {
 		return tx.AppendEntry(Entry{ID: id, Conversation: conversation.ID(), Kind: "failure", Value: JSON{}})
 	})
+	if !errors.Is(err, ErrPoisoned) {
+		t.Fatalf("initial own storage failure=%v", err)
+	}
 	var first *SessionFailed
-	if !errors.As(err, &first) {
-		t.Fatalf("initial failure=%v", err)
+	if !errors.As(harness.session.failure(), &first) || first.Cause != err {
+		t.Fatal("first storage error was not latched exactly", harness.session.failure())
 	}
 	ctx, cancel := context.WithTimeout(bg, 3*time.Second)
 	defer cancel()

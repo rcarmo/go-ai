@@ -30,8 +30,8 @@ func TestMainSessionReadImageGapFailsClosed(t *testing.T) {
 			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "gap", Value: JSON{}})
 		})
 		var failed *SessionFailed
-		if !errors.As(err, &failed) {
-			t.Fatal("image gap did not fail Session", err)
+		if err == nil || !errors.As(s.failure(), &failed) || failed.Cause != err {
+			t.Fatal("image gap did not latch its own error", err, s.failure())
 		}
 		if err := s.readTasks(bg, func(Snapshot) error { t.Fatal("failed Session admitted a read"); return nil }); !errors.As(err, &failed) {
 			t.Fatal("read lost failure fence", err)

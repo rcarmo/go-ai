@@ -244,11 +244,19 @@ func (s *Session) touchDefinition(ctx context.Context, def *DocumentDefinition, 
 
 // SnapshotDefinition returns a detached typed-policy value without initialising
 // or persisting migration. Callback credentials/code are never serialized.
-func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (s *Session) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value JSON, found bool, err error) {
 	if err := s.enter(ctx); err != nil {
 		return nil, false, err
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			value = nil
+			found = false
+		}
+	}()
 	if err := s.touchDefinition(ctx, def, owner, key, 0, false); err != nil {
 		return nil, false, err
 	}
@@ -280,11 +288,19 @@ func (s *Session) snapshotDefinition(ctx context.Context, def *DocumentDefinitio
 
 // SnapshotDefinitionAsOf resolves the visible cutoff's owning ancestor and
 // original commit sequence, independently of the descendant's copied content.
-func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (JSON, bool, error) {
+func (s *Session) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, conversation ID, key *string, at ID) (value JSON, found bool, err error) {
 	if err := s.enter(ctx); err != nil {
 		return nil, false, err
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			value = nil
+			found = false
+		}
+	}()
 	if err := s.touchDefinition(ctx, def, conversation, key, at, true); err != nil {
 		return nil, false, err
 	}

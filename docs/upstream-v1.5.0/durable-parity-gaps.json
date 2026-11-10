@@ -16,7 +16,7 @@
         "durable/session.go",
         "durable/storage_group.go"
       ],
-      "evidence": "The writer is now installed: Session hands off sealed parts, publication/discard acquire the memory lock, and the admission queue remains held across read gates. Full native durable suite passes. Whole-state transactions still drain ALL_KEYS; source170 disjoint admission and [1,2] batching acceptance is not established.",
+      "evidence": "Writer installed and disjoint document transaction admission verified through Session.Commit and Harness.Commit. Source170-style held-storage test verifies new documents, callback progress, no early publication, [1,2] batches, consecutive receipt sequences and receipt-time createdAt. Public non-document and private scheduler dependency migration, and complete source outcome-order acceptance, remain open.",
       "fix": "Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.",
       "acceptance": [
         "Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order."
@@ -41,7 +41,7 @@
         "durable/session_read_line.go",
         "durable/transaction.go"
       ],
-      "evidence": "Write keys and read gates are installed. Admission queue ownership is retained across touch while only the memory lock is suspended. Current/historical Session and TaskRuntime document reads now use exact address, visibility and incarnation dependencies; new held-storage assertions verify unrelated reads progress and related reads wait. Whole-state transaction admission still uses ALL_KEYS; keyed transaction overlap remains open.",
+      "evidence": "Address/visibility/incarnation document reads and transaction-host dependency rebasing are installed. Disjoint Session/Harness document transactions admit before unrelated storage settles. Ordinary cold read outcomes remain fenced even when their reads execute early. Native private whole-graph adapters still declare ALL_KEYS; precise scheduler dependencies and the rest of GatedStorage require acceptance.",
       "fix": "Register exact write keys, including newly created identities, document addresses, ancestry and selected held changes. Touch newest-key gates; unkeyable scans drain the admitted prefix. Revalidate candidate graph against effective pending state.",
       "acceptance": [
         "Source201-380: leaked entry, duplicate document creation, new conversation, all line reads, unkeyable scans, held-document reads. Verify disjoint jobs progress and dependent jobs wait."
@@ -66,7 +66,7 @@
         "durable/session_failure_value_v150_test.go",
         "durable/storage_refusal_value_v150_test.go"
       ],
-      "evidence": "Value/presence representation and writer installation are implemented. Stored own-listener failures now resolve their own commit before failing the Session. Session-level per-job fence, failure-boundary index and same-call own-outcome acceptance remain open.",
+      "evidence": "Arbitrary failure-value presence, own backend-error identity, admission job indices, first-failure boundary, last fenced delivery and same-call own-error set are installed. New Session tests cover poisoning later successful/error callbacks and cold reads, plus receipted parts in a call rejected after storage with undefined/null/falsy values and durable-prefix reopen. Complete source parameter/entry-surface audit remains open.",
       "fix": "Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in durable/session_failure.go and durable/storage_public.go.",
       "acceptance": [
         "All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen."
@@ -90,7 +90,7 @@
         "durable/session_receipt.go",
         "durable/session_sync_observers.go"
       ],
-      "evidence": "Session now publishes through the installed writer off the admission queue, with memory-lock adoption and host timer flushing after the part settles. Awaitable publication scope exists in the internal writer. Session continuation ordering/source698-815 acceptance remains open.",
+      "evidence": "Installed writer supports awaitable internal scopes and memory-lock publication off the admission queue. Receipt-time metadata and exact-prefix subscription fallback snapshots replace preparation-time sequence assumptions for queued parts. Listener-failing stored outcomes wake after failure latches. Complete source698-815 continuation and deferred-scope acceptance remains open.",
       "fix": "Design one serial publication dispatcher with awaitable scope completion, explicit continuation/outcome ordering and failure rechecks immediately inside the deferred scope. Retain detached exact-prefix receipts and contain scope throws according to the source.",
       "acceptance": [
         "Source698-815 unchanged ordering assertions; defer a scope, throw without executing it, fail between parts and while scope is pending. No later part publishes."
@@ -112,7 +112,7 @@
       "native": [
         "durable/session.go"
       ],
-      "evidence": "Session currently serialises through settlement and has no source-equivalent outstanding-job accounting. Writer queue alone would otherwise permit unbounded admissions.",
+      "evidence": "MAX_OUTSTANDING=256 is enforced at job start and released on outcome delivery. New source920-style test verifies job257 waits and idle outcomes/keys return to zero. Ordinary commit/read outcomes fence; internal no-write/no-hit outcomes are exempt, with hit/write counter-tests. Complete cache fast-path, cancellation-at-capacity and delivery-surface audit remains open.",
       "fix": "Bound jobs at source admission, not merely queued writes. Account for reads, empty commits, callback errors and held parts. Deliver outcomes in line order; release room only at delivery.",
       "acceptance": [
         "Source390 and920: only255 additional jobs start behind first; all300 finish; outstanding/unpublished/reads return to zero; cancellation and errors release every slot."

@@ -507,3 +507,36 @@ Verification: full durable suite 410.099s; vet and Staticcheck. New exemption/bo
 assertions failed before implementation and pass, including hit/write counter-cases.
 Failure-boundary poisoning, cached-snapshot delivery fast paths and precise private
 scheduler dependencies remain open.
+
+## Failure boundaries and own outcomes
+
+Ported #failAt/#ownOutcomes/#lastDelivered. Ordinary jobs receive an index at
+admission; writer parts use that same index. The first failure records its boundary
+and the storage call's own-error indices. Delivery poisons later undelivered
+outcomes, including a callback that already succeeded or rejected independently,
+and cold document reads that already materialised their values.
+
+GuardedStorage.#call in source latches the originating error then rethrows that
+error. Native backendResult now does the same; only later calls or poisoned
+outcomes receive SessionFailed. Native tests that expected SessionFailed for the
+originating call now check exact own-error identity plus the separately latched
+Session failure and the subsequent SessionFailed fence. Caught backend errors
+still cannot rescue a commit: the post-callback health assertion rejects it.
+
+A listener-failing stored part remains successful. Native writer settlement now
+waits for the synchronous failure hook before waking that part's continuation;
+otherwise Go could run it before the failure was latched, which cannot happen
+between statements of upstream's publication turn.
+
+New assertions failed before the implementation: the storage job lost its own
+error, a later callback error escaped poisoning, a later successful callback
+escaped as success, and a cold read escaped as success. They now pass. Another
+assertion stores a successful prefix, queues two disjoint parts in one call,
+rejects that call after both receipts, verifies both own errors by identity, verifies
+later callback/read poisoning, and reopens to confirm all receipted parts survived.
+It covers undefined/null/false/0/empty-string rejection values and passes five repeats.
+
+Verification: full durable suite 407.927s; vet/Staticcheck; failure classification
+and prefix-boundary regressions three repeats. Precise private scheduler read
+footprints, remaining public read/observer delivery surfaces and cached-snapshot
+fast paths still need source-level acceptance before closing the register.

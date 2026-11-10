@@ -58,7 +58,7 @@ func TestMainSessionConfirmedAppendRefusalLatches(t *testing.T) {
 	}
 	err = appendNote("p04-refused-marker")
 	var failed *SessionFailed
-	if !errors.As(err, &failed) || !errors.Is(err, refusal) {
+	if err != refusal || !errors.As(s.failure(), &failed) || failed.Cause != refusal {
 		t.Fatalf("append refusal must latch with the injected cause: %T %v", err, err)
 	}
 	if hits != 1 {
@@ -157,7 +157,7 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	err = appendNote("p04-sqlite-refused")
 	var failed *SessionFailed
 	var rejected *StorageRejected
-	if !errors.As(err, &failed) || !errors.As(err, &rejected) || errors.Is(err, ErrPoisoned) {
+	if !errors.As(err, &rejected) || err != rejected || !errors.As(s.failure(), &failed) || failed.Cause != rejected || errors.Is(err, ErrPoisoned) {
 		t.Fatalf("confirmed rollback classification: %T %v", err, err)
 	}
 	if rejected.Reason != "SQLite frame rejected" {

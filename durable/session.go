@@ -13,9 +13,12 @@ import (
 type Session struct {
 	store                 Storage
 	failureMu             sync.Mutex
-	failureCause          error        // Go error view of the first failure
-	failureValue          *Failure     // the first failure value exactly as reported
-	now                   func() int64 // line-owned wall clock for lifecycle stamps
+	failureAt             uint64          // failureMu-owned first failure boundary
+	failureOwn            map[uint64]bool // source #ownOutcomes
+	lastDelivered         uint64          // last fenced outcome
+	failureCause          error           // Go error view of the first failure
+	failureValue          *Failure        // the first failure value exactly as reported
+	now                   func() int64    // line-owned wall clock for lifecycle stamps
 	core                  *storeCore
 	readImage             Snapshot // immutable receipted image; owned by the Session line
 	heldDocuments         map[ID]heldDocument
@@ -261,11 +264,18 @@ func (s *Session) handoffLeave(afterRelease func()) {
 	}
 }
 
-func (s *Session) Snapshot(ctx context.Context) (Snapshot, error) {
+func (s *Session) Snapshot(ctx context.Context) (snapshot Snapshot, err error) {
 	if e := s.enter(ctx); e != nil {
 		return Snapshot{}, e
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			snapshot = Snapshot{}
+		}
+	}()
 	if e := s.touchAll(ctx); e != nil {
 		return Snapshot{}, e
 	}
@@ -322,7 +332,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 		return 0, err
 	}
 	outcome := s.jobOutcome
-	defer outcome.deliver()
+	defer func() { outcome.deliver(); err = s.deliveredError(outcome, err) }()
 	// Scheduler callbacks still consume whole-state private bookkeeping. Public
 	// Session transactions read through the Transaction host's dependency keys.
 	keyedReads := s.hasNativeReadImage() && !deferred
@@ -483,7 +493,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 		return state.Seq, nil
 	}
 	pub := &admittedPublication{}
-	part, e := s.admitPreparedPublication(&prepared, s.jobIndex(), pub, rollbackTask)
+	part, e := s.admitPreparedPublication(&prepared, outcome.index, pub, rollbackTask)
 	if e != nil {
 		return 0, e
 	}
@@ -499,8 +509,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	telemetryEvents = pub.telemetry
 	seq = pub.seq
 	if part.err != nil {
-		err = s.backendResult(ctx, part.err, true)
-		return seq, err
+		return seq, part.err
 	}
 	return seq, nil
 }
@@ -569,11 +578,15 @@ func (s *Session) readTasks(ctx context.Context, read func(Snapshot) error) erro
 }
 
 // The witness is captured by the read path, never inferred from Snapshot fields.
-func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) error) error {
+func (s *Session) readTaskView(ctx context.Context, read func(Snapshot, bool) error) (err error) {
 	if err := s.enter(ctx); err != nil {
 		return err
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+	}()
 	if err := s.touchAll(ctx); err != nil {
 		return err
 	}

@@ -60,14 +60,14 @@ func (s *Session) writerFailure() error {
 
 // writerFail records a cause the queue found, first cause wins, and fences
 // admission the same way a backend failure does.
-func (s *Session) writerFail(cause error, _ uint64, _ []uint64) {
+func (s *Session) writerFail(cause error, at uint64, own []uint64) {
 	if cause == nil {
 		return
 	}
 	// Once the writer settles storage it is the only writer, so a failure it sees
 	// must also drive the shutdown a serial settle used to trigger from
 	// backendResult. Upstream's fail() closes fire-and-forget too (session.ts:450).
-	_ = s.backendResult(context.Background(), cause, true)
+	_ = s.backendResultAt(context.Background(), cause, true, &at, own)
 }
 
 func (s *Session) writerReport(err error, _ context.Context) {

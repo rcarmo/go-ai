@@ -95,11 +95,19 @@ func (t *Tx) TypedEntry(def *EntryDefinition, conversation, id ID) (Entry, bool,
 	owned, err := copyEntry(entry, t.limits)
 	return owned, err == nil, err
 }
-func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
+func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversation, id ID) (entry Entry, found bool, err error) {
 	if e := s.enter(ctx); e != nil {
 		return Entry{}, false, e
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			entry = Entry{}
+			found = false
+		}
+	}()
 	// Upstream gates every read: a job must not observe state an admitted
 	// write has not published.
 	if e := s.touchAll(ctx); e != nil {

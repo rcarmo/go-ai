@@ -171,6 +171,7 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 	var at uint64
 	external := false
 	var failing []writerFailedPart
+	var listenerSuccess *sessionWriterPart
 	storedIndex, published := 0, 0
 	for _, p := range parts {
 		index := -1
@@ -242,6 +243,8 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 		}
 		if failure != nil {
 			stop, at = failure.err, p.spec.index
+			listenerSuccess = p
+			continue
 		}
 		var err error
 		if cause := w.host.failure(); cause != nil && failure == nil {
@@ -261,6 +264,9 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 		} else {
 			w.host.fail(stop, at, own)
 		}
+	}
+	if listenerSuccess != nil {
+		w.settle(listenerSuccess, nil)
 	}
 	for _, f := range failing {
 		err := f.own

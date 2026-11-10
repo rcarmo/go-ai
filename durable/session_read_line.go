@@ -9,14 +9,18 @@ type ReadLine struct{ tx *Tx }
 
 // ReadOnLine waits for earlier Session publications before invoking read. The
 // callback must not reenter the Session or block awaiting a Session operation.
-func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) error {
+func (s *Session) ReadOnLine(ctx context.Context, read func(*ReadLine) error) (err error) {
 	if read == nil {
 		return reject("nil line read callback")
 	}
 	if err := s.enter(ctx); err != nil {
 		return err
 	}
-	defer s.leave()
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+	}()
 	// Upstream pairs `readOnLine` with `touch`.
 	if err := s.touchAll(ctx); err != nil {
 		return err

@@ -457,7 +457,7 @@ func (r *TaskRuntime) ContextView(ctx context.Context, conversation, at ID) (Con
 	}
 	return view, err
 }
-func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (JSON, bool, error) {
+func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefinition, owner ID, key *string) (value JSON, found bool, err error) {
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
@@ -465,7 +465,15 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 	if err := session.enter(ctx); err != nil {
 		return nil, false, err
 	}
-	defer session.leave()
+	outcome := session.jobOutcome
+	defer func() {
+		session.leave()
+		err = session.deliveredError(outcome, err)
+		if err != nil {
+			value = nil
+			found = false
+		}
+	}()
 	// Runtime reads also depend on their invocation's own task authority.
 	if err := session.touch(ctx, taskKey(r.taskID)); err != nil {
 		return nil, false, err
@@ -481,7 +489,7 @@ func (r *TaskRuntime) SnapshotDefinition(ctx context.Context, def *DocumentDefin
 	}
 	return session.snapshotDefinition(ctx, def, owner, key)
 }
-func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (JSON, bool, error) {
+func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentDefinition, owner ID, key *string, at ID) (value JSON, found bool, err error) {
 	if err := r.check(); err != nil {
 		return nil, false, err
 	}
@@ -489,7 +497,15 @@ func (r *TaskRuntime) SnapshotDefinitionAsOf(ctx context.Context, def *DocumentD
 	if err := session.enter(ctx); err != nil {
 		return nil, false, err
 	}
-	defer session.leave()
+	outcome := session.jobOutcome
+	defer func() {
+		session.leave()
+		err = session.deliveredError(outcome, err)
+		if err != nil {
+			value = nil
+			found = false
+		}
+	}()
 	// Runtime reads also depend on their invocation's own task authority.
 	if err := session.touch(ctx, taskKey(r.taskID)); err != nil {
 		return nil, false, err
