@@ -40,7 +40,7 @@ try {
     ["probes", root, ["notes/oracles/session-admission.upstream.test.ts"], []],
   ]) {
     const config = join(scratch, `${name}.mjs`);
-    writeFileSync(config, `import { defineConfig } from ${JSON.stringify(pathToFileURL(join(vitest, "dist/config.js")).href)};\nexport default defineConfig(${JSON.stringify({ root: cwd, resolve: { alias: aliases }, test: { include, setupFiles, maxWorkers: 1, fileParallelism: false, testTimeout: 30000 } })});\n`);
+    writeFileSync(config, `import { defineConfig } from ${JSON.stringify(pathToFileURL(join(vitest, "dist/config.js")).href)};\nexport default defineConfig(${JSON.stringify({ root: cwd, cacheDir: join(scratch, "cache", name), resolve: { alias: aliases }, test: { include, setupFiles, maxWorkers: 1, fileParallelism: false, testTimeout: 30000 } })});\n`);
     run("node", [join(vitest, "vitest.mjs"), "run", "--config", config]);
   }
 } finally {
