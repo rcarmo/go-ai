@@ -277,3 +277,81 @@ func TestImmutableReplayMatchesDeltaOperationsAndPreservesOldRevision(t *testing
 		t.Fatal("immutable replay bypassed growth limit")
 	}
 }
+
+func TestImmutableValueEncodesItsJSONShapeAndHonorsBudgets(t *testing.T) {
+	value, err := NewImmutableValue(JSON{"items": []any{JSON{"n": 1}, true}, "text": "hello"}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, encode := range []func() ([]byte, error){func() ([]byte, error) { return encodeBounded(value, DefaultLimits(), DefaultLimits().MaxDocumentBytes) }, func() ([]byte, error) { return json.Marshal(value) }, func() ([]byte, error) { return json.Marshal(*value) }} {
+		wire, err := encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded any
+		if err := decodeStrict(wire, DefaultLimits(), DefaultLimits().MaxDocumentBytes, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded, value.Copy()) {
+			t.Fatalf("readonly value leaked representation or lost fields: %s", wire)
+		}
+	}
+	copied, err := ownJSONValue(value, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied.(map[string]any)["text"] = "mutated"
+	text, _ := value.Get("text")
+	if text.String() != "hello" {
+		t.Fatal("cloning immutable input returned write authority")
+	}
+	if _, err := encodeBounded(value, DefaultLimits(), 8); err == nil {
+		t.Fatal("immutable encoding bypassed byte limit")
+	}
+	limits := DefaultLimits()
+	limits.MaxNodes = 2
+	if _, err := encodeBounded(value, limits, limits.MaxDocumentBytes); err == nil {
+		t.Fatal("immutable encoding bypassed node limit")
+	}
+	limits = DefaultLimits()
+	limits.MaxMembers = 1
+	if _, err := encodeBounded(value, limits, limits.MaxDocumentBytes); err == nil {
+		t.Fatal("immutable encoding bypassed member limit")
+	}
+}
+
+type immutableJSONAuthorityProbe struct {
+	value  *ImmutableValue
+	called *bool
+}
+
+func (p *immutableJSONAuthorityProbe) MarshalJSON() ([]byte, error) {
+	*p.called = true
+	return []byte(`{"forged":true}`), nil
+}
+
+func TestImmutableJSONEncodingKeepsAuthorityAndLogicalBudgetChecks(t *testing.T) {
+	value, err := NewImmutableValue(JSON{"items": []any{JSON{"n": 1}, true}, "text": "hello"}, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	if _, err := encodeBounded(&immutableJSONAuthorityProbe{value, &called}, DefaultLimits(), 1024); err == nil || called {
+		t.Fatal("caller acquired immutable encoding authority", err, called)
+	}
+	for _, dimension := range []string{"nodes", "depth"} {
+		for cap := 1; cap <= 16; cap++ {
+			limits := DefaultLimits()
+			if dimension == "nodes" {
+				limits.MaxNodes = cap
+			} else {
+				limits.MaxDepth = cap
+			}
+			_, plainErr := encodeBounded(value.Copy(), limits, limits.MaxDocumentBytes)
+			_, immutableErr := encodeBounded(value, limits, limits.MaxDocumentBytes)
+			if (plainErr == nil) != (immutableErr == nil) {
+				t.Fatalf("%s=%d: logical budget differs: plain=%v immutable=%v", dimension, cap, plainErr, immutableErr)
+			}
+		}
+	}
+}

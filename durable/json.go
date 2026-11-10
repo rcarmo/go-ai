@@ -114,6 +114,9 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 		}
 		v = v.Elem()
 	}
+	if immutable, ok := immutableJSONValue(v); ok {
+		return b.immutable(immutable, depth)
+	}
 	if v.Type() == nativeArgumentsType {
 		if !b.nativeArgument {
 			return reject("UTF-16 object outside typed arguments")
@@ -415,6 +418,9 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 			return emit(b, "null")
 		}
 		v = v.Elem()
+	}
+	if immutable, ok := immutableJSONValue(v); ok {
+		return encodeImmutableValue(b, immutable)
 	}
 	if v.Type() == nativeArgumentsType {
 		previous := b.utf16Keys

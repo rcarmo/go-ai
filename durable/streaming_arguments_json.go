@@ -17,7 +17,7 @@ func isNativeJSONType(t reflect.Type) bool {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
+	return t == reflect.TypeFor[ImmutableValue]() || t == reflect.TypeFor[NativeTaskExecution]() || t == reflect.TypeFor[TaskState]() || t == reflect.TypeFor[Conversation]() || t == reflect.TypeFor[Submission]() || t == reflect.TypeFor[Entry]() || t == reflect.TypeFor[ProgressSettings]() || t == reflect.TypeFor[CodemodeCall]() || t == nativeUsageType || t == nativeToolCallType || t == nativeContentBlockType || t == nativeUTF16Type || t == nativeArgumentsType
 }
 func nativeStreamingFields(v reflect.Value) bool {
 	if nativeArgumentDTO(v.Type()) {

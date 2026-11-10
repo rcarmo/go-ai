@@ -8,6 +8,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Test consolidation](test-consolidation.md) — related suites merged with unchanged
   discovery and normalized declaration inventories; verification and remaining scope.
 
+- [Shared readonly views](shared-readonly-views.md) — pinned identity contracts,
+  immutable replay/encoding groundwork, and the public mount migration still required.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

@@ -78,6 +78,9 @@ func cloneJSONValue(v reflect.Value) any {
 		}
 		v = v.Elem()
 	}
+	if immutable, ok := immutableJSONValue(v); ok {
+		return immutable.Copy()
+	}
 	if v.Type() == reflect.TypeOf(json.Number("")) {
 		return v.Interface().(json.Number)
 	}
