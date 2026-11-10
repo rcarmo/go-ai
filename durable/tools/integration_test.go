@@ -104,12 +104,11 @@ func TestCodingToolsProductionHTTPSQLiteAndReopen(t *testing.T) {
 	}
 	results := map[string]string{}
 	for _, entry := range snapshot.Entries {
-		if legacyEntryValue(entry)["role"] == string(goai.RoleToolResult) {
-			encoded, _ := json.Marshal(entry.Value)
-			var message durable.MessageReceipt
-			if err := json.Unmarshal(encoded, &message); err != nil {
-				t.Fatal(err)
+		if entry.Kind == "pi.tool-result" {
+			if len(entry.Model) != 1 || len(entry.Value) != 0 || entry.Model[0].Role != goai.RoleToolResult {
+				t.Fatal("noncanonical tool-result entry", entry)
 			}
+			message := entry.Model[0]
 			if message.IsError {
 				t.Fatal("tool failed", message)
 			}

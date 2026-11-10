@@ -4,7 +4,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/durable"
 	"os"
@@ -64,17 +63,13 @@ func TestBashFailedTruncatedOutputPublishesSpillTailAndOriginalError(t *testing.
 		t.Fatal(err)
 	}
 	for _, entry := range state.Entries {
-		if legacyEntryValue(entry)["role"] != string(goai.RoleToolResult) {
+		if entry.Kind != "pi.tool-result" {
 			continue
 		}
-		var receipt durable.MessageReceipt
-		data, err := json.Marshal(entry.Value)
-		if err != nil {
-			t.Fatal(err)
+		if len(entry.Model) != 1 || len(entry.Value) != 0 || entry.Model[0].Role != goai.RoleToolResult {
+			t.Fatal("noncanonical tool-result entry", entry)
 		}
-		if err := json.Unmarshal(data, &receipt); err != nil {
-			t.Fatal(err)
-		}
+		receipt := entry.Model[0]
 		text := ""
 		for _, block := range receipt.Content {
 			text += block.Text
