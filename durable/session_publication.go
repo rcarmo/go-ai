@@ -6,6 +6,7 @@ import "context"
 // Preparation runs on the admission line. Storage and publication belong to
 // the writer; publication acquires only the memory lock, never the admission slot.
 type preparedSessionPublication struct {
+	ready           <-chan struct{}
 	writerOwned     bool
 	listenerFailure error
 	ctx             context.Context
@@ -32,7 +33,7 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}
-	p := preparedSessionPublication{ctx: ctx, tx: tx, base: base, frames: frames, stored: publication, observed: publication}
+	p := preparedSessionPublication{ready: ready, ctx: ctx, tx: tx, base: base, frames: frames, stored: publication, observed: publication}
 	if tx.memoryOnly {
 		p.subs, err = s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, false)
 	} else if len(s.heldDocuments) == 0 {
@@ -144,6 +145,33 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	s.armPersistenceDeadline()
 	s.memoryImage = nil
 	adopted := s.memoryReadImage()
+	// Transaction.adopt(seq) assigns sequence-dependent metadata only once the
+	// receipt exists. Several disjoint parts can prepare against the same image.
+	if p.stored.Seq != receipt.seq {
+		stampPublication(&p.observed, adopted, receipt.seq)
+		stampPublication(&p.stored, adopted, receipt.seq)
+		for i := range p.frames {
+			p.frames[i].frame.Seq = receipt.seq
+			p.frames[i].reset.Seq = receipt.seq
+		}
+		// Whole-snapshot fallback frames must contain the exact receipted prefix,
+		// including earlier disjoint parts, never the old preparation image.
+		p.tx.publicationState = &adopted
+		var err error
+		if p.storageWrites == nil {
+			p.subs, err = s.prepareSubscriptions(p.ctx, p.observed, p.tx, p.ready)
+		} else {
+			p.subs, err = s.prepareSubscriptionKinds(p.ctx, p.observed, p.tx, p.ready, true, false)
+			if err == nil {
+				stored, e := s.prepareSubscriptionKinds(p.ctx, p.stored, p.tx, p.ready, false, true)
+				p.subs = append(p.subs, stored...)
+				err = e
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 	if s.taskScheduler != nil {
 		s.taskScheduler.adoptIdleImage(adopted, p.tx.writes)
 	}
@@ -220,4 +248,21 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 		_ = s.backendResult(p.ctx, listenerFailure, true)
 	}
 	return telemetryEvents, nil
+}
+
+// stampPublication preserves the detached payloads prepared before admission and
+// fills only metadata assigned by storage, as Transaction.adopt(seq) does.
+func stampPublication(p *CommitPublication, state Snapshot, seq uint64) {
+	p.Seq = seq
+	for i := range p.Tables {
+		if entry := p.Tables[i].Entry; entry != nil {
+			record := state.Entries[entry.ID]
+			entry.Seq, entry.Position = record.Seq, record.Position
+		}
+	}
+	for i := range p.Documents {
+		record := state.Documents[p.Documents[i].Record.ID]
+		p.Documents[i].Record.CreatedAt = record.CreatedAt
+		p.Documents[i].Record.RetiredAt = record.RetiredAt
+	}
 }

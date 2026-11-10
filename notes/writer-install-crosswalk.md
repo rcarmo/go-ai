@@ -402,3 +402,35 @@ of incompatible native code. In particular, native whole-snapshot transaction
 preparation and prebuilt sequence-stamped publication frames are implementation
 choices to replace if they prevent keyed transaction admission and receipt-time adoption.
 Preserving those choices is not an acceptance criterion.
+
+## Plain Session transactions: disjoint admission and receipt-time metadata
+
+The source170-style assertion now passes: three new conversation documents are
+created by disjoint callbacks, callbacks b/c finish while storage a is held,
+nothing publishes early, and storage calls contain [1,2] parts. Receipt sequences
+are consecutive and every createdAt equals its own receipt. The assertion failed
+before changing transaction admission. It passes ten repeats with the related
+queue/lifetime regression group.
+
+Transaction read methods now have a gated host boundary. Document address reads,
+incarnation-handle reads and allocation no longer share a blanket ALL_KEYS wait.
+When a dependency publishes, staged writes retain their intent and their cached
+validation image is invalidated/rebased. Other transaction methods still conservatively
+touch ALL_KEYS. Scheduler-bound or deferred transaction entry still drains because
+native scheduler callbacks read tx.state directly; this is remaining migration work.
+
+Receipt-time adoption assigns publication Seq, entry placement and document lifecycle
+metadata from the receipted image. Queued-part fallback subscription snapshots are
+rebuilt from that exact prefix instead of the admission-time snapshot. The batching
+assertion initially exposed [3,3,3] publication sequences before this correction.
+
+Failure reporting now waits for the writer gate before invoking a reentrant harness
+reporter, so provisional reservation rollback precedes inspection. Queue admission
+consults Context.Done consistently on both contended and fast paths. The old test
+counted only contention and could falsely report zero admissions. New gate tests
+signal the gate consultation after the two queue acquisitions.
+
+Verification: full durable suite 406.652s; vet and Staticcheck; batching, read-key,
+capability lifetime, reservation rollback and admission-count tests ten repeats.
+D01–D04 remain open for scheduler admission, precise non-document Tx dependencies,
+ordered outcome delivery/failure boundaries and publication continuations.

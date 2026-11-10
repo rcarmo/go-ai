@@ -288,16 +288,18 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 	if err = s.enter(ctx); err != nil {
 		return 0, err
 	}
-	// Native transactions capture whole state, so a commit waits for everything
-	// admitted before it: it must never settle against a baseline that misses an
-	// admitted write.
-	if err = s.touchAll(ctx); err != nil {
-		s.leave()
-		return 0, err
+	// Scheduler callbacks still consume whole-state private bookkeeping. Public
+	// Session transactions read through the Transaction host's dependency keys.
+	keyedReads := s.hasNativeReadImage() && s.taskScheduler == nil && !deferred
+	if !keyedReads {
+		if err = s.touchAll(ctx); err != nil {
+			s.leave()
+			return 0, err
+		}
 	}
 	// The owned store cannot have an untracked committed prefix after the
 	// publication barrier. Check under its own line, before preparing writes.
-	if s.hasNativeReadImage() {
+	if s.hasNativeReadImage() && s.writer.drained() == nil {
 		<-s.core.line
 		gap := s.core.state.Seq != s.readImage.Seq
 		s.core.leave()
@@ -391,7 +393,7 @@ func (s *Session) commitPersistence(ctx context.Context, callback func(*Tx) erro
 		err = e
 		return 0, e
 	}
-	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external, progressTask: taskID}
+	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external, progressTask: taskID, keyedReads: keyedReads}
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err

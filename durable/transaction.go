@@ -36,11 +36,14 @@ type Tx struct {
 	documentPlans map[ID]*transactionDocumentPlan
 	readDocuments map[ID]bool // actual document access, separate from preparation scans
 	memoryOnly    bool        // sealed eligible deferred-document publication
+	keyedReads    bool        // Session methods touch dependencies before reading the base
 	busy          atomic.Bool
 	sealed        atomic.Bool
 }
 
-func (t *Tx) enter() error {
+func (t *Tx) enter() error { return t.enterKeys(ALL_KEYS) }
+
+func (t *Tx) enterKeys(keys ...string) error {
 	if t.sealed.Load() {
 		return ErrSealed
 	}
@@ -50,6 +53,31 @@ func (t *Tx) enter() error {
 	if t.sealed.Load() {
 		t.busy.Store(false)
 		return ErrSealed
+	}
+	if err := t.touchKeys(keys...); err != nil {
+		t.busy.Store(false)
+		return err
+	}
+	return nil
+}
+
+// touchKeys is the Transaction host's gated read boundary. Staged changes stay
+// private; after a dependency publishes, rebase their validation on the receipted
+// image. A disjoint read does not drain unrelated admitted writes.
+func (t *Tx) touchKeys(keys ...string) error {
+	if !t.keyedReads || t.session == nil {
+		return nil
+	}
+	for _, key := range keys {
+		if err := t.session.touch(t.ctx, key); err != nil {
+			return err
+		}
+	}
+	image := t.session.memoryReadImage()
+	if image.Seq != t.state.Seq {
+		image.HighWater = max(image.HighWater, t.state.HighWater)
+		t.state = image
+		t.stagedState, t.stagedWrites, t.publicationState = nil, nil, nil
 	}
 	return nil
 }
@@ -176,7 +204,7 @@ func (t *Tx) rejectCurrentForkWrites(writes []Write, parent ID) error {
 }
 
 func (t *Tx) MintID() (ID, error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterKeys(); e != nil {
 		return 0, e
 	}
 	defer t.leave()
@@ -362,7 +390,7 @@ func (t *Tx) CreateDocument(v Document) (*DocumentHandle, error) {
 	return &DocumentHandle{t, v.ID, v.Scope, v.Owner, v.Kind, v.Key, v.Version}, nil
 }
 func (t *Tx) Document(id ID) (*DocumentHandle, error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterKeys(incarnationKey(id)); e != nil {
 		return nil, e
 	}
 	defer t.leave()
@@ -383,7 +411,7 @@ func (h *DocumentHandle) record() (Document, error) {
 	return v, nil
 }
 func (h *DocumentHandle) Get() (JSON, error) {
-	if e := h.tx.enter(); e != nil {
+	if e := h.tx.enterKeys(incarnationKey(h.id)); e != nil {
 		return nil, e
 	}
 	defer h.tx.leave()
@@ -394,7 +422,7 @@ func (h *DocumentHandle) Get() (JSON, error) {
 	return copyObject(v.Value, h.tx.limits)
 }
 func (h *DocumentHandle) Set(value JSON) error {
-	if e := h.tx.enter(); e != nil {
+	if e := h.tx.enterKeys(incarnationKey(h.id)); e != nil {
 		return e
 	}
 	defer h.tx.leave()
@@ -425,7 +453,7 @@ func (h *DocumentHandle) Set(value JSON) error {
 	return nil
 }
 func (h *DocumentHandle) Update(callback func(JSON) error) error {
-	if e := h.tx.enter(); e != nil {
+	if e := h.tx.enterKeys(incarnationKey(h.id)); e != nil {
 		return e
 	}
 	defer h.tx.leave()
@@ -468,7 +496,7 @@ func (h *DocumentHandle) Update(callback func(JSON) error) error {
 // ApplyOperations retains explicit structural intent, even for a nonempty
 // batch whose final value equals the base. Failed batches stage nothing.
 func (h *DocumentHandle) ApplyOperations(operations []Operation) error {
-	if e := h.tx.enter(); e != nil {
+	if e := h.tx.enterKeys(incarnationKey(h.id)); e != nil {
 		return e
 	}
 	defer h.tx.leave()
@@ -503,7 +531,7 @@ func (h *DocumentHandle) ApplyOperations(operations []Operation) error {
 	return nil
 }
 func (h *DocumentHandle) Retire() error {
-	if e := h.tx.enter(); e != nil {
+	if e := h.tx.enterKeys(incarnationKey(h.id)); e != nil {
 		return e
 	}
 	defer h.tx.leave()

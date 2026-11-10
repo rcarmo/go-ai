@@ -149,7 +149,15 @@ func (s *Session) backendResult(ctx context.Context, err error, mutation bool) e
 		scheduler.sealed.Store(true)
 		// Notification is caller-owned: it may reenter Close or wait for Closed.
 		// Do not let a blocked reporter delay cancellation or storage settlement.
-		go scheduler.h.report(ctx, cause, ReportInfo{Type: "session_failed"})
+		go func() {
+			// Failure fences immediately, but reporting can reenter native
+			// bookkeeping. Let the writer discard provisional authority before
+			// exposing the failed job to a reporter that may inspect it.
+			if drained := s.writer.drained(); drained != nil {
+				<-drained
+			}
+			scheduler.h.report(ctx, cause, ReportInfo{Type: "session_failed"})
+		}()
 		go func() { _ = scheduler.h.Close(context.Background()) }()
 	} else {
 		go func() { _ = s.Close(context.Background()) }()

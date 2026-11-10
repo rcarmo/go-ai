@@ -346,7 +346,7 @@ func (s *Session) snapshotDefinitionAsOf(ctx context.Context, def *DocumentDefin
 // Initializers run once for absent addresses; successful typed acquisition of an
 // older stored version stages a required full base even without a value edit.
 func (t *Tx) AcquireDocument(def *DocumentDefinition, owner ID, key *string, seed JSON) (*DocumentHandle, error) {
-	if err := t.enter(); err != nil {
+	if err := t.enterKeys(); err != nil {
 		return nil, err
 	}
 	defer t.leave()
@@ -356,6 +356,19 @@ func (t *Tx) acquireDefinition(def *DocumentDefinition, owner ID, key *string, s
 	address, err := definitionAddress(def, owner, key)
 	if err != nil {
 		return nil, err
+	}
+	if err := t.touchKeys(documentKey(address)); err != nil {
+		return nil, err
+	}
+	if address.Scope == "conversation" {
+		if err := t.touchKeys(conversationKey(owner)); err != nil {
+			return nil, err
+		}
+	}
+	if address.Scope == "task" {
+		if err := t.touchKeys(taskKey(owner)); err != nil {
+			return nil, err
+		}
 	}
 	state := t.state
 	if len(t.writes) > 0 {

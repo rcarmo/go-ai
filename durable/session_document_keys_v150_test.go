@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -106,9 +107,9 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 			}
 			dependent := make(chan error, 1)
 			queued := make(chan struct{})
-			ctx := &taskAdmissionContext{Context: bg, queued: queued}
+			ctx := &documentGateContext{Context: bg, queued: queued}
 			go func() { dependent <- read(ctx, a) }()
-			// Done is consulted by touch's select, after ordinary admission.
+			// The third Done consultation is touch's select, after both queues.
 			// The signal witnesses the actual gate wait, not goroutine launch.
 			awaitTaskSignal(t, queued)
 			select {
@@ -125,4 +126,19 @@ func TestSessionV150DocumentReadsTouchOnlyTheirDependencies(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Two queue acquisitions precede the read gate. Signal only at the gate so
+// launch/admission alone cannot satisfy a dependent-read assertion.
+type documentGateContext struct {
+	context.Context
+	queued chan struct{}
+	calls  atomic.Int64
+}
+
+func (c *documentGateContext) Done() <-chan struct{} {
+	if c.calls.Add(1) == 3 {
+		close(c.queued)
+	}
+	return c.Context.Done()
 }

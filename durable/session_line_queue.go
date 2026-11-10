@@ -65,6 +65,10 @@ func (l *sessionLine) acquire(ctx context.Context) error {
 	if ctx == nil {
 		return reject("nil context")
 	}
+	// Consult cancellation at every queue admission, including the fast path.
+	// Context observers must not depend on whether another job happened to
+	// hold the queue at this instant.
+	done := ctx.Done()
 	l.mu.Lock()
 	// Only a caller arriving to an empty queue may take the line at once: a handoff
 	// in flight already promised it to the head of the queue.
@@ -79,7 +83,7 @@ func (l *sessionLine) acquire(ctx context.Context) error {
 	l.mu.Unlock()
 
 	select {
-	case <-ctx.Done():
+	case <-done:
 		l.mu.Lock()
 		if w.granted {
 			// Handed the token while canceling. Own it long enough to return it.
