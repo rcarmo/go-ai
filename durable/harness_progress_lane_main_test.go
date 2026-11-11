@@ -168,7 +168,6 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 					fault := errors.New("persistence write failed")
 					installTaskAppend(t, h, h.session.core, func(byte, uint64, uint64, []byte) error { return fault })
 					failedWait := make(chan error, 1)
-					go func() { _, err := h.WaitForTask(bg, id); failedWait <- err }()
 					clock.Store(1400)
 					fire := watchReceive(t, timer)
 					fire()
@@ -179,6 +178,10 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 					if !errors.As(h.session.failure(), &failure) || !errors.Is(err, ErrPoisoned) || !errors.Is(err, failure.Cause) {
 						t.Fatal("timer uncertain failure was not latched", err, h.session.failure())
 					}
+					// This assertion is about a LATER caller. Launch only after
+					// the preceding Snapshot has observed the latched failure;
+					// launching a goroutine before fire() did not establish that.
+					go func() { _, err := h.WaitForTask(bg, id); failedWait <- err }()
 					var guarded *SessionFailed
 					if err := watchReceive(t, failedWait); !errors.As(err, &guarded) || guarded.Cause != failure.Cause {
 						t.Fatal("later waiter lost first cause", err)

@@ -956,6 +956,10 @@ func TestTaskRecoveryCrashHelper(t *testing.T) {
 	// This timer is not used for test synchronisation or stage observation.
 	keepAlive := time.NewTimer(time.Hour)
 	defer keepAlive.Stop()
+	// A channel timer with no receiver is not an active runtime wakeup on
+	// modern Go. Actually wait for it so the parked crash helper stays alive;
+	// the parent's existing deadline/SIGKILL remains the only stage control.
+	go func() { <-keepAlive.C }()
 	never := make(chan struct{})
 	hostReady := make(chan struct{})
 	child := taskDefinition(t, "task.crash.child", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error { <-never; return ctx.Err() })

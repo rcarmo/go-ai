@@ -48,7 +48,14 @@ func TestMainTaskTraceRefusalAndReopen(t *testing.T) {
 		if !errors.Is(err, refused) {
 			t.Fatal("confirmed refusal", err)
 		}
-		after, err := b.store.Snapshot(bg)
+		// Refusal fails/closes the Session asynchronously. Inspect durable
+		// rollback after joining close and reopening, not by racing Snapshot
+		// against the old store's automatic shutdown.
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		store := b.reopen()
+		after, err := store.Snapshot(bg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,10 +68,6 @@ func TestMainTaskTraceRefusalAndReopen(t *testing.T) {
 		if n != 0 {
 			t.Fatal("refused task dispatched telemetry", n)
 		}
-		if err := h.Close(bg); err != nil {
-			t.Fatal(err)
-		}
-		store := b.reopen()
 		h = taskTestHarnessOptions(t, store, Options{Telemetry: backend.root}, def)
 		backend.h = h
 		id := createPublicTask(t, h, def, nil, options)
