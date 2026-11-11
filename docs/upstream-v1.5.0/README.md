@@ -8,7 +8,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Current durable deviations
 
-The [durable deviation register](durable-deviations.md) records 15 open confirmed incompatibility groups, two fixed groups, ten unverified areas, one verification gap and the approved backend exclusion, with evidence, fix paths, dependencies and acceptance tests. Its [review obligations](durable-review-obligations.tsv) cover all 165 pinned durable test/support/fixture paths, including 101 test files. The [semantic-port receipts](durable-semantic-port.md) record the current implementation slices. No complete parity result is established.
+The [durable deviation register](durable-deviations.md) tracks current evidence for29 groups and165 pinned durable test/support/fixture obligations, including101 test files. The [biggest deviations and path to zero](alignment-roadmap.md) separates confirmed API/record/ordering failures from unverified coverage. Its RED builtin acceptance gate is outside the ordinary native suite and must pass before that boundary can close. State counts are group labels, not a parity percentage.
 
 ## Historical parity backlog and contract decisions
 
@@ -26,11 +26,11 @@ Rui's clarification supersedes the earlier multi-engine matrix: **SQLite through
 
 ## Session observer checkpoint
 
-[Session observers](session-observers.md) records the pinned row-338 comparison, private stored-lane controls and the unexecuted synchronous document-observer contracts. The row stays `reviewed-open`.
+[Session observers](session-observers.md) records installed public canonical stored and readonly document observers, exact identity controls and remaining dispatch/binding/lifetime contracts. The row stays `reviewed-open`.
 
 ## Conversation-view identity checkpoint
 
-[Conversation-view document identity](view-shared-identity.md) records the source330 pending oracle: native public values contain equal documents in different maps. Shared identity conflicts with the existing detached-copy contract; row 314 stays `partial`.
+[Conversation-view document identity](view-shared-identity.md) records source330 and later shared readonly identity controls. The native public readonly API is installed; remaining lifecycle/wrapper assertions are still open and historical row314 stays `partial`.
 
 ## Release inputs
 

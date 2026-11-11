@@ -1,21 +1,24 @@
 # Durable deviations from pi-durable v1.5.0
 
-The native durable package is not yet semantically equivalent to pi-durable v1.5.0. This register records **15 open confirmed incompatibility groups**, **two fixed groups**, **10 unverified areas**, **one verification gap** and **one approved backend exclusion**. Every entry has evidence, a fix path and acceptance criteria. These groups are not a count of individual failing assertions.
+The native durable package is not yet semantically equivalent to pi-durable v1.5.0. Entries track mixed implementation progress and outstanding acceptance; their states are not counts of individual failures or a parity percentage.
 
-Target: `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native baseline: `a89368c99be4f270baf1108a143b82fb08f849e9`. The uncommitted `session_writer.go` and direct writer tests are a prototype, excluded from implementation and parity receipts here. The inventory includes currently known deviations; the assertion-level audit is incomplete and may find more.
+Register states: confirmed=14; unverified=10; scope-exclusion=1; verification-gap=1; fixed=3.
+
+Target: `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native baseline: `a89368c99be4f270baf1108a143b82fb08f849e9`. The baseline is historical. The writer is installed in the current runtime; current evidence and remaining acceptance follow below. The inventory includes currently known deviations; the assertion-level audit is incomplete and may find more.
 
 - [Machine-readable register](durable-parity-gaps.json): IDs, evidence, fixes, acceptance, dependencies and blockers.
 - [Complete durable review obligations](durable-review-obligations.tsv): all **165 pinned test/support/fixture paths**, including **101 test files**, with original SHA-256, historical disposition, outstanding review and gap IDs.
+- [Biggest deviations and path to zero](alignment-roadmap.md): current priorities, RED builtin gate and closure criteria.
 - [Semantic-port receipts](durable-semantic-port.md): completed bounded slices and retained measurements.
 - [Historical crosswalk](upstream-tests-f9a26365.tsv) and [dependency queue](dependency-tests-f9a26365.tsv): broader ai/schema scope. Historical dispositions have not been promoted.
 
 ## What can be fixed
 
-Each open confirmed gap has an implementation route. No external blocker has been identified. Four representation decisions must be settled before promising complete equivalence:
+Each open confirmed gap has an implementation route. No external blocker has been identified. Installed foundations leave these compatibility boundaries to complete:
 
 1. Public task/message/error values must be lossless, including arbitrary refusal values and empty/absent fields (D03, D07–D09, D12).
 2. Existing native SQLite data must remain readable. D08 now retains presence using the existing optional string field; metadata already lost by older writers cannot be recovered. Original-database interoperability still needs explicit format detection and migration rules (D11).
-3. Shared readonly views need an enforceable immutable representation and revision identity. Writable Go maps and detached copies cannot both satisfy the original contract (D14–D17).
+3. Shared immutable handles and adopted revision identity are installed. Complete wrapper fallback, cache/version/weak lifetime, cancellation and observer-binding acceptance remains D14–D17.
 4. Go admission, callback results and publication scheduling need an agreed language mapping that preserves observable order and caller semantics (D01–D06, D10, D13).
 
 Read-only external viewers also require a storage reader/refresh design compatible with single-writer ownership (D27). Other reviewed areas may expose further blockers. Fixability is established entry by entry with source tests; it is not established merely by listing a proposed implementation.
@@ -24,9 +27,9 @@ SQLite-only support is the authorised product exclusion (D25). Shared Storage as
 
 ## Fix sequence
 
-1. Capture exact original records and method/result shapes; decide versioned envelopes, arbitrary error values, callback results and wrapper authority (D03, D07–D13).
-2. Co-design the Session admission/read-key/writer/publication state machine (D01–D06). These entries have reciprocal dependencies because they must be integrated and tested together. Preserve serial callbacks, exact-prefix receipts, first-cause fencing, all outcome gates and the 256-job admission bound.
-3. Introduce immutable mounted values and public observer scheduling (D14–D17), then readonly viewer refresh (D27). Keep existing ownership and close guarantees.
+1. Port canonical generation/tool/nested records and the primary Storage/API boundaries (D07–D13). Drive the fresh RED builtin publication gate to green without normalising away its source assertions.
+2. Finish exact read dependencies and the grouped caller-continuation bridge (D01–D06). Preserve the installed writer, serial callbacks, exact-prefix receipts, first-cause fencing, outcome gates and256-job admission bound.
+3. Complete installed readonly observer/lifetime contracts (D14–D17) and add readonly viewer refresh (D27), preserving ownership and close guarantees.
 4. Complete scheduler/lifecycle/resource/dependency contracts and the full source crosswalk (D18–D24, D26). Schema/engine gaps need separate source-backed packets.
 
 No caller workaround, normalised comparison, private-only hook, deep-copy alias or optional replacement API closes an entry. Close an entry only after the unchanged source assertions and necessary durability/ownership controls pass against the integrated public path. Preserve old data/assets; no automatic migration or weakening of bounds.
@@ -71,12 +74,7 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 
 ### Writer installation status
 
-The writer is installed on Session and the full native suite passes. Admission
-ordering now survives read-gate waits while publication takes only the memory lock.
-D01–D04 remain open: ALL_KEYS barriers still serialise whole-state transactions;
-source170 disjoint admission/batching and the Session-level outcome fence, failure
-boundary and continuation assertions have not been established. See
-[the current crosswalk](../../notes/writer-install-crosswalk.md#writer-installed-admission-queue-retained-across-touch-supersedes-attempts-57).
+The writer is installed. Independent document admission, [1,2] batching, receipt adoption, first-failure/outcome fencing and the256-job bound have production controls. Remaining work includes exact scheduler/non-document keys, full assertion review and D04's between-part caller-continuation bridge. Public readonly observers are also installed. [Current priorities and closure criteria](alignment-roadmap.md).
 
 ### D01 — Independent Session admission and storage batching
 
@@ -84,14 +82,14 @@ boundary and continuation assertions have not been established. See
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/writer.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/writer.ts).
 - Native/evidence: [`durable/session.go`](../../durable/session.go); [`durable/storage_group.go`](../../durable/storage_group.go).
-- Fix: Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.
+- Fix: Preserve the installed independent admission/writer flight; finish precise non-document/scheduler dependencies and complete source outcome/continuation acceptance without reverting to whole-flight serialization.
 - Acceptance: Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order.
 - Dependencies: D02, D03, D04.
 - Blocker/decision: none identified; acceptance still required
 
 ### D02 — Keyed unpublished read dependencies
 
-**confirmed.** Current global Session line blocks all reads/callbacks through settlement. Existing serial barrier tests cannot establish keyed overlap.
+**confirmed.** Address/visibility/incarnation document reads and transaction-host dependency rebasing are installed. Disjoint Session/Harness document transactions admit before unrelated storage settles. Ordinary cold read outcomes remain fenced even when their reads execute early. Native private whole-graph adapters still declare ALL_KEYS; precise scheduler dependencies and the rest of GatedStorage require acceptance.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/session.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/session.ts).
 - Native/evidence: [`durable/session.go`](../../durable/session.go); [`durable/session_read_line.go`](../../durable/session_read_line.go); [`durable/transaction.go`](../../durable/transaction.go).
@@ -102,14 +100,14 @@ boundary and continuation assertions have not been established. See
 
 ### D03 — Failure boundaries and arbitrary rejection/refusal values
 
-**confirmed.** Closed: public boundaries carry the reported value with presence, independently of Go diagnostics. `CommitResult.Refused` is `*Refusal` (nil = absent) and returns the value verbatim; the Session failure slot keeps the cause chain intact for classification and exposes the thrown value through `*Failure` (`SessionFailed.Failure`, `SessionEnd.Failure`), including present null/undefined/false/0/empty string; uncertain-append poisoning keeps the reported value reachable without changing its diagnostic text. Open: multipart own-error set, first-failing-job recording and prefix publication before fencing still require the independent writer flight.
+**confirmed.** Arbitrary failure-value presence, own backend-error identity, admission job indices, first-failure boundary, last fenced delivery and same-call own-error set are installed. New Session tests cover poisoning later successful/error callbacks and cold reads, plus receipted parts in a call rejected after storage with undefined/null/falsy values and durable-prefix reopen. Complete source parameter/entry-surface audit remains open.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/writer.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/writer.ts); [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts).
 - Native/evidence: [`durable/session_failure.go`](../../durable/session_failure.go); [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/storage_group.go`](../../durable/storage_group.go); [`durable/storage.go`](../../durable/storage.go); [`durable/session_group_commit_outcomes_test.go`](../../durable/session_group_commit_outcomes_test.go); [`durable/storage_refusal_value_v150_test.go`](../../durable/storage_refusal_value_v150_test.go).
-- Fix: Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in `durable/session_failure.go` and `durable/storage_public.go`.
+- Fix: Complete the parameterised source failure and entry-surface audit against the installed first-failure boundary, own-outcome set and ordered delivery. Preserve original values and backend error identity; integrate the remaining D04 caller-continuation semantics.
 - Acceptance: All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen.
 - Dependencies: D01.
-- Blocker/decision: Remaining scope depends on D01: without an independent writer flight there is no single place that owns multipart publication, fencing order and the same-call own-error set.
+- Blocker/decision: The independent writer and failure/outcome sets are installed. Complete assertion-level acceptance and the D04 continuation bridge remain open.
 
 ### D04 — Publication turns, continuations and storage publication scope
 
@@ -124,11 +122,11 @@ boundary and continuation assertions have not been established. See
 
 ### D05 — 256 started-but-undelivered job bound and ordered outcomes
 
-**confirmed.** Session currently serialises through settlement and has no source-equivalent outstanding-job accounting. Writer queue alone would otherwise permit unbounded admissions.
+**confirmed.** MAX_OUTSTANDING=256 is enforced at job start and released on outcome delivery. New source920-style test verifies job257 waits and idle outcomes/keys return to zero. Ordinary commit/read outcomes fence; internal no-write/no-hit outcomes are exempt, with hit/write counter-tests. Complete cache fast-path, cancellation-at-capacity and delivery-surface audit remains open.
 
 - Source: [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts); [`src/session/session.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/session.ts).
 - Native/evidence: [`durable/session.go`](../../durable/session.go).
-- Fix: Bound jobs at source admission, not merely queued writes. Account for reads, empty commits, callback errors and held parts. Deliver outcomes in line order; release room only at delivery.
+- Fix: Preserve the installed256-slot start-to-delivery bound and finish cache fast-path, cancellation-at-capacity and all delivery-surface assertions.
 - Acceptance: Source390 and920: only255 additional jobs start behind first; all300 finish; outstanding/unpublished/reads return to zero; cancellation and errors release every slot.
 - Dependencies: D01, D04.
 - Blocker/decision: none identified; acceptance still required
@@ -146,14 +144,14 @@ boundary and continuation assertions have not been established. See
 
 ### D07 — Original harness message kinds and model payloads
 
-**confirmed.** Fresh pending oracle fails live and after reopen: kind message/value instead of pi.user/pi.assistant/model. Readers accept both. Previous attempted producer switch caused 37 failures and one hang because native receipt errorCode/tagged details violate contribution validation.
+**confirmed.** Harness producers now emit pi.user/pi.assistant/pi.tool-result with model messages and tool-result data.diagnostics (de0f918). The former pending entry-shape oracle was promoted to durable/entry_message_kinds_v150_test.go and passes current live/reopen controls. A fresh count3/shuffle42 run at44a581c passes the normal user/assistant shape; it does not accept all tool/diagnostic/detail/UTF-16/empty-field variants. The older native message/value failure and tag-only37-failure attempt describe superseded baselines, not current normal production.
 
 - Source: [`src/entries.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/entries.ts); [`src/harness/generation.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/harness/generation.ts); [`test/harness-input-entries.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-input-entries.test.ts).
 - Native/evidence: [`durable/message_entry.go`](../../durable/message_entry.go); [`durable/entry_record_wire.go`](../../durable/entry_record_wire.go); [`durable/registry.go`](../../durable/registry.go); [`durable/entry_definition.go`](../../durable/entry_definition.go).
-- Fix: Capture original user/assistant/tool-result receipts covering errors, diagnostics, details, empty fields and all content blocks. Introduce lossless public-message conversion, keep legacy readers, then switch every producer. Separate private receipt witnesses from original public fields.
+- Fix: Preserve the installed canonical producers and finish exact tool-result, diagnostic/detail, UTF-16 and empty/absent-field assertion coverage. Reconcile every remaining receipt witness with source public fields; do not repeat the obsolete tag-only producer switch.
 - Acceptance: Pending entry_message_kinds_v150_test.go unchanged; original tool-result data.diagnostics, model details/error fields, exact required-zero/empty presence; full generation, tool, compaction, abort and reopen regressions.
 - Dependencies: none recorded.
-- Blocker/decision: A tag-only switch loses native receipt semantics; complete receipt conversion is prerequisite.
+- Blocker/decision: Normal producers and the live/reopen shape are installed; complete message/receipt union and field-presence acceptance is still open.
 
 ### D08 — Present-but-empty submission requestId and deduplication
 
@@ -170,7 +168,7 @@ boundary and continuation assertions have not been established. See
 
 ### D09 — Built-in public task writes are refused
 
-**confirmed.** public nativeTask refuses every pi.* kind, while original Storage.commit accepts task records independently of native runtime checkpoint adapters. Namespace-wide refusal is stricter than the original.
+**confirmed.** Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. A real Harness pi.example task executes; public compaction now uses pi.compaction. Raw application/compaction records pass exact canonical JSON and SQLite reopen controls. The separate public-translator prefix ban failed the new raw-storage probe before narrowing to generation/tool. Public pi.generation/pi.tool records still require their private checkpoint adapters; arbitrary canonical builtin writes remain incompatible. See notes/canonical-compaction-kind.md. Final full durable412.725s/tools15.198s, vet/Staticcheck/logging,30 shuffled controls and145 unchanged pinned tests +31 probes pass. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.
 
 - Source: [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts); [`src/storage/memory.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/memory.ts); [`test/store-storage.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/store-storage.test.ts).
 - Native/evidence: [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/task_definition.go`](../../durable/task_definition.go); [`durable/task_record_wire.go`](../../durable/task_record_wire.go).
@@ -247,7 +245,7 @@ boundary and continuation assertions have not been established. See
 
 ### D16 — Public observeCommits host dispatch and waiter ordering
 
-**confirmed.** Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open.
+**confirmed.** Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open. Follow-up source guardObserver/toError probes distinguish original falsy throw reports from normalised listener_error endings. Public advance/ending callbacks now retain false/zero/empty-string/nil via Failure.Value; raw panic(nil) is normalised from its Go runtime sentinel. Native reports and nil endings failed before fixes. Reference145 unchanged tests +26 probes;30 shuffled public/guard repeats; full durable419.411s/tools18.755s and vet/Staticcheck/logging pass. Other host-value stringification and asynchronous rejection bindings remain unverified. Reentrant self-detach, report-time detach and peer replacement during dispatch already pass without runtime changes; source notifyHosts snapshots membership and each guard rechecks detach. Reference145 unchanged tests +27 probes and50 shuffled native repeats pass. Queued-operation reentry and report-callback faults remain unverified. Object/array/cycle/Number/custom conversion normalisation now matches an independent18-case source probe. The first16 native cases failed the generic ending message before the fix. Raw public callbacks verify report identity, NaN/signed zero, nested conversion fallback, bigint and fresh ending errors. Reference145 unchanged tests +28 probes;20 shuffled public and20 strengthened object/number repeats; full durable403.545s/tools18.718s and vet/Staticcheck/logging pass. JavaScript undefined/symbol/custom tags/function-source and async rejection binding acceptance remain open. Public Harness compaction now publishes source pi.compaction/version1/pending-select; real application pi.example execution and raw application/compaction storage/reopen probes also pass. Existing registry replacement protection, cutoff and telemetry assertions retain their checks with the source kind. Final full durable412.725s/tools15.198s; vet/Staticcheck/logging;30 shuffled controls;145 unchanged pinned tests +31 probes. Generation/tool/nested projections and complete compaction contracts remain open; notes/canonical-compaction-kind.md. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.
 
 - Source: [`test/session-observers.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-observers.test.ts); [`test/harness-submissions.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-submissions.test.ts); [`src/session/session.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/session.ts).
 - Native/evidence: [`durable/session_sync_observers.go`](../../durable/session_sync_observers.go); [`durable/session_local_observers.go`](../../durable/session_local_observers.go); [`durable/observation.go`](../../durable/observation.go); [`durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go`](../../durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go).
@@ -262,7 +260,7 @@ boundary and continuation assertions have not been established. See
 
 - Source: [`test/session-observers.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-observers.test.ts); [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts).
 - Native/evidence: [`durable/session_document_observers.go`](../../durable/session_document_observers.go); [`durable/session_public_document_observer_main_test.go`](../../durable/session_public_document_observer_main_test.go); [`durable/observation.go`](../../durable/observation.go).
-- Fix: Finish source-specific builtin mount hydration, version/reload/eviction/pin/weak lifetime, task-bound warm reads, exact cancellation causes and remaining observer assertions. Initial mount nodes borrow loaded trackers; edited mount branches are separate replays, as independently probed. Complete public stored-observer dispatch separately.
+- Fix: Preserve installed cold-builtin hydration, readonly snapshots/watches and initial mount borrowing. Finish version/reload/eviction/pin/weak lifetime, task-bound warm reads, exact cancellation causes and remaining observer assertions; complete D16 binding/dispatch acceptance.
 - Acceptance: Source77/87/105/132/162/241/254/308/469/496/520, detach/end guards, queued acquisition/cancellation, retirement/recreation, scheduler publication and immutable values.
 - Dependencies: D14, D16.
 - Blocker/decision: none identified; acceptance still required
@@ -357,7 +355,7 @@ boundary and continuation assertions have not been established. See
 
 ### D26 — Assertion-level crosswalk and release verification are incomplete
 
-**verification-gap.** Historical crosswalk has 161 durable test/support/fixture paths; 147 are pending-review, seven prior-partial-needs-delta-review, six reviewed-open and one partial. These stale file dispositions are not a parity percentage. Current full native test pass cannot close source assertions. Complete-tree verification found four additional worker support/configuration paths missing from that historical inventory; the new obligations cover 165 paths in total.
+**verification-gap.** Historical crosswalk has 161 durable test/support/fixture paths; 147 are pending-review, seven prior-partial-needs-delta-review, six reviewed-open and one partial. These stale file dispositions are not a parity percentage. Current full native test pass cannot close source assertions. Complete-tree verification found four additional worker support/configuration paths missing from that historical inventory; the new obligations cover 165 paths in total. Register drift is now checked: Markdown state totals, each leading evidence/state paragraph and every index state must match the machine register. A deliberate stale-evidence change passed the old checker; the strengthened gate rejects evidence/count/index mutations. This verification fix does not close source assertion acceptance.
 
 - Source: [`src/index.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/index.ts); [`test/session-group-commit.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-group-commit.test.ts).
 - Native/evidence: [`docs/upstream-v1.5.0/upstream-tests-f9a26365.tsv`](../../docs/upstream-v1.5.0/upstream-tests-f9a26365.tsv); [`docs/upstream-v1.5.0/upstream-review-f9a26365.json`](../../docs/upstream-v1.5.0/upstream-review-f9a26365.json).
@@ -379,7 +377,7 @@ boundary and continuation assertions have not been established. See
 
 ### D28 — Raw Storage initial state, explicit IDs and empty batches
 
-**fixed.** Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Original MemoryStorage starts nextId=2 and original SQLite metadata seeds next_id='2', next_seq=1, so ID 1 is reserved but never materialised: `harness.root()` stages `tx.createRootConversation()` with ownerless ownership inside its own commit, and every original test or benchmark that addresses conversation 1 creates it with an explicit conversation write (`testing/storage-conformance.ts:32`, `testing/storage-benchmark.ts:93`). Upstream has no implicit-root read path and no persisted config version; its only versioning is the SQLite schema migration table (version 1 initial schema, version 2 sleeping status). Native previously preinstalled root1 in `initialState`, required it in `restoreCheckpoint`, and raw commits refused unreserved IDs.
+**fixed.** Fresh original MemoryStorage capture has no conversation 1; an empty batch commits at seq1; explicit unminted conversation99 commits and raises next mint to100. Original MemoryStorage starts nextId=2 and original SQLite metadata starts next_id='2', next_seq=1, so ID 1 is reserved but never materialised: harness.root() stages tx.createRootConversation() with ownerless ownership inside its own commit, and every original test or benchmark that addresses conversation 1 creates it with an explicit conversation write (testing/storage-conformance.ts:32, testing/storage-benchmark.ts:93). Upstream has no implicit-root read path and no persisted config version at all; its only versioning is the SQLite schema migration table (version 1 initial schema, version 2 sleeping status). Native previously preinstalled root1 in initialState, required it in restoreCheckpoint and therefore fabricated a record the original Storage never held.
 
 **Resolution.** Raw Storage no longer fabricates the reserved root: `initialState()` holds no records and reserves allocator position 1 so the first mint is 2, and `restoreCheckpoint` no longer requires conversation 1. `Harness.Root`/`RootWithInit` materialize conversation 1 through `tx.CreateConversation` inside their own commit (the native equivalent of `tx.createRootConversation`); a second claim of the identity is refused. New native SQLite files write config version 2 and carry no root. Config version 1 files, written while the root was fabricated and which never persisted a root write, keep their implicit reserved root so their existing data retains the semantics its writer intended; an unknown config version is `ErrCorrupt` rather than being upgraded implicitly. Version 1 compatibility is a native-only shim because upstream persists no config version. Empty batches store each inner empty array with its own sequence and receipt, including grouped calls, reopen and checkpoint replay, and an empty outer call does not advance the sequence; native `writes:null` remains invalid. Explicit IDs are accepted for raw (non-Session) Storage commits: an unused ID in 1..MaxID commits and the allocator rises to the highest such ID atomically, while global type collisions, immutable recreation and out-of-domain IDs are refused; Session-owned writes still require reserved IDs. The native test corpus now declares its root dependency: fixtures that address conversation 1 create it before the store is owned (`seedRootConversation`, the `apply` helper, and the `sqliteStore`/`sqliteStoreFresh` split), and seq-relative replay fixtures run against a version 1 store so every captured sequence number and document point stays intact.
 
@@ -389,7 +387,7 @@ boundary and continuation assertions have not been established. See
 - Acceptance: Replay storage-boundaries.json through the public native SQLite boundary with no preparatory minting: fresh root absent, empty batch accepted at seq1, explicit99 accepted, next mint100; original outbox replay and reopen. Concurrent allocator/explicit-ID, collisions, backend rollback and uncertain outcomes must preserve uniqueness.
 - Verification: TestV150StorageFreshRootAbsent; TestSQLiteRootConfigVersionCompatibility and TestSQLiteUnknownConfigVersionIsCorrupt; TestHarnessRootBootstrapsReservedConversation; TestV150StorageExplicitIDRaisesAllocator, TestV150StorageExplicitIDGroupAndCollisions, TestV150StorageExplicitIDRealRollback, TestV150StorageExplicitIDReplayRejectsForgedHighWater, TestV150SessionStillRequiresReservedIDs; TestV150StorageEmptyBatch, TestV150StorageEmptyBatchRollback, TestV150StorageEmptyBatchRealRollback, TestV150StorageEmptyBatchRefusalKeepsPrefix, TestInternalReceiptImageAcceptsEmptyPart; TestPiDurableV150PublicStorageCommitReplaysCapturedOriginalBatches and TestPiDurableV150PublicStorageCommitEnforcesIDOwnership. Full durable suite green in 360.203s (GOMAXPROCS=2, -p 1) with go vet, pinned staticcheck, the logging gate and the register checker passing.
 - Dependencies: D10, D11, D12.
-- Blocker/decision: Native config version 2 is a native-only persisted-format marker; upstream persists no config version. Version 1 files keep their implicit reserved root, so their fresh-state shape stays different from a version 2 store, and data written while the root was fabricated cannot be rewritten as if its owner had committed it. Session/Harness root bootstrap consumes one sequence on a fresh store, so sequence-sensitive fixtures acquire the root explicitly as the original tests do. Broader raw Storage duplicate/update policy remains under D12 review.
+- Blocker/decision: Native config version 2 is a native-only persisted-format marker: upstream persists no config version, only the SQLite schema migration table. Version 1 files keep their implicit reserved root, so their fresh-state shape stays different from a version 2 store, and data written while the root was fabricated cannot be rewritten as if its owner had committed it. Session/Harness root bootstrap consumes one sequence on a fresh store, so sequence-sensitive fixtures must acquire the root explicitly the way the original tests do. Broader raw Storage duplicate/update policy remains under D12 review.
 
 ### D29 — Empty unanswered reason for continue submissions
 
@@ -404,7 +402,7 @@ boundary and continuation assertions have not been established. See
 - Dependencies: none recorded.
 - Blocker/decision: No envelope or schema migration; old data remains readable. Broader submission/runtime corpus review remains D20.
 
-## Three-deviation implementation checkpoint
+## Historical three-deviation implementation checkpoint
 
 D08, D28 and D29 are fixed within their named scope; D28 now includes the raw/fresh root split with explicit Harness root bootstrap and version-1 file compatibility. No whole-file disposition has been promoted. The Session writer prototype is excluded from the compiled verification candidate and the commit.
 
@@ -436,7 +434,7 @@ make vet
 make staticcheck
 ```
 
-## Reproduced red controls at the baseline
+## Historical red controls at the baseline
 
 At native baseline a89368c, a temporary Go compile overlay activated parked tests without altering their assertions. The replay overlay removes only `dropEmptyRequestID` so the comparison uses exact `canonicalJSON`. Results:
 
@@ -500,7 +498,7 @@ These checks validate inventory integrity. They do not execute the source assert
 
 Raw Storage commits now accept unused explicit IDs and raise the allocator atomically, matching storage-boundaries.json (conversation99, next mint100). Session transactions still require reserved IDs. Commit frames carry the post-commit high-water value in the existing column; replay recomputes and verifies it, so forged values fail as corruption. Earlier binaries refuse such files rather than misread them. The native-only assertion that ID99 must be refused was replaced by an immutable-recreation refusal. Full durable suite passes in **339.226s** (GOMAXPROCS=2, -p1, writer prototype excluded); durable/tools 17.070s; vet, Staticcheck, logging pass. An earlier attempt running the full suite concurrently with Staticcheck exhausted workspace memory; checks now run sequentially. Root preinstallation remains open.
 
-## Checked against source and cleared (not deviations)
+## Historical source checks (bounded non-deviations)
 
 Each of these looked like a deviation and was tested against the pinned tree before any code was
 written. None of them is a gap; recording them so the next pass does not spend effort "fixing" a
@@ -513,6 +511,4 @@ thing upstream does not have.
 | Failure-driven shutdown routed through the writer's `fail` hook | Felt like a native addition to the failure path | `fail()` closes fire-and-forget itself: `this.close(BACKGROUND_CONTEXT).catch(() => {})` (session.ts:450). Routing shutdown from the failure hook is the upstream behaviour |
 | Passing a `nil` adoption candidate | Looked like a latent lossy projection in HEAD | Every production adoption site already passes the exact image captured at that receipt (`session.go:372`, `session_deferred.go:384/447`, `close_requeue.go:47`). The loss existed only inside the reverted flip, so no fix is owed in HEAD |
 
-The Session line order (D02/D05 evidence) is now aligned at `8a4d06a`: jobs are granted in
-admission order, matching `#tail`. D01/D02/D03-remainder/D04 remain open — publication still runs
-on the line, so admission is still not handed off.
+At historical8a4d06a, Session admission became ordered but publication had not yet handed off. The current installed writer separates admission from publication; remaining dependency/assertion and D04 caller-continuation work is recorded above.

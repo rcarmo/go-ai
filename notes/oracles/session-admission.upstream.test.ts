@@ -442,3 +442,16 @@ it("accepts raw application and compaction records in the pi namespace",async()=
  expect(await storage.commit([[{type:"conversation",value:{id:1}}],records.map(value=>({type:"task",value}))] as any,(index,seq)=>receipts.push([index,seq]),context)).toEqual({stored:2});
  expect(receipts).toEqual([[0,1],[1,2]]);for(const record of records)expect(await storage.task(record.id as any,context)).toEqual(record);await storage.close(context);
 });
+
+it("publishes source generation v2 and model-tool v3 records without ending the observer",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{tool,addTool,assistant}=await import("@pinned/harness-support");
+ const setup=chatSetup();addTool(setup.registry,tool("tool-c1"));setup.faux.setResponses([assistant("",{calls:["c1"]}),assistant("done")]);
+ const {harness,root}=await openChat(new ControlledStorage(),setup);const changes:any[]=[],ends:any[]=[];
+ const guard=harness.observeCommits({advance:publication=>changes.push(...publication.changes),end:end=>ends.push(end)});
+ expect((await (await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");
+ const tasks=changes.filter(change=>change.type==="task").map(change=>change.value),generation=tasks.find(task=>task.kind==="pi.generation"),work=tasks.find(task=>task.kind==="pi.tool");
+ const request=changes.find(change=>change.type==="entry"&&change.value.kind==="pi.assistant"&&change.value.model?.[0]?.content.some((item:any)=>item.type==="toolCall"&&item.id==="c1"))?.value;
+ expect(generation).toBeDefined();expect(generation.version).toBe(2);expect(generation.input).toEqual({});expect(generation.state).toEqual({status:"pending",checkpoint:{phase:"prepare",attempt:1}});
+ expect(request).toBeDefined();expect(work).toBeDefined();expect(work.version).toBe(3);expect(work.input).toEqual({kind:"model",assistant:request.id,callId:"c1"});expect(work.state).toEqual({status:"pending",checkpoint:{phase:"call"}});
+ expect(ends).toEqual([]);await harness.close(context);expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("failed");guard.detach();
+});

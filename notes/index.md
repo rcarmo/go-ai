@@ -32,6 +32,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Canonical compaction kind](canonical-compaction-kind.md) — source task names, application pi.*
   namespace, public storage roundtrips, registry protection and remaining builtin projections.
 
+- [Biggest deviations and path to zero](../docs/upstream-v1.5.0/alignment-roadmap.md) — current
+  ranked architecture gaps, fresh RED builtin acceptance gate and closure criteria.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

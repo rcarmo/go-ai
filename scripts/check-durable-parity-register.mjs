@@ -26,6 +26,8 @@ const ids = new Set(register.entries.map((entry) => entry.id));
 assert.equal(ids.size, register.entries.length, "duplicate gap IDs");
 const states = new Set(["confirmed", "unverified", "scope-exclusion", "verification-gap", "fixed"]);
 const markdown = readFileSync(join(base, "durable-deviations.md"), "utf8");
+const stateSummary = [...states].map((state) => `${state}=${register.entries.filter((entry) => entry.state === state).length}`).join("; ");
+assert(markdown.includes(`Register states: ${stateSummary}.`), "stale Markdown state counts");
 for (const entry of register.entries) {
   assert(states.has(entry.state), `state: ${entry.id}`);
   for (const key of ["title", "evidence", "fix", "blocker"]) {
@@ -41,7 +43,11 @@ for (const entry of register.entries) {
     assert(entry.verification?.length, `missing verification: ${entry.id}`);
   }
   for (const dep of entry.depends) assert(ids.has(dep) && dep !== entry.id, `dependency: ${entry.id}/${dep}`);
-  assert(markdown.includes(`### ${entry.id} — ${entry.title}`), `missing detail: ${entry.id}`);
+  const heading = `### ${entry.id} — ${entry.title}`;
+  assert(markdown.includes(heading), `missing detail: ${entry.id}`);
+  assert(markdown.includes(`${heading}\n\n**${entry.state}.** ${entry.evidence}\n\n`), `stale Markdown evidence/state: ${entry.id}`);
+  const indexRow = markdown.split("\n").find((line) => line.startsWith(`| [${entry.id}](`));
+  assert(indexRow?.includes(` | ${entry.state} |`), `stale Markdown index state: ${entry.id}`);
 }
 const paths = rows.map((row) => row.upstream_path).sort();
 assert.equal(new Set(paths).size, paths.length, "duplicate obligations");

@@ -17,7 +17,7 @@
         "durable/storage_group.go"
       ],
       "evidence": "Writer installed and disjoint document transaction admission verified through Session.Commit and Harness.Commit. Source170-style held-storage test verifies new documents, callback progress, no early publication, [1,2] batches, consecutive receipt sequences and receipt-time createdAt. Public non-document and private scheduler dependency migration, and complete source outcome-order acceptance, remain open. Deferred persistence now drains earlier writer publications before selecting holds, matching session.ts #storeHolds. A deterministic receipted-but-unpublished two-case regression failed the old code with stale prepared storage baseline and now passes; the full suite and 30 repeated withdrawal/recovery runs pass. Maintenance still needs complete writer-path acceptance.",
-      "fix": "Separate the serial mutation line from the writer flight. Transfer sealed parts to one writer and batch the waiting parts. Keep callbacks serial; do not unlock around arbitrary concurrent mutation.",
+      "fix": "Preserve the installed independent admission/writer flight; finish precise non-document/scheduler dependencies and complete source outcome/continuation acceptance without reverting to whole-flight serialization.",
       "acceptance": [
         "Source170 unchanged: b/c admitted before release; no early publication; calls [1,2]; distinct increasing sequences; a/b/c outcome order."
       ],
@@ -67,14 +67,14 @@
         "durable/storage_refusal_value_v150_test.go"
       ],
       "evidence": "Arbitrary failure-value presence, own backend-error identity, admission job indices, first-failure boundary, last fenced delivery and same-call own-error set are installed. New Session tests cover poisoning later successful/error callbacks and cold reads, plus receipted parts in a call rejected after storage with undefined/null/falsy values and durable-prefix reopen. Complete source parameter/entry-surface audit remains open.",
-      "fix": "Remaining: record first failing job and same-call own-error set; publish received prefixes before fencing, then settle all gates/outcomes; later calls inherit the first cause. Value/presence representation is implemented in durable/session_failure.go and durable/storage_public.go.",
+      "fix": "Complete the parameterised source failure and entry-surface audit against the installed first-failure boundary, own-outcome set and ordered delivery. Preserve original values and backend error identity; integrate the remaining D04 caller-continuation semantics.",
       "acceptance": [
         "All source414-562 parameterised cases, including undefined/null/false/0/empty string; own vs SessionFailed identity; real rollback and uncertain COMMIT; earlier durable prefix survives reopen."
       ],
       "depends": [
         "D01"
       ],
-      "blocker": "Remaining scope depends on D01: without an independent writer flight there is no single place that owns multipart publication, fencing order and the same-call own-error set."
+      "blocker": "The independent writer and failure/outcome sets are installed. Complete assertion-level acceptance and the D04 continuation bridge remain open."
     },
     {
       "id": "D04",
@@ -116,7 +116,7 @@
         "durable/session.go"
       ],
       "evidence": "MAX_OUTSTANDING=256 is enforced at job start and released on outcome delivery. New source920-style test verifies job257 waits and idle outcomes/keys return to zero. Ordinary commit/read outcomes fence; internal no-write/no-hit outcomes are exempt, with hit/write counter-tests. Complete cache fast-path, cancellation-at-capacity and delivery-surface audit remains open.",
-      "fix": "Bound jobs at source admission, not merely queued writes. Account for reads, empty commits, callback errors and held parts. Deliver outcomes in line order; release room only at delivery.",
+      "fix": "Preserve the installed256-slot start-to-delivery bound and finish cache fast-path, cancellation-at-capacity and all delivery-surface assertions.",
       "acceptance": [
         "Source390 and920: only255 additional jobs start behind first; all300 finish; outstanding/unpublished/reads return to zero; cancellation and errors release every slot."
       ],
@@ -165,15 +165,16 @@
         "durable/message_entry.go",
         "durable/entry_record_wire.go",
         "durable/registry.go",
-        "durable/entry_definition.go"
+        "durable/entry_definition.go",
+        "durable/entry_message_kinds_v150_test.go"
       ],
-      "evidence": "Fresh pending oracle fails live and after reopen: kind message/value instead of pi.user/pi.assistant/model. Readers accept both. Previous attempted producer switch caused 37 failures and one hang because native receipt errorCode/tagged details violate contribution validation.",
-      "fix": "Capture original user/assistant/tool-result receipts covering errors, diagnostics, details, empty fields and all content blocks. Introduce lossless public-message conversion, keep legacy readers, then switch every producer. Separate private receipt witnesses from original public fields.",
+      "evidence": "Harness producers now emit pi.user/pi.assistant/pi.tool-result with model messages and tool-result data.diagnostics (de0f918). The former pending entry-shape oracle was promoted to durable/entry_message_kinds_v150_test.go and passes current live/reopen controls. A fresh count3/shuffle42 run at44a581c passes the normal user/assistant shape; it does not accept all tool/diagnostic/detail/UTF-16/empty-field variants. The older native message/value failure and tag-only37-failure attempt describe superseded baselines, not current normal production.",
+      "fix": "Preserve the installed canonical producers and finish exact tool-result, diagnostic/detail, UTF-16 and empty/absent-field assertion coverage. Reconcile every remaining receipt witness with source public fields; do not repeat the obsolete tag-only producer switch.",
       "acceptance": [
         "Pending entry_message_kinds_v150_test.go unchanged; original tool-result data.diagnostics, model details/error fields, exact required-zero/empty presence; full generation, tool, compaction, abort and reopen regressions."
       ],
       "depends": [],
-      "blocker": "A tag-only switch loses native receipt semantics; complete receipt conversion is prerequisite."
+      "blocker": "Normal producers and the live/reopen shape are installed; complete message/receipt union and field-presence acceptance is still open."
     },
     {
       "id": "D08",
@@ -221,9 +222,11 @@
         "durable/task_record_wire.go",
         "durable/task_record.go",
         "durable/storage_public_v150_test.go",
-        "durable/session_public_commit_observer_main_test.go"
+        "durable/session_public_commit_observer_main_test.go",
+        "durable/testdata/upstream-main/pending/builtin_publication_contract_v150_test.go",
+        "scripts/check-durable-builtin-publications.sh"
       ],
-      "evidence": "Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. A real Harness pi.example task executes; public compaction now uses pi.compaction. Raw application/compaction records pass exact canonical JSON and SQLite reopen controls. The separate public-translator prefix ban failed the new raw-storage probe before narrowing to generation/tool. Public pi.generation/pi.tool records still require their private checkpoint adapters; arbitrary canonical builtin writes remain incompatible. See notes/canonical-compaction-kind.md. Final full durable412.725s/tools15.198s, vet/Staticcheck/logging,30 shuffled controls and145 unchanged pinned tests +31 probes pass.",
+      "evidence": "Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. A real Harness pi.example task executes; public compaction now uses pi.compaction. Raw application/compaction records pass exact canonical JSON and SQLite reopen controls. The separate public-translator prefix ban failed the new raw-storage probe before narrowing to generation/tool. Public pi.generation/pi.tool records still require their private checkpoint adapters; arbitrary canonical builtin writes remain incompatible. See notes/canonical-compaction-kind.md. Final full durable412.725s/tools15.198s, vet/Staticcheck/logging,30 shuffled controls and145 unchanged pinned tests +31 probes pass. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.",
       "fix": "Separate storage canonical records from runtime interpretation. Preserve exact public task data, including opaque checkpoints; translate only when execution needs a known adapter. Do not ban application kinds merely by pi. prefix.",
       "acceptance": [
         "Replay captured original built-in and opaque task records through Storage.Commit/read/reopen; invalid runtime phases fail only at source-equivalent execution boundary."
@@ -399,9 +402,11 @@
         "durable/compaction.go",
         "durable/compaction_generation.go",
         "durable/task_record.go",
-        "durable/storage_public.go"
+        "durable/storage_public.go",
+        "durable/testdata/upstream-main/pending/builtin_publication_contract_v150_test.go",
+        "scripts/check-durable-builtin-publications.sh"
       ],
-      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open. Follow-up source guardObserver/toError probes distinguish original falsy throw reports from normalised listener_error endings. Public advance/ending callbacks now retain false/zero/empty-string/nil via Failure.Value; raw panic(nil) is normalised from its Go runtime sentinel. Native reports and nil endings failed before fixes. Reference145 unchanged tests +26 probes;30 shuffled public/guard repeats; full durable419.411s/tools18.755s and vet/Staticcheck/logging pass. Other host-value stringification and asynchronous rejection bindings remain unverified. Reentrant self-detach, report-time detach and peer replacement during dispatch already pass without runtime changes; source notifyHosts snapshots membership and each guard rechecks detach. Reference145 unchanged tests +27 probes and50 shuffled native repeats pass. Queued-operation reentry and report-callback faults remain unverified. Object/array/cycle/Number/custom conversion normalisation now matches an independent18-case source probe. The first16 native cases failed the generic ending message before the fix. Raw public callbacks verify report identity, NaN/signed zero, nested conversion fallback, bigint and fresh ending errors. Reference145 unchanged tests +28 probes;20 shuffled public and20 strengthened object/number repeats; full durable403.545s/tools18.718s and vet/Staticcheck/logging pass. JavaScript undefined/symbol/custom tags/function-source and async rejection binding acceptance remain open. Public Harness compaction now publishes source pi.compaction/version1/pending-select; real application pi.example execution and raw application/compaction storage/reopen probes also pass. Existing registry replacement protection, cutoff and telemetry assertions retain their checks with the source kind. Final full durable412.725s/tools15.198s; vet/Staticcheck/logging;30 shuffled controls;145 unchanged pinned tests +31 probes. Generation/tool/nested projections and complete compaction contracts remain open; notes/canonical-compaction-kind.md.",
+      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open. Follow-up source guardObserver/toError probes distinguish original falsy throw reports from normalised listener_error endings. Public advance/ending callbacks now retain false/zero/empty-string/nil via Failure.Value; raw panic(nil) is normalised from its Go runtime sentinel. Native reports and nil endings failed before fixes. Reference145 unchanged tests +26 probes;30 shuffled public/guard repeats; full durable419.411s/tools18.755s and vet/Staticcheck/logging pass. Other host-value stringification and asynchronous rejection bindings remain unverified. Reentrant self-detach, report-time detach and peer replacement during dispatch already pass without runtime changes; source notifyHosts snapshots membership and each guard rechecks detach. Reference145 unchanged tests +27 probes and50 shuffled native repeats pass. Queued-operation reentry and report-callback faults remain unverified. Object/array/cycle/Number/custom conversion normalisation now matches an independent18-case source probe. The first16 native cases failed the generic ending message before the fix. Raw public callbacks verify report identity, NaN/signed zero, nested conversion fallback, bigint and fresh ending errors. Reference145 unchanged tests +28 probes;20 shuffled public and20 strengthened object/number repeats; full durable403.545s/tools18.718s and vet/Staticcheck/logging pass. JavaScript undefined/symbol/custom tags/function-source and async rejection binding acceptance remain open. Public Harness compaction now publishes source pi.compaction/version1/pending-select; real application pi.example execution and raw application/compaction storage/reopen probes also pass. Existing registry replacement protection, cutoff and telemetry assertions retain their checks with the source kind. Final full durable412.725s/tools15.198s; vet/Staticcheck/logging;30 shuffled controls;145 unchanged pinned tests +31 probes. Generation/tool/nested projections and complete compaction contracts remain open; notes/canonical-compaction-kind.md. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.",
       "fix": "Finish D04 grouped caller-continuation/macrotask bridge and the complete stored-observer assertion crosswalk; cover async rejection/arbitrary panic values, reentry/report faults, weak/lifetime and remaining builtin task public projections. Preserve the installed canonical public API and dispatch phase, not the private synchronous guard as an alternate contract.",
       "acceptance": [
         "Complete pinned session-observers corpus, public source284 wait test, attach/detach between publication and dispatch, re-entry, listener faults, close/failure and multipart publications."
@@ -433,7 +438,7 @@
         "durable/harness_document_definitions.go"
       ],
       "evidence": "Public Session/Harness/ConversationHandle ObserveDefinition now returns ReadonlyValue and delivers DocumentCall rather than mutable WatchFrame maps. Source132 retirement retains attachment-value identity; the current literal two-commit test includes missing-address reattachment, count2/count9 and exact replacement ops. Concurrent observers share initial/adopted nodes, untouched branches persist and late attachment reuses a live adopted node. Existing absent/stored/memory/guard/cancellation/owner-retirement controls pass through the readonly API. Snapshot/watch cache identity, reload/eviction lifetime, arbitrary cancellation reasons and complete observer assertion acceptance remain open. Current/historical typed snapshots now return ReadonlyValue across all reader facades. Cache adoption preserves shared snapshot/observer revisions and unchanged children; storing an unedited migration base or already-adopted hold preserves identity. Holds retain readonly ownership with zero idle retention. Independent pinned-source probes establish these contracts; native mutable-copy/held-identity baselines failed before their fixes. Async document-watch and mounted-builtin cross-surface sharing, task-bound warm reads, version/cache-pressure lifetime and full assertion acceptance remain open. Public asynchronous document watches now return readonly values through Value, Start and WatchFrame.Value. Preparation seals one revision per document for receipts, holds, synchronous observations and queued watches; source-derived raw identity probes pass at normal and zero idle retention, preserving acquisition values until delivery. Source202 diagnostic tuning preserves all intermediate budgets while reducing sampled allocations from13,511MB to423MB and test time59.830s to2.933s. Full durable405.984s/tools16.650s and static gates pass. This does not close lifecycle, version/cache-pressure, cancellation/warm-task, mounted-builtin hydration or stored-dispatch acceptance. Warm mounted builtin hydration now borrows the already-loaded pinned-version readonly node. The source independently proves the changed mounted branch then advances separately from a snapshot, while its unchanged model child stays shared. Native initial borrowing and unchanged loaded-child assertions failed before their fixes; configuration/untyped writes now retain loaded cache revisions with prepared byte accounting and bounded adoption. Full durable405.993s/tools18.237s and static gates pass. Cold/all-builtin definition hydration (including canonical LiveDoc v3), cache/lifetime and full assertion acceptance remain open. Error-valued document acquisition cancellation now retains the supplied cause through admission/line waits and final attachment checks. Pre-aborted/queued watcher and observer controls failed on context.Canceled before the fix; independent source probe verifies exact Error identity, no pins, and warm snapshot cancellation bypass. Full durable404.805s/tools18.544s and static gates pass. Other cancellation phases/reasons remain open. Cold mounted builtin hydration now uses explicit pinned definitions in source order; all five readonly identities and legacy LiveDoc v1/v2-to-v3 read-only migration have independent reference and failing-before-fix native probes. New live records/write acquisition use canonical v3; required migration bases persist on write, not mount. Repeated builtin initialization is idempotent. Numeric turns retain source typeof-number semantics, including1e30. Fresh native fixtures now assert source versions rather than preserve v1 compatibility. Full durable389.642s/tools18.465s and static gates pass;145 unchanged reference tests +16 probes pass. Complete API/edge/lifecycle/crosswalk acceptance remains open.",
-      "fix": "Finish source-specific builtin mount hydration, version/reload/eviction/pin/weak lifetime, task-bound warm reads, exact cancellation causes and remaining observer assertions. Initial mount nodes borrow loaded trackers; edited mount branches are separate replays, as independently probed. Complete public stored-observer dispatch separately.",
+      "fix": "Preserve installed cold-builtin hydration, readonly snapshots/watches and initial mount borrowing. Finish version/reload/eviction/pin/weak lifetime, task-bound warm reads, exact cancellation causes and remaining observer assertions; complete D16 binding/dispatch acceptance.",
       "acceptance": [
         "Source77/87/105/132/162/241/254/308/469/496/520, detach/end guards, queued acquisition/cancellation, retirement/recreation, scheduler publication and immutable values."
       ],
@@ -662,9 +667,11 @@
       ],
       "native": [
         "docs/upstream-v1.5.0/upstream-tests-f9a26365.tsv",
-        "docs/upstream-v1.5.0/upstream-review-f9a26365.json"
+        "docs/upstream-v1.5.0/upstream-review-f9a26365.json",
+        "scripts/check-durable-parity-register.mjs",
+        "docs/upstream-v1.5.0/alignment-roadmap.md"
       ],
-      "evidence": "Historical crosswalk has 161 durable test/support/fixture paths; 147 are pending-review, seven prior-partial-needs-delta-review, six reviewed-open and one partial. These stale file dispositions are not a parity percentage. Current full native test pass cannot close source assertions. Complete-tree verification found four additional worker support/configuration paths missing from that historical inventory; the new obligations cover 165 paths in total.",
+      "evidence": "Historical crosswalk has 161 durable test/support/fixture paths; 147 are pending-review, seven prior-partial-needs-delta-review, six reviewed-open and one partial. These stale file dispositions are not a parity percentage. Current full native test pass cannot close source assertions. Complete-tree verification found four additional worker support/configuration paths missing from that historical inventory; the new obligations cover 165 paths in total. Register drift is now checked: Markdown state totals, each leading evidence/state paragraph and every index state must match the machine register. A deliberate stale-evidence change passed the old checker; the strengthened gate rejects evidence/count/index mutations. This verification fix does not close source assertion acceptance.",
       "fix": "Track every pinned durable path and enumerate every test/assertion per subsystem; map exact source/native adapters, results, mutants, unknowns and dependencies. Include required ai/schema/codemode dependencies. Complete regression/fault/static/profile verification after implementation.",
       "acceptance": [
         "No unmapped pinned durable paths; no open source assertion, skipped required contract or normalised fixture counted as passing. Current full-suite, fault, CPU/alloc_space/alloc_objects and public-consumer checks retained with exact revisions."
@@ -805,7 +812,7 @@
       ]
     }
   ],
-  "checkpoint": "D08 and D29 fixed; D28 empty-batch slice fixed, root/explicit-ID remainder open. Writer prototype excluded from verification and commit.",
+  "checkpoint": "Historical baseline checkpoint (superseded): D08 and D29 fixed; D28 empty-batch slice fixed, root/explicit-ID remainder open. Writer prototype excluded from verification and commit.",
   "validation": {
     "fullDurable": {
       "result": "pass",
@@ -845,6 +852,25 @@
       "vet": "pass",
       "staticcheck": "pass",
       "logging": "pass"
-    }
+    },
+    "historical": true
+  },
+  "currentCheckpoint": {
+    "nativeRevision": "44a581c37a63ad9452c6729aa4b2d5aaf236a1a2",
+    "scope": "Current implementation and freshly reproduced verification gaps; no full parity or release acceptance.",
+    "lastFullNative": {
+      "durableSeconds": 412.725,
+      "toolsSeconds": 15.198,
+      "vet": "pass",
+      "staticcheck": "pass",
+      "logging": "pass"
+    },
+    "currentFocused": "entry-kind live/reopen, opaque migration/invalid phase, public compaction and raw pi namespace roundtrip: count3/shuffle42 pass",
+    "reference": {
+      "unchangedPinnedTests": 145,
+      "independentProbes": 32
+    },
+    "builtinPublicationAcceptance": "RED: source probe passes; real native Harness exposes version/checkpoint mismatch and premature listener_error",
+    "profiling": "Full acceptance CPU/alloc_space/alloc_objects and outlier tuning remain required."
   }
 }
