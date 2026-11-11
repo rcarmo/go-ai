@@ -1,0 +1,14 @@
+{
+  "source": "pi-durable v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5; raw storage is definition-free",
+  "records": [
+    {"id":2,"conversationId":1,"kind":"pi.generation","version":2,"input":{},"background":false,"abortRequested":false,"state":{"status":"pending","checkpoint":{"phase":"prepare","attempt":1}}},
+    {"id":3,"conversationId":1,"kind":"pi.tool","version":3,"input":{"kind":"model","assistant":900,"callId":"c1"},"background":false,"abortRequested":false,"state":{"status":"pending","checkpoint":{"phase":"call"}}},
+    {"id":4,"conversationId":1,"kind":"pi.generation","version":77,"input":null,"background":true,"abortRequested":false,"memos":{"slot":{"present":true,"value":false}},"state":{"status":"running","checkpoint":["opaque",null,false,0,{"present":true,"value":"user-data"}]}},
+    {"id":5,"conversationId":1,"kind":"pi.tool","version":99,"input":[false,0,""],"background":false,"abortRequested":true,"state":{"status":"sleeping","checkpoint":"opaque","until":61000}},
+    {"id":6,"conversationId":1,"kind":"pi.generation","version":2,"input":{},"background":false,"abortRequested":false,"state":{"status":"waiting","checkpoint":null,"on":[2,3],"policy":"allSettled"}},
+    {"id":7,"conversationId":1,"kind":"pi.tool","version":3,"input":{"kind":"nested","parent":3,"parentCallId":"c1","key":"nested","call":{"id":"n1","name":"work","arguments":{}}},"background":false,"abortRequested":false,"state":{"status":"completing","outcome":{"status":"failed","result":false,"error":{"message":"held","detail":null}}}},
+    {"id":8,"conversationId":1,"kind":"pi.generation","version":2,"input":false,"background":false,"abortRequested":false,"state":{"status":"terminal","outcome":{"status":"completed","result":null}}},
+    {"id":9,"conversationId":1,"kind":"pi.tool","version":3,"input":0,"background":false,"abortRequested":true,"state":{"status":"terminal","outcome":{"status":"aborted","result":{"kind":"model","entryId":999}}}},
+    {"id":10,"conversationId":1,"kind":"pi.tool","version":3,"input":"","background":false,"abortRequested":false,"state":{"status":"terminal","outcome":{"status":"orphaned","reason":"missing_task"}}}
+  ]
+}

@@ -13,8 +13,9 @@ Compact index of repository notes; history/evidence, not new instructions.
   are installed. Broader object/array/cycle/Number/custom-conversion normalisation now passes
   full durable403.545s/tools18.718s. The canonical compaction-name/namespace follow-up
   passes full durable412.725s/tools15.198s. The builtin publication/progression slice now passes full durable419.068s/tools19.173s;
-  reference145 tests +34 probes. Its former RED test is in the ordinary suite; raw storage,
-  nested tools, migrations and edge states remain open. See [builtin receipts](../builtin-task-publications.md).
+  reference145 tests +35 probes. Its former RED test is in the ordinary suite; complete Storage,
+  nested tools, migrations and edge states remain open. Raw builtin admission/reopen/reclaim now passes
+  full durable418.657s/tools18.326s; canonical execution is still incomplete. See [raw storage](../builtin-task-storage.md) and [builtin receipts](../builtin-task-publications.md).
   See [canonical compaction receipts](../canonical-compaction-kind.md), [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
 - [Current largest deviations/path to zero](../../docs/upstream-v1.5.0/alignment-roadmap.md):
   generation/tool durable records and raw storage, D04 continuation bridge, public Storage/API/database

@@ -191,7 +191,13 @@ func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) 
 		return Page[Task]{}, err
 	}
 	return scanPage(state.Tasks, order, after, hasAfter, limit, func(v Task) bool {
-		return (q.Conversation == 0 || v.Conversation == q.Conversation) && (q.Kind == "" || v.Kind == q.Kind) && (q.Status == "" || v.Status == q.Status) && (q.AbortRequested == nil || taskAborted(v) == *q.AbortRequested) && (q.Background == nil || taskBackground(v) == *q.Background)
+		status := v.Status
+		if v.Execution != nil && v.Execution.Native != nil {
+			status = v.Execution.Native.State.Status
+		} else if terminalStatus(status) {
+			status = "terminal"
+		}
+		return (q.Conversation == 0 || v.Conversation == q.Conversation) && (q.Kind == "" || v.Kind == q.Kind) && (q.Status == "" || status == q.Status) && (q.AbortRequested == nil || taskAborted(v) == *q.AbortRequested) && (q.Background == nil || taskBackground(v) == *q.Background)
 	}, func(v Task) (Task, error) { return copyTask(v, l) })
 }
 func scanSubmissions(state Snapshot, q SubmissionQuery, limit int, cursor Cursor, l Limits) (Page[Submission], error) {

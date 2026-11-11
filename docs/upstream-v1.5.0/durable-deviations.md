@@ -27,7 +27,7 @@ SQLite-only support is the authorised product exclusion (D25). Shared Storage as
 
 ## Fix sequence
 
-1. Port canonical generation/tool/nested records and the primary Storage/API boundaries (D07–D13). Retain the now-green builtin publication/progression tests while replacing private storage adapters and closing nested/migration/edge assertions.
+1. Port canonical generation/tool/nested records and the primary Storage/API boundaries (D07–D13). Retain the now-green builtin publication/progression tests while replacing private execution adapters and closing nested/migration/edge assertions.
 2. Finish exact read dependencies and the grouped caller-continuation bridge (D01–D06). Preserve the installed writer, serial callbacks, exact-prefix receipts, first-cause fencing, outcome gates and256-job admission bound.
 3. Complete installed readonly observer/lifetime contracts (D14–D17) and add readonly viewer refresh (D27), preserving ownership and close guarantees.
 4. Complete scheduler/lifecycle/resource/dependency contracts and the full source crosswalk (D18–D24, D26). Schema/engine gaps need separate source-backed packets.
@@ -46,7 +46,7 @@ No caller workaround, normalised comparison, private-only hook, deep-copy alias 
 | [D06](#d06--deferred-changes-unload-reload-deadlines-and-close-during-writer-flight) | unverified | Deferred changes, unload, reload, deadlines and close during writer flight |
 | [D07](#d07--original-harness-message-kinds-and-model-payloads) | confirmed | Original harness message kinds and model payloads |
 | [D08](#d08--present-but-empty-submission-requestid-and-deduplication) | fixed | Present-but-empty submission requestId and deduplication |
-| [D09](#d09--built-in-public-task-writes-are-refused) | confirmed | Built-in public task writes are refused |
+| [D09](#d09--canonical-builtin-storage-and-runtime-boundary) | confirmed | Canonical builtin storage and runtime boundary |
 | [D10](#d10--opensession-rejects-arbitrary-conforming-storage-implementations) | confirmed | OpenSession rejects arbitrary conforming Storage implementations |
 | [D11](#d11--persisted-sqlite-schema-and-record-envelopes-differ) | confirmed | Persisted SQLite schema and record envelopes differ |
 | [D12](#d12--storage-readquery-result-shapes-and-remaining-public-record-dtos) | confirmed | Storage read/query result shapes and remaining public record DTOs |
@@ -166,16 +166,16 @@ The writer is installed. Independent document admission, [1,2] batching, receipt
 - Dependencies: none recorded.
 - Blocker/decision: No new persisted field, schema change or automatic migration. Presence already lost by older writers cannot be reconstructed; old absent fields stay absent. General raw Storage duplicate-request/update policy still needs D12 conformance review.
 
-### D09 — Built-in public task writes are refused
+### D09 — Canonical builtin storage and runtime boundary
 
-**confirmed.** Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. Real application/compaction records execute and round-trip through SQLite. Public pi.generation/pi.tool raw writes still require private checkpoint adapters and are refused. The former real Harness publication failure is repaired: generation2 and model-tool3 expose source-shaped input/states and retain continuous observation; persisted request attempt/cutoff and assistant facts drive the projection. Exact two-tool parallel/sequential state progression and scoped UTF-16 arguments pass through public paths. This remains private-checkpoint-backed projection, with nested tools, unoffered calls, old-data witnesses, edge phases, migrations and canonical raw storage reversibility open. See notes/builtin-task-publications.md.
+**confirmed.** Raw Storage.Commit now accepts pi.generation/pi.tool through the generic envelope, with no builtin input/checkpoint inference. The independent shared fixture passes original MemoryStorage and SQLite. Native exact public projection, all six state scans, SQLite reopen and reclaim/reopen pass for current/future versions and opaque inputs/checkpoints. Terminal outcome mapping and canonical status scans are repaired; private scheduler checkpoint access now checks representation as well as kind. Normal Harness generation2/model-tool3 publication/progression also passes. Storage reads still return private Tasks, and canonical builtin records do not yet execute through source GenerationTask2/ToolTask3 registrations. Historical execution adapters, nested/unoffered calls, edge states, migrations and complete raw replacement/reference/optional-field contracts remain open. See notes/builtin-task-storage.md.
 
 - Source: [`src/types.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/types.ts); [`src/storage/memory.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/storage/memory.ts); [`test/store-storage.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/store-storage.test.ts).
 - Native/evidence: [`durable/storage_public.go`](../../durable/storage_public.go); [`durable/task_definition.go`](../../durable/task_definition.go); [`durable/task_record_wire.go`](../../durable/task_record_wire.go).
-- Fix: Separate storage canonical records from runtime interpretation. Preserve exact public task data, including opaque checkpoints; translate only when execution needs a known adapter. Do not ban application kinds merely by pi. prefix.
-- Acceptance: Replay captured original built-in and opaque task records through Storage.Commit/read/reopen; invalid runtime phases fail only at source-equivalent execution boundary.
+- Fix: Replace private builtin creation/execution adapters with source canonical definitions and migrations. Preserve raw stored input/checkpoint/version/state without inference; finish primary Storage read/API and original SQLite interoperability.
+- Acceptance: Retain exact raw builtin admission/projection, state scans and SQLite reopen/reclaim controls. Execute canonical builtin records and migrations through real Harness paths, then finish complete raw Storage conformance and canonical read/API assertions.
 - Dependencies: D11, D12.
-- Blocker/decision: Private execution envelope is not reversibly equivalent to all original task records.
+- Blocker/decision: No external blocker; canonical builtin execution/migration and complete Storage conformance remain incomplete.
 
 ### D10 — OpenSession rejects arbitrary conforming Storage implementations
 
@@ -245,7 +245,7 @@ The writer is installed. Independent document admission, [1,2] batching, receipt
 
 ### D16 — Public observeCommits host dispatch and waiter ordering
 
-**confirmed.** Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are installed. CommitPublication uses seq/readonly changes; the old native envelope is private. Adopted document identity, post-scope dispatch membership, callback faults, wait/abort ordering and close controls pass. The real Harness builtin publication packet now passes in the ordinary suite: generation2 and model-tool3 retain observation, with exact parallel/sequential state progression and UTF-16 tool-argument ownership controls. The reference runner passes145 unchanged tests +34 independent probes. D04 caller-continuation turns, JavaScript-only bindings/async faults, weak lifetime, raw builtin reversibility, nested tools and complete edge/migration assertions remain open. See notes/builtin-task-publications.md.
+**confirmed.** Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are installed. CommitPublication uses seq/readonly changes; the old native envelope is private. Adopted document identity, post-scope dispatch membership, callback faults, wait/abort ordering and close controls pass. The real Harness builtin publication packet now passes in the ordinary suite: generation2 and model-tool3 retain observation, with exact parallel/sequential state progression and UTF-16 tool-argument ownership controls. The reference runner passes145 unchanged tests +35 independent probes. D04 caller-continuation turns, JavaScript-only bindings/async faults, weak lifetime, complete raw builtin/execution reversibility, nested tools and complete edge/migration assertions remain open. See notes/builtin-task-publications.md.
 
 - Source: [`test/session-observers.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/session-observers.test.ts); [`test/harness-submissions.test.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/test/harness-submissions.test.ts); [`src/session/session.ts`](https://github.com/earendil-works/pi/blob/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/durable/src/session/session.ts).
 - Native/evidence: [`durable/session_sync_observers.go`](../../durable/session_sync_observers.go); [`durable/session_local_observers.go`](../../durable/session_local_observers.go); [`durable/observation.go`](../../durable/observation.go); [`durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go`](../../durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go).

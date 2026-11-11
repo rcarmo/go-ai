@@ -173,8 +173,9 @@ func TestPiDurableV150PublicStorageGroupedCommit(t *testing.T) {
 	}
 }
 
-// A record the native store cannot represent in its own envelope is refused
-// before it becomes durable, never written in a different shape.
+// Native structural refusal control: this task names a conversation that was
+// never created. Its refusal is independent of builtin-name admission; full
+// source raw reference/replacement policy acceptance remains D12.
 func TestPiDurableV150PublicStorageCommitRefusesUnrepresentableCommand(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {

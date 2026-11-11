@@ -193,16 +193,9 @@ func nativeDocumentAddress(record DocumentCreate, version uint64, value JSON) (D
 	return document, nil
 }
 
-// These two adapters still use private checkpoints that cannot be rebuilt from
-// their public records alone. Compaction and application pi.* tasks use the
-// generic envelope; a namespace prefix is not execution authority.
-func builtinTaskKind(kind string) bool { return kind == "pi.generation" || kind == "pi.tool" }
-
-// nativeTask rebuilds the versioned native execution envelope of a public
-// runtime record for the kinds the native store owns generically. Built-in
-// kinds keep their own raw checkpoint contract and their state is not derivable
-// from the public record alone, so they are refused rather than written in a
-// different shape.
+// nativeTask stores the public record in the generic versioned envelope.
+// Storage admission is definition-free: builtin names, versions, inputs and
+// opaque checkpoints gain execution meaning only in the Harness.
 func nativeTask(record TaskRecord, l Limits) (Task, error) {
 	if record.Input == nil || !record.Input.Present {
 		return Task{}, reject("task record input is absent")
@@ -210,10 +203,10 @@ func nativeTask(record TaskRecord, l Limits) (Task, error) {
 	if record.Version == 0 || record.Version > MaxID {
 		return Task{}, reject("native task execution version")
 	}
-	if builtinTaskKind(record.Kind) {
-		return Task{}, reject("builtin task write requires its native checkpoint")
-	}
 	task := Task{ID: record.ID, Conversation: record.Conversation, Owner: record.Owner, Kind: record.Kind, Status: record.State.Status, Checkpoint: JSON{}, Trace: record.Trace, Links: record.Links, Restarts: record.Restarts, AbandonOnRestart: record.AbandonOnRestart, AbortReason: record.AbortReason, StartedAt: record.StartedAt, EndedAt: record.EndedAt}
 	task.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &NativeTaskExecution{Version: record.Version, Input: record.Input, Background: record.Background, AbortRequested: record.AbortRequested, Memos: record.Memos, State: record.State}}
+	if record.State.Status == "terminal" && record.State.Outcome != nil {
+		task.Status = outcomeRawStatus(record.State.Outcome)
+	}
 	return copyTask(task, l)
 }

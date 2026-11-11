@@ -500,3 +500,21 @@ it("resends an orderly closed SQLite request with the same attempt and cutoff",a
  }finally{if(harness)await harness.close(context);rmSync(dir,{recursive:true,force:true})}
  expect(ends).toHaveLength(2);expect(ends.map(end=>end.kind)).toEqual(["failed","failed"]);
 });
+
+it("stores builtin task records definition-free with opaque inputs/checkpoints and every state union",async()=>{
+ const {readFileSync}=await import("node:fs"),{openNodeSqliteStorage}=await import("@pinned/sqlite-node");
+ const {mkdtempSync,rmSync}=await import("node:fs"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
+ const {records}=JSON.parse(readFileSync(new URL("../../durable/testdata/pi-durable-v150/builtin-storage-records.json",import.meta.url),"utf8"));
+ const dir=mkdtempSync(join(tmpdir(),"source-raw-builtins-")),path=join(dir,"state.db");let sqlite:any;
+ for(const storage of [new ControlledStorage(),await openNodeSqliteStorage(path)]){
+  if(!(storage instanceof ControlledStorage))sqlite=storage;
+  try{
+   const receipts:any[]=[];
+   expect(await storage.commit([[{type:"conversation",value:{id:1}}],records.map((value:any)=>({type:"task",value}))],(index:any,seq:any)=>receipts.push([index,seq]),context)).toEqual({stored:2});
+   expect(receipts).toEqual([[0,1],[1,2]]);
+   for(const record of records)expect(await storage.task(record.id,context)).toEqual(record);
+   for(const status of ["pending","running","waiting","sleeping","completing","terminal"]){const page=await storage.scanTasks({status},20,undefined,context);expect(page.items).toEqual(records.filter((r:any)=>r.state.status===status))}
+  }finally{await storage.close(context);if(storage===sqlite)sqlite=undefined}
+ }
+ try{sqlite=await openNodeSqliteStorage(path);for(const record of records)expect(await sqlite.task(record.id,context)).toEqual(record)}finally{if(sqlite)await sqlite.close(context);rmSync(dir,{recursive:true,force:true})}
+});

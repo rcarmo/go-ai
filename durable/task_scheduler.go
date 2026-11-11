@@ -130,7 +130,7 @@ func (s *taskScheduler) updateDiagnostics() {
 	retiredPins := map[ID]bool{}
 	err := s.h.session.readTasks(context.Background(), func(state Snapshot) error {
 		for _, task := range state.Tasks {
-			if task.Kind == "pi.generation" {
+			if privateBuiltinTask(task, "pi.generation") {
 				if !terminalStatus(task.Status) {
 					busy[task.Conversation] = true
 				}
@@ -157,7 +157,7 @@ func (s *taskScheduler) updateDiagnostics() {
 }
 
 func taskManaged(task Task) bool {
-	return task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Execution != nil && task.Execution.Native != nil
+	return privateBuiltinTask(task, "pi.generation") || privateBuiltinTask(task, "pi.tool") || task.Execution != nil && task.Execution.Native != nil
 }
 func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	if !taskManaged(task) {
@@ -177,7 +177,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 	if _, active := s.invocations[task.ID]; active {
 		return false
 	}
-	if taskAborted(task) && task.Kind != "pi.tool" {
+	if taskAborted(task) && !privateBuiltinTask(task, "pi.tool") {
 		return len(s.ownedLive(state, task.ID)) == 0
 	}
 	if until, sleeping := taskSleepDeadline(task); sleeping && until > s.h.session.now() {
@@ -190,7 +190,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 			}
 		}
 	}
-	if task.Kind == "pi.generation" {
+	if privateBuiltinTask(task, "pi.generation") {
 		var cp generationCheckpoint
 		if fromObject(task.Checkpoint, &cp, s.h.session.limits) != nil {
 			return false
@@ -252,7 +252,7 @@ func (s *taskScheduler) runnable(state Snapshot, task Task) bool {
 		}
 		return true
 	}
-	if task.Kind == "pi.tool" {
+	if privateBuiltinTask(task, "pi.tool") {
 		parent, ok := state.Tasks[task.Owner]
 		if !ok || parent.Kind != "pi.generation" {
 			return false
@@ -390,7 +390,7 @@ func (s *taskScheduler) reservePass(requireEnabled bool) ([]*TaskRuntime, error)
 				snapshotTaken = true
 			}
 			var definition *TaskDefinition
-			if task.Kind == "pi.generation" {
+			if privateBuiltinTask(task, "pi.generation") {
 				var cp generationCheckpoint
 				if err := fromObject(task.Checkpoint, &cp, tx.limits); err != nil {
 					return false, err
@@ -578,7 +578,7 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 	if runtime.check() != nil || s.sealed.Load() || s.h.closing.Load() {
 		return
 	}
-	if task.Kind == "pi.tool" {
+	if privateBuiltinTask(task, "pi.tool") {
 		if err := s.h.executeTool(task, runtime); err != nil {
 			var invalid *invalidToolResult
 			if errors.As(err, &invalid) {
@@ -607,7 +607,7 @@ func (s *taskScheduler) runBuiltin(runtime *TaskRuntime) {
 			return
 		}
 	}
-	if task.Kind == "pi.generation" {
+	if privateBuiltinTask(task, "pi.generation") {
 		var cp generationCheckpoint
 		if err := fromObject(task.Checkpoint, &cp, s.h.session.limits); err != nil {
 			runtime.reportError(err)
@@ -1585,7 +1585,7 @@ func (s *taskScheduler) admitBoundTargets(state Snapshot, wait *taskWait, target
 			}
 			return nil
 		}
-		if task.Kind == "pi.generation" {
+		if privateBuiltinTask(task, "pi.generation") {
 			var cp generationCheckpoint
 			if err := fromObject(task.Checkpoint, &cp, s.h.session.limits); err != nil {
 				return err
@@ -1707,7 +1707,7 @@ func (s *taskScheduler) boundWaitCycle(state Snapshot, caller, target ID, seen m
 		if !taskAborted(task) && !taskHasDecidedOutcome(task) && task.Execution != nil && task.Execution.Native != nil && task.Execution.Native.State.Status == "waiting" {
 			dependencies = append(dependencies, task.Execution.Native.State.On...)
 		}
-		if task.Kind == "pi.generation" && !taskHasDecidedOutcome(task) {
+		if privateBuiltinTask(task, "pi.generation") && !taskHasDecidedOutcome(task) {
 			var cp generationCheckpoint
 			if fromObject(task.Checkpoint, &cp, s.h.session.limits) == nil && cp.Phase == "tools" {
 				dependencies = append(dependencies, cp.Children...)
@@ -1776,7 +1776,7 @@ func (s *taskScheduler) toolRoundChildren(state Snapshot, parent Task, cp genera
 	seen := map[ID]bool{}
 	for _, id := range cp.Children {
 		child, ok := state.Tasks[id]
-		if seen[id] || !ok || child.Kind != "pi.tool" || child.Owner != parent.ID || child.Conversation != parent.Conversation {
+		if seen[id] || !ok || !privateBuiltinTask(child, "pi.tool") || child.Owner != parent.ID || child.Conversation != parent.Conversation {
 			return nil, reject("invalid tool round child")
 		}
 		seen[id] = true

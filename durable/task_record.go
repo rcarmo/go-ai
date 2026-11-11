@@ -7,6 +7,12 @@ const (
 	builtinTaskTag = "builtin-task-v1"
 )
 
+// privateBuiltinTask guards access to the historical checkpoint adapters.
+// A canonical stored record may use the same kind without that representation.
+func privateBuiltinTask(task Task, kind string) bool {
+	return task.Kind == kind && (task.Execution == nil || task.Execution.Native == nil)
+}
+
 // copyTask is the complete task ownership/codec boundary. Caller JSON is walked
 // strictly BEFORE the trusted DTO envelope can encode it. It also serves replay,
 // raw queries, image cloning and pre-admission publication through prepare.
@@ -261,7 +267,7 @@ func validateTaskRecord(task Task, l Limits) error {
 	if task.Checkpoint == nil || !validKind(task.Kind) || !validStatus(task.Status) || uint64(task.Conversation) > MaxID || uint64(task.Owner) > MaxID || task.Owner == task.ID && task.ID != 0 {
 		return reject("invalid task record")
 	}
-	if task.Kind == "pi.generation" {
+	if privateBuiltinTask(task, "pi.generation") {
 		var checkpoint generationCheckpoint
 		if err := fromObject(task.Checkpoint, &checkpoint, l); err != nil {
 			return err
@@ -286,7 +292,7 @@ func validateTaskRecord(task Task, l Limits) error {
 	switch task.Execution.Tag {
 	case nativeTaskTag:
 		native := task.Execution.Native
-		if native == nil || task.Execution.Builtin != nil || builtinTaskKind(task.Kind) || len(task.Checkpoint) != 0 || native.Version == 0 || native.Version > MaxID || native.Input == nil || !native.Input.Present {
+		if native == nil || task.Execution.Builtin != nil || len(task.Checkpoint) != 0 || native.Version == 0 || native.Version > MaxID || native.Input == nil || !native.Input.Present {
 			return reject("invalid native task execution")
 		}
 		if err := validateTaskState(native.State); err != nil {

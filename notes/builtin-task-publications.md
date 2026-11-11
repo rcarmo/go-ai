@@ -32,6 +32,8 @@ Pure Go, SQLite, sequential jobs:
 
 These development checks include no acceptance profiling or race-detector coverage. Pre-release CPU, alloc_space, alloc_objects and measured tuning remain required.
 
-## Remaining boundary
+## Remaining boundary at26c11fe
+
+The [raw builtin storage follow-up](builtin-task-storage.md) removes the admission refusal and adds exact state/reopen controls. Canonical execution and full Storage/API acceptance remain open.
 
 D09/D16 remain open. Canonical `pi.generation`/`pi.tool` raw Storage writes are still refused; public projections do not make stored envelopes reversible. Old model-tool checkpoints without assistant witnesses require migration rather than invented IDs. Nested tasks still have a separate native kind/input/version/result. Unoffered calls skip task creation natively. Unknown generation phases, complete retry/poll/overflow/compaction/finish/drain states, optional fields, settings and version migrations need source-derived assertion packets. Public UTF-16 task encoding is covered here; public raw decoding/storage and transcript receipt carriers still need end-to-end canonical acceptance. D04's caller-continuation bridge remains absent.
