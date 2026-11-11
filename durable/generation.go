@@ -124,6 +124,10 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		}
 	}
 	if cp.Phase == "queued" || cp.Phase == "prepare-next" {
+		// The request intent charges the next attempt, as source prepare->request does.
+		if cp.Attempt >= MaxID {
+			return h.finish(task, cp, messageReceipt{Role: goai.RoleAssistant, StopReason: goai.StopReasonError, ErrorCode: "attempt_exhausted"}, false)
+		}
 		started, err := h.startAutomaticCompaction(runtime, task, &cp)
 		if err != nil {
 			return err
@@ -198,7 +202,7 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 		// Native preparation and dispatch share one handler, but are distinct
 		// public phases. Keep the request under the task parent, not prepare.
 		runtime.finishPhase()
-		runtime.beginPhase(JSON{"phase": "request", "attempt": cp.Attempt + 1})
+		runtime.beginPhase(JSON{"phase": "request", "attempt": cp.Attempt})
 	}
 	if e = h.sessionCommitInterruptedPartial(task, cp); e != nil {
 		return e
@@ -207,12 +211,6 @@ func (h *Harness) runGenerationInvocation(runtime *TaskRuntime, task Task, cp ge
 	// On recovery reuse persisted model/settings/cutoff. A new logical attempt is
 	// committed before remote dispatch. Generic providers have no exactly-once
 	// billing guarantee; an interrupted request can be billed again.
-	if cp.Phase != "poll" && cp.Attempt >= MaxID {
-		return h.finish(task, cp, messageReceipt{Role: goai.RoleAssistant, StopReason: goai.StopReasonError, ErrorCode: "attempt_exhausted"}, false)
-	}
-	if cp.Phase != "poll" {
-		cp.Attempt++
-	}
 	task.Status = "running"
 	value, e := dtoObject(cp, h.session.limits)
 	if e != nil {
@@ -742,6 +740,9 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 		}
 	}
 	cp.Phase = "intent"
+	// Source charges the attempt in the same commit that records the request;
+	// a host lost after this commit is an interrupted attempt, not a free resend.
+	cp.Attempt++
 	cp.Messages = messages
 	input, err := inputReceipt(cp.Input, cp.InputBlocks, h.session.limits)
 	if err != nil {
@@ -826,6 +827,15 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			if err != nil {
 				return err
 			}
+		}
+		// Source request.cutoff is the newest entry after the prompt entries.
+		if cutoff, ok, err := tx.LatestEntryID(task.Conversation); err != nil {
+			return err
+		} else if ok {
+			cp.Cutoff = cutoff
+		}
+		if task.Checkpoint, err = dtoObject(cp, tx.limits); err != nil {
+			return err
 		}
 		current, err := copyTask(tx.state.Tasks[task.ID], tx.limits)
 		if err != nil {

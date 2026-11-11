@@ -14,6 +14,16 @@ import (
 // versioned storage envelope. Never reinterpret persisted envelope JSON as this
 // public form without an explicit migration.
 func (record TaskRecord) MarshalJSON() ([]byte, error) {
+	out, err := publicTaskRecordJSON(record)
+	if err != nil {
+		return nil, err
+	}
+	// This encoder validates JSON, preserves exact numbers and typed tool
+	// arguments, and never invokes arbitrary caller-owned marshalers.
+	return encodeBounded(out, maximumDurableLimits(), maximumDurableLimits().MaxRecordBytes)
+}
+
+func publicTaskRecordJSON(record TaskRecord) (map[string]any, error) {
 	if record.Input == nil || !record.Input.Present {
 		return nil, reject("task record input is absent")
 	}
@@ -59,9 +69,7 @@ func (record TaskRecord) MarshalJSON() ([]byte, error) {
 	if record.Restarts != 0 || record.wireRestartsPresent {
 		out["restarts"] = record.Restarts
 	}
-	// This encoder validates strict JSON, preserves exact numbers, and never
-	// invokes arbitrary caller-owned marshalers on task input or checkpoints.
-	return encodeBounded(out, maximumDurableLimits(), maximumDurableLimits().MaxRecordBytes)
+	return out, nil
 }
 
 func publicTaskStateJSON(state TaskState) (map[string]any, error) {

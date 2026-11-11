@@ -531,13 +531,15 @@ type toolCheckpoint struct {
 	DurationMs         *int64    `json:"durationMs,omitempty"`
 	Offer              toolOffer `json:"offer"`
 	CallID             string    `json:"callId"`
-	Arguments          JSON      `json:"arguments"`
-	ArgumentsError     string    `json:"argumentsError,omitempty"`
-	Started            bool      `json:"started"`
-	Abort              bool      `json:"abort,omitempty"`
-	ErrorCode          string    `json:"errorCode,omitempty"`
-	CutoffMessage      string    `json:"cutoffMessage,omitempty"`
-	ReportedError      bool      `json:"reportedError,omitempty"`
+	// Assistant is the source ToolTask model input's tool-calling entry.
+	Assistant      ID     `json:"assistant,omitempty"`
+	Arguments      JSON   `json:"arguments"`
+	ArgumentsError string `json:"argumentsError,omitempty"`
+	Started        bool   `json:"started"`
+	Abort          bool   `json:"abort,omitempty"`
+	ErrorCode      string `json:"errorCode,omitempty"`
+	CutoffMessage  string `json:"cutoffMessage,omitempty"`
+	ReportedError  bool   `json:"reportedError,omitempty"`
 	// Present for final results that have passed afterTool. Older receipts
 	// derive their error flag from ErrorCode/ReportedError.
 	FinalIsError     *bool            `json:"finalIsError,omitempty"`
@@ -1008,6 +1010,7 @@ func (h *Harness) acceptTools(parent Task, cp generationCheckpoint, message mess
 				cp.UnstartedCalls = append(cp.UnstartedCalls, tool.CallID)
 				continue
 			}
+			tool.Assistant = entryID
 			if cp.Sequential && len(cp.Children) > 0 {
 				cp.PendingTools = append(cp.PendingTools, tool)
 				continue
@@ -1854,7 +1857,17 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 		if e = tx.appendMessage(id, task.Conversation, task.ID, value); e != nil {
 			return e
 		}
-		outcome := TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+		// Source ToolTaskResult for a model call: control only on completion.
+		settled := &TaskValue{Present: true, Value: JSON{"kind": "model", "entryId": id}}
+		completed := settled
+		if cp.Control != nil {
+			control, err := dtoObject(*cp.Control, tx.limits)
+			if err != nil {
+				return err
+			}
+			completed = &TaskValue{Present: true, Value: JSON{"kind": "model", "entryId": id, "control": control}}
+		}
+		outcome := TaskOutcome{Status: "completed", Result: completed}
 		if code != "" && !toolCallCompletedError(code) {
 			message := code
 			if code == "tool_error" && result.thrownError != "" {
@@ -1867,14 +1880,14 @@ func (h *Harness) finishTool(task Task, cp toolCheckpoint, result ToolResult, co
 					}
 				}
 			}
-			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message}, Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+			outcome = TaskOutcome{Status: "failed", Error: &TaskOutcomeError{Message: message}, Result: settled}
 		}
 		if code == "restart_limit" {
 			outcome.Error.Message = cp.CutoffMessage
 			outcome.Error.Detail = &TaskValue{Present: true, Value: JSON{"reason": code}}
 		}
 		if code == "aborted" {
-			outcome = TaskOutcome{Status: "aborted", Reason: "aborted", Result: &TaskValue{Present: true, Value: JSON{"entryId": id}}}
+			outcome = TaskOutcome{Status: "aborted", Result: settled}
 		}
 		hold := &BuiltinTaskHold{Stage: "final", Action: "tool-receipt", Outcome: outcome, FinalStatus: task.Status, Entry: id, Conversation: task.Conversation, Owner: task.Owner, CallID: cp.CallID}
 		metadata := &BuiltinTaskExecution{}

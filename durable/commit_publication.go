@@ -41,7 +41,15 @@ func (s *Session) preparePublicCommit(publication sessionPublication, state Snap
 			return fail(err)
 		}
 		var object JSON
-		if err = decodeStrict(wire, s.limits, s.limits.MaxRecordBytes, &object); err != nil {
+		if record, ok := command.Value.(TaskRecord); ok {
+			// Keep the trusted tool-argument subtree through freezing. A generic
+			// JSON roundtrip would replace isolated UTF-16 units with U+FFFD.
+			value, err := publicTaskRecordJSON(record)
+			if err != nil {
+				return fail(err)
+			}
+			object = JSON{"type": "task", "value": value}
+		} else if err = decodeStrict(wire, s.limits, s.limits.MaxRecordBytes, &object); err != nil {
 			return fail(err)
 		}
 		node, err := NewImmutableValue(object, s.limits)

@@ -8,6 +8,13 @@ import (
 	"github.com/rcarmo/go-ai/internal/jsonparse"
 )
 
+// sourceToolArguments is minted only by the builtin model-tool projection.
+// Its scope permits JavaScript strings in arguments without granting arbitrary
+// task input/checkpoints or caller marshalers UTF-16 encoding authority.
+type sourceToolArguments map[string]any
+
+var sourceToolArgumentsType = reflect.TypeFor[sourceToolArguments]()
+
 var nativeToolCallType = reflect.TypeFor[goai.ToolCall]()
 var nativeContentBlockType = reflect.TypeFor[goai.ContentBlock]()
 var nativeUTF16Type = reflect.TypeFor[goai.UTF16String]()

@@ -69,6 +69,7 @@ type generationCheckpoint struct {
 	UnstartedCalls        []string             `json:"unstartedCalls,omitempty"`
 	AssistantEntry        ID                   `json:"assistantEntry,omitempty"`
 	Successor             ID                   `json:"successor,omitempty"`
+	Cutoff                ID                   `json:"cutoff,omitempty"` // newest entry included by the charged request intent
 	Sequential            bool                 `json:"sequential,omitempty"`
 	ToolExecution         string               `json:"toolExecution,omitempty"`
 	Abort                 bool                 `json:"abort,omitempty"`

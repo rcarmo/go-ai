@@ -396,25 +396,30 @@ func CanonicalTask(task Task, l Limits) (TaskRecord, error) {
 	// it remains the sole authority for started effects and their replay policy.
 	switch owned.Kind {
 	case "pi.generation":
-		// The pinned GenerationTask is created with the empty object input.
-		// Its current native checkpoint is not yet a source-equivalent projection.
+		// GenerationTask input is always the empty object.
 		view.Input = &TaskValue{Present: true, Value: JSON{}}
 		var cp generationCheckpoint
 		if err = fromObject(owned.Checkpoint, &cp, l); err != nil {
 			return TaskRecord{}, err
 		}
-		view.Version = 1
+		view.Version = generationTaskVersion
 		view.AbortRequested = view.AbortRequested || cp.Abort
-		if !taskHasDecidedOutcome(owned) && !terminalStatus(owned.Status) && cp.Phase == "tools" {
-			view.State = TaskState{Status: "waiting", Checkpoint: owned.Checkpoint, On: append([]ID(nil), cp.Children...), Policy: "allSettled"}
+		if !taskHasDecidedOutcome(owned) && !terminalStatus(owned.Status) {
+			if state := generationPublicState(owned, cp); state.Status != "" {
+				view.State = state
+			}
 		}
 	case "pi.tool":
 		var cp toolCheckpoint
 		if err = fromObject(owned.Checkpoint, &cp, l); err != nil {
 			return TaskRecord{}, err
 		}
-		view.Version = 1
+		view.Version = toolTaskVersion
+		view.Input = toolPublicInput(cp)
 		view.AbortRequested = view.AbortRequested || cp.Abort
+		if !taskHasDecidedOutcome(owned) && !terminalStatus(owned.Status) {
+			view.State = toolPublicState(owned, cp)
+		}
 	}
 	if terminalStatus(owned.Status) && !taskHasDecidedOutcome(owned) {
 		// Old raw receipts remain accessible in Snapshot/Settlement. Do not

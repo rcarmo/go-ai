@@ -10,11 +10,9 @@ import (
 )
 
 // Independent source-derived control paired with the real Harness probe in
-// notes/oracles/session-admission.upstream.test.ts. This is intentionally a
-// retained RED acceptance test, outside the ordinary suite, until the complete
-// builtin record boundary is ported. Compile it through a Go overlay; do not
-// normalise native checkpoints or accept listener_error as canonical success.
-func TestPendingBuiltinCanonicalPublicationsV150(t *testing.T) {
+// notes/oracles/session-admission.upstream.test.ts. It failed six assertions
+// at 1eafca1 (version/state, early listener_error and lost tool publications).
+func TestMainBuiltinCanonicalPublicationsV150(t *testing.T) {
 	store, err := newTestSQLite(t)
 	if err != nil {
 		t.Fatal(err)

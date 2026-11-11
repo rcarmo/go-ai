@@ -117,6 +117,11 @@ func (b *jsonBudget) walk(v reflect.Value, depth int, objectsOnly bool) error {
 	if immutable, ok := immutableJSONValue(v); ok {
 		return b.immutable(immutable, depth)
 	}
+	if v.Type() == sourceToolArgumentsType {
+		previousArgument, previousKeys := b.nativeArgument, b.utf16Keys
+		b.nativeArgument, b.utf16Keys = true, true
+		defer func() { b.nativeArgument, b.utf16Keys = previousArgument, previousKeys }()
+	}
 	if v.Type() == nativeArgumentsType {
 		if !b.nativeArgument {
 			return reject("UTF-16 object outside typed arguments")
@@ -422,7 +427,7 @@ func encodeValue(b *limitedJSON, v reflect.Value) error {
 	if immutable, ok := immutableJSONValue(v); ok {
 		return encodeImmutableValue(b, immutable)
 	}
-	if v.Type() == nativeArgumentsType {
+	if v.Type() == nativeArgumentsType || v.Type() == sourceToolArgumentsType {
 		previous := b.utf16Keys
 		b.utf16Keys = true
 		defer func() { b.utf16Keys = previous }()
@@ -609,6 +614,8 @@ func cloneDecodedJSON(v any) (any, bool) {
 	switch value := v.(type) {
 	case nil, bool, string, json.Number:
 		return value, true
+	case sourceToolArguments:
+		return sourceToolArguments(cloneJSONValue(reflect.ValueOf(map[string]any(value))).(map[string]any)), true
 	case JSON:
 		return cloneDecodedJSON(map[string]any(value))
 	case map[string]any:

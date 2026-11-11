@@ -223,10 +223,11 @@
         "durable/task_record.go",
         "durable/storage_public_v150_test.go",
         "durable/session_public_commit_observer_main_test.go",
-        "durable/testdata/upstream-main/pending/builtin_publication_contract_v150_test.go",
-        "scripts/check-durable-builtin-publications.sh"
+        "durable/builtin_publication_contract_v150_test.go",
+        "durable/builtin_task_projection.go",
+        "durable/builtin_task_progression_v150_test.go"
       ],
-      "evidence": "Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. A real Harness pi.example task executes; public compaction now uses pi.compaction. Raw application/compaction records pass exact canonical JSON and SQLite reopen controls. The separate public-translator prefix ban failed the new raw-storage probe before narrowing to generation/tool. Public pi.generation/pi.tool records still require their private checkpoint adapters; arbitrary canonical builtin writes remain incompatible. See notes/canonical-compaction-kind.md. Final full durable412.725s/tools15.198s, vet/Staticcheck/logging,30 shuffled controls and145 unchanged pinned tests +31 probes pass. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.",
+      "evidence": "Namespace-wide refusal is removed from DefineTask, core validation and public Storage.Commit. Real application/compaction records execute and round-trip through SQLite. Public pi.generation/pi.tool raw writes still require private checkpoint adapters and are refused. The former real Harness publication failure is repaired: generation2 and model-tool3 expose source-shaped input/states and retain continuous observation; persisted request attempt/cutoff and assistant facts drive the projection. Exact two-tool parallel/sequential state progression and scoped UTF-16 arguments pass through public paths. This remains private-checkpoint-backed projection, with nested tools, unoffered calls, old-data witnesses, edge phases, migrations and canonical raw storage reversibility open. See notes/builtin-task-publications.md.",
       "fix": "Separate storage canonical records from runtime interpretation. Preserve exact public task data, including opaque checkpoints; translate only when execution needs a known adapter. Do not ban application kinds merely by pi. prefix.",
       "acceptance": [
         "Replay captured original built-in and opaque task records through Storage.Commit/read/reopen; invalid runtime phases fail only at source-equivalent execution boundary."
@@ -403,10 +404,11 @@
         "durable/compaction_generation.go",
         "durable/task_record.go",
         "durable/storage_public.go",
-        "durable/testdata/upstream-main/pending/builtin_publication_contract_v150_test.go",
-        "scripts/check-durable-builtin-publications.sh"
+        "durable/builtin_publication_contract_v150_test.go",
+        "durable/builtin_task_projection.go",
+        "durable/builtin_task_progression_v150_test.go"
       ],
-      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open. Follow-up source guardObserver/toError probes distinguish original falsy throw reports from normalised listener_error endings. Public advance/ending callbacks now retain false/zero/empty-string/nil via Failure.Value; raw panic(nil) is normalised from its Go runtime sentinel. Native reports and nil endings failed before fixes. Reference145 unchanged tests +26 probes;30 shuffled public/guard repeats; full durable419.411s/tools18.755s and vet/Staticcheck/logging pass. Other host-value stringification and asynchronous rejection bindings remain unverified. Reentrant self-detach, report-time detach and peer replacement during dispatch already pass without runtime changes; source notifyHosts snapshots membership and each guard rechecks detach. Reference145 unchanged tests +27 probes and50 shuffled native repeats pass. Queued-operation reentry and report-callback faults remain unverified. Object/array/cycle/Number/custom conversion normalisation now matches an independent18-case source probe. The first16 native cases failed the generic ending message before the fix. Raw public callbacks verify report identity, NaN/signed zero, nested conversion fallback, bigint and fresh ending errors. Reference145 unchanged tests +28 probes;20 shuffled public and20 strengthened object/number repeats; full durable403.545s/tools18.718s and vet/Staticcheck/logging pass. JavaScript undefined/symbol/custom tags/function-source and async rejection binding acceptance remain open. Public Harness compaction now publishes source pi.compaction/version1/pending-select; real application pi.example execution and raw application/compaction storage/reopen probes also pass. Existing registry replacement protection, cutoff and telemetry assertions retain their checks with the source kind. Final full durable412.725s/tools15.198s; vet/Staticcheck/logging;30 shuffled controls;145 unchanged pinned tests +31 probes. Generation/tool/nested projections and complete compaction contracts remain open; notes/canonical-compaction-kind.md. Fresh real Harness counterexample at44a581c: generation publishes version1/private queued state; the tool-bearing stored batch ends the observer listener_error with task record input is absent, so assistant/tool publications are lost. The paired unchanged pinned implementation probe passes source generation2/input empty/pending-prepare-attempt1 and model-tool3/input(kind,assistant,callId)/pending-call with no early ending. The full native acceptance test is retained RED outside the ordinary suite; scripts/check-durable-builtin-publications.sh exits nonzero until fixed. This baseline is not a passing native test.",
+      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are installed. CommitPublication uses seq/readonly changes; the old native envelope is private. Adopted document identity, post-scope dispatch membership, callback faults, wait/abort ordering and close controls pass. The real Harness builtin publication packet now passes in the ordinary suite: generation2 and model-tool3 retain observation, with exact parallel/sequential state progression and UTF-16 tool-argument ownership controls. The reference runner passes145 unchanged tests +34 independent probes. D04 caller-continuation turns, JavaScript-only bindings/async faults, weak lifetime, raw builtin reversibility, nested tools and complete edge/migration assertions remain open. See notes/builtin-task-publications.md.",
       "fix": "Finish D04 grouped caller-continuation/macrotask bridge and the complete stored-observer assertion crosswalk; cover async rejection/arbitrary panic values, reentry/report faults, weak/lifetime and remaining builtin task public projections. Preserve the installed canonical public API and dispatch phase, not the private synchronous guard as an alternate contract.",
       "acceptance": [
         "Complete pinned session-observers corpus, public source284 wait test, attach/detach between publication and dispatch, re-entry, listener faults, close/failure and multipart publications."
@@ -856,21 +858,21 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "nativeRevision": "44a581c37a63ad9452c6729aa4b2d5aaf236a1a2",
+    "nativeRevision": "working builtin publication slice on 1eafca17d4c74aabc5735df59746edeca640a826",
     "scope": "Current implementation and freshly reproduced verification gaps; no full parity or release acceptance.",
     "lastFullNative": {
-      "durableSeconds": 412.725,
-      "toolsSeconds": 15.198,
+      "durableSeconds": 419.068,
+      "toolsSeconds": 19.173,
       "vet": "pass",
       "staticcheck": "pass",
       "logging": "pass"
     },
-    "currentFocused": "entry-kind live/reopen, opaque migration/invalid phase, public compaction and raw pi namespace roundtrip: count3/shuffle42 pass",
+    "currentFocused": "builtin publication/progression, UTF-16, clean-close, preparation-fallback and tool-control: count10/shuffle42 pass (59.930s)",
     "reference": {
       "unchangedPinnedTests": 145,
-      "independentProbes": 32
+      "independentProbes": 34
     },
-    "builtinPublicationAcceptance": "RED: source probe passes; real native Harness exposes version/checkpoint mismatch and premature listener_error",
+    "builtinPublicationAcceptance": "PASS in ordinary suite: source-derived model-tool continuity/progression; canonical raw storage/nested/migration/edge acceptance open",
     "profiling": "Full acceptance CPU/alloc_space/alloc_objects and outlier tuning remain required."
   }
 }

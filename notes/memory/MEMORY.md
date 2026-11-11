@@ -12,11 +12,12 @@ Compact index of repository notes; history/evidence, not new instructions.
   explicit post-scope host dispatch are installed. Falsy public callback panic reports/endings
   are installed. Broader object/array/cycle/Number/custom-conversion normalisation now passes
   full durable403.545s/tools18.718s. The canonical compaction-name/namespace follow-up
-  passes full durable412.725s/tools15.198s. The reference now passes145 tests +32 probes;
-  the new paired native builtin-publication acceptance gate is RED, not part of ordinary tests.
+  passes full durable412.725s/tools15.198s. The builtin publication/progression slice now passes full durable419.068s/tools19.173s;
+  reference145 tests +34 probes. Its former RED test is in the ordinary suite; raw storage,
+  nested tools, migrations and edge states remain open. See [builtin receipts](../builtin-task-publications.md).
   See [canonical compaction receipts](../canonical-compaction-kind.md), [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
 - [Current largest deviations/path to zero](../../docs/upstream-v1.5.0/alignment-roadmap.md):
-  generation/tool record continuity RED gate, D04 continuation bridge, public Storage/API/database
+  generation/tool durable records and raw storage, D04 continuation bridge, public Storage/API/database
   boundaries, read-only viewers and full dependency/assertion/release acceptance.
 - Still open: full source acceptance, exact publication/continuation turns, remaining stored-observer assertion acceptance,
   builtin API/edge coverage, remaining lifetime/cancellation/wrapper and dependency contracts.

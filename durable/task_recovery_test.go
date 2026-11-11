@@ -1379,7 +1379,8 @@ func TestTaskRecoveryGenerationPreparationFallbackWakeSequence(t *testing.T) {
 							if err := fromObject(write.Task.Checkpoint, &cp, h.session.limits); err != nil {
 								return err
 							}
-							if cp.Phase == "intent" && cp.Attempt == 0 && firstAttempts.Add(1) == 1 {
+							// The intent commit now charges attempt1, as source request checkpoints do.
+							if cp.Phase == "intent" && cp.Attempt == 1 && firstAttempts.Add(1) == 1 {
 								r := h.scheduler.invocations[write.Task.ID]
 								first <- admissionWitness{runtime: r, epoch: r.admissionEpoch}
 								<-firstRelease

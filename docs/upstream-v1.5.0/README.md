@@ -8,7 +8,7 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 ## Current durable deviations
 
-The [durable deviation register](durable-deviations.md) tracks current evidence for29 groups and165 pinned durable test/support/fixture obligations, including101 test files. The [biggest deviations and path to zero](alignment-roadmap.md) separates confirmed API/record/ordering failures from unverified coverage. Its RED builtin acceptance gate is outside the ordinary native suite and must pass before that boundary can close. State counts are group labels, not a parity percentage.
+The [durable deviation register](durable-deviations.md) tracks current evidence for29 groups and165 pinned durable test/support/fixture obligations, including101 test files. The [biggest deviations and path to zero](alignment-roadmap.md) separates confirmed API/record/ordering failures from unverified coverage. The builtin publication gate now passes in the ordinary suite; raw storage, nested tools, migrations and edge states still need acceptance. State counts are group labels, not a parity percentage.
 
 ## Historical parity backlog and contract decisions
 

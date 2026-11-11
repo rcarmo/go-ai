@@ -85,7 +85,9 @@ func TestM1bCloseJoinsNoncooperativeAndReopenIntent(t *testing.T) {
 		t.Fatal(e)
 	}
 	var cp generationCheckpoint
-	if e = fromObject(result.Task.Checkpoint, &cp, h2.session.limits); e != nil || cp.Attempt != 2 {
+	// Pinned v1.5.0 probe: a clean close during the request reopens and resends
+	// the same request at attempt1 with no restart charge; it is not a new attempt.
+	if e = fromObject(result.Task.Checkpoint, &cp, h2.session.limits); e != nil || cp.Attempt != 1 {
 		t.Fatal(cp, e)
 	}
 	if len(snapshot.Entries) != 2 {

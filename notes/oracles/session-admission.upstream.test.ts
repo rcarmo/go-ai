@@ -455,3 +455,48 @@ it("publishes source generation v2 and model-tool v3 records without ending the 
  expect(request).toBeDefined();expect(work).toBeDefined();expect(work.version).toBe(3);expect(work.input).toEqual({kind:"model",assistant:request.id,callId:"c1"});expect(work.state).toEqual({status:"pending",checkpoint:{phase:"call"}});
  expect(ends).toEqual([]);await harness.close(context);expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("failed");guard.detach();
 });
+
+it("retains exact source builtin state progression for parallel and sequential model tools",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{tool,addTool,assistant}=await import("@pinned/harness-support");
+ for(const mode of ["parallel","sequential"] as const){
+  const setup=chatSetup();setup.settings.toolExecution=mode;addTool(setup.registry,tool("tool-c1"));addTool(setup.registry,tool("tool-c2"));setup.faux.setResponses([assistant("",{calls:["c1","c2"]}),assistant("done")]);
+  const {harness,root}=await openChat(new ControlledStorage(),setup);const tasks:any[]=[],entries:any[]=[],ends:any[]=[];
+  harness.observeCommits({advance:p=>{for(const change of p.changes){if(change.type==="task")tasks.push(change.value);if(change.type==="entry")entries.push(change.value)}},end:end=>ends.push(end)});
+  try{
+   expect((await (await root.submit({type:"input",content:"go"},context)).wait(context)).status).toBe("done");expect(ends).toEqual([]);
+   const ids=(kind:string)=>[...new Set(tasks.filter(task=>task.kind===kind).map(task=>task.id))];const generations=ids("pi.generation"),tools=ids("pi.tool");
+   const entryIds=(kind:string)=>entries.filter(entry=>entry.kind===kind).map(entry=>entry.id);const [system]=entryIds("pi.system"),[answer,final]=entryIds("pi.assistant"),results=entryIds("pi.tool-result");
+   expect(generations).toHaveLength(2);expect(tools).toHaveLength(2);expect(results).toHaveLength(2);
+   const prepare=(status:string)=>({version:2,input:{},state:{status,checkpoint:{phase:"prepare",attempt:1}}});
+   const request=(cutoff:any)=>({version:2,input:{},state:{status:"running",checkpoint:{phase:"request",attempt:1,model:{provider:"faux",modelId:"faux-1"},thinkingLevel:"off",streamOptions:{},cutoff}}});
+   const done=(entryId:any)=>({version:2,input:{},state:{status:"terminal",outcome:{status:"completed",result:{entryId}}}});
+   const round=(status:string,ids:any[],pending:string[],on?:any[])=>({version:2,input:{},state:{status,checkpoint:{phase:"tools",assistant:answer,tools:ids,pending},...(on===undefined?{}:{on,policy:"allSettled"})}});
+   const states=(id:any)=>{const unique:any[]=[];for(const task of tasks.filter(task=>task.id===id)){const value={version:task.version,input:task.input,state:task.state};if(JSON.stringify(unique.at(-1))!==JSON.stringify(value))unique.push(value)}return unique};
+   const first=mode==="parallel"?[prepare("pending"),prepare("running"),request(system),round("waiting",tools,[],tools),round("running",tools,[]),done(answer)]:[prepare("pending"),prepare("running"),request(system),round("waiting",tools.slice(0,1),["c2"],tools.slice(0,1)),round("running",tools.slice(0,1),["c2"]),round("waiting",tools,[],tools.slice(1)),round("running",tools,[]),done(answer)];
+   expect(states(generations[0])).toEqual(first);expect(states(generations[1])).toEqual([prepare("pending"),prepare("running"),request(results[1]),done(final)]);
+   tools.forEach((id,i)=>{const input={kind:"model",assistant:answer,callId:`c${i+1}`};expect(states(id)).toEqual([
+    {version:3,input,state:{status:"pending",checkpoint:{phase:"call"}}},{version:3,input,state:{status:"running",checkpoint:{phase:"call"}}},
+    {version:3,input,state:{status:"running",checkpoint:{phase:"execute",arguments:{},replay:"unsafe"}}},{version:3,input,state:{status:"terminal",outcome:{status:"completed",result:{kind:"model",entryId:results[i]}}}},
+   ])});
+  }finally{await harness.close(context)}
+  expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("failed");
+ }
+});
+
+it("resends an orderly closed SQLite request with the same attempt and cutoff",async()=>{
+ const {mkdtempSync,rmSync}=await import("node:fs"),{tmpdir}=await import("node:os"),{join}=await import("node:path");
+ const {openNodeSqliteStorage}=await import("@pinned/sqlite-node"),{chatSetup,openChat,unanswered}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ const dir=mkdtempSync(join(tmpdir(),"source-clean-resend-")),path=join(dir,"state.db"),setup=chatSetup(),blocked=unanswered();let calls=0,harness:any;
+ setup.faux.setResponses([(ctx:any,options:any)=>{calls++;return blocked.step(ctx,options)},()=>{calls++;return assistant("done")}]);
+ const requests:any[]=[],ends:any[]=[];
+ const observe=(h:any)=>h.observeCommits({advance:(p:any)=>{for(const change of p.changes)if(change.type==="task"&&change.value.kind==="pi.generation"&&change.value.state.checkpoint?.phase==="request")requests.push(change.value)},end:(end:any)=>ends.push(end)});
+ try{
+  let opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;observe(harness);
+  const submission=await opened.root.submit({type:"input",content:"go"},context);await blocked.reached;
+  const original=requests.at(-1);expect(original.state.checkpoint.attempt).toBe(1);await harness.close(context);harness=undefined;
+  opened=await openChat(await openNodeSqliteStorage(path),setup);harness=opened.harness;observe(harness);
+  expect((await (await harness.submission(submission.id,context)).wait(context)).status).toBe("done");expect(calls).toBe(2);
+  expect(requests.length).toBeGreaterThanOrEqual(2);for(const task of requests){expect(task.state.checkpoint).toEqual(original.state.checkpoint);expect(task.restarts??0).toBe(0)}
+ }finally{if(harness)await harness.close(context);rmSync(dir,{recursive:true,force:true})}
+ expect(ends).toHaveLength(2);expect(ends.map(end=>end.kind)).toEqual(["failed","failed"]);
+});

@@ -3,12 +3,16 @@ package durable
 import (
 	"encoding/json"
 	"sort"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 // ImmutableValue is a small frozen view over a deep-owned strict JSON value.
 type ImmutableValue struct {
 	kind       string
 	string     string
+	utf16      *goai.UTF16String
+	arguments  bool // trusted source tool-argument subtree; keys may be WTF-8
 	number     json.Number
 	bool       bool
 	mapValue   map[string]*ImmutableValue
@@ -27,6 +31,10 @@ func NewImmutableValue(input any, limits Limits) (*ImmutableValue, error) {
 }
 
 func freezeImmutableValue(input any) (*ImmutableValue, error) {
+	return freezeImmutableScoped(input, false)
+}
+
+func freezeImmutableScoped(input any, arguments bool) (*ImmutableValue, error) {
 	switch value := input.(type) {
 	case nil:
 		return &ImmutableValue{kind: "null"}, nil
@@ -34,12 +42,16 @@ func freezeImmutableValue(input any) (*ImmutableValue, error) {
 		return &ImmutableValue{kind: "bool", bool: value}, nil
 	case string:
 		return &ImmutableValue{kind: "string", string: value}, nil
+	case goai.UTF16String:
+		return &ImmutableValue{kind: "string", string: value.WTF8(), utf16: &value, arguments: true}, nil
+	case sourceToolArguments:
+		return freezeImmutableScoped(map[string]any(value), true)
 	case json.Number:
 		return &ImmutableValue{kind: "number", number: value}, nil
 	case map[string]any:
-		out := &ImmutableValue{kind: "object", mapValue: make(map[string]*ImmutableValue, len(value))}
+		out := &ImmutableValue{kind: "object", arguments: arguments, mapValue: make(map[string]*ImmutableValue, len(value))}
 		for key, child := range value {
-			node, err := freezeImmutableValue(child)
+			node, err := freezeImmutableScoped(child, arguments)
 			if err != nil {
 				return nil, err
 			}
@@ -47,9 +59,9 @@ func freezeImmutableValue(input any) (*ImmutableValue, error) {
 		}
 		return out, nil
 	case []any:
-		out := &ImmutableValue{kind: "array", arrayValue: make([]*ImmutableValue, len(value))}
+		out := &ImmutableValue{kind: "array", arguments: arguments, arrayValue: make([]*ImmutableValue, len(value))}
 		for i, child := range value {
-			node, err := freezeImmutableValue(child)
+			node, err := freezeImmutableScoped(child, arguments)
 			if err != nil {
 				return nil, err
 			}
@@ -133,7 +145,11 @@ func (v *ImmutableValue) Keys() []string {
 	return keys
 }
 
-func (v *ImmutableValue) Copy() any {
+func (v *ImmutableValue) Copy() any { return v.copy(false) }
+
+// Ownership copies retain the sealed argument scope; explicit user copies
+// expose ordinary detached containers, with UTF16String scalars where needed.
+func (v *ImmutableValue) copy(preserveScopes bool) any {
 	if v == nil {
 		return nil
 	}
@@ -143,19 +159,25 @@ func (v *ImmutableValue) Copy() any {
 	case "bool":
 		return v.bool
 	case "string":
+		if v.utf16 != nil {
+			return *v.utf16
+		}
 		return v.string
 	case "number":
 		return json.Number(v.number)
 	case "object":
 		out := make(map[string]any, len(v.mapValue))
 		for key, child := range v.mapValue {
-			out[key] = child.Copy()
+			out[key] = child.copy(preserveScopes)
+		}
+		if preserveScopes && v.arguments {
+			return sourceToolArguments(out)
 		}
 		return out
 	case "array":
 		out := make([]any, len(v.arrayValue))
 		for i, child := range v.arrayValue {
-			out[i] = child.Copy()
+			out[i] = child.copy(preserveScopes)
 		}
 		return out
 	default:

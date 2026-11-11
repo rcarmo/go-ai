@@ -1,8 +1,8 @@
 # Pending upstream-main oracles
 
-## Current builtin publication acceptance gate
+## Promoted builtin publication acceptance gate
 
-`builtin_publication_contract_v150_test.go` is a newly reproduced RED source-derived contract at44a581c. Run `scripts/check-durable-builtin-publications.sh` from the repository root. It compiles the complete fixture through a temporary overlay, uses the installed writer/public observers (no prototype exclusion), exits nonzero until fixed and deletes scratch. The ordinary suite does not execute it. Its paired real upstream Harness probe passes; native generation version/checkpoint and tool-bearing observer continuity fail. [Current ranked scope and path to zero](../../../../docs/upstream-v1.5.0/alignment-roadmap.md).
+The source-derived builtin publication packet now passes as `durable/builtin_publication_contract_v150_test.go` in the ordinary suite. Its former overlay runner is removed. Exact model-tool progression and UTF-16 public controls supplement it; canonical raw storage, nested tools, migrations and edge states remain open. See [the current receipt](../../../../notes/builtin-task-publications.md) and [ranked scope](../../../../docs/upstream-v1.5.0/alignment-roadmap.md).
 
 The remaining receipts below are historical; some fixtures were promoted or APIs replaced. Their old failures and overlay recipes do not establish current gaps.
 

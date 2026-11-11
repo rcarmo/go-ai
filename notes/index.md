@@ -33,7 +33,10 @@ Compact index. Read a linked note only when it is relevant to the current task.
   namespace, public storage roundtrips, registry protection and remaining builtin projections.
 
 - [Biggest deviations and path to zero](../docs/upstream-v1.5.0/alignment-roadmap.md) — current
-  ranked architecture gaps, fresh RED builtin acceptance gate and closure criteria.
+  ranked architecture gaps, builtin acceptance and closure criteria.
+
+- [Builtin task publication and progression](builtin-task-publications.md) — generation2/model-tool3,
+  persisted request/assistant facts, scoped UTF-16, source close/resend and remaining durable boundary.
 
 ## Related
 

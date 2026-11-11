@@ -31,6 +31,11 @@ func (b *jsonBudget) immutable(value *ImmutableValue, depth int) error {
 		b.hint(4)
 		return nil
 	}
+	if value.arguments {
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+	}
 	switch value.kind {
 	case "null":
 		b.hint(4)
@@ -39,6 +44,9 @@ func (b *jsonBudget) immutable(value *ImmutableValue, depth int) error {
 		b.hint(5)
 		return nil
 	case "string":
+		if value.utf16 != nil {
+			return b.nativeString(reflect.ValueOf(*value.utf16))
+		}
 		return b.str(value.string)
 	case "number":
 		number := string(value.number)
@@ -90,12 +98,20 @@ func encodeImmutableValue(b *limitedJSON, value *ImmutableValue) error {
 	if value == nil {
 		return emit(b, "null")
 	}
+	if value.arguments {
+		previous := b.utf16Keys
+		b.utf16Keys = true
+		defer func() { b.utf16Keys = previous }()
+	}
 	switch value.kind {
 	case "null":
 		return emit(b, "null")
 	case "bool":
 		return emit(b, strconv.FormatBool(value.bool))
 	case "string":
+		if value.utf16 != nil {
+			return value.utf16.WriteJSON(b)
+		}
 		return encodeString(b, value.string)
 	case "number":
 		return emit(b, string(value.number))

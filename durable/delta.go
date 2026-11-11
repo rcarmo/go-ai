@@ -79,10 +79,13 @@ func cloneJSONValue(v reflect.Value) any {
 		v = v.Elem()
 	}
 	if immutable, ok := immutableJSONValue(v); ok {
-		return immutable.Copy()
+		return immutable.copy(true)
 	}
-	if v.Type() == reflect.TypeOf(json.Number("")) {
-		return v.Interface().(json.Number)
+	if v.Type() == reflect.TypeOf(json.Number("")) || v.Type() == nativeUTF16Type {
+		return v.Interface()
+	}
+	if v.Type() == sourceToolArgumentsType {
+		return sourceToolArguments(cloneJSONValue(v.Convert(reflect.TypeFor[map[string]any]())).(map[string]any))
 	}
 	switch v.Kind() {
 	case reflect.Bool:
