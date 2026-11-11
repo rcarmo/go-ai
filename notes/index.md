@@ -2,6 +2,9 @@
 
 Compact index. Read a linked note only when it is relevant to the current task.
 
+- [Upstream-port preferences](memory/upstream-alignment.md) — no native backwards-compatibility
+  constraint; proactively drive the authorised port through full upstream acceptance.
+
 - [Writer install crosswalk](writer-install-crosswalk.md) — what must move together to install the ported
   writer on Session (D01/D02/D03-remainder/D04), with pinned v1.5.0 references and a slicing plan.
 
