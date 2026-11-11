@@ -13,6 +13,45 @@ func foundationTask(id ID, input any) Task {
 	return Task{ID: id, Conversation: 1, Kind: "task.foundation", Status: "pending", Checkpoint: JSON{}, Execution: &TaskExecution{Tag: nativeTaskTag, Native: &NativeTaskExecution{Version: 1, Input: &TaskValue{Present: true, Value: input}, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "work"}}}}}
 }
 
+// Historical native DTO matrices exercise the real Session admission path.
+// Raw canonical Storage has source complete-record replacement semantics.
+func sessionInvariantSession(t *testing.T, store Storage) *Session {
+	t.Helper()
+	seedRootConversation(t, store)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close(bg) })
+	return session
+}
+func applySessionTaskFixture(session *Session, ctx context.Context, batch Batch) (uint64, error) {
+	return session.Commit(ctx, func(tx *Tx) error {
+		for _, write := range batch.Writes {
+			if err := tx.stage(write); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+func applySessionTaskFixtureMust(t *testing.T, session *Session, writes ...Write) uint64 {
+	t.Helper()
+	seq, err := applySessionTaskFixture(session, bg, Batch{Writes: writes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return seq
+}
+func mintSessionTaskFixture(t *testing.T, session *Session) ID {
+	t.Helper()
+	id, err := session.core.mintID(bg, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func TestTaskDefinitionConstructorOwnsPhaseMapAndInput(t *testing.T) {
 	phase := func(context.Context, TaskRecord, *TaskRuntime) error { return nil }
 	phases := map[string]TaskPhase{"work": phase}
@@ -169,6 +208,17 @@ func TestTaskDefinitionCodecStrictValuesAndUnions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			task := foundationTask(2, nil)
 			mutate(&task)
+			if name == "background-child" {
+				if _, err := copyTask(task, l); err != nil {
+					t.Fatal("raw task shape rejected", err)
+				}
+				state := initialState()
+				state.Tasks[3] = foundationTask(3, nil)
+				if err := validateTaskReferences(state, task, l); err == nil {
+					t.Fatal("runtime background child accepted")
+				}
+				return
+			}
 			if _, err := copyTask(task, l); err == nil {
 				t.Fatal("invalid task union accepted")
 			}
@@ -204,11 +254,11 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 		if read.Execution.Native.Memos["winner"].Value.(map[string]any)["label"] != "owned" {
 			t.Fatal("input/memo placements shared")
 		}
-		page, err := b.store.Tasks(bg, Query{Limit: 1})
-		if err != nil || len(page) != 1 || page[0].Execution.Native.Input.Value.(map[string]any)["label"] != "owned" {
-			t.Fatal("raw Tasks detached", err)
+		record, found, err := b.store.Task(bg, id)
+		if err != nil || !found || record.Input.Value.(map[string]any)["label"] != "owned" {
+			t.Fatal("canonical Task detached", err)
 		}
-		page[0].Execution.Native.Memos["winner"].Value.(map[string]any)["label"] = "page"
+		record.Memos["winner"].Value.(map[string]any)["label"] = "page"
 		seedRootConversation(t, b.store)
 		session, err := OpenSession(b.store)
 		if err != nil {
@@ -269,18 +319,19 @@ func TestTaskDefinitionFoundationRawStoreSnapshotImageAndTxDetach(t *testing.T) 
 
 func TestTaskDefinitionFoundationCombinedForwardOwnershipAndHeldImmutable(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-		childID, _ := b.store.MintID(bg)
-		ownerID, _ := b.store.MintID(bg)
+		session := sessionInvariantSession(t, b.store)
+		childID, _ := session.core.mintID(bg, true)
+		ownerID, _ := session.core.mintID(bg, true)
 		child, owner := foundationTask(childID, nil), foundationTask(ownerID, nil)
 		child.Owner = ownerID
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &child}, {Op: "put-task", Task: &owner}}}); err != nil {
+		if _, err := applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &child}, {Op: "put-task", Task: &owner}}}); err != nil {
 			t.Fatal("valid forward owner", err)
 		}
-		conversationID, _ := b.store.MintID(bg)
+		conversationID, _ := session.core.mintID(bg, true)
 		cycle := owner
 		cycle.Conversation = conversationID
 		before, _ := b.store.Snapshot(bg)
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "create-conversation", Conversation: &Conversation{ID: conversationID, Owner: ownerID}}, {Op: "put-task", Task: &cycle}}}); err == nil {
+		if _, err := applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "create-conversation", Conversation: &Conversation{ID: conversationID, Owner: ownerID}}, {Op: "put-task", Task: &cycle}}}); err == nil {
 			t.Fatal("combined ownership/move accepted")
 		}
 		after, _ := b.store.Snapshot(bg)
@@ -288,17 +339,17 @@ func TestTaskDefinitionFoundationCombinedForwardOwnershipAndHeldImmutable(t *tes
 			t.Fatal("failed ownership admission changed sequence")
 		}
 		// Direct final ownership cycle in a fresh same-batch forward graph.
-		newTaskID, _ := b.store.MintID(bg)
-		newConvID, _ := b.store.MintID(bg)
+		newTaskID, _ := session.core.mintID(bg, true)
+		newConvID, _ := session.core.mintID(bg, true)
 		newTask := foundationTask(newTaskID, nil)
 		newTask.Conversation = newConvID
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &newTask}, {Op: "create-conversation", Conversation: &Conversation{ID: newConvID, Owner: newTaskID}}}}); err == nil {
+		if _, err := applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &newTask}, {Op: "create-conversation", Conversation: &Conversation{ID: newConvID, Owner: newTaskID}}}}); err == nil {
 			t.Fatal("combined cycle accepted")
 		}
 		held := owner
 		held.Status = "completing"
 		held.Execution = &TaskExecution{Tag: nativeTaskTag, Native: &NativeTaskExecution{Version: 1, Input: &TaskValue{Present: true, Value: nil}, State: TaskState{Status: "completing", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: "held"}}}}}
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &held}}}); err != nil {
+		if _, err := applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &held}}}); err != nil {
 			t.Fatal(err)
 		}
 		changed, err := copyTask(held, DefaultLimits())
@@ -306,7 +357,7 @@ func TestTaskDefinitionFoundationCombinedForwardOwnershipAndHeldImmutable(t *tes
 			t.Fatal(err)
 		}
 		changed.Execution.Native.State.Outcome.Result.Value = "changed"
-		if _, err := b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}}); err == nil {
+		if _, err := applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}}); err == nil {
 			t.Fatal("held result replaced")
 		}
 	})
@@ -449,27 +500,28 @@ func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = store.Close(bg) })
+			session := sessionInvariantSession(t, store)
 			large := strings.Repeat("x", 300<<10)
-			id := mint(t, store)
+			id := mintSessionTaskFixture(t, session)
 			held := foundationTask(id, large)
 			held.Status = "completing"
 			held.Execution.Native.State = TaskState{Status: "completing", Outcome: &TaskOutcome{Status: "completed", Result: &TaskValue{Present: true, Value: large}}}
-			apply(t, store, Write{Op: "put-task", Task: &held})
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &held})
 			marked := markTask(snap(t, store).Tasks[id])
-			apply(t, store, Write{Op: "put-task", Task: &marked})
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &marked})
 			changed, err := copyTask(marked, l)
 			if err != nil {
 				t.Fatal(err)
 			}
 			changed.Execution.Native.State.Outcome.Result.Value = large + "y"
-			_, err = store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
+			_, err = applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
 			rejected(t, err)
 			changed, err = copyTask(marked, l)
 			if err != nil {
 				t.Fatal(err)
 			}
 			changed.Execution.Native.Input.Value = large + "y"
-			_, err = store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
+			_, err = applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
 			rejected(t, err)
 			final, err := copyTask(marked, l)
 			if err != nil {
@@ -477,25 +529,26 @@ func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
 			}
 			final.Status = "done"
 			final.Execution.Native.State.Status = "terminal"
-			apply(t, store, Write{Op: "put-task", Task: &final})
+			final.Execution.Native.State.Status = "terminal"
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &final})
 			// Built-in retained checkpoints also obey this store's policy, not
 			// DefaultLimits. Scheduler-generation permits no arbitrary mutation.
-			parentID, subID := mint(t, store), mint(t, store)
+			parentID, subID := mintSessionTaskFixture(t, session), mintSessionTaskFixture(t, session)
 			cp := generationCheckpoint{Phase: "intent", Submission: subID, Input: large}
 			checkpoint, err := dtoObject(cp, l)
 			if err != nil {
 				t.Fatal(err)
 			}
 			builtin := Task{ID: parentID, Conversation: 1, Kind: "pi.generation", Status: "completing", Checkpoint: checkpoint, Execution: &TaskExecution{Tag: builtinTaskTag, Builtin: &BuiltinTaskExecution{Hold: &BuiltinTaskHold{Stage: "held", Action: "scheduler-generation", FinalStatus: "failed", Conversation: 1, Submission: subID, Outcome: TaskOutcome{Status: "faulted", Error: &TaskOutcomeError{Message: "bounded"}}}}}}
-			apply(t, store, Write{Op: "put-submission", Submission: &Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}}, Write{Op: "put-task", Task: &builtin})
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-submission", Submission: &Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}}, Write{Op: "put-task", Task: &builtin})
 			marked = markTask(snap(t, store).Tasks[parentID])
-			apply(t, store, Write{Op: "put-task", Task: &marked})
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &marked})
 			changed, err = copyTask(marked, l)
 			if err != nil {
 				t.Fatal(err)
 			}
 			changed.Checkpoint["input"] = large + "changed"
-			_, err = store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
+			_, err = applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &changed}}})
 			rejected(t, err)
 			final, err = copyTask(marked, l)
 			if err != nil {
@@ -503,7 +556,7 @@ func TestTaskDefinitionRaisedPersistedLimitsHeldEquality(t *testing.T) {
 			}
 			final.Status = "failed"
 			final.Execution.Builtin.Hold.Stage = "final"
-			apply(t, store, Write{Op: "put-task", Task: &final})
+			applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &final})
 		})
 	}
 }
@@ -517,11 +570,12 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 				}
 				t.Run(kind+"/"+status+"/"+mark, func(t *testing.T) {
 					sqliteStore(t, func(t *testing.T, b sqliteFixture) {
-						id := mint(t, b.store)
+						session := sessionInvariantSession(t, b.store)
+						id := mintSessionTaskFixture(t, session)
 						var subID ID
 						if kind == "builtin" {
-							subID = mint(t, b.store)
-							apply(t, b.store, Write{Op: "put-submission", Submission: &Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}})
+							subID = mintSessionTaskFixture(t, session)
+							applySessionTaskFixtureMust(t, session, Write{Op: "put-submission", Submission: &Submission{ID: subID, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}})
 						}
 						var err error
 						original := foundationTask(id, JSON{"input": "kept"})
@@ -537,7 +591,7 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 						} else if status == "waiting" {
 							original.Execution.Native.State.Policy = "allSettled" // Empty wait is valid.
 						}
-						apply(t, b.store, Write{Op: "put-task", Task: &original})
+						applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &original})
 						// Synthetic scheduler-generation Hold identity is separate from
 						// receipt production. No scheduler-tool creator is inferred.
 						decideBuiltin := func(task *Task, stage string) {
@@ -559,8 +613,8 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 								marked.Checkpoint["abort"] = true
 							}
 						}
-						apply(t, b.store, Write{Op: "put-task", Task: &marked}) // Adding mark is legal.
-						apply(t, b.store, Write{Op: "put-task", Task: &marked}) // Same confirmed mark is legal.
+						applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &marked}) // Adding mark is legal.
+						applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &marked}) // Same confirmed mark is legal.
 						for _, transition := range []string{"live", "held", "final"} {
 							removals := []string{"clear-all"}
 							if kind == "builtin" && mark == "both" {
@@ -614,7 +668,7 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 									if err := validateTaskReferences(probe, candidate, DefaultLimits()); err != nil {
 										t.Fatal("invalid negative references", err)
 									}
-									_, err = b.store.Apply(bg, Batch{Writes: []Write{{Op: "put-task", Task: &candidate}}})
+									_, err = applySessionTaskFixture(session, bg, Batch{Writes: []Write{{Op: "put-task", Task: &candidate}}})
 									var markRejection *StorageRejected
 									if !errors.As(err, &markRejection) || !strings.Contains(markRejection.Reason, "abort mark cannot be cleared") {
 										t.Fatal("replacement failed for unrelated reason", err)
@@ -641,15 +695,15 @@ func TestTaskDefinitionAbortMarkMonotonicAcrossLiveReplacementAndSettlement(t *t
 							preserved.Status = "completing"
 							preserved.Execution.Native.Memos = nil
 							preserved.Execution.Native.State = TaskState{Status: "completing", Outcome: &TaskOutcome{Status: "aborted", Reason: "mark"}}
-							apply(t, b.store, Write{Op: "put-task", Task: &preserved})
+							applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &preserved})
 							preserved.Status = "aborted"
 							preserved.Execution.Native.State.Status = "terminal"
 						} else {
 							decideBuiltin(&preserved, "held")
-							apply(t, b.store, Write{Op: "put-task", Task: &preserved})
+							applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &preserved})
 							decideBuiltin(&preserved, "final")
 						}
-						apply(t, b.store, Write{Op: "put-task", Task: &preserved})
+						applySessionTaskFixtureMust(t, session, Write{Op: "put-task", Task: &preserved})
 						if !taskAborted(snap(t, b.store).Tasks[id]) {
 							t.Fatal("final logical mark missing")
 						}

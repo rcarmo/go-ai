@@ -523,8 +523,13 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 				return Snapshot{}, e
 			}
 			if old, ok := n.Tasks[id]; ok {
-				if e = validateTaskReplacement(old, v, l); e != nil {
-					return Snapshot{}, e
+				// Canonical raw Storage replaces the entire record. Frozen
+				// identity/marks/outcomes belong to Session admission, not storage.
+				canonical := old.Execution != nil && old.Execution.Native != nil && v.Execution != nil && v.Execution.Native != nil
+				if !explicit || !canonical {
+					if e = validateTaskReplacement(old, v, l); e != nil {
+						return Snapshot{}, e
+					}
 				}
 			}
 			n.Tasks[id] = v
@@ -658,7 +663,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 		}
 	}
 	deriveConversationOwners(&n, created)
-	if err = validateState(&n, l, final, s, r.Writes); err != nil {
+	if err = validateState(&n, l, final, s, r.Writes, !explicit); err != nil {
 		return Snapshot{}, err
 	}
 	return n, nil
@@ -686,7 +691,7 @@ func validStatus(s string) bool {
 	}
 	return false
 }
-func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write) error {
+func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, writes []Write, runtimeTasks bool) error {
 	s := *candidate
 	changed := map[retainedKey]bool{}
 	for _, write := range writes {
@@ -773,7 +778,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 				return err
 			}
 		}
-		if final && v.Execution != nil {
+		if final && v.Execution != nil && (runtimeTasks || v.Execution.Native == nil) {
 			if err := validateTaskReferences(s, v, l); err != nil {
 				return err
 			}
@@ -1113,30 +1118,7 @@ func legacyEntries(s Snapshot, conversation ID, after EntryCursor, limit int, l 
 	}
 	return r, nil
 }
-func (c *storeCore) Tasks(ctx context.Context, q Query) ([]Task, error) {
-	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
-		return nil, e
-	}
-	s, e := c.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	if e = checkPage(c.limits, q.Limit); e != nil {
-		return nil, e
-	}
-	r := []Task{}
-	for _, id := range ids(s.Tasks) {
-		v := s.Tasks[id]
-		if id <= q.After || (q.Conversation != 0 && v.Conversation != q.Conversation) || (q.Owner != 0 && v.Owner != q.Owner) || (q.Status != "" && v.Status != q.Status) || (q.Kind != "" && v.Kind != q.Kind) {
-			continue
-		}
-		r = append(r, v)
-		if len(r) == q.Limit {
-			break
-		}
-	}
-	return r, nil
-}
+
 func (c *storeCore) Submissions(ctx context.Context, q Query) ([]Submission, error) {
 	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
 		return nil, e

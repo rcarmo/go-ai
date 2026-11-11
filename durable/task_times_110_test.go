@@ -29,11 +29,16 @@ func TestTaskTimes110SessionLifecycleLegacyAndReopen(t *testing.T) {
 		}
 		set := func(status string) error {
 			_, err := s.Commit(bg, func(tx *Tx) error {
-				p, err := tx.ScanTasks(TaskQuery{Conversation: root}, 10, nil)
+				// This fixture intentionally has no canonical input/version. Keep
+				// its private lifecycle control off the canonical read API.
+				state, err := tx.current()
 				if err != nil {
 					return err
 				}
-				v := p.Items[0]
+				v, err := copyTask(state.Tasks[taskID], tx.limits)
+				if err != nil {
+					return err
+				}
 				v.Status = status
 				return tx.PutTask(v)
 			})
@@ -129,12 +134,13 @@ func TestTaskTimes110StagedFirstAndRollback(t *testing.T) {
 			if e := tx.PutTask(v); e != nil {
 				return e
 			}
-			p, e := tx.ScanTasks(TaskQuery{}, 1, nil)
+			state, e := tx.current()
 			if e != nil {
 				return e
 			}
-			if *p.Items[0].StartedAt != 200 || *p.Items[0].EndedAt != 300 {
-				t.Fatal(p)
+			staged := state.Tasks[taskID]
+			if *staged.StartedAt != 200 || *staged.EndedAt != 300 {
+				t.Fatal(staged)
 			}
 			return nil
 		})

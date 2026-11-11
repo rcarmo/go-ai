@@ -38,7 +38,7 @@ type SubmissionQuery struct {
 // OrderedStorage is a narrow view of the required 1.1.0 storage scan contract.
 type OrderedStorage interface {
 	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)
-	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[Task], error)
+	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[TaskRecord], error)
 	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
 }
 
@@ -131,14 +131,14 @@ func resolveScan(requested, fallback ScanOrder, cursor Cursor) (ScanOrder, int64
 	}
 	return order, after, true, nil
 }
-func scanPage[V any](values map[ID]V, order ScanOrder, after int64, hasAfter bool, limit int, match func(V) bool, detach func(V) (V, error)) (Page[V], error) {
+func scanPage[V, R any](values map[ID]V, order ScanOrder, after int64, hasAfter bool, limit int, match func(V) bool, detach func(V) (R, error)) (Page[R], error) {
 	keys := ids(values)
 	if order == Descending {
 		for i, j := 0, len(keys)-1; i < j; i, j = i+1, j-1 {
 			keys[i], keys[j] = keys[j], keys[i]
 		}
 	}
-	page := Page[V]{Items: []V{}}
+	page := Page[R]{Items: []R{}}
 	var last ID
 	for _, id := range keys {
 		if hasAfter && ((order == Ascending && int64(id) <= after) || (order == Descending && int64(id) >= after)) {
@@ -154,7 +154,7 @@ func scanPage[V any](values map[ID]V, order ScanOrder, after int64, hasAfter boo
 		}
 		owned, err := detach(value)
 		if err != nil {
-			return Page[V]{}, err
+			return Page[R]{}, err
 		}
 		page.Items = append(page.Items, owned)
 		last = id
@@ -182,13 +182,13 @@ func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cu
 		return true
 	}, func(v Conversation) (Conversation, error) { return v, nil })
 }
-func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) (Page[Task], error) {
+func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) (Page[TaskRecord], error) {
 	if err := checkReadIDs(q.Conversation); err != nil {
-		return Page[Task]{}, err
+		return Page[TaskRecord]{}, err
 	}
 	order, after, hasAfter, err := resolveScan(q.Order, Ascending, cursor)
 	if err != nil {
-		return Page[Task]{}, err
+		return Page[TaskRecord]{}, err
 	}
 	return scanPage(state.Tasks, order, after, hasAfter, limit, func(v Task) bool {
 		status := v.Status
@@ -198,7 +198,7 @@ func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) 
 			status = "terminal"
 		}
 		return (q.Conversation == 0 || v.Conversation == q.Conversation) && (q.Kind == "" || v.Kind == q.Kind) && (q.Status == "" || status == q.Status) && (q.AbortRequested == nil || taskAborted(v) == *q.AbortRequested) && (q.Background == nil || taskBackground(v) == *q.Background)
-	}, func(v Task) (Task, error) { return copyTask(v, l) })
+	}, func(v Task) (TaskRecord, error) { return canonicalStoredTask(v, l) })
 }
 func scanSubmissions(state Snapshot, q SubmissionQuery, limit int, cursor Cursor, l Limits) (Page[Submission], error) {
 	if err := checkReadIDs(q.Conversation); err != nil {
@@ -227,13 +227,13 @@ func (c *storeCore) ScanConversations(ctx context.Context, q ConversationQuery, 
 	}
 	return scanConversations(c.state, q, limit, cursor, c.limits)
 }
-func (c *storeCore) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (Page[Task], error) {
+func (c *storeCore) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (Page[TaskRecord], error) {
 	if e := c.enter(ctx); e != nil {
-		return Page[Task]{}, e
+		return Page[TaskRecord]{}, e
 	}
 	defer c.leave()
 	if e := checkPage(c.limits, limit); e != nil {
-		return Page[Task]{}, e
+		return Page[TaskRecord]{}, e
 	}
 	return scanTasks(c.state, q, limit, cursor, c.limits)
 }
@@ -248,62 +248,46 @@ func (c *storeCore) ScanSubmissions(ctx context.Context, q SubmissionQuery, limi
 	return scanSubmissions(c.state, q, limit, cursor, c.limits)
 }
 
-// Transaction scans include staged writes and reject escaped/concurrent handles.
+// Transaction table reads precede the first table write and read committed state.
 func (t *Tx) ScanConversations(q ConversationQuery, limit int, cursor Cursor) (Page[Conversation], error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterTableRead("scanConversations", ALL_KEYS); e != nil {
 		return Page[Conversation]{}, e
 	}
 	defer t.leave()
 	if e := checkPage(t.limits, limit); e != nil {
 		return Page[Conversation]{}, e
 	}
-	state, e := t.current()
-	if e != nil {
-		return Page[Conversation]{}, e
-	}
-	return scanConversations(state, q, limit, cursor, t.limits)
+	return scanConversations(t.state, q, limit, cursor, t.limits)
 }
 func (t *Tx) ScanEntries(q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterTableRead("scanEntries", ALL_KEYS); e != nil {
 		return Page[Entry]{}, e
 	}
 	defer t.leave()
 	if e := checkPage(t.limits, limit); e != nil {
 		return Page[Entry]{}, e
 	}
-	state, e := t.current()
-	if e != nil {
-		return Page[Entry]{}, e
-	}
-	return scanEntries(state, q, limit, cursor, t.limits)
+	return scanEntries(t.state, q, limit, cursor, t.limits)
 }
-func (t *Tx) ScanTasks(q TaskQuery, limit int, cursor Cursor) (Page[Task], error) {
-	if e := t.enter(); e != nil {
-		return Page[Task]{}, e
+func (t *Tx) ScanTasks(q TaskQuery, limit int, cursor Cursor) (Page[TaskRecord], error) {
+	if e := t.enterTableRead("scanTasks", ALL_KEYS); e != nil {
+		return Page[TaskRecord]{}, e
 	}
 	defer t.leave()
 	if e := checkPage(t.limits, limit); e != nil {
-		return Page[Task]{}, e
+		return Page[TaskRecord]{}, e
 	}
-	state, e := t.current()
-	if e != nil {
-		return Page[Task]{}, e
-	}
-	return scanTasks(state, q, limit, cursor, t.limits)
+	return scanTasks(t.state, q, limit, cursor, t.limits)
 }
 func (t *Tx) ScanSubmissions(q SubmissionQuery, limit int, cursor Cursor) (Page[Submission], error) {
-	if e := t.enter(); e != nil {
+	if e := t.enterTableRead("scanSubmissions", ALL_KEYS); e != nil {
 		return Page[Submission]{}, e
 	}
 	defer t.leave()
 	if e := checkPage(t.limits, limit); e != nil {
 		return Page[Submission]{}, e
 	}
-	state, e := t.current()
-	if e != nil {
-		return Page[Submission]{}, e
-	}
-	return scanSubmissions(state, q, limit, cursor, t.limits)
+	return scanSubmissions(t.state, q, limit, cursor, t.limits)
 }
 
 // Session scans share transaction admission/closure; no old-backend fallback.
@@ -359,29 +343,29 @@ func (s *Session) ScanEntries(ctx context.Context, q EntryQuery, limit int, curs
 	}
 	return scanEntries(image, q, limit, cursor, s.core.limits)
 }
-func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (page Page[Task], err error) {
+func (s *Session) ScanTasks(ctx context.Context, q TaskQuery, limit int, cursor Cursor) (page Page[TaskRecord], err error) {
 	if e := s.enter(ctx); e != nil {
-		return Page[Task]{}, e
+		return Page[TaskRecord]{}, e
 	}
 	outcome := s.jobOutcome
 	defer func() {
 		s.leave()
 		err = s.deliveredError(outcome, err)
 		if err != nil {
-			page = Page[Task]{}
+			page = Page[TaskRecord]{}
 		}
 	}()
 	// Upstream gates every read: a job must not observe state an admitted
 	// write has not published.
 	if e := s.touchAll(ctx); e != nil {
-		return Page[Task]{}, e
+		return Page[TaskRecord]{}, e
 	}
 	if !s.hasNativeReadImage() {
 		return s.guardedStorage().ScanTasks(ctx, q, limit, cursor)
 	}
 	image, err := s.taskSnapshot(ctx)
 	if err != nil {
-		return Page[Task]{}, err
+		return Page[TaskRecord]{}, err
 	}
 	return scanTasks(image, q, limit, cursor, s.core.limits)
 }

@@ -2,11 +2,10 @@ package durable
 
 import (
 	"context"
+	goai "github.com/rcarmo/go-ai"
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	goai "github.com/rcarmo/go-ai"
 )
 
 // Independent source-derived control paired with the real Harness probe in

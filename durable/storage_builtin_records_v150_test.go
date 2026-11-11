@@ -10,8 +10,8 @@ import (
 
 // Source-derived raw Storage contract, independently run against pinned Memory
 // and SQLite. No task definition may interpret or migrate stored input/state.
-// Native reads still expose Task; CanonicalTask is the real public projection,
-// not an expectation normalizer. Replacing that read API remains D12.
+// Public Task and ScanTasks reads expose the source record directly; no test
+// adapter translates native envelopes for these assertions.
 func TestV150RawBuiltinStoragePreservesCanonicalRecords(t *testing.T) {
 	raw, err := os.ReadFile("testdata/pi-durable-v150/builtin-storage-records.json")
 	if err != nil {
@@ -52,9 +52,9 @@ func TestV150RawBuiltinStoragePreservesCanonicalRecords(t *testing.T) {
 			t.Fatalf("read/reopen changed seq: %d", state.Seq)
 		}
 		for _, expected := range fixture.Records {
-			actual, err := CanonicalTask(state.Tasks[expected.ID], DefaultLimits())
-			if err != nil {
-				t.Fatal(err)
+			actual, found, err := store.Task(bg, expected.ID)
+			if err != nil || !found {
+				t.Fatalf("canonical lookup found=%v err=%v", found, err)
 			}
 			want, err := expected.MarshalJSON()
 			if err != nil {

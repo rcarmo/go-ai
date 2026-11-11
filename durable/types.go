@@ -35,6 +35,14 @@ var (
 // StorageRejected establishes that no write was admitted for this operation.
 // Post-admission I/O errors instead poison storage; a failed return never proves
 // that such an uncertain frame will be absent after reopen.
+// ReadAfterWrite is the pinned transaction-table read fence. Documents remain
+// accessible after table writes; caller table reads do not expose candidates.
+type ReadAfterWrite struct{ Method string }
+
+func (e *ReadAfterWrite) Error() string {
+	return "Tx." + e.Method + "() cannot read tables after the first table write"
+}
+
 type StorageRejected struct{ Reason string }
 
 func (e *StorageRejected) Error() string { return "durable: rejected: " + e.Reason }
@@ -456,11 +464,11 @@ type Storage interface {
 	// The 1.1.0 ordered scan contract is required of storage implementations.
 	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)
 	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
-	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[Task], error)
+	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[TaskRecord], error)
 	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
 	Conversations(context.Context, Query) ([]Conversation, error)
 	Entries(context.Context, ID, EntryCursor, int) ([]Entry, error)
-	Tasks(context.Context, Query) ([]Task, error)
+	Task(context.Context, ID) (TaskRecord, bool, error)
 	Submissions(context.Context, Query) ([]Submission, error)
 	Documents(context.Context, Query) ([]Document, error)
 	Request(context.Context, ID, string) (Submission, bool, error)

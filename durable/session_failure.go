@@ -248,7 +248,7 @@ func (g *sessionStorage) ScanEntries(ctx context.Context, q EntryQuery, n int, c
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
 }
-func (g *sessionStorage) ScanTasks(ctx context.Context, q TaskQuery, n int, c Cursor) (Page[Task], error) {
+func (g *sessionStorage) ScanTasks(ctx context.Context, q TaskQuery, n int, c Cursor) (Page[TaskRecord], error) {
 	v, e := g.Storage.ScanTasks(ctx, q, n, c)
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
@@ -275,10 +275,10 @@ func (g *sessionStorage) Entries(ctx context.Context, id ID, c EntryCursor, n in
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
 }
-func (g *sessionStorage) Tasks(ctx context.Context, q Query) ([]Task, error) {
-	v, e := g.Storage.Tasks(ctx, q)
+func (g *sessionStorage) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
+	v, ok, e := g.Storage.Task(ctx, id)
 	e = g.s.backendResult(ctx, e, false)
-	return v, e
+	return v, ok, e
 }
 func (g *sessionStorage) Submissions(ctx context.Context, q Query) ([]Submission, error) {
 	v, e := g.Storage.Submissions(ctx, q)

@@ -110,6 +110,7 @@ func (tx *Tx) createTask(definition *TaskDefinition, input any, options TaskOpti
 		return 0, err
 	}
 	defer tx.leave()
+	tx.hasTableWrite = true
 	if definition == nil || !definition.constructed {
 		return 0, reject("invalid task definition token")
 	}

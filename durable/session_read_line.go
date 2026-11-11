@@ -53,18 +53,14 @@ func (r *ReadLine) FindLatestHeadMarker(conversation, at ID) (Entry, bool, error
 	return r.tx.LatestHeadMarker(conversation, at)
 }
 
-// LatestEntryID reads the newest visible entry, including the transaction's
-// own staged writes and inherited fork history.
+// LatestEntryID reads the newest committed visible entry, including fork history.
 func (t *Tx) LatestEntryID(conversation ID) (ID, bool, error) {
-	if err := t.enter(); err != nil {
+	if err := t.enterTableRead("latestEntryId", ALL_KEYS); err != nil {
 		return 0, false, err
 	}
 	defer t.leave()
-	state, err := t.current()
-	if err != nil {
-		return 0, false, err
-	}
-	entries, err := visibleHistory(state, EntryQuery{Conversation: conversation})
+
+	entries, err := visibleHistory(t.state, EntryQuery{Conversation: conversation})
 	if err != nil || len(entries) == 0 {
 		return 0, false, err
 	}
@@ -74,15 +70,12 @@ func (t *Tx) LatestEntryID(conversation ID) (ID, bool, error) {
 // LatestHeadMarker reads the newest visible marker within an optional inclusive
 // entry-ID ceiling. Zero selects the complete visible history.
 func (t *Tx) LatestHeadMarker(conversation, at ID) (Entry, bool, error) {
-	if err := t.enter(); err != nil {
+	if err := t.enterTableRead("latestHeadMarker", ALL_KEYS); err != nil {
 		return Entry{}, false, err
 	}
 	defer t.leave()
-	state, err := t.current()
-	if err != nil {
-		return Entry{}, false, err
-	}
-	entries, err := visibleHistory(state, EntryQuery{Conversation: conversation, MaxEntryID: at})
+
+	entries, err := visibleHistory(t.state, EntryQuery{Conversation: conversation, MaxEntryID: at})
 	if err != nil {
 		return Entry{}, false, err
 	}

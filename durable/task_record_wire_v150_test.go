@@ -37,6 +37,7 @@ func dropinTaskFixtures(t *testing.T) []struct {
 	}
 	return source.Fixtures
 }
+
 func dropinJSON(t *testing.T, data []byte) any {
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -65,6 +66,7 @@ func TestPiDurableV150TaskRecordWireRoundTrip(t *testing.T) {
 		})
 	}
 }
+
 func TestPiDurableV150TaskStateWireRoundTrip(t *testing.T) {
 	for _, fixture := range dropinTaskFixtures(t) {
 		t.Run(fixture.Name, func(t *testing.T) {

@@ -47,7 +47,10 @@ func TestPiDurableV150ScanCursorWire(t *testing.T) {
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: got["c2"]}}, Write{Op: "create-conversation", Conversation: &Conversation{ID: got["c3"]}})
 		apply(t, b.store, scanEntry(got["e1"], 1), scanEntry(got["e2"], 1), scanEntry(got["e3"], 1))
 		task := func(id ID) Write {
-			return Write{Op: "put-task", Task: &Task{ID: id, Conversation: 1, Kind: "test.task", Status: "pending", Checkpoint: JSON{}}}
+			record := foundationTask(id, nil)
+			record.Kind = "test.task"
+			record.Execution.Native.State.Checkpoint = JSON{}
+			return Write{Op: "put-task", Task: &record}
 		}
 		apply(t, b.store, task(got["t1"]), task(got["t2"]))
 		sub := func(id ID) Write {
@@ -80,7 +83,7 @@ func TestPiDurableV150ScanCursorWire(t *testing.T) {
 					next = page.Next
 				case "scanTasks":
 					kind, _ := p.Query["kind"].(string)
-					var page Page[Task]
+					var page Page[TaskRecord]
 					page, err = ordered.ScanTasks(bg, TaskQuery{Kind: kind, Order: ScanOrder(order)}, p.Limit, cursor)
 					for _, v := range page.Items {
 						ids = append(ids, v.ID)

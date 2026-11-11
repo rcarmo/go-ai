@@ -1,0 +1,8 @@
+{
+  "records": [
+    {"id":4,"conversationId":1,"kind":"test.task","version":1,"input":{"value":"initial"},"background":false,"abortRequested":true,"abandonOnRestart":true,"startedAt":10,"memos":{"winner":"initial"},"state":{"status":"pending","checkpoint":{"phase":"ready"}}},
+    {"id":4,"conversationId":2,"owner":3,"kind":"pi.tool","version":99,"input":[null,false,0,""],"background":true,"abortRequested":false,"memos":{"winner":"replacement"},"state":{"status":"running","checkpoint":null}},
+    {"id":4,"conversationId":2,"owner":3,"kind":"pi.tool","version":99,"input":false,"background":true,"abortRequested":false,"endedAt":50,"state":{"status":"terminal","outcome":{"status":"failed","result":null,"error":{"message":"complete replacement"}}}},
+    {"id":4,"conversationId":1,"kind":"pi.generation","version":2,"input":null,"background":false,"abortRequested":true,"abandonOnRestart":true,"state":{"status":"pending","checkpoint":["opaque",false,0,""]}}
+  ]
+}

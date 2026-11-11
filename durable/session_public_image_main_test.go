@@ -51,9 +51,12 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer s.Close(bg)
+		task := foundationTask(ids[1], nil)
+		task.Kind, task.Conversation = "custom", ids[0]
+		task.Execution.Native.State.Checkpoint = JSON{"x": 1}
 		batch := Batch{Writes: []Write{
 			{Op: "create-conversation", Conversation: &Conversation{ID: ids[0]}},
-			{Op: "put-task", Task: &Task{ID: ids[1], Conversation: ids[0], Kind: "custom", Status: "pending", Checkpoint: JSON{"x": 1}}},
+			{Op: "put-task", Task: &task},
 			{Op: "put-submission", Submission: &Submission{ID: ids[2], Conversation: ids[0], Type: "write", Status: "pending", Value: JSON{"x": 1}}},
 		}}
 		if _, err := s.core.apply(bg, batch, true); err != nil {
@@ -73,15 +76,25 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 			if err != nil || len(tasks.Items) != want {
 				t.Fatalf("tasks: %+v %v", tasks, err)
 			}
+			record, found, err := s.Task(bg, ids[1])
+			if err != nil || found != published {
+				t.Fatalf("canonical task lookup found=%v published=%v err=%v", found, published, err)
+			}
+			if found {
+				if record.Version != 1 || record.Input == nil {
+					t.Fatal("lookup leaked private envelope", record)
+				}
+				taskCheckpointMap(record.State.Checkpoint)["x"] = "lookup mutation"
+			}
 			submissions, err := s.ScanSubmissions(bg, SubmissionQuery{Conversation: ids[0]}, 10, nil)
 			if err != nil || len(submissions.Items) != want {
 				t.Fatalf("submissions: %+v %v", submissions, err)
 			}
 			if published {
-				tasks.Items[0].Checkpoint["x"] = "mutated"
+				taskCheckpointMap(tasks.Items[0].State.Checkpoint)["x"] = "mutated"
 				submissions.Items[0].Value["x"] = "mutated"
 				image, err := s.Snapshot(bg)
-				if err != nil || image.Tasks[ids[1]].Checkpoint["x"] == "mutated" || image.Submissions[ids[2]].Value["x"] == "mutated" {
+				if err != nil || !equalJSONValue(taskCheckpointMap(image.Tasks[ids[1]].Execution.Native.State.Checkpoint), JSON{"x": 1}) || image.Submissions[ids[2]].Value["x"] == "mutated" {
 					t.Fatal("scan aliases publication image", err)
 				}
 			}

@@ -302,7 +302,7 @@ func validateTaskRecord(task Task, l Limits) error {
 		if status == "terminal" {
 			status = outcomeRawStatus(native.State.Outcome)
 		}
-		if status != task.Status || native.Background && task.Owner != 0 {
+		if status != task.Status {
 			return reject("native task status/ownership disagreement")
 		}
 		if (native.State.Status == "terminal" || native.State.Status == "completing") && native.Memos != nil {

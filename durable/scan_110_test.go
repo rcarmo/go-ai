@@ -94,6 +94,7 @@ func TestScan110OrderForksCursorsAndLegacy(t *testing.T) {
 		}
 	})
 }
+
 func hAfterReopen(t *testing.T, s Storage, q EntryQuery) (Page[Entry], error) {
 	return history(t, s).ScanEntries(bg, q, 10, nil)
 }
@@ -103,7 +104,13 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 		root := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: root}})
 		task1, task2 := mint(t, b.store), mint(t, b.store)
-		apply(t, b.store, Write{Op: "put-task", Task: &Task{ID: task1, Conversation: root, Kind: "custom", Status: "pending", Checkpoint: JSON{"abort": true, "nested": JSON{"x": 1}}}}, Write{Op: "put-task", Task: &Task{ID: task2, Conversation: root, Kind: "custom", Status: "pending", Checkpoint: JSON{}}})
+		first, second := foundationTask(task1, nil), foundationTask(task2, nil)
+		first.Conversation, second.Conversation = root, root
+		first.Kind, second.Kind = "custom", "custom"
+		first.Execution.Native.AbortRequested = true
+		first.Execution.Native.State.Checkpoint = JSON{"nested": JSON{"x": 1}}
+		second.Execution.Native.State.Checkpoint = JSON{}
+		apply(t, b.store, Write{Op: "put-task", Task: &first}, Write{Op: "put-task", Task: &second})
 		owned := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: owned, Owner: task1}})
 		sub1, sub2 := mint(t, b.store), mint(t, b.store)
@@ -143,13 +150,13 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if err != nil || tasks2.Next != nil || tasks.Items[0].ID == tasks2.Items[0].ID {
 				t.Fatal(tasks2, err)
 			}
-			tasks.Items[0].Checkpoint["mutated"] = true
+			taskCheckpointMap(tasks.Items[0].State.Checkpoint)["mutated"] = true
 			again, err := ordered.ScanTasks(bg, TaskQuery{}, 10, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, v := range again.Items {
-				if v.Checkpoint["mutated"] != nil {
+				if taskCheckpointMap(v.State.Checkpoint)["mutated"] != nil {
 					t.Fatal("task alias")
 				}
 			}
@@ -203,21 +210,6 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 		var staged ID
 		_, err = session.Commit(bg, func(tx *Tx) error {
 			escaped = tx
-			var e error
-			staged, e = tx.MintID()
-			if e != nil {
-				return e
-			}
-			if e = tx.CreateConversation(Conversation{ID: staged}); e != nil {
-				return e
-			}
-			cp, e := tx.ScanConversations(ConversationQuery{Order: Descending}, 1, nil)
-			if e != nil {
-				return e
-			}
-			if len(cp.Items) != 1 || cp.Items[0].ID != staged {
-				t.Fatal("staged record missing", cp)
-			}
 			tp, e := tx.ScanTasks(TaskQuery{Order: Descending}, 10, nil)
 			if e != nil {
 				return e
@@ -232,6 +224,16 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if sp.Items[0].ID != sub2 {
 				t.Fatal(sp)
 			}
+			staged, e = tx.MintID()
+			if e != nil {
+				return e
+			}
+			if e = tx.CreateConversation(Conversation{ID: staged}); e != nil {
+				return e
+			}
+			if _, e = tx.ScanConversations(ConversationQuery{Order: Descending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {
+				t.Fatal("source table read-after-write fence missing", e)
+			}
 			ent, e := tx.MintID()
 			if e != nil {
 				return e
@@ -239,12 +241,16 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if e = tx.AppendEntry(Entry{ID: ent, Conversation: staged, Kind: "event", Value: JSON{"x": 1}}); e != nil {
 				return e
 			}
-			ep, e := tx.ScanEntries(EntryQuery{Conversation: staged, Order: Ascending}, 1, nil)
+			if _, e = tx.ScanEntries(EntryQuery{Conversation: staged, Order: Ascending}, 1, nil); !errors.As(e, new(*ReadAfterWrite)) {
+				t.Fatal("source entry read-after-write fence missing", e)
+			}
+			// Internal assembly still owns the staged records; public reads do not.
+			candidate, e := tx.current()
 			if e != nil {
 				return e
 			}
-			if len(ep.Items) != 1 || ep.Items[0].ID != ent {
-				t.Fatal(ep)
+			if candidate.Conversations[staged].ID != staged || candidate.Entries[ent].ID != ent {
+				t.Fatal("staged record missing")
 			}
 			return nil
 		})

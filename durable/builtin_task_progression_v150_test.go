@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	goai "github.com/rcarmo/go-ai"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	goai "github.com/rcarmo/go-ai"
 )
 
 // The expected sequences were captured from pinned v1.5.0 Harness

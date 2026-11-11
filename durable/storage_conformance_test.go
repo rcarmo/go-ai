@@ -100,6 +100,7 @@ func sqliteStoreFresh(t *testing.T, fn func(*testing.T, sqliteFixture), configur
 		fn(t, sqliteFixture{store: store, reopen: func() Storage { closeStore(); store = open(); return store }})
 	})
 }
+
 // seedRootConversation mirrors the original tests acquiring the reserved root
 // through Harness.Root()/tx.createRootConversation(). Native Storage no longer
 // fabricates it, so fixtures that address conversation 1 must create it first.
@@ -231,9 +232,14 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 	})
 	t.Run("10_11_full_replacement_status_raw_no_scheduler", func(t *testing.T) {
 		apply(t, s, Write{Op: "put-task", Task: &Task{ID: task, Conversation: conv, Kind: "generation", Status: "completing", Checkpoint: JSON{"new": true}}})
-		r, e := s.Tasks(bg, Query{Conversation: conv, Status: "completing", Kind: "generation", Limit: 1})
-		if e != nil || len(r) != 1 || len(r[0].Checkpoint) != 1 {
+		state, e := s.Snapshot(bg)
+		r := state.Tasks[task]
+		if e != nil || r.Conversation != conv || r.Status != "completing" || r.Kind != "generation" || len(r.Checkpoint) != 1 {
 			t.Fatal(r, e)
+		}
+		// Legacy private envelopes have no invented source input/version.
+		if _, _, err := s.Task(bg, task); err == nil {
+			t.Fatal("legacy task gained canonical data")
 		}
 	})
 	t.Run("12_13_request_identity_write_union", func(t *testing.T) {
@@ -306,7 +312,7 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		if e := s.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, e := s.Conversations(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Entries(bg, 1, EntryCursor{}, 1); return e }, func() error { _, e := s.Tasks(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
+		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, e := s.Conversations(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Entries(bg, 1, EntryCursor{}, 1); return e }, func() error { _, _, e := s.Task(bg, 1); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
 		for _, f := range checks {
 			if e := f(); !errors.Is(e, ErrClosed) {
 				t.Fatal(e)
@@ -664,11 +670,11 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 			t.Fatal(e)
 		}
 		es[0].Value["nested"].(map[string]any)["v"] = "query mutate"
-		ts, e := s.Tasks(bg, Query{Limit: 1})
+		ts, e := s.Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)
 		}
-		ts[0].Checkpoint["nested"].(map[string]any)["v"] = "query mutate"
+		ts.Tasks[task].Checkpoint["nested"].(map[string]any)["v"] = "query mutate"
 		ss, e := s.Submissions(bg, Query{Limit: 1})
 		if e != nil {
 			t.Fatal(e)

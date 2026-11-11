@@ -15,6 +15,7 @@ type Tx struct {
 	limits           Limits
 	state            Snapshot
 	writes           []Write
+	hasTableWrite    bool      // pinned Transaction.#hasTableWrite; failed table writes count too
 	stagedState      *Snapshot // private immutable prepare result; exact write-slice identity
 	stagedWrites     []Write
 	publicationState *Snapshot // sealed final candidate; reused only before storage admission
@@ -44,7 +45,11 @@ type Tx struct {
 
 func (t *Tx) enter() error { return t.enterKeys(ALL_KEYS) }
 
-func (t *Tx) enterKeys(keys ...string) error {
+func (t *Tx) enterKeys(keys ...string) error { return t.enterOperation("", keys...) }
+func (t *Tx) enterTableRead(method string, keys ...string) error {
+	return t.enterOperation(method, keys...)
+}
+func (t *Tx) enterOperation(method string, keys ...string) error {
 	if t.sealed.Load() {
 		return ErrSealed
 	}
@@ -54,6 +59,10 @@ func (t *Tx) enterKeys(keys ...string) error {
 	if t.sealed.Load() {
 		t.busy.Store(false)
 		return ErrSealed
+	}
+	if method != "" && t.hasTableWrite {
+		t.busy.Store(false)
+		return &ReadAfterWrite{Method: method}
 	}
 	if err := t.touchKeys(keys...); err != nil {
 		t.busy.Store(false)
@@ -91,6 +100,10 @@ func (t *Tx) seal() error {
 	return nil
 }
 func (t *Tx) stage(w Write) error {
+	switch w.Op {
+	case "create-conversation", "append-entry", "put-task", "put-submission":
+		t.hasTableWrite = true
+	}
 	// Retirement names an incarnation; its payload is already durable. Do not
 	// duplicate chunk/checkpoint data into an aggregate terminal commit.
 	if w.Op == "retire-document" && w.Document != nil {
@@ -223,6 +236,7 @@ func (t *Tx) CreateConversation(v Conversation) error {
 		return e
 	}
 	defer t.leave()
+	t.hasTableWrite = true
 	before := t.writes
 	if err := t.stage(Write{Op: "create-conversation", Conversation: &v}); err != nil {
 		return err
@@ -263,6 +277,7 @@ func (t *Tx) AppendEntry(v Entry) error {
 		return e
 	}
 	defer t.leave()
+	t.hasTableWrite = true
 	if err := t.requireConversation(v.Conversation); err != nil {
 		return err
 	}
@@ -277,6 +292,7 @@ func (t *Tx) PutTask(v Task) error {
 		return e
 	}
 	defer t.leave()
+	t.hasTableWrite = true
 	current := t.state.Tasks[v.ID]
 	if t.byTask != 0 && (v.Kind == "pi.tool" || v.Kind == "pi.generation" || current.Kind == "pi.tool" || current.Kind == "pi.generation") {
 		return reject("runtime raw builtin task replacement")
@@ -298,6 +314,7 @@ func (t *Tx) PutSubmission(v Submission) error {
 		return e
 	}
 	defer t.leave()
+	t.hasTableWrite = true
 	if _, e := copyObject(v.Value, t.limits); e != nil {
 		return e
 	}
@@ -598,7 +615,7 @@ func (t *Tx) documentPlan(id ID) *transactionDocumentPlan {
 func (t *Tx) finalizeTaskWrites() error {
 	needsCandidate := len(t.taskTerminals) > 0
 	for _, write := range t.writes {
-		if write.Task != nil && write.Task.Execution != nil && terminalStatus(write.Task.Status) ||
+		if write.Task != nil && write.Task.Execution != nil && (write.Task.Execution.Native != nil || terminalStatus(write.Task.Status)) ||
 			write.Op == "create-conversation" && write.Conversation.Owner != 0 {
 			needsCandidate = true
 		}
@@ -614,6 +631,21 @@ func (t *Tx) finalizeTaskWrites() error {
 	candidate, err := t.current()
 	if err != nil {
 		return err
+	}
+	// Canonical Storage is a complete-record store. Validate runtime graph
+	// restrictions here, on the final local candidate before writer admission,
+	// so an invalid Session task never relies on a raw-storage refusal.
+	for _, write := range t.writes {
+		if write.Task == nil || write.Task.Execution == nil || write.Task.Execution.Native == nil {
+			continue
+		}
+		task := candidate.Tasks[write.Task.ID]
+		if err := validateTaskReferences(candidate, task, t.limits); err != nil {
+			return err
+		}
+		if _, err := taskOwnerChain(candidate, task); err != nil {
+			return err
+		}
 	}
 	terminals := map[ID]bool{}
 	for id := range t.taskTerminals {

@@ -758,6 +758,13 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	task.Status = "running"
 	task.Checkpoint = value
 	_, e = h.session.invocationCommit(context.Background(), task.ID, func(tx *Tx) error {
+		// Source generation.ts:245 reads the committed cutoff before table
+		// writes, then takes each newly appended entry's returned ID.
+		if cutoff, found, err := tx.LatestEntryID(task.Conversation); err != nil {
+			return err
+		} else if found {
+			cp.Cutoff = cutoff
+		}
 		var latest generationCheckpoint
 		if e := fromObject(tx.state.Tasks[task.ID].Checkpoint, &latest, h.session.limits); e != nil {
 			return e
@@ -828,11 +835,10 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 				return err
 			}
 		}
-		// Source request.cutoff is the newest entry after the prompt entries.
-		if cutoff, ok, err := tx.LatestEntryID(task.Conversation); err != nil {
-			return err
-		} else if ok {
-			cp.Cutoff = cutoff
+		for _, write := range tx.writes {
+			if write.Entry != nil && write.Entry.Conversation == task.Conversation {
+				cp.Cutoff = write.Entry.ID
+			}
 		}
 		if task.Checkpoint, err = dtoObject(cp, tx.limits); err != nil {
 			return err
