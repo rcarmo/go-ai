@@ -5,9 +5,8 @@ import (
 	"sync"
 )
 
-// Internal port of pinned v1.5.0 src/session/writer.ts. This queue is not yet
-// installed on Session: admission, keyed reads, close and failure boundaries
-// must move together. Native receipt frames preserve exact-prefix adoption;
+// Port of pinned v1.5.0 src/session/writer.ts, installed on Session.
+// Native receipt frames preserve exact-prefix adoption;
 // neither a backend head snapshot nor a caller's image substitutes for them.
 type writerPublishFailure struct {
 	adoption bool // false: own listener failure after successful adoption

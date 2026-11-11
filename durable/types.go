@@ -431,6 +431,15 @@ type EntryCursor struct {
 // Storage acknowledgements follow append/sync settlement and state adoption.
 // Implementations may reject canceled admission; cancellation after admission
 // cannot end settlement. Reads reject after poison or close.
+// StoragePublicationScope is an optional host capability of Storage. Publishing
+// must call publish, synchronously or later, inside the host's own batch/scope.
+// A stored commit waits for that invocation before publishing the next part.
+// Repeated invocation is ignored; a panic is reported and publication still runs
+// once, because storage has already made the commit durable.
+type StoragePublicationScope interface {
+	Publishing(context.Context, func())
+}
+
 type Storage interface {
 	MintID(context.Context) (ID, error)
 	Apply(context.Context, Batch) (uint64, error)

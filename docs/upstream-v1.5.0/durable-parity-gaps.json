@@ -88,9 +88,12 @@
       "native": [
         "durable/session_publication.go",
         "durable/session_receipt.go",
-        "durable/session_sync_observers.go"
+        "durable/session_sync_observers.go",
+        "durable/session_writer_host.go",
+        "durable/types.go",
+        "durable/session_group_commit_admission_test.go"
       ],
-      "evidence": "Installed writer supports awaitable internal scopes and memory-lock publication off the admission queue. Receipt-time metadata and exact-prefix subscription fallback snapshots replace preparation-time sequence assumptions for queued parts. Listener-failing stored outcomes wake after failure latches. Complete source698-815 continuation and deferred-scope acceptance remains open.",
+      "evidence": "Installed writer supports awaitable internal scopes and memory-lock publication off the admission queue. Receipt-time metadata and exact-prefix subscription fallback snapshots replace preparation-time sequence assumptions for queued parts. Listener-failing stored outcomes wake after failure latches. Complete source698-815 continuation and deferred-scope acceptance remains open. Optional StoragePublicationScope is now installed on the Session writer. Previously ignored-scope regressions failed; synchronous/deferred entry, producer context, duplicate/reentrant callbacks and throw-before/after reporting/fallback now pass through real Session storage. Scope failure keeps the exact error while an already stored commit publishes once. Deferred-entry first-failure recheck is exercised through the optional method. Native single-part controls and separate-call deferred failure do not credit the full Source727/827 grouped scenarios. Full durable402.178s/tools18.195s and static gates pass;30 shuffled focused repeats pass. Hop remains a no-op: the earlier comment claiming serial parts establish source continuation turns was corrected; real bridge and public host dispatch remain open.",
       "fix": "Design one serial publication dispatcher with awaitable scope completion, explicit continuation/outcome ordering and failure rechecks immediately inside the deferred scope. Retain detached exact-prefix receipts and contain scope throws according to the source.",
       "acceptance": [
         "Source698-815 unchanged ordering assertions; defer a scope, throw without executing it, fail between parts and while scope is pending. No later part publishes."

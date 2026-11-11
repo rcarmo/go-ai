@@ -536,3 +536,191 @@ func TestV150SessionReadLineLifetimeAndCancellation(t *testing.T) {
 		t.Fatalf("canceled read called=%v error=%v", called, err)
 	}
 }
+
+// Source session-group-commit:759, plus single-part scope/once/deferred controls
+// derived from session.ts #publishing. Callback result is captured in Go rather
+// than the source's generic Promise result. Storage and publication are real.
+type v150PublicationScopeStorage struct {
+	Storage
+	core  *storeCore
+	scope func(context.Context, func())
+}
+
+func (w *v150PublicationScopeStorage) nativeCore() *storeCore { return w.core }
+func (w *v150PublicationScopeStorage) Publishing(ctx context.Context, publish func()) {
+	w.scope(ctx, publish)
+}
+func TestSessionV150StoragePublicationScope(t *testing.T) {
+	for _, mode := range []string{"inside", "twice", "reentrant", "throw-before", "throw-after", "deferred"} {
+		t.Run(mode, func(t *testing.T) {
+			s := gatedSession(t)
+			def, err := DefineDocument(DefinitionOptions{Kind: "scope.counter", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"n": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+				t.Fatal(err)
+			}
+			marker := errors.New("no scope")
+			var reports []error
+			s.timerReport = func(err error) { reports = append(reports, err) }
+			depth, calls, published := 0, 0, 0
+			var saved func()
+			observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error {
+				published++
+				if mode == "reentrant" {
+					saved()
+				}
+				if mode != "throw-before" && depth != 1 {
+					t.Error("published outside storage scope")
+				}
+				return nil
+			}, end: func(WatchEnd) error { return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer observer.detach()
+			delayed := make(chan func(), 1)
+			run := func(publish func()) {
+				depth++
+				defer func() { depth-- }()
+				publish()
+				if mode == "twice" {
+					publish()
+				}
+				if mode == "throw-after" {
+					panic(marker)
+				}
+			}
+			s.store = &v150PublicationScopeStorage{Storage: s.store, core: s.core, scope: func(ctx context.Context, publish func()) {
+				calls++
+				saved = publish
+				if ctx.Value(v150ScopeContextKey{}) != "producer" {
+					t.Error("scope lost producer context")
+				}
+				if mode == "throw-before" {
+					panic(marker)
+				}
+				if mode == "deferred" {
+					delayed <- func() { run(publish) }
+					return
+				}
+				run(publish)
+			}}
+			result := make(chan error, 1)
+			var prior any
+			go func() {
+				_, err := s.Commit(context.WithValue(bg, v150ScopeContextKey{}, "producer"), func(tx *Tx) error {
+					doc, err := tx.AcquireDocument(def, 0, nil, nil)
+					if err != nil {
+						return err
+					}
+					value, err := doc.Get()
+					if err != nil {
+						return err
+					}
+					prior = value["n"]
+					return doc.ApplyOperations([]Operation{{"s", []any{"n"}, 1}})
+				})
+				result <- err
+			}()
+			if mode == "deferred" {
+				select {
+				case publish := <-delayed:
+					select {
+					case err := <-result:
+						t.Fatal("outcome before delayed publication", err)
+					default:
+					}
+					publish()
+				case err := <-result:
+					t.Fatal("storage publication scope was ignored", err)
+				case <-time.After(3 * time.Second):
+					t.Fatal("scope not entered")
+				}
+			}
+			if err := watchReceive(t, result); err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || published != 1 {
+				t.Fatal("scope/once counts", calls, published)
+			}
+			n, ok := exactNumber(prior)
+			if !ok || n.Sign() != 0 {
+				t.Fatal("callback result", prior)
+			}
+			if mode == "throw-before" || mode == "throw-after" {
+				if len(reports) != 1 || reports[0] != marker {
+					t.Fatal("scope failure identity", reports)
+				}
+			} else if len(reports) != 0 {
+				t.Fatal(reports)
+			}
+			value, found, err := s.SnapshotDefinition(bg, def, 0, nil)
+			if err != nil || !found || immutableViewMember(t, value, "n").Number() != "1" {
+				t.Fatal("stored publication lost", found, err)
+			}
+		})
+	}
+}
+
+type v150ScopeContextKey struct{}
+
+// Source827 deferred-entry failure contract through the actual Storage scope.
+// Go stores these two writes in separate calls (not the source's held group),
+// while preserving failure-at-entry, durable-but-unpublished and cause checks.
+func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
+	s := gatedSession(t)
+	failure := errors.New("failed before a deferred publication ran")
+	calls := 0
+	delayed := make(chan func(), 1)
+	s.store = &v150PublicationScopeStorage{Storage: s.store, core: s.core, scope: func(_ context.Context, publish func()) {
+		calls++
+		if calls == 2 {
+			s.writerFail(failure, s.nextJobIndex, nil)
+			delayed <- publish
+			return
+		}
+		publish()
+	}}
+	var kinds []string
+	observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+		for _, w := range p.Tables {
+			if w.Entry != nil {
+				kinds = append(kinds, w.Entry.Kind)
+			}
+		}
+		return nil
+	}, end: func(WatchEnd) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.detach()
+	appendKind := func(kind string) error {
+		_, err := s.Commit(bg, func(tx *Tx) error {
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: kind, Value: JSON{}})
+		})
+		return err
+	}
+	if err := appendKind("lead"); err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() { result <- appendKind("one") }()
+	publish := watchReceive(t, delayed)
+	publish()
+	var failed *SessionFailed
+	if err := watchReceive(t, result); !errors.As(err, &failed) || failed.Cause != failure {
+		t.Fatal("deferred failure identity", err)
+	}
+	if !reflect.DeepEqual(kinds, []string{"lead"}) {
+		t.Fatal("published after scope-entry failure", kinds)
+	}
+	if calls != 2 {
+		t.Fatal("scope calls", calls)
+	}
+}

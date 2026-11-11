@@ -1,30 +1,22 @@
 package durable
 
-import "context"
+import (
+	"context"
+	"sync/atomic"
+)
 
 // Session-side writer host, ported from the host hooks pinned v1.5.0 Session
 // passes to its Writer (src/session/session.ts). The queue itself lives in
 // session_writer.go; this file owns only what a Session must mean for each hook.
 func (s *Session) newSessionWriterFromSession() *sessionWriter {
 	return newSessionWriter(sessionWriterHost{
-		commit: s.writerCommit,
-		// Native Storage exposes no publication scope, so this is upstream's
-		// documented no-scope path: run the publication here, immediately.
-		publishing: func(_ context.Context, publish func()) <-chan struct{} {
-			// Source unregisters keys and adopts synchronously in this scope.
-			// Lock before the closure unregisters, not inside the part callback:
-			// otherwise readers can see no gate while memory is still stale.
-			_ = s.line.acquire(context.Background())
-			defer s.handoffLeave(nil)
-			publish()
-			return nil
-		},
-		failure: s.writerFailure,
-		fail:    s.writerFail,
-		report:  s.writerReport,
-		// Upstream defers to a macrotask between publications so each publication
-		// gets its own turn. Go has none, and this queue publishes one part at a
-		// time on a single flush, so each publication already has its own turn.
+		commit:     s.writerCommit,
+		publishing: s.publishInStorageScope,
+		failure:    s.writerFailure,
+		fail:       s.writerFail,
+		report:     s.writerReport,
+		// The source macrotask/continuation bridge remains an open D04 contract.
+		// Serial parts alone do not establish its caller-continuation ordering.
 		hop: func() {},
 	})
 }
@@ -80,4 +72,41 @@ func (s *Session) writerReport(err error, _ context.Context) {
 		return
 	}
 	reportTaskError(s.timerReport, err)
+}
+
+// Source #publishing: the store controls entry, not Session admission. Resolve
+// only after the guarded callback ran, and recover scope failures without losing
+// an already durable commit. The once guard is reentrant (sync.Once would block
+// if a host invoked its saved callback again from inside the publication).
+func (s *Session) publishInStorageScope(ctx context.Context, publish func()) <-chan struct{} {
+	run := func() {
+		// Unregister and adoption are one memory publication critical section.
+		_ = s.line.acquire(context.Background())
+		defer s.handoffLeave(nil)
+		publish()
+	}
+	scope, ok := s.store.(StoragePublicationScope)
+	if !ok {
+		run()
+		return nil
+	}
+	done := make(chan struct{})
+	var ran atomic.Bool
+	once := func() {
+		if !ran.CompareAndSwap(false, true) {
+			return
+		}
+		defer close(done)
+		run()
+	}
+	func() {
+		defer func() {
+			if value := recover(); value != nil {
+				s.writerReport(newFailure(value).AsError(), ctx)
+				once()
+			}
+		}()
+		scope.Publishing(ctx, once)
+	}()
+	return done
 }
