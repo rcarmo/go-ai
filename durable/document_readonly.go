@@ -28,8 +28,13 @@ func (s *Session) cachedReadonlyDocument(id ID, version uint64) ReadonlyValue {
 
 // Seal one persistent revision before handing the transaction to storage. Both
 // memory and receipt adoption reuse it, including every asynchronous watch.
+type readonlyDocumentRevision struct {
+	value ReadonlyValue
+	bytes int64
+}
+
 func (s *Session) prepareReadonlyDocuments(tx *Tx, publication CommitPublication) error {
-	tx.readonlyDocuments = map[ID]ReadonlyValue{}
+	tx.readonlyDocuments = map[ID]readonlyDocumentRevision{}
 	for _, change := range publication.Documents {
 		if change.Record.Retired {
 			continue
@@ -44,12 +49,17 @@ func (s *Session) prepareReadonlyDocuments(tx *Tx, publication CommitPublication
 		if err != nil {
 			return err
 		}
-		tx.readonlyDocuments[change.Record.ID] = value
+		encoded, err := encodeBounded(value, s.limits, s.limits.MaxDocumentBytes)
+		if err != nil {
+			return err
+		}
+		tx.readonlyDocuments[change.Record.ID] = readonlyDocumentRevision{value: value, bytes: int64(len(encoded))}
 	}
 	return nil
 }
 
 func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []DocumentChange) error {
+	previous := map[definitionCacheKey]definitionCacheValue{}
 	for _, write := range tx.writes {
 		id := documentWriteID(write)
 		if id == 0 {
@@ -57,6 +67,7 @@ func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []Documen
 		}
 		for key, cached := range s.definitionCache {
 			if cached.record.ID == id {
+				previous[key] = cached
 				delete(s.definitionCache, key)
 				s.definitionCacheBytes -= cached.bytes
 			}
@@ -68,10 +79,28 @@ func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []Documen
 	for _, change := range changes {
 		key := definitionCacheKey{documentAddress(change.Record)}
 		next, ok := s.definitionCache[key]
+		if !ok && !change.Record.Retired {
+			old, loaded := previous[key]
+			revision := tx.readonlyDocuments[change.Record.ID]
+			if loaded && old.record.ID == change.Record.ID && old.valueVersion == change.Version && revision.value != nil && (s.documentRetentionMs() > 0 || s.documentPinned(change.Record.ID)) && len(s.definitionCache) < s.limits.MaxPage && revision.bytes <= s.limits.MaxRetainedBytes-s.definitionCacheBytes {
+				next = old
+				next.record = change.Record
+				next.record.Value = nil
+				next.value = revision.value
+				next.bytes = revision.bytes
+				next.lastUsed = s.now()
+				if s.definitionCache == nil {
+					s.definitionCache = map[definitionCacheKey]definitionCacheValue{}
+				}
+				s.definitionCache[key] = next
+				s.definitionCacheBytes += next.bytes
+				ok = true
+			}
+		}
 		if !ok || next.record.ID != change.Record.ID || next.valueVersion != change.Version {
 			continue
 		}
-		if node := tx.readonlyDocuments[change.Record.ID]; node != nil {
+		if node := tx.readonlyDocuments[change.Record.ID].value; node != nil {
 			next.value = node
 			s.definitionCache[key] = next
 		}

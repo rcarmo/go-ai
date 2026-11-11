@@ -34,7 +34,7 @@ type Tx struct {
 	// broader than copy source IDs: new current-policy parent docs also reject.
 	forkParents       map[ID]bool
 	documentPlans     map[ID]*transactionDocumentPlan
-	readonlyDocuments map[ID]ReadonlyValue
+	readonlyDocuments map[ID]readonlyDocumentRevision
 	readDocuments     map[ID]bool // actual document access, separate from preparation scans
 	memoryOnly        bool        // sealed eligible deferred-document publication
 	keyedReads        bool        // Session methods touch dependencies before reading the base

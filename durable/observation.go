@@ -265,7 +265,7 @@ type preparedWatchFrame struct {
 	ownerEnd  bool
 }
 
-func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}, values map[ID]ReadonlyValue) ([]preparedWatchFrame, error) {
+func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}, values map[ID]readonlyDocumentRevision) ([]preparedWatchFrame, error) {
 	s.observerMu.Lock()
 	watchers := make([]*DocumentWatch, 0, len(s.watches))
 	for w := range s.watches {
@@ -350,7 +350,7 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 		}
 		frozen := previousReadonly
 		if incarnation != 0 {
-			frozen = values[incarnation]
+			frozen = values[incarnation].value
 		}
 		frame := rawWatchFrame{readonly: frozen, Kind: "value", Retired: retired, Seq: publication.Seq, Value: public, Ops: ops, Context: context.WithoutCancel(ctx), ownedValue: private, ready: ready}
 		reset := rawWatchFrame{readonly: frozen, Kind: "value", Retired: retired, Seq: publication.Seq, Value: resetValue, Ops: resetOps, Context: context.WithoutCancel(ctx), ownedValue: resetPrivate, ready: ready}

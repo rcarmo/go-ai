@@ -143,7 +143,7 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 		if err != nil {
 			return err
 		}
-		held.readonly = p.tx.readonlyDocuments[id]
+		held.readonly = p.tx.readonlyDocuments[id].value
 		// The count excludes uncommitted changes, even after many memory commits.
 		held.record.DeltasSinceBase = s.readImage.Documents[id].DeltasSinceBase
 		next[id] = held

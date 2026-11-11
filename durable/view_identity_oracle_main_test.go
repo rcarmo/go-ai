@@ -688,3 +688,62 @@ func TestMainSharedViewSynchronousReportsAndContainsEndFault(t *testing.T) {
 		t.Fatal("observer/End faults were not isolated and reported", calls, reports)
 	}
 }
+
+// Source-derived mount/loaded-tracker contract, independently established by the
+// pinned oracle. A mount borrows the loaded initial node, then replays edits on
+// its own branch; do not over-share the later changed document root.
+func TestMainViewMountedAgentBorrowsLoadedRevisionThenReplaysIndependently(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		if err := c.Configure(bg, AgentChange{}); err != nil {
+			t.Fatal(err)
+		}
+		def, err := DefineDocument(DefinitionOptions{Kind: "pi.agent", Scope: "conversation", Version: 1, History: "rewindable", Fork: "asOf", Initial: func(JSON) (JSON, error) { return JSON{}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return true, nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, found, err := c.SnapshotDefinition(bg, def, nil)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		watch, err := c.Watch(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer watch.Stop()
+		initial, err := watch.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if immutableViewMember(t, initial.Docs, "pi.agent") != before {
+			t.Fatal("mount did not borrow the loaded builtin tracker")
+		}
+		var mounted ConversationView
+		observation, err := h.ObserveConversation(bg, c.ID(), ViewObserver{Advance: func(_ context.Context, value ConversationView, _ []Operation) error { mounted = value; return nil }, End: func(WatchEnd) error { return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer observation.Detach()
+		if observation.Value.Docs != initial.Docs {
+			t.Fatal("mounts were not shared")
+		}
+		level := goai.ModelThinkingLevel("high")
+		if err := c.ConfigurePatch(bg, AgentPatch{ThinkingLevel: &level}); err != nil {
+			t.Fatal(err)
+		}
+		after, found, err := c.SnapshotDefinition(bg, def, nil)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		if immutableViewMember(t, after, "model") != immutableViewMember(t, before, "model") {
+			t.Fatal("loaded builtin lost unchanged child identity")
+		}
+		agent := immutableViewMember(t, mounted.Docs, "pi.agent")
+		if agent == after || !equalDeltaJSON(agent.Copy(), after.Copy()) {
+			t.Fatal("edited mounted branch was not an independent replay")
+		}
+		if immutableViewMember(t, mounted.Docs, "pi.live") != immutableViewMember(t, initial.Docs, "pi.live") {
+			t.Fatal("unchanged mounted builtin lost identity")
+		}
+	})
+}

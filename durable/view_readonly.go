@@ -41,7 +41,7 @@ func freezeConversationView(value ConversationViewCopy, limits Limits) (Conversa
 
 // The live subscriptions are the mount's owners. Reuse their adopted documents
 // on attachment; removing the last subscription releases the mount implicitly.
-func (s *Session) shareConversationDocuments(value ConversationView) ConversationView {
+func (s *Session) shareConversationDocuments(value ConversationView, state Snapshot) ConversationView {
 	s.observerMu.Lock()
 	defer s.observerMu.Unlock()
 	for sub := range s.subscriptions {
@@ -50,11 +50,33 @@ func (s *Session) shareConversationDocuments(value ConversationView) Conversatio
 			if peer.head.Conversation.ID == value.Conversation.ID && peer.projectionErr == nil && peer.readonlyHead.Docs != nil {
 				value.Docs = peer.readonlyHead.Docs
 				peer.mu.Unlock()
-				break
+				return value
 			}
 			peer.mu.Unlock()
 		}
 	}
+	if !s.hasNativeReadImage() {
+		return value
+	}
+	// A new mount borrows loaded builtin trackers; subsequent document edits
+	// still use the mount's independent applyImmutable branch below.
+	children := make(map[string]*ImmutableValue, len(value.Docs.immutableNode().mapValue))
+	for kind, node := range value.Docs.immutableNode().mapValue {
+		children[kind] = node
+	}
+	for _, record := range state.Documents {
+		if record.Scope != "conversation" || record.Owner != value.Conversation.ID || record.Retired || record.Family || !mountedKind(record.Kind) {
+			continue
+		}
+		version := uint64(1)
+		if record.Kind == "pi.live" {
+			version = 3
+		} // pinned builtin definition, not the stored base version
+		if node := s.cachedReadonlyDocument(record.ID, version); node != nil {
+			children[record.Kind] = node.immutableNode()
+		}
+	}
+	value.Docs = readonlyValue(&ImmutableValue{kind: "object", mapValue: children})
 	return value
 }
 

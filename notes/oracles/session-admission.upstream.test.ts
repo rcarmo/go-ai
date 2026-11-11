@@ -195,6 +195,7 @@ it("hydrates a mounted builtin from the loaded tracker but advances its changed 
  expect(observation.value.docs).toBe(watch.value.docs);
  await root.configure({thinkingLevel:"high"},context);
  const after=await harness.snapshot(AgentDoc,root.id,context);
+ expect(after!.model).toBe(before!.model);
  expect(mounted.docs["pi.agent"]).toEqual(after);
  expect(mounted.docs["pi.agent"]).not.toBe(after);
  expect(mounted.docs["pi.live"]).toBe(watch.value.docs["pi.live"]);

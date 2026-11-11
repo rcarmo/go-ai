@@ -39,3 +39,13 @@ Remaining sampled costs are primarily record validation/ownership and operation 
 -145 unchanged source tests +12 probes pass; pinned source/test hashes and complete tree verified.
 - Public stored-observer dispatch, exact cancellation/task-bound warm reads, version/cache-pressure/reload/weak lifetimes and complete assertion crosswalk remain open.
 - A separate source probe clarifies builtin mounts: initial pi.agent borrows the loaded tracker, but after a configuration operation its changed branch is a separate immutable replay, not the same object as a snapshot. Unchanged pi.live remains shared. Native warm/cold mount hydration still needs this source-specific acceptance; do not force universal cross-surface identity after edits.
+
+## Warm builtin mount follow-up
+
+The last source probe now also checks the unchanged model child across a thinking-level update. Its native translation first failed initial mounted pi.agent identity, then (after initial borrowing) failed the loaded snapshot's unchanged model-child identity. Both were genuine identity failures after correcting the fixture's required checkpoint predicate; that setup rejection was not an implementation failure.
+
+New mounts borrow already-loaded nodes at each pinned builtin definition version, while existing mounts retain their own shared document root. Configuration's untyped native document writes now preserve an already-loaded readonly cache entry even when no typed document plan exists. New cache sizes are computed and validated before storage; adoption updates metadata/bytes and retains page/byte/retention limits. Edited mounted roots remain distinct from snapshots as the source requires.
+
+Native fixture adaptation: existing transcript/Harness initialization and an explicit AgentDoc-equivalent token (version1, rewindable/asOf, checkpoint=true) replace openChat and the exported source token. Actual ConfigurePatch, public Watch/ObserveConversation and SnapshotDefinition paths are used.
+
+Full durable405.993s/tools18.237s and repository-wide vet/Staticcheck pass after these production changes. This covers warm loaded-node borrowing, not full cold/all-builtin hydration. In particular source LiveDoc's canonical version3/migration authority must be ported, not inferred from native raw builtin records or fabricated from their versions. Neither stored dispatch nor full D14/D17 closure is credited.
