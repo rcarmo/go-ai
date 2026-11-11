@@ -38,7 +38,7 @@ Two independent source-derived probes pass against the pinned implementation. Th
 
 Verification:145 unchanged pinned tests +26 independent probes;30 shuffled public/guard controls (seed42); full durable419.411s/tools18.755s; repository-wide vet, Staticcheck and logging gates. This is ordinary development verification. Full release profiling and acceptance have not run for this slice.
 
-Non-scalar host-value stringification, floating-point number spelling, JavaScript undefined/symbol/bigint and asynchronous rejected-promise bindings still need source-derived coverage and implementation. The private synchronous observer helper retains its earlier panic behaviour.
+The next section records broader object/number normalisation. The private synchronous observer helper retains its earlier panic behaviour.
 
 ## Reentrant detach and dispatch membership
 
@@ -46,9 +46,17 @@ A further source-derived probe and raw public native regression cover self-detac
 
 These controls already passed the implementation at2e60d07; no runtime fix was needed. The public callback comment now permits observer attachment/detachment and limits the reentry prohibition to queued Session operations. Verification:145 unchanged pinned tests +27 probes and50 shuffled native repeats (seed42). The last full native/static verification remains the falsy-panic slice above; this follow-up changes tests and comments only. Faulting report callbacks, queued-operation reentry and asynchronous rejection bindings still need separate acceptance.
 
+## Object and number throw normalisation
+
+Public stored-observer reports preserve the exact thrown object/array/host pointer and numeric value, including NaN and signed zero. Listener endings now use source toError messages for ordinary objects, arrays, cycles, Number exponents, infinities, NaN and custom conversion. An active-array stack handles direct and indirect cycles without treating a repeated noncyclic array as a cycle. A failed nested conversion falls back for the original root: an array produces [object Array], not an element-level replacement. Existing Error values retain their earlier identity semantics.
+
+Go adapters are explicit: json.Number converts through its IEEE-754 Number value for message spelling; fmt.Stringer supplies a host object's toString operation; big.Int uses that operation for the source bigint case. Neither conversion nor an ending takes ownership copies of report values. Custom conversion executes once and its panic is contained. JavaScript undefined, symbol, custom Symbol.toPrimitive/toStringTag and function-source stringification have no complete binding acceptance here.
+
+The independent source probe passes18 cases. The first16 native cases all failed on the original generic storage-failure message before the fix. Raw public callbacks now pass object/slice/pointer identity, cyclic-array, number and custom-conversion controls. Later strengthening also checks bigint, Error in an array, a repeated noncyclic array, the signed-zero report bit, a fresh ending Error and single conversion. The source probe count is28, alongside145 unchanged pinned tests.20 shuffled full public-observer repetitions and20 strengthened object/number repetitions pass. Full durable403.545s/tools18.718s, repository-wide vet/Staticcheck and logging gates pass; the full run preceded only the final test strengthening. Release profiling and full acceptance are still open.
+
 ## Still open
 
-D04 grouped caller-continuation/macrotask bridge, complete D16 assertion crosswalk, asynchronous rejected-promise/language binding behaviour, arbitrary observer rejection/panic values, reentry/guard-report faults, full weak/GC/cache-pressure/lifetime coverage and canonical acceptance for remaining builtin task projections. Record-field presence involving JavaScript undefined and key-order edge semantics still need explicit crosswalk disposition, not a broad Go-adaptation waiver. No full upstream parity or release-profile acceptance claim.
+D04 grouped caller-continuation/macrotask bridge, complete D16 assertion crosswalk, asynchronous rejected-promise/language binding behaviour, remaining JavaScript throw-value bindings and object tags, reentry/guard-report faults, full weak/GC/cache-pressure/lifetime coverage and canonical acceptance for remaining builtin task projections. Record-field presence involving JavaScript undefined and key-order edge semantics still need explicit crosswalk disposition, not a broad Go-adaptation waiver. No full upstream parity or release-profile acceptance claim.
 
 ## Register correction
 

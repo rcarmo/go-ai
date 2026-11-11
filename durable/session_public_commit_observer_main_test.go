@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -709,6 +710,102 @@ func TestMainPublicCommitObserverReentrantDetachAndDispatchSnapshot(t *testing.T
 			}
 			if !reflect.DeepEqual(ends, wantEnds) {
 				t.Fatal(ends, wantEnds)
+			}
+		})
+	}
+}
+
+// A Go Stringer is the host-side counterpart of a source object with toString.
+// The throwable itself must remain the report value even if conversion fails.
+type publicObserverThrowStringer struct {
+	text  string
+	fail  bool
+	calls int
+}
+
+func (s *publicObserverThrowStringer) String() string {
+	s.calls++
+	if s.fail {
+		panic(nil)
+	}
+	return s.text
+}
+
+func TestMainPublicCommitObserverObjectAndNumberPanicValue(t *testing.T) {
+	cycle := make([]any, 1)
+	cycle[0] = cycle
+	a, b := make([]any, 2), make([]any, 2)
+	a[0], a[1] = b, 1
+	b[0], b[1] = a, 2
+	for _, tc := range []struct {
+		name    string
+		value   any
+		message string
+	}{
+		{"object", JSON{"n": 1}, "[object Object]"}, {"empty-array", []any{}, ""}, {"array", []any{nil, false, JSON{"n": 1}, []any{1, 2}}, ",false,[object Object],1,2"},
+		{"negative-zero", math.Copysign(0, -1), "0"}, {"small", 1e-7, "1e-7"}, {"large", 1e20, "100000000000000000000"}, {"exponent", 1e21, "1e+21"}, {"nan", math.NaN(), "NaN"}, {"infinity", math.Inf(1), "Infinity"}, {"negative-infinity", math.Inf(-1), "-Infinity"},
+		{"cycle", cycle, ""}, {"indirect-cycle", a, ",2,1"}, {"custom", &publicObserverThrowStringer{text: "custom"}, "custom"}, {"failed-conversion", &publicObserverThrowStringer{fail: true}, "[object Object]"}, {"array-failed-conversion", []any{&publicObserverThrowStringer{fail: true}}, "[object Array]"},
+		{"json-number", json.Number("1e20"), "100000000000000000000"},
+		{"shared-array", []any{cycle[:0], []any{1, 2}, []any{1, 2}}, ",1,2,1,2"},
+		{"bigint", new(big.Int).Exp(big.NewInt(10), big.NewInt(30), nil), "1000000000000000000000000000000"},
+		{"error-in-array", []any{errors.New("nested error")}, "Error: nested error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := gatedSession(t)
+			var reports []error
+			var ends []WatchEnd
+			s.timerReport = func(err error) { reports = append(reports, err) }
+			guard := sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { panic(tc.value) }, End: func(end WatchEnd) error { ends = append(ends, end); return nil }})
+			defer guard.Detach()
+			if _, err := s.Commit(bg, func(tx *Tx) error {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if len(reports) != 1 || len(ends) != 1 || ends[0].Reason != "listener_error" {
+				t.Fatal(len(reports), len(ends))
+			}
+			var failure *Failure
+			if !errors.As(reports[0], &failure) {
+				t.Fatal("report lost the original value carrier")
+			}
+			original, reported := reflect.ValueOf(tc.value), reflect.ValueOf(failure.Value())
+			switch original.Kind() {
+			case reflect.Map, reflect.Slice, reflect.Pointer:
+				if original.Type() != reported.Type() || original.UnsafePointer() != reported.UnsafePointer() {
+					t.Fatal("report lost throwable identity")
+				}
+			default:
+				if original.Kind() == reflect.Float64 && math.IsNaN(original.Float()) {
+					if reported.Kind() != reflect.Float64 || !math.IsNaN(reported.Float()) {
+						t.Fatal("report lost NaN")
+					}
+				} else if !reflect.DeepEqual(tc.value, failure.Value()) {
+					t.Fatal("report replaced original scalar")
+				}
+			}
+			if original.Kind() == reflect.Float64 && original.Float() == 0 && math.Signbit(original.Float()) != math.Signbit(reported.Float()) {
+				t.Fatal("report replaced signed zero")
+			}
+			var endedFailure *Failure
+			if errors.As(ends[0].Error, &endedFailure) {
+				t.Fatal("ending retained the throw carrier instead of a normalized Error")
+			}
+			if custom, ok := tc.value.(*publicObserverThrowStringer); ok && custom.calls != 1 {
+				t.Fatal("stringification call count", custom.calls)
+			}
+			if ends[0].Error == nil || ends[0].Error.Error() != tc.message {
+				t.Fatalf("listener_error message %q, want %q", ends[0].Error, tc.message)
+			}
+			if err := s.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			if len(ends) != 1 {
+				t.Fatal("faulted guard ended again")
 			}
 		})
 	}

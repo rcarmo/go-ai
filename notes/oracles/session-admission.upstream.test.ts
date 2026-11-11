@@ -398,3 +398,23 @@ it("honours reentrant stored-observer detach during advance/report and snapshots
   await session.close(context);expect(ends).toEqual(mode==="replace-peer"?["first","late"]:["peer"]);
  }
 });
+
+it("reports object and numeric throws by identity while normalizing listener_error messages",async()=>{
+ const cycle:any[]=[];cycle.push(cycle);
+ const indirectA:any[]=[],indirectB:any[]=[];indirectA.push(indirectB,1);indirectB.push(indirectA,2);
+ for(const [reason,message] of [
+  [{n:1},"[object Object]"],[[],""],[[null,false,{n:1},[1,2]],",false,[object Object],1,2"],
+  [-0,"0"],[1e-7,"1e-7"],[1e20,"100000000000000000000"],[1e21,"1e+21"],[NaN,"NaN"],[Infinity,"Infinity"],[-Infinity,"-Infinity"],
+  [cycle,""],[indirectA,",2,1"],[[[],[1,2],[1,2]],",1,2,1,2"],[10n**30n,"1000000000000000000000000000000"],[[new Error("nested error")],"Error: nested error"],[{toString:()=>"custom"},"custom"],
+  [{toString:()=>{throw new Error("stringification failed")}},"[object Object]"],
+  [[{toString:()=>{throw null}}],"[object Array]"],
+ ] as const){
+  const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000),reports:any[]=[],ends:any[]=[];
+  session.report=(error:any)=>reports.push(error);
+  session.observeCommits({advance:()=>{throw reason},end:end=>ends.push(end)});
+  const Doc=defineDoc({kind:"oracle.public.throw.object",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(Doc)},context);
+  expect(reports).toHaveLength(1);expect(reports[0]).toBe(reason);expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("listener_error");expect(ends[0].error.message).toBe(message);
+  await session.close(context);expect(ends).toHaveLength(1);
+ }
+});

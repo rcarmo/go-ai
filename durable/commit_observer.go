@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"runtime"
-	"strconv"
 	"sync"
 )
 
@@ -219,23 +218,4 @@ func callPublicCommitObserver(callback func() error) (err error) {
 		}
 	}()
 	return callback()
-}
-func commitObserverEndError(err error) error {
-	var failure *Failure
-	if !errors.As(err, &failure) {
-		return err
-	}
-	switch value := failure.Value().(type) {
-	case nil:
-		return errors.New("null")
-	case bool:
-		return errors.New(strconv.FormatBool(value))
-	case string:
-		return errors.New(value)
-	case int:
-		return errors.New(strconv.Itoa(value))
-	default:
-		// Non-scalar host throws still need the source stringification crosswalk.
-		return err
-	}
 }
