@@ -89,12 +89,12 @@ func (l *sessionLine) acquire(ctx context.Context) error {
 			// Handed the token while canceling. Own it long enough to return it.
 			l.mu.Unlock()
 			l.release()
-			return ctx.Err()
+			return contextError(ctx)
 		}
 		l.removeLocked(w)
 		l.broadcastLocked()
 		l.mu.Unlock()
-		return ctx.Err()
+		return contextError(ctx)
 	case <-w.ready:
 		return nil
 	}
@@ -139,4 +139,18 @@ func (l *sessionLine) held() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return !l.free || len(l.waiters) > 0
+}
+
+// Source attachment cancellation retains an Error-valued AbortSignal.reason.
+// Consult Err at the same admission boundary, then retain Go's specific cause
+// instead of replacing WithCancelCause's error with the generic sentinel.
+func contextError(ctx context.Context) error {
+	err := ctx.Err()
+	if err == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	return err
 }

@@ -41,7 +41,7 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	var err error
 	select {
 	case <-ctx.Done():
-		err = ctx.Err()
+		err = contextError(ctx)
 	case <-gate:
 	}
 	// Every exit owns the memory line; callers always release it, including
@@ -58,7 +58,7 @@ func (s *Session) touch(ctx context.Context, key string) error {
 	// This job was admitted before Close sealed new admission. Upstream's
 	// touch continuation asserts health, not usability; Close cannot replace
 	// the admitted job's own cancellation with a fresh ErrClosed outcome.
-	return ctx.Err()
+	return contextError(ctx)
 }
 
 // touchAll is the ALL_KEYS barrier: it waits for everything admitted so far.

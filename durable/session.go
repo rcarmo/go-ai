@@ -154,7 +154,7 @@ func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 	case s.outcomeSlots <- struct{}{}:
 	case <-ctx.Done():
 		s.jobs.release()
-		return ctx.Err()
+		return contextError(ctx)
 	}
 	if err := s.line.acquire(ctx); err != nil {
 		<-s.outcomeSlots
@@ -173,7 +173,7 @@ func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 		s.leave()
 		return ErrClosed
 	}
-	if e := ctx.Err(); e != nil {
+	if e := contextError(ctx); e != nil {
 		s.leave()
 		return e
 	}
@@ -186,7 +186,7 @@ func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 		}
 		// Only maintenance can have waited since the ordinary admission check.
 		// Preserve the existing Context.Err call boundary for all other reads.
-		if err := ctx.Err(); err != nil {
+		if err := contextError(ctx); err != nil {
 			s.leave()
 			return err
 		}
@@ -459,7 +459,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if err = tx.seal(); err != nil {
 		return 0, err
 	}
-	if err = ctx.Err(); err != nil {
+	if err = contextError(ctx); err != nil {
 		return 0, err
 	}
 	// Task owner validation and same-batch retirement precede document content
@@ -470,7 +470,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if err = tx.finalizeDocuments(); err != nil {
 		return 0, err
 	}
-	if err = ctx.Err(); err != nil {
+	if err = contextError(ctx); err != nil {
 		return 0, err
 	}
 	if err = s.failure(); err != nil {
@@ -486,7 +486,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	}
 	if tx.memoryOnly {
 		outcome.after = true
-		if err := ctx.Err(); err != nil {
+		if err := contextError(ctx); err != nil {
 			return 0, err
 		}
 		if err := s.holdPreparedDocuments(&prepared, withinMs); err != nil {
@@ -694,6 +694,6 @@ func (s *Session) Close(ctx context.Context) error {
 	case <-s.done:
 		return s.closeErr
 	case <-ctx.Done():
-		return ctx.Err()
+		return contextError(ctx)
 	}
 }

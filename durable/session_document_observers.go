@@ -70,7 +70,7 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		return nil, nil, false, err
 	}
 	if !exists {
@@ -85,7 +85,7 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 	if int64(len(encoded)) > quota {
 		return nil, nil, false, reject("document observer baseline exceeds process quota")
 	}
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		return nil, nil, false, err
 	}
 	initial, err := copyObject(value, s.limits)
@@ -113,7 +113,7 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 		s.observerMu.Unlock()
 		return nil, nil, false, ErrClosed
 	}
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		s.observerMu.Unlock()
 		return nil, nil, false, err
 	}
@@ -128,7 +128,7 @@ func (s *Session) observeDocumentDefinition(ctx context.Context, def *DocumentDe
 	s.observerMu.Unlock()
 	// The source checks again after attachment and detaches on cancellation.
 	// Never call release while holding observerMu.
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		observation.detach()
 		return nil, nil, false, err
 	}

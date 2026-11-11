@@ -49,3 +49,11 @@ New mounts borrow already-loaded nodes at each pinned builtin definition version
 Native fixture adaptation: existing transcript/Harness initialization and an explicit AgentDoc-equivalent token (version1, rewindable/asOf, checkpoint=true) replace openChat and the exported source token. Actual ConfigurePatch, public Watch/ObserveConversation and SnapshotDefinition paths are used.
 
 Full durable405.993s/tools18.237s and repository-wide vet/Staticcheck pass after these production changes. This covers warm loaded-node borrowing, not full cold/all-builtin hydration. In particular source LiveDoc's canonical version3/migration authority must be ported, not inferred from native raw builtin records or fabricated from their versions. Neither stored dispatch nor full D14/D17 closure is credited.
+
+## Attachment cancellation cause follow-up
+
+Source session-observers:259 rejects the supplied Error("gone"), and session.ts cancellationError retains Error identity (non-Error reasons use AbortError instead). An independent probe checks both document attachment APIs, no leaked pins and the warm snapshot's deliberate cancellation bypass. Four native variants (watch/observer, pre-aborted/actually queued) initially returned context.Canceled instead of the supplied cause.
+
+Session admission/line waits and attachment checks now consult Err at their existing boundaries and preserve context.Cause when present. Plain cancellation/deadline sentinels retain their ordinary behaviour. Queued controls synchronize on actual line waiters. The older harness-view:319 translation incorrectly expected context.Canceled despite abort(Error("cancelled")); it now asserts the actual source error identity without changing setup or weakening cancellation/no-registration coverage.
+
+Focused cancellation/acquisition/context/cache controls pass three shuffled repeats; full durable404.805s/tools18.544s plus repository-wide vet/Staticcheck pass. Source reference145 unchanged tests +13 probes passes. This closes the demonstrated Error-valued pre-aborted/queued acquisition slice, not every backend-in-flight, capacity, task-lifetime or non-Error cancellation contract.

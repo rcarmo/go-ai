@@ -89,13 +89,16 @@ func TestMainViewUpstreamAcquisitionOracles(t *testing.T) {
 				queued := &upstreamAdmissionContext{Context: cancelCtx, evaluated: make(chan struct{})}
 				cancelled := acquire(queued)
 				watchReceive(t, queued.evaluated)
-				cancel(errors.New("cancelled"))
+				cause := errors.New("cancelled")
+				cancel(cause)
 				release()
 				if err := watchReceive(t, blocking); err != nil {
 					t.Fatal(err)
 				}
 				got := watchReceive(t, cancelled)
-				if got.w != nil || !errors.Is(got.err, context.Canceled) {
+				// Source harness-view:319 checks the supplied "cancelled" error,
+				// not a replacement generic cancellation sentinel.
+				if got.w != nil || got.err != cause {
 					t.Fatal("queued cancellation", got.w, got.err)
 				}
 

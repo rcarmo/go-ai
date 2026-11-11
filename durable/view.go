@@ -146,7 +146,7 @@ func (c *ConversationHandle) attachWatch(ctx context.Context, observation *ViewO
 		}
 		frozen = c.h.session.shareConversationDocuments(frozen, state)
 		watch = &ConversationWatch{readonlyCurrent: frozen, readonlyHead: frozen, current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
-		if err := ctx.Err(); err != nil {
+		if err := contextError(ctx); err != nil {
 			return err
 		}
 		if observation != nil {

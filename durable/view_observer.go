@@ -98,7 +98,7 @@ func (h *Harness) ObserveConversation(ctx context.Context, id ID, observer ViewO
 	if _, err := conversation.attachWatch(ctx, observation, window...); err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		observation.Detach()
 		return nil, err
 	}

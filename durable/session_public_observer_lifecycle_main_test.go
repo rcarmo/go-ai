@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -110,5 +111,79 @@ func TestMainPublicDocumentObserverRetirementAndGuards(t *testing.T) {
 				t.Fatalf("detached observer ended %+v", firstEnds)
 			}
 		})
+	}
+}
+
+// Literal source259 error cause plus source-derived watch/queued controls.
+// Go WithCancelCause adapts AbortController.abort(Error); retain exact identity.
+func TestMainDocumentAttachmentCancellationCauseIdentity(t *testing.T) {
+	for _, kind := range []string{"observe", "watch"} {
+		for _, queued := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/queued=%v", kind, queued), func(t *testing.T) {
+				s := gatedSession(t)
+				def, err := DefineDocument(DefinitionOptions{Kind: "oracle.cancel.identity", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"count": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = s.Commit(bg, func(tx *Tx) error {
+					doc, err := tx.AcquireDocument(def, 0, nil, nil)
+					if err != nil {
+						return err
+					}
+					return doc.ApplyOperations([]Operation{{"s", []any{"count"}, 1}})
+				}); err != nil {
+					t.Fatal(err)
+				}
+				before, found, err := s.SnapshotDefinition(bg, def, 0, nil)
+				if err != nil || !found {
+					t.Fatal(found, err)
+				}
+				ctx, cancel := context.WithCancelCause(bg)
+				defer cancel(nil)
+				gone := errors.New("gone")
+				acquire := func() error {
+					if kind == "observe" {
+						guard, found, err := s.ObserveDefinition(ctx, def, 0, nil, DocumentObserver{Advance: func(context.Context, DocumentCall) error { t.Error("cancelled observation advanced"); return nil }, End: func(WatchEnd) error { t.Error("cancelled observation ended"); return nil }})
+						if guard != nil || found {
+							t.Error("cancelled attachment registered")
+						}
+						return err
+					}
+					watch, found, err := s.WatchDefinition(ctx, def, 0, nil)
+					if watch != nil || found {
+						t.Error("cancelled watch registered")
+					}
+					return err
+				}
+				var actual error
+				if queued {
+					if err := s.jobs.acquire(bg); err != nil {
+						t.Fatal(err)
+					}
+					result := make(chan error, 1)
+					go func() { result <- acquire() }()
+					s.jobs.waitPending(1)
+					cancel(gone)
+					s.jobs.release()
+					actual = watchReceive(t, result)
+				} else {
+					cancel(gone)
+					actual = acquire()
+				}
+				if actual != gone {
+					t.Fatalf("cancellation identity: got %v want exact %v", actual, gone)
+				}
+				s.observerMu.Lock()
+				attached := len(s.documentObservers) + len(s.watches)
+				s.observerMu.Unlock()
+				if attached != 0 {
+					t.Fatal("cancelled attachment leaked", attached)
+				}
+				after, found, err := s.SnapshotDefinition(ctx, def, 0, nil)
+				if err != nil || !found || after != before {
+					t.Fatal("warm snapshot started consulting cancellation", found, err)
+				}
+			})
+		}
 	}
 }

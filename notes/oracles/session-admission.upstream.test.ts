@@ -201,3 +201,17 @@ it("hydrates a mounted builtin from the loaded tracker but advances its changed 
  expect(mounted.docs["pi.live"]).toBe(watch.value.docs["pi.live"]);
  observation.detach();await watch.stop();await harness.close(context);
 });
+
+it("retains Error cancellation identity at document attachment but ignores cancellation on a warm snapshot",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const Doc=defineDoc({kind:"oracle.cancel.identity",scope:"session",version:1,initial:()=>({count:0}),checkpointWhen:()=>false});
+ await session.commit(async tx=>{(await tx.doc(Doc)).count=1},context);
+ const before=await session.snapshot(Doc,context);
+ const controller=new AbortController(),gone=new Error("gone");controller.abort(gone);
+ const cancelled={...context,abortSignal:controller.signal};
+ await expect(session.observeDoc(Doc,{advance:()=>{},end:()=>{}},cancelled)).rejects.toBe(gone);
+ await expect(session.watchDoc(Doc,cancelled)).rejects.toBe(gone);
+ expect(session.documentCacheSizes.attached).toBe(0);
+ expect(await session.snapshot(Doc,cancelled)).toBe(before);
+ await session.close(context);
+});

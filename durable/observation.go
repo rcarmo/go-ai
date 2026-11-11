@@ -502,7 +502,7 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 	if int64(len(encoded)) > quota {
 		return nil, false, reject("watch baseline exceeds process quota")
 	}
-	if e = ctx.Err(); e != nil {
+	if e = contextError(ctx); e != nil {
 		return nil, false, e
 	}
 	frozen, e := s.documentObservationReadonly(record.ID, def.options.Version, value)
