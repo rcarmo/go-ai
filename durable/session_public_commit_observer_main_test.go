@@ -647,3 +647,69 @@ func TestMainPublicCommitObserverEndPanicValue(t *testing.T) {
 		})
 	}
 }
+
+// Source guardObserver releases once after reporting; notifyHosts snapshots its
+// registry, then rechecks each guard. Observer attachment/detachment is reentrant.
+func TestMainPublicCommitObserverReentrantDetachAndDispatchSnapshot(t *testing.T) {
+	for _, mode := range []string{"self-detach", "report-detach", "replace-peer"} {
+		t.Run(mode, func(t *testing.T) {
+			s := gatedSession(t)
+			var calls, ends []string
+			var reports []error
+			bug := errors.New("observer fault")
+			var first, peer, late *CommitObservation
+			s.timerReport = func(err error) {
+				reports = append(reports, err)
+				if mode == "report-detach" {
+					first.Detach()
+				}
+			}
+			first = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error {
+				calls = append(calls, "first")
+				if mode == "replace-peer" {
+					if late == nil {
+						peer.Detach()
+						late = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { calls = append(calls, "late"); return nil }, End: func(WatchEnd) error { ends = append(ends, "late"); return nil }})
+					}
+					return nil
+				}
+				if mode == "self-detach" {
+					first.Detach()
+				}
+				return bug
+			}, End: func(WatchEnd) error { ends = append(ends, "first"); return nil }})
+			peer = sourcePublicCommitObservation(t, s, CommitObserver{Advance: func(context.Context, CommitPublication) error { calls = append(calls, "peer"); return nil }, End: func(WatchEnd) error { ends = append(ends, "peer"); return nil }})
+			for range 2 {
+				if _, err := s.Commit(bg, func(tx *Tx) error {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			wantCalls := []string{"first", "peer", "peer"}
+			wantEnds := []string{"peer"}
+			if mode == "replace-peer" {
+				wantCalls = []string{"first", "first", "late"}
+				wantEnds = []string{"first", "late"}
+				if len(reports) != 0 {
+					t.Fatal(reports)
+				}
+			} else if len(reports) != 1 || reports[0] != bug {
+				t.Fatal(reports)
+			}
+			if !reflect.DeepEqual(calls, wantCalls) || len(ends) != 0 {
+				t.Fatal(calls, ends)
+			}
+			if err := s.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(ends, wantEnds) {
+				t.Fatal(ends, wantEnds)
+			}
+		})
+	}
+}

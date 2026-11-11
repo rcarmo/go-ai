@@ -40,6 +40,12 @@ Verification:145 unchanged pinned tests +26 independent probes;30 shuffled publi
 
 Non-scalar host-value stringification, floating-point number spelling, JavaScript undefined/symbol/bigint and asynchronous rejected-promise bindings still need source-derived coverage and implementation. The private synchronous observer helper retains its earlier panic behaviour.
 
+## Reentrant detach and dispatch membership
+
+A further source-derived probe and raw public native regression cover self-detach followed by an advance fault, detach from reporting before the fault ending, and peer replacement during dispatch. Both detach paths report the original Error once and suppress the detached guard's ending. Replacing a peer skips the detached peer immediately; the new guard first receives the next publication because notifyHosts snapshots membership before delivery. Close ends only the surviving guards, in registry order.
+
+These controls already passed the implementation at2e60d07; no runtime fix was needed. The public callback comment now permits observer attachment/detachment and limits the reentry prohibition to queued Session operations. Verification:145 unchanged pinned tests +27 probes and50 shuffled native repeats (seed42). The last full native/static verification remains the falsy-panic slice above; this follow-up changes tests and comments only. Faulting report callbacks, queued-operation reentry and asynchronous rejection bindings still need separate acceptance.
+
 ## Still open
 
 D04 grouped caller-continuation/macrotask bridge, complete D16 assertion crosswalk, asynchronous rejected-promise/language binding behaviour, arbitrary observer rejection/panic values, reentry/guard-report faults, full weak/GC/cache-pressure/lifetime coverage and canonical acceptance for remaining builtin task projections. Record-field presence involving JavaScript undefined and key-order edge semantics still need explicit crosswalk disposition, not a broad Go-adaptation waiver. No full upstream parity or release-profile acceptance claim.

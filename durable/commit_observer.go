@@ -16,7 +16,8 @@ type CommitPublication struct {
 }
 
 // CommitObserver receives stored commits and one guarded ending. Callbacks must
-// not block or synchronously reenter Session APIs.
+// not block or synchronously reenter queued Session operations. Observer
+// attachment and detachment are allowed from callbacks.
 type CommitObserver struct {
 	Advance func(context.Context, CommitPublication) error
 	End     func(WatchEnd) error

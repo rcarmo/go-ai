@@ -384,3 +384,17 @@ it("retains falsy throws from stored-observer ending callbacks in reports",async
   expect(ends).toEqual([{kind:"failed",error:new Error("session closed")}]);expect(reports).toHaveLength(1);expect(reports[0].error).toBe(reason);
  }
 });
+
+it("honours reentrant stored-observer detach during advance/report and snapshots dispatch membership",async()=>{
+ for(const mode of ["self-detach","report-detach","replace-peer"]){
+  const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000),calls:string[]=[],ends:string[]=[],reports:any[]=[];const bug=new Error("observer fault");let late:any;
+  session.report=(error:any)=>{reports.push(error);if(mode==="report-detach")first.detach()};
+  const first=session.observeCommits({advance:()=>{calls.push("first");if(mode==="replace-peer"){if(!late){peer.detach();late=session.observeCommits({advance:()=>calls.push("late"),end:()=>ends.push("late")})}}else{if(mode==="self-detach")first.detach();throw bug}},end:()=>ends.push("first")});
+  const peer=session.observeCommits({advance:()=>calls.push("peer"),end:()=>ends.push("peer")});
+  const Doc=defineDoc({kind:"oracle.public.reentrant",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(Doc)},context);await session.commit(async tx=>{(await tx.doc(Doc)).n=1},context);
+  expect(calls).toEqual(mode==="replace-peer"?["first","first","late"]:["first","peer","peer"]);
+  expect(reports).toEqual(mode==="replace-peer"?[]:[bug]);expect(ends).toEqual([]);
+  await session.close(context);expect(ends).toEqual(mode==="replace-peer"?["first","late"]:["peer"]);
+ }
+});
