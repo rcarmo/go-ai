@@ -58,6 +58,10 @@ type Session struct {
 	pendingTimers         [3]sessionTimerChange // line-owned fixed slots
 	timerDispatch         sync.WaitGroup
 	observerMu            sync.Mutex
+	commitObservers       []*CommitObservation  // observerMu; dispatch-time membership
+	pendingPublicCommits  []pendingPublicCommit // line-owned host dispatch phase
+	commitDispatchGate    chan struct{}         // line-owned; opens after host callbacks
+	commitDispatchNeeded  atomic.Bool
 	watches               map[*DocumentWatch]bool
 	subscriptions         map[*CommitSubscription]bool
 	subscriptionOrder     uint64                        // observerMu; immutable registration ordinals
@@ -165,6 +169,10 @@ func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 	s.currentJobHit = false
 	s.jobOutcome = s.enqueueOutcome()
 	s.jobOutcome.exempt = exempt
+	if err := s.awaitCommitDispatch(ctx); err != nil {
+		s.leave()
+		return err
+	}
 	if err := s.failure(); err != nil {
 		s.leave()
 		return err
@@ -195,6 +203,7 @@ func (s *Session) enterJob(ctx context.Context, exempt bool) error {
 }
 func (s *Session) leave() { s.leaveThen(nil) }
 func (s *Session) leaveThen(afterRelease func()) {
+	s.drainPublicCommits(false)
 	outcome := s.jobOutcome
 	s.jobOutcome = nil
 	changes := s.pendingTimers
@@ -661,6 +670,8 @@ func (s *Session) Close(ctx context.Context) error {
 			if s.failure() == nil {
 				s.closeErr = s.flushHeldOnClose()
 			}
+			s.drainPublicCommits(true)
+			s.endPublicCommitObservers()
 			s.endStoredCommitObservers()
 			s.endDocumentObservers()
 			s.clearLocalCommitListeners()

@@ -433,11 +433,16 @@ type EntryCursor struct {
 // cannot end settlement. Reads reject after poison or close.
 // StoragePublicationScope is an optional host capability of Storage. Publishing
 // must call publish, synchronously or later, inside the host's own batch/scope.
-// A stored commit waits for that invocation before publishing the next part.
+// Nil completion denotes a synchronous scope ending when Publishing returns.
+// An asynchronous host returns a channel closed at the end of its publication
+// turn (after the callback and synchronous scope cleanup). This explicit Go
+// boundary supplies the microtask boundary implicit in the JS host.
+// A stored commit waits for the callback and scope turn before delivering host
+// observations/outcomes or publishing the next part.
 // Repeated invocation is ignored; a panic is reported and publication still runs
 // once, because storage has already made the commit durable.
 type StoragePublicationScope interface {
-	Publishing(context.Context, func())
+	Publishing(context.Context, func()) <-chan struct{}
 }
 
 type Storage interface {

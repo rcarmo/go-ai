@@ -248,7 +248,8 @@ func (s *Session) foldSelectedHeld(own []Write, selected map[ID]bool) ([]Write, 
 }
 
 type preparedStoredPublication struct {
-	publication   CommitPublication
+	public        preparedPublicCommit
+	publication   sessionPublication
 	subscriptions []preparedSubscription
 }
 
@@ -269,7 +270,7 @@ func (s *Session) prepareHeldStoragePublication(ctx context.Context, writes []Wr
 		return preparedStoredPublication{}, err
 	}
 	subscriptions, err := s.prepareSubscriptionKinds(ctx, publication, tx, ready, false, true)
-	return preparedStoredPublication{publication: publication, subscriptions: subscriptions}, err
+	return preparedStoredPublication{public: s.preparePublicCommit(publication, *tx.publicationState, nil), publication: publication, subscriptions: subscriptions}, err
 }
 
 func (s *Session) persistenceWindow(requested []float64) (float64, error) {
@@ -411,6 +412,8 @@ func (s *Session) storeHeldDocuments(ctx context.Context, selected []ID) error {
 	}
 	s.enqueueSubscriptions(stored.subscriptions)
 	s.persistenceReady = ready
+	stored.public.stamp(stored.publication)
+	s.queuePublicCommit(ctx, stored.public, false)
 	s.publishStoredCommit(ctx, stored.publication)
 	return nil
 }
@@ -463,6 +466,8 @@ func (s *Session) flushHeldOnClose() error {
 	if err := s.adoptReceipt(receipt, &candidate); err != nil {
 		return err
 	}
+	stored.public.stamp(stored.publication)
+	s.queuePublicCommit(ctx, stored.public, false)
 	s.publishStoredCommit(ctx, stored.publication)
 	return nil
 }

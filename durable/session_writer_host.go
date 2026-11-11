@@ -10,11 +10,12 @@ import (
 // session_writer.go; this file owns only what a Session must mean for each hook.
 func (s *Session) newSessionWriterFromSession() *sessionWriter {
 	return newSessionWriter(sessionWriterHost{
-		commit:     s.writerCommit,
-		publishing: s.publishInStorageScope,
-		failure:    s.writerFailure,
-		fail:       s.writerFail,
-		report:     s.writerReport,
+		commit:           s.writerCommit,
+		afterPublication: s.dispatchCommitObservers,
+		publishing:       s.publishInStorageScope,
+		failure:          s.writerFailure,
+		fail:             s.writerFail,
+		report:           s.writerReport,
 		// The source macrotask/continuation bridge remains an open D04 contract.
 		// Serial parts alone do not establish its caller-continuation ordering.
 		hop: func() {},
@@ -99,6 +100,7 @@ func (s *Session) publishInStorageScope(ctx context.Context, publish func()) <-c
 		defer close(done)
 		run()
 	}
+	var scopeDone <-chan struct{}
 	func() {
 		defer func() {
 			if value := recover(); value != nil {
@@ -106,7 +108,10 @@ func (s *Session) publishInStorageScope(ctx context.Context, publish func()) <-c
 				once()
 			}
 		}()
-		scope.Publishing(ctx, once)
+		scopeDone = scope.Publishing(ctx, once)
 	}()
+	if scopeDone != nil {
+		<-scopeDone
+	}
 	return done
 }

@@ -314,7 +314,7 @@ func TestMainConversationDocumentAbandonedPreparation(t *testing.T) {
 			t.Fatal("missing live document")
 		}
 		record.Version++
-		prepared := watch.preparePublication(bg, CommitPublication{Documents: []DocumentChange{{Record: record, Version: record.Version, Value: record.Value}}}, make(chan struct{}))
+		prepared := watch.preparePublication(bg, sessionPublication{Documents: []DocumentChange{{Record: record, Version: record.Version, Value: record.Value}}}, make(chan struct{}))
 		if prepared == nil || prepared.incarnations["pi.live"].version != record.Version {
 			t.Fatal("missing prepared incarnation")
 		}

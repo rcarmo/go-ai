@@ -47,7 +47,7 @@ func mainContinueBoundaryDocument(t *testing.T, state Snapshot, conversation ID,
 
 // Observe the exact stored admission, not a reconstruction from a later
 // scheduler snapshot. The request ID identifies K before Submit returns its ID.
-func mainContinueBoundaryAdmission(t *testing.T, h *Harness, conversation ID, request string) func() CommitPublication {
+func mainContinueBoundaryAdmission(t *testing.T, h *Harness, conversation ID, request string) func() sessionPublication {
 	t.Helper()
 	_, observer, err := h.SubscribeCommits(bg)
 	if err != nil {
@@ -70,7 +70,7 @@ func mainContinueBoundaryAdmission(t *testing.T, h *Harness, conversation ID, re
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return func() CommitPublication {
+	return func() sessionPublication {
 		t.Helper()
 		awaitTaskSignal(t, ready)
 		frame := <-frames

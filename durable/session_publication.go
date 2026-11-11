@@ -14,10 +14,11 @@ type preparedSessionPublication struct {
 	base            Snapshot
 	frames          []preparedWatchFrame
 	subs            []preparedSubscription
-	stored          CommitPublication // actual durable writes, including selected holds
-	observed        CommitPublication // this transaction's OWN changes, never folded holds
+	stored          sessionPublication // actual durable writes, including selected holds
+	observed        sessionPublication // this transaction's OWN changes, never folded holds
 	storageWrites   []Write
 	storedHeld      []ID
+	public          preparedPublicCommit
 }
 
 func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Snapshot, ready <-chan struct{}) (preparedSessionPublication, error) {
@@ -56,6 +57,13 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 	}
 	if err != nil {
 		return preparedSessionPublication{}, err
+	}
+	if !tx.memoryOnly {
+		state := tx.state
+		if tx.publicationState != nil {
+			state = *tx.publicationState
+		}
+		p.public = s.preparePublicCommit(p.stored, state, tx.readonlyDocuments)
 	}
 	return p, nil
 }
@@ -213,6 +221,8 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	if err := s.adoptDefinitionPlans(p.tx, adopted, p.observed.Documents); err != nil {
 		return nil, err
 	}
+	p.public.stamp(p.stored)
+	s.queuePublicCommit(p.ctx, p.public, p.writerOwned)
 	s.adoptTaskEffects(receipt.seq, p.tx)
 	s.enqueueWatchFrames(p.frames)
 	s.enqueueSubscriptions(p.subs)
@@ -234,7 +244,7 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 
 // stampPublication preserves the detached payloads prepared before admission and
 // fills only metadata assigned by storage, as Transaction.adopt(seq) does.
-func stampPublication(p *CommitPublication, state Snapshot, seq uint64) {
+func stampPublication(p *sessionPublication, state Snapshot, seq uint64) {
 	p.Seq = seq
 	for i := range p.Tables {
 		if entry := p.Tables[i].Entry; entry != nil {

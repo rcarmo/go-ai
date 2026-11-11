@@ -76,7 +76,7 @@ func TestSessionV150DisjointDocumentAdmissionBatchesWaitingParts(t *testing.T) {
 				return commit(ctx, batches, receive)
 			}
 			var seqs []uint64
-			observation, err := s.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+			observation, err := s.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 				mu.Lock()
 				seqs = append(seqs, p.Seq)
 				for _, change := range p.Documents {
@@ -542,13 +542,15 @@ func TestV150SessionReadLineLifetimeAndCancellation(t *testing.T) {
 // than the source's generic Promise result. Storage and publication are real.
 type v150PublicationScopeStorage struct {
 	Storage
-	core  *storeCore
-	scope func(context.Context, func())
+	core       *storeCore
+	scope      func(context.Context, func())
+	completion <-chan struct{}
 }
 
 func (w *v150PublicationScopeStorage) nativeCore() *storeCore { return w.core }
-func (w *v150PublicationScopeStorage) Publishing(ctx context.Context, publish func()) {
+func (w *v150PublicationScopeStorage) Publishing(ctx context.Context, publish func()) <-chan struct{} {
 	w.scope(ctx, publish)
+	return w.completion
 }
 func TestSessionV150StoragePublicationScope(t *testing.T) {
 	for _, mode := range []string{"inside", "twice", "reentrant", "throw-before", "throw-after", "deferred"} {
@@ -566,7 +568,7 @@ func TestSessionV150StoragePublicationScope(t *testing.T) {
 			s.timerReport = func(err error) { reports = append(reports, err) }
 			depth, calls, published := 0, 0, 0
 			var saved func()
-			observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error {
+			observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, sessionPublication) error {
 				published++
 				if mode == "reentrant" {
 					saved()
@@ -684,7 +686,7 @@ func TestSessionV150StorageScopeRechecksFailureAtDeferredEntry(t *testing.T) {
 		publish()
 	}}
 	var kinds []string
-	observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+	observer, err := s.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 		for _, w := range p.Tables {
 			if w.Entry != nil {
 				kinds = append(kinds, w.Entry.Kind)

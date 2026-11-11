@@ -89,8 +89,8 @@ func TestMainSessionConversationMemoryDelivery(t *testing.T) {
 				}); err != nil {
 					t.Fatal(err)
 				}
-				var stored []CommitPublication
-				if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+				var stored []sessionPublication
+				if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 					stored = append(stored, p)
 					return nil
 				}, end: func(WatchEnd) error { return nil }}); err != nil {

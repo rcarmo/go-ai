@@ -34,7 +34,7 @@ func mainSalvageCrash(t *testing.T, b sqliteFixture, limit uint64) (*mainRecover
 	// This recovery fixture needs a committed partial before simulating loss.
 	storedPartial := make(chan struct{})
 	var storedOnce sync.Once
-	observation, err := h.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+	observation, err := h.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 		for _, change := range p.Documents {
 			if change.Record.Kind == "pi.live" && change.Record.Owner == c.ID() {
 				if text, ok := mainRecoveryText(change.Value); ok && text == strings.Repeat("partial ", 12) {

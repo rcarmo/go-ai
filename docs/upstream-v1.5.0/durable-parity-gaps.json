@@ -93,7 +93,7 @@
         "durable/types.go",
         "durable/session_group_commit_admission_test.go"
       ],
-      "evidence": "Installed writer supports awaitable internal scopes and memory-lock publication off the admission queue. Receipt-time metadata and exact-prefix subscription fallback snapshots replace preparation-time sequence assumptions for queued parts. Listener-failing stored outcomes wake after failure latches. Complete source698-815 continuation and deferred-scope acceptance remains open. Optional StoragePublicationScope is now installed on the Session writer. Previously ignored-scope regressions failed; synchronous/deferred entry, producer context, duplicate/reentrant callbacks and throw-before/after reporting/fallback now pass through real Session storage. Scope failure keeps the exact error while an already stored commit publishes once. Deferred-entry first-failure recheck is exercised through the optional method. Native single-part controls and separate-call deferred failure do not credit the full Source727/827 grouped scenarios. Full durable402.178s/tools18.195s and static gates pass;30 shuffled focused repeats pass. Hop remains a no-op: the earlier comment claiming serial parts establish source continuation turns was corrected; real bridge and public host dispatch remain open.",
+      "evidence": "Installed writer supports awaitable internal scopes and memory-lock publication off the admission queue. Receipt-time metadata and exact-prefix subscription fallback snapshots replace preparation-time sequence assumptions for queued parts. Listener-failing stored outcomes wake after failure latches. Complete source698-815 continuation and deferred-scope acceptance remains open. Optional StoragePublicationScope is now installed on the Session writer. Previously ignored-scope regressions failed; synchronous/deferred entry, producer context, duplicate/reentrant callbacks and throw-before/after reporting/fallback now pass through real Session storage. Scope failure keeps the exact error while an already stored commit publishes once. Deferred-entry first-failure recheck is exercised through the optional method. Native single-part controls and separate-call deferred failure do not credit the full Source727/827 grouped scenarios. Full durable402.178s/tools18.195s and static gates pass;30 shuffled focused repeats pass. Hop remains a no-op: the earlier comment claiming serial parts establish source continuation turns was corrected; real bridge and public host dispatch remain open. Public host dispatch now has an explicit post-scope phase before outcomes; asynchronous Go storage hosts return a completion channel for the end of their publication turn. Sync/deferred scope membership and task-waiter/abort ordering have independent source probes and native controls. This is not the between-parts caller-continuation/macrotask bridge: hop remains open.",
       "fix": "Design one serial publication dispatcher with awaitable scope completion, explicit continuation/outcome ordering and failure rechecks immediately inside the deferred scope. Retain detached exact-prefix receipts and contain scope throws according to the source.",
       "acceptance": [
         "Source698-815 unchanged ordering assertions; defer a scope, throw without executing it, fail between parts and while scope is pending. No later part publishes."
@@ -190,10 +190,9 @@
         "durable/submission_status.go",
         "durable/storage.go",
         "durable/submission_native_wire.go",
-        "durable/submission_presence_v150_test.go",
-        "durable/harness_document_definitions.go"
+        "durable/submission_presence_v150_test.go"
       ],
-      "evidence": "Baseline strict replay lost requestId empty string on submission12. The replay now compares every captured record exactly, without dropEmptyRequestID. Present-empty request keys survive public/native codecs, transaction and Harness admission, lookup, lifecycle updates, frame replay and checkpoint replay. Cold mounted builtin hydration now uses explicit pinned definitions in source order; all five readonly identities and legacy LiveDoc v1/v2-to-v3 read-only migration have independent reference and failing-before-fix native probes. New live records/write acquisition use canonical v3; required migration bases persist on write, not mount. Repeated builtin initialization is idempotent. Numeric turns retain source typeof-number semantics, including1e30. Fresh native fixtures now assert source versions rather than preserve v1 compatibility. Full durable389.642s/tools18.465s and static gates pass;145 unchanged reference tests +16 probes pass. Complete API/edge/lifecycle/crosswalk acceptance remains open.",
+      "evidence": "Baseline strict replay lost requestId empty string on submission12. The replay now compares every captured record exactly, without dropEmptyRequestID. Present-empty request keys survive public/native codecs, transaction and Harness admission, lookup, lifecycle updates, frame replay and checkpoint replay.",
       "fix": "Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.",
       "acceptance": [
         "All12 captured batches with exact JSON equality and no dropEmptyRequestID; empty vs absent dedup/lookups before and after reopen; transitions, duplicates and caller ownership."
@@ -388,10 +387,14 @@
         "durable/session_sync_observers.go",
         "durable/session_local_observers.go",
         "durable/observation.go",
-        "durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go"
+        "durable/testdata/upstream-main/pending/harness_commit_observer_wait_test.go",
+        "durable/commit_observer.go",
+        "durable/commit_publication.go",
+        "durable/session_public_commit_observer_main_test.go",
+        "durable/session_writer_host.go"
       ],
-      "evidence": "Private stored guard is synchronous on the line. Public SubscribeCommits is asynchronous. Neither supplies original observeCommits one-microtask host dispatch with observer membership selected at dispatch time. Private source 284 waiter control passes but is not public parity.",
-      "fix": "Implement public stored observation with source dispatch/membership/error-isolation semantics, immutable safe publication values, close/failure ending and callback-before-wait/abort ordering.",
+      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are now installed. CommitPublication is canonical seq/readonly changes; the old native tables/documents payload is private sessionPublication. Source codecs supply canonical table records and exact metadata/change/copy/retire unions; document values reuse prepared adopted readonly nodes. Host interest is captured at publication; membership is selected in a separate dispatch phase after own listeners and completed storage scope turns, before writer outcomes/ordered Session continuations. Explicit completion channels represent asynchronous Go storage scope turns. Source-derived public regressions cover no-host no-queue, sync/deferred late attach/detach, table/copy/retire shapes, held read+write/unload/close storage and source389/403/414/427 lifecycle guards. Independent source and native Harness controls verify stored terminal publication before a task waiter and abort-request publication before invocation cancellation. API absence, deferred turn and close-held-publication failures preceded their fixes. Latest full durable413.879s/tools18.947s and static gates pass;145 unchanged reference tests +24 probes pass. Complete grouped continuation, async rejection/panic, reentry/report-fault, weak/GC/lifetime and remaining builtin-task canonical acceptance stay open.",
+      "fix": "Finish D04 grouped caller-continuation/macrotask bridge and the complete stored-observer assertion crosswalk; cover async rejection/arbitrary panic values, reentry/report faults, weak/lifetime and remaining builtin task public projections. Preserve the installed canonical public API and dispatch phase, not the private synchronous guard as an alternate contract.",
       "acceptance": [
         "Complete pinned session-observers corpus, public source284 wait test, attach/detach between publication and dispatch, re-entry, listener faults, close/failure and multipart publications."
       ],
@@ -417,7 +420,6 @@
         "durable/document_readonly.go",
         "durable/document_definition.go",
         "durable/session_document_cache_test.go",
-        "durable/observation.go",
         "durable/transaction.go",
         "durable/delta_primitive_batch.go",
         "durable/harness_document_definitions.go"

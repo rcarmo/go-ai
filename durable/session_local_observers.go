@@ -75,7 +75,7 @@ func (s *Session) followSessionCommits(listener *sessionCommitListener) (func(),
 // Collect the first fault while still bringing every copied peer up to date.
 // The caller publishes queued host work, THEN fails the Session; the current
 // already-published commit still resolves (writer.ts listener failure arm).
-func (s *Session) publishLocalCommit(ctx context.Context, kind string, publication CommitPublication) error {
+func (s *Session) publishLocalCommit(ctx context.Context, kind string, publication sessionPublication) error {
 	s.observerMu.Lock()
 	listeners := append([]*sessionCommitListener(nil), s.localCommitListeners...)
 	s.observerMu.Unlock()

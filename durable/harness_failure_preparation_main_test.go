@@ -202,7 +202,7 @@ func TestMainRunFailureNoModelReplacesPreviousModelError(t *testing.T) {
 
 // Observe the real adopted decision, so a later repair cannot hide a missing
 // atomic successor start or placement lost in the terminal settlement.
-func mainPreparationTerminalPublication(t *testing.T, h *Harness, id ID) func() CommitPublication {
+func mainPreparationTerminalPublication(t *testing.T, h *Harness, id ID) func() sessionPublication {
 	t.Helper()
 	_, observer, err := h.SubscribeCommits(bg)
 	if err != nil {
@@ -225,7 +225,7 @@ func mainPreparationTerminalPublication(t *testing.T, h *Harness, id ID) func() 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return func() CommitPublication {
+	return func() sessionPublication {
 		t.Helper()
 		awaitTaskSignal(t, ready)
 		frame := <-frames
@@ -236,7 +236,7 @@ func mainPreparationTerminalPublication(t *testing.T, h *Harness, id ID) func() 
 	}
 }
 
-func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle, result Settlement, state Snapshot, publication CommitPublication, text string) {
+func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *ConversationHandle, sub *SubmissionHandle, result Settlement, state Snapshot, publication sessionPublication, text string) {
 	t.Helper()
 	r := result.Record
 	if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "unanswered" || r.Reason != "no_model" || r.Detail != nil || r.Entry == 0 || r.Answer != 0 || result.Message != nil || result.Task.ID == 0 || result.Task.Conversation != c.ID() {
@@ -288,7 +288,7 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 // Assert startRun/applyBoundary at the earlier run's deciding commit, before the
 // successor's resolver can return. Both the atomic publication and the gated
 // snapshot must contain exactly the selected inputs and the same live owner.
-func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle, state Snapshot, publication CommitPublication, group []*SubmissionHandle, texts map[ID]string, failure JSON) (ID, map[ID]ID) {
+func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle, state Snapshot, publication sessionPublication, group []*SubmissionHandle, texts map[ID]string, failure JSON) (ID, map[ID]ID) {
 	t.Helper()
 	var owner ID
 	var next generationCheckpoint
@@ -693,7 +693,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 					}
 					return owner
 				}
-				settled := func(sub *SubmissionHandle, owner ID, publication CommitPublication, answer string) Settlement {
+				settled := func(sub *SubmissionHandle, owner ID, publication sessionPublication, answer string) Settlement {
 					t.Helper()
 					result := waitSubmission(t, sub)
 					r := result.Record

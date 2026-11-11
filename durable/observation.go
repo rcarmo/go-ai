@@ -16,7 +16,7 @@ type DocumentChange struct {
 	Ops     []Operation
 	Source  *DocumentCopySource
 }
-type CommitPublication struct {
+type sessionPublication struct {
 	Seq       uint64
 	Tables    []Write
 	Documents []DocumentChange
@@ -265,7 +265,7 @@ type preparedWatchFrame struct {
 	ownerEnd  bool
 }
 
-func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}, values map[ID]readonlyDocumentRevision) ([]preparedWatchFrame, error) {
+func (s *Session) prepareWatchFrames(ctx context.Context, publication sessionPublication, ready <-chan struct{}, values map[ID]readonlyDocumentRevision) ([]preparedWatchFrame, error) {
 	s.observerMu.Lock()
 	watchers := make([]*DocumentWatch, 0, len(s.watches))
 	for w := range s.watches {
@@ -540,14 +540,14 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 	return w, true, nil
 }
 
-func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) {
-	publication := CommitPublication{Seq: t.state.Seq + 1}
+func (t *Tx) preparePublication(ctx context.Context) (sessionPublication, error) {
+	publication := sessionPublication{Seq: t.state.Seq + 1}
 	if len(t.writes) == 0 {
 		return publication, nil
 	}
 	state, e := t.prepareCandidate(t.writes, false)
 	if e != nil {
-		return CommitPublication{}, e
+		return sessionPublication{}, e
 	}
 	t.publicationState = &state
 	changed := map[ID]bool{}
@@ -578,11 +578,11 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 			}
 			bytes, e := encodeBounded(projected, t.limits, t.limits.MaxRecordBytes)
 			if e != nil {
-				return CommitPublication{}, e
+				return sessionPublication{}, e
 			}
 			var owned Write
 			if e = decodeStrict(bytes, t.limits, t.limits.MaxRecordBytes, &owned); e != nil {
-				return CommitPublication{}, e
+				return sessionPublication{}, e
 			}
 			publication.Tables = append(publication.Tables, owned)
 		}
@@ -594,13 +594,13 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 		if !record.Retired {
 			change.Value, e = copyObject(record.Value, t.limits)
 			if e != nil {
-				return CommitPublication{}, e
+				return sessionPublication{}, e
 			}
 		}
 		if plan := t.documentPlans[id]; plan != nil && !record.Retired {
 			change.Ops, e = ownOperations(plan.ops, t.limits)
 			if e != nil {
-				return CommitPublication{}, e
+				return sessionPublication{}, e
 			}
 		}
 		if _, exists := t.state.Documents[id]; !exists {
@@ -620,7 +620,7 @@ func (t *Tx) preparePublication(ctx context.Context) (CommitPublication, error) 
 // PublicationFrame is an exact adopted batch or an explicit resnapshot after
 // bounded backlog overflow. Snapshots are never raw pre-adoption state.
 type PublicationFrame struct {
-	Publication  CommitPublication
+	Publication  sessionPublication
 	Snapshot     *Snapshot
 	Context      context.Context
 	ready        <-chan struct{}
@@ -894,11 +894,11 @@ type preparedSubscription struct {
 	disableProjection bool // a published wrapper fallback invalidates this head
 }
 
-func (s *Session) prepareSubscriptions(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}) ([]preparedSubscription, error) {
+func (s *Session) prepareSubscriptions(ctx context.Context, publication sessionPublication, tx *Tx, ready <-chan struct{}) ([]preparedSubscription, error) {
 	return s.prepareSubscriptionKinds(ctx, publication, tx, ready, true, true)
 }
 
-func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication CommitPublication, tx *Tx, ready <-chan struct{}, memory, stored bool) ([]preparedSubscription, error) {
+func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication sessionPublication, tx *Tx, ready <-chan struct{}, memory, stored bool) ([]preparedSubscription, error) {
 	s.observerMu.Lock()
 	list := make([]*CommitSubscription, 0, len(s.subscriptions))
 	for p := range s.subscriptions {
@@ -940,7 +940,7 @@ func (s *Session) prepareSubscriptionKinds(ctx context.Context, publication Comm
 		if e != nil {
 			return nil, e
 		}
-		var copy CommitPublication
+		var copy sessionPublication
 		if e = decodeStrict(encoded, s.limits, s.limits.MaxRetainedBytesAsInt(), &copy); e != nil {
 			return nil, e
 		}

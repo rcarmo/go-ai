@@ -21,7 +21,7 @@ func TestMainSessionLocalMixedOwnChanges(t *testing.T) {
 				def, _ := mainDeferredLifecycleDefinitions(t)
 				var mu sync.Mutex
 				var local []sessionObservedCommit
-				var stored []CommitPublication
+				var stored []sessionPublication
 				detach, err := f.session.followSessionCommits(&sessionCommitListener{callback: func(_ context.Context, e sessionObservedCommit) error {
 					mu.Lock()
 					local = append(local, e)
@@ -33,7 +33,7 @@ func TestMainSessionLocalMixedOwnChanges(t *testing.T) {
 				}
 				defer detach()
 				arrived := make(chan struct{}, 4)
-				if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+				if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 					mu.Lock()
 					stored = append(stored, p)
 					mu.Unlock()

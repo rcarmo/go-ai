@@ -37,7 +37,7 @@ func TestMainSessionLocalListenerSetAndHostOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer detachLater()
-		if _, err = s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error { note("host"); return nil }, end: func(WatchEnd) error { return nil }}); err != nil {
+		if _, err = s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, sessionPublication) error { note("host"); return nil }, end: func(WatchEnd) error { return nil }}); err != nil {
 			t.Fatal(err)
 		}
 		if err = add(); err != nil {
@@ -77,7 +77,7 @@ func TestMainSessionLocalTimerNoDuplicate(t *testing.T) {
 		f := openMainDeadlineSession(t, b, nil)
 		var mu sync.Mutex
 		var kinds []string
-		var stored []CommitPublication
+		var stored []sessionPublication
 		detach, err := f.session.followSessionCommits(&sessionCommitListener{callback: func(_ context.Context, e sessionObservedCommit) error {
 			mu.Lock()
 			kinds = append(kinds, e.kind)
@@ -88,7 +88,7 @@ func TestMainSessionLocalTimerNoDuplicate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer detach()
-		if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p CommitPublication) error {
+		if _, err = f.session.observeStoredCommits(sessionCommitObserver{advance: func(_ context.Context, p sessionPublication) error {
 			mu.Lock()
 			stored = append(stored, p)
 			mu.Unlock()
@@ -153,7 +153,7 @@ func TestMainSessionLocalListenerFatalAfterPublication(t *testing.T) {
 					defer detach()
 				}
 				reports := 0
-				if _, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error { note("host"); return nil }, end: func(e WatchEnd) error { mu.Lock(); hostEnd = e; calls = append(calls, "end"); mu.Unlock(); return nil }, report: func(context.Context, error, ReportInfo) { mu.Lock(); reports++; mu.Unlock() }}); err != nil {
+				if _, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, sessionPublication) error { note("host"); return nil }, end: func(e WatchEnd) error { mu.Lock(); hostEnd = e; calls = append(calls, "end"); mu.Unlock(); return nil }, report: func(context.Context, error, ReportInfo) { mu.Lock(); reports++; mu.Unlock() }}); err != nil {
 					t.Fatal(err)
 				}
 				var err error
@@ -300,7 +300,7 @@ func TestMainSessionLocalListenerAdmissionAndClose(t *testing.T) {
 		if _, _, err = s.SubscribeCommits(bg); err == nil {
 			t.Fatal("legacy subscription exceeded shared capacity")
 		}
-		if _, err = s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error { return nil }, end: func(WatchEnd) error { return nil }}); err == nil {
+		if _, err = s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, sessionPublication) error { return nil }, end: func(WatchEnd) error { return nil }}); err == nil {
 			t.Fatal("stored observer exceeded shared capacity")
 		}
 		firstDetach()

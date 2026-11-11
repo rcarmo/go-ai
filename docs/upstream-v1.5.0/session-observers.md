@@ -1,5 +1,10 @@
 # Session observers at v1.5.0
 
+## Current public stored-observer integration
+
+Session/Harness ObserveCommits now dispatches canonical readonly seq/changes envelopes after internal observers and completed storage scopes. Guard membership is selected at dispatch, not preparation; detach/error/end reporting is isolated. Public tests cover canonical table/copy/retire metadata, adopted document identity, held storage/unload/close, and stored-before-waiter/abort ordering. Reference145 unchanged tests +24 probes pass. See [the integration receipt](../../notes/stored-commit-observers.md) for test-first failures, the explicit asynchronous Go scope completion boundary and remaining D04/D16 acceptance. The private-lane and older snapshot/watch receipts below are historical, not current API-absence claims.
+
+
 ## Current readonly document-observer slice
 
 Public `ObserveDefinition` returns sealed comparable readonly values and delivers `DocumentCall`. Source132 retirement identity now passes; its current literal scenario uses two separate commits, absent-address reattachment between them, count2/count9, and exact replacement operations. Concurrent observations share each adopted node, keep unchanged child identity and reuse an active revision on late attachment. Explicit Copy returns mutable data. Public callers were migrated; private trusted WatchFrame controls retain their narrower content adapter.

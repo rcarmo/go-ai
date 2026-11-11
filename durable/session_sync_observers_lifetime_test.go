@@ -14,7 +14,7 @@ func TestMainSyncCommitObserverReleaseAndSharedBounds(t *testing.T) {
 		if err := add(); err != nil {
 			t.Fatal(err)
 		}
-		observer := sessionCommitObserver{advance: func(context.Context, CommitPublication) error { return nil }, end: func(WatchEnd) error { return nil }, report: func(context.Context, error, ReportInfo) {}}
+		observer := sessionCommitObserver{advance: func(context.Context, sessionPublication) error { return nil }, end: func(WatchEnd) error { return nil }, report: func(context.Context, error, ReportInfo) {}}
 		var handles []*sessionCommitObservation
 		for i := 0; i < s.observerCapacity(); i++ {
 			handle, err := s.observeStoredCommits(observer)
@@ -40,7 +40,7 @@ func TestMainSyncCommitObserverReleaseAndSharedBounds(t *testing.T) {
 			t.Fatal("sync registration ignored legacy capacity")
 		}
 		legacy.Stop()
-		fault, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, CommitPublication) error { return errors.New("guarded error") }, end: observer.end, report: observer.report})
+		fault, err := s.observeStoredCommits(sessionCommitObserver{advance: func(context.Context, sessionPublication) error { return errors.New("guarded error") }, end: observer.end, report: observer.report})
 		if err != nil {
 			t.Fatal(err)
 		}

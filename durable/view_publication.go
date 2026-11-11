@@ -14,7 +14,7 @@ type conversationPublicationFrame struct {
 	err      error
 }
 
-func conversationPublicationRelevant(publication CommitPublication, id ID) bool {
+func conversationPublicationRelevant(publication sessionPublication, id ID) bool {
 	for _, change := range publication.Documents {
 		d := change.Record
 		if d.Scope == "conversation" && d.Owner == id && !d.Family && mountedKind(d.Kind) {
@@ -29,7 +29,7 @@ func conversationPublicationRelevant(publication CommitPublication, id ID) bool 
 	return false
 }
 
-func advanceConversationWindow(before ConversationViewCopy, publication CommitPublication, limits Limits, bounds conversationWindowBounds) (ConversationViewCopy, []Entry, int, error) {
+func advanceConversationWindow(before ConversationViewCopy, publication sessionPublication, limits Limits, bounds conversationWindowBounds) (ConversationViewCopy, []Entry, int, error) {
 	next, err := copyConversationView(before, limits)
 	if err != nil {
 		return ConversationViewCopy{}, nil, 0, err
@@ -142,7 +142,7 @@ func conversationWindowOperations(before, after JSON, appended []Entry, drop int
 // Session-line preparation must never advance the head or fail its transaction
 // because a listener's projection cannot be represented. Such errors are queued
 // for this watch only, behind the same post-publication readiness fence.
-func (w *ConversationWatch) preparePublication(ctx context.Context, publication CommitPublication, ready <-chan struct{}, shared ...map[ID]*ImmutableValue) *preparedSubscription {
+func (w *ConversationWatch) preparePublication(ctx context.Context, publication sessionPublication, ready <-chan struct{}, shared ...map[ID]*ImmutableValue) *preparedSubscription {
 	w.mu.Lock()
 	before, mounted, failed := w.head, w.incarnations, w.projectionErr
 	readonlyBefore := w.readonlyHead

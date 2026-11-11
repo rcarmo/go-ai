@@ -123,7 +123,7 @@ func TestMainTranscriptWindowOperationNativeBounds(t *testing.T) {
 			for i := 1; i <= 14; i++ {
 				before.Entries = append(before.Entries, Entry{ID: ID(i), Conversation: 100, Kind: "app.note", Value: JSON{"text": ""}})
 			}
-			publication := CommitPublication{}
+			publication := sessionPublication{}
 			for i := 15; i <= 17; i++ {
 				entry := Entry{ID: ID(i), Conversation: 100, Kind: "app.note", Value: JSON{"text": ""}}
 				if mode == "insert-record-bytes" {

@@ -121,7 +121,7 @@ func TestMainSyncCommitObserverGuardedListenerError(t *testing.T) {
 			info ReportInfo
 		}
 		if _, err := s.observeStoredCommits(sessionCommitObserver{
-			advance: func(context.Context, CommitPublication) error { mu.Lock(); thrown++; mu.Unlock(); panic(bug) },
+			advance: func(context.Context, sessionPublication) error { mu.Lock(); thrown++; mu.Unlock(); panic(bug) },
 			end:     func(end WatchEnd) error { mu.Lock(); defer mu.Unlock(); ends = append(ends, end); return nil },
 			report: func(_ context.Context, err error, info ReportInfo) {
 				mu.Lock()
@@ -180,7 +180,7 @@ func newMainSyncRecorder() *mainSyncRecorder {
 }
 func (r *mainSyncRecorder) observer() sessionCommitObserver {
 	return sessionCommitObserver{
-		advance: func(_ context.Context, p CommitPublication) error {
+		advance: func(_ context.Context, p sessionPublication) error {
 			r.mu.Lock()
 			r.calls = append(r.calls, mainSyncCall{seq: p.Seq})
 			r.mu.Unlock()
@@ -258,7 +258,7 @@ func TestMainSyncCommitObserverSeesAdoptionBeforeCommitReturns(t *testing.T) {
 	calls := 0
 	var callbackErr error
 	_, err = s.observeStoredCommits(sessionCommitObserver{
-		advance: func(_ context.Context, p CommitPublication) error {
+		advance: func(_ context.Context, p sessionPublication) error {
 			calls++
 			// These private reads avoid re-entering the Session line from its
 			// synchronous callback (which the native contract forbids).
@@ -318,7 +318,7 @@ func TestMainSyncCommitObserverSeparateCloseErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err = s.observeStoredCommits(sessionCommitObserver{
-			advance: func(context.Context, CommitPublication) error { return nil },
+			advance: func(context.Context, sessionPublication) error { return nil },
 			end: func(end WatchEnd) error {
 				ends = append(ends, end)
 				return nil

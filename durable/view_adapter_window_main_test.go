@@ -175,7 +175,7 @@ func TestMainTranscriptAdapterResetPreparation(t *testing.T) {
 					}
 				}
 				ready := make(chan struct{})
-				next, frame, size, err := watch.prepareAuthoritativeReset(bg, CommitPublication{}, state, ready)
+				next, frame, size, err := watch.prepareAuthoritativeReset(bg, sessionPublication{}, state, ready)
 				if err != nil {
 					t.Fatal(err)
 				}

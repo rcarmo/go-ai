@@ -28,7 +28,7 @@ func TestMainHarnessStoredObserverLifecycle(t *testing.T) {
 			var reports []error
 			bug := errors.New("listener bug")
 			observer, err := h.session.observeStoredCommits(sessionCommitObserver{
-				advance: func(_ context.Context, p CommitPublication) error {
+				advance: func(_ context.Context, p sessionPublication) error {
 					calls = append(calls, p.Seq)
 					if mode == "listener" {
 						return bug

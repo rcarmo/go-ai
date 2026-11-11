@@ -17,7 +17,7 @@ func conversationIncarnations(state Snapshot, conversation ID) map[string]conver
 	return result
 }
 
-func projectConversationDocuments(before ConversationViewCopy, mounted map[string]conversationIncarnation, publication CommitPublication, limits Limits) (map[string]JSON, map[string]conversationIncarnation, []Operation, error) {
+func projectConversationDocuments(before ConversationViewCopy, mounted map[string]conversationIncarnation, publication sessionPublication, limits Limits) (map[string]JSON, map[string]conversationIncarnation, []Operation, error) {
 	docs := make(map[string]JSON, len(before.Docs))
 	for kind, value := range before.Docs {
 		docs[kind] = value

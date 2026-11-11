@@ -206,7 +206,7 @@ func (o *sessionDocumentObservation) fail(ctx context.Context, observer sessionD
 
 // Each change is delivered separately. Recheck attachment on every iteration:
 // an earlier callback may detach this guard or a later captured guard.
-func (o *sessionDocumentObservation) advance(ctx context.Context, publication CommitPublication, shared ...[]ReadonlyValue) {
+func (o *sessionDocumentObservation) advance(ctx context.Context, publication sessionPublication, shared ...[]ReadonlyValue) {
 	ownerEnd := false
 	if o.address.Scope == "task" {
 		for _, write := range publication.Tables {

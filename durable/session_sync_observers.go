@@ -14,7 +14,7 @@ import (
 // and Harness reporting remain separate work. report is a fast private hook,
 // not the legacy/Harness reporter (whose off-line reentry is unchanged).
 type sessionCommitObserver struct {
-	advance func(context.Context, CommitPublication) error
+	advance func(context.Context, sessionPublication) error
 	end     func(WatchEnd) error
 	report  func(context.Context, error, ReportInfo)
 }
@@ -46,7 +46,7 @@ func (s *Session) observeStoredCommits(observer sessionCommitObserver) (*session
 }
 
 func (s *Session) observerProcessCountLocked() int {
-	return len(s.watches) + len(s.subscriptions) + len(s.syncCommitObservers) + len(s.localCommitListeners)
+	return len(s.commitObservers) + len(s.watches) + len(s.subscriptions) + len(s.syncCommitObservers) + len(s.localCommitListeners)
 }
 
 // Release before end, and retain no callback/report/source from a spent handle.
@@ -102,7 +102,7 @@ func endSessionCommitObserver(observer sessionCommitObserver, end WatchEnd) {
 		reportSessionCommitObserver(observer, context.Background(), err)
 	}
 }
-func (o *sessionCommitObservation) advance(ctx context.Context, publication CommitPublication) {
+func (o *sessionCommitObservation) advance(ctx context.Context, publication sessionPublication) {
 	o.mu.Lock()
 	observer, attached := o.observer, o.source != nil
 	o.mu.Unlock()
@@ -126,7 +126,7 @@ func (s *Session) storedCommitObservers() []*sessionCommitObservation {
 
 // Selection happens at publication, not preparation. Guards recheck detachment
 // at callback admission; a prior observer can detach a later captured guard.
-func (s *Session) publishStoredCommit(ctx context.Context, publication CommitPublication) {
+func (s *Session) publishStoredCommit(ctx context.Context, publication sessionPublication) {
 	for _, observer := range s.storedCommitObservers() {
 		observer.advance(context.WithoutCancel(ctx), publication)
 	}

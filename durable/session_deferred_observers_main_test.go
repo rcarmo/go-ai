@@ -20,10 +20,10 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 		old, _ := mainDeferredLifecycleDefinitions(t)
 		batches := mainDeferredLifecycleBatches(t, f.session)
 		var mu sync.Mutex
-		var published []CommitPublication
+		var published []sessionPublication
 		arrived := make(chan struct{}, 16)
 		if _, err := f.session.observeStoredCommits(sessionCommitObserver{
-			advance: func(_ context.Context, publication CommitPublication) error {
+			advance: func(_ context.Context, publication sessionPublication) error {
 				mu.Lock()
 				published = append(published, publication)
 				mu.Unlock()
@@ -73,7 +73,7 @@ func TestMainSessionDeferredStoredObserverOracle(t *testing.T) {
 			t.Fatal(err)
 		}
 		mu.Lock()
-		publications := append([]CommitPublication(nil), published...)
+		publications := append([]sessionPublication(nil), published...)
 		mu.Unlock()
 		stored := batches()
 		if len(publications) != len(stored) {

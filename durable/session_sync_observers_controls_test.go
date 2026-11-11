@@ -20,7 +20,7 @@ func TestMainSyncCommitObserverOrderAndDetachLater(t *testing.T) {
 		var later *sessionCommitObservation
 		for _, name := range []string{"first", "later", "last"} {
 			observation, err := s.observeStoredCommits(sessionCommitObserver{
-				advance: func(context.Context, CommitPublication) error {
+				advance: func(context.Context, sessionPublication) error {
 					record(name)
 					if name == "first" {
 						later.detach()
@@ -72,7 +72,7 @@ func TestMainSyncCommitObserverFaultContainment(t *testing.T) {
 				record := func(call string) { mu.Lock(); calls = append(calls, call); mu.Unlock() }
 				var observation *sessionCommitObservation
 				observer := sessionCommitObserver{
-					advance: func(context.Context, CommitPublication) error {
+					advance: func(context.Context, sessionPublication) error {
 						record("advance")
 						if mode == "close-end-panic" {
 							return nil

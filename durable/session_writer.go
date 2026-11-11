@@ -44,7 +44,8 @@ type sessionWriterHost struct {
 	report     func(error, context.Context)
 	// Host-controlled publication turn boundary. Go has no JS macrotasks;
 	// Session integration must explicitly establish continuation ordering here.
-	hop func()
+	hop              func()
+	afterPublication func() // host dispatch phase before outcomes/waits
 }
 type sessionWriter struct {
 	host        sessionWriterHost
@@ -222,6 +223,9 @@ func (w *sessionWriter) publish(parts []*sessionWriterPart, receipts map[int]com
 		})
 		if done != nil {
 			<-done
+		}
+		if w.host.afterPublication != nil {
+			w.host.afterPublication()
 		}
 		if outside != nil {
 			stop, at, external = outside, p.spec.index, true

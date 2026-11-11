@@ -33,7 +33,7 @@ type readonlyDocumentRevision struct {
 	bytes int64
 }
 
-func (s *Session) prepareReadonlyDocuments(tx *Tx, publication CommitPublication) error {
+func (s *Session) prepareReadonlyDocuments(tx *Tx, publication sessionPublication) error {
 	tx.readonlyDocuments = map[ID]readonlyDocumentRevision{}
 	for _, change := range publication.Documents {
 		if change.Record.Retired {

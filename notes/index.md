@@ -26,6 +26,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Cold builtin hydration](cold-builtin-hydration.md) — pinned definitions, canonical LiveDoc v3
   reads/writes, idempotent initialization and source-verified migration/identity regressions.
 
+- [Public stored-commit observers](stored-commit-observers.md) — canonical readonly changes,
+  explicit host dispatch turns, late membership, storage scope completion and waiter/abort controls.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

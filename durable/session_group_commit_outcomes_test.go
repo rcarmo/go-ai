@@ -617,10 +617,10 @@ func TestMainSessionSQLiteConfirmedRollbackLatches(t *testing.T) {
 	if err := appendNote("p04-sqlite-kept"); err != nil {
 		t.Fatalf("earlier commit: %v", err)
 	}
-	advances := make(chan CommitPublication, 1)
+	advances := make(chan sessionPublication, 1)
 	endings := make(chan WatchEnd, 1)
 	if _, err := s.observeStoredCommits(sessionCommitObserver{
-		advance: func(_ context.Context, value CommitPublication) error {
+		advance: func(_ context.Context, value sessionPublication) error {
 			advances <- value
 			return nil
 		},

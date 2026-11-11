@@ -5,7 +5,7 @@ import "context"
 // Adapter recovery retains the publication-time window shape, but reads every
 // retained entry/document body from the authoritative candidate. This head is
 // bookkeeping only: it never enables exact-native delta projection.
-func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publication CommitPublication, state Snapshot, ready <-chan struct{}) (ConversationViewCopy, PublicationFrame, int64, error) {
+func (w *ConversationWatch) prepareAuthoritativeReset(ctx context.Context, publication sessionPublication, state Snapshot, ready <-chan struct{}) (ConversationViewCopy, PublicationFrame, int64, error) {
 	w.mu.Lock()
 	before := w.head
 	w.mu.Unlock()

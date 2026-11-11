@@ -259,3 +259,107 @@ it("initializes the builtin live/inbox/usage documents idempotently at their pin
  expect(await session.snapshot(LiveDoc,conversation.id,context)).toEqual({});
  await session.close(context);
 });
+
+it("dispatches canonical stored changes after own observers and selects host membership at dispatch",async()=>{
+ const storage=new ControlledStorage(),session=new SessionImpl(storage,Date.now,()=>600000);
+ const Doc=defineDoc({kind:"oracle.commit.public",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ const order:string[]=[],seen:any[]=[];let late:any;
+ const first=session.observeCommits({advance:()=>order.push("first"),end:()=>{}});
+ const unfollow=session.followCommits(()=>{order.push("own");first.detach();late??=session.observeCommits({advance:p=>{order.push("late");seen.push(p)},end:()=>order.push("end")})});
+ await session.commit(async tx=>{await tx.doc(Doc)},context);
+ expect(order).toEqual(["own","late"]);expect(seen).toHaveLength(1);
+ const change=seen[0].changes[0];expect(change).toEqual({type:"document",kind:"change",record:{id:expect.any(Number),kind:"oracle.commit.public",createdAt:seen[0].seq,scope:{kind:"session"}},conversationId:undefined,version:1,value:{n:0},ops:[]});
+ expect(change.value).toBe(await session.snapshot(Doc,context));
+ unfollow();late.detach();await session.close(context);expect(order).toEqual(["own","late"]);
+});
+
+it("selects stored observers after a synchronous storage scope and never queues a publication with no hosts",async()=>{
+ for(const interested of [false,true]){
+  const storage=new ControlledStorage(),session=new SessionImpl(storage,Date.now,()=>600000);
+  const order:string[]=[];let first:any,late:any;
+  if(interested)first=session.observeCommits({advance:()=>order.push("first"),end:()=>{}});
+  (storage as any).publishing=(publish:()=>void)=>{order.push("scope-open");publish();order.push("scope-close");first?.detach();late=session.observeCommits({advance:()=>order.push("late"),end:()=>{}})};
+  const Doc=defineDoc({kind:"oracle.scope.members",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(Doc)},context);
+  expect(order).toEqual(interested?["scope-open","scope-close","late"]:["scope-open","scope-close"]);
+  late.detach();await session.close(context);
+ }
+});
+
+it("dispatches after a deferred storage scope's synchronous turn has finished",async()=>{
+ const storage=new ControlledStorage(),session=new SessionImpl(storage,Date.now,()=>600000);
+ const entered=Promise.withResolvers<()=>void>(),order:string[]=[];let late:any;
+ const first=session.observeCommits({advance:()=>order.push("first"),end:()=>{}});
+ (storage as any).publishing=(publish:()=>void)=>entered.resolve(()=>{order.push("open");publish();order.push("close");first.detach();late=session.observeCommits({advance:()=>order.push("late"),end:()=>{}})});
+ const Doc=defineDoc({kind:"oracle.scope.deferred",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ const writing=session.commit(async tx=>{await tx.doc(Doc)},context);
+ const finish=await entered.promise;expect(order).toEqual([]);finish();await writing;
+ expect(order).toEqual(["open","close","late"]);late.detach();await session.close(context);
+});
+
+it("publishes canonical conversation, entry, task and submission records together",async()=>{
+ const {defineTask}=await import("@earendil-works/pi-durable");
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000),seen:any[]=[];
+ const Work=defineTask({name:"oracle.public.task",version:1,initial:()=>({phase:"run"}),phases:{run:async()=>{}},abort:async()=>{}});
+ const guard=session.observeCommits({advance:p=>seen.push(p),end:()=>{}});
+ const ids=await session.commit(async tx=>{
+  const conversation=await tx.createConversation({ownership:{kind:"ownerless"}});
+  const entry=await tx.appendEntry(conversation.id,{kind:"note",data:{n:1}});
+  const task=await tx.createTask(Work,null,{conversationId:conversation.id,ownership:{kind:"conversation"}});
+  const submission=await tx.createSubmission({conversationId:conversation.id,type:"write",status:"queued",requestId:""});
+  return {conversation:conversation.id,entry:entry.id,task,submission:submission.id};
+ },context);
+ expect(seen).toHaveLength(1);const byType=Object.fromEntries(seen[0].changes.map((change:any)=>[change.type,change.value]));
+ expect(byType).toEqual({conversation:{id:ids.conversation},entry:{id:ids.entry,conversationId:ids.conversation,kind:"note",data:{n:1}},task:{id:ids.task,conversationId:ids.conversation,kind:"oracle.public.task",version:1,input:null,background:false,abortRequested:false,state:{status:"pending",checkpoint:{phase:"run"}}},submission:{id:ids.submission,conversationId:ids.conversation,type:"write",status:"queued",requestId:""}});
+ guard.detach();await session.close(context);
+});
+
+it("publishes definition-free document copies and retirement metadata without native payloads",async()=>{
+ const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ const Doc=defineDoc({kind:"oracle.public.copy",scope:"conversation",history:"rewindable",fork:"asOf",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+ const parent=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const entry=await session.commit(async tx=>{await tx.doc(Doc,parent.id);return tx.appendEntry(parent.id,{kind:"note"})},context);
+ const seen:any[]=[];const guard=session.observeCommits({advance:p=>seen.push(p),end:()=>{}});
+ const child=await session.commit(tx=>tx.forkConversation(parent.id,entry.id,{ownership:{kind:"ownerless"}}),context);
+ const copy=seen[0].changes.find((c:any)=>c.type==="document.copy");expect(copy).toBeDefined();expect(Object.keys(copy).sort()).toEqual(["conversationId","record","source","type"]);expect(copy.conversationId).toBe(child.id);expect(copy.source.at).toBe(seen[0].seq-1);
+ await session.commit(tx=>tx.retireDoc(Doc,parent.id),context);
+ const retired=seen[1].changes.find((c:any)=>c.type==="document");expect(Object.keys(retired).sort()).toEqual(["conversationId","kind","record","type"]);expect(retired.kind).toBe("retire");expect(retired.record.retiredAt).toBe(seen[1].seq);
+ guard.detach();await session.close(context);
+});
+
+it("publishes held document changes only when stored, reusing the adopted value before its close ending",async()=>{
+ for(const finish of ["read","unload","close"]){
+  const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+  const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+  const Doc=defineDoc({kind:"oracle.public.held",scope:"conversation",history:"latest",fork:"initial",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(Doc,conversation.id)},context);
+  const seen:any[]=[],order:string[]=[];const guard=session.observeCommits({advance:p=>{seen.push(p);order.push("stored")},end:()=>order.push("end")});
+  await session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).n=1},context,{persistence:{kind:"deferred",withinMs:Infinity}});
+  const value=await session.snapshot(Doc,conversation.id,context);expect(seen).toHaveLength(0);
+  if(finish==="read")await session.commit(async tx=>{await tx.doc(Doc,conversation.id);await tx.appendEntry(conversation.id,{kind:"note"})},context);else if(finish==="unload")await session.unloadDocuments();else await session.close(context);
+  expect(seen,finish).toHaveLength(1);const change=seen[0].changes.find((c:any)=>c.type==="document");expect(change.value).toBe(value);expect(change.ops).toEqual([["s",["n"],1]]);
+  expect(order).toEqual(finish==="close"?["stored","end"]:["stored"]);
+  guard.detach();await session.close(context);
+ }
+});
+
+it("dispatches a terminal stored task before the task waiter continuation",async()=>{
+ const {defineTask}=await import("@earendil-works/pi-durable");const {openTasks,completed}=await import("@pinned/tasks");
+ const entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>(),order:string[]=[];
+ const Work=defineTask({name:"oracle.public.wait",version:1,initial:()=>({phase:"run"}),phases:{run:async(_task:any,runtime:any,ctx:any)=>{entered.resolve();await release.promise;await runtime.commit(()=>completed(null),ctx)}},abort:async()=>{}});
+ const {harness}=await openTasks(new ControlledStorage(),[Work]);const root=await harness.root(context);
+ const id=await root.commit(tx=>tx.createTask(Work,null,{ownership:{kind:"conversation"}}),context);
+ const guard=harness.observeCommits({advance:p=>{if(p.changes.some(c=>c.type==="task"&&c.value.id===id&&c.value.state.status==="terminal"))order.push("stored")},end:()=>{}});
+ const waiting=harness.waitForTask(id,context).then(()=>order.push("wait"));await entered.promise;release.resolve();await waiting;
+ expect(order).toEqual(["stored","wait"]);guard.detach();await harness.close(context);
+});
+
+it("dispatches the stored abort request before the invocation's abort signal",async()=>{
+ const {defineTask}=await import("@earendil-works/pi-durable");const {openTasks,aborted}=await import("@pinned/tasks");
+ const entered=Promise.withResolvers<void>(),stopped=Promise.withResolvers<void>(),order:string[]=[];
+ const Work=defineTask({name:"oracle.public.abort",version:1,initial:()=>({phase:"run"}),phases:{run:async(_task:any,_runtime:any,ctx:any)=>{entered.resolve();await new Promise<void>(resolve=>ctx.abortSignal.addEventListener("abort",()=>{order.push("signal");stopped.resolve();resolve()},{once:true}))}},abort:async(_task:any,runtime:any,ctx:any)=>{await runtime.commit(()=>aborted("test"),ctx)}});
+ const {harness}=await openTasks(new ControlledStorage(),[Work]);const root=await harness.root(context);const id=await root.commit(tx=>tx.createTask(Work,null,{ownership:{kind:"conversation"}}),context);
+ const guard=harness.observeCommits({advance:p=>{if(p.changes.some(c=>c.type==="task"&&c.value.id===id&&c.value.abortRequested))order.push("stored-abort")},end:()=>{}});
+ harness.resume();await entered.promise;await harness.abortTask(id,context);await stopped.promise;
+ expect(order.indexOf("stored-abort")).toBeGreaterThanOrEqual(0);expect(order.indexOf("signal")).toBeGreaterThan(order.indexOf("stored-abort"));guard.detach();await harness.close(context);
+});
