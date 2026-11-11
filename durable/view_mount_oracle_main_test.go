@@ -42,7 +42,7 @@ func TestMainViewUpstreamMountOracles(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						live, err := tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.ID(), Kind: "pi.live", Version: 1, Value: JSON{}})
+						live, err := tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: c.ID(), Kind: "pi.live", Version: 3, Value: JSON{}})
 						if err != nil {
 							return err
 						}

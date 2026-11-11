@@ -736,6 +736,9 @@ func contextReceipts(s Snapshot, id ID, l Limits) ([]messageReceipt, error) {
 }
 
 func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
+	if kind == "pi.live" {
+		return tx.AcquireDocument(mountedDocumentDefinitions[1], conversation, nil, nil)
+	}
 	for _, d := range tx.state.Documents {
 		if !d.Retired && d.Scope == "conversation" && d.Owner == conversation && d.Kind == kind && d.Key == "" {
 			return tx.Document(d.ID)
@@ -757,40 +760,14 @@ func builtin(tx *Tx, conversation ID, kind string) (*DocumentHandle, error) {
 	return nil, reject("builtin document missing")
 }
 func initializeBuiltins(tx *Tx, conversation ID) error {
-	for _, v := range []struct {
-		kind  string
-		value JSON
-	}{{"pi.live", JSON{}}, {"pi.inbox", JSON{"items": []any{}}}, {"pi.usage", JSON{"models": JSON{}, "tools": JSON{}}}} {
-		if tx.session != nil && tx.session.taskScheduler != nil {
-			found := false
-			for _, doc := range tx.state.Documents {
-				if doc.Scope == "conversation" && doc.Owner == conversation && doc.Kind == v.kind && !doc.Retired {
-					found = true
-					break
-				}
+	// Source tx.doc() acquires these addresses: it never creates duplicate
+	// incarnations and stores a required old-version migration base on write.
+	for _, definition := range mountedDocumentDefinitions {
+		switch definition.options.Kind {
+		case "pi.live", "pi.inbox", "pi.usage":
+			if _, err := tx.AcquireDocument(definition, conversation, nil, nil); err != nil {
+				return err
 			}
-			if !found && len(tx.writes) > 0 {
-				candidate, err := tx.current()
-				if err != nil {
-					return err
-				}
-				for _, doc := range candidate.Documents {
-					if doc.Scope == "conversation" && doc.Owner == conversation && doc.Kind == v.kind && !doc.Retired {
-						found = true
-						break
-					}
-				}
-			}
-			if found {
-				continue
-			}
-		}
-		id, e := tx.MintID()
-		if e != nil {
-			return e
-		}
-		if _, e = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: conversation, Kind: v.kind, Version: 1, Value: v.value}); e != nil {
-			return e
 		}
 	}
 	if tx.session != nil && tx.session.taskScheduler != nil {

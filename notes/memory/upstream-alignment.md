@@ -16,6 +16,6 @@ These preferences do not authorise deleting data or published assets, touching u
 - Current deviations/obligations: docs/upstream-v1.5.0/.
 - Latest committed runtime checkpoint before this note: fdf1ce46c7c48efac236fa955218cb28a1245705.
 - Writer is installed; the old memory entry saying otherwise was stale and has been corrected.
-- Current cold-builtin hydration work is uncommitted: independent source probes15/145 unchanged tests pass; native cold tracker and LiveDoc v1/v2→v3 mount regressions failed before implementation and now pass, plus the view/watch/observer/builtin slice. Full/static verification and remaining builtin writer/migration acceptance are not yet complete.
+- Cold-builtin hydration and canonical LiveDoc v3 runtime acquisition now pass full durable389.642s/tools18.465s and repository-wide static gates. Independent reference coverage is145 unchanged tests +16 probes. See notes/cold-builtin-hydration.md for failures, fixtures and remaining acceptance; do not treat this as full parity.
 - D04 continuation-turn bridge and D16 canonical public stored observation remain open. Do not replace them with private synchronous guards, sleeps or Gosched.
 - Details: notes/readonly-document-watches.md; current user-editable Plan is the ongoing work checklist.

@@ -144,8 +144,15 @@ func (c *ConversationHandle) attachWatch(ctx context.Context, observation *ViewO
 		if err != nil {
 			return err
 		}
-		frozen = c.h.session.shareConversationDocuments(frozen, state)
-		watch = &ConversationWatch{readonlyCurrent: frozen, readonlyHead: frozen, current: value, head: value, incarnations: conversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
+		frozen, err = c.h.session.shareConversationDocuments(frozen, state)
+		if err != nil {
+			return err
+		}
+		value.Docs = map[string]JSON{}
+		for kind, body := range frozen.Docs.Copy().(map[string]any) {
+			value.Docs[kind] = JSON(body.(map[string]any))
+		}
+		watch = &ConversationWatch{readonlyCurrent: frozen, readonlyHead: frozen, current: value, head: value, incarnations: mountedConversationIncarnations(state, c.id), sub: p, limits: c.h.session.limits, window: bounds, projectionDisabled: !c.h.session.hasNativeReadImage()}
 		if err := contextError(ctx); err != nil {
 			return err
 		}

@@ -33,6 +33,7 @@ const aliases = [
   ["@pinned/support", join(durable, "test/session-support.ts")],
   ["@pinned/tasks", join(durable, "test/task-support.ts")],
   ["@pinned/chat", join(durable, "test/chat-support.ts")],
+  ["@pinned/views", join(durable,"src/harness/view.ts")],
   ["vitest", join(vitest, "dist/index.js")],
 ].map(([name, replacement]) => ({ find: name, replacement }));
 try {

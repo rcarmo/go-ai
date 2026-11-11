@@ -75,3 +75,14 @@ func projectConversationDocuments(before ConversationViewCopy, mounted map[strin
 	}
 	return docs, incarnations, ops, nil
 }
+
+func mountedConversationIncarnations(state Snapshot, id ID) map[string]conversationIncarnation {
+	result := conversationIncarnations(state, id)
+	for _, definition := range mountedDocumentDefinitions {
+		if incarnation, ok := result[definition.options.Kind]; ok {
+			incarnation.version = definition.options.Version
+			result[definition.options.Kind] = incarnation
+		}
+	}
+	return result
+}

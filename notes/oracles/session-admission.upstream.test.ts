@@ -215,3 +215,47 @@ it("retains Error cancellation identity at document attachment but ignores cance
  expect(await session.snapshot(Doc,cancelled)).toBe(before);
  await session.close(context);
 });
+
+it("hydrates cold builtin trackers for a mount without creating documents or storing migrations",async()=>{
+ const {AgentDoc,LiveDoc,InboxDoc,ProviderDoc,UsageDoc,MemoryStorage}=await import("@earendil-works/pi-durable");
+ const {openChat,chatSetup}=await import("@pinned/chat");
+ const {harness,root}=await openChat(new MemoryStorage(),chatSetup());
+ await (harness as any).unloadDocuments();
+ const watch=await root.watch(context);
+ for(const token of [AgentDoc,LiveDoc,InboxDoc,ProviderDoc,UsageDoc]){
+  const value=await harness.snapshot(token,root.id,context);
+  expect(watch.value.docs[token.definition.kind]).toBe(value);
+ }
+ await watch.stop();await harness.close(context);
+});
+
+it("hydrates a legacy live mount with the pinned version3 migration without storing it",async()=>{
+ const {LiveDoc}=await import("@earendil-works/pi-durable");const {ConversationViews}=await import("@pinned/views");
+ for(const version of [1,2]){
+  const storage=new ControlledStorage(),session=new SessionImpl(storage,Date.now,()=>600000);
+  const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+  const old=defineDoc({kind:"pi.live",version,scope:"conversation",history:"latest",fork:"initial",initial:()=>({run:{taskId:7,inputs:[],turns:version===1?1e30:"old"},compactions:[{taskId:9,reason:"manual",attempt:1}],compactionFailure:{taskId:9,reason:"threshold",error:"old"}}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(old,conversation.id)},context);await session.unloadDocuments();
+  const stored=storage.commits.length;
+  const watch=await new ConversationViews(session).watch(conversation.id,context);
+  const expected={run:{taskId:7,inputs:[],turns:version===1?1e30:0},compactions:[{taskId:9,trigger:"manual",attempt:1}],compactionFailure:{taskId:9,trigger:"threshold",error:"old"}};
+  expect(watch.value.docs["pi.live"]).toEqual(expected);
+  expect(await session.snapshot(LiveDoc,conversation.id,context)).toBe(watch.value.docs["pi.live"]);
+  expect(storage.commits).toHaveLength(stored);
+  await session.commit(async tx=>{await tx.doc(LiveDoc,conversation.id)},context);
+  expect(storage.commits).toHaveLength(stored+1);
+  expect(await session.snapshot(LiveDoc,conversation.id,context)).toBe(watch.value.docs["pi.live"]);
+  await watch.stop();await session.close(context);
+ }
+});
+
+it("initializes the builtin live/inbox/usage documents idempotently at their pinned versions",async()=>{
+ const {LiveDoc,InboxDoc,UsageDoc}=await import("@earendil-works/pi-durable");
+ const storage=new ControlledStorage(),session=new SessionImpl(storage,Date.now,()=>600000);
+ const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const initialize=()=>session.commit(async tx=>{for(const token of [LiveDoc,InboxDoc,UsageDoc])await tx.doc(token,conversation.id)},context);
+ await initialize();const count=storage.commits.length;
+ await initialize();expect(storage.commits).toHaveLength(count);
+ expect(await session.snapshot(LiveDoc,conversation.id,context)).toEqual({});
+ await session.close(context);
+});

@@ -367,8 +367,12 @@ func TestM1bCommittedBuiltinsQueueAndUsage(t *testing.T) {
 				found = d
 			}
 		}
-		if found.ID == 0 || found.Version != 1 {
-			t.Fatal("builtinmissing", kind)
+		version := uint64(1)
+		if kind == "pi.live" {
+			version = 3
+		} // pinned LiveDoc, not the former native v1
+		if found.ID == 0 || found.Version != version {
+			t.Fatal("builtin missing or wrong version", kind, found.Version)
 		}
 		switch kind {
 		case "pi.live":

@@ -97,7 +97,7 @@ func TestMainConversationDocumentOperationTuples(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 1, Value: initial.Docs["pi.live"]})
+						_, err = tx.CreateDocument(Document{ID: id, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 3, Value: initial.Docs["pi.live"]})
 						return err
 					case "version-equal":
 						record, err := live.record()
@@ -191,7 +191,7 @@ func TestMainConversationDocumentOlderReplacementID(t *testing.T) {
 			if err = old.Retire(); err != nil {
 				return err
 			}
-			_, err = tx.CreateDocument(Document{ID: reserved, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 1, Value: JSON{"detail": "new"}})
+			_, err = tx.CreateDocument(Document{ID: reserved, Scope: "conversation", Owner: 1, Kind: "pi.live", Version: 3, Value: JSON{"detail": "new"}})
 			return err
 		}); err != nil {
 			t.Fatal(err)

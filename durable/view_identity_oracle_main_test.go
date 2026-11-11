@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	goai "github.com/rcarmo/go-ai"
 	"reflect"
 	"testing"
@@ -746,4 +748,152 @@ func TestMainViewMountedAgentBorrowsLoadedRevisionThenReplaysIndependently(t *te
 			t.Fatal("unchanged mounted builtin lost identity")
 		}
 	})
+}
+
+func TestMainViewColdBuiltinTrackersShareSnapshotIdentity(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		if err := c.Configure(bg, AgentChange{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.session.UnloadDocuments(bg); err != nil {
+			t.Fatal(err)
+		}
+		baseline, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		watch, err := c.Watch(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer watch.Stop()
+		initial, err := watch.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, kind := range []string{"pi.agent", "pi.live", "pi.inbox", "pi.provider", "pi.usage"} {
+			history, fork, version := "latest", "initial", uint64(1)
+			if kind == "pi.agent" {
+				history, fork = "rewindable", "asOf"
+			}
+			if kind == "pi.live" {
+				version = 3
+			}
+			def, err := DefineDocument(DefinitionOptions{Kind: kind, Scope: "conversation", Version: version, History: history, Fork: fork, Initial: func(JSON) (JSON, error) { return JSON{}, nil }, Migrate: func(v JSON, _ uint64) (JSON, error) { return v, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return true, nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, found, err := c.SnapshotDefinition(bg, def, nil)
+			if err != nil || !found {
+				t.Fatal(kind, found, err)
+			}
+			if immutableViewMember(t, initial.Docs, kind) != value {
+				t.Error("cold mount did not load shared tracker", kind)
+			}
+		}
+		after, err := h.Snapshot(bg)
+		if err != nil || after.Seq != baseline.Seq || len(after.Documents) != len(baseline.Documents) {
+			t.Fatal("mount wrote or created documents", err)
+		}
+	})
+}
+func TestMainViewHydratesLegacyLiveVersionThreeWithoutStorage(t *testing.T) {
+	for _, version := range []uint64{1, 2} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+				h := openHarness(t, b.store, Options{})
+				c, err := h.Conversation(bg, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				turns, wantTurns := any("old"), any(0)
+				if version == 1 {
+					turns, wantTurns = json.Number("1e30"), json.Number("1e30")
+				}
+				legacy := JSON{"run": JSON{"taskId": 7, "inputs": []any{}, "turns": turns}, "compactions": []any{JSON{"taskId": 9, "reason": "manual", "attempt": 1}}, "compactionFailure": JSON{"taskId": 9, "reason": "threshold", "error": "old"}}
+				if _, err := h.session.Commit(bg, func(tx *Tx) error {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					_, err = tx.CreateDocument(Document{ID: id, Kind: "pi.live", Scope: "conversation", Owner: 1, Version: version, History: "latest", Fork: "initial", Value: legacy})
+					return err
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.session.UnloadDocuments(bg); err != nil {
+					t.Fatal(err)
+				}
+				before, err := h.Snapshot(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				w, err := c.Watch(bg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer w.Stop()
+				value, err := w.Value()
+				if err != nil {
+					t.Fatal(err)
+				}
+				expected := JSON{"run": JSON{"taskId": 7, "inputs": []any{}, "turns": wantTurns}, "compactions": []any{JSON{"taskId": 9, "trigger": "manual", "attempt": 1}}, "compactionFailure": JSON{"taskId": 9, "trigger": "threshold", "error": "old"}}
+				if !equalJSONValue(immutableViewMember(t, value.Docs, "pi.live").Copy(), expected) {
+					t.Fatal("mount ignored pinned live migration", immutableViewMember(t, value.Docs, "pi.live").Copy())
+				}
+				after, err := h.Snapshot(bg)
+				if err != nil || after.Seq != before.Seq {
+					t.Fatal("migration stored during mount", err)
+				}
+				if _, err := h.session.Commit(bg, func(tx *Tx) error { _, err := builtin(tx, c.ID(), "pi.live"); return err }); err != nil {
+					t.Fatal(err)
+				}
+				stored, err := h.Snapshot(bg)
+				if err != nil || stored.Seq != before.Seq+1 {
+					t.Fatal("required migration base was not stored once", err)
+				}
+				for _, record := range stored.Documents {
+					if record.Kind == "pi.live" && (record.Version != 3 || !equalJSONValue(record.Value, expected)) {
+						t.Fatal("builtin write retained obsolete live shape/version", record)
+					}
+				}
+			})
+		})
+	}
+}
+
+// The same definition used by cold mounts must govern builtin writes. This is
+// a port, not a v1-native compatibility path beside the pinned LiveDoc v3.
+func TestMainBuiltinLiveWritesUsePinnedVersion(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		h, c := transcriptFixture(t, b)
+		state, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, doc := range state.Documents {
+			if doc.Kind == "pi.live" && doc.Owner == c.ID() && doc.Version != 3 {
+				t.Errorf("new live document version=%d want3", doc.Version)
+			}
+		}
+	})
+}
+
+func TestMainBuiltinInitializationIsIdempotent(t *testing.T) {
+	s := gatedSession(t)
+	if _, err := s.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		t.Fatal("second builtin acquisition rejected", err)
+	}
+	after, err := s.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq || len(after.Documents) != len(before.Documents) {
+		t.Fatal("second initialization wrote", err)
+	}
 }
