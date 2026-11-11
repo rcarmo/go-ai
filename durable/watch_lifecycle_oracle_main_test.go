@@ -27,12 +27,12 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 				def := upstreamWatchDefinition(t, s, initial)
 				w := watchAcquire(t, s, def)
 				defer w.Stop()
-				calls := make(chan WatchFrame, 4)
+				calls := make(chan rawWatchFrame, 4)
 				gate := make(chan struct{})
 				var release sync.Once
 				defer release.Do(func() { close(gate) })
 				ended := make(chan struct{}, 1)
-				listener := func(_ context.Context, f WatchFrame) error {
+				listener := func(_ context.Context, f rawWatchFrame) error {
 					calls <- f
 					if mode == "inflight" && f.Value["text"] == "a" {
 						<-gate
@@ -44,11 +44,11 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 					upstreamWatchApply(t, s, def, []Operation{{"s", []any{"n"}, 1}})
 					upstreamWatchApply(t, s, def, []Operation{{"s", []any{"n"}, 2}, {"a", []any{"text"}, "a"}})
 					upstreamWatchApply(t, s, def, []Operation{{"a", []any{"text"}, "b"}})
-					value, err := w.Value()
+					value, err := detachedDocumentWatchValue(w)
 					if err != nil || !upstreamWatchEqual(t, value, initial) {
 						t.Fatal("acquisition value", value, err)
 					}
-					if err = w.StartFrame(listener); err != nil {
+					if err = startDetachedDocumentFrames(w, listener); err != nil {
 						t.Fatal(err)
 					}
 					f := watchReceive(t, calls)
@@ -57,7 +57,7 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 					}
 					assertConversationOperations(t, f.Ops, []Operation{{"s", []any{"n"}, 2}, {"a", []any{"text"}, "ab"}}, s.limits)
 				} else {
-					if err := w.StartFrame(listener); err != nil {
+					if err := startDetachedDocumentFrames(w, listener); err != nil {
 						t.Fatal(err)
 					}
 					upstreamWatchApply(t, s, def, []Operation{{"a", []any{"text"}, "a"}})
@@ -85,7 +85,7 @@ func TestMainWatchUpstreamValueOracles(t *testing.T) {
 					}
 					assertConversationOperations(t, second.Ops, []Operation{{"a", []any{"text"}, "bc"}}, s.limits)
 				}
-				value, err := w.Value()
+				value, err := detachedDocumentWatchValue(w)
 				want := JSON{"text": "abc"}
 				if mode == "acquisition" {
 					want = JSON{"n": 2, "text": "ab"}
@@ -121,9 +121,9 @@ func TestMainWatchUpstreamLifecycleOracles(t *testing.T) {
 				gate := make(chan struct{})
 				var release sync.Once
 				defer release.Do(func() { close(gate) })
-				calls := make(chan WatchFrame, 4)
+				calls := make(chan rawWatchFrame, 4)
 				returned := make(chan struct{})
-				if err := w.StartFrame(func(ctx context.Context, f WatchFrame) error {
+				if err := startDetachedDocumentFrames(w, func(ctx context.Context, f rawWatchFrame) error {
 					calls <- f
 					<-gate
 					if ctx.Err() != nil {
@@ -137,7 +137,7 @@ func TestMainWatchUpstreamLifecycleOracles(t *testing.T) {
 				}); err != nil {
 					t.Fatal(err)
 				}
-				if err := w.StartFrame(func(context.Context, WatchFrame) error { return nil }); err == nil {
+				if err := startDetachedDocumentFrames(w, func(context.Context, rawWatchFrame) error { return nil }); err == nil {
 					t.Fatal("repeated start accepted")
 				}
 				upstreamWatchApply(t, s, def, []Operation{{"r", map[string]any{"n": 1}}})
@@ -185,12 +185,12 @@ func TestMainWatchUpstreamLifecycleOracles(t *testing.T) {
 				if attached {
 					t.Fatal("watch not detached")
 				}
-				if err := w.StartFrame(func(context.Context, WatchFrame) error { return nil }); !errors.Is(err, ErrClosed) {
+				if err := startDetachedDocumentFrames(w, func(context.Context, rawWatchFrame) error { return nil }); !errors.Is(err, ErrClosed) {
 					t.Fatal("late start", err)
 				}
 				late := watchAcquire(t, s, def)
 				late.Stop()
-				if err := late.StartFrame(func(context.Context, WatchFrame) error { return nil }); !errors.Is(err, ErrClosed) {
+				if err := startDetachedDocumentFrames(late, func(context.Context, rawWatchFrame) error { return nil }); !errors.Is(err, ErrClosed) {
 					t.Fatal("unstarted late start", err)
 				}
 			})

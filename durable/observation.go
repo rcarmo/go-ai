@@ -26,9 +26,19 @@ type WatchEnd struct {
 	Error  error
 }
 
-// WatchFrame is a detached value delivery. Retirement retains the preceding
+// WatchFrame is a readonly value delivery. Retirement retains the preceding
 // value with no operations; a later incarnation replaces it at the same address.
 type WatchFrame struct {
+	Kind    string
+	Retired bool
+	Seq     uint64
+	Value   ReadonlyValue
+	Ops     []Operation
+	Context context.Context
+}
+
+type rawWatchFrame struct {
+	readonly     ReadonlyValue
 	Kind         string
 	Retired      bool
 	Seq          uint64
@@ -40,34 +50,36 @@ type WatchFrame struct {
 	pendingReady []<-chan struct{} // readiness of compacted queued publications
 }
 
-// DocumentWatch owns detached public views and serialises its host callback off
+// DocumentWatch owns readonly public revisions and serialises its host callback off
 // the Session line. A terminal task owner ends it after pending callbacks return.
 // Stop/Close never joins a caller-owned in-flight callback.
 type DocumentWatch struct {
-	mu           sync.Mutex
-	session      *Session
-	id           ID
-	version      uint64
-	address      DocumentAddress
-	observed     JSON
-	current      JSON
-	pending      []WatchFrame
-	bytes        []int64
-	pendingBytes int64
-	byteLimit    int64
-	listener     func(context.Context, WatchFrame) error
-	started      bool
-	running      bool
-	ended        bool
-	ending       bool
-	end          WatchEnd
-	closed       chan struct{}
+	mu               sync.Mutex
+	session          *Session
+	id               ID
+	version          uint64
+	address          DocumentAddress
+	observedReadonly ReadonlyValue
+	currentReadonly  ReadonlyValue
+	observed         JSON
+	current          JSON
+	pending          []rawWatchFrame
+	bytes            []int64
+	pendingBytes     int64
+	byteLimit        int64
+	listener         func(context.Context, rawWatchFrame) error
+	started          bool
+	running          bool
+	ended            bool
+	ending           bool
+	end              WatchEnd
+	closed           chan struct{}
 }
 
-func (w *DocumentWatch) Value() (JSON, error) {
+func (w *DocumentWatch) Value() (ReadonlyValue, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return copyObjectNullable(w.current, w.session.limits)
+	return w.currentReadonly, nil
 }
 func (w *DocumentWatch) Closed() <-chan struct{} { return w.closed }
 func (w *DocumentWatch) End() (WatchEnd, bool) {
@@ -78,7 +90,7 @@ func (w *DocumentWatch) End() (WatchEnd, bool) {
 
 // Start is the value/operations compatibility view of StartFrame. Use StartFrame
 // to distinguish retirement from an unchanged value; retirement does not close.
-func (w *DocumentWatch) Start(listener func(context.Context, JSON, []Operation) error) error {
+func (w *DocumentWatch) Start(listener func(context.Context, ReadonlyValue, []Operation) error) error {
 	if listener == nil {
 		return w.StartFrame(nil)
 	}
@@ -103,7 +115,9 @@ func (w *DocumentWatch) StartFrame(listener func(context.Context, WatchFrame) er
 		return reject("nil watch listener")
 	}
 	w.started = true
-	w.listener = listener
+	w.listener = func(ctx context.Context, frame rawWatchFrame) error {
+		return listener(ctx, WatchFrame{Kind: frame.Kind, Retired: frame.Retired, Seq: frame.Seq, Value: frame.readonly, Ops: frame.Ops, Context: frame.Context})
+	}
 	w.mu.Unlock()
 	w.kick()
 	return nil
@@ -126,6 +140,7 @@ func (w *DocumentWatch) terminate(end WatchEnd) {
 	w.pendingBytes = 0
 	w.listener = nil
 	w.observed = nil
+	w.observedReadonly = nil
 	w.id = 0
 	close(w.closed)
 	w.mu.Unlock()
@@ -218,6 +233,7 @@ func (w *DocumentWatch) drain() {
 			return
 		}
 		w.current = frame.ownedValue
+		w.currentReadonly = frame.readonly
 		callback := w.listener
 		w.mu.Unlock()
 		callbackContext = frame.Context
@@ -240,16 +256,16 @@ func copyObjectNullable(v JSON, l Limits) (JSON, error) {
 // only enqueues these already detached frames; it never calls host code/copies.
 type preparedWatchFrame struct {
 	watch     *DocumentWatch
-	frame     WatchFrame
+	frame     rawWatchFrame
 	size      int64
-	reset     WatchFrame
+	reset     rawWatchFrame
 	resetSize int64
 	version   uint64
 	id        ID
 	ownerEnd  bool
 }
 
-func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}) ([]preparedWatchFrame, error) {
+func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPublication, ready <-chan struct{}, values map[ID]ReadonlyValue) ([]preparedWatchFrame, error) {
 	s.observerMu.Lock()
 	watchers := make([]*DocumentWatch, 0, len(s.watches))
 	for w := range s.watches {
@@ -260,6 +276,7 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 	for _, w := range watchers {
 		w.mu.Lock()
 		version, incarnation, previous, ended := w.version, w.id, w.observed, w.ended || w.ending
+		previousReadonly := w.observedReadonly
 		w.mu.Unlock()
 		if ended {
 			continue
@@ -331,8 +348,12 @@ func (s *Session) prepareWatchFrames(ctx context.Context, publication CommitPubl
 		if e != nil {
 			return nil, e
 		}
-		frame := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: public, Ops: ops, Context: context.WithoutCancel(ctx), ownedValue: private, ready: ready}
-		reset := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: resetValue, Ops: resetOps, Context: context.WithoutCancel(ctx), ownedValue: resetPrivate, ready: ready}
+		frozen := previousReadonly
+		if incarnation != 0 {
+			frozen = values[incarnation]
+		}
+		frame := rawWatchFrame{readonly: frozen, Kind: "value", Retired: retired, Seq: publication.Seq, Value: public, Ops: ops, Context: context.WithoutCancel(ctx), ownedValue: private, ready: ready}
+		reset := rawWatchFrame{readonly: frozen, Kind: "value", Retired: retired, Seq: publication.Seq, Value: resetValue, Ops: resetOps, Context: context.WithoutCancel(ctx), ownedValue: resetPrivate, ready: ready}
 		encoded, e := encodeBounded(JSON{"value": public, "ops": ops}, s.limits, s.limits.MaxFramePayloadBytes)
 		if e != nil {
 			return nil, e
@@ -354,6 +375,12 @@ func mapOrNull(v JSON) any {
 func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 	for _, prepared := range frames {
 		w := prepared.watch
+		if prepared.id != 0 {
+			if node := s.cachedReadonlyDocument(prepared.id, prepared.version); node != nil {
+				prepared.frame.readonly = node
+				prepared.reset.readonly = node
+			}
+		}
 		w.mu.Lock()
 		if w.ended || w.ending {
 			w.mu.Unlock()
@@ -367,12 +394,13 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 			}
 			w.version, w.id = prepared.version, prepared.id
 			w.observed = prepared.frame.ownedValue
+			w.observedReadonly = prepared.frame.readonly
 			if w.id == 0 {
 				w.observed = nil
 			}
 			frame, size := prepared.frame, prepared.size
 			if size > w.byteLimit-w.pendingBytes {
-				frames := append(append([]WatchFrame(nil), w.pending...), frame)
+				frames := append(append([]rawWatchFrame(nil), w.pending...), frame)
 				compacted, compactedSize, err := compactPendingWatchFrames(frames, s.limits, w.byteLimit)
 				clear(frames)
 				if err != nil {
@@ -394,6 +422,7 @@ func (s *Session) enqueueWatchFrames(frames []preparedWatchFrame) {
 			// Stay registered for Close/cancellation until final callbacks finish,
 			// but release the incarnation and refuse all later publications now.
 			w.ending, w.id, w.observed = true, 0, nil
+			w.observedReadonly = nil
 		}
 		w.mu.Unlock()
 	}
@@ -476,7 +505,11 @@ func (s *Session) WatchDefinition(ctx context.Context, def *DocumentDefinition, 
 	if e = ctx.Err(); e != nil {
 		return nil, false, e
 	}
-	w := &DocumentWatch{session: s, id: record.ID, version: def.options.Version, address: documentAddress(record), observed: value, current: value, byteLimit: quota, closed: make(chan struct{})}
+	frozen, e := s.documentObservationReadonly(record.ID, def.options.Version, value)
+	if e != nil {
+		return nil, false, e
+	}
+	w := &DocumentWatch{currentReadonly: frozen, observedReadonly: frozen, session: s, id: record.ID, version: def.options.Version, address: documentAddress(record), observed: value, current: value, byteLimit: quota, closed: make(chan struct{})}
 	s.observerMu.Lock()
 	if s.closing.Load() {
 		s.observerMu.Unlock()

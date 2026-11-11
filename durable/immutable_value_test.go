@@ -2,6 +2,7 @@ package durable
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -353,5 +354,76 @@ func TestImmutableJSONEncodingKeepsAuthorityAndLogicalBudgetChecks(t *testing.T)
 				t.Fatalf("%s=%d: logical budget differs: plain=%v immutable=%v", dimension, cap, plainErr, immutableErr)
 			}
 		}
+	}
+}
+
+// Differential guard for the measured large primitive-set publication hotspot.
+// Keep intermediate budgets and untouched identities, not just the final JSON.
+func TestReadonlyPublicationPrimitiveSetBatchContracts(t *testing.T) {
+	limits := DefaultLimits()
+	before, err := NewImmutableValue(JSON{"keys": JSON{}, "retained": JSON{"label": "stable"}}, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := []Operation{}
+	for i := range 128 {
+		ops = append(ops, Operation{"s", []any{"keys", fmt.Sprintf("k%d", i%32)}, i})
+	}
+	expected, err := ApplyOperations(before.Copy(), ops, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := persistentDocumentValue(readonlyValue(before), JSON(expected.(map[string]any)), ops, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equalDeltaJSON(value.Copy(), expected) {
+		t.Fatal("batch replay mismatch")
+	}
+	old, _ := before.Get("retained")
+	retained, _ := value.Get("retained")
+	if retained != readonlyValue(old) {
+		t.Fatal("unchanged branch copied")
+	}
+	oldKeys, _ := before.Get("keys")
+	if oldKeys.Len() != 0 {
+		t.Fatal("old revision changed")
+	}
+	for _, budget := range []string{"bytes", "nodes", "members"} {
+		t.Run(budget, func(t *testing.T) {
+			l := limits
+			ops := []Operation{}
+			for i := range 64 {
+				ops = append(ops, Operation{"s", []any{"keys", fmt.Sprint(i)}, nil})
+			}
+			candidate := before
+			switch budget {
+			case "bytes":
+				l.MaxDocumentBytes = 256
+				ops[0][2] = strings.Repeat("x", 300)
+				ops[len(ops)-1] = Operation{"s", []any{"keys", "0"}, nil}
+			case "nodes":
+				l.MaxNodes = 900
+				candidate, err = NewImmutableValue(JSON{"keys": JSON{}, "retained": make([]any, 800)}, limits)
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "members":
+				l.MaxMembers = 64
+				candidate, err = NewImmutableValue(JSON{"keys": JSON{"seed": nil}}, limits)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := ownOperations(ops, l); err != nil {
+				t.Fatal("budget control did not reach primitive batch path", err)
+			}
+			if _, err := ApplyOperations(candidate.Copy(), ops, l); err == nil {
+				t.Fatal("mutable replay missed budget")
+			}
+			if _, err := persistentDocumentValue(readonlyValue(candidate), JSON{}, ops, l); err == nil {
+				t.Fatal("readonly replay missed intermediate budget")
+			}
+		})
 	}
 }

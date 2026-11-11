@@ -29,7 +29,7 @@ func TestMainSessionDeferredInfiniteWindow(t *testing.T) {
 		}
 		defer watch.Stop()
 		values := make(chan JSON, 8)
-		if err := watch.Start(func(_ context.Context, value JSON, _ []Operation) error { values <- value; return nil }); err != nil {
+		if err := startDetachedDocumentValues(watch, func(_ context.Context, value JSON, _ []Operation) error { values <- value; return nil }); err != nil {
 			t.Fatal(err)
 		}
 		for index, text := range []string{"a", "ab"} {

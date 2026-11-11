@@ -16,7 +16,7 @@ An initial same-commit native retirement/recreation probe failed the identity as
 - Attachment captures the initial public value under the Session line. Spent guards clear their current readonly node without retaining a separate initial-value reference.
 - Mutable data requires explicit `Copy`. Private trusted guard controls keep their existing internal WatchFrame adapter; the public API has one readonly contract.
 
-The shared revision cache currently spans active synchronous document observers. Current/historical typed snapshots now share readonly materialisation with synchronous observers; see readonly-document-snapshots.md for that subsequent slice. Asynchronous document watches still expose copy-based values. Full source cache/reload/eviction identity is not established.
+The shared revision cache currently spans active synchronous document observers. Current/historical typed snapshots now share readonly materialisation with synchronous observers; see readonly-document-snapshots.md for that subsequent slice. Asynchronous document watches now share prepared readonly revisions; see readonly-document-watches.md. Full source cache/reload/eviction identity is not established.
 
 ## Verification
 

@@ -3119,7 +3119,7 @@ func TestTaskSchedulerLateWatchAcquisitionAttachmentSealsAndStops(t *testing.T) 
 					t.Fatal("late acquired watch retained registration", remaining)
 				}
 				if seal == "terminal" {
-					if err := acquired.Start(func(context.Context, JSON, []Operation) error { return errors.New("closed callback dispatched") }); !errors.Is(err, ErrClosed) {
+					if err := startDetachedDocumentValues(acquired, func(context.Context, JSON, []Operation) error { return errors.New("closed callback dispatched") }); !errors.Is(err, ErrClosed) {
 						t.Fatal("closed late watch listener accepted", err)
 					}
 				}

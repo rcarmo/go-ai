@@ -504,7 +504,7 @@ func TestReport140ListenerErrorsAndPanicsKeepCommitContext(t *testing.T) {
 				if strings.HasPrefix(kind, "watch") {
 					watch := watchAcquire(t, h.session, definition)
 					defer watch.Stop()
-					if err := watch.Start(func(context.Context, JSON, []Operation) error { return fail() }); err != nil {
+					if err := startDetachedDocumentValues(watch, func(context.Context, JSON, []Operation) error { return fail() }); err != nil {
 						t.Fatal(err)
 					}
 				} else {

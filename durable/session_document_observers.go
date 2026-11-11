@@ -10,7 +10,7 @@ import (
 // and must not block or synchronously call Session/Storage APIs. Public API
 // ownership and re-entry semantics remain separate work.
 type sessionDocumentObserver struct {
-	advance         func(context.Context, WatchFrame) error
+	advance         func(context.Context, rawWatchFrame) error
 	readonlyAdvance func(context.Context, DocumentCall) error
 	initialReadonly func(ReadonlyValue)
 	end             func(WatchEnd) error
@@ -298,7 +298,7 @@ func (o *sessionDocumentObservation) advance(ctx context.Context, publication Co
 			o.fail(ctx, observer, err)
 			return
 		}
-		frame := WatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: value, Ops: operations, Context: ctx}
+		frame := rawWatchFrame{Kind: "value", Retired: retired, Seq: publication.Seq, Value: value, Ops: operations, Context: ctx}
 		if err := callSessionCommitObserver(func() error {
 			if observer.readonlyAdvance != nil {
 				return observer.readonlyAdvance(ctx, DocumentCall{Kind: "value", Value: frozen, Ops: operations, Retired: retired})

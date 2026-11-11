@@ -151,6 +151,9 @@ func (s *Session) definitionValue(def *DocumentDefinition, d Document) (JSON, er
 	record.Value = nil
 	frozenValue := s.cachedReadonlyDocument(d.ID, def.options.Version)
 	if frozenValue == nil {
+		frozenValue = s.attachedReadonlyDocument(d.ID, def.options.Version, value)
+	}
+	if frozenValue == nil {
 		frozen, err := freezeImmutableValue(map[string]any(value))
 		if err != nil {
 			return nil, err

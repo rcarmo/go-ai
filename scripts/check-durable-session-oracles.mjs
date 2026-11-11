@@ -32,11 +32,12 @@ const aliases = [
   ["@pinned/session", join(durable, "src/session/session.ts")],
   ["@pinned/support", join(durable, "test/session-support.ts")],
   ["@pinned/tasks", join(durable, "test/task-support.ts")],
+  ["@pinned/chat", join(durable, "test/chat-support.ts")],
   ["vitest", join(vitest, "dist/index.js")],
 ].map(([name, replacement]) => ({ find: name, replacement }));
 try {
   for (const [name, cwd, include, setupFiles] of [
-    ["pinned", durable, ["test/session-group-commit.test.ts", "test/session-checkpoints-migrations.test.ts", "test/session-tables.test.ts", "test/harness-view.test.ts", "test/session-observers.test.ts"], [join(durable, "test/setup-document-retention.ts")]],
+    ["pinned", durable, ["test/session-group-commit.test.ts", "test/session-checkpoints-migrations.test.ts", "test/session-tables.test.ts", "test/harness-view.test.ts", "test/session-observers.test.ts", "test/session-watches.test.ts"], [join(durable, "test/setup-document-retention.ts")]],
     ["probes", root, ["notes/oracles/session-admission.upstream.test.ts"], []],
   ]) {
     const config = join(scratch, `${name}.mjs`);

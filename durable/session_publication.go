@@ -29,7 +29,10 @@ func (s *Session) prepareSessionPublication(ctx context.Context, tx *Tx, base Sn
 		// No durable sequence is consumed by this memory publication.
 		publication.Seq = base.Seq
 	}
-	frames, err := s.prepareWatchFrames(ctx, publication, ready)
+	if err := s.prepareReadonlyDocuments(tx, publication); err != nil {
+		return preparedSessionPublication{}, err
+	}
+	frames, err := s.prepareWatchFrames(ctx, publication, ready, tx.readonlyDocuments)
 	if err != nil {
 		return preparedSessionPublication{}, err
 	}

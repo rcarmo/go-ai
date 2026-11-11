@@ -51,16 +51,16 @@ func TestObservationAtomicBaselineExactFramesOwnedAndOffLine(t *testing.T) {
 		def := watchDoc(t, s)
 		w := watchAcquire(t, s, def)
 		defer w.Stop()
-		base, _ := w.Value()
+		base, _ := detachedDocumentWatchValue(w)
 		watchSet(t, s, def, 1)
 		watchSet(t, s, def, 2)
-		same, _ := w.Value()
+		same, _ := detachedDocumentWatchValue(w)
 		if !reflect.DeepEqual(base, same) {
 			t.Fatal("advanced before start")
 		}
 		deliveries := make(chan int, 3)
 		replica := any(map[string]any(base))
-		if e := w.Start(func(ctx context.Context, value JSON, ops []Operation) error {
+		if e := startDetachedDocumentValues(w, func(ctx context.Context, value JSON, ops []Operation) error {
 			var e error
 			replica, e = ApplyOperations(replica, ops, s.limits)
 			if e != nil {
@@ -84,7 +84,7 @@ func TestObservationAtomicBaselineExactFramesOwnedAndOffLine(t *testing.T) {
 		if watchReceive(t, deliveries) != 2 {
 			t.Fatal("pending commits did not coalesce")
 		}
-		latest, _ := w.Value()
+		latest, _ := detachedDocumentWatchValue(w)
 		if latest["n"].(json.Number) != "2" {
 			t.Fatal("callback authority")
 		}
@@ -96,9 +96,9 @@ func TestObservationSerialCallbacksOverflowAndRetirement(t *testing.T) {
 		w := watchAcquire(t, s, def)
 		entered := make(chan struct{})
 		release := make(chan struct{})
-		delivered := make(chan WatchFrame, 3)
-		if e := w.Start(func(ctx context.Context, value JSON, ops []Operation) error {
-			delivered <- WatchFrame{Value: value, Ops: ops}
+		delivered := make(chan rawWatchFrame, 3)
+		if e := startDetachedDocumentValues(w, func(ctx context.Context, value JSON, ops []Operation) error {
+			delivered <- rawWatchFrame{Value: value, Ops: ops}
 			if value != nil && value["n"].(json.Number) == "1" {
 				close(entered)
 				<-release
@@ -154,8 +154,8 @@ func TestObservationMigrationVersionResetStateAndUnload(t *testing.T) {
 		}
 		oldFrames := make(chan []Operation, 2)
 		newFrames := make(chan int, 2)
-		oldWatch.Start(func(_ context.Context, _ JSON, ops []Operation) error { oldFrames <- ops; return nil })
-		newWatch.Start(func(_ context.Context, v JSON, _ []Operation) error {
+		startDetachedDocumentValues(oldWatch, func(_ context.Context, _ JSON, ops []Operation) error { oldFrames <- ops; return nil })
+		startDetachedDocumentValues(newWatch, func(_ context.Context, v JSON, _ []Operation) error {
 			n, _ := v["n"].(json.Number).Int64()
 			newFrames <- int(n)
 			return nil
@@ -198,7 +198,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	deliveryContext := make(chan context.Context, 1)
-	w.Start(func(ctx context.Context, _ JSON, _ []Operation) error {
+	startDetachedDocumentValues(w, func(ctx context.Context, _ JSON, _ []Operation) error {
 		deliveryContext <- ctx
 		close(entered)
 		<-release
@@ -232,7 +232,7 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 		t.Fatal(end)
 	}
 	close(release)
-	if e = w.Start(func(context.Context, JSON, []Operation) error { return nil }); !errors.Is(e, ErrClosed) {
+	if e = startDetachedDocumentValues(w, func(context.Context, JSON, []Operation) error { return nil }); !errors.Is(e, ErrClosed) {
 		t.Fatal("late start", e)
 	}
 	store, _ = openTestSQLite(t, sqliteFixtureOptions{})
@@ -244,8 +244,8 @@ func TestObservationStopCancelCloseNoJoinAndListenerFailure(t *testing.T) {
 	healthy := watchAcquire(t, s, def)
 	defer healthy.Stop()
 	got := make(chan struct{}, 1)
-	failed.Start(func(context.Context, JSON, []Operation) error { return errors.New("listener failed") })
-	healthy.Start(func(context.Context, JSON, []Operation) error { got <- struct{}{}; return nil })
+	startDetachedDocumentValues(failed, func(context.Context, JSON, []Operation) error { return errors.New("listener failed") })
+	startDetachedDocumentValues(healthy, func(context.Context, JSON, []Operation) error { got <- struct{}{}; return nil })
 	watchSet(t, s, def, 1)
 	watchReceive(t, failed.Closed())
 	watchReceive(t, got)
@@ -280,7 +280,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	w := watchAcquire(t, s, def)
 	defer w.Stop()
 	delivered := make(chan struct{}, 1)
-	w.Start(func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
+	startDetachedDocumentValues(w, func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	store.appendFrame = func(byte, uint64, uint64, []byte) error { close(entered); <-release; return nil }
@@ -333,7 +333,7 @@ func TestObservationNoPublicationBeforeAdoptionOrOnRejection(t *testing.T) {
 	defer s.Close(bg)
 	w = watchAcquire(t, s, def)
 	defer w.Stop()
-	w.Start(func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
+	startDetachedDocumentValues(w, func(context.Context, JSON, []Operation) error { delivered <- struct{}{}; return nil })
 	reopened.(*SQLiteStorage).appendFrame = func(byte, uint64, uint64, []byte) error { return errors.New("uncertain") }
 	if _, e = s.Commit(bg, func(tx *Tx) error {
 		h, e := tx.AcquireDocument(def, 0, nil, nil)
@@ -397,7 +397,7 @@ func TestObservationCallbackInitiatesCommitAndStructuralFrame(t *testing.T) {
 		defer w.Stop()
 		done := make(chan struct{}, 1)
 		var once sync.Once
-		w.Start(func(_ context.Context, v JSON, _ []Operation) error {
+		startDetachedDocumentValues(w, func(_ context.Context, v JSON, _ []Operation) error {
 			if v["n"].(json.Number) == "1" {
 				once.Do(func() { watchSet(t, s, def, 2) })
 			} else {
@@ -411,7 +411,7 @@ func TestObservationCallbackInitiatesCommitAndStructuralFrame(t *testing.T) {
 		w = watchAcquire(t, s, def)
 		defer w.Stop()
 		frames := make(chan []Operation, 1)
-		w.Start(func(_ context.Context, _ JSON, ops []Operation) error { frames <- ops; return nil })
+		startDetachedDocumentValues(w, func(_ context.Context, _ JSON, ops []Operation) error { frames <- ops; return nil })
 		checkpointCommit(t, s, func(tx *Tx) error {
 			h, e := tx.AcquireDocument(def, 0, nil, nil)
 			if e != nil {
@@ -484,7 +484,7 @@ func TestObservationInactiveWatchAndPublicSubscriptionOverflow101(t *testing.T) 
 			watchSet(t, s, def, i)
 		}
 		values := make(chan int, 2)
-		w.Start(func(_ context.Context, v JSON, ops []Operation) error {
+		startDetachedDocumentValues(w, func(_ context.Context, v JSON, ops []Operation) error {
 			if len(ops) != 1 || ops[0][0] != "s" {
 				t.Error("inactive watch101 not folded")
 			}
@@ -536,9 +536,9 @@ func TestObservationByteQuotaEarlyResetAcquireAndLaterTermination(t *testing.T) 
 			return h.Set(JSON{"n": i, "text": text})
 		})
 	}
-	frames := make(chan WatchFrame, 2)
-	w.Start(func(_ context.Context, v JSON, ops []Operation) error {
-		frames <- WatchFrame{Value: v, Ops: ops}
+	frames := make(chan rawWatchFrame, 2)
+	startDetachedDocumentValues(w, func(_ context.Context, v JSON, ops []Operation) error {
+		frames <- rawWatchFrame{Value: v, Ops: ops}
 		return nil
 	})
 	first := watchReceive(t, frames)
@@ -618,12 +618,12 @@ func TestObservationRegistrationSnapshotAndCancellationBarrier(t *testing.T) {
 	if e = watchReceive(t, committed); e != nil {
 		t.Fatal(e)
 	}
-	baseline, e := w.Value()
+	baseline, e := detachedDocumentWatchValue(w)
 	if e != nil || baseline["n"].(json.Number) != "0" {
 		t.Fatal("registration baseline", baseline, e)
 	}
 	values := make(chan int, 1)
-	w.Start(func(_ context.Context, v JSON, _ []Operation) error {
+	startDetachedDocumentValues(w, func(_ context.Context, v JSON, _ []Operation) error {
 		n, _ := v["n"].(json.Number).Int64()
 		values <- int(n)
 		return nil
@@ -723,5 +723,39 @@ func TestObservationPublicationCompleteAdoptedTablePlacementAndReopen(t *testing
 		verify(s)
 		s = reopen()
 		verify(s)
+	})
+}
+
+// Legacy content/ownership assertions explicitly request detached values. Public
+// identity assertions bypass these helpers and use ReadonlyValue directly.
+func detachedDocumentWatchValue(w *DocumentWatch) (JSON, error) {
+	value, err := w.Value()
+	if err != nil || value == nil {
+		return nil, err
+	}
+	return copyReadonlyDocument(value, w.session.limits)
+}
+func startDetachedDocumentValues(w *DocumentWatch, fn func(context.Context, JSON, []Operation) error) error {
+	if fn == nil {
+		return w.Start(nil)
+	}
+	return w.Start(func(ctx context.Context, value ReadonlyValue, ops []Operation) error {
+		copy, err := copyReadonlyDocument(value, w.session.limits)
+		if err != nil {
+			return err
+		}
+		return fn(ctx, copy, ops)
+	})
+}
+func startDetachedDocumentFrames(w *DocumentWatch, fn func(context.Context, rawWatchFrame) error) error {
+	if fn == nil {
+		return w.StartFrame(nil)
+	}
+	return w.StartFrame(func(ctx context.Context, frame WatchFrame) error {
+		copy, err := copyReadonlyDocument(frame.Value, w.session.limits)
+		if err != nil {
+			return err
+		}
+		return fn(ctx, rawWatchFrame{Kind: frame.Kind, Retired: frame.Retired, Seq: frame.Seq, Value: copy, Ops: frame.Ops, Context: frame.Context})
 	})
 }

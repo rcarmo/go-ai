@@ -381,3 +381,106 @@ func TestSessionV150RequiredMigrationStoreKeepsSnapshotIdentity(t *testing.T) {
 		t.Fatal("storing a required migration base rematerialized its readonly snapshot", calls)
 	}
 }
+
+// Source-derived identity supplement to session-watches.test.ts:75. The source
+// probe independently checks this exact state, two commits and delayed starts.
+func TestSessionV150WatchSnapshotObserverSharedReadonlyRevision(t *testing.T) {
+	runWatchSharedReadonlyRevision(t, false)
+}
+func TestSessionV150ZeroRetentionWatchSnapshotObserverSharedReadonlyRevision(t *testing.T) {
+	runWatchSharedReadonlyRevision(t, true)
+}
+func runWatchSharedReadonlyRevision(t *testing.T, zero bool) {
+	t.Helper()
+	s := gatedSession(t)
+	if zero {
+		s.documentRetentionMs = func() int64 { return 0 }
+	}
+	def, err := DefineDocument(DefinitionOptions{Kind: "watch.state", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) {
+		return JSON{"value": 0, "items": []any{"a", "b"}, "retained": JSON{"label": "stable"}}, nil
+	}, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(def, 0, nil, nil); return err }); err != nil {
+		t.Fatal(err)
+	}
+	var first ReadonlyValue
+	if !zero {
+		var found bool
+		first, found, err = s.SnapshotDefinition(bg, def, 0, nil)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+	}
+	watches := []*DocumentWatch{}
+	for range 2 {
+		w, found, err := s.WatchDefinition(bg, def, 0, nil)
+		if err != nil || !found {
+			t.Fatal(found, err)
+		}
+		defer w.Stop()
+		watches = append(watches, w)
+		v, err := w.Value()
+		if first == nil {
+			first = v
+		}
+		if err != nil || any(v) != first {
+			t.Fatal("watch acquisition did not share snapshot identity", err)
+		}
+	}
+	var observed ReadonlyValue
+	observation, found, err := s.ObserveDefinition(bg, def, 0, nil, DocumentObserver{Advance: func(_ context.Context, call DocumentCall) error { observed = call.Value; return nil }, End: func(WatchEnd) error { return nil }})
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	defer observation.Detach()
+	for _, n := range []int{1, 2} {
+		if _, err = s.Commit(bg, func(tx *Tx) error {
+			doc, err := tx.AcquireDocument(def, 0, nil, nil)
+			if err != nil {
+				return err
+			}
+			return doc.ApplyOperations([]Operation{{"s", []any{"value"}, n}})
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	latest, _, err := s.SnapshotDefinition(bg, def, 0, nil)
+	if err != nil || latest != observed {
+		t.Fatal("snapshot/observer revision", err)
+	}
+	calls := make(chan WatchFrame, 2)
+	for _, w := range watches {
+		v, err := w.Value()
+		if err != nil || any(v) != first {
+			t.Fatal("unstarted watch advanced", err)
+		}
+		if err = w.StartFrame(func(_ context.Context, frame WatchFrame) error {
+			v, err := w.Value()
+			if err != nil || any(v) != any(frame.Value) {
+				t.Error("watch value not installed before callback", err)
+			}
+			calls <- frame
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		frame := watchReceive(t, calls)
+		value, ok := any(frame.Value).(ReadonlyValue)
+		if !ok || value != latest {
+			t.Fatal("watch delivery did not share adopted revision")
+		}
+		if immutableViewMember(t, value, "retained") != immutableViewMember(t, first, "retained") {
+			t.Fatal("watch copied unchanged child")
+		}
+		if len(frame.Ops) != 1 || frame.Ops[0][0] != "s" || frame.Ops[0][2].(json.Number) != "2" {
+			t.Fatal("pending operations were not folded", frame.Ops)
+		}
+	}
+	if immutableViewMember(t, first, "value").Copy().(json.Number) != "0" {
+		t.Fatal("retained acquisition was mutated")
+	}
+}

@@ -99,7 +99,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		if err != nil || !found {
 			t.Fatal(found, err)
 		}
-		value, err = watch.Value()
+		value, err = detachedDocumentWatchValue(watch)
 		if err != nil || value["text"] != "second" {
 			t.Fatal(value, err)
 		}

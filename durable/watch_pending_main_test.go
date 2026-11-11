@@ -31,8 +31,8 @@ func TestMainWatchPendingDelivery(t *testing.T) {
 						close(release)
 					}
 				}()
-				calls := make(chan WatchFrame, 4)
-				listener := func(_ context.Context, f WatchFrame) error {
+				calls := make(chan rawWatchFrame, 4)
+				listener := func(_ context.Context, f rawWatchFrame) error {
 					calls <- f
 					if mode == "blocked" && f.Value["n"].(json.Number) == "1" {
 						close(entered)
@@ -41,7 +41,7 @@ func TestMainWatchPendingDelivery(t *testing.T) {
 					return nil
 				}
 				if mode == "blocked" {
-					if e = w.StartFrame(listener); e != nil {
+					if e = startDetachedDocumentFrames(w, listener); e != nil {
 						t.Fatal(e)
 					}
 					watchSet(t, s, def, 1)
@@ -80,11 +80,11 @@ func TestMainWatchPendingDelivery(t *testing.T) {
 				if mode == "blocked" {
 					close(release)
 				} else {
-					v, e := w.Value()
+					v, e := detachedDocumentWatchValue(w)
 					if e != nil || v["n"].(json.Number) != "0" {
 						t.Fatal("advanced before start", v, e)
 					}
-					if e = w.StartFrame(listener); e != nil {
+					if e = startDetachedDocumentFrames(w, listener); e != nil {
 						t.Fatal(e)
 					}
 				}
@@ -134,7 +134,7 @@ func TestMainWatchPendingOperationFolding(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			limits := DefaultLimits()
-			var frames []WatchFrame
+			var frames []rawWatchFrame
 			var state any = map[string]any(tc.base)
 			for _, batch := range tc.batches {
 				owned, e := ownOperations(batch, limits)
@@ -149,7 +149,7 @@ func TestMainWatchPendingOperationFolding(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				frames = append(frames, WatchFrame{Kind: "value", Value: value, Ops: owned, ownedValue: value})
+				frames = append(frames, rawWatchFrame{Kind: "value", Value: value, Ops: owned, ownedValue: value})
 			}
 			before, e := json.Marshal(frames)
 			if e != nil {
@@ -181,7 +181,7 @@ func TestMainWatchPendingOperationFolding(t *testing.T) {
 func TestMainWatchPendingNativeBounds(t *testing.T) {
 	limits := DefaultLimits()
 	value := JSON{"n": 0}
-	var frames []WatchFrame
+	var frames []rawWatchFrame
 	for batch := 0; batch < 3; batch++ {
 		count := maxPendingWatchOperations / 2
 		if batch == 2 {
@@ -191,13 +191,13 @@ func TestMainWatchPendingNativeBounds(t *testing.T) {
 		for i := range ops {
 			ops[i] = Operation{"s", []any{"n"}, map[string]any{"v": strconv.Itoa(batch*count + i)}}
 		}
-		frames = append(frames, WatchFrame{Kind: "value", Value: value, Ops: ops, ownedValue: value})
+		frames = append(frames, rawWatchFrame{Kind: "value", Value: value, Ops: ops, ownedValue: value})
 	}
 	folded, e := coalesceWatchFrames(frames, limits, limits.MaxRetainedBytes)
 	if e != nil || len(folded.Ops) != 1 || folded.Ops[0][0] != "r" {
 		t.Fatal("native operation limit must replace", folded, e)
 	}
-	frames = append(frames, WatchFrame{Kind: "value", Value: value, Ops: []Operation{{"r", map[string]any{"n": 0}}}, ownedValue: value})
+	frames = append(frames, rawWatchFrame{Kind: "value", Value: value, Ops: []Operation{{"r", map[string]any{"n": 0}}}, ownedValue: value})
 	folded, e = coalesceWatchFrames(frames, limits, limits.MaxRetainedBytes)
 	if e != nil || len(folded.Ops) != 1 || folded.Ops[0][0] != "r" {
 		t.Fatal("root must recover overflow", folded, e)
@@ -206,8 +206,8 @@ func TestMainWatchPendingNativeBounds(t *testing.T) {
 		t.Fatal("quota bypass")
 	}
 	// A kept-up listener gets an exact frame, without operation folding.
-	lone := WatchFrame{Kind: "value", Value: value, Ops: []Operation{{"s", []any{"n"}, 0}, {"s", []any{"n"}, 0}}}
-	folded, e = coalesceWatchFrames([]WatchFrame{lone}, limits, limits.MaxRetainedBytes)
+	lone := rawWatchFrame{Kind: "value", Value: value, Ops: []Operation{{"s", []any{"n"}, 0}, {"s", []any{"n"}, 0}}}
+	folded, e = coalesceWatchFrames([]rawWatchFrame{lone}, limits, limits.MaxRetainedBytes)
 	if e != nil || !reflect.DeepEqual(folded.Ops, lone.Ops) {
 		t.Fatal("single frame folded", folded, e)
 	}
@@ -228,8 +228,8 @@ func TestMainWatchPendingRecreation(t *testing.T) {
 		checkpointCommit(t, s, func(tx *Tx) error { return tx.RetireDefinition(def, 0, nil) })
 		watchSet(t, s, def, 2)
 		watchSet(t, s, def, 3)
-		frames := make(chan WatchFrame, 2)
-		if e = w.StartFrame(func(_ context.Context, f WatchFrame) error { frames <- f; return nil }); e != nil {
+		frames := make(chan rawWatchFrame, 2)
+		if e = startDetachedDocumentFrames(w, func(_ context.Context, f rawWatchFrame) error { frames <- f; return nil }); e != nil {
 			t.Fatal(e)
 		}
 		f := watchReceive(t, frames)

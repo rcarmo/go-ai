@@ -26,10 +26,30 @@ func (s *Session) cachedReadonlyDocument(id ID, version uint64) ReadonlyValue {
 	return nil
 }
 
-// Storage receipts and memory adoption install one persistent value before
-// any observer runs. Capture the old nodes before invalidating raw metadata.
+// Seal one persistent revision before handing the transaction to storage. Both
+// memory and receipt adoption reuse it, including every asynchronous watch.
+func (s *Session) prepareReadonlyDocuments(tx *Tx, publication CommitPublication) error {
+	tx.readonlyDocuments = map[ID]ReadonlyValue{}
+	for _, change := range publication.Documents {
+		if change.Record.Retired {
+			continue
+		}
+		before := s.cachedReadonlyDocument(change.Record.ID, change.Version)
+		if before == nil {
+			if old, ok := tx.state.Documents[change.Record.ID]; ok && old.Version == change.Version {
+				before = s.attachedReadonlyDocument(old.ID, change.Version, old.Value)
+			}
+		}
+		value, err := persistentDocumentValue(before, change.Value, change.Ops, s.limits)
+		if err != nil {
+			return err
+		}
+		tx.readonlyDocuments[change.Record.ID] = value
+	}
+	return nil
+}
+
 func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []DocumentChange) error {
-	previous := map[ID]definitionCacheValue{}
 	for _, write := range tx.writes {
 		id := documentWriteID(write)
 		if id == 0 {
@@ -37,7 +57,6 @@ func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []Documen
 		}
 		for key, cached := range s.definitionCache {
 			if cached.record.ID == id {
-				previous[id] = cached
 				delete(s.definitionCache, key)
 				s.definitionCacheBytes -= cached.bytes
 			}
@@ -47,36 +66,15 @@ func (s *Session) adoptDefinitionPlans(tx *Tx, image Snapshot, changes []Documen
 		return err
 	}
 	for _, change := range changes {
-		if change.Record.Retired {
-			continue
-		}
 		key := definitionCacheKey{documentAddress(change.Record)}
-		next, exists := s.definitionCache[key]
-		old, loaded := previous[change.Record.ID]
-		if !exists || !loaded || old.valueVersion != change.Version || next.record.ID != change.Record.ID || next.valueVersion != change.Version {
+		next, ok := s.definitionCache[key]
+		if !ok || next.record.ID != change.Record.ID || next.valueVersion != change.Version {
 			continue
 		}
-		if held, ok := s.heldDocuments[change.Record.ID]; ok && held.record.Version == change.Version && held.readonly != nil {
-			next.value = held.readonly
+		if node := tx.readonlyDocuments[change.Record.ID]; node != nil {
+			next.value = node
 			s.definitionCache[key] = next
-			continue
 		}
-		if len(change.Ops) == 0 {
-			if equalDeltaJSON(old.value.Copy(), next.value.Copy()) {
-				next.value = old.value
-			}
-		} else {
-			node := old.value.immutableNode()
-			for _, operation := range change.Ops {
-				var err error
-				node, err = applyImmutableValue(node, []Operation{operation}, s.limits)
-				if err != nil {
-					return err
-				}
-			}
-			next.value = readonlyValue(node)
-		}
-		s.definitionCache[key] = next
 	}
 	return nil
 }
@@ -88,6 +86,12 @@ func persistentDocumentValue(before ReadonlyValue, value JSON, operations []Oper
 			return before, nil
 		}
 		if len(operations) > 0 {
+			if node, handled, err := immutablePrimitiveObjectSets(before.immutableNode(), operations, limits); handled {
+				if err != nil {
+					return nil, err
+				}
+				return readonlyValue(node), nil
+			}
 			node := before.immutableNode()
 			for _, operation := range operations {
 				var err error
@@ -140,5 +144,34 @@ func (s *Session) cacheHeldReadonly(held heldDocument) error {
 	s.definitionCache[key] = definitionCacheValue{record: record, valueVersion: record.Version, value: held.readonly, bytes: int64(len(encoded)), lastUsed: s.now()}
 	s.definitionCacheBytes += int64(len(encoded))
 	s.scheduleDocumentExpiry()
+	return nil
+}
+
+// Attached readers pin the tracker, not just an idle cache entry. Recover that
+// authority on a cold cache fill (notably the first attachment at retention0).
+// Compare the materialised value as well as the schema version: installation
+// may run before those readers have received a new revision of the same schema.
+func (s *Session) attachedReadonlyDocument(id ID, version uint64, value JSON) ReadonlyValue {
+	s.observerMu.Lock()
+	defer s.observerMu.Unlock()
+	matches := func(node ReadonlyValue) bool {
+		return node != nil && equalDeltaJSON(node.Copy(), map[string]any(value))
+	}
+	for watch := range s.watches {
+		watch.mu.Lock()
+		node, valid := watch.observedReadonly, watch.id == id && watch.version == version && !watch.ended
+		watch.mu.Unlock()
+		if valid && matches(node) {
+			return node
+		}
+	}
+	for _, observation := range s.documentObservers {
+		observation.mu.Lock()
+		node, valid := observation.readonly, observation.id == id && observation.version == version && observation.session != nil
+		observation.mu.Unlock()
+		if valid && matches(node) {
+			return node
+		}
+	}
 	return nil
 }

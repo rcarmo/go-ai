@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func v150WatchKeyFrames(t *testing.T, counts ...int) []WatchFrame {
+func v150WatchKeyFrames(t *testing.T, counts ...int) []rawWatchFrame {
 	t.Helper()
 	limits := DefaultLimits()
 	keys := map[string]any{}
-	frames := []WatchFrame{}
+	frames := []rawWatchFrame{}
 	index := 0
 	for _, count := range counts {
 		ops := make([]Operation, 0, count)
@@ -25,7 +25,7 @@ func v150WatchKeyFrames(t *testing.T, counts ...int) []WatchFrame {
 		if err != nil {
 			t.Fatal(err)
 		}
-		frames = append(frames, WatchFrame{Kind: "value", Value: value, ownedValue: value, Ops: ops})
+		frames = append(frames, rawWatchFrame{Kind: "value", Value: value, ownedValue: value, Ops: ops})
 	}
 	return frames
 }
@@ -68,8 +68,8 @@ func TestV150WatchSingleBatchAndRootRecovery(t *testing.T) {
 	if _, err := ownOperations(single.Ops, limits); err != nil {
 		t.Fatalf("single batch is not replayable: %v", err)
 	}
-	root := WatchFrame{Kind: "value", Value: JSON{"keys": map[string]any{}}, ownedValue: JSON{"keys": map[string]any{}}, Ops: []Operation{{"r", map[string]any{"keys": map[string]any{}}}}}
-	next := WatchFrame{Kind: "value", Value: JSON{"keys": map[string]any{"final": 1}}, ownedValue: JSON{"keys": map[string]any{"final": 1}}, Ops: []Operation{{"s", []any{"keys", "final"}, 1}}}
+	root := rawWatchFrame{Kind: "value", Value: JSON{"keys": map[string]any{}}, ownedValue: JSON{"keys": map[string]any{}}, Ops: []Operation{{"r", map[string]any{"keys": map[string]any{}}}}}
+	next := rawWatchFrame{Kind: "value", Value: JSON{"keys": map[string]any{"final": 1}}, ownedValue: JSON{"keys": map[string]any{"final": 1}}, Ops: []Operation{{"s", []any{"keys", "final"}, 1}}}
 	frames = append(frames, root, next)
 	folded, err := coalesceWatchFrames(frames, limits, limits.MaxRetainedBytes/64)
 	if err != nil || len(folded.Ops) != 2 || folded.Ops[0][0] != "r" {

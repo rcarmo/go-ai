@@ -4,7 +4,7 @@ import "encoding/json"
 
 // coalesceWatchFrames runs off the Session line, before the next callback. The
 // received frames/operations remain immutable until their consumed slots clear.
-func coalesceWatchFrames(frames []WatchFrame, limits Limits, quota int64) (WatchFrame, error) {
+func coalesceWatchFrames(frames []rawWatchFrame, limits Limits, quota int64) (rawWatchFrame, error) {
 	frame := frames[len(frames)-1]
 	if len(frames) == 1 {
 		return frame, nil
@@ -16,7 +16,7 @@ func coalesceWatchFrames(frames []WatchFrame, limits Limits, quota int64) (Watch
 	}
 	ops, overflow, err := foldWatchOperations(batches, limits)
 	if err != nil {
-		return WatchFrame{}, err
+		return rawWatchFrame{}, err
 	}
 	// A single batch stays as-is; subsequent folded batches are kept replayable up
 	// to the source's 10,000-op threshold. Once pending operations overflow, the
@@ -33,14 +33,14 @@ func coalesceWatchFrames(frames []WatchFrame, limits Limits, quota int64) (Watch
 	}
 	frame.Ops, err = ownOperations([]Operation{{"r", mapOrNull(frame.Value)}}, limits)
 	if err != nil {
-		return WatchFrame{}, err
+		return rawWatchFrame{}, err
 	}
 	encoded, err := encodeBounded(JSON{"value": frame.Value, "ops": frame.Ops}, limits, limits.MaxFramePayloadBytes)
 	if err != nil {
-		return WatchFrame{}, err
+		return rawWatchFrame{}, err
 	}
 	if int64(len(encoded)) > quota {
-		return WatchFrame{}, reject("watch folded root exceeds process quota")
+		return rawWatchFrame{}, reject("watch folded root exceeds process quota")
 	}
 	return frame, nil
 }

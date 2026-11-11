@@ -129,7 +129,7 @@ func TestMainSessionDeferredCrashLastStoredMemoryState(t *testing.T) {
 		}
 		defer watch.Stop()
 		values := make(chan string, 3)
-		if err := watch.Start(func(_ context.Context, value JSON, _ []Operation) error { values <- value["text"].(string); return nil }); err != nil {
+		if err := startDetachedDocumentValues(watch, func(_ context.Context, value JSON, _ []Operation) error { values <- value["text"].(string); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		states := []string{}

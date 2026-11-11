@@ -50,8 +50,8 @@ func TestV150WatchTenThousandSetsRemainIncremental(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	calls := make(chan WatchFrame, 1)
-	if err := watch.StartFrame(func(_ context.Context, frame WatchFrame) error { calls <- frame; return nil }); err != nil {
+	calls := make(chan rawWatchFrame, 1)
+	if err := startDetachedDocumentFrames(watch, func(_ context.Context, frame rawWatchFrame) error { calls <- frame; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	frame := watchReceive(t, calls)
@@ -66,7 +66,7 @@ func TestV150WatchTenThousandSetsRemainIncremental(t *testing.T) {
 func TestV150CompactedWatchRetainsEveryReadinessGate(t *testing.T) {
 	first, second := make(chan struct{}), make(chan struct{})
 	close(second)
-	frames := []WatchFrame{
+	frames := []rawWatchFrame{
 		{Kind: "value", Value: JSON{"n": 1}, ownedValue: JSON{"n": 1}, Ops: []Operation{{"s", []any{"n"}, 1}}, ready: first},
 		{Kind: "value", Value: JSON{"n": 2}, ownedValue: JSON{"n": 2}, Ops: []Operation{{"s", []any{"n"}, 2}}, ready: second},
 	}
@@ -90,7 +90,10 @@ func TestV150WatchStopReleasesPendingReadiness(t *testing.T) {
 	defer session.Close(bg)
 	ready := make(chan struct{})
 	defer close(ready)
-	watch := &DocumentWatch{session: session, current: JSON{"n": 0}, byteLimit: 1 << 20, closed: make(chan struct{}), started: true, listener: func(context.Context, WatchFrame) error { t.Error("stopped readiness delivered a callback"); return nil }, pending: []WatchFrame{{Kind: "value", Value: JSON{"n": 1}, ownedValue: JSON{"n": 1}, Ops: []Operation{{"s", []any{"n"}, 1}}, pendingReady: []<-chan struct{}{ready}}}}
+	watch := &DocumentWatch{session: session, current: JSON{"n": 0}, byteLimit: 1 << 20, closed: make(chan struct{}), started: true, listener: func(context.Context, rawWatchFrame) error {
+		t.Error("stopped readiness delivered a callback")
+		return nil
+	}, pending: []rawWatchFrame{{Kind: "value", Value: JSON{"n": 1}, ownedValue: JSON{"n": 1}, Ops: []Operation{{"s", []any{"n"}, 1}}, pendingReady: []<-chan struct{}{ready}}}}
 	defer watch.Stop()
 	watch.kick()
 	deadline := time.Now().Add(time.Second)

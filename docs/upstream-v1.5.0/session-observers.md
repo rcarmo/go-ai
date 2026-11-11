@@ -14,6 +14,10 @@ D16/D17 and row338 remain open. Snapshot/watch shared cache identity, version/re
 
 Current and historical typed snapshots now return ReadonlyValue across all reader facades. Current snapshots and synchronous observers share their adopted cache nodes; unchanged children, unedited migration bases and already-adopted held stores retain identity. Held values preserve ownership even with zero idle retention. The source runner now passes117 unchanged tests +9 probes; full native durable535.625s/tools18.078s and static gates pass. [The snapshot receipt](../../notes/readonly-document-snapshots.md) records language fixtures, API migration and remaining asynchronous-watch/view/cache-lifetime/dispatch acceptance. D16/D17 remain open.
 
+## Readonly document watch follow-up
+
+Public asynchronous watches now share prepared readonly revisions with snapshots and synchronous observers, retaining their acquisition value until delivery. Normal/zero-retention two-watch probes and raw native regressions pass. Reference coverage is145 unchanged pinned tests +12 probes, including all28 session-watches tests. Full durable405.984s/tools16.650s and static gates pass. [The watch receipt](../../notes/readonly-document-watches.md) records test-first failures, API migration and a measured primitive-set optimization; D14–D17 remain open.
+
 ## Historical checkpoints
 
 Private stored-commit and synchronous document-observer lanes pass selected source-shaped controls. `Session`, `Harness` and `ConversationHandle` expose synchronous typed document observation with detached Go values. Full readonly identity, task-runtime attachment and Harness integration remain incomplete. Row 338 stays `reviewed-open`.

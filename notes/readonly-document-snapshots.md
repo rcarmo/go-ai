@@ -33,7 +33,7 @@ A repeated restart-control run exposed a pre-existing fixture race: `AbortTask` 
 
 ## Remaining contracts
 
-- Public asynchronous document watches still use the older copied-value transport.
+- Public asynchronous document watches now return shared readonly revisions; see readonly-document-watches.md for the subsequent slice.
 - Mounted builtin view documents need the same materialisation authority across snapshot, observer and view APIs.
 - Version switching, active pins under cache pressure, reload/eviction and weak lifetime assertions need complete source coverage.
 - Task-bound warm-read admission/cancellation requires its separate source audit.

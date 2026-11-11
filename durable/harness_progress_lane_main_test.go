@@ -94,8 +94,8 @@ func TestMainHarnessProgressLaneMemoryAndFlush(t *testing.T) {
 				if err != nil || !found {
 					t.Fatal(found, err)
 				}
-				deliveries := make(chan WatchFrame, 4)
-				if err := watch.StartFrame(func(_ context.Context, f WatchFrame) error { deliveries <- f; return nil }); err != nil {
+				deliveries := make(chan rawWatchFrame, 4)
+				if err := startDetachedDocumentFrames(watch, func(_ context.Context, f rawWatchFrame) error { deliveries <- f; return nil }); err != nil {
 					t.Fatal(err)
 				}
 				defer watch.Stop()

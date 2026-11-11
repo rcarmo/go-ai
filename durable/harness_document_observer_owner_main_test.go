@@ -243,7 +243,7 @@ func TestMainHarnessDocumentObserverQueuedAttachment(t *testing.T) {
 			calls := make(chan struct{}, 1)
 			go func() {
 				guard, value, ok, err := h.session.observeDocumentDefinition(admission, def, 0, nil, sessionDocumentObserver{
-					advance: func(context.Context, WatchFrame) error { calls <- struct{}{}; return nil },
+					advance: func(context.Context, rawWatchFrame) error { calls <- struct{}{}; return nil },
 					end:     func(WatchEnd) error { return nil },
 				})
 				results <- result{guard, value, ok, err}
@@ -306,9 +306,9 @@ func TestMainHarnessDocumentObserverFailureCause(t *testing.T) {
 		t.Fatal(err)
 	}
 	endings := make(chan WatchEnd, 2)
-	advances := make(chan WatchFrame, 1)
+	advances := make(chan rawWatchFrame, 1)
 	observation, _, ok, err := h.session.observeDocumentDefinition(context.Background(), def, 0, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error { advances <- frame; return nil },
+		advance: func(_ context.Context, frame rawWatchFrame) error { advances <- frame; return nil },
 		end:     func(end WatchEnd) error { endings <- end; return nil },
 	})
 	if err != nil || !ok {

@@ -32,13 +32,14 @@ type Tx struct {
 	externalTaskCommit bool        // public host transaction, not a scheduler/adapter pass
 	// Immediate parents of successfully staged high-level forks. This fence is
 	// broader than copy source IDs: new current-policy parent docs also reject.
-	forkParents   map[ID]bool
-	documentPlans map[ID]*transactionDocumentPlan
-	readDocuments map[ID]bool // actual document access, separate from preparation scans
-	memoryOnly    bool        // sealed eligible deferred-document publication
-	keyedReads    bool        // Session methods touch dependencies before reading the base
-	busy          atomic.Bool
-	sealed        atomic.Bool
+	forkParents       map[ID]bool
+	documentPlans     map[ID]*transactionDocumentPlan
+	readonlyDocuments map[ID]ReadonlyValue
+	readDocuments     map[ID]bool // actual document access, separate from preparation scans
+	memoryOnly        bool        // sealed eligible deferred-document publication
+	keyedReads        bool        // Session methods touch dependencies before reading the base
+	busy              atomic.Bool
+	sealed            atomic.Bool
 }
 
 func (t *Tx) enter() error { return t.enterKeys(ALL_KEYS) }

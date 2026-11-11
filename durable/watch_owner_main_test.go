@@ -51,7 +51,7 @@ func TestMainWatchTaskOwnerEnd(t *testing.T) {
 				w.mu.Lock()
 				docID := w.id
 				w.mu.Unlock()
-				frames := make(chan WatchFrame, 3)
+				frames := make(chan rawWatchFrame, 3)
 				callbackGate := make(chan struct{})
 				defer func() {
 					select {
@@ -61,7 +61,7 @@ func TestMainWatchTaskOwnerEnd(t *testing.T) {
 					}
 				}()
 				listenerError := errors.New("owner watch listener")
-				listener := func(_ context.Context, f WatchFrame) error {
+				listener := func(_ context.Context, f rawWatchFrame) error {
 					frames <- f
 					if mode == "busy-final" || (mode == "busy-before" && !f.Retired) {
 						<-callbackGate
@@ -72,7 +72,7 @@ func TestMainWatchTaskOwnerEnd(t *testing.T) {
 					return nil
 				}
 				if mode == "started" || mode == "busy-final" || mode == "busy-before" || mode == "already-retired" || mode == "listener-error" || mode == "failed-owner" || mode == "aborted-owner" {
-					if e = w.StartFrame(listener); e != nil {
+					if e = startDetachedDocumentFrames(w, listener); e != nil {
 						t.Fatal(e)
 					}
 				}
@@ -165,7 +165,7 @@ func TestMainWatchTaskOwnerEnd(t *testing.T) {
 						if _, ended := w.End(); ended {
 							t.Fatal("unstarted final delivery ended early")
 						}
-						if e = w.StartFrame(listener); e != nil {
+						if e = startDetachedDocumentFrames(w, listener); e != nil {
 							t.Fatal(e)
 						}
 					}

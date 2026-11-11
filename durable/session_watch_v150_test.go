@@ -55,12 +55,12 @@ func TestV150WatchSource202MoreThanTenThousandFoldedOps(t *testing.T) {
 			t.Fatalf("source commit [%d,%d) rejected: %v", bounds[0], bounds[1], err)
 		}
 	}
-	calls := make(chan WatchFrame, 2)
-	if err = watch.StartFrame(func(_ context.Context, frame WatchFrame) error { calls <- frame; return nil }); err != nil {
+	calls := make(chan rawWatchFrame, 2)
+	if err = startDetachedDocumentFrames(watch, func(_ context.Context, frame rawWatchFrame) error { calls <- frame; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	frame := watchReceive(t, calls)
-	value, err := watch.Value()
+	value, err := detachedDocumentWatchValue(watch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +130,8 @@ func TestV150WatchSource202NoEarlyRootAtEightThousand(t *testing.T) {
 			t.Fatalf("commit [%d,%d): %v", bounds[0], bounds[1], err)
 		}
 	}
-	calls := make(chan WatchFrame, 2)
-	if err = watch.StartFrame(func(_ context.Context, frame WatchFrame) error { calls <- frame; return nil }); err != nil {
+	calls := make(chan rawWatchFrame, 2)
+	if err = startDetachedDocumentFrames(watch, func(_ context.Context, frame rawWatchFrame) error { calls <- frame; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	frame := watchReceive(t, calls)
@@ -147,7 +147,7 @@ func TestV150WatchSource202NoEarlyRootAtEightThousand(t *testing.T) {
 			t.Fatalf("op %d is %v", i, op)
 		}
 	}
-	value, err := watch.Value()
+	value, err := detachedDocumentWatchValue(watch)
 	if err != nil {
 		t.Fatal(err)
 	}

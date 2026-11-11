@@ -138,26 +138,12 @@ func (s *Session) holdPreparedDocuments(p *preparedSessionPublication, withinMs 
 		if deadline.compare(held.deadline) < 0 {
 			held.deadline = deadline
 		}
-		previous := held.readonly
-		if previous == nil {
-			previous = s.cachedReadonlyDocument(id, held.record.Version)
-		}
 		var err error
 		held, err = s.extendHeld(held, p.tx.writes)
 		if err != nil {
 			return err
 		}
-		var own []Operation
-		for _, change := range p.observed.Documents {
-			if change.Record.ID == id {
-				own = change.Ops
-				break
-			}
-		}
-		held.readonly, err = persistentDocumentValue(previous, held.record.Value, own, s.limits)
-		if err != nil {
-			return err
-		}
+		held.readonly = p.tx.readonlyDocuments[id]
 		// The count excludes uncommitted changes, even after many memory commits.
 		held.record.DeltasSinceBase = s.readImage.Documents[id].DeltasSinceBase
 		next[id] = held

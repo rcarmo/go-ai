@@ -60,7 +60,7 @@ func TestMainSynchronousDocumentObserverSourceAdoption(t *testing.T) {
 		s, _, def, owner := sourceDocumentObserverSession(t, false)
 		calls := 0
 		o, baseline, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-			advance: func(context.Context, WatchFrame) error { calls++; return nil },
+			advance: func(context.Context, rawWatchFrame) error { calls++; return nil },
 			end:     func(WatchEnd) error { calls++; return nil },
 		})
 		if err != nil || ok || o != nil || baseline != nil {
@@ -100,10 +100,10 @@ func TestMainSynchronousDocumentObserverSourceAdoption(t *testing.T) {
 				return original(kind, ordinal, high, payload)
 			}
 			defer func() { store.appendFrame = original }()
-			var frames []WatchFrame
+			var frames []rawWatchFrame
 			var callbackDuringStorage bool
 			o, baseline, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-				advance: func(_ context.Context, frame WatchFrame) error {
+				advance: func(_ context.Context, frame rawWatchFrame) error {
 					callbackDuringStorage = callbackDuringStorage || inStorage.Load()
 					frames = append(frames, frame)
 					return nil
@@ -162,7 +162,7 @@ func TestMainSynchronousDocumentObserverGuardAndLifetime(t *testing.T) {
 	var reports []error
 	var peer int
 	bad, _, ok, err := s.observeDocumentDefinition(ctx, def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { return failure },
+		advance: func(context.Context, rawWatchFrame) error { return failure },
 		end:     func(end WatchEnd) error { ends = append(ends, end); return nil },
 		report: func(_ context.Context, err error, info ReportInfo) {
 			if info.Type != "listener_error" {
@@ -175,7 +175,7 @@ func TestMainSynchronousDocumentObserverGuardAndLifetime(t *testing.T) {
 		t.Fatal(ok, err)
 	}
 	good, _, ok, err := s.observeDocumentDefinition(ctx, def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { peer++; return nil },
+		advance: func(context.Context, rawWatchFrame) error { peer++; return nil },
 		end:     func(WatchEnd) error { return nil },
 	})
 	if err != nil || !ok {
@@ -224,7 +224,7 @@ func TestMainSynchronousDocumentObserverSameCommitDetach(t *testing.T) {
 			var first, second *sessionDocumentObservation
 			var order []string
 			first, _, _, _ = s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-				advance: func(_ context.Context, frame WatchFrame) error {
+				advance: func(_ context.Context, frame rawWatchFrame) error {
 					order = append(order, "first")
 					if frame.Retired {
 						if mode == "self" {
@@ -238,7 +238,7 @@ func TestMainSynchronousDocumentObserverSameCommitDetach(t *testing.T) {
 				end: func(WatchEnd) error { return nil },
 			})
 			second, _, _, _ = s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-				advance: func(context.Context, WatchFrame) error { order = append(order, "second"); return nil },
+				advance: func(context.Context, rawWatchFrame) error { order = append(order, "second"); return nil },
 				end:     func(WatchEnd) error { return nil },
 			})
 			if first == nil || second == nil {
@@ -285,7 +285,7 @@ func TestMainSynchronousDocumentObserverAdmissionAndClose(t *testing.T) {
 	if err := sourceDocumentSet(s, def, owner, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	observer := sessionDocumentObserver{advance: func(context.Context, WatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
+	observer := sessionDocumentObserver{advance: func(context.Context, rawWatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
 	if o, _, ok, err := s.observeDocumentDefinition(cancelled, def, owner, nil, observer); o != nil || ok || !errors.Is(err, context.Canceled) {
@@ -323,7 +323,7 @@ func TestMainSynchronousDocumentObserverConcurrentDetach(t *testing.T) {
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
 	o, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { close(entered); <-release; return nil },
+		advance: func(context.Context, rawWatchFrame) error { close(entered); <-release; return nil },
 		end:     func(WatchEnd) error { return nil },
 	})
 	if err != nil || !ok {
@@ -377,7 +377,7 @@ func TestMainSynchronousDocumentObserverCancelledAfterRegistration(t *testing.T)
 	ctx := &sourceDocumentCancelAfterRegistration{Context: base, cancel: cancel, s: s}
 	calls := 0
 	observation, initial, ok, err := s.observeDocumentDefinition(ctx, def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { calls++; return nil },
+		advance: func(context.Context, rawWatchFrame) error { calls++; return nil },
 		end:     func(WatchEnd) error { calls++; return nil },
 	})
 	if observation != nil || initial != nil || ok || !errors.Is(err, context.Canceled) {
@@ -396,7 +396,7 @@ func TestMainSynchronousDocumentObserverCapacityAndRetention(t *testing.T) {
 	if err := sourceDocumentSet(s, def, owner, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	observer := sessionDocumentObserver{advance: func(context.Context, WatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
+	observer := sessionDocumentObserver{advance: func(context.Context, rawWatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
 	capacity := s.observerCapacity()
 	handles := make([]*sessionDocumentObservation, 0, capacity)
 	for i := 0; i < capacity; i++ {
@@ -445,9 +445,9 @@ func TestMainSynchronousDocumentObserverRetirementValueRelease(t *testing.T) {
 	if err := sourceDocumentSet(s, def, owner, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	var frames []WatchFrame
+	var frames []rawWatchFrame
 	observation, baseline, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error { frames = append(frames, frame); return nil },
+		advance: func(_ context.Context, frame rawWatchFrame) error { frames = append(frames, frame); return nil },
 		end:     func(WatchEnd) error { return nil },
 	})
 	if err != nil || !ok {
@@ -537,7 +537,7 @@ func TestMainSynchronousDocumentObserverQueuedAttachment(t *testing.T) {
 			calls := make(chan struct{}, 1)
 			go func() {
 				observation, initial, ok, err := s.observeDocumentDefinition(admission, def, owner, nil, sessionDocumentObserver{
-					advance: func(context.Context, WatchFrame) error { calls <- struct{}{}; return nil },
+					advance: func(context.Context, rawWatchFrame) error { calls <- struct{}{}; return nil },
 					end:     func(WatchEnd) error { return nil },
 				})
 				resultCh <- result{observation, initial, ok, err}
@@ -595,7 +595,7 @@ func TestMainSynchronousDocumentObserverLocalRegistrationOrder(t *testing.T) {
 				var ok bool
 				var err error
 				observation, _, ok, err = s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-					advance: func(context.Context, WatchFrame) error { order = append(order, "document"); return nil },
+					advance: func(context.Context, rawWatchFrame) error { order = append(order, "document"); return nil },
 					end:     func(WatchEnd) error { return nil },
 				})
 				if err != nil || !ok {
@@ -646,7 +646,7 @@ func TestMainSynchronousDocumentObserverFailureCause(t *testing.T) {
 	}
 	endings := make(chan WatchEnd, 2)
 	observation, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { t.Error("advance after failure"); return nil },
+		advance: func(context.Context, rawWatchFrame) error { t.Error("advance after failure"); return nil },
 		end:     func(end WatchEnd) error { endings <- end; return nil },
 	})
 	if err != nil || !ok {
@@ -721,7 +721,7 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 	}
 	var events []string
 	observation, _, ok, err := s.observeDocumentDefinition(context.Background(), def, taskID, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error {
+		advance: func(_ context.Context, frame rawWatchFrame) error {
 			if !frame.Retired {
 				t.Errorf("unexpected non-retirement frame: %+v", frame)
 			}
@@ -756,7 +756,7 @@ func TestMainSynchronousDocumentObserverTaskOwnerEnds(t *testing.T) {
 		t.Fatal("terminal owner retained document pin")
 	}
 	if next, initial, ok, err := s.observeDocumentDefinition(context.Background(), def, taskID, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { return nil }, end: func(WatchEnd) error { return nil },
+		advance: func(context.Context, rawWatchFrame) error { return nil }, end: func(WatchEnd) error { return nil },
 	}); err != nil || ok || next != nil || initial != nil {
 		t.Fatalf("terminal owner attachment: handle=%v initial=%v ok=%v err=%v", next, initial, ok, err)
 	}
@@ -772,7 +772,7 @@ func TestMainSynchronousDocumentObserverRejectsMalformedAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	observer := sessionDocumentObserver{advance: func(context.Context, WatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
+	observer := sessionDocumentObserver{advance: func(context.Context, rawWatchFrame) error { return nil }, end: func(WatchEnd) error { return nil }}
 	key := "not-a-family"
 	for _, tc := range []struct {
 		name  string
@@ -808,7 +808,7 @@ func TestMainSynchronousDocumentObserverRetirementErrorIsolation(t *testing.T) {
 	failure := errors.New("retirement callback failed")
 	var calls, reports, endings int
 	bad, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error {
+		advance: func(_ context.Context, frame rawWatchFrame) error {
 			calls++
 			if !frame.Retired {
 				t.Error("faulting observer received recreation")
@@ -833,9 +833,9 @@ func TestMainSynchronousDocumentObserverRetirementErrorIsolation(t *testing.T) {
 		t.Fatal(ok, err)
 	}
 	defer bad.detach()
-	var peer []WatchFrame
+	var peer []rawWatchFrame
 	good, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(_ context.Context, frame WatchFrame) error { peer = append(peer, frame); return nil },
+		advance: func(_ context.Context, frame rawWatchFrame) error { peer = append(peer, frame); return nil },
 		end:     func(WatchEnd) error { return nil },
 	})
 	if err != nil || !ok {
@@ -883,7 +883,7 @@ func TestMainSynchronousDocumentObserverReporterDetaches(t *testing.T) {
 	var ok bool
 	var err error
 	observation, _, ok, err = s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { return failure },
+		advance: func(context.Context, rawWatchFrame) error { return failure },
 		end:     func(WatchEnd) error { endings++; return nil },
 		report: func(_ context.Context, err error, _ ReportInfo) {
 			if err != failure {
@@ -916,7 +916,7 @@ func TestMainSynchronousDocumentObserverPanicIsolation(t *testing.T) {
 	var endings []WatchEnd
 	var peer int
 	bad, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { panic(failure) },
+		advance: func(context.Context, rawWatchFrame) error { panic(failure) },
 		end:     func(end WatchEnd) error { endings = append(endings, end); return nil },
 		report:  func(_ context.Context, err error, _ ReportInfo) { reports = append(reports, err) },
 	})
@@ -925,7 +925,7 @@ func TestMainSynchronousDocumentObserverPanicIsolation(t *testing.T) {
 	}
 	defer bad.detach()
 	good, _, ok, err := s.observeDocumentDefinition(context.Background(), def, owner, nil, sessionDocumentObserver{
-		advance: func(context.Context, WatchFrame) error { peer++; return nil },
+		advance: func(context.Context, rawWatchFrame) error { peer++; return nil },
 		end:     func(WatchEnd) error { return nil },
 	})
 	if err != nil || !ok {

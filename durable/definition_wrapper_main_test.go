@@ -83,7 +83,7 @@ func TestMainDefinitionWrapperProjectionOverridesNativeCache(t *testing.T) {
 							return nil, ok, err
 						}
 						defer watch.Stop()
-						value, err := watch.Value()
+						value, err := detachedDocumentWatchValue(watch)
 						return value, err == nil, err
 					case "state":
 						value, err := state.Value(bg)

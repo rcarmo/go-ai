@@ -68,7 +68,7 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 					} else {
 						checkpointCommit(t, s, retire)
 					}
-					v, e := w.Value()
+					v, e := detachedDocumentWatchValue(w)
 					if e != nil || v["n"].(json.Number) != "0" {
 						t.Fatal(v, e)
 					}
@@ -78,8 +78,8 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 					w.mu.Lock()
 					queued := w.pending // retain the backing array to check consumed slots
 					w.mu.Unlock()
-					frames := make(chan WatchFrame, 8)
-					if e = w.StartFrame(func(_ context.Context, f WatchFrame) error { frames <- f; return nil }); e != nil {
+					frames := make(chan rawWatchFrame, 8)
+					if e = startDetachedDocumentFrames(w, func(_ context.Context, f rawWatchFrame) error { frames <- f; return nil }); e != nil {
 						t.Fatal(e)
 					}
 					f := watchReceive(t, frames)
@@ -125,12 +125,12 @@ func TestMainWatchAddressRetirementRecreation(t *testing.T) {
 					if f.Retired || f.Value["n"].(json.Number) != "11" || len(f.Ops) != 1 || f.Ops[0][0] != "s" {
 						t.Fatal("lost incremental follow", f)
 					}
-					v, e = w.Value()
+					v, e = detachedDocumentWatchValue(w)
 					if e != nil || v["n"].(json.Number) != "11" {
 						t.Fatal(v, e)
 					}
 					f.Value["n"] = -2
-					v, e = w.Value()
+					v, e = detachedDocumentWatchValue(w)
 					if e != nil || v["n"].(json.Number) != "11" {
 						t.Fatal("callback mutated watch", v, e)
 					}
@@ -192,8 +192,8 @@ func TestMainWatchAddressAbsentIsolationAndRollback(t *testing.T) {
 			t.Fatal("unrelated address or rollback reached watch", pending, id)
 		}
 		checkpointCommit(t, s, func(tx *Tx) error { return tx.RetireDefinition(def, 0, &key) })
-		frames := make(chan WatchFrame, 2)
-		if e = w.StartFrame(func(_ context.Context, f WatchFrame) error { frames <- f; return nil }); e != nil {
+		frames := make(chan rawWatchFrame, 2)
+		if e = startDetachedDocumentFrames(w, func(_ context.Context, f rawWatchFrame) error { frames <- f; return nil }); e != nil {
 			t.Fatal(e)
 		}
 		f := watchReceive(t, frames)

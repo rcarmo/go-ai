@@ -23,7 +23,7 @@ func TestMainSessionDeferredLocalObserverOracle(t *testing.T) {
 		var mu sync.Mutex
 		var values []string
 		watched := make(chan struct{}, 16)
-		if err := watch.Start(func(_ context.Context, value JSON, _ []Operation) error {
+		if err := startDetachedDocumentValues(watch, func(_ context.Context, value JSON, _ []Operation) error {
 			mu.Lock()
 			values = append(values, value["text"].(string))
 			mu.Unlock()

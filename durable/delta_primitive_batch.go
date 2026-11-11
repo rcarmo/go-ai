@@ -128,3 +128,40 @@ func applyPrimitiveObjectSets(root any, operations []Operation, limits Limits, e
 	}
 	return true, nil
 }
+
+// Reuse the exact intermediate-budget accountant above for readonly publication.
+// Copy the changed object once, rather than materialising and checking the whole
+// growing document twice per operation. No incoming batch or prior node mutates.
+// Unsupported/oversized batches retain the original independent-operation path.
+func immutablePrimitiveObjectSets(before *ImmutableValue, operations []Operation, limits Limits) (*ImmutableValue, bool, error) {
+	if len(operations) < 64 {
+		return nil, false, nil
+	}
+	ops, err := ownOperations(operations, limits)
+	if err != nil {
+		return nil, false, nil
+	}
+	raw := before.Copy()
+	encoded, err := encodeBounded(raw, limits, limits.MaxDocumentBytes)
+	if err != nil {
+		return nil, true, err
+	}
+	handled, err := applyPrimitiveObjectSets(raw, ops, limits, len(encoded))
+	if !handled || err != nil {
+		return nil, handled, err
+	}
+	path := ops[0][1].([]any)
+	root, err := immutableUpdatePath(before, path[:len(path)-1], func(parent *ImmutableValue) (*ImmutableValue, error) {
+		next := immutableContainerCopy(parent)
+		for _, op := range ops {
+			node, err := freezeImmutableValue(op[2])
+			if err != nil {
+				return nil, err
+			}
+			path := op[1].([]any)
+			next.mapValue[segmentKey(path[len(path)-1])] = node
+		}
+		return next, nil
+	})
+	return root, true, err
+}
