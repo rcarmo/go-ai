@@ -2,7 +2,7 @@
 
 ## Promoted builtin publication acceptance gate
 
-The source-derived builtin publication packet now passes as `durable/builtin_publication_contract_v150_test.go` in the ordinary suite. Its former overlay runner is removed. Exact model-tool progression and UTF-16 public controls supplement it; canonical raw storage, nested tools, migrations and edge states remain open. See [the current receipt](../../../../notes/builtin-task-publications.md) and [ranked scope](../../../../docs/upstream-v1.5.0/alignment-roadmap.md).
+The source-derived builtin publication packet now passes as `durable/builtin_tasks_test.go` in the ordinary suite. Its former overlay runner is removed. Exact model-tool progression and UTF-16 public controls supplement it; canonical raw storage, nested tools, migrations and edge states remain open. See [the current receipt](../../../../notes/builtin-task-publications.md) and [ranked scope](../../../../docs/upstream-v1.5.0/alignment-roadmap.md).
 
 The remaining receipts below are historical; some fixtures were promoted or APIs replaced. Their old failures and overlay recipes do not establish current gaps.
 

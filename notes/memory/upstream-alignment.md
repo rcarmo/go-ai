@@ -2,7 +2,8 @@
 
 Confirmed 2026-11-11 in the active alignment conversation:
 
-- This is a port, not an alternate Go runtime contract. Full semantic alignment with pinned upstream is the target.
+- This is a straight port, not an alternate Go runtime contract. Port the pinned source's records, APIs and control flow directly; do not extend native compatibility scaffolding or let native tests redefine source behaviour. Full semantic alignment with pinned upstream is the target.
+- Consolidate related test files as work proceeds. Use version-neutral suite filenames; retain source pins in comments/fixtures and prove test/assertion preservation. Do not accumulate release-specific files for individual deltas.
 - There are no users. Backwards compatibility with the existing native Go implementation is not a constraint: replace incompatible APIs/behaviour and update callers/tests against upstream. Do not retain a second, weaker contract or move workarounds onto consumers.
 - Be proactive within this authorised task. Continue across implementation, tests, crosswalks and acceptance checks without requiring another prompt after every bounded fix.
 - Commit/push verified changes under the user's explicit existing authority. Do not call a slice full alignment; keep remaining gaps and acceptance failures explicit.

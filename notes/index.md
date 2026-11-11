@@ -39,7 +39,7 @@ Compact index. Read a linked note only when it is relevant to the current task.
   persisted request/assistant facts, scoped UTF-16, source close/resend and remaining durable boundary.
 
 - [Raw builtin task storage](builtin-task-storage.md) — definition-free admission, exact state unions,
-  terminal scans, SQLite reopen/reclaim and scheduler representation safety.
+  terminal scans, SQLite reopen/reclaim, canonical Task/ScanTasks and source transaction read fences.
 
 ## Related
 

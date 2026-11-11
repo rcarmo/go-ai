@@ -5,6 +5,25 @@ import (
 	"testing"
 )
 
+func TestStorage120InvalidCursorTypedRecoverableRead(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		for _, cursor := range []Cursor{{"after": "bad"}, {"after": 1.5}, {"after": float64(1 << 54)}, {"after": 1.0, "order": "up"}} {
+			_, e := b.store.ScanTasks(bg, TaskQuery{}, 1, cursor)
+			var request *StorageRequestError
+			var rejected *StorageRejected
+			if !errors.As(e, &request) || !errors.As(e, &rejected) {
+				t.Fatal("request type missing", e)
+			}
+			if _, e = b.store.Snapshot(bg); e != nil {
+				t.Fatal("invalid read poisoned storage", e)
+			}
+		}
+		if _, e := b.store.ScanTasks(bg, TaskQuery{Order: "bad"}, 1, nil); e == nil {
+			t.Fatal("invalid order accepted")
+		}
+	})
+}
+
 // Exercise the direct storage boundary, outside the Session guard. Each failed
 // read must leave both snapshot and subsequent valid reads usable.
 func storageRequestMatrix120(t *testing.T, store Storage) {
@@ -85,4 +104,13 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 
 func TestStorage120DirectRequestMatrix(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) { storageRequestMatrix120(t, b.store) })
+}
+
+func TestSQLite120DirectRequestMatrix(t *testing.T) {
+	store, e := OpenSQLite(t.TempDir()+"/store.db", SQLiteOptions{})
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer store.Close(bg)
+	storageRequestMatrix120(t, store)
 }

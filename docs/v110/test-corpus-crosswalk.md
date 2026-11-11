@@ -186,11 +186,11 @@ Every official suite is listed once. Changed suites map to named native tests an
 | `packages/durable/test/env-truncate.test.ts` | Unchanged; inherited native suite family and existing platform/live limitations |
 | `packages/durable/test/harness-compaction.test.ts` | head changes, prompt baselines, background compaction; `durable/compaction*test.go; context_cache_110_test.go` |
 | `packages/durable/test/harness-context.test.ts` | as-of/visibility/edit/head/tool ordering/cache expiry; `durable/context_cache_110_test.go; history_test.go; prompt_test.go` |
-| `packages/durable/test/harness-conversations.test.ts` | ordered scans/forks/conversation ownership; `durable/scan_110_test.go; conversation_created_test.go; history_test.go` |
+| `packages/durable/test/harness-conversations.test.ts` | ordered scans/forks/conversation ownership; `durable/scan_test.go; conversation_created_test.go; history_test.go` |
 | `packages/durable/test/harness-events.test.ts` | Unchanged; inherited native suite family and existing platform/live limitations |
 | `packages/durable/test/harness-generation-recovery.test.ts` | recovery/join/persisted receipt timing; `durable/task_recovery_test.go; task_structured_recovery_test.go; receipt_duration_110_test.go` |
 | `packages/durable/test/harness-generation.test.ts` | production generation, duration projection, defaults; `durable/harness_generation_test.go; generation_progress_test.go; models_110_test.go` |
-| `packages/durable/test/harness-inbox.test.ts` | ordered submissions and queue policies; `durable/inbox*test.go; submission_test.go; scan_110_test.go` |
+| `packages/durable/test/harness-inbox.test.ts` | ordered submissions and queue policies; `durable/inbox*test.go; submission_test.go; scan_test.go` |
 | `packages/durable/test/harness-inspect.test.ts` | Unchanged; inherited native suite family and existing platform/live limitations |
 | `packages/durable/test/harness-lifecycle.test.ts` | Unchanged; inherited native suite family and existing platform/live limitations |
 | `packages/durable/test/harness-live-deltas.test.ts` | Unchanged; inherited native suite family and existing platform/live limitations |

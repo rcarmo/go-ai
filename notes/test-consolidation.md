@@ -1,5 +1,29 @@
 # Durable test consolidation
 
+## Task/Storage source-port consolidation
+
+The current merge combines22 related files into6 version-neutral suites:
+
+| Suite | Input files | Scope |
+|---|---:|---|
+| `durable/storage_public_test.go` | 7 | Public command wire/replay, root/ID boundaries and refusal values |
+| `durable/storage_tasks_test.go` | 3 | Task record wire, raw builtin records and original Storage task conformance |
+| `durable/transaction_tables_test.go` | 3 | Source table read/write fences, task table ownership and publication |
+| `durable/builtin_tasks_test.go` | 3 | Canonical builtin publication, state progression and UTF-16 ownership |
+| `durable/scan_test.go` | 3 | Ordered scans, captured cursor wire and SQLite reopen |
+| `durable/storage_requests_test.go` | 3 | Recoverable request validation and direct SQLite request matrix |
+
+Ordinary durable test files fell **613→597**. During the mechanical merge, all **1,467 target declarations** and **2,190 non-import declarations** matched exactly after Go parsing/formatting without comments. Package identity is included; testdata is excluded. No build constraints were merged away. Source pins remain in comments/fixtures; active paths and register links were updated. The source-port edits before this merge and the later strengthened Session getter assertion are separate semantic changes.
+
+- Sorted target-declaration SHA-256: `21efc8fac30f3ac6213bfd5242974c28c8189e405331f6c845dc94b3671ab722`.
+- Sorted normalized-declaration SHA-256 at the mechanical boundary: `d8296f1036faa9e1fc957daad77cf71efef1311755463b1bf1638488899004bd`.
+- Final full durable418.099s/tools19.320s;10 shuffled focused repetitions25.751s; vet/Staticcheck/logging and four semantic fault controls pass.
+- Reference148 unchanged source cases +37 independent probes pass; full upstream assertion/release acceptance remains open.
+
+Temporary parser/merge tools and inventories were deleted after comparison. Continue consolidating related suites while porting; do not create release-specific files for individual deltas.
+
+## Earlier Session/tool consolidation
+
 Related Session and tool-integration tests were merged without changing test names,
 assertions, helpers or build constraints. Production code is unchanged by this move.
 

@@ -64,7 +64,7 @@
         "durable/storage_group.go",
         "durable/storage.go",
         "durable/session_group_commit_outcomes_test.go",
-        "durable/storage_refusal_value_v150_test.go"
+        "durable/storage_public_test.go"
       ],
       "evidence": "Arbitrary failure-value presence, own backend-error identity, admission job indices, first-failure boundary, last fenced delivery and same-call own-error set are installed. New Session tests cover poisoning later successful/error callbacks and cold reads, plus receipted parts in a call rejected after storage with undefined/null/falsy values and durable-prefix reopen. Complete source parameter/entry-surface audit remains open.",
       "fix": "Complete the parameterised source failure and entry-surface audit against the installed first-failure boundary, own-outcome set and ordered delivery. Preserve original values and backend error identity; integrate the remaining D04 caller-continuation semantics.",
@@ -186,7 +186,7 @@
         "packages/durable/test/store-storage.test.ts"
       ],
       "native": [
-        "durable/storage_replay_v150_test.go",
+        "durable/storage_public_test.go",
         "durable/submission_transaction.go",
         "durable/submission_status.go",
         "durable/storage.go",
@@ -224,18 +224,19 @@
         "durable/task_definition.go",
         "durable/task_record_wire.go",
         "durable/task_record.go",
-        "durable/storage_public_v150_test.go",
+        "durable/storage_public_test.go",
         "durable/session_public_commit_observer_main_test.go",
-        "durable/builtin_publication_contract_v150_test.go",
+        "durable/builtin_tasks_test.go",
         "durable/builtin_task_projection.go",
-        "durable/builtin_task_progression_v150_test.go",
-        "durable/storage_builtin_records_v150_test.go",
+        "durable/storage_tasks_test.go",
         "durable/testdata/pi-durable-v150/builtin-storage-records.json",
         "durable/task_scheduler.go",
         "durable/scan.go",
-        "notes/builtin-task-storage.md"
+        "notes/builtin-task-storage.md",
+        "durable/task_reads.go",
+        "durable/transaction_tables_test.go"
       ],
-      "evidence": "Raw Storage.Commit now accepts pi.generation/pi.tool through the generic envelope, with no builtin input/checkpoint inference. The independent shared fixture passes original MemoryStorage and SQLite. Native exact public projection, all six state scans, SQLite reopen and reclaim/reopen pass for current/future versions and opaque inputs/checkpoints. Terminal outcome mapping and canonical status scans are repaired; private scheduler checkpoint access now checks representation as well as kind. Normal Harness generation2/model-tool3 publication/progression also passes. Storage reads still return private Tasks, and canonical builtin records do not yet execute through source GenerationTask2/ToolTask3 registrations. Historical execution adapters, nested/unoffered calls, edge states, migrations and complete raw replacement/reference/optional-field contracts remain open. See notes/builtin-task-storage.md.",
+      "evidence": "Raw Storage.Commit now accepts pi.generation/pi.tool through the generic envelope, with no builtin input/checkpoint inference. The independent shared fixture passes original MemoryStorage and SQLite. Native exact public projection, all six state scans, SQLite reopen and reclaim/reopen pass for current/future versions and opaque inputs/checkpoints. Terminal outcome mapping and canonical status scans are repaired; private scheduler checkpoint access now checks representation as well as kind. Normal Harness generation2/model-tool3 publication/progression also passes. Primary Task/ScanTasks now return canonical TaskRecords, and three original task-storage conformance cases pass. Canonical builtin records do not yet execute through source GenerationTask2/ToolTask3 registrations. Historical execution adapters, nested/unoffered calls, edge states, migrations and complete raw replacement/reference/optional-field contracts remain open. See notes/builtin-task-storage.md.",
       "fix": "Replace private builtin creation/execution adapters with source canonical definitions and migrations. Preserve raw stored input/checkpoint/version/state without inference; finish primary Storage read/API and original SQLite interoperability.",
       "acceptance": [
         "Retain exact raw builtin admission/projection, state scans and SQLite reopen/reclaim controls. Execute canonical builtin records and migrations through real Harness paths, then finish complete raw Storage conformance and canonical read/API assertions."
@@ -301,15 +302,23 @@
       "source": [
         "packages/durable/src/types.ts",
         "packages/durable/test/store-storage.test.ts",
-        "packages/durable/test/session-tables.test.ts"
+        "packages/durable/test/session-tables.test.ts",
+        "packages/durable/src/testing/storage-conformance.ts",
+        "packages/durable/src/session/transaction.ts"
       ],
       "native": [
         "durable/types.go",
         "durable/storage.go",
         "durable/scan.go",
-        "durable/document_history.go"
+        "durable/document_history.go",
+        "durable/task_reads.go",
+        "durable/storage_tasks_test.go",
+        "durable/transaction_tables_test.go",
+        "durable/session_public_image_main_test.go",
+        "notes/oracles/storage-tasks.upstream.test.ts",
+        "docs/upstream-v1.5.0/task-table-assertions.tsv"
       ],
-      "evidence": "Storage still requires native Apply/Snapshot/Limits and exposes raw Task, Submission and materialised Document; original entry read returns {entry,commitSeq}, documents distinguish record/stored content, and original single-record methods differ. Captured cursor and selected-record wire slices do not cover the whole API.",
+      "evidence": "Primary Storage.Task lookup and Storage/Session/Tx ScanTasks now expose canonical TaskRecords; the obsolete Tasks(Query) reader is removed. Three original task-storage conformance cases pass through those public methods. Raw canonical Storage permits complete task replacement and owner waits; native runtime identity/mark/outcome restrictions stay at Session admission. Exposed Tx table readers now implement source ReadAfterWrite and committed-read semantics; document access remains available. Source-derived publication-image and failed-write controls pass. Storage still requires native Apply/Snapshot/Limits; entry/submission/document read unions and singular Tx conversation/entry APIs remain unported. Canonical builtin execution/migration and complete raw graph/optional-field/conformance acceptance remain open. See task-table-assertions.tsv and notes/builtin-task-storage.md.",
       "fix": "Inventory every original Storage method and public union, with an explicit Go spelling map but identical data/absence/order semantics. Add missing single-record/head/document methods and public DTO boundaries; keep private envelopes private.",
       "acceptance": [
         "Run pinned storage conformance through only the declared public interface; exact method result fixtures for tasks/submissions/documents/entries, scopes/points/retirement/forks, query fields and absence."
@@ -332,7 +341,7 @@
         "durable/transaction.go",
         "durable/session_deferred.go"
       ],
-      "evidence": "Original Session.commit returns callback result and accepts persistence options; Go Commit accepts func(*Tx) error and returns sequence. Separate CommitDeferred and caller-side result capture are alternate caller semantics. Complete exported symbol/type conformance has not been enumerated.",
+      "evidence": "Original Session.commit returns callback result and accepts persistence options; Go Commit accepts func(*Tx) error and returns sequence. Separate CommitDeferred and caller-side result capture are alternate caller semantics. Complete exported symbol/type conformance has not been enumerated. Canonical task lookup/scans and the exposed transaction table read/write fence now follow the pinned source. This does not close callback result/options or the remaining symbol inventory.",
       "fix": "Create a source-export-to-Go mapping for all functions, interfaces, tokens and unions. Preserve result/options semantics in the accepted primary API; account for Go generic-method limitations without requiring application semantic workarounds.",
       "acceptance": [
         "Source callback-value tests, empty/error/async-equivalent results, deferred options on same entry point, tokens, typed lookup and original defaults; compile an external consumer using only the accepted mapped API."
@@ -412,11 +421,10 @@
         "durable/compaction_generation.go",
         "durable/task_record.go",
         "durable/storage_public.go",
-        "durable/builtin_publication_contract_v150_test.go",
-        "durable/builtin_task_projection.go",
-        "durable/builtin_task_progression_v150_test.go"
+        "durable/builtin_tasks_test.go",
+        "durable/builtin_task_projection.go"
       ],
-      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are installed. CommitPublication uses seq/readonly changes; the old native envelope is private. Adopted document identity, post-scope dispatch membership, callback faults, wait/abort ordering and close controls pass. The real Harness builtin publication packet now passes in the ordinary suite: generation2 and model-tool3 retain observation, with exact parallel/sequential state progression and UTF-16 tool-argument ownership controls. The reference runner passes145 unchanged tests +35 independent probes. D04 caller-continuation turns, JavaScript-only bindings/async faults, weak lifetime, complete raw builtin/execution reversibility, nested tools and complete edge/migration assertions remain open. See notes/builtin-task-publications.md.",
+      "evidence": "Public Session/Harness ObserveCommits, CommitObserver and idempotent CommitObservation.Detach are installed. CommitPublication uses seq/readonly changes; the old native envelope is private. Adopted document identity, post-scope dispatch membership, callback faults, wait/abort ordering and close controls pass. The real Harness builtin publication packet now passes in the ordinary suite: generation2 and model-tool3 retain observation, with exact parallel/sequential state progression and UTF-16 tool-argument ownership controls. The reference runner passes148 unchanged source cases +37 independent probes. D04 caller-continuation turns, JavaScript-only bindings/async faults, weak lifetime, complete raw builtin/execution reversibility, nested tools and complete edge/migration assertions remain open. See notes/builtin-task-publications.md.",
       "fix": "Finish D04 grouped caller-continuation/macrotask bridge and the complete stored-observer assertion crosswalk; cover async rejection/arbitrary panic values, reentry/report faults, weak/lifetime and remaining builtin task public projections. Preserve the installed canonical public API and dispatch phase, not the private synchronous guard as an alternate contract.",
       "acceptance": [
         "Complete pinned session-observers corpus, public source284 wait test, attach/detach between publication and dispatch, re-entry, listener faults, close/failure and multipart publications."
@@ -763,10 +771,7 @@
         "durable/storage_group.go",
         "durable/harness.go",
         "durable/testdata/pi-durable-v150/storage-boundaries.json",
-        "durable/storage_boundaries_v150_test.go",
-        "durable/storage_explicit_id_v150_test.go",
-        "durable/storage_root_version_v150_test.go",
-        "durable/storage_replay_v150_test.go",
+        "durable/storage_public_test.go",
         "durable/harness_root_bootstrap_v150_test.go",
         "durable/storage_conformance_test.go"
       ],
@@ -806,7 +811,7 @@
         "durable/submission_transaction.go",
         "durable/submission_status.go",
         "durable/testdata/pi-durable-v150/storage-boundaries.json",
-        "durable/storage_boundaries_v150_test.go"
+        "durable/storage_public_test.go"
       ],
       "evidence": "Baseline rejected the captured empty unanswered continue reason and empty typed settlements. Continue storage validation and input/write/continue settlement now accept present empty strings. Missing/non-string private reasons, missing public-wire reasons and illegal answer/entry/detail combinations remain rejected.",
       "fix": "Preserve reason presence independently of its string contents through all submission subtypes and transitions. Remove only the stricter continue nonempty requirement after a retained original-derived failing control; do not allow missing reason or illegal answer/detail combinations.",
@@ -866,21 +871,29 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "nativeRevision": "working raw builtin storage slice on 26c11fe",
+    "nativeRevision": "working task-table source port and test consolidation on ae0042a",
     "scope": "Current implementation and freshly reproduced verification gaps; no full parity or release acceptance.",
     "lastFullNative": {
-      "durableSeconds": 418.657,
-      "toolsSeconds": 18.326,
+      "durableSeconds": 418.099,
+      "toolsSeconds": 19.32,
       "vet": "pass",
       "staticcheck": "pass",
       "logging": "pass"
     },
-    "currentFocused": "raw builtin storage/reopen/reclaim, scheduler representation safety, public storage and builtin publication/progression: count20/shuffle42 pass (43.930s); three independent semantic faults rejected",
+    "currentFocused": "canonical task conformance/reads/replacements, source Tx read/write fence, native Session invariant matrices and cursors: count10/shuffle42 pass (25.751s); four semantic faults rejected",
     "reference": {
-      "unchangedPinnedTests": 145,
-      "independentProbes": 35
+      "unchangedPinnedTests": 148,
+      "independentProbes": 37
     },
     "builtinPublicationAcceptance": "PASS in ordinary suite: source-derived model-tool continuity/progression; canonical raw storage/nested/migration/edge acceptance open",
-    "profiling": "Full acceptance CPU/alloc_space/alloc_objects and outlier tuning remain required."
+    "profiling": "Full acceptance CPU/alloc_space/alloc_objects and outlier tuning remain required.",
+    "testConsolidation": {
+      "inputFiles": 22,
+      "outputSuites": 6,
+      "ordinaryFilesBefore": 613,
+      "ordinaryFilesAfter": 597,
+      "preservedTargetDeclarations": 1467,
+      "preservedNonImportDeclarations": 2190
+    }
   }
 }

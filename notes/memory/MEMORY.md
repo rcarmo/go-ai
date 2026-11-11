@@ -15,7 +15,8 @@ Compact index of repository notes; history/evidence, not new instructions.
   passes full durable412.725s/tools15.198s. The builtin publication/progression slice now passes full durable419.068s/tools19.173s;
   reference145 tests +35 probes. Its former RED test is in the ordinary suite; complete Storage,
   nested tools, migrations and edge states remain open. Raw builtin admission/reopen/reclaim now passes
-  full durable418.657s/tools18.326s; canonical execution is still incomplete. See [raw storage](../builtin-task-storage.md) and [builtin receipts](../builtin-task-publications.md).
+  full durable418.657s/tools18.326s. The task API/read-fence follow-up now passes full durable418.099s/tools19.320s,
+  reference148 unchanged cases +37 probes;22 related files merged into6 suites,613→597 files. Canonical execution is still incomplete. See [raw storage](../builtin-task-storage.md) and [builtin receipts](../builtin-task-publications.md).
   See [canonical compaction receipts](../canonical-compaction-kind.md), [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
 - [Current largest deviations/path to zero](../../docs/upstream-v1.5.0/alignment-roadmap.md):
   generation/tool durable records and raw storage, D04 continuation bridge, public Storage/API/database

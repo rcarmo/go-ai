@@ -56,6 +56,7 @@ Rui's explicit rule: **profile and tune during pre-release tests; remove profili
 - Target the active official v1.5.0 contract across AI, durable and codemode. Rui's earlier removal of legacy durable API/journal compatibility remains in force; required upstream breaking semantics may change the native API. Preserve correctness, cancellation, ownership/security fences, unrelated compatibility and published refs/assets. Do not delete existing coverage merely because it tests an older surface.
 - Do not hand-edit generated artifacts. Generated Go source and image/text catalogs must come from exact pinned upstream inputs and checked-in generators.
 - Preserve unrelated local work and do not weaken existing tests or gates.
+- Consolidate related tests while porting. Use coherent, version-neutral suite filenames instead of adding a file for every release delta. Keep source pins in comments/fixtures, update crosswalks, and verify that moves preserve test targets and assertions.
 
 ## Upstream semantic alignment
 

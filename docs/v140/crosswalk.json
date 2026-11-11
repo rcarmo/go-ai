@@ -559,8 +559,8 @@
         "durable/task_scheduler_test.go",
         "durable/task_sleep_140_test.go",
         "durable/task_structured_recovery_test.go",
-        "durable/task_table_boundary_test.go",
-        "durable/task_table_publication_test.go",
+        "durable/transaction_tables_test.go",
+        "durable/transaction_tables_test.go",
         "durable/task_times_110_test.go",
         "durable/task_wait_abort_test.go",
         "durable/task_wait_migration_test.go",
@@ -647,7 +647,7 @@
         "durable/submission_transaction_test.go",
         "durable/submission_wait_publication_test.go",
         "durable/task_definition_test.go",
-        "durable/task_table_publication_test.go",
+        "durable/transaction_tables_test.go",
         "durable/transaction_test.go"
       ],
       "note": "Native deterministic contracts; no live credential claim."
@@ -657,8 +657,8 @@
         "durable/storage_sqlite.go"
       ],
       "tests": [
-        "durable/scan_sqlite_110_test.go",
-        "durable/storage_request_sqlite_120_test.go",
+        "durable/scan_test.go",
+        "durable/storage_requests_test.go",
         "durable/storage_sqlite_conformance_test.go",
         "durable/storage_sqlite_failure_test.go",
         "durable/storage_sqlite_prefix_130_test.go",
@@ -681,9 +681,9 @@
         "durable/storage_conformance_test.go",
         "durable/storage_delta_test.go",
         "durable/storage_journal_reclaim_test.go",
-        "durable/storage_request_120_test.go",
-        "durable/storage_request_matrix_120_test.go",
-        "durable/storage_request_sqlite_120_test.go",
+        "durable/storage_requests_test.go",
+        "durable/storage_requests_test.go",
+        "durable/storage_requests_test.go",
         "durable/storage_sqlite_conformance_test.go",
         "durable/storage_sqlite_failure_test.go",
         "durable/storage_sqlite_prefix_130_test.go",
