@@ -5,7 +5,8 @@ import (
 	"errors"
 )
 
-// Failure carries the value a storage operation failed with. The original models
+// Failure carries a reported failure value, including storage failures and
+// guarded public commit-observer panics. The original models
 // the slot as `{ error: unknown }`, so the value itself is observable and presence
 // is not the same question: a present null, undefined or falsy value is still a
 // failure. A nil *Failure therefore means "no failure".

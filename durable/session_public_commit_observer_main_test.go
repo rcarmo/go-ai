@@ -573,3 +573,77 @@ func TestMainPublicCommitObserverBeforeAbortSignal(t *testing.T) {
 		t.Fatal("stored abort was not observed")
 	}
 }
+
+func TestMainPublicCommitObserverArbitraryPanicValue(t *testing.T) {
+	for _, value := range []any{false, 0, "", nil} {
+		t.Run(fmt.Sprintf("%T:%v", value, value), func(t *testing.T) {
+			s := gatedSession(t)
+			var reports []error
+			var ends []WatchEnd
+			called := 0
+			s.timerReport = func(err error) { reports = append(reports, err) }
+			guard, err := s.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error {
+				called++
+				panic(value)
+			}, End: func(end WatchEnd) error { ends = append(ends, end); return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer guard.Detach()
+			for range 2 {
+				if _, err := s.Commit(bg, func(tx *Tx) error {
+					id, err := tx.MintID()
+					if err != nil {
+						return err
+					}
+					return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", Value: JSON{}})
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if called != 1 || len(reports) != 1 || len(ends) != 1 || ends[0].Reason != "listener_error" {
+				t.Fatal(called, reports, ends)
+			}
+			var failure *Failure
+			if !errors.As(reports[0], &failure) || !reflect.DeepEqual(failure.Value(), value) {
+				t.Fatal("report replaced original throw value", reports[0], value)
+			}
+			expected := fmt.Sprint(value)
+			if value == nil {
+				expected = "null"
+			}
+			if ends[0].Error == nil || ends[0].Error.Error() != expected {
+				t.Fatal("listener ending did not normalise as source toError", ends[0].Error, expected)
+			}
+
+		})
+	}
+}
+
+func TestMainPublicCommitObserverEndPanicValue(t *testing.T) {
+	for _, value := range []any{false, 0, "", nil} {
+		t.Run(fmt.Sprintf("%T:%v", value, value), func(t *testing.T) {
+			s := gatedSession(t)
+			var reports []error
+			var ends []WatchEnd
+			s.timerReport = func(err error) { reports = append(reports, err) }
+			_, err := s.ObserveCommits(CommitObserver{Advance: func(context.Context, CommitPublication) error { return nil }, End: func(end WatchEnd) error {
+				ends = append(ends, end)
+				panic(value)
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			if len(ends) != 1 || ends[0].Reason != "failed" || ends[0].Error == nil || ends[0].Error.Error() != "session closed" || len(reports) != 1 {
+				t.Fatal(ends, reports)
+			}
+			var failure *Failure
+			if !errors.As(reports[0], &failure) || !reflect.DeepEqual(failure.Value(), value) {
+				t.Fatal("ending report replaced original throw value", reports[0], value)
+			}
+		})
+	}
+}

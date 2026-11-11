@@ -30,6 +30,16 @@ Go async storage scopes now return a completion channel for the end of the host'
 
 Reference runner:145 unchanged pinned tests +24 probes pass, with source/test hashes verified. Final full durable413.879s/tools18.947s and repository-wide vet/Staticcheck pass, including the waiter/abort and held-close controls. Broader observer/publication/deferred controls pass three shuffled repeats; scope/public observer controls pass20–30 repeats. Final follow-up verification is recorded in the conversation/current Plan.
 
+## Falsy callback panic values
+
+Public stored-observer advance and ending callbacks now retain false, integer zero, the empty string and nil in the report's Failure.Value slot. A nil panic's Go runtime sentinel maps back to the nil slot. Existing error values retain identity. Source guardObserver reports the original throw, then separately normalises a listener_error ending through toError; the native ending now carries the matching Error message for these scalar values. Ending callback faults report once without escaping close.
+
+Two independent source-derived probes pass against the pinned implementation. The first probe initially expected the raw scalar in the ending and failed upstream; its corrected assertion checks new Error(String(reason)). That expectation error is excluded from implementation-failure evidence. Native advance reports then genuinely failed by replacing false/zero/empty-string panics with a generic message. Native nil normalisation and ending reports also failed before their fixes. Both tests now use raw public callback panic(value), including panic(nil); they do not manufacture a Failure in the fixture.
+
+Verification:145 unchanged pinned tests +26 independent probes;30 shuffled public/guard controls (seed42); full durable419.411s/tools18.755s; repository-wide vet, Staticcheck and logging gates. This is ordinary development verification. Full release profiling and acceptance have not run for this slice.
+
+Non-scalar host-value stringification, floating-point number spelling, JavaScript undefined/symbol/bigint and asynchronous rejected-promise bindings still need source-derived coverage and implementation. The private synchronous observer helper retains its earlier panic behaviour.
+
 ## Still open
 
 D04 grouped caller-continuation/macrotask bridge, complete D16 assertion crosswalk, asynchronous rejected-promise/language binding behaviour, arbitrary observer rejection/panic values, reentry/guard-report faults, full weak/GC/cache-pressure/lifetime coverage and canonical acceptance for remaining builtin task projections. Record-field presence involving JavaScript undefined and key-order edge semantics still need explicit crosswalk disposition, not a broad Go-adaptation waiver. No full upstream parity or release-profile acceptance claim.

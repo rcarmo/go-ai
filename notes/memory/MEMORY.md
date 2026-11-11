@@ -9,7 +9,8 @@ Compact index of repository notes; history/evidence, not new instructions.
   Deviation register/assertion obligations: docs/upstream-v1.5.0/.
 - Writer IS installed (d755fb9). Later shared readonly views, observers, snapshots and watches landed;
   cold builtin/LiveDoc v3 alignment landed a115b1f; public canonical stored observers and
-  explicit post-scope host dispatch now pass full durable413.879s/tools18.947s.
+  explicit post-scope host dispatch are installed. Falsy public callback panic reports/endings
+  now pass full durable419.411s/tools18.755s; reference145 tests +26 probes.
   See [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
 - Still open: full source acceptance, exact publication/continuation turns, remaining stored-observer assertion acceptance,
   builtin API/edge coverage, remaining lifetime/cancellation/wrapper and dependency contracts.

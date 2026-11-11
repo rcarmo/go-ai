@@ -363,3 +363,24 @@ it("dispatches the stored abort request before the invocation's abort signal",as
  harness.resume();await entered.promise;await harness.abortTask(id,context);await stopped.promise;
  expect(order.indexOf("stored-abort")).toBeGreaterThanOrEqual(0);expect(order.indexOf("signal")).toBeGreaterThan(order.indexOf("stored-abort"));guard.detach();await harness.close(context);
 });
+
+it("reports original falsy stored-observer throws and normalizes their listener_error ending",async()=>{
+ for(const reason of [false,0,"",null]){
+  const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000),reports:any[]=[],ends:any[]=[];let called=0;
+  session.report=(error:any,info:any)=>reports.push({error,info});
+  const guard=session.observeCommits({advance:()=>{called++;throw reason},end:end=>ends.push(end)});
+  const Doc=defineDoc({kind:"oracle.public.throw",scope:"session",version:1,initial:()=>({n:0}),checkpointWhen:()=>false});
+  await session.commit(async tx=>{await tx.doc(Doc)},context);await session.commit(async tx=>{(await tx.doc(Doc)).n=1},context);
+  expect(called).toBe(1);expect(reports).toHaveLength(1);expect(reports[0].error).toBe(reason);expect(ends).toEqual([{kind:"listener_error",error:new Error(String(reason))}]);guard.detach();await session.close(context);
+ }
+});
+
+it("retains falsy throws from stored-observer ending callbacks in reports",async()=>{
+ for(const reason of [false,0,"",null]){
+  const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000),reports:any[]=[],ends:any[]=[];
+  session.report=(error:any,info:any)=>reports.push({error,info});
+  session.observeCommits({advance:()=>{},end:end=>{ends.push(end);throw reason}});
+  await session.close(context);
+  expect(ends).toEqual([{kind:"failed",error:new Error("session closed")}]);expect(reports).toHaveLength(1);expect(reports[0].error).toBe(reason);
+ }
+});

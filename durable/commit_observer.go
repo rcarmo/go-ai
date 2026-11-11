@@ -3,6 +3,8 @@ package durable
 import (
 	"context"
 	"errors"
+	"runtime"
+	"strconv"
 	"sync"
 )
 
@@ -87,7 +89,7 @@ func (s *Session) reportCommitObserver(ctx context.Context, err error) {
 	}
 }
 func (s *Session) endCommitObserver(observer CommitObserver, end WatchEnd) {
-	if err := callSessionCommitObserver(func() error { return observer.End(end) }); err != nil {
+	if err := callPublicCommitObserver(func() error { return observer.End(end) }); err != nil {
 		s.reportCommitObserver(context.Background(), err)
 	}
 }
@@ -100,12 +102,12 @@ func (o *CommitObservation) advance(ctx context.Context, prepared preparedPublic
 	}
 	err := prepared.err
 	if err == nil {
-		err = callSessionCommitObserver(func() error { return observer.Advance(ctx, prepared.value) })
+		err = callPublicCommitObserver(func() error { return observer.Advance(ctx, prepared.value) })
 	}
 	if err != nil {
 		s.reportCommitObserver(ctx, err)
 		if ended, owner := o.release(); owner != nil {
-			owner.endCommitObserver(ended, WatchEnd{Reason: "listener_error", Error: err})
+			owner.endCommitObserver(ended, WatchEnd{Reason: "listener_error", Error: commitObserverEndError(err)})
 		}
 	}
 }
@@ -200,4 +202,39 @@ func (s *Session) awaitCommitDispatch(ctx context.Context) error {
 	_ = s.line.acquire(context.Background())
 	s.jobHeld, s.jobOutcome = jobHeld, outcome
 	return err
+}
+
+// Reporting retains the original throw slot. A listener_error ending is a
+// separate Error normalisation in source guardObserver/toError, not that slot.
+func callPublicCommitObserver(callback func() error) (err error) {
+	defer func() {
+		if value := recover(); value != nil {
+			// Go replaces panic(nil) with this runtime sentinel; the thrown slot
+			// corresponds to source null, not a host-created Error.
+			if _, nilPanic := value.(*runtime.PanicNilError); nilPanic {
+				value = nil
+			}
+			err = newFailure(value).AsError()
+		}
+	}()
+	return callback()
+}
+func commitObserverEndError(err error) error {
+	var failure *Failure
+	if !errors.As(err, &failure) {
+		return err
+	}
+	switch value := failure.Value().(type) {
+	case nil:
+		return errors.New("null")
+	case bool:
+		return errors.New(strconv.FormatBool(value))
+	case string:
+		return errors.New(value)
+	case int:
+		return errors.New(strconv.Itoa(value))
+	default:
+		// Non-scalar host throws still need the source stringification crosswalk.
+		return err
+	}
 }
