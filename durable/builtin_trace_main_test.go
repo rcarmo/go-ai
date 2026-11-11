@@ -11,9 +11,9 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Selected f9a26365 harness-telemetry.test.ts:444-476 scenario. Native
-// task.pi.compaction is the registered compaction adapter token; source uses
-// pi.compaction. The stored background flag/carrier and phase parent are exact.
+// Selected f9a26365 harness-telemetry.test.ts:444-476 scenario. Compaction
+// uses the source pi.compaction kind. The stored background flag/carrier
+// and phase parent are exact.
 func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		backend := newMainTaskTraceBackend(t)
@@ -85,7 +85,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 		}
 		var compact Task
 		for _, task := range state.Tasks {
-			if task.Kind == "task.pi.compaction" {
+			if task.Kind == "pi.compaction" {
 				if compact.ID != 0 {
 					t.Fatal("duplicate compaction")
 				}
@@ -109,7 +109,7 @@ func TestMainBuiltinTraceBackgroundCompaction(t *testing.T) {
 			if prepare == nil && span.attrs["task.name"] == "pi.generation" && span.attrs["phase"] == "prepare" {
 				prepare = span
 			}
-			if compaction == nil && span.attrs["task.name"] == "task.pi.compaction" {
+			if compaction == nil && span.attrs["task.name"] == "pi.compaction" {
 				compaction = span
 			}
 		}

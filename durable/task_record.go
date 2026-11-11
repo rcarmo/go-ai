@@ -286,7 +286,7 @@ func validateTaskRecord(task Task, l Limits) error {
 	switch task.Execution.Tag {
 	case nativeTaskTag:
 		native := task.Execution.Native
-		if native == nil || task.Execution.Builtin != nil || strings.HasPrefix(task.Kind, "pi.") || len(task.Checkpoint) != 0 || native.Version == 0 || native.Version > MaxID || native.Input == nil || !native.Input.Present {
+		if native == nil || task.Execution.Builtin != nil || builtinTaskKind(task.Kind) || len(task.Checkpoint) != 0 || native.Version == 0 || native.Version > MaxID || native.Input == nil || !native.Input.Present {
 			return reject("invalid native task execution")
 		}
 		if err := validateTaskState(native.State); err != nil {

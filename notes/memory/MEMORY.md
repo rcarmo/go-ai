@@ -11,8 +11,9 @@ Compact index of repository notes; history/evidence, not new instructions.
   cold builtin/LiveDoc v3 alignment landed a115b1f; public canonical stored observers and
   explicit post-scope host dispatch are installed. Falsy public callback panic reports/endings
   are installed. Broader object/array/cycle/Number/custom-conversion normalisation now passes
-  full durable403.545s/tools18.718s; reference145 tests +28 probes.
-  See [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
+  full durable403.545s/tools18.718s. The canonical compaction-name/namespace follow-up
+  passes full durable412.725s/tools15.198s; reference145 tests +31 probes.
+  See [canonical compaction receipts](../canonical-compaction-kind.md), [readonly watch receipts](../readonly-document-watches.md) and the current Plan.
 - Still open: full source acceptance, exact publication/continuation turns, remaining stored-observer assertion acceptance,
   builtin API/edge coverage, remaining lifetime/cancellation/wrapper and dependency contracts.
   No full parity claim.

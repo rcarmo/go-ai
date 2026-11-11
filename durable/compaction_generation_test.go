@@ -75,7 +75,7 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 		}
 		found := false
 		for _, task := range state.Tasks {
-			if task.Kind == "task.pi.compaction" {
+			if task.Kind == "pi.compaction" {
 				found = true
 				if task.Owner != result.Task.ID || task.Status != "done" {
 					t.Fatal("automatic compaction ownership", task)
@@ -166,7 +166,7 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 				}
 				compactions := 0
 				for _, task := range state.Tasks {
-					if task.Kind == "task.pi.compaction" {
+					if task.Kind == "pi.compaction" {
 						compactions++
 						record, err := CanonicalTask(task, h.session.limits)
 						if err != nil {

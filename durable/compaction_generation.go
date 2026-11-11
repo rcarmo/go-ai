@@ -66,7 +66,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 	}
 	if background {
 		for _, work := range state.Tasks {
-			if work.Conversation == task.Conversation && work.Kind == "task.pi.compaction" && !terminalStatus(work.Status) {
+			if work.Conversation == task.Conversation && work.Kind == "pi.compaction" && !terminalStatus(work.Status) {
 				return false, nil
 			}
 		}
@@ -75,7 +75,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 	if err != nil {
 		return false, err
 	}
-	definition := snapshot.Task("task.pi.compaction")
+	definition := snapshot.Task("pi.compaction")
 	if definition == nil {
 		return false, reject("compaction adapter unavailable")
 	}
@@ -96,7 +96,7 @@ func (h *Harness) startGenerationCompaction(runtime *TaskRuntime, task Task, cp 
 		if background {
 			ownership = TaskOwnership{Kind: "conversation"}
 			for _, work := range tx.state.Tasks {
-				if work.Conversation == task.Conversation && work.Kind == "task.pi.compaction" && !terminalStatus(work.Status) {
+				if work.Conversation == task.Conversation && work.Kind == "pi.compaction" && !terminalStatus(work.Status) {
 					return nil
 				}
 			}

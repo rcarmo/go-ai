@@ -29,6 +29,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Public stored-commit observers](stored-commit-observers.md) — canonical readonly changes,
   explicit host dispatch turns, late membership, storage scope completion and waiter/abort controls.
 
+- [Canonical compaction kind](canonical-compaction-kind.md) — source task names, application pi.*
+  namespace, public storage roundtrips, registry protection and remaining builtin projections.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

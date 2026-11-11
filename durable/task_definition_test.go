@@ -36,8 +36,15 @@ func TestTaskDefinitionConstructorOwnsPhaseMapAndInput(t *testing.T) {
 	if execution.Input.Value.(map[string]any)["input"] != "original" || taskCheckpointMap(execution.State.Checkpoint)["nested"].(map[string]any)["value"] != "initial" {
 		t.Fatal("definition callback/caller placement escaped")
 	}
+	// Source defineTask accepts pi.* tokens; reserved builtin execution safety
+	// remains at the registry/storage boundaries, not token construction.
+	builtinName := definition.options
+	builtinName.Kind = "pi.generation"
+	if _, err := DefineTask(builtinName); err != nil {
+		t.Fatal("builtin namespace token rejected", err)
+	}
 	for _, mutate := range []func(*TaskDefinitionOptions){
-		func(o *TaskDefinitionOptions) { o.Kind = "pi.generation" },
+		func(o *TaskDefinitionOptions) { o.Kind = "" },
 		func(o *TaskDefinitionOptions) { o.Version = 0 },
 		func(o *TaskDefinitionOptions) { o.Initial = nil },
 		func(o *TaskDefinitionOptions) { o.Abort = nil },

@@ -76,7 +76,7 @@ func TestAutomaticCompactionStrictBlockingAndBackgroundThresholds(t *testing.T) 
 				}
 				var compaction ID
 				for _, task := range state.Tasks {
-					if task.Kind == "task.pi.compaction" {
+					if task.Kind == "pi.compaction" {
 						compaction = task.ID
 						if (task.Owner == 0) != background {
 							t.Fatal("threshold ownership", task, background)

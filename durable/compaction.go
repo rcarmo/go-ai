@@ -46,7 +46,7 @@ func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOpti
 	if err != nil {
 		return 0, err
 	}
-	definition := snapshot.Task("task.pi.compaction")
+	definition := snapshot.Task("pi.compaction")
 	if definition == nil {
 		return 0, reject("compaction adapter unavailable")
 	}
@@ -69,7 +69,7 @@ func (c *ConversationHandle) Compact(ctx context.Context, options CompactionOpti
 	return id, err
 }
 func (h *Harness) compactionDefinition() (*TaskDefinition, error) {
-	definition, err := DefineTask(TaskDefinitionOptions{Kind: "task.pi.compaction", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "select"}, nil }, Phases: map[string]TaskPhase{
+	definition, err := DefineTask(TaskDefinitionOptions{Kind: "pi.compaction", Version: 1, Initial: func(any) (JSON, error) { return JSON{"phase": "select"}, nil }, Phases: map[string]TaskPhase{
 		"select": func(ctx context.Context, task TaskRecord, r *TaskRuntime) error {
 			h := r.harness
 			view, err := h.session.ContextView(ctx, r.ConversationID(), 0)

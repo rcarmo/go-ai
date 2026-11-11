@@ -54,6 +54,10 @@ Go adapters are explicit: json.Number converts through its IEEE-754 Number value
 
 The independent source probe passes18 cases. The first16 native cases all failed on the original generic storage-failure message before the fix. Raw public callbacks now pass object/slice/pointer identity, cyclic-array, number and custom-conversion controls. Later strengthening also checks bigint, Error in an array, a repeated noncyclic array, the signed-zero report bit, a fresh ending Error and single conversion. The source probe count is28, alongside145 unchanged pinned tests.20 shuffled full public-observer repetitions and20 strengthened object/number repetitions pass. Full durable403.545s/tools18.718s, repository-wide vet/Staticcheck and logging gates pass; the full run preceded only the final test strengthening. Release profiling and full acceptance are still open.
 
+## Canonical compaction and task namespace
+
+Real Harness compaction publications now use pi.compaction/version1/pending-select. Application pi.* tasks run, and raw application/compaction records survive exact canonical JSON and SQLite reopen checks. Reference145 unchanged tests +31 probes;30 shuffled public/storage/registry controls; full durable412.725s/tools15.198s, vet/Staticcheck/logging pass. [The compaction receipt](canonical-compaction-kind.md) records the distinct constructor/core/public-translator failures and unchanged remaining builtin limits.
+
 ## Still open
 
 D04 grouped caller-continuation/macrotask bridge, complete D16 assertion crosswalk, asynchronous rejected-promise/language binding behaviour, remaining JavaScript throw-value bindings and object tags, reentry/guard-report faults, full weak/GC/cache-pressure/lifetime coverage and canonical acceptance for remaining builtin task projections. Record-field presence involving JavaScript undefined and key-order edge semantics still need explicit crosswalk disposition, not a broad Go-adaptation waiver. No full upstream parity or release-profile acceptance claim.

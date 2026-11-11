@@ -1,9 +1,6 @@
 package durable
 
-import (
-	"context"
-	"strings"
-)
+import "context"
 
 // CommitResult reports what one public grouped Storage.Commit call stored and
 // which batch was refused, if one was. Refused is nil when every batch in the
@@ -196,10 +193,10 @@ func nativeDocumentAddress(record DocumentCreate, version uint64, value JSON) (D
 	return document, nil
 }
 
-// builtinTaskKind reports whether a task kind is owned by a built-in adapter.
-// A built-in task keeps its own raw checkpoint contract instead of the generic
-// native execution envelope, so its public record is not reversible alone.
-func builtinTaskKind(kind string) bool { return strings.HasPrefix(kind, "pi.") }
+// These two adapters still use private checkpoints that cannot be rebuilt from
+// their public records alone. Compaction and application pi.* tasks use the
+// generic envelope; a namespace prefix is not execution authority.
+func builtinTaskKind(kind string) bool { return kind == "pi.generation" || kind == "pi.tool" }
 
 // nativeTask rebuilds the versioned native execution envelope of a public
 // runtime record for the kinds the native store owns generically. Built-in

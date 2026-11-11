@@ -920,7 +920,7 @@ func TestMainAfterRunQueuedBoundary(t *testing.T) {
 // Native name adaptation must reject mapped builtins without reserving a
 // previously valid application task namespace wholesale.
 func TestMainAfterRunBuiltinNames(t *testing.T) {
-	for _, name := range []string{"pi.generation", "pi.tool", "pi.application", "task.pi.compaction", nestedToolKind, "task.pi.subagent-reporter"} {
+	for _, name := range []string{"pi.generation", "pi.tool", "pi.application", "pi.compaction", nestedToolKind, "task.pi.subagent-reporter"} {
 		if !afterRunBuiltinKind(name) {
 			t.Error("builtin admitted", name)
 		}

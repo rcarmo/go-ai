@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -227,5 +228,61 @@ func TestPiDurableV150PublicStorageCommitEnforcesIDOwnership(t *testing.T) {
 	}
 	if result.Stored != 0 || result.Refused == nil {
 		t.Fatalf("stored=%d refused=%v", result.Stored, result.Refused)
+	}
+}
+
+func TestPiDurableV150PublicStoragePiNamespaceRoundTrip(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close(bg) }()
+	var receipts [][2]uint64
+	commands := []StorageWrite{}
+	for index, kind := range []string{"pi.example", "pi.compaction"} {
+		commands = append(commands, StorageWrite{Type: "task", Value: TaskRecord{ID: ID(index + 2), Conversation: 1, Kind: kind, Version: 1, Input: &TaskValue{Present: true, Value: JSON{"reason": "manual"}}, State: TaskState{Status: "pending", Checkpoint: JSON{"phase": "select"}}}})
+	}
+	result, err := store.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: 1}}}, commands}, func(index int, seq uint64) { receipts = append(receipts, [2]uint64{uint64(index), seq}) })
+	if err != nil || result.Stored != 2 || result.Refused != nil {
+		t.Fatal("source-accepted pi namespace records refused", result, err)
+	}
+	if !reflect.DeepEqual(receipts, [][2]uint64{{0, 1}, {1, 2}}) {
+		t.Fatal(receipts)
+	}
+	for phase := range 2 {
+		state, err := store.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index, kind := range []string{"pi.example", "pi.compaction"} {
+			record, err := CanonicalTask(state.Tasks[ID(index+2)], DefaultLimits())
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := record.MarshalJSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got, want JSON
+			if err := decodeStrict(encoded, DefaultLimits(), DefaultLimits().MaxRecordBytes, &got); err != nil {
+				t.Fatal(err)
+			}
+			literal := fmt.Sprintf(`{"id":%d,"conversationId":1,"kind":%q,"version":1,"input":{"reason":"manual"},"background":false,"abortRequested":false,"state":{"status":"pending","checkpoint":{"phase":"select"}}}`, index+2, kind)
+			if err := decodeStrict([]byte(literal), DefaultLimits(), DefaultLimits().MaxRecordBytes, &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatal("public record changed", phase, got, want)
+			}
+		}
+		if phase == 0 {
+			if err := store.Close(bg); err != nil {
+				t.Fatal(err)
+			}
+			store, err = OpenSQLite(store.path, SQLiteOptions{Prefix: store.prefix})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }

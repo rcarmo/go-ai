@@ -1,5 +1,7 @@
 # Restart cutoff checkpoint
 
+Current follow-up: compaction creation and its cutoff selection now use source pi.compaction. The task.pi.compaction references below describe the earlier checkpoint. [Current verification and remaining builtin limits](../../notes/canonical-compaction-kind.md).
+
 Answered finish/drain recovery now completes the generation, clears its live run without creating `runFailure`, retains queued inputs and reports `task_interrupted/restart_limit`. Ordinary tasks fault before definition resolution at the limit. Generation, tool and compaction retain their own cutoff handlers. Full v1.5.0 convergence is unverified.
 
 Target: official v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`. Runtime: `e5d73933dd1661ffa6f889de58848889095f08e6`. Base: `fe53bfc0ba75ef19c188630a4ba7fea40b806927`. The [unchanged recovery baseline](after-run-recovery-baseline.md) was not repeated.

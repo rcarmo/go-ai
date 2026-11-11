@@ -91,7 +91,7 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 		}
 		var id ID
 		for _, task := range state.Tasks {
-			if task.Kind == "task.pi.compaction" {
+			if task.Kind == "pi.compaction" {
 				id = task.ID
 				record, err := CanonicalTask(task, h.session.limits)
 				if err != nil || !record.Background || record.Owner != 0 {

@@ -10,11 +10,11 @@ func TestRegistryBuiltinCompactionCannotReplaceOrRemoveAcrossReopen(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		builtin := before.Task("task.pi.compaction")
+		builtin := before.Task("pi.compaction")
 		if builtin == nil {
 			t.Fatal("builtin compaction absent")
 		}
-		replacement := taskDefinition(t, "task.pi.compaction", taskAbort)
+		replacement := taskDefinition(t, "pi.compaction", taskAbort)
 		if _, err := registry.RegisterTask(replacement); err == nil {
 			t.Fatal("builtin task replaced")
 		}
@@ -27,7 +27,7 @@ func TestRegistryBuiltinCompactionCannotReplaceOrRemoveAcrossReopen(t *testing.T
 		}
 		openHarness(t, reopenStoreAfterHarnessClose(t, b.store), Options{Registry: registry})
 		after, err := registry.taskSnapshot(DefaultLimits())
-		if err != nil || after.Task("task.pi.compaction") != builtin {
+		if err != nil || after.Task("pi.compaction") != builtin {
 			t.Fatal("builtin identity replaced on reopen", err)
 		}
 	})

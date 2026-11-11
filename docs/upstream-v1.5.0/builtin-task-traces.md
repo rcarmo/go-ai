@@ -1,5 +1,7 @@
 ## Builtin task trace ancestry
 
+Current follow-up: compaction now uses source pi.compaction in persisted tasks and span names. Existing background ancestry and metadata assertions pass unchanged apart from the kind literal. The receipt below describes an earlier runtime and its former task.pi.compaction token; [the current name/namespace receipt](../../notes/canonical-compaction-kind.md) supersedes that name difference.
+
 Parallel and sequential model-tool tasks now persist their creating phase's carrier. An active phase stopped by Close now reports `outcome=aborted` and explicitly sets OK status. Adopted terminal, waiting and sleeping decisions keep their outcomes. Background-compaction metadata, nested-task carriers and restart parenting already passed unchanged runtime.
 
 Target: official upstream v1.5.0 `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native runtime: `b6b8d4185a7be3bc9dc1a84811af7925cf5c3791`; baseline: `e46eee70148ecce81e0f19c9708ede09c744b68d` (runtime `2fd88f2`). The earlier [task-trace checkpoint][prior] keeps its original results.

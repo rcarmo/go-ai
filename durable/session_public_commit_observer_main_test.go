@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 func sourcePublicCommitObservation(t *testing.T, s *Session, observer CommitObserver) *CommitObservation {
@@ -809,4 +811,80 @@ func TestMainPublicCommitObserverObjectAndNumberPanicValue(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMainPublicCommitObserverCanonicalCompactionKind(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+			t.Error("empty compaction called a model")
+			ch := make(chan goai.Event)
+			close(ch)
+			return ch
+		})
+		h := openHarness(t, b.store, options)
+		c := root(t, h, ref)
+		var records []ReadonlyValue
+		var ends []WatchEnd
+		guard, err := h.ObserveCommits(CommitObserver{Advance: func(_ context.Context, p CommitPublication) error {
+			for i := range p.Changes.Len() {
+				change, _ := p.Changes.Index(i)
+				if immutableViewMember(t, change, "type").String() == "task" {
+					records = append(records, immutableViewMember(t, change, "value"))
+				}
+			}
+			return nil
+		}, End: func(end WatchEnd) error { ends = append(ends, end); return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer guard.Detach()
+		id, err := c.Compact(bg, CompactionOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitPublicTask(t, h, id)
+		if err := h.Close(bg); err != nil {
+			t.Fatal(err)
+		}
+		var first ReadonlyValue
+		for _, record := range records {
+			if immutableViewMember(t, record, "id").Number() == json.Number(fmt.Sprint(id)) {
+				first = record
+				break
+			}
+		}
+		if first == nil {
+			t.Fatal("compaction had no public task publication")
+		}
+		if got := immutableViewMember(t, first, "kind").String(); got != "pi.compaction" {
+			t.Fatal("noncanonical compaction task kind", got)
+		}
+		if immutableViewMember(t, first, "version").Number() != json.Number("1") || immutableViewMember(t, immutableViewMember(t, first, "input"), "reason").String() != "manual" {
+			t.Fatal(first.Copy())
+		}
+		state := immutableViewMember(t, first, "state")
+		if !equalJSONValue(state.Copy(), JSON{"status": "pending", "checkpoint": JSON{"phase": "select"}}) {
+			t.Fatal(state.Copy())
+		}
+		if len(ends) != 1 || ends[0].Reason != "failed" {
+			t.Fatal(ends)
+		}
+	})
+}
+
+func TestMainTaskApplicationPiNamespace(t *testing.T) {
+	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
+		work := taskDefinition(t, "pi.example", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+			return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("done"), nil })
+		})
+		h := taskTestHarness(t, b.store, work)
+		id := createPublicTask(t, h, work, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}})
+		if err := h.Resume(bg); err != nil {
+			t.Fatal(err)
+		}
+		record := waitPublicTask(t, h, id)
+		if record.Kind != "pi.example" || record.State.Outcome.Status != "completed" || record.State.Outcome.Result.Value != "done" {
+			t.Fatal(record)
+		}
+	})
 }

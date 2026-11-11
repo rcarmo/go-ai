@@ -4,7 +4,6 @@ import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -29,7 +28,7 @@ type TaskDefinition struct {
 }
 
 func DefineTask(options TaskDefinitionOptions) (*TaskDefinition, error) {
-	if !validKind(options.Kind) || strings.HasPrefix(options.Kind, "pi.") || options.Version == 0 || options.Version > MaxID || options.Initial == nil || options.Abort == nil || len(options.Phases) == 0 || len(options.Phases) > DefaultLimits().MaxMembers {
+	if !validKind(options.Kind) || options.Version == 0 || options.Version > MaxID || options.Initial == nil || options.Abort == nil || len(options.Phases) == 0 || len(options.Phases) > DefaultLimits().MaxMembers {
 		return nil, reject("invalid task definition")
 	}
 	phases := make(map[string]TaskPhase, len(options.Phases))
@@ -241,7 +240,7 @@ func (r *Registry) RegisterTask(definition *TaskDefinition) (func(), error) {
 	if r == nil || definition == nil || !definition.constructed {
 		return nil, reject("nil task registration")
 	}
-	if definition.options.Kind == "task.pi.compaction" || definition.options.Kind == nestedToolKind && definition != nestedToolDefinition() {
+	if definition.options.Kind == "pi.compaction" || definition.options.Kind == nestedToolKind && definition != nestedToolDefinition() {
 		return nil, reject("builtin task cannot be replaced")
 	}
 	r.mu.Lock()

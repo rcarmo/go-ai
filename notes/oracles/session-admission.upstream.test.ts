@@ -418,3 +418,27 @@ it("reports object and numeric throws by identity while normalizing listener_err
   await session.close(context);expect(ends).toHaveLength(1);
  }
 });
+
+it("publishes the canonical builtin compaction kind and initial version/checkpoint",async()=>{
+ const {openChat,chatSetup}=await import("@pinned/chat");
+ const {harness,root}=await openChat(new ControlledStorage(),chatSetup());const tasks:any[]=[],ends:any[]=[];
+ const guard=harness.observeCommits({advance:p=>{for(const change of p.changes)if(change.type==="task")tasks.push(change.value)},end:end=>ends.push(end)});
+ const id=await root.compact(undefined,context);await harness.waitForTask(id,context);await harness.close(context);
+ const first=tasks.find(task=>task.id===id);expect(first).toBeDefined();expect(first.kind).toBe("pi.compaction");expect(first.version).toBe(1);expect(first.input.reason).toBe("manual");expect(first.state).toEqual({status:"pending",checkpoint:{phase:"select"}});
+ expect(ends).toHaveLength(1);expect(ends[0].kind).toBe("failed");guard.detach();
+});
+
+it("runs an application task whose kind uses the pi namespace",async()=>{
+ const {defineTask}=await import("@earendil-works/pi-durable"),{openTasks,completed}=await import("@pinned/tasks");
+ const Work=defineTask({name:"pi.example",version:1,initial:()=>({phase:"work"}),phases:{work:async(_task:any,runtime:any,ctx:any)=>{await runtime.commit(()=>completed("done"),ctx)}},abort:async()=>{}});
+ const {harness}=await openTasks(new ControlledStorage(),[Work]);const root=await harness.root(context);
+ const id=await root.commit(tx=>tx.createTask(Work,null,{ownership:{kind:"conversation"}}),context);
+ const record=await harness.waitForTask(id,context);expect(record.state.outcome).toEqual({status:"completed",result:"done"});expect(record.kind).toBe("pi.example");await harness.close(context);
+});
+
+it("accepts raw application and compaction records in the pi namespace",async()=>{
+ const storage=new ControlledStorage(),receipts:any[]=[];
+ const records=[{id:2,conversationId:1,kind:"pi.example",version:1,input:{reason:"manual"},background:false,abortRequested:false,state:{status:"pending",checkpoint:{phase:"select"}}},{id:3,conversationId:1,kind:"pi.compaction",version:1,input:{reason:"manual"},background:false,abortRequested:false,state:{status:"pending",checkpoint:{phase:"select"}}}];
+ expect(await storage.commit([[{type:"conversation",value:{id:1}}],records.map(value=>({type:"task",value}))] as any,(index,seq)=>receipts.push([index,seq]),context)).toEqual({stored:2});
+ expect(receipts).toEqual([[0,1],[1,2]]);for(const record of records)expect(await storage.task(record.id as any,context)).toEqual(record);await storage.close(context);
+});

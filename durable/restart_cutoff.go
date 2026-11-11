@@ -8,7 +8,7 @@ import (
 // v1.5.0 live.ts LIMITS_RESTARTS: these builtins settle their own cutoff,
 // rather than acquiring the ordinary task's faulted outcome.
 func selfLimitsRestarts(task Task) bool {
-	return task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Kind == "task.pi.compaction"
+	return task.Kind == "pi.generation" || task.Kind == "pi.tool" || task.Kind == "pi.compaction"
 }
 
 func cutoffCount(n uint64) string {

@@ -5,7 +5,7 @@ package durable
 func (t *Tx) syncCompactionStatuses() error {
 	changed := map[ID]Task{}
 	for _, write := range t.writes {
-		if write.Task != nil && write.Task.Kind == "task.pi.compaction" {
+		if write.Task != nil && write.Task.Kind == "pi.compaction" {
 			changed[write.Task.ID] = *write.Task
 		}
 	}

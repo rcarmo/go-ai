@@ -73,7 +73,7 @@ func TestAutomaticCompactionRetryDecisionFollowsCurrentSettingsAfterResponse(t *
 			t.Fatal(err)
 		}
 		for _, task := range state.Tasks {
-			if task.Kind == "task.pi.compaction" {
+			if task.Kind == "pi.compaction" {
 				record, err := CanonicalTask(task, h.session.limits)
 				if err != nil || record.State.Outcome.Status != "failed" {
 					t.Fatal(record, err)

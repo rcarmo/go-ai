@@ -56,10 +56,10 @@ func afterRunHooks(r *TaskRuntime) ([]selectedGenerationHook, error) {
 	return r.phaseSelection().selectedHooks(r.harness.selectionAgent(agentState{Name: agent.Configuration.Name, Extensions: agent.Configuration.Extensions, ExtensionFilter: agent.Configuration.ExtensionFilter})), nil
 }
 
-// Native mapped builtins use task.pi.* names; that is not a reserved public
-// application namespace, so do not reject unrelated definitions sharing it.
+// Source afterRun requests reject pi.* tasks. The remaining mapped builtin
+// names are explicit; task.pi.* is not a reserved application namespace.
 func afterRunBuiltinKind(name string) bool {
-	return strings.HasPrefix(name, "pi.") || name == "task.pi.compaction" || name == nestedToolKind || name == "task.pi.subagent-reporter"
+	return strings.HasPrefix(name, "pi.") || name == nestedToolKind || name == "task.pi.subagent-reporter"
 }
 
 func prepareRunEndTask(r *TaskRuntime, request RunEndTask) (preparedRunEndTask, error) {
