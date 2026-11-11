@@ -69,3 +69,9 @@ hashes and these conclusions are retained instead of raw run archives.
 
 This is the first consolidation batch. It does not close the upstream parity
 register or imply that all remaining test files should become one large suite.
+
+## Separate runtime and mechanical commits
+
+The task-table runtime port is `bb1d20f71bd2ca29c4209b51269938ab3c80e695`; the mechanical test merge and path updates are `8b3936e6dc2edf2c93900c545740c756c7ed466f`. Before committing, the pre-merge staged tree and final tree were independently compared: all2,190 normalized declarations match, including the later stronger Session getter assertion. Final declaration SHA-256: `442f3a95feab2a89a071c22f4ee7d5ea8468410231bb19854740247c78c1741f`.
+
+The staged pre-merge tree also compiled and passed the focused source-task/table, invariant, cursor and published-image selection in2.884s. Its temporary archive and parser files were deleted. Final-tree full-suite/static/fault receipts are recorded above.

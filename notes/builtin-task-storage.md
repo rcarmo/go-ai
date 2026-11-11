@@ -49,3 +49,5 @@ Latest development verification:
 - Related tests were consolidated22→6, ordinary test files613→597; source pins remain in comments/fixtures. See [consolidation proof](test-consolidation.md).
 
 No full parity, race coverage or release-profile acceptance is established.
+
+Runtime source-port commit: `bb1d20f71bd2ca29c4209b51269938ab3c80e695`. Related suite consolidation and active-reference updates are separate at `8b3936e6dc2edf2c93900c545740c756c7ed466f`; the final test declarations match the independently verified pre-merge tree exactly.

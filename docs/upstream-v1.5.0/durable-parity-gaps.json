@@ -871,7 +871,7 @@
     "historical": true
   },
   "currentCheckpoint": {
-    "nativeRevision": "working task-table source port and test consolidation on ae0042a",
+    "nativeRevision": "bb1d20f71bd2ca29c4209b51269938ab3c80e695",
     "scope": "Current implementation and freshly reproduced verification gaps; no full parity or release acceptance.",
     "lastFullNative": {
       "durableSeconds": 418.099,
@@ -893,7 +893,9 @@
       "ordinaryFilesBefore": 613,
       "ordinaryFilesAfter": 597,
       "preservedTargetDeclarations": 1467,
-      "preservedNonImportDeclarations": 2190
+      "preservedNonImportDeclarations": 2190,
+      "commit": "8b3936e6dc2edf2c93900c545740c756c7ed466f",
+      "finalDeclarationSha256": "442f3a95feab2a89a071c22f4ee7d5ea8468410231bb19854740247c78c1741f"
     }
   }
 }
