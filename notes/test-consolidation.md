@@ -96,3 +96,28 @@ of this mechanical boundary; neither input has build constraints.
   Register/source-hash checks and diff hygiene pass. No production code changes.
 
 Temporary parser, inventories and merge scripts are deleted after comparison.
+
+## Submission-reader consolidation
+
+After runtime `22c7716`, four related suites merge into two version-neutral suites:
+
+- `submission_records_test.go` absorbs `submission_presence_v150_test.go`.
+- `transaction_tables_test.go` absorbs `submission_transaction_test.go`.
+
+Source pins, tests, assertions and helpers are unchanged by this mechanical
+step. Neither input merge has build constraints. The inventory includes the
+unchanged build-constrained files; their excluded configurations are not implied
+to have run.
+
+- Files: **597→595**; targets: **1,484**; non-import declarations: **2,214**.
+- Sorted target SHA-256: `79f6d64ead7983839036efbbdfe945243f166b204c7a502c4768d6c64925b1e6`.
+- Sorted normalised-declaration SHA-256: `310dd6731010b52d735bb41fcf90c26c5d470c0fbe8f59dd16fd6135995b2e8f`.
+- Pre-/post-merge inventories match exactly. Five post-merge shuffled repetitions
+  pass in **4.960s**; register/source-hash checks and diff hygiene pass.
+- `task_reads.go` is renamed to `record_reads.go`, reflecting its actual task,
+  conversation, entry and submission readers. Contents are byte-identical to the
+  runtime commit; active register paths are updated.
+
+The parser, inventories and merge scratch are deleted after comparison.
+[Submission-read receipts](submission-record-reads.md) retain the full pre-move
+runtime verification and its remaining scope.

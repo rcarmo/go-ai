@@ -191,7 +191,7 @@
         "durable/submission_status.go",
         "durable/storage.go",
         "durable/submission_native_wire.go",
-        "durable/submission_presence_v150_test.go"
+        "durable/submission_records_test.go"
       ],
       "evidence": "Baseline strict replay lost requestId empty string on submission12. The replay now compares every captured record exactly, without dropEmptyRequestID. Present-empty request keys survive public/native codecs, transaction and Harness admission, lookup, lifecycle updates, frame replay and checkpoint replay.",
       "fix": "Add explicit presence to the versioned private representation, propagate it through creation, copy, update, snapshot and indexing, and define legacy-file decoding. Preserve empty key as an actual per-conversation dedup key.",
@@ -233,7 +233,7 @@
         "durable/task_scheduler.go",
         "durable/scan.go",
         "notes/builtin-task-storage.md",
-        "durable/task_reads.go",
+        "durable/record_reads.go",
         "durable/transaction_tables_test.go"
       ],
       "evidence": "Raw Storage.Commit now accepts pi.generation/pi.tool through the generic envelope, with no builtin input/checkpoint inference. The independent shared fixture passes original MemoryStorage and SQLite. Native exact public projection, all six state scans, SQLite reopen and reclaim/reopen pass for current/future versions and opaque inputs/checkpoints. Terminal outcome mapping and canonical status scans are repaired; private scheduler checkpoint access now checks representation as well as kind. Normal Harness generation2/model-tool3 publication/progression also passes. Primary Task/ScanTasks now return canonical TaskRecords, and three original task-storage conformance cases pass. Canonical builtin records do not yet execute through source GenerationTask2/ToolTask3 registrations. Historical execution adapters, nested/unoffered calls, edge states, migrations and complete raw replacement/reference/optional-field contracts remain open. See notes/builtin-task-storage.md.",
@@ -311,7 +311,7 @@
         "durable/storage.go",
         "durable/scan.go",
         "durable/document_history.go",
-        "durable/task_reads.go",
+        "durable/record_reads.go",
         "durable/storage_tasks_test.go",
         "durable/transaction_tables_test.go",
         "durable/session_public_image_main_test.go",
