@@ -283,7 +283,8 @@ func TestMainPublicCommitObserverCanonicalTableRecords(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		submission, err = tx.CreateSubmission(SubmissionRecord{Conversation: conversation, Type: "write", Status: "queued", RequestIDPresent: true})
+		createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: conversation, Type: "write", Status: "queued", RequestIDPresent: true})
+		submission = createdSubmission.ID
 		return err
 	})
 	if err != nil {

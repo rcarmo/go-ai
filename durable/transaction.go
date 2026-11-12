@@ -9,17 +9,20 @@ import (
 // accessor exists. Reentrant/overlapping methods reject; escaped methods reject
 // after settlement. Concurrent mutation DURING copy is unsupported Go misuse.
 type Tx struct {
-	store            *storeCore
-	session          *Session
-	ctx              context.Context
-	limits           Limits
-	state            Snapshot
-	writes           []Write
-	hasTableWrite    bool      // pinned Transaction.#hasTableWrite; failed table writes count too
-	stagedState      *Snapshot // private immutable prepare result; exact write-slice identity
-	stagedWrites     []Write
-	publicationState *Snapshot // sealed final candidate; reused only before storage admission
-	creationError    error     // creation callback failure poisons only this transaction
+	store             *storeCore
+	session           *Session
+	submissions       map[ID]SubmissionRecord
+	submissionOrder   []ID
+	submissionChanges []transactionSubmissionChange
+	ctx               context.Context
+	limits            Limits
+	state             Snapshot
+	writes            []Write
+	hasTableWrite     bool      // pinned Transaction.#hasTableWrite; failed table writes count too
+	stagedState       *Snapshot // private immutable prepare result; exact write-slice identity
+	stagedWrites      []Write
+	publicationState  *Snapshot // sealed final candidate; reused only before storage admission
+	creationError     error     // creation callback failure poisons only this transaction
 	// Bound only by Harness task commits or invocation admission. Callers never
 	// supply executable authority by copying a raw task record.
 	taskConversation   ID

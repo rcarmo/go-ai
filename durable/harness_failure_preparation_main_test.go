@@ -247,7 +247,7 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 		t.Fatal(err)
 	}
 	stored := state.Submissions[sub.ID()]
-	if result.Submission.Status != "failed" || stored.Status != "failed" || !equalJSONValue(r.Value, want) || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(stored.Value, want) {
+	if result.Submission.Status != "failed" || stored.Status != "failed" || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(stored.Value, want) {
 		t.Fatal("settlement and stored envelope must retain only their own placed entry and shared failure", result, stored, want)
 	}
 	input, err := inputReceipt(text, nil, h.session.limits)
@@ -706,7 +706,7 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 					if err != nil {
 						t.Fatal(err)
 					}
-					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" || !equalJSONValue(r.Value, want) || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(state.Submissions[sub.ID()].Value, want) {
+					if r.ID != sub.ID() || r.Conversation != c.ID() || r.Type != "input" || r.RequestID != "" || r.Status != "done" || r.Reason != "" || r.Detail != nil || r.Entry != entries[sub.ID()] || r.Answer == 0 || seen[r.Answer] || result.Task.ID != owner || result.Task.Conversation != c.ID() || result.Message == nil || len(result.Message.Content) != 1 || result.Message.Content[0].Text != answer || entry.Conversation != c.ID() || legacyEntryValue(entry)["role"] != "assistant" || entry.ByTask != owner || result.Submission.Status != "done" || !equalJSONValue(result.Submission.Value, want) || !equalJSONValue(state.Submissions[sub.ID()].Value, want) {
 						t.Fatal("successor must settle uniformly with its own entry and actual shared answer", result, entry, want)
 					}
 					placedInput := state.Entries[entries[sub.ID()]]

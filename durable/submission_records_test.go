@@ -37,9 +37,6 @@ func requireSubmissionEqual(t *testing.T, actual, want SubmissionRecord) {
 	if string(a) != string(b) {
 		t.Fatalf("record got=%s want=%s", a, b)
 	}
-	if actual.Value != nil {
-		t.Fatal("private submission payload leaked", actual.Value)
-	}
 }
 
 // Literal storage-conformance.ts:778-852, pinned f9a26365.
@@ -244,11 +241,13 @@ func TestTxRawSubmissionCreationDoesNotDeduplicate(t *testing.T) {
 	var first, second ID
 	_, err = session.Commit(bg, func(tx *Tx) error {
 		var err error
-		first, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
+		createdFirst, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
+		first = createdFirst.ID
 		if err != nil {
 			return err
 		}
-		second, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
+		createdSecond, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued", RequestID: "same"})
+		second = createdSecond.ID
 		return err
 	})
 	if err != nil {
@@ -575,7 +574,8 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 		if err := tx.CreateConversation(Conversation{ID: conv}); err != nil {
 			return err
 		}
-		id, err = tx.CreateSubmission(SubmissionRecord{Conversation: conv, Type: "continue", Status: "placed", RequestIDPresent: true})
+		createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: conv, Type: "continue", Status: "placed", RequestIDPresent: true})
+		id = createdSubmission.ID
 		return err
 	})
 	if err != nil {
@@ -589,7 +589,7 @@ func TestV150SubmissionRequestPresenceSessionAndHarness(t *testing.T) {
 		if !ok || !record.RequestIDPresent {
 			t.Fatalf("tx lost presence %+v", record)
 		}
-		return tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: ""})
+		return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
 	})
 	if err != nil {
 		t.Fatal(err)

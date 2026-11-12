@@ -739,13 +739,16 @@ func TestV150SubmissionEmptyReasonSettlement(t *testing.T) {
 				if kind == "continue" {
 					status = "placed"
 				}
-				id, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: kind, Status: status})
+				createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: kind, Status: status})
+				id = createdSubmission.ID
 				return err
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = session.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: ""}) })
+			_, err = session.Commit(bg, func(tx *Tx) error {
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: ""})
+			})
 			if err != nil {
 				t.Fatal("empty reason settlement", err)
 			}

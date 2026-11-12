@@ -72,7 +72,8 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 		var id ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			var err error
-			id, err = tx.CreateSubmission(record)
+			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: record.Conversation, Type: record.Type, Status: record.Status, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Trace: record.Trace})
+			id = createdSubmission.ID
 			return err
 		})
 		if err != nil {
@@ -92,7 +93,7 @@ func TestMainSubmissionTraceDTOOwnershipAndReopen(t *testing.T) {
 			if err != nil || !found || !reflect.DeepEqual(mainTraceRecordCarrier(t, again), want) {
 				t.Fatal("transaction carrier alias", again, found, err)
 			}
-			return tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "aborted"})
+			return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -160,7 +161,8 @@ func TestMainSubmissionTraceEmptyAndAbsent(t *testing.T) {
 			var id ID
 			_, err := h.Commit(bg, func(tx *Tx) error {
 				var err error
-				id, err = tx.CreateSubmission(record)
+				createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: record.Conversation, Type: record.Type, Status: record.Status, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Trace: record.Trace})
+				id = createdSubmission.ID
 				return err
 			})
 			if err != nil {
@@ -293,7 +295,7 @@ func TestMainSubmissionTraceRollback(t *testing.T) {
 		carrier := goai.TelemetryCarrier{"span": "rolled-back"}
 		cause := errors.New("caller rollback")
 		_, err = h.Commit(bg, func(tx *Tx) error {
-			if _, err := tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "continue", Status: "placed", RequestID: "trace-rollback", Trace: &carrier}); err != nil {
+			if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed", RequestID: "trace-rollback", Trace: &carrier}); err != nil {
 				return err
 			}
 			return cause

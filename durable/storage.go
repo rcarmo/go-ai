@@ -806,7 +806,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 			return reject("submission trace must be an object of strings")
 		}
 		if v.Type == "continue" {
-			if err := validateContinueSubmission(s, v, final && runtimeTasks); err != nil {
+			if err := validateContinueSubmission(v); err != nil {
 				return err
 			}
 		}
@@ -1004,7 +1004,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 
 // Continue is the only entryless placed lifecycle. Keep its narrow payload
 // checks separate from the existing input/write compatibility envelopes.
-func validateContinueSubmission(s Snapshot, sub Submission, final bool) error {
+func validateContinueSubmission(sub Submission) error {
 	for _, field := range []string{"placedEntry", "entry", "answer"} {
 		if _, present := sub.Value[field]; present {
 			return reject("continue submission has no entry or legacy receipt")
@@ -1013,7 +1013,7 @@ func validateContinueSubmission(s Snapshot, sub Submission, final bool) error {
 	answer, hasAnswer := sub.Value["answerEntry"]
 	if sub.Status == "done" {
 		id := submissionEntryID(answer)
-		if id == 0 || final && !entryVisible(s, sub.Conversation, id) {
+		if id == 0 {
 			return reject("continue submission answer is not visible")
 		}
 	} else if hasAnswer {

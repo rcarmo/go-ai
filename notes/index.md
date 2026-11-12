@@ -47,6 +47,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Submission record reads](submission-record-reads.md) — canonical lookup/scans, raw replacement,
   request index semantics, committed Tx reads and remaining creation/settlement port.
 
+- [Submission transactions](submission-transactions.md) — complete creation results, deferred changes,
+  first terminal result, assembly/predicate order and removal of public native payloads.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

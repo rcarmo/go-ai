@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -15,7 +16,8 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 		var id, answer ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			var err error
-			id, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, RequestID: "continue", Type: "continue", Status: "placed"})
+			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, RequestID: "continue", Type: "continue", Status: "placed"})
+			id = createdSubmission.ID
 			if err != nil {
 				return err
 			}
@@ -57,11 +59,11 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err := tx.AppendEntry(Entry{ID: answer, Conversation: 1, Kind: "note", Value: JSON{"text": "answer"}}); err != nil {
 				return err
 			}
-			if err := tx.SettleSubmission(id, SubmissionRecord{Status: "done", Answer: answer}); err != nil {
+			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
 				return err
 			}
 			// First settlement wins over a later, conflicting receipt.
-			if err := tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "late"}); err != nil {
+			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
 				return err
 			}
 			if _, _, err := tx.Submission(id); err == nil {
@@ -122,49 +124,39 @@ func TestMainSubmissionContinueCreateValidation(t *testing.T) {
 		}
 		cases := []struct {
 			name   string
-			record SubmissionRecord
+			record SubmissionCreate
 			valid  bool
 		}{
-			{"placed", SubmissionRecord{Type: "continue", Status: "placed"}, true},
-			{"done", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID}, true},
-			{"unanswered", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "nothing_to_answer"}, true},
-			{"null-detail", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true}}, true},
-			{"queued", SubmissionRecord{Type: "continue", Status: "queued"}, false},
-			{"assigned-id", SubmissionRecord{ID: entryID, Type: "continue", Status: "placed"}, false},
-			{"invalid-status", SubmissionRecord{Type: "continue", Status: "pending"}, false},
-			{"invalid-type", SubmissionRecord{Type: "continuation", Status: "placed"}, false},
-			{"invalid-value", SubmissionRecord{Type: "continue", Status: "placed", Value: JSON{"bad": complex(1, 2)}}, false},
-			{"invalid-detail", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Detail: &TaskValue{Value: "absent"}}, false},
-			{"payload-detail-placed", SubmissionRecord{Type: "continue", Status: "placed", Value: JSON{"detail": nil}}, false},
-			{"payload-detail-done", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID, Value: JSON{"detail": nil}}, false},
-			{"placed-entry", SubmissionRecord{Type: "continue", Status: "placed", Entry: entryID}, false},
-			{"placed-answer", SubmissionRecord{Type: "continue", Status: "placed", Answer: entryID}, false},
-			{"placed-reason", SubmissionRecord{Type: "continue", Status: "placed", Reason: "host"}, false},
-			{"placed-detail", SubmissionRecord{Type: "continue", Status: "placed", Detail: &TaskValue{Present: true}}, false},
-			{"done-no-answer", SubmissionRecord{Type: "continue", Status: "done"}, false},
-			{"done-entry", SubmissionRecord{Type: "continue", Status: "done", Entry: entryID, Answer: entryID}, false},
-			{"done-foreign-answer", SubmissionRecord{Type: "continue", Status: "done", Answer: foreign}, false},
-			{"done-missing-answer", SubmissionRecord{Type: "continue", Status: "done", Answer: ID(MaxID)}, false},
-			{"done-reason", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID, Reason: "host"}, false},
-			{"done-detail", SubmissionRecord{Type: "continue", Status: "done", Answer: entryID, Detail: &TaskValue{Present: true}}, false},
-			{"unanswered-empty-reason", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: ""}, true},
-			{"unanswered-entry", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Entry: entryID}, false},
-			{"unanswered-answer", SubmissionRecord{Type: "continue", Status: "unanswered", Reason: "host", Answer: entryID}, false},
-			{"input-entryless-placed", SubmissionRecord{Type: "input", Status: "placed"}, false},
-			{"input-entryless-done", SubmissionRecord{Type: "input", Status: "done", Answer: entryID}, false},
-			{"input-answerless-done", SubmissionRecord{Type: "input", Status: "done", Entry: entryID}, false},
-			{"write-placed", SubmissionRecord{Type: "write", Status: "placed", Entry: entryID}, false},
-			{"write-entryless-done", SubmissionRecord{Type: "write", Status: "done"}, false},
-			{"write-answer", SubmissionRecord{Type: "write", Status: "done", Entry: entryID, Answer: entryID}, false},
-			{"input-done", SubmissionRecord{Type: "input", Status: "done", Entry: entryID, Answer: entryID}, true},
-			{"write-done", SubmissionRecord{Type: "write", Status: "done", Entry: entryID}, true},
-		}
-		for _, field := range []string{"placedEntry", "entry", "answerEntry", "answer"} {
-			cases = append(cases, struct {
-				name   string
-				record SubmissionRecord
-				valid  bool
-			}{"payload-" + field, SubmissionRecord{Type: "continue", Status: "placed", Value: JSON{field: nil}}, false})
+			{"placed", SubmissionCreate{Type: "continue", Status: "placed"}, true},
+			{"done", SubmissionCreate{Type: "continue", Status: "done", Answer: entryID}, true},
+			{"unanswered", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "nothing_to_answer"}, true},
+			{"null-detail", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true}}, true},
+			{"queued", SubmissionCreate{Type: "continue", Status: "queued"}, false},
+			{"invalid-status", SubmissionCreate{Type: "continue", Status: "pending"}, false},
+			{"invalid-type", SubmissionCreate{Type: "continuation", Status: "placed"}, false},
+			{"non-json-detail", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: JSON{"bad": complex(1, 2)}}}, false},
+			{"invalid-detail", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "host", Detail: &TaskValue{Value: "absent"}}, false},
+			{"placed-entry", SubmissionCreate{Type: "continue", Status: "placed", Entry: entryID}, false},
+			{"placed-answer", SubmissionCreate{Type: "continue", Status: "placed", Answer: entryID}, false},
+			{"placed-reason", SubmissionCreate{Type: "continue", Status: "placed", Reason: "host"}, false},
+			{"placed-detail", SubmissionCreate{Type: "continue", Status: "placed", Detail: &TaskValue{Present: true}}, false},
+			{"done-no-answer", SubmissionCreate{Type: "continue", Status: "done"}, false},
+			{"done-entry", SubmissionCreate{Type: "continue", Status: "done", Entry: entryID, Answer: entryID}, false},
+			{"done-foreign-answer", SubmissionCreate{Type: "continue", Status: "done", Answer: foreign}, true},
+			{"done-missing-answer", SubmissionCreate{Type: "continue", Status: "done", Answer: ID(MaxID)}, true},
+			{"done-reason", SubmissionCreate{Type: "continue", Status: "done", Answer: entryID, Reason: "host"}, false},
+			{"done-detail", SubmissionCreate{Type: "continue", Status: "done", Answer: entryID, Detail: &TaskValue{Present: true}}, false},
+			{"unanswered-empty-reason", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: ""}, true},
+			{"unanswered-entry", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "host", Entry: entryID}, false},
+			{"unanswered-answer", SubmissionCreate{Type: "continue", Status: "unanswered", Reason: "host", Answer: entryID}, false},
+			{"input-entryless-placed", SubmissionCreate{Type: "input", Status: "placed"}, false},
+			{"input-entryless-done", SubmissionCreate{Type: "input", Status: "done", Answer: entryID}, false},
+			{"input-answerless-done", SubmissionCreate{Type: "input", Status: "done", Entry: entryID}, false},
+			{"write-placed", SubmissionCreate{Type: "write", Status: "placed", Entry: entryID}, false},
+			{"write-entryless-done", SubmissionCreate{Type: "write", Status: "done"}, false},
+			{"write-answer", SubmissionCreate{Type: "write", Status: "done", Entry: entryID, Answer: entryID}, false},
+			{"input-done", SubmissionCreate{Type: "input", Status: "done", Entry: entryID, Answer: entryID}, true},
+			{"write-done", SubmissionCreate{Type: "write", Status: "done", Entry: entryID}, true},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -292,7 +284,8 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 		var id, answer, foreign ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			var err error
-			id, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "continue", Status: "placed"})
+			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed"})
+			id = createdSubmission.ID
 			if err != nil {
 				return err
 			}
@@ -325,14 +318,16 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 		}
 		for _, entry := range []ID{0, answer, foreign, ID(MaxID)} {
 			_, err := h.Commit(bg, func(tx *Tx) error { return tx.PlaceSubmission(id, entry) })
-			rejected(t, err)
+			if err == nil || !strings.Contains(err.Error(), "is not queued") {
+				t.Fatal(err)
+			}
 		}
-		for _, settlement := range []SubmissionRecord{
-			{Status: "done"}, {Status: "done", Answer: foreign}, {Status: "done", Answer: ID(MaxID)},
-			{Status: "done", Entry: answer, Answer: answer}, {Status: "done", Answer: answer, Reason: "host"},
+		for _, settlement := range []SubmissionSettlement{
+			{Status: "done"},
+			{Status: "done", Answer: answer, Reason: "host"},
 			{Status: "done", Answer: answer, Detail: &TaskValue{Present: true}},
 			{Status: "unanswered", Reason: "host", Answer: answer},
-			{Status: "unanswered", Reason: "host", Entry: answer}, {Status: "queued"},
+			{Status: "queued"},
 		} {
 			_, err := h.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, settlement) })
 			rejected(t, err)
@@ -365,7 +360,7 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 			t.Fatal("rejected placement/settlement or abort disposition mutated state")
 		}
 		_, err = h.Commit(bg, func(tx *Tx) error {
-			return tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "nothing_to_answer"})
+			return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "nothing_to_answer"})
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -383,14 +378,13 @@ func TestMainSubmissionContinuePlacementSettlementAndAbort(t *testing.T) {
 func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
-		value := JSON{"nested": []any{"kept"}}
 		detail := JSON{"nested": []any{"detail"}}
 		var id ID
 		var escaped *Tx
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			escaped = tx
 			tx.busy.Store(true)
-			if _, err := tx.CreateSubmission(SubmissionRecord{}); !errors.Is(err, ErrConcurrent) {
+			if _, err := tx.CreateSubmission(SubmissionCreate{}); !errors.Is(err, ErrConcurrent) {
 				t.Fatal(err)
 			}
 			if _, _, err := tx.Submission(1); !errors.Is(err, ErrConcurrent) {
@@ -399,17 +393,17 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 			if err := tx.PlaceSubmission(1, 0); !errors.Is(err, ErrConcurrent) {
 				t.Fatal(err)
 			}
-			if err := tx.SettleSubmission(1, SubmissionRecord{}); !errors.Is(err, ErrConcurrent) {
+			if err := tx.SettleSubmission(1, SubmissionSettlement{}); !errors.Is(err, ErrConcurrent) {
 				t.Fatal(err)
 			}
 			tx.busy.Store(false)
 			var err error
-			id, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "continue", Status: "placed", Value: value})
+			createdSubmission, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "continue", Status: "placed"})
+			id = createdSubmission.ID
 			if err != nil {
 				return err
 			}
-			value["nested"].([]any)[0] = "caller mutation"
-			if err := tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: detail}}); err != nil {
+			if err := tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: detail}}); err != nil {
 				return err
 			}
 			detail["nested"].([]any)[0] = "caller mutation"
@@ -430,8 +424,8 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		detached.Submissions[id].Value["nested"].([]any)[0] = "read mutation"
-		if _, err := escaped.CreateSubmission(SubmissionRecord{}); !errors.Is(err, ErrSealed) {
+		detached.Submissions[id].Value["detail"].(map[string]any)["nested"].([]any)[0] = "read mutation"
+		if _, err := escaped.CreateSubmission(SubmissionCreate{}); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}
 		if _, _, err := escaped.Submission(id); !errors.Is(err, ErrSealed) {
@@ -440,7 +434,7 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 		if err := escaped.PlaceSubmission(id, 0); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}
-		if err := escaped.SettleSubmission(id, SubmissionRecord{}); !errors.Is(err, ErrSealed) {
+		if err := escaped.SettleSubmission(id, SubmissionSettlement{}); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}
 		if _, err := b.store.MintID(bg); !errors.Is(err, ErrOwned) {
@@ -458,10 +452,9 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 			if err != nil || got.Type != "continue" || got.Entry != 0 || got.Answer != 0 || got.Reason != "host" || got.Detail == nil || !got.Detail.Present {
 				t.Fatalf("status: %+v %v", got, err)
 			}
-			if !equalJSONValue(got.Value["nested"], []any{"kept"}) || !equalJSONValue(got.Detail.Value, JSON{"nested": []any{"detail"}}) {
+			if !equalJSONValue(got.Detail.Value, JSON{"nested": []any{"detail"}}) {
 				t.Fatalf("aliased: %+v", got)
 			}
-			got.Value["nested"].([]any)[0] = "handle mutation"
 			got.Detail.Value.(map[string]any)["nested"].([]any)[0] = "handle mutation"
 		}
 		ctx, cancel := context.WithCancel(bg)
@@ -488,11 +481,13 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 		var input, write, answer ID
 		_, err := h.Commit(bg, func(tx *Tx) error {
 			var err error
-			input, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "queued"})
+			createdInput, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+			input = createdInput.ID
 			if err != nil {
 				return err
 			}
-			write, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "write", Status: "queued"})
+			createdWrite, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued"})
+			write = createdWrite.ID
 			if err != nil {
 				return err
 			}
@@ -506,8 +501,12 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, id := range []ID{input, write} {
-			_, err := h.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, SubmissionRecord{Status: "done", Answer: answer}) })
-			rejected(t, err)
+			_, err := h.Commit(bg, func(tx *Tx) error {
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: answer})
+			})
+			if err == nil || !strings.Contains(err.Error(), "is not a placed input") {
+				t.Fatal(err)
+			}
 			_, err = h.Commit(bg, func(tx *Tx) error { return tx.PlaceSubmission(id, 0) })
 			rejected(t, err)
 		}
@@ -515,7 +514,7 @@ func TestMainSubmissionContinueOrdinaryInputWriteControls(t *testing.T) {
 			if err := tx.PlaceSubmission(input, answer); err != nil {
 				return err
 			}
-			if err := tx.SettleSubmission(input, SubmissionRecord{Status: "done", Answer: answer}); err != nil {
+			if err := tx.SettleSubmission(input, SubmissionSettlement{Status: "done", Answer: answer}); err != nil {
 				return err
 			}
 			return tx.PlaceSubmission(write, answer)

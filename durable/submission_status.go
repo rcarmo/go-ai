@@ -9,7 +9,7 @@ import (
 )
 
 // SubmissionRecord exposes the reference lifecycle while Snapshot retains
-// native storage envelopes. Value is detached compatibility data.
+// native storage envelopes. Public fields follow the pinned record union.
 type SubmissionRecord struct {
 	ID           ID
 	Conversation ID
@@ -19,8 +19,7 @@ type SubmissionRecord struct {
 	Entry        ID
 	Answer       ID
 	Reason       string
-	Detail       *TaskValue // Optional arbitrary JSON; Present distinguishes null.
-	Value        JSON
+	Detail       *TaskValue             // Optional arbitrary JSON; Present distinguishes null.
 	Trace        *goai.TelemetryCarrier `json:"trace,omitempty"`
 	// RequestIDPresent distinguishes an explicitly empty requestId from absence.
 	// Nonempty RequestID implies presence.
@@ -288,7 +287,7 @@ func submissionEntryID(value any) ID {
 	return ID(n.Num().Uint64())
 }
 func publicSubmission(sub Submission) SubmissionRecord {
-	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, RequestIDPresent: sub.hasRequestID(), Type: sub.Type, Value: sub.Value, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
+	record := SubmissionRecord{ID: sub.ID, Conversation: sub.Conversation, RequestID: sub.RequestID, RequestIDPresent: sub.hasRequestID(), Type: sub.Type, Trace: copyTelemetryCarrier(sub.Trace), Entry: submissionEntryID(sub.Value["placedEntry"]), Answer: submissionEntryID(sub.Value["answerEntry"])}
 	if sub.Type != "write" && sub.Type != "continue" {
 		record.Type = "input"
 	}

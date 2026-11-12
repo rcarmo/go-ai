@@ -114,3 +114,31 @@ it("reads submission requests from committed tables and applies the read-after-w
  await tx.appendEntry(conversation.id,{kind:"note"});await expect(tx.submission(record.id)).rejects.toThrow("Tx.submission() cannot read tables after the first table write");await expect(tx.submissionByRequest(conversation.id,"")).rejects.toThrow("Tx.submissionByRequest() cannot read tables after the first table write");},context);
  }finally{await session.close(context)}
 });
+
+it("resolves missing submission changes only after the callback and keeps terminal changes as noops",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const storage=new ControlledStorage();let calls=0;const commit=storage.commit.bind(storage);storage.commit=async(...args:any[])=>{calls++;return commit(...args as Parameters<typeof commit>)};const session=new SessionImpl(storage,Date.now,()=>600000);
+ try{
+  const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+  for(const placed of [false,true]){let finished=false;await expect(session.commit(tx=>{if(placed)tx.placeSubmission(999999 as any,2 as any);else tx.settleSubmission(999999 as any,{status:"unanswered",reason:"x"});finished=true},context)).rejects.toThrow("Submission 999999 does not exist");expect(finished).toBe(true)}
+  for(const type of ["input","write","continue"] as const){const record=await session.commit(tx=>tx.createSubmission({conversationId:conversation.id,type,status:"unanswered",reason:"first"}),context);const before=calls;await session.commit(tx=>{tx.placeSubmission(record.id,999999 as any);tx.settleSubmission(record.id,{status:"done",answer:999999 as any})},context);expect(calls).toBe(before);expect(await storage.submission(record.id,context)).toEqual(record)}
+ }finally{await session.close(context)}
+});
+
+it("creates complete owned submission records after requiring the conversation, with failed writes fencing reads",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const storage=new ControlledStorage();let minted=0;const mint=storage.mintId.bind(storage);storage.mintId=async()=>{minted++;return mint()};const session=new SessionImpl(storage,Date.now,()=>600000);
+ try{
+  const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+  const detail={nested:["owned"]},trace={traceparent:"owned"};const record=await session.commit(async tx=>{const result=await tx.createSubmission({conversationId:conversation.id,type:"input",status:"unanswered",reason:"",detail,trace});detail.nested[0]="input mutation";trace.traceparent="input mutation";return result},context);
+  expect(record).toEqual({id:record.id,conversationId:conversation.id,type:"input",status:"unanswered",reason:"",detail:{nested:["owned"]},trace:{traceparent:"owned"}});expect(await storage.submission(record.id,context)).toEqual(record);
+  await session.commit(async tx=>{const before=minted;await expect(tx.createSubmission({conversationId:999999 as any,type:"write",status:"queued"})).rejects.toThrow("Conversation 999999 does not exist");expect(minted).toBe(before);await expect(tx.submission(record.id)).rejects.toThrow("Tx.submission() cannot read tables after the first table write")},context);
+ }finally{await session.close(context)}
+});
+
+it("assembles queued placement and settlement against later creation before document predicates",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support"),{defineDoc}=await import("@earendil-works/pi-durable");const storage=new ControlledStorage();let last=0;const mint=storage.mintId.bind(storage);storage.mintId=async()=>{const id=await mint();last=id;return id};const session=new SessionImpl(storage,Date.now,()=>600000);
+ try{const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const record=await session.commit(async tx=>{const future=(last+1) as any;tx.placeSubmission(future,900000 as any);tx.settleSubmission(future,{status:"done",answer:900001 as any});const record=await tx.createSubmission({conversationId:conversation.id,type:"input",status:"queued"});expect(record.id).toBe(future);return record},context);expect(await storage.submission(record.id,context)).toEqual({...record,status:"done",entry:900000,answer:900001});
+ let predicates=0;const Doc=defineDoc({kind:"source.submission.validation.order",scope:"conversation",version:1,initial:()=>({text:""}),checkpointWhen:()=>{predicates++;return false}});await session.commit(tx=>tx.doc(Doc,conversation.id),context);predicates=0;let finished=false;
+ await expect(session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).text="must roll back";tx.settleSubmission(999999 as any,{status:"unanswered",reason:"x"});finished=true},context)).rejects.toThrow("does not exist");expect(finished).toBe(true);expect(predicates).toBe(0);expect(await session.snapshot(Doc,conversation.id,context)).toEqual({text:""});
+ }finally{await session.close(context)}
+});

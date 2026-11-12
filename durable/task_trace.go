@@ -106,6 +106,11 @@ func (tx *Tx) bindTaskTrace(task *Task, options TaskOptions) error {
 		trace, links = nil, nil
 		for i, id := range options.SubmissionIDs {
 			submission, ok := state.Submissions[id]
+			if created, found := tx.submissions[id]; found {
+				// Creation records live in the transaction map until assembly;
+				// this internal trace selection is not a caller table read.
+				submission.Trace, ok = created.Trace, true
+			}
 			if !ok {
 				return reject("submission not found for task trace")
 			}

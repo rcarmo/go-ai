@@ -42,7 +42,7 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 		if err != nil || status.Status != "queued" {
 			t.Fatal(status, err)
 		}
-		status.Value["content"] = "mutated"
+		status.Entry = ID(MaxID) // a returned record cannot mutate committed state
 		// Session applications may create a queued submission without
 		// Harness admission/inbox placement; abort must still settle it.
 		var raw ID
@@ -88,7 +88,7 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 				t.Fatal(result, err)
 			}
 			status, err := sub.Status(bg)
-			if err != nil || status.Status != "unanswered" || status.Reason != "aborted" || status.Value["errorCode"] != "aborted" {
+			if err != nil || status.Status != "unanswered" || status.Reason != "aborted" {
 				t.Fatal(status, err)
 			}
 		}

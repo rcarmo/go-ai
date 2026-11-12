@@ -232,7 +232,6 @@ func canonicalStoredSubmission(sub Submission, limits Limits) (SubmissionRecord,
 	}
 	sub.Value = value
 	record := publicSubmission(sub)
-	record.Value = nil
 	if err := record.validateWire(); err != nil {
 		return SubmissionRecord{}, err
 	}

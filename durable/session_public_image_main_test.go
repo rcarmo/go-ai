@@ -109,7 +109,7 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 				t.Fatal("request publication", byRequest, found, err)
 			}
 			if published {
-				if sub.Value != nil || byRequest.Value != nil || sub.Status != "unanswered" || sub.Detail == nil {
+				if sub.Status != "unanswered" || sub.Detail == nil {
 					t.Fatal("private submission envelope", sub, byRequest)
 				}
 				sub.Detail.Value.(map[string]any)["x"] = "lookup mutation"

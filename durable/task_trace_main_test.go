@@ -349,11 +349,13 @@ func TestMainTaskTraceSubmissionSelectionNoCarrier(t *testing.T) {
 		ctx := context.WithValue(bg, telemetryContextKey{}, ctxCarrier)
 		var id ID
 		_, err := h.CommitTasks(ctx, 1, func(tx *Tx) error {
-			first, err := tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "queued"})
+			createdFirst, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+			first := createdFirst.ID
 			if err != nil {
 				return err
 			}
-			next, err := tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "queued", Trace: &linked.Context})
+			createdNext, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued", Trace: &linked.Context})
+			next := createdNext.ID
 			if err != nil {
 				return err
 			}

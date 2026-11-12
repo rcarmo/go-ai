@@ -476,6 +476,9 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 	if err = s.finalizeTaskWrites(tx); err != nil {
 		return 0, err
 	}
+	if err = tx.finalizeSubmissionWrites(); err != nil {
+		return 0, err
+	}
 	if err = tx.finalizeDocuments(); err != nil {
 		return 0, err
 	}

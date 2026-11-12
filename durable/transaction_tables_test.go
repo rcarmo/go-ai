@@ -3,9 +3,13 @@ package durable
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+
+	goai "github.com/rcarmo/go-ai"
 )
 
 // Consolidated from transaction_tables_test.go.
@@ -516,6 +520,79 @@ func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
 // Consolidated from submission_transaction_test.go.
 
 func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t *testing.T) {
+	// Literal harness-submissions.test.ts:228-266 at f9a26365.
+	t.Run("literal-source-packet", func(t *testing.T) {
+		store := taskConformanceStoreV150(t)
+		h := taskTestHarness(t, store)
+		root, err := h.Conversation(bg, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var entry ID
+		_, err = root.Commit(bg, func(tx *Tx) error {
+			var err error
+			entry, err = tx.MintID()
+			if err != nil {
+				return err
+			}
+			return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note"})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		create := func(kind string) ID {
+			t.Helper()
+			var record SubmissionRecord
+			_, err := h.Commit(bg, func(tx *Tx) error {
+				var err error
+				record, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: kind, Status: "queued"})
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return record.ID
+		}
+		queued, write := create("input"), create("write")
+		for _, id := range []ID{queued, write} {
+			_, err = root.Commit(bg, func(tx *Tx) error {
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
+			})
+			if err == nil || !strings.Contains(err.Error(), "is not a placed input") {
+				t.Fatal(err)
+			}
+		}
+		_, err = root.Commit(bg, func(tx *Tx) error {
+			return tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"})
+		})
+		if err == nil || !strings.Contains(err.Error(), "does not exist") {
+			t.Fatal(err)
+		}
+		var placed SubmissionRecord
+		_, err = h.Commit(bg, func(tx *Tx) error {
+			var err error
+			placed, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "placed", Entry: entry})
+			if err != nil {
+				return err
+			}
+			if err = tx.SettleSubmission(placed.ID, SubmissionSettlement{Status: "done", Answer: entry}); err != nil {
+				return err
+			}
+			return tx.SettleSubmission(placed.ID, SubmissionSettlement{Status: "unanswered", Reason: "late"})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		handle, err := h.Submission(bg, placed.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual, err := handle.Status(bg)
+		if err != nil || actual.Status != "done" || actual.Entry != entry || actual.Answer != entry {
+			t.Fatal(actual, err)
+		}
+	})
+
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		h := taskTestHarness(t, b.store)
 		var entry, input, write, placed ID
@@ -528,11 +605,13 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
 				return err
 			}
-			input, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "queued"})
+			createdInput, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+			input = createdInput.ID
 			if err != nil {
 				return err
 			}
-			write, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "write", Status: "queued"})
+			createdWrite, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "queued"})
+			write = createdWrite.ID
 			return err
 		})
 		if err != nil {
@@ -540,31 +619,34 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		}
 		for _, id := range []ID{input, write} {
 			if _, err := h.Commit(bg, func(tx *Tx) error {
-				return tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "aborted", Answer: entry})
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "unanswered", Reason: "aborted", Answer: entry})
 			}); err == nil {
 				t.Fatal("unanswered settlement accepted answer", id)
 			}
-			_, err := h.Commit(bg, func(tx *Tx) error { return tx.SettleSubmission(id, SubmissionRecord{Status: "done", Answer: entry}) })
+			_, err := h.Commit(bg, func(tx *Tx) error {
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: entry})
+			})
 			if err == nil {
 				t.Fatal("unplaced submission answered", id)
 			}
 		}
 		_, err = h.Commit(bg, func(tx *Tx) error {
-			return tx.SettleSubmission(ID(MaxID), SubmissionRecord{Status: "unanswered", Reason: "missing"})
+			return tx.SettleSubmission(ID(MaxID), SubmissionSettlement{Status: "unanswered", Reason: "missing"})
 		})
 		if err == nil {
 			t.Fatal("missing submission settled")
 		}
 		_, err = h.Commit(bg, func(tx *Tx) error {
 			var err error
-			placed, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "placed", Entry: entry})
+			createdPlaced, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "placed", Entry: entry})
+			placed = createdPlaced.ID
 			if err != nil {
 				return err
 			}
-			if err := tx.SettleSubmission(placed, SubmissionRecord{Status: "done", Answer: entry}); err != nil {
+			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "done", Answer: entry}); err != nil {
 				return err
 			}
-			if err := tx.SettleSubmission(placed, SubmissionRecord{Status: "unanswered", Reason: "late"}); err != nil {
+			if err := tx.SettleSubmission(placed, SubmissionSettlement{Status: "unanswered", Reason: "late"}); err != nil {
 				return err
 			}
 			if _, _, err := tx.Submission(placed); err == nil {
@@ -590,11 +672,12 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		var unanswered ID
 		_, err = h.Commit(bg, func(tx *Tx) error {
 			var err error
-			unanswered, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "queued"})
+			createdUnanswered, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+			unanswered = createdUnanswered.ID
 			if err != nil {
 				return err
 			}
-			if err := tx.SettleSubmission(unanswered, SubmissionRecord{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
+			if err := tx.SettleSubmission(unanswered, SubmissionSettlement{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
 				return err
 			}
 			if _, _, err := tx.Submission(unanswered); err == nil {
@@ -622,7 +705,8 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		var detailed ID
 		_, err = h.Commit(bg, func(tx *Tx) error {
 			var err error
-			detailed, err = tx.CreateSubmission(SubmissionRecord{Conversation: 1, Type: "input", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: candidate}})
+			createdDetailed, err := tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: candidate}})
+			detailed = createdDetailed.ID
 			return err
 		})
 		if err != nil {
@@ -656,4 +740,248 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			}
 		}
 	})
+}
+
+// Source transaction.ts:526-540 defers record lookup and transition errors until
+// assembly. A caught/ignored callback method error cannot turn a failed change
+// into a successful empty commit.
+func TestTxSubmissionChangesResolveOnlyDuringAssembly(t *testing.T) {
+	for _, placement := range []bool{false, true} {
+		t.Run(fmt.Sprint(placement), func(t *testing.T) {
+			store := taskConformanceStoreV150(t)
+			session, err := OpenSession(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer session.Close(bg)
+			finished := false
+			_, err = session.Commit(bg, func(tx *Tx) error {
+				var err error
+				if placement {
+					err = tx.PlaceSubmission(999999, 2)
+				} else {
+					err = tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"})
+				}
+				if err != nil {
+					t.Fatal("submission change resolved inside callback", err)
+				}
+				finished = true
+				return nil
+			})
+			if !finished || err == nil || !strings.Contains(err.Error(), "does not exist") {
+				t.Fatal("missing assembly failure", finished, err)
+			}
+		})
+	}
+}
+
+// Source createSubmission requires the conversation before minting, and #write
+// fences table reads even when the caller catches that creation failure.
+func TestTxSubmissionFailedCreateRequiresConversationBeforeMint(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		high := tx.state.HighWater
+		if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 999999, Type: "write", Status: "queued"}); err == nil {
+			t.Fatal("missing conversation accepted during creation")
+		}
+		if tx.state.HighWater != high {
+			t.Fatal("failed conversation lookup minted an ID")
+		}
+		_, _, err := tx.Submission(1)
+		var fenced *ReadAfterWrite
+		if !errors.As(err, &fenced) {
+			t.Fatal("failed creation did not fence table reads", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Direct typed source surface: creation returns the complete record and exposes
+// neither caller-assigned identity nor native compatibility payload fields.
+func TestTxSubmissionCreateReturnsRecordSurface(t *testing.T) {
+	for _, check := range []struct {
+		typ   reflect.Type
+		field string
+	}{{reflect.TypeFor[SubmissionCreate](), "ID"}, {reflect.TypeFor[SubmissionCreate](), "Value"}, {reflect.TypeFor[SubmissionRecord](), "Value"}, {reflect.TypeFor[SubmissionSettlement](), "Entry"}} {
+		if _, found := check.typ.FieldByName(check.field); found {
+			t.Fatal("native field on source API", check.typ, check.field)
+		}
+	}
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	detail := JSON{"nested": []any{"owned"}}
+	trace := goai.TelemetryCarrier{"traceparent": "owned"}
+	var created SubmissionRecord
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		var err error
+		created, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "unanswered", Reason: "", RequestIDPresent: true, Detail: &TaskValue{Present: true, Value: detail}, Trace: &trace})
+		if err != nil {
+			return err
+		}
+		detail["nested"].([]any)[0] = "caller mutation"
+		trace["traceparent"] = "caller mutation"
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := SubmissionRecord{ID: created.ID, Conversation: 1, Type: "input", Status: "unanswered", Reason: "", RequestIDPresent: true, Detail: &TaskValue{Present: true, Value: JSON{"nested": []any{"owned"}}}, Trace: &goai.TelemetryCarrier{"traceparent": "owned"}}
+	if created.ID == 0 {
+		t.Fatal("missing created identity")
+	}
+	requireSubmissionEqual(t, created, want)
+	created.Detail.Value.(map[string]any)["nested"].([]any)[0] = "returned mutation"
+	(*created.Trace)["traceparent"] = "returned mutation"
+	stored, found, err := session.Submission(bg, created.ID)
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	requireSubmissionEqual(t, stored, want)
+}
+func TestTxSubmissionTerminalChangesAreNoops(t *testing.T) {
+	for _, kind := range []string{"input", "write", "continue"} {
+		t.Run(kind, func(t *testing.T) {
+			store := taskConformanceStoreV150(t)
+			id := mint(t, store)
+			want := SubmissionRecord{ID: id, Conversation: 1, Type: kind, Status: "unanswered", Reason: "first"}
+			submissionCommit(t, store, want)
+			session, err := OpenSession(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer session.Close(bg)
+			before, err := session.Snapshot(bg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = session.Commit(bg, func(tx *Tx) error {
+				if err := tx.PlaceSubmission(id, ID(MaxID)); err != nil {
+					return err
+				}
+				return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
+			})
+			if err != nil {
+				t.Fatal("terminal record was revalidated as live", err)
+			}
+			actual, found, err := session.Submission(bg, id)
+			if err != nil || !found {
+				t.Fatal(found, err)
+			}
+			requireSubmissionEqual(t, actual, want)
+			after, err := session.Snapshot(bg)
+			if err != nil || after.Seq != before.Seq {
+				t.Fatal("noop terminal changes wrote a record", after.Seq, before.Seq, err)
+			}
+		})
+	}
+}
+
+func TestTxSubmissionAnswerReferenceDoesNotAddNativeVisibilityPolicy(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	id := mint(t, store)
+	submissionCommit(t, store, SubmissionRecord{ID: id, Conversation: 1, Type: "continue", Status: "placed"})
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		return tx.SettleSubmission(id, SubmissionSettlement{Status: "done", Answer: ID(MaxID)})
+	})
+	if err != nil {
+		t.Fatal("source settlement does not require a persisted/visible answer", err)
+	}
+	actual, found, err := session.Submission(bg, id)
+	if err != nil || !found || actual.Answer != ID(MaxID) || actual.Status != "done" {
+		t.Fatal(actual, found, err)
+	}
+}
+
+func TestTxSubmissionQueuedChangesCanPrecedeTheirCreation(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	var created SubmissionRecord
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		// Source changes resolve against the map of all creations at assembly, not
+		// against the records present when this method is called.
+		future := ID(tx.state.HighWater + 1)
+		if err := tx.PlaceSubmission(future, ID(MaxID-1)); err != nil {
+			return err
+		}
+		if err := tx.SettleSubmission(future, SubmissionSettlement{Status: "done", Answer: ID(MaxID)}); err != nil {
+			return err
+		}
+		created, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "input", Status: "queued"})
+		if err != nil {
+			return err
+		}
+		if created.ID != future {
+			t.Fatal(created.ID, future)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, found, err := session.Submission(bg, created.ID)
+	if err != nil || !found || got.Status != "done" || got.Entry != ID(MaxID-1) || got.Answer != ID(MaxID) {
+		t.Fatal(got, found, err)
+	}
+}
+func TestTxSubmissionAssemblyFailurePrecedesDocumentPredicates(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	session, err := OpenSession(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	predicates := 0
+	notes := mustDefinition(t, DefinitionOptions{Kind: "source.submission.validation.order", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { predicates++; return false, nil }})
+	_, err = session.Commit(bg, func(tx *Tx) error { _, err := tx.AcquireDocument(notes, 1, nil, nil); return err })
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := session.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	predicates = 0
+	finished := false
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		doc, err := tx.AcquireDocument(notes, 1, nil, nil)
+		if err != nil {
+			return err
+		}
+		if err = doc.Set(JSON{"text": "must roll back"}); err != nil {
+			return err
+		}
+		if err = tx.SettleSubmission(999999, SubmissionSettlement{Status: "unanswered", Reason: "x"}); err != nil {
+			t.Fatal("early transition lookup", err)
+		}
+		finished = true
+		return nil
+	})
+	if err == nil || !finished || predicates != 0 {
+		t.Fatal("invalid submission reached predicates", finished, predicates, err)
+	}
+	after, err := session.Snapshot(bg)
+	if err != nil || !equalSnapshot(before, after) {
+		t.Fatal("assembly failure changed committed state", err)
+	}
 }

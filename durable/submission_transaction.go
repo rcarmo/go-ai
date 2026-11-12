@@ -1,50 +1,51 @@
 package durable
 
+import (
+	"fmt"
+	goai "github.com/rcarmo/go-ai"
+)
+
 // CreateSubmission creates a raw lifecycle record without Harness admission.
 // Applications implementing their own admission may place/settle it in this
 // transaction. Fresh IDs are reserved exactly as for other Session records.
-func (t *Tx) CreateSubmission(record SubmissionRecord) (ID, error) {
-	if err := t.enter(); err != nil {
-		return 0, err
+func (t *Tx) CreateSubmission(create SubmissionCreate) (SubmissionRecord, error) {
+	if err := t.enterKeys(); err != nil {
+		return SubmissionRecord{}, err
 	}
 	defer t.leave()
-	if record.ID != 0 {
-		return 0, reject("submission creation assigns identity")
-	}
-	sub, err := nativeSubmission(record, t.limits)
-	if err != nil {
-		return 0, err
+	t.hasTableWrite = true
+	if err := t.touchKeys(conversationKey(create.Conversation)); err != nil {
+		return SubmissionRecord{}, err
 	}
 	state, err := t.current()
 	if err != nil {
-		return 0, err
+		return SubmissionRecord{}, err
 	}
-	if record.Entry != 0 && !entryVisible(state, record.Conversation, record.Entry) {
-		return 0, reject("submission entry is not visible")
-	}
-	if record.Answer != 0 && !entryVisible(state, record.Conversation, record.Answer) {
-		return 0, reject("submission answer is not visible")
+	if _, found := state.Conversations[create.Conversation]; !found {
+		return SubmissionRecord{}, fmt.Errorf("Conversation %d does not exist", create.Conversation)
 	}
 	id, err := t.store.mintID(t.ctx, true)
 	if err != nil {
-		return 0, err
+		return SubmissionRecord{}, err
 	}
 	t.state.HighWater = uint64(id)
-	sub.ID = id
-	if err := t.stage(Write{Op: "put-submission", Submission: &sub}); err != nil {
-		return 0, err
+	record := SubmissionRecord{ID: id, Conversation: create.Conversation, RequestID: create.RequestID, RequestIDPresent: create.RequestIDPresent, Type: create.Type, Status: create.Status, Entry: create.Entry, Answer: create.Answer, Reason: create.Reason, Detail: create.Detail, Trace: create.Trace}
+	native, err := nativeSubmission(record, t.limits)
+	if err != nil {
+		return SubmissionRecord{}, err
 	}
-	return id, nil
+	owned, err := canonicalStoredSubmission(native, t.limits)
+	if err != nil {
+		return SubmissionRecord{}, err
+	}
+	t.setSubmission(owned)
+	return canonicalStoredSubmission(native, t.limits)
 }
 func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
-	value := JSON{}
-	if record.Value != nil {
-		owned, err := copyObject(record.Value, l)
-		if err != nil {
-			return Submission{}, err
-		}
-		value = owned
+	if err := record.validateWire(); err != nil {
+		return Submission{}, err
 	}
+	value := JSON{}
 	sub := Submission{ID: record.ID, Conversation: record.Conversation, RequestID: record.RequestID, RequestIDPresent: record.RequestIDPresent, Value: value, Trace: copyTelemetryCarrier(record.Trace)}
 	switch record.Type {
 	case "input":
@@ -58,16 +59,7 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 		if record.Entry != 0 {
 			return Submission{}, reject("continue submission has no entry")
 		}
-		// These fields belong to the typed lifecycle, not compatibility data.
-		// Reject rather than silently erase a caller-supplied placement/answer.
-		for _, field := range []string{"placedEntry", "entry", "answerEntry", "answer"} {
-			if _, present := value[field]; present {
-				return Submission{}, reject("continue submission lifecycle field in value")
-			}
-		}
-		if _, present := value["detail"]; present && record.Status != "unanswered" {
-			return Submission{}, reject("detail requires unanswered submission")
-		}
+
 	}
 	switch record.Status {
 	case "queued":
@@ -119,98 +111,158 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 	return sub, nil
 }
 
-// PlaceSubmission places a queued input, or completes a queued passive write.
-// A continue is already placed and can never acquire an entry.
-func (t *Tx) PlaceSubmission(id, entry ID) error {
-	if err := t.enter(); err != nil {
-		return err
-	}
-	defer t.leave()
-	state, err := t.current()
-	if err != nil {
-		return err
-	}
-	sub, ok := state.Submissions[id]
-	if !ok {
-		return reject("submission does not exist")
-	}
-	if sub.Type == "continue" {
-		return reject("continue submission has no entry")
-	}
-	if terminalStatus(sub.Status) {
-		return nil
-	}
-	if submissionEntryID(sub.Value["placedEntry"]) != 0 {
-		return reject("submission is not queued")
-	}
-	if entry == 0 || !entryVisible(state, sub.Conversation, entry) {
-		return reject("submission entry is not visible")
-	}
-	sub.Value, err = copyObject(sub.Value, t.limits)
-	if err != nil {
-		return err
-	}
-	sub.Value["placedEntry"] = entry
-	if sub.Type == "write" {
-		sub.Status = "done"
-	}
-	return t.stage(Write{Op: "put-submission", Submission: &sub})
+// SubmissionCreate omits the identity assigned by the Session, as the pinned
+// SubmissionCreate union does. It carries no native input/compatibility payload.
+type SubmissionCreate struct {
+	Conversation     ID
+	RequestID        string
+	RequestIDPresent bool
+	Type             string
+	Status           string
+	Entry            ID
+	Answer           ID
+	Reason           string
+	Detail           *TaskValue
+	Trace            *goai.TelemetryCarrier
 }
 
-// SettleSubmission preserves the first terminal receipt and rejects an answer
-// for an unplaced input or a write. Entryless continues may answer directly.
-// It resolves earlier writes in this batch.
-func (t *Tx) SettleSubmission(id ID, settlement SubmissionRecord) error {
-	if err := t.enter(); err != nil {
+// SubmissionSettlement cannot replace identity, type, request metadata or entry.
+type SubmissionSettlement struct {
+	Status string
+	Answer ID
+	Reason string
+	Detail *TaskValue
+}
+type transactionSubmissionChange struct {
+	id         ID
+	placement  bool
+	entry      ID
+	settlement SubmissionSettlement
+}
+
+func (t *Tx) setSubmission(record SubmissionRecord) {
+	if t.submissions == nil {
+		t.submissions = map[ID]SubmissionRecord{}
+	}
+	if _, exists := t.submissions[record.ID]; !exists {
+		t.submissionOrder = append(t.submissionOrder, record.ID)
+	}
+	t.submissions[record.ID] = record
+}
+
+// PlaceSubmission only queues a change. The current record is selected during
+// assembly, after every callback operation has run.
+func (t *Tx) PlaceSubmission(id, entry ID) error {
+	if err := t.enterKeys(); err != nil {
 		return err
 	}
 	defer t.leave()
-	state, err := t.current()
-	if err != nil {
+	t.hasTableWrite = true
+	t.submissionChanges = append(t.submissionChanges, transactionSubmissionChange{id: id, placement: true, entry: entry})
+	return nil
+}
+func (t *Tx) SettleSubmission(id ID, change SubmissionSettlement) error {
+	if err := t.enterKeys(); err != nil {
 		return err
 	}
-	sub, ok := state.Submissions[id]
-	if !ok {
-		return reject("submission does not exist")
-	}
-	if terminalStatus(sub.Status) {
-		return nil
-	}
-	if sub.Type == "continue" && settlement.Entry != 0 {
-		return reject("continue submission has no entry")
-	}
-	sub.Value, err = copyObject(sub.Value, t.limits)
-	if err != nil {
-		return err
-	}
-	switch settlement.Status {
+	defer t.leave()
+	t.hasTableWrite = true
+	switch change.Status {
 	case "done":
-		if sub.Type == "write" || sub.Type != "continue" && submissionEntryID(sub.Value["placedEntry"]) == 0 {
-			return reject("submission is not a placed input or continue")
+		if change.Answer == 0 || change.Reason != "" || change.Detail != nil {
+			return reject("done submission settlement fields")
 		}
-		if sub.Type == "continue" && (settlement.Reason != "" || settlement.Detail != nil) {
-			return reject("done submission fields")
-		}
-		if settlement.Answer == 0 || !entryVisible(state, sub.Conversation, settlement.Answer) {
-			return reject("submission answer is not visible")
-		}
-		sub.Status = "done"
-		sub.Value["answerEntry"] = settlement.Answer
 	case "unanswered":
-		if settlement.Answer != 0 {
-			return reject("invalid unanswered submission settlement")
+		if change.Answer != 0 {
+			return reject("unanswered submission settlement fields")
 		}
-		if settlement.Detail != nil {
-			detail, err := copyTaskValue(settlement.Detail, t.limits)
+		if change.Detail != nil {
+			owned, err := copyTaskValue(change.Detail, t.limits)
 			if err != nil {
 				return err
 			}
-			sub.Value["detail"] = detail.Value
+			change.Detail = owned
 		}
-		sub.Status = "failed"
-		sub.Value["errorCode"] = settlement.Reason
 	default:
 		return reject("submission settlement status")
 	}
-	return t.stage(Write{Op: "put-submission", Submission: &sub})
+	t.submissionChanges = append(t.submissionChanges, transactionSubmissionChange{id: id, settlement: change})
+	return nil
+}
+
+// applySubmissionChange is the pinned current-record transition: terminal
+// records stay; placement requires queued; an answer requires placed.
+func applySubmissionChange(current SubmissionRecord, change transactionSubmissionChange) (SubmissionRecord, bool, error) {
+	if current.Status == "done" || current.Status == "unanswered" {
+		return current, false, nil
+	}
+	if change.placement {
+		if current.Status != "queued" {
+			return SubmissionRecord{}, false, fmt.Errorf("Submission %d is not queued", current.ID)
+		}
+		current.Status = "done"
+		if current.Type == "input" {
+			current.Status = "placed"
+		}
+		current.Entry = change.entry
+		return current, true, nil
+	}
+	if change.settlement.Status == "done" && current.Status != "placed" {
+		return SubmissionRecord{}, false, fmt.Errorf("Submission %d is not a placed input or continue", current.ID)
+	}
+	current.Status = change.settlement.Status
+	current.Answer = change.settlement.Answer
+	current.Reason = change.settlement.Reason
+	current.Detail = change.settlement.Detail
+	return current, true, nil
+}
+func (t *Tx) finalizeSubmissionWrites() error {
+	for _, change := range t.submissionChanges {
+		current, found := t.submissions[change.id]
+		if !found {
+			if err := t.touchKeys(submissionKey(change.id)); err != nil {
+				return err
+			}
+			var err error
+			current, found, err = lookupSubmission(t.state, t.limits, change.id)
+			if err != nil {
+				return err
+			}
+			if !found {
+				return fmt.Errorf("Submission %d does not exist", change.id)
+			}
+		}
+		next, changed, err := applySubmissionChange(current, change)
+		if err != nil {
+			return err
+		}
+		if changed {
+			t.setSubmission(next)
+		}
+	}
+	for _, id := range t.submissionOrder {
+		native, err := nativeSubmission(t.submissions[id], t.limits)
+		if err != nil {
+			return err
+		}
+		// The physical envelope still contains the historical builtin payload. It
+		// is not part of the public record and cannot be supplied by these APIs.
+		if prior, found := t.state.Submissions[id]; found {
+			value, err := copyObject(prior.Value, t.limits)
+			if err != nil {
+				return err
+			}
+			for _, key := range []string{"placedEntry", "answerEntry", "errorCode", "detail"} {
+				delete(value, key)
+			}
+			for key, item := range native.Value {
+				value[key] = item
+			}
+			native.Value = value
+		}
+		if err := t.stage(Write{Op: "put-submission", Submission: &native}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
