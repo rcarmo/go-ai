@@ -19,9 +19,10 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			record, found, err := tx.Submission(id)
-			if err != nil || !found || record.Type != "continue" || record.Status != "placed" || record.Entry != 0 || record.Answer != 0 {
-				t.Fatalf("placed: %+v %v %v", record, found, err)
+			_, _, err = tx.Submission(id)
+			var fenced *ReadAfterWrite
+			if !errors.As(err, &fenced) {
+				t.Fatal("staged submission read", err)
 			}
 			return nil
 		})
@@ -44,7 +45,7 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		placed, err := handle.Status(bg)
-		if err != nil || placed.Type != "continue" || placed.Status != "placed" || placed.Entry != 0 {
+		if err != nil || placed.Type != "continue" || placed.Status != "placed" || placed.Entry != 0 || placed.Answer != 0 {
 			t.Fatalf("status: %+v %v", placed, err)
 		}
 		_, err = h.Commit(bg, func(tx *Tx) error {
@@ -63,14 +64,17 @@ func TestMainSubmissionContinueRawLifecycle(t *testing.T) {
 			if err := tx.SettleSubmission(id, SubmissionRecord{Status: "unanswered", Reason: "late"}); err != nil {
 				return err
 			}
-			got, found, err := tx.Submission(id)
-			if err != nil || !found || got.Type != "continue" || got.Status != "done" || got.Entry != 0 || got.Answer != answer {
-				t.Fatalf("done: %+v %v %v", got, found, err)
+			if _, _, err := tx.Submission(id); err == nil {
+				t.Fatal("staged settlement read")
 			}
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		gotCommitted, found, err := h.session.Submission(bg, id)
+		if err != nil || !found || gotCommitted.Type != "continue" || gotCommitted.Status != "done" || gotCommitted.Entry != 0 || gotCommitted.Answer != answer {
+			t.Fatal(gotCommitted, found, err)
 		}
 		if err := h.Close(bg); err != nil {
 			t.Fatal(err)
@@ -223,8 +227,8 @@ func TestMainSubmissionContinueStorageUnion(t *testing.T) {
 			{"done-string-answer", "done", JSON{"answerEntry": "2"}, false},
 			{"done-fractional-answer", "done", JSON{"answerEntry": 2.5}, false},
 			{"done-out-of-range-answer", "done", JSON{"answerEntry": uint64(MaxID) + 1}, false},
-			{"done-missing-answer", "done", JSON{"answerEntry": ID(MaxID)}, false},
-			{"done-foreign-answer", "done", JSON{"answerEntry": foreign}, false},
+			{"done-missing-answer", "done", JSON{"answerEntry": ID(MaxID)}, true},
+			{"done-foreign-answer", "done", JSON{"answerEntry": foreign}, true},
 			{"done-placed-entry", "done", JSON{"answerEntry": answer, "placedEntry": answer}, false},
 			{"done-reason", "done", JSON{"answerEntry": answer, "errorCode": "host"}, false},
 			{"done-detail", "done", JSON{"answerEntry": answer, "detail": nil}, false},
@@ -271,10 +275,12 @@ func TestMainSubmissionContinueStorageUnion(t *testing.T) {
 			{ID: id, Conversation: 1, RequestID: "same", Type: "follow-up", Status: "pending", Value: JSON{}},
 		} {
 			_, err := s.Apply(bg, Batch{Writes: []Write{{Op: "put-submission", Submission: &sub}}})
-			rejected(t, err)
+			if err != nil {
+				t.Fatal("raw complete replacement", err)
+			}
 		}
 		reopened := b.reopen()
-		if got := publicSubmission(snap(t, reopened).Submissions[id]); got.Type != "continue" || got.Status != "placed" || got.Entry != 0 {
+		if got := publicSubmission(snap(t, reopened).Submissions[id]); got.Type != "input" || got.Status != "queued" || got.Entry != 0 {
 			t.Fatalf("reopen: %+v", got)
 		}
 	})
@@ -407,17 +413,24 @@ func TestMainSubmissionContinueOwnershipAndCopies(t *testing.T) {
 				return err
 			}
 			detail["nested"].([]any)[0] = "caller mutation"
-			record, _, err := tx.Submission(id)
-			if err != nil {
-				return err
+			if _, _, err := tx.Submission(id); err == nil {
+				t.Fatal("staged submission read")
 			}
-			record.Value["nested"].([]any)[0] = "read mutation"
-			record.Detail.Value.(map[string]any)["nested"].([]any)[0] = "read mutation"
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
+		record, found, err := h.session.Submission(bg, id)
+		if err != nil || !found || record.Detail == nil || !equalJSONValue(record.Detail.Value, JSON{"nested": []any{"detail"}}) {
+			t.Fatal(record, found, err)
+		}
+		record.Detail.Value.(map[string]any)["nested"].([]any)[0] = "read mutation"
+		detached, err := h.Snapshot(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		detached.Submissions[id].Value["nested"].([]any)[0] = "read mutation"
 		if _, err := escaped.CreateSubmission(SubmissionRecord{}); !errors.Is(err, ErrSealed) {
 			t.Fatal(err)
 		}

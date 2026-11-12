@@ -119,27 +119,6 @@ func nativeSubmission(record SubmissionRecord, l Limits) (Submission, error) {
 	return sub, nil
 }
 
-// Submission returns the transaction's latest staged lifecycle record.
-func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
-	if err := t.enter(); err != nil {
-		return SubmissionRecord{}, false, err
-	}
-	defer t.leave()
-	state, err := t.current()
-	if err != nil {
-		return SubmissionRecord{}, false, err
-	}
-	sub, ok := state.Submissions[id]
-	if !ok {
-		return SubmissionRecord{}, false, nil
-	}
-	sub.Value, err = copyObject(sub.Value, t.limits)
-	if err != nil {
-		return SubmissionRecord{}, false, err
-	}
-	return publicSubmission(sub), true, nil
-}
-
 // PlaceSubmission places a queued input, or completes a queued passive write.
 // A continue is already placed and can never acquire an entry.
 func (t *Tx) PlaceSubmission(id, entry ID) error {

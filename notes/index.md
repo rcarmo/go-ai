@@ -44,6 +44,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Primary record reads](primary-record-reads.md) — global/visible entry overloads, original sequences,
   typed lookup, exact dependency keys, source cases and close/progress verification caveat.
 
+- [Submission record reads](submission-record-reads.md) — canonical lookup/scans, raw replacement,
+  request index semantics, committed Tx reads and remaining creation/settlement port.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

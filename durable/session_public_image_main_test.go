@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,7 +67,7 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 		batch := Batch{Writes: []Write{
 			{Op: "create-conversation", Conversation: &Conversation{ID: ids[0]}},
 			{Op: "put-task", Task: &task},
-			{Op: "put-submission", Submission: &Submission{ID: ids[2], Conversation: ids[0], Type: "write", Status: "pending", Value: JSON{"x": 1}}},
+			{Op: "put-submission", Submission: &Submission{ID: ids[2], Conversation: ids[0], RequestIDPresent: true, Type: "write", Status: "failed", Value: JSON{"errorCode": "host", "detail": JSON{"x": 1}}}},
 		}}
 		if _, err := s.core.apply(bg, batch, true); err != nil {
 			t.Fatal(err)
@@ -99,15 +100,30 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 				}
 				taskCheckpointMap(record.State.Checkpoint)["x"] = "lookup mutation"
 			}
+			sub, found, err := s.Submission(bg, ids[2])
+			if err != nil || found != published {
+				t.Fatal("submission publication", sub, found, err)
+			}
+			byRequest, found, err := s.SubmissionByRequest(bg, ids[0], "")
+			if err != nil || found != published {
+				t.Fatal("request publication", byRequest, found, err)
+			}
+			if published {
+				if sub.Value != nil || byRequest.Value != nil || sub.Status != "unanswered" || sub.Detail == nil {
+					t.Fatal("private submission envelope", sub, byRequest)
+				}
+				sub.Detail.Value.(map[string]any)["x"] = "lookup mutation"
+				byRequest.Detail.Value.(map[string]any)["x"] = "request mutation"
+			}
 			submissions, err := s.ScanSubmissions(bg, SubmissionQuery{Conversation: ids[0]}, 10, nil)
 			if err != nil || len(submissions.Items) != want {
 				t.Fatalf("submissions: %+v %v", submissions, err)
 			}
 			if published {
 				taskCheckpointMap(tasks.Items[0].State.Checkpoint)["x"] = "mutated"
-				submissions.Items[0].Value["x"] = "mutated"
+				submissions.Items[0].Detail.Value.(map[string]any)["x"] = "mutated"
 				image, err := s.Snapshot(bg)
-				if err != nil || !equalJSONValue(taskCheckpointMap(image.Tasks[ids[1]].Execution.Native.State.Checkpoint), JSON{"x": 1}) || image.Submissions[ids[2]].Value["x"] == "mutated" {
+				if err != nil || !equalJSONValue(taskCheckpointMap(image.Tasks[ids[1]].Execution.Native.State.Checkpoint), JSON{"x": 1}) || image.Submissions[ids[2]].Value["detail"].(map[string]any)["x"] == "mutated" {
 					t.Fatal("scan aliases publication image", err)
 				}
 			}
@@ -253,6 +269,11 @@ func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
 		{"global-disjoint-conversation", conversationKey(1), false},
 		{"conversation-disjoint-entry", entryKey(2), false},
 		{"visible-disjoint-append", appendKey(1), false},
+		{"submission", submissionKey(3), true},
+		{"submission-disjoint-request", requestKey(1, ""), false},
+		{"request", requestKey(1, ""), true},
+		{"request-disjoint-record", submissionKey(3), false},
+		{"request-disjoint-conversation", conversationKey(1), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := gatedSession(t)
@@ -264,7 +285,17 @@ func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
 				if id != 2 {
 					return errors.New("unexpected test entry ID")
 				}
-				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}})
+				if err := tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}}); err != nil {
+					return err
+				}
+				submission, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if submission != 3 {
+					return errors.New("unexpected submission ID")
+				}
+				return tx.PutSubmission(Submission{ID: submission, Conversation: 1, RequestIDPresent: true, Type: "write", Status: "pending", Value: JSON{}})
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -285,6 +316,21 @@ func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
 			ctx := &documentGateContext{Context: parent, queued: queued}
 			result := make(chan error, 1)
 			go func() {
+				if strings.HasPrefix(tc.name, "submission") || strings.HasPrefix(tc.name, "request") {
+					var record SubmissionRecord
+					var found bool
+					var err error
+					if strings.HasPrefix(tc.name, "request") {
+						record, found, err = s.SubmissionByRequest(ctx, 1, "")
+					} else {
+						record, found, err = s.Submission(ctx, 3)
+					}
+					if err == nil && (!found || record.ID != 3 || record.Status != "queued") {
+						err = errors.New("submission missing or noncanonical")
+					}
+					result <- err
+					return
+				}
 				if tc.name == "conversation" || tc.name == "conversation-disjoint-entry" {
 					record, found, err := s.Conversation(ctx, 1)
 					if err == nil && (!found || record.ID != 1) {

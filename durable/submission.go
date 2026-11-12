@@ -160,18 +160,30 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 		if _, ok := current.Conversations[c.id]; !ok {
 			return reject("unknown conversation")
 		}
-		for _, sub := range current.Submissions {
-			if (input.RequestID != "" || input.RequestIDPresent) && sub.hasRequestID() && sub.Conversation == c.id && sub.RequestID == input.RequestID {
-				// Steer and follow-up are queue modes of the same upstream
-				// input submission type; deduplication precedes mode checks.
-				if publicSubmission(sub).Type != publicSubmission(Submission{Type: input.Type}).Type {
+		if input.RequestID != "" || input.RequestIDPresent {
+			var sub SubmissionRecord
+			var found bool
+			var err error
+			if h.session.hasNativeReadImage() {
+				sub, found, err = lookupSubmissionByRequest(current, h.session.limits, c.id, input.RequestID)
+			} else {
+				sub, found, err = h.session.guardedStorage().SubmissionByRequest(ctx, c.id, input.RequestID)
+			}
+			if err != nil {
+				return err
+			}
+			if found {
+				kind := input.Type
+				if kind != "write" && kind != "continue" {
+					kind = "input"
+				}
+				if sub.Type != kind {
 					return reject("request ID cross-type conflict")
 				}
 				dedupID = sub.ID
-				if !terminalStatus(sub.Status) {
+				if sub.Status != "done" && sub.Status != "unanswered" {
 					h.scheduler.enable()
 				}
-				break
 			}
 		}
 		return nil

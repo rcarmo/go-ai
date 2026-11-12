@@ -118,7 +118,7 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 		owned := mint(t, b.store)
 		apply(t, b.store, Write{Op: "create-conversation", Conversation: &Conversation{ID: owned, Owner: task1}})
 		sub1, sub2 := mint(t, b.store), mint(t, b.store)
-		apply(t, b.store, Write{Op: "put-submission", Submission: &Submission{ID: sub1, Conversation: root, Type: "write", Status: "pending", Value: JSON{"x": 1}}}, Write{Op: "put-submission", Submission: &Submission{ID: sub2, Conversation: root, Type: "write", Status: "pending", Value: JSON{"x": 2}}})
+		apply(t, b.store, Write{Op: "put-submission", Submission: &Submission{ID: sub1, Conversation: root, Type: "write", Status: "failed", Value: JSON{"errorCode": "host", "detail": JSON{"x": 1}}}}, Write{Op: "put-submission", Submission: &Submission{ID: sub2, Conversation: root, Type: "write", Status: "failed", Value: JSON{"errorCode": "host", "detail": JSON{"x": 2}}}})
 		ordered := b.store.(OrderedStorage)
 		for _, order := range []ScanOrder{Ascending, Descending} {
 			c, err := ordered.ScanConversations(bg, ConversationQuery{Order: order}, 2, nil)
@@ -175,13 +175,13 @@ func TestScan110RecordsFiltersTransactionAndDetachment(t *testing.T) {
 			if err != nil || subs2.Next != nil || subs.Items[0].ID == subs2.Items[0].ID {
 				t.Fatal(subs2, err)
 			}
-			subs.Items[0].Value["mutated"] = true
+			subs.Items[0].Detail.Value.(map[string]any)["mutated"] = true
 			againSub, err := ordered.ScanSubmissions(bg, SubmissionQuery{}, 10, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, v := range againSub.Items {
-				if v.Value["mutated"] != nil {
+				if v.Detail.Value.(map[string]any)["mutated"] != nil {
 					t.Fatal("submission alias")
 				}
 			}
@@ -363,7 +363,7 @@ func TestPiDurableV150ScanCursorWire(t *testing.T) {
 					}
 					next = page.Next
 				case "scanSubmissions":
-					var page Page[Submission]
+					var page Page[SubmissionRecord]
 					page, err = ordered.ScanSubmissions(bg, SubmissionQuery{Order: ScanOrder(order)}, p.Limit, cursor)
 					for _, v := range page.Items {
 						ids = append(ids, v.ID)

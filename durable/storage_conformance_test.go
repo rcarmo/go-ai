@@ -244,18 +244,22 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		}
 	})
 	t.Run("12_13_request_identity_write_union", func(t *testing.T) {
-		r, ok, e := s.Request(bg, conv, " \x00exact ")
+		r, ok, e := s.SubmissionByRequest(bg, conv, " \x00exact ")
 		if e != nil || !ok || r.ID != sub || r.Type != "write" {
 			t.Fatal(r, ok, e)
 		}
 		apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "write", Status: "done", Value: JSON{"result": true}}})
 		id := mint(t, s)
 		_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: id, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
-		rejected(t, e)
+		if e != nil {
+			t.Fatal("raw duplicate key", e)
+		}
 		id = mint(t, s)
 		apply(t, s, Write{Op: "put-submission", Submission: &Submission{ID: id, Conversation: 1, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}})
 		_, e = s.Apply(bg, Batch{[]Write{{Op: "put-submission", Submission: &Submission{ID: sub, Conversation: conv, RequestID: r.RequestID, Type: "follow-up", Status: "pending", Value: JSON{}}}}})
-		rejected(t, e)
+		if e != nil {
+			t.Fatal("raw identity replacement", e)
+		}
 	})
 	t.Run("14_17_18_19_21_partial_current_only", func(t *testing.T) {
 		old := snap(t, s).Documents[doc]
@@ -313,7 +317,7 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		if e := s.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, _, e := s.Conversation(bg, 1); return e }, func() error { _, _, e := s.Entry(bg, 1); return e }, func() error { _, _, e := s.Task(bg, 1); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
+		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, _, e := s.Conversation(bg, 1); return e }, func() error { _, _, e := s.Entry(bg, 1); return e }, func() error { _, _, e := s.Task(bg, 1); return e }, func() error { _, _, e := s.Submission(bg, 1); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.SubmissionByRequest(bg, 1, "id"); return e }}
 		for _, f := range checks {
 			if e := f(); !errors.Is(e, ErrClosed) {
 				t.Fatal(e)
@@ -676,11 +680,11 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 			t.Fatal(e)
 		}
 		ts.Tasks[task].Checkpoint["nested"].(map[string]any)["v"] = "query mutate"
-		ss, e := s.Submissions(bg, Query{Limit: 1})
+		ss, e := s.Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)
 		}
-		ss[0].Value["nested"].(map[string]any)["v"] = "query mutate"
+		ss.Submissions[sub].Value["nested"].(map[string]any)["v"] = "query mutate"
 		ds, e := s.Documents(bg, Query{Limit: 1})
 		if e != nil {
 			t.Fatal(e)

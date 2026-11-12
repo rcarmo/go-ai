@@ -465,13 +465,13 @@ type Storage interface {
 	ScanConversations(context.Context, ConversationQuery, int, Cursor) (Page[Conversation], error)
 	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
 	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[TaskRecord], error)
-	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
+	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[SubmissionRecord], error)
 	Conversation(context.Context, ID) (Conversation, bool, error)
 	Entry(context.Context, ...ID) (StoredEntry, bool, error)
 	Task(context.Context, ID) (TaskRecord, bool, error)
-	Submissions(context.Context, Query) ([]Submission, error)
+	Submission(context.Context, ID) (SubmissionRecord, bool, error)
 	Documents(context.Context, Query) ([]Document, error)
-	Request(context.Context, ID, string) (Submission, bool, error)
+	SubmissionByRequest(context.Context, ID, string) (SubmissionRecord, bool, error)
 	Limits() (Limits, error)
 	Close(context.Context) error
 }

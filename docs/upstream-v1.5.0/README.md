@@ -12,6 +12,8 @@ The [durable deviation register](durable-deviations.md) tracks current evidence 
 
 [Primary conversation/entry reads](../../notes/primary-record-reads.md) add the original global/visible lookup overloads, separate original commit sequences, complete named transaction-fence assertions and literal deep-fork/conversation pagination. Reference coverage is152 unchanged source cases +39 probes. The queued tool-progress/close error-order caveat remains open.
 
+[Submission record reads](../../notes/submission-record-reads.md) replace native lookup/query readers and preserve the original lifecycle and request-index cases. Reference coverage is155 unchanged source cases +43 probes; creation/settlement and other API/runtime gaps remain open.
+
 ## Historical parity backlog and contract decisions
 
 The semantic-equivalence request supersedes the earlier direction-before-runtime pauses below. Some earlier diagnoses were fixture-translation errors; the current deviation register and semantic-port receipts reconcile them.

@@ -444,3 +444,69 @@ func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Source transaction.ts:333-343 and #read: submission reads are committed tables.
+func TestTxSubmissionLookupFencesAfterTableWrite(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	id := mint(t, s)
+	submissionCommit(t, s, SubmissionRecord{ID: id, Conversation: 1, Type: "input", Status: "queued"})
+	session, err := OpenSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		actual, found, err := tx.Submission(id)
+		if err != nil || !found || actual.Status != "queued" {
+			t.Fatal(actual, found, err)
+		}
+		if err := tx.PutSubmission(Submission{ID: id, Conversation: 1, Type: "follow-up", Status: "pending", Value: JSON{}}); err != nil {
+			return err
+		}
+		_, _, err = tx.Submission(id)
+		var fenced *ReadAfterWrite
+		if !errors.As(err, &fenced) || fenced.Method != "submission" {
+			t.Fatalf("submission read bypassed source table fence: %v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestTxSubmissionByRequestCommittedLookupAndFence(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	id := mint(t, s)
+	submissionCommit(t, s, SubmissionRecord{ID: id, Conversation: 1, Type: "continue", Status: "placed", RequestIDPresent: true})
+	session, err := OpenSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		reader := tx
+		actual, found, err := reader.SubmissionByRequest(1, "")
+		if err != nil || !found || actual.ID != id || !actual.RequestIDPresent {
+			t.Fatal(actual, found, err)
+		}
+		if _, found, err := reader.SubmissionByRequest(99, ""); err != nil || found {
+			t.Fatal(found, err)
+		}
+		fresh, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note"}); err != nil {
+			return err
+		}
+		_, _, err = reader.SubmissionByRequest(1, "")
+		var fenced *ReadAfterWrite
+		if !errors.As(err, &fenced) || fenced.Method != "submissionByRequest" {
+			t.Fatal(err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

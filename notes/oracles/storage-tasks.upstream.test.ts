@@ -11,7 +11,7 @@ const cases=createStorageConformance({
  assertions:{ok:(v,m)=>expect(v,m).toBeTruthy(),strictEqual:(a,b)=>expect(a).toBe(b),deepEqual:(a,b)=>expect(a).toEqual(b),partialDeepEqual:(a,b)=>expect(a).toMatchObject(b),greaterThan:(a,b)=>expect(a).toBeGreaterThan(b),rejects:async(p,m)=>{await expect(p).rejects.toThrow(m)}},
  withStorage:async use=>{const dir=mkdtempSync(join(tmpdir(),"storage-tasks-conformance-"));let storage;try{storage=await openNodeSqliteStorage(join(dir,"state.db"));await use(storage)}finally{if(storage)await storage.close(context);rmSync(dir,{recursive:true,force:true})}},
 });
-const selected=["replaces complete task records and pages filtered task scans","stores owners and scans waiting and completing tasks by status","stores and scans sleeping tasks by status","scans deep fork history newest-first through every ancestor cap","paginates conversations by opaque cursor in ascending ID order"];
+const selected=["replaces complete task records and pages filtered task scans","stores owners and scans waiting and completing tasks by status","stores and scans sleeping tasks by status","scans deep fork history newest-first through every ancestor cap","paginates conversations by opaque cursor in ascending ID order","indexes request IDs per conversation and replaces complete submission records","stores passive write submissions without input-only lifecycle states","stores continue submissions, which have no entry and are never queued"];
 for(const name of selected){const test=cases.find(test=>test.name===name);if(!test)throw Error(`Missing source conformance: ${name}`);it(name,()=>test.run())}
 
 it("keeps complete raw task replacement independent of Session execution rules",async()=>{
@@ -75,4 +75,42 @@ it("accepts non-empty entry kinds without a native identifier grammar",async()=>
    }finally{await storage.close(context);if(storage===sqlite)sqlite=undefined}
   }
  }finally{if(sqlite)await sqlite.close(context);rmSync(dir,{recursive:true,force:true})}
+});
+
+it("replaces raw submission identities and request keys without Session admission",async()=>{
+ const {ControlledStorage}=await import("@pinned/support");const dir=mkdtempSync(join(tmpdir(),"submission-replacement-"));let sqlite:any;
+ try{for(const storage of [new ControlledStorage(),await openNodeSqliteStorage(join(dir,"state.db"))]){
+  if(!(storage instanceof ControlledStorage))sqlite=storage;
+  try{
+   expect(await storage.commit([[{type:"conversation",value:{id:1}},{type:"conversation",value:{id:2}},{type:"submission",value:{id:3,conversationId:1,requestId:"old",type:"input",status:"queued"}}]],()=>{},context)).toEqual({stored:1});
+   const replacement={id:3,conversationId:2,requestId:"",type:"write",status:"unanswered",reason:"",detail:null};
+   expect(await storage.commit([[{type:"submission",value:replacement}]],()=>{},context)).toEqual({stored:1});
+   expect(await storage.submission(3,context)).toEqual(replacement);expect(await storage.submissionByRequest(1,"old",context)).toBeUndefined();expect(await storage.submissionByRequest(2,"",context)).toEqual(replacement);
+  }finally{await storage.close(context);if(storage===sqlite)sqlite=undefined}
+ }}finally{if(sqlite)await sqlite.close(context);rmSync(dir,{recursive:true,force:true})}
+});
+
+it("uses the non-unique pinned SQLite request index and reindexes complete replacements",async()=>{
+ const dir=mkdtempSync(join(tmpdir(),"submission-duplicate-"));let storage:any;
+ try{storage=await openNodeSqliteStorage(join(dir,"state.db"));const first={id:2,conversationId:1,requestId:"",type:"write",status:"queued"},second={...first,id:3};
+ expect(await storage.commit([[{type:"conversation",value:{id:1}},{type:"submission",value:second},{type:"submission",value:first}]],()=>{},context)).toEqual({stored:1});
+ for(let i=0;i<20;i++)expect(await storage.submissionByRequest(1,"",context)).toEqual(first);
+ const moved={...first,requestId:"moved"};expect(await storage.commit([[{type:"submission",value:moved}]],()=>{},context)).toEqual({stored:1});expect(await storage.submissionByRequest(1,"",context)).toEqual(second);expect(await storage.submissionByRequest(1,"moved",context)).toEqual(moved);
+ }finally{if(storage)await storage.close(context);rmSync(dir,{recursive:true,force:true})}
+});
+
+it("creates raw duplicate submissions without applying Harness admission rules",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ try{const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const records=await session.commit(async tx=>[await tx.createSubmission({conversationId:conversation.id,requestId:"same",type:"write",status:"queued"}),await tx.createSubmission({conversationId:conversation.id,requestId:"same",type:"write",status:"queued"})],context);expect(records[0].id).not.toBe(records[1].id);
+ }finally{await session.close(context)}
+});
+
+it("reads submission requests from committed tables and applies the read-after-write fence",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const session=new SessionImpl(new ControlledStorage(),Date.now,()=>600000);
+ try{const conversation=await session.commit(tx=>tx.createConversation({ownership:{kind:"ownerless"}}),context);
+ const record=await session.commit(tx=>tx.createSubmission({conversationId:conversation.id,requestId:"",type:"continue",status:"placed"}),context);
+ await session.commit(async tx=>{expect(await tx.submission(record.id)).toEqual(record);expect(await tx.submissionByRequest(conversation.id,"")).toEqual(record);expect(await tx.submissionByRequest(999 as any,"")).toBeUndefined();
+ await tx.appendEntry(conversation.id,{kind:"note"});await expect(tx.submission(record.id)).rejects.toThrow("Tx.submission() cannot read tables after the first table write");await expect(tx.submissionByRequest(conversation.id,"")).rejects.toThrow("Tx.submissionByRequest() cannot read tables after the first table write");},context);
+ }finally{await session.close(context)}
 });

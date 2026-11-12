@@ -73,25 +73,35 @@ func TestV150SubmissionRequestPresenceReopenAndCheckpoint(t *testing.T) {
 		if state.Submissions[absent].hasRequestID() || !state.Submissions[empty].hasRequestID() {
 			t.Fatal("presence lost", state.Submissions)
 		}
-		found, ok, err := store.Request(bg, 1, "")
+		found, ok, err := store.SubmissionByRequest(bg, 1, "")
 		if err != nil || !ok || found.ID != empty {
 			t.Fatalf("empty request lookup: %+v %v %v", found, ok, err)
 		}
-		// Snapshot callers cannot erase the stored key or change its identity.
+		// Snapshot mutation cannot change storage. An explicit raw replacement
+		// may remove the key; source storage does not freeze this identity.
 		copy := state.Submissions[empty]
 		copy.RequestIDPresent = false
-		_, err = store.Apply(bg, Batch{Writes: []Write{{Op: "put-submission", Submission: &copy}}})
-		if err == nil {
-			t.Fatal("empty key changed to absent on replacement")
+		retained, exists, err := store.Submission(bg, empty)
+		if err != nil || !exists || !retained.RequestIDPresent {
+			t.Fatal(retained, exists, err)
 		}
+		if _, err = store.Apply(bg, Batch{Writes: []Write{{Op: "put-submission", Submission: &copy}}}); err != nil {
+			t.Fatal(err)
+		}
+		removed, exists, err := store.Submission(bg, empty)
+		if err != nil || !exists || removed.RequestIDPresent {
+			t.Fatal(removed, exists, err)
+		}
+		original := state.Submissions[empty]
+		apply(t, store, Write{Op: "put-submission", Submission: &original})
 	}
 	check()
-	// Two absent keys are independent; two present empty keys still conflict.
+	// Both absent keys and duplicate present-empty raw keys are independent records.
 	another := mint(t, store)
 	apply(t, store, Write{Op: "put-submission", Submission: &Submission{ID: another, Conversation: 1, Type: "write", Status: "pending", Value: JSON{}}})
 	duplicate := Submission{ID: mint(t, store), Conversation: 1, Type: "write", Status: "pending", Value: JSON{}, RequestIDPresent: true}
-	if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-submission", Submission: &duplicate}}}); err == nil {
-		t.Fatal("duplicate native empty dedup key accepted")
+	if _, err := store.Apply(bg, Batch{Writes: []Write{{Op: "put-submission", Submission: &duplicate}}}); err != nil {
+		t.Fatal("raw duplicate", err)
 	}
 	// Updating lifecycle preserves the key.
 	updated := snap(t, store).Submissions[empty]

@@ -221,3 +221,137 @@ func (t *Tx) Entry(id ID) (Entry, bool, error) {
 	stored, found, err := lookupStoredEntry(t.state, t.limits, []ID{id})
 	return stored.Entry, found, err
 }
+
+// canonicalStoredSubmission exposes only source lifecycle fields. Private input
+// payloads remain in snapshots; old incomplete envelopes are not invented into
+// canonical records.
+func canonicalStoredSubmission(sub Submission, limits Limits) (SubmissionRecord, error) {
+	value, err := copyObject(sub.Value, limits)
+	if err != nil {
+		return SubmissionRecord{}, err
+	}
+	sub.Value = value
+	record := publicSubmission(sub)
+	record.Value = nil
+	if err := record.validateWire(); err != nil {
+		return SubmissionRecord{}, err
+	}
+	return record, nil
+}
+func lookupSubmission(state Snapshot, limits Limits, id ID) (SubmissionRecord, bool, error) {
+	if err := checkReadIDs(id); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	sub, found := state.Submissions[id]
+	if !found {
+		return SubmissionRecord{}, false, nil
+	}
+	record, err := canonicalStoredSubmission(sub, limits)
+	return record, err == nil, err
+}
+func lookupSubmissionByRequest(state Snapshot, limits Limits, conversation ID, request string) (SubmissionRecord, bool, error) {
+	if err := checkReadIDs(conversation); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	if len(request) > limits.MaxRequestIDBytes {
+		return SubmissionRecord{}, false, storageRequest("invalid request ID")
+	}
+	// The pinned SQLite request index visits equal keys in rowid order. This is
+	// deterministic even for raw duplicate keys; Harness admission deduplicates.
+	var candidate ID
+	for id, sub := range state.Submissions {
+		if sub.Conversation == conversation && sub.hasRequestID() && sub.RequestID == request && (candidate == 0 || id < candidate) {
+			candidate = id
+		}
+	}
+	if candidate == 0 {
+		return SubmissionRecord{}, false, nil
+	}
+	return lookupSubmission(state, limits, candidate)
+}
+func (c *storeCore) Submission(ctx context.Context, id ID) (SubmissionRecord, bool, error) {
+	if err := c.enter(ctx); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	defer c.leave()
+	return lookupSubmission(c.state, c.limits, id)
+}
+func (c *storeCore) SubmissionByRequest(ctx context.Context, conversation ID, request string) (SubmissionRecord, bool, error) {
+	if err := c.enter(ctx); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	defer c.leave()
+	return lookupSubmissionByRequest(c.state, c.limits, conversation, request)
+}
+func (s *Session) Submission(ctx context.Context, id ID) (record SubmissionRecord, found bool, err error) {
+	if err = s.enter(ctx); err != nil {
+		return
+	}
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			record = SubmissionRecord{}
+			found = false
+		}
+	}()
+	if err = checkReadIDs(id); err != nil {
+		return
+	}
+	if err = s.touch(ctx, submissionKey(id)); err != nil {
+		return
+	}
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().Submission(ctx, id)
+	}
+	state, e := s.taskSnapshot(ctx)
+	if e != nil {
+		err = e
+		return
+	}
+	return lookupSubmission(state, s.limits, id)
+}
+func (s *Session) SubmissionByRequest(ctx context.Context, conversation ID, request string) (record SubmissionRecord, found bool, err error) {
+	if err = s.enter(ctx); err != nil {
+		return
+	}
+	outcome := s.jobOutcome
+	defer func() {
+		s.leave()
+		err = s.deliveredError(outcome, err)
+		if err != nil {
+			record = SubmissionRecord{}
+			found = false
+		}
+	}()
+	if err = checkReadIDs(conversation); err != nil {
+		return
+	}
+	if err = s.touch(ctx, requestKey(conversation, request)); err != nil {
+		return
+	}
+	if !s.hasNativeReadImage() {
+		return s.guardedStorage().SubmissionByRequest(ctx, conversation, request)
+	}
+	state, e := s.taskSnapshot(ctx)
+	if e != nil {
+		err = e
+		return
+	}
+	return lookupSubmissionByRequest(state, s.limits, conversation, request)
+}
+func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
+	if err := t.enterTableRead("submission", submissionKey(id)); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	defer t.leave()
+	return lookupSubmission(t.state, t.limits, id)
+}
+func (t *Tx) SubmissionByRequest(conversation ID, request string) (SubmissionRecord, bool, error) {
+	if err := t.enterTableRead("submissionByRequest", requestKey(conversation, request)); err != nil {
+		return SubmissionRecord{}, false, err
+	}
+	defer t.leave()
+	return lookupSubmissionByRequest(t.state, t.limits, conversation, request)
+}

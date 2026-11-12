@@ -253,7 +253,7 @@ func (g *sessionStorage) ScanTasks(ctx context.Context, q TaskQuery, n int, c Cu
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
 }
-func (g *sessionStorage) ScanSubmissions(ctx context.Context, q SubmissionQuery, n int, c Cursor) (Page[Submission], error) {
+func (g *sessionStorage) ScanSubmissions(ctx context.Context, q SubmissionQuery, n int, c Cursor) (Page[SubmissionRecord], error) {
 	v, e := g.Storage.ScanSubmissions(ctx, q, n, c)
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
@@ -273,20 +273,20 @@ func (g *sessionStorage) Task(ctx context.Context, id ID) (TaskRecord, bool, err
 	e = g.s.backendResult(ctx, e, false)
 	return v, ok, e
 }
-func (g *sessionStorage) Submissions(ctx context.Context, q Query) ([]Submission, error) {
-	v, e := g.Storage.Submissions(ctx, q)
-	e = g.s.backendResult(ctx, e, false)
-	return v, e
+func (g *sessionStorage) Submission(ctx context.Context, id ID) (SubmissionRecord, bool, error) {
+	v, found, err := g.Storage.Submission(ctx, id)
+	err = g.s.backendResult(ctx, err, false)
+	return v, found, err
 }
 func (g *sessionStorage) Documents(ctx context.Context, q Query) ([]Document, error) {
 	v, e := g.Storage.Documents(ctx, q)
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
 }
-func (g *sessionStorage) Request(ctx context.Context, id ID, key string) (Submission, bool, error) {
-	v, ok, e := g.Storage.Request(ctx, id, key)
-	e = g.s.backendResult(ctx, e, false)
-	return v, ok, e
+func (g *sessionStorage) SubmissionByRequest(ctx context.Context, id ID, key string) (SubmissionRecord, bool, error) {
+	v, found, err := g.Storage.SubmissionByRequest(ctx, id, key)
+	err = g.s.backendResult(ctx, err, false)
+	return v, found, err
 }
 
 // A failure-driven shutdown retains its first cause at Harness boundaries too.

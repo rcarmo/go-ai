@@ -535,7 +535,7 @@ func prepareRecord(s Snapshot, r commitRecord, l Limits, final, explicit bool) (
 			n.Tasks[id] = v
 		case "put-submission":
 			v := *w.Submission
-			if old, ok := n.Submissions[id]; ok && (old.Conversation != v.Conversation || old.RequestID != v.RequestID || old.hasRequestID() != v.hasRequestID() || old.Type != v.Type) {
+			if old, ok := n.Submissions[id]; !explicit && ok && (old.Conversation != v.Conversation || old.RequestID != v.RequestID || old.hasRequestID() != v.hasRequestID() || old.Type != v.Type) {
 				return Snapshot{}, reject("submission identity changed")
 			}
 			n.Submissions[id] = v
@@ -798,11 +798,6 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 			id = s.Tasks[id].Owner
 		}
 	}
-	type requestKey struct {
-		conversation ID
-		request      string
-	}
-	requests := map[requestKey]ID{}
 	for _, v := range s.Submissions {
 		if uint64(v.Conversation) > MaxID || (final && !existsConv(v.Conversation)) || (v.Type != "follow-up" && v.Type != "steer" && v.Type != "write" && v.Type != "continue") || !validStatus(v.Status) || v.Value == nil || len(v.RequestID) > l.MaxRequestIDBytes {
 			return reject("invalid submission")
@@ -811,7 +806,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 			return reject("submission trace must be an object of strings")
 		}
 		if v.Type == "continue" {
-			if err := validateContinueSubmission(s, v, final); err != nil {
+			if err := validateContinueSubmission(s, v, final && runtimeTasks); err != nil {
 				return err
 			}
 		}
@@ -826,13 +821,6 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 					return reject("submission outcome task missing")
 				}
 			}
-		}
-		if v.hasRequestID() {
-			key := requestKey{v.Conversation, v.RequestID}
-			if _, ok := requests[key]; ok {
-				return reject("request ID conflict")
-			}
-			requests[key] = v.ID
 		}
 	}
 	addresses := map[DocumentAddress]ID{}
@@ -1057,30 +1045,6 @@ func ids[V any](m map[ID]V) []ID {
 	sort.Slice(r, func(i, j int) bool { return r[i] < r[j] })
 	return r
 }
-func (c *storeCore) Submissions(ctx context.Context, q Query) ([]Submission, error) {
-	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
-		return nil, e
-	}
-	s, e := c.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	if e = checkPage(c.limits, q.Limit); e != nil {
-		return nil, e
-	}
-	r := []Submission{}
-	for _, id := range ids(s.Submissions) {
-		v := s.Submissions[id]
-		if id <= q.After || (q.Conversation != 0 && v.Conversation != q.Conversation) || (q.Status != "" && v.Status != q.Status) {
-			continue
-		}
-		r = append(r, v)
-		if len(r) == q.Limit {
-			break
-		}
-	}
-	return r, nil
-}
 func (c *storeCore) Documents(ctx context.Context, q Query) ([]Document, error) {
 	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
 		return nil, e
@@ -1104,22 +1068,4 @@ func (c *storeCore) Documents(ctx context.Context, q Query) ([]Document, error) 
 		}
 	}
 	return r, nil
-}
-func (c *storeCore) Request(ctx context.Context, conversation ID, request string) (Submission, bool, error) {
-	if e := checkReadIDs(conversation); e != nil {
-		return Submission{}, false, e
-	}
-	s, e := c.Snapshot(ctx)
-	if e != nil {
-		return Submission{}, false, e
-	}
-	if len(request) > c.limits.MaxRequestIDBytes {
-		return Submission{}, false, storageRequest("invalid request ID")
-	}
-	for _, v := range s.Submissions {
-		if v.Conversation == conversation && v.hasRequestID() && v.RequestID == request {
-			return v, true, nil
-		}
-	}
-	return Submission{}, false, nil
 }

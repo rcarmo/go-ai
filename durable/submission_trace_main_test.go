@@ -157,19 +157,18 @@ func TestMainSubmissionTraceEmptyAndAbsent(t *testing.T) {
 			}
 			// Convert the public record into an ID-less creation draft.
 			record.ID = 0
+			var id ID
 			_, err := h.Commit(bg, func(tx *Tx) error {
-				id, err := tx.CreateSubmission(record)
-				if err != nil {
-					return err
-				}
-				got, _, err := tx.Submission(id)
-				if err == nil && !reflect.DeepEqual(mainTraceRecordCarrier(t, got), tc.want) {
-					t.Error("optional carrier presence lost", got)
-				}
+				var err error
+				id, err = tx.CreateSubmission(record)
 				return err
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			got, found, err := h.session.Submission(bg, id)
+			if err != nil || !found || !reflect.DeepEqual(mainTraceRecordCarrier(t, got), tc.want) {
+				t.Fatal("optional carrier presence lost", got, found, err)
 			}
 		})
 	}
@@ -247,12 +246,13 @@ func TestMainSubmissionTracePublicCaptureDedupAndReopen(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(mainTraceRecordCarrier(t, status), wantInput) {
 			t.Fatal("dedup replaced original trace", status, err)
 		}
-		queried, found, err := b.store.Request(bg, c.ID(), "trace-input")
+		queried, found, err := b.store.SubmissionByRequest(bg, c.ID(), "trace-input")
 		if err != nil || !found || !reflect.DeepEqual(mainTraceRecordCarrier(t, queried), wantInput) {
 			t.Fatal("request projection", queried, found, err)
 		}
 		mainTraceMutate(queried)
-		rows, err := b.store.Submissions(bg, Query{Conversation: c.ID(), Limit: 20})
+		page, err := b.store.ScanSubmissions(bg, SubmissionQuery{Conversation: c.ID()}, 20, nil)
+		rows := page.Items
 		if err != nil || len(rows) != 1 || !reflect.DeepEqual(mainTraceRecordCarrier(t, rows[0]), wantInput) {
 			t.Fatal("submission query ownership", rows, err)
 		}
@@ -305,7 +305,7 @@ func TestMainSubmissionTraceRollback(t *testing.T) {
 		if err != nil || after.Seq != before.Seq || len(after.Submissions) != len(before.Submissions) {
 			t.Fatal("rolled-back carrier escaped", after, err)
 		}
-		if _, found, err := b.store.Request(bg, 1, "trace-rollback"); err != nil || found {
+		if _, found, err := b.store.SubmissionByRequest(bg, 1, "trace-rollback"); err != nil || found {
 			t.Fatal("rolled-back request escaped", found, err)
 		}
 	})

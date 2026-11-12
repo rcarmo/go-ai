@@ -54,11 +54,9 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(placed, SubmissionRecord{Status: "unanswered", Reason: "late"}); err != nil {
 				return err
 			}
-			record, found, err := tx.Submission(placed)
-			if err != nil || !found || record.Status != "done" || record.Entry != entry || record.Answer != entry {
-				t.Fatal(record, found, err)
+			if _, _, err := tx.Submission(placed); err == nil {
+				t.Fatal("staged submission read")
 			}
-			record.Value["placedEntry"] = ID(MaxID)
 			if err := tx.PlaceSubmission(input, entry); err != nil {
 				return err
 			}
@@ -66,6 +64,15 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		record, found, err := h.session.Submission(bg, placed)
+		if err != nil || !found || record.Status != "done" || record.Entry != entry || record.Answer != entry {
+			t.Fatal(record, found, err)
+		}
+		record.Entry = ID(MaxID)
+		againPlaced, found, err := h.session.Submission(bg, placed)
+		if err != nil || !found || againPlaced.Entry != entry {
+			t.Fatal("record alias", againPlaced, err)
 		}
 		var unanswered ID
 		_, err = h.Commit(bg, func(tx *Tx) error {
@@ -77,9 +84,8 @@ func TestSubmissionTransactionCurrentRecordPlacementFirstSettlementAndDetached(t
 			if err := tx.SettleSubmission(unanswered, SubmissionRecord{Status: "unanswered", Reason: "host", Detail: &TaskValue{Present: true, Value: nil}}); err != nil {
 				return err
 			}
-			record, found, err := tx.Submission(unanswered)
-			if err != nil || !found || record.Detail == nil || !record.Detail.Present || record.Detail.Value != nil {
-				t.Fatal("null detail lost", record, err)
+			if _, _, err := tx.Submission(unanswered); err == nil {
+				t.Fatal("staged submission read")
 			}
 			return nil
 		})
