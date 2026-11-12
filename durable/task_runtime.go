@@ -581,12 +581,8 @@ func (r *TaskRuntime) Entry(ctx context.Context, id ID) (Entry, bool, error) {
 		if err := r.check(); err != nil {
 			return err
 		}
-		if !entryVisible(state, r.conversation, id) {
-			return nil
-		}
-		var err error
-		result, err = copyEntry(state.Entries[id], r.harness.session.limits)
-		found = err == nil
+		stored, ok, err := lookupStoredEntry(state, r.harness.session.limits, []ID{r.conversation, id})
+		result, found = stored.Entry, ok
 		return err
 	})
 	return result, found, err
@@ -599,7 +595,10 @@ func (r *TaskRuntime) TypedEntry(ctx context.Context, def *EntryDefinition, id I
 		return Entry{}, false, reject("nil entry definition")
 	}
 	entry, ok, err := r.Entry(ctx, id)
-	return entry, ok && def.Is(entry), err
+	if err != nil || !ok || !def.Is(entry) {
+		return Entry{}, false, err
+	}
+	return entry, true, nil
 }
 
 // InvocationConversation is a distinct bound capability; ordinary stateless

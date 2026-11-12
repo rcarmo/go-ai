@@ -1,6 +1,6 @@
 # Biggest deviations and path to zero
 
-The largest remaining gaps affect record interoperability, caller-visible ordering and public API semantics. Full upstream alignment is unverified. The latest verified task-table source port is based on `ae0042a`; target upstream is `f9a26365568127461c47a07a37dcb42c140a3ac5` (v1.5.0).
+The largest remaining gaps affect record interoperability, caller-visible ordering and public API semantics. Full upstream alignment is unverified. The latest primary-record source port follows `18dfc16`; target upstream is `f9a26365568127461c47a07a37dcb42c140a3ac5` (v1.5.0).
 
 ## Ranked remaining work
 
@@ -22,7 +22,7 @@ The former RED real-Harness packet now passes as `TestMainBuiltinCanonicalPublic
 
 The added progression packet compares exact version/input/state unions for two parallel and sequential tools, with request attempt/cutoff and terminal model results. Adjacent identical states are collapsed; commit granularity and cross-record ordering remain open. A public UTF-16 regression checks task lookup/encoding and immutable stored observation without private carrier leakage. Retained source SQLite close/reopen evidence requires resend of the same request at attempt1.
 
-Reference:148 unchanged source cases +37 independent probes pass. [The slice receipt](../../notes/builtin-task-publications.md) records baseline failures, runtime changes, test scope and remaining contracts. Run the ordinary native controls with:
+Reference:152 unchanged source cases +39 independent probes pass. [The slice receipt](../../notes/builtin-task-publications.md) records baseline failures, runtime changes, test scope and remaining contracts. Run the ordinary native controls with:
 
 ```sh
 source scripts/project-env.sh
@@ -31,7 +31,7 @@ make test PACKAGES=./durable TEST_FLAGS='-run "TestMainBuiltinCanonical|TestBuil
 
 [Raw builtin storage receipts](../../notes/builtin-task-storage.md) add definition-free admission, opaque/future records, terminal mapping/status scans and scheduler representation safety. Canonical source builtin execution and complete Storage conformance remain open.
 
-The [task/table assertion mapping](task-table-assertions.tsv) adds three literal task-storage cases and source transaction read/write fences. Related tests now live in six version-neutral suites (22→6), with target/declaration preservation verified.
+The [task/table assertion mapping](task-table-assertions.tsv) covers five literal Storage cases, the complete named transaction read/write-fence case, primary global/visible entry reads and exact invocation kind narrowing. [Primary-read receipts](../../notes/primary-record-reads.md) record API replacements, original commit sequences, dependency keys and the unresolved close/progress caveat. Related tests now live in six version-neutral suites (22→6), with target/declaration preservation verified.
 
 ## Work already installed
 
@@ -39,7 +39,7 @@ The independent writer/admission queue, document read keys, first-failure/outcom
 
 Fresh count3/shuffle42 verification also passes normal entry shape/reopen, opaque checkpoint migration, unknown-phase faulting, canonical compaction publication and raw pi-namespace storage/reopen. Those passes correct obsolete register diagnoses; complete message/receipt and lifecycle coverage is still open.
 
-Latest full runtime verification for task tables: durable418.099s/tools19.320s; repository-wide vet/Staticcheck/logging pass;10 shuffled focused repetitions and four independent fault controls pass. This is development verification; release profiling and full acceptance remain open. The retained reference snapshot has no .git: pinned hashes and full test/support trees are checked, but commit identity is not independently reverified.
+Latest full primary-read verification: durable414.537s/tools18.655s; repository-wide vet/Staticcheck/logging pass;10 shuffled focused repetitions11.778s and seven independent fault controls pass. An earlier full run hit the unresolved close/progress error-order caveat; its20 focused repeats and the subsequent full run passed. This is development verification; release profiling and full acceptance remain open. The retained reference snapshot has no .git: pinned hashes and full test/support trees are checked, but commit identity is not independently reverified.
 
 ## Sequence to zero
 

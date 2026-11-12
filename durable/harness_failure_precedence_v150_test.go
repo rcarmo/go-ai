@@ -49,7 +49,7 @@ func TestV150FailurePrecedesHarnessClosedErrors(t *testing.T) {
 			return err
 		}},
 		{"context", func() error { _, err := conversation.ContextView(bg, 0); return err }},
-		{"scan", func() error { _, err := conversation.ScanEntries(bg, EntryQuery{}, 1, nil); return err }},
+		{"scan", func() error { _, err := conversation.Entries(bg, EntryQuery{}, 1, nil); return err }},
 	}
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {

@@ -749,7 +749,7 @@ func validateState(candidate *Snapshot, l Limits, final bool, prior Snapshot, wr
 		// model/data are optional, so a harness message entry is valid with model:[message]
 		// alone. Requiring a value here was a native-only rule that made the original
 		// entry shape unloadable.
-		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || !validKind(v.Kind) {
+		if uint64(v.Conversation) > MaxID || uint64(v.Head) > MaxID || (final && !existsConv(v.Conversation)) || v.Kind == "" {
 			return reject("invalid entry")
 		}
 		if prior.retained == nil || changedEntries[v.ID] {
@@ -1057,68 +1057,6 @@ func ids[V any](m map[ID]V) []ID {
 	sort.Slice(r, func(i, j int) bool { return r[i] < r[j] })
 	return r
 }
-func (c *storeCore) Conversations(ctx context.Context, q Query) ([]Conversation, error) {
-	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
-		return nil, e
-	}
-	s, e := c.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	if e = checkPage(c.limits, q.Limit); e != nil {
-		return nil, e
-	}
-	r := []Conversation{}
-	for _, id := range ids(s.Conversations) {
-		v := s.Conversations[id]
-		if id <= q.After || (q.Owner != 0 && v.Owner != q.Owner) || (q.Conversation != 0 && id != q.Conversation) {
-			continue
-		}
-		r = append(r, v)
-		if len(r) == q.Limit {
-			break
-		}
-	}
-	return r, nil
-}
-func (c *storeCore) Entries(ctx context.Context, conversation ID, after EntryCursor, limit int) ([]Entry, error) {
-	s, e := c.Snapshot(ctx)
-	if e != nil {
-		return nil, e
-	}
-	return legacyEntries(s, conversation, after, limit, c.limits)
-}
-
-// legacyEntries consumes an already detached snapshot. Keep legacy ascending
-// seq/position cursors separate from the ordered ScanEntries cursor contract.
-func legacyEntries(s Snapshot, conversation ID, after EntryCursor, limit int, l Limits) ([]Entry, error) {
-	if e := checkPage(l, limit); e != nil {
-		return nil, e
-	}
-	if _, ok := s.Conversations[conversation]; !ok {
-		return nil, storageRequest("unknown conversation")
-	}
-	if (after.Conversation != 0 && after.Conversation != conversation) || after.Seq > MaxID || after.Position > MaxID {
-		return nil, storageRequest("entry cursor mismatch")
-	}
-	r := []Entry{}
-	for _, v := range s.Entries {
-		if v.Conversation == conversation && (v.Seq > after.Seq || (v.Seq == after.Seq && v.Position > after.Position)) {
-			r = append(r, v)
-		}
-	}
-	sort.Slice(r, func(i, j int) bool {
-		if r[i].Seq != r[j].Seq {
-			return r[i].Seq < r[j].Seq
-		}
-		return r[i].Position < r[j].Position
-	})
-	if len(r) > limit {
-		r = r[:limit]
-	}
-	return r, nil
-}
-
 func (c *storeCore) Submissions(ctx context.Context, q Query) ([]Submission, error) {
 	if e := checkReadIDs(q.Conversation, q.Owner, q.After); e != nil {
 		return nil, e

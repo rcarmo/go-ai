@@ -172,12 +172,12 @@ func TestMainAfterRunCrashFinishReasksDrainDoesNot(t *testing.T) {
 		if !reflect.DeepEqual(labels, []string{"run 2", "run 2"}) {
 			t.Error("same owned task replay", labels)
 		}
-		entries, err := c.Entries(bg, EntryCursor{}, 100)
+		entries, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		count := 0
-		for _, entry := range entries {
+		for _, entry := range entries.Items {
 			if entry.Kind == "test.tests" {
 				count++
 			}

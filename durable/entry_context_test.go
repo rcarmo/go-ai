@@ -37,16 +37,18 @@ func TestEntryContextTypedOwnedDataAndNarrowing(t *testing.T) {
 			v.Model[0].Content[0].Text = "mutated"
 			return nil
 		})
-		got, ok, e := s.TypedEntry(bg, d, 1, id)
+		stored, ok, e := s.Entry(bg, id)
+		got := stored.Entry
 		if e != nil || !ok || got.Model[0].Content[0].Text != "owned" || got.Data.(map[string]any)["x"].([]any)[0].(json.Number) != "1" {
 			t.Fatal(got, ok, e)
 		}
 		got.Data.(map[string]any)["x"].([]any)[0] = 33
-		if _, ok, e = s.TypedEntry(bg, entryToken(t, "entry.other"), 1, id); e != nil || ok {
-			t.Fatal("wrong token", ok, e)
+		if entryToken(t, "entry.other").Is(got) || !d.Is(got) {
+			t.Fatal("wrong token narrowing")
 		}
 		s = reopen()
-		got, ok, e = s.TypedEntry(bg, d, 1, id)
+		stored, ok, e = s.Entry(bg, id)
+		got = stored.Entry
 		if e != nil || !ok || got.Data.(map[string]any)["x"].([]any)[0].(json.Number) != "1" {
 			t.Fatal("reopen data", got, e)
 		}
@@ -298,7 +300,11 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 			}
 			receipt.Content[0].Arguments["snapshot"] = true
 			receipt.Content[1].Arguments["nested"].([]any)[0] = "snapshot"
-			v, ok, e := s.TypedEntry(bg, token, 1, id)
+			stored, ok, e := s.Entry(bg, id)
+			v := stored.Entry
+			if !token.Is(v) {
+				t.Fatal("wrong entry kind")
+			}
 			if e != nil || !ok || len(v.Model[0].Content[0].Arguments) != 0 || v.Model[0].Content[1].Arguments["nested"].([]any)[0] != "owned" {
 				t.Fatal("public snapshot authority", v, e)
 			}
@@ -399,5 +405,31 @@ func TestEntryContextEmptyArgumentsWitnessOwnedSnapshotReopenAndHTTP(t *testing.
 	encoded, _ := json.Marshal(request)
 	if !found || strings.Contains(string(encoded), "emptyArguments") {
 		t.Fatal("witness leaked/dropped emptyHTTP", string(encoded))
+	}
+}
+
+// Direct src/entries.ts:6-12 port: tokens require a non-empty string, not the
+// native task/document-kind grammar. Entry kinds are data, including spaces,
+// punctuation, non-ASCII text and names longer than the old 128-byte limit.
+func TestEntryKindUsesSourceNonEmptyStringContract(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	for _, kind := range []string{"Mixed Case: note/v1", "ノート/Δ", strings.Repeat("k", 129), " spaced "} {
+		token, err := DefineEntry(kind)
+		if err != nil {
+			t.Fatalf("source kind %q rejected: %v", kind, err)
+		}
+		id := mint(t, s)
+		input := Entry{ID: id, Conversation: 1, Kind: kind, HasData: true, Data: JSON{"value": "owned"}}
+		result, err := s.Commit(bg, [][]StorageWrite{{{Type: "entry", Value: input}}}, nil)
+		if err != nil || result.Refused != nil {
+			t.Fatalf("source kind storage %q: %+v %v", kind, result, err)
+		}
+		stored, found, err := s.Entry(bg, id)
+		if err != nil || !found || !token.Is(stored.Entry) {
+			t.Fatal(stored, found, err)
+		}
+	}
+	if _, err := DefineEntry(""); err == nil || err.Error() != "Entry kind must be a non-empty string" {
+		t.Fatal("empty entry kind", err)
 	}
 }

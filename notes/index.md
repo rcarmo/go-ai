@@ -41,6 +41,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Raw builtin task storage](builtin-task-storage.md) — definition-free admission, exact state unions,
   terminal scans, SQLite reopen/reclaim, canonical Task/ScanTasks and source transaction read fences.
 
+- [Primary record reads](primary-record-reads.md) — global/visible entry overloads, original sequences,
+  typed lookup, exact dependency keys, source cases and close/progress verification caveat.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,

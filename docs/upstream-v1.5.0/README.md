@@ -10,6 +10,8 @@ The sole alignment target is official upstream `v1.5.0` at `f9a26365568127461c47
 
 The [durable deviation register](durable-deviations.md) tracks current evidence for29 groups and165 pinned durable test/support/fixture obligations, including101 test files. The [biggest deviations and path to zero](alignment-roadmap.md) separates confirmed API/record/ordering failures from unverified coverage. The builtin publication gate now passes in the ordinary suite; raw builtin admission/reopen and the primary canonical task read API also pass. Three original task-storage cases and exposed transaction read/write fences are ported. Canonical builtin execution, complete Storage semantics, nested tools, migrations and edge states still need acceptance. State counts are group labels, not a parity percentage.
 
+[Primary conversation/entry reads](../../notes/primary-record-reads.md) add the original global/visible lookup overloads, separate original commit sequences, complete named transaction-fence assertions and literal deep-fork/conversation pagination. Reference coverage is152 unchanged source cases +39 probes. The queued tool-progress/close error-order caveat remains open.
+
 ## Historical parity backlog and contract decisions
 
 The semantic-equivalence request supersedes the earlier direction-before-runtime pauses below. Some earlier diagnoses were fixture-translation errors; the current deviation register and semantic-port receipts reconcile them.

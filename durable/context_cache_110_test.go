@@ -165,12 +165,12 @@ func TestContext110RetentionZeroExpiryAndSettingsIsolation(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		page, e := c.ScanEntries(bg, EntryQuery{}, 1, nil)
-		if e != nil || len(page.Items) != 1 || page.Items[0].ID != entryID || page.Next == nil {
+		page, e := c.Entries(bg, EntryQuery{}, 1, nil)
+		if e != nil || len(page.Items) != 1 || page.Items[0].ID != secondID || page.Next == nil {
 			t.Fatal("conversation default order", page, e)
 		}
-		last, e := c.ScanEntries(bg, EntryQuery{}, 1, page.Next)
-		if e != nil || len(last.Items) != 1 || last.Items[0].ID != secondID {
+		last, e := c.Entries(bg, EntryQuery{}, 1, page.Next)
+		if e != nil || len(last.Items) != 1 || last.Items[0].ID != entryID {
 			t.Fatal("conversation cursor order", last, e)
 		}
 		if _, e = c.Context(bg, entryID); e != nil {

@@ -12,8 +12,7 @@ type Page[T any] struct {
 }
 
 // EntryQuery selects inclusive ID bounds in fork-aware history (descending by
-// default). Zero bounds are omitted; a continuation preserves its scan order. This differs intentionally from the legacy direct
-// Entries API, whose EntryCursor remains commit/position ordered.
+// default). Zero bounds are omitted; a continuation preserves its scan order.
 type EntryQuery struct {
 	Conversation ID        `json:"conversation"`
 	MinEntryID   ID        `json:"minEntryId,omitempty"`
@@ -21,11 +20,10 @@ type EntryQuery struct {
 	Order        ScanOrder `json:"order,omitempty"`
 }
 
-// HistoryStorage is the additive entry-history surface implemented by native
-// stores. Storage's existing methods and legacy cursors remain compatible.
+// HistoryStorage is the pinned fork-aware history read surface.
 type HistoryStorage interface {
 	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
-	VisibleEntry(context.Context, ID, ID) (Entry, bool, error)
+	Entry(context.Context, ...ID) (StoredEntry, bool, error)
 	FindLatestHeadMarker(context.Context, ID, ID) (Entry, bool, error)
 }
 
@@ -145,6 +143,9 @@ func (c *storeCore) ScanEntries(ctx context.Context, q EntryQuery, limit int, cu
 }
 
 func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limits) (Page[Entry], error) {
+	if err := checkPage(l, limit); err != nil {
+		return Page[Entry]{}, err
+	}
 	if uint64(q.Conversation) > MaxID || uint64(q.MinEntryID) > MaxID || uint64(q.MaxEntryID) > MaxID {
 		return Page[Entry]{}, storageRequest("entry query outside ID bounds")
 	}
@@ -172,7 +173,7 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 		}
 	}
 	if _, ok := state.Conversations[q.Conversation]; !ok {
-		return Page[Entry]{}, storageRequest("unknown conversation")
+		return Page[Entry]{}, storageRequest("Unknown conversation: " + idText(q.Conversation))
 	}
 	entries, err := visibleHistory(state, q)
 	if err != nil {
@@ -191,27 +192,6 @@ func scanEntries(state Snapshot, q EntryQuery, limit int, cursor Cursor, l Limit
 		page.Items = append(page.Items, entry)
 	}
 	return page, nil
-}
-
-// VisibleEntry returns the entry's owning conversation and original commit Seq,
-// not the descendant conversation from which it was looked up.
-func (c *storeCore) VisibleEntry(ctx context.Context, conversation, id ID) (Entry, bool, error) {
-	if err := c.enter(ctx); err != nil {
-		return Entry{}, false, err
-	}
-	defer c.leave()
-	if _, ok := c.state.Conversations[conversation]; !ok {
-		return Entry{}, false, storageRequest("unknown conversation")
-	}
-	if id == 0 || uint64(id) > MaxID {
-		return Entry{}, false, storageRequest("invalid entry ID")
-	}
-	if !entryVisible(c.state, conversation, id) {
-		return Entry{}, false, nil
-	}
-	entry := c.state.Entries[id]
-	entry, err := copyEntry(entry, c.limits)
-	return entry, err == nil, err
 }
 
 // FindLatestHeadMarker applies the same ancestor cutoffs and optional inclusive

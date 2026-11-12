@@ -70,7 +70,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 			t.Fatal(err)
 		}
 		if _, err := h.Commit(bg, func(tx *Tx) error {
-			read, found, err := tx.TypedEntry(entryToken, root.ID(), at)
+			read, found, err := tx.TypedEntry(entryToken, at)
 			if err != nil || !found || read.ID != at {
 				t.Fatal(read, found, err)
 			}
@@ -78,7 +78,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		}); err != nil {
 			t.Fatal(err)
 		}
-		entry, found, err := h.TypedEntry(bg, entryToken, root.ID(), at)
+		entry, found, err := h.TypedEntry(bg, entryToken, at)
 		if err != nil || !found || entry.ID != at {
 			t.Fatal(entry, found, err)
 		}
@@ -115,7 +115,7 @@ func TestHarnessTypedDocumentForwardingHistoryStateWatchAndNoSchedule(t *testing
 		}
 		awaitTaskSignal(t, watch.Closed())
 		awaitTaskSignal(t, subscription.Closed())
-		if _, _, err := h.TypedEntry(bg, entryToken, root.ID(), at); !errors.Is(err, ErrClosed) {
+		if _, _, err := h.TypedEntry(bg, entryToken, at); !errors.Is(err, ErrClosed) {
 			t.Fatal(err)
 		}
 		if _, _, err := h.SubscribeCommits(bg); !errors.Is(err, ErrClosed) {

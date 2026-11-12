@@ -162,6 +162,9 @@ func scanPage[V, R any](values map[ID]V, order ScanOrder, after int64, hasAfter 
 	return page, nil
 }
 func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cursor, l Limits) (Page[Conversation], error) {
+	if err := checkPage(l, limit); err != nil {
+		return Page[Conversation]{}, err
+	}
 	if err := checkReadIDs(q.OwnerTask, q.OwnerConversation); err != nil {
 		return Page[Conversation]{}, err
 	}
@@ -183,6 +186,9 @@ func scanConversations(state Snapshot, q ConversationQuery, limit int, cursor Cu
 	}, func(v Conversation) (Conversation, error) { return v, nil })
 }
 func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) (Page[TaskRecord], error) {
+	if err := checkPage(l, limit); err != nil {
+		return Page[TaskRecord]{}, err
+	}
 	if err := checkReadIDs(q.Conversation); err != nil {
 		return Page[TaskRecord]{}, err
 	}
@@ -201,6 +207,9 @@ func scanTasks(state Snapshot, q TaskQuery, limit int, cursor Cursor, l Limits) 
 	}, func(v Task) (TaskRecord, error) { return canonicalStoredTask(v, l) })
 }
 func scanSubmissions(state Snapshot, q SubmissionQuery, limit int, cursor Cursor, l Limits) (Page[Submission], error) {
+	if err := checkPage(l, limit); err != nil {
+		return Page[Submission]{}, err
+	}
 	if err := checkReadIDs(q.Conversation); err != nil {
 		return Page[Submission]{}, err
 	}

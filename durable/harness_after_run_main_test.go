@@ -148,12 +148,12 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 			t.Fatal("run became idle with held afterRun task", err)
 		default:
 		}
-		entries, err := c.Entries(bg, EntryCursor{}, 100)
+		entries, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var first, answer ID
-		for _, entry := range entries {
+		for _, entry := range entries.Items {
 			if !isMessageEntry(entry) {
 				continue
 			}
@@ -182,8 +182,8 @@ func TestMainAfterRunAnswerTasksHoldRun(t *testing.T) {
 		if live["run"] != nil || live["runFailure"] != nil {
 			t.Error("run/failure survived drain", live)
 		}
-		entries, err = c.Entries(bg, EntryCursor{}, 100)
-		if err != nil || entries[len(entries)-1].Kind != "test.tests" {
+		entries, err = c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
+		if err != nil || entries.Items[len(entries.Items)-1].Kind != "test.tests" {
 			t.Fatal("child result is not the last entry", entries, err)
 		}
 		generation, ok, err := h.Task(bg, submissionEntryID(run["task"]))
@@ -621,12 +621,12 @@ func TestMainAfterRunTerminateSummary(t *testing.T) {
 				if err := c.WaitForIdle(ctx); err != nil {
 					t.Fatal(err)
 				}
-				entries, err := c.Entries(bg, EntryCursor{}, 100)
+				entries, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				var last ID
-				for _, entry := range entries {
+				for _, entry := range entries.Items {
 					if mode == "handoff" {
 						if entry.Kind == "pi.reset" {
 							last = entry.ID
@@ -884,12 +884,12 @@ func TestMainAfterRunQueuedBoundary(t *testing.T) {
 				t.Error("queued item not settled", record, err)
 			}
 		}
-		entries, err := c.Entries(bg, EntryCursor{}, 100)
+		entries, err := c.Entries(bg, EntryQuery{Order: Ascending}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var got []string
-		for _, entry := range entries {
+		for _, entry := range entries.Items {
 			switch entry.Kind {
 			case "test.tests", "test.result", "test.note":
 				got = append(got, entry.Kind)

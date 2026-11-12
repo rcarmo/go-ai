@@ -47,11 +47,11 @@ func storageRequestMatrix120(t *testing.T, store Storage) {
 		name string
 		read func() error
 	}{
-		{"page-zero", func() error { _, e := store.Conversations(bg, Query{Limit: 0}); return e }},
+		{"page-zero", func() error { _, e := store.ScanConversations(bg, ConversationQuery{}, 0, nil); return e }},
 		{"page-large", func() error { _, e := store.ScanTasks(bg, TaskQuery{}, limits.MaxPage+1, nil); return e }},
-		{"conversation-missing", func() error { _, e := store.Entries(bg, 99, EntryCursor{}, 1); return e }},
-		{"entry-cursor-owner", func() error { _, e := store.Entries(bg, 1, EntryCursor{Conversation: 2}, 1); return e }},
-		{"entry-cursor-range", func() error { _, e := store.Entries(bg, 1, EntryCursor{Seq: MaxID + 1}, 1); return e }},
+		{"conversation-missing", func() error { _, _, e := store.Entry(bg, 99, 1); return e }},
+		{"entry-arity", func() error { _, _, e := store.Entry(bg, 1, 2, 3); return e }},
+		{"entry-id-range", func() error { _, _, e := store.Entry(bg, 1, ID(MaxID+1)); return e }},
 		{"request-owner-range", func() error { _, _, e := store.Request(bg, ID(MaxID+1), "x"); return e }},
 		{"task-owner-range", func() error { _, e := store.ScanTasks(bg, TaskQuery{Conversation: ID(MaxID + 1)}, 1, nil); return e }},
 		{"query-after-range", func() error { _, e := store.Documents(bg, Query{After: ID(MaxID + 1), Limit: 1}); return e }},

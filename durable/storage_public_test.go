@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -578,8 +579,8 @@ func TestV150StorageFreshRootAbsent(t *testing.T) {
 		if len(state.Conversations) != 0 || state.HighWater != 1 {
 			t.Fatalf("fresh raw state %+v", state)
 		}
-		rows, err := b.store.Conversations(bg, Query{Limit: 10})
-		if err != nil || len(rows) != 0 {
+		rows, err := b.store.ScanConversations(bg, ConversationQuery{}, 10, nil)
+		if err != nil || len(rows.Items) != 0 {
 			t.Fatalf("fresh raw conversations %v %v", rows, err)
 		}
 		// The original allocator starts above the reserved root (nextId = 2), so the
@@ -1268,5 +1269,232 @@ func TestPiDurableV150StorageWriteKeepsPrivateEnvelope(t *testing.T) {
 	}
 	if !reflect.DeepEqual(dropinJSON(t, got), dropinJSON(t, []byte(raw))) {
 		t.Fatalf("private storage envelope changed: %s", got)
+	}
+}
+
+// Source Storage.conversation/entry overloads return records and original commit
+// sequence separately; neither lookup depends on a caller-side native adapter.
+func TestStorageCanonicalConversationAndEntryLookupSurface(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	root, found, err := s.Conversation(bg, 1)
+	if err != nil || !found || root.ID != 1 {
+		t.Fatal(root, found, err)
+	}
+	first, cut, excluded, child, own := mint(t, s), mint(t, s), mint(t, s), mint(t, s), mint(t, s)
+	input := JSON{"nested": []any{1}}
+	result, err := s.Commit(bg, [][]StorageWrite{
+		{{Type: "entry", Value: Entry{ID: first, Conversation: 1, Kind: "note", HasData: true, Data: input}}, {Type: "entry", Value: Entry{ID: cut, Conversation: 1, Kind: "note"}}, {Type: "entry", Value: Entry{ID: excluded, Conversation: 1, Kind: "note"}}},
+		{{Type: "conversation", Value: Conversation{ID: child, Parent: 1, ParentAt: cut}}},
+		{{Type: "entry", Value: Entry{ID: own, Conversation: child, Kind: "note"}}},
+	}, nil)
+	if err != nil || result.Refused != nil {
+		t.Fatal(result, err)
+	}
+	input["nested"].([]any)[0] = "input mutation"
+	for _, check := range []struct {
+		ids                 []ID
+		entry, conversation ID
+		seq                 uint64
+		found               bool
+	}{
+		{[]ID{first}, first, 1, 2, true}, {[]ID{child, first}, first, 1, 2, true}, {[]ID{child, cut}, cut, 1, 2, true}, {[]ID{child, own}, own, child, 4, true},
+		{[]ID{child, excluded}, 0, 0, 0, false}, {[]ID{1, own}, 0, 0, 0, false}, {[]ID{0}, 0, 0, 0, false},
+	} {
+		stored, found, err := s.Entry(bg, check.ids...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found != check.found {
+			t.Fatal("visibility", check.ids, found)
+		}
+		if !found {
+			continue
+		}
+		wire, err := json.Marshal(stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual struct {
+			Entry     Entry  `json:"entry"`
+			CommitSeq uint64 `json:"commitSeq"`
+		}
+		if err = json.Unmarshal(wire, &actual); err != nil {
+			t.Fatal(err)
+		}
+		if actual.Entry.ID != check.entry || actual.Entry.Conversation != check.conversation || actual.CommitSeq != check.seq {
+			t.Fatalf("lookup %v got=%s", check.ids, wire)
+		}
+		if stored.Entry.Seq != 0 || stored.Entry.Position != 0 {
+			t.Fatal("private placement leaked through entry record", stored)
+		}
+		if check.entry == first {
+			if !equalJSONValue(stored.Entry.Data, JSON{"nested": []any{1}}) {
+				t.Fatal("entry input/read alias", stored.Entry.Data)
+			}
+			stored.Entry.Data.(map[string]any)["nested"].([]any)[0] = "read mutation"
+		}
+	}
+	stored, found, err := s.Entry(bg, first)
+	if err != nil || !found || !equalJSONValue(stored.Entry.Data, JSON{"nested": []any{1}}) {
+		t.Fatal("retained entry alias", stored, found, err)
+	}
+}
+
+// Literal src/testing/storage-conformance.ts:378-398, pinned f9a26365.
+func TestStorageConversationAscendingCursorPagination(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	second, third := mint(t, s), mint(t, s)
+	result, err := s.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: third}}, {Type: "conversation", Value: Conversation{ID: second}}}}, nil)
+	if err != nil || result.Refused != nil {
+		t.Fatal(result, err)
+	}
+	first, err := s.ScanConversations(bg, ConversationQuery{}, 2, nil)
+	if err != nil || len(first.Items) != 2 || first.Items[0].ID != 1 || first.Items[1].ID != second || first.Next == nil {
+		t.Fatal(first, err)
+	}
+	wire, err := json.Marshal(first.Next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cursor Cursor
+	if err = json.Unmarshal(wire, &cursor); err != nil {
+		t.Fatal(err)
+	}
+	next, err := s.ScanConversations(bg, ConversationQuery{}, 2, cursor)
+	if err != nil || len(next.Items) != 1 || next.Items[0].ID != third || next.Next != nil {
+		t.Fatal(next, err)
+	}
+}
+
+// Literal src/testing/storage-conformance.ts:451-616. Assertions exercise the
+// public global/visible entry overloads, commitSeq, deep caps, both scan orders,
+// cursor continuation, markers, inclusive bounds and missing values/errors.
+func TestStorageDeepForkHistoryOriginalEntryReadContract(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	commit := func(writes ...StorageWrite) uint64 {
+		t.Helper()
+		var seq uint64
+		result, err := s.Commit(bg, [][]StorageWrite{writes}, func(_ int, value uint64) { seq = value })
+		if err != nil || result.Refused != nil || result.Stored != 1 {
+			t.Fatal(result, err)
+		}
+		return seq
+	}
+	record := func(id, conversation ID, kind string, head ID) Entry {
+		return Entry{ID: id, Conversation: conversation, Kind: kind, Head: head}
+	}
+	write := func(entry Entry) StorageWrite { return StorageWrite{Type: "entry", Value: entry} }
+	rootFirst, rootFork, rootExcluded := mint(t, s), mint(t, s), mint(t, s)
+	rootSeq := commit(write(record(rootFirst, 1, "message", 0)), write(record(rootFork, 1, "marker", rootFirst)), write(record(rootExcluded, 1, "message", 0)))
+	child := mint(t, s)
+	commit(StorageWrite{Type: "conversation", Value: Conversation{ID: child, Parent: 1, ParentAt: rootFork}})
+	childFork, childExcluded := mint(t, s), mint(t, s)
+	commit(write(record(childFork, child, "note", 0)), write(record(childExcluded, child, "message", 0)))
+	rootLater := mint(t, s)
+	commit(write(record(rootLater, 1, "message", 0)))
+	grand := mint(t, s)
+	commit(StorageWrite{Type: "conversation", Value: Conversation{ID: grand, Parent: child, ParentAt: childFork}})
+	grandHead, grandTail := mint(t, s), mint(t, s)
+	grandSeq := commit(write(record(grandHead, grand, "marker", grandHead)), write(record(grandTail, grand, "message", 0)))
+	childLater := mint(t, s)
+	commit(write(record(childLater, child, "message", 0)))
+	scan := func(q EntryQuery, limit int, cursor Cursor, want ...ID) Page[Entry] {
+		t.Helper()
+		page, err := s.ScanEntries(bg, q, limit, cursor)
+		if err != nil || !reflect.DeepEqual(historyIDs(page), want) {
+			t.Fatalf("scan got=%v want=%v err=%v", historyIDs(page), want, err)
+		}
+		return page
+	}
+	first := scan(EntryQuery{Conversation: grand}, 2, nil, grandTail, grandHead)
+	second := scan(EntryQuery{Conversation: grand}, 2, first.Next, childFork, rootFork)
+	third := scan(EntryQuery{Conversation: grand}, 2, second.Next, rootFirst)
+	if third.Next != nil {
+		t.Fatal(third.Next)
+	}
+	up := EntryQuery{Conversation: grand, Order: Ascending}
+	firstUp := scan(up, 2, nil, rootFirst, rootFork)
+	secondUp := scan(up, 2, firstUp.Next, childFork, grandHead)
+	thirdUp := scan(EntryQuery{Conversation: grand}, 2, secondUp.Next, grandTail)
+	if thirdUp.Next != nil {
+		t.Fatal(thirdUp.Next)
+	}
+	scan(EntryQuery{Conversation: grand, Order: Ascending, MinEntryID: rootFork, MaxEntryID: childFork}, 10, nil, rootFork, childFork)
+	if _, err := s.ScanEntries(bg, EntryQuery{Conversation: grand, Order: Descending}, 2, firstUp.Next); err == nil || !strings.Contains(err.Error(), "cursor") {
+		t.Fatal("opposite cursor order", err)
+	}
+	current, found, err := s.FindLatestHeadMarker(bg, grand, 0)
+	if err != nil || !found || current.ID != grandHead || current.Head != grandHead {
+		t.Fatal(current, found, err)
+	}
+	historical, found, err := s.FindLatestHeadMarker(bg, grand, childFork)
+	if err != nil || !found || historical.ID != rootFork || historical.Head != rootFirst {
+		t.Fatal(historical, found, err)
+	}
+	if _, found, err := s.FindLatestHeadMarker(bg, grand, rootFirst); err != nil || found {
+		t.Fatal(found, err)
+	}
+	active := scan(EntryQuery{Conversation: grand, MinEntryID: current.Head}, 1, nil, grandTail)
+	if active.Next == nil {
+		t.Fatal("active continuation missing")
+	}
+	active = scan(EntryQuery{Conversation: grand, MinEntryID: current.Head}, 1, active.Next, grandHead)
+	if active.Next != nil {
+		t.Fatal(active.Next)
+	}
+	scan(EntryQuery{Conversation: grand, MinEntryID: historical.Head, MaxEntryID: childFork}, 10, nil, childFork, rootFork, rootFirst)
+	for _, check := range []struct {
+		id, owner ID
+		seq       uint64
+		kind      string
+		head      ID
+	}{
+		{rootFirst, 1, rootSeq, "message", 0}, {rootFork, 1, rootSeq, "marker", rootFirst}, {grandHead, grand, grandSeq, "marker", grandHead}, {grandTail, grand, grandSeq, "message", 0},
+	} {
+		actual, found, err := s.Entry(bg, check.id)
+		if err != nil || !found || actual.CommitSeq != check.seq {
+			t.Fatal(actual, found, err)
+		}
+		want := StoredEntry{Entry: record(check.id, check.owner, check.kind, check.head), CommitSeq: check.seq}
+		gotWire, err := json.Marshal(actual)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantWire, err := json.Marshal(want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(gotWire) != string(wantWire) {
+			t.Fatalf("global entry got=%s want=%s", gotWire, wantWire)
+		}
+	}
+	if _, found, err := s.Entry(bg, 999999); err != nil || found {
+		t.Fatal(found, err)
+	}
+	ancestor, found, err := s.Entry(bg, grand, rootFirst)
+	if err != nil || !found || ancestor.Entry.ID != rootFirst || ancestor.CommitSeq != rootSeq {
+		t.Fatal(ancestor, found, err)
+	}
+	inherited, found, err := s.Entry(bg, grand, childFork)
+	if err != nil || !found || inherited.Entry.Conversation != child {
+		t.Fatal(inherited, found, err)
+	}
+	own, found, err := s.Entry(bg, grand, grandTail)
+	if err != nil || !found || own.CommitSeq != grandSeq {
+		t.Fatal(own, found, err)
+	}
+	for _, id := range []ID{rootExcluded, rootLater, childExcluded, childLater, 999999} {
+		if _, found, err := s.Entry(bg, grand, id); err != nil || found {
+			t.Fatal("cut/missing entry visible", id, found, err)
+		}
+	}
+	if _, found, err := s.Entry(bg, 1, grandHead); err != nil || found {
+		t.Fatal("child visible from parent", found, err)
+	}
+	if _, _, err := s.Entry(bg, 999999, rootFirst); err == nil || !strings.Contains(err.Error(), "Unknown conversation") {
+		t.Fatal("unknown conversation", err)
+	}
+	if _, err := s.ScanEntries(bg, EntryQuery{Conversation: 999999}, 10, nil); err == nil || !strings.Contains(err.Error(), "Unknown conversation") {
+		t.Fatal("unknown scan conversation", err)
 	}
 }

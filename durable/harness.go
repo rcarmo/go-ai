@@ -597,13 +597,9 @@ func (c *ConversationHandle) ContextView(ctx context.Context, at ID) (ContextVie
 	return c.h.session.ContextView(ctx, c.id, at)
 }
 
-// ScanEntries pages the fork-visible history in the selected ID order.
-func (c *ConversationHandle) ScanEntries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
-	// Conversation history defaults oldest-first, while direct Storage scans
-	// default newest-first. Continuing without order follows its cursor.
-	if q.Order == "" && cursor == nil {
-		q.Order = Ascending
-	}
+// Entries pages the fork-visible history using the original ID cursor and
+// default descending order. The conversation is bound by the handle.
+func (c *ConversationHandle) Entries(ctx context.Context, q EntryQuery, limit int, cursor Cursor) (Page[Entry], error) {
 	if q.Conversation != 0 && q.Conversation != c.id {
 		return Page[Entry]{}, reject("entry query conversation mismatch")
 	}
@@ -612,18 +608,6 @@ func (c *ConversationHandle) ScanEntries(ctx context.Context, q EntryQuery, limi
 		return Page[Entry]{}, c.h.closedError()
 	}
 	return c.h.session.ScanEntries(ctx, q, limit, cursor)
-}
-
-func (c *ConversationHandle) Entries(ctx context.Context, cursor EntryCursor, limit int) ([]Entry, error) {
-	if c.h.closing.Load() {
-		return nil, c.h.closedError()
-	}
-	s := c.h.session
-	if err := s.enter(ctx); err != nil {
-		return nil, err
-	}
-	defer s.leave()
-	return s.guardedStorage().Entries(ctx, c.id, cursor, limit)
 }
 
 // Commit binds task/document creation to this conversation without enabling

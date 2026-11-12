@@ -7,11 +7,27 @@ import "context"
 func (h *Harness) Commit(ctx context.Context, change func(*Tx) error) (uint64, error) {
 	return h.CommitTasks(ctx, 0, change)
 }
-func (h *Harness) TypedEntry(ctx context.Context, def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
+
+// Entry reads a global committed entry, as the pinned Harness reader does.
+func (h *Harness) Entry(ctx context.Context, id ID) (Entry, bool, error) {
 	if h.closing.Load() {
-		return Entry{}, false, ErrClosed
+		return Entry{}, false, h.closedError()
 	}
-	return h.session.TypedEntry(ctx, def, conversation, id)
+	stored, found, err := h.session.Entry(ctx, id)
+	return stored.Entry, found, err
+}
+func (h *Harness) TypedEntry(ctx context.Context, def *EntryDefinition, id ID) (Entry, bool, error) {
+	entry, found, err := h.Entry(ctx, id)
+	if err != nil {
+		return Entry{}, false, err
+	}
+	if def == nil {
+		return Entry{}, false, reject("nil entry definition")
+	}
+	if !found || !def.Is(entry) {
+		return Entry{}, false, nil
+	}
+	return entry, true, nil
 }
 
 // SubscribeCommits returns an atomic baseline and bounded serial subscription.

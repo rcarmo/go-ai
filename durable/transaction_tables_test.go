@@ -2,6 +2,8 @@ package durable
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -9,6 +11,67 @@ import (
 // Literal read-before-first-table-write contract from session-tables.test.ts:85
 // at f9a26365. No staged-table read contract is carried forward.
 func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
+	t.Run("literal-source-packet", func(t *testing.T) {
+		store := taskConformanceStoreV150(t)
+		session, err := OpenSession(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(bg)
+		notes := mustDefinition(t, DefinitionOptions{Kind: "source.table.notes", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"text": ""}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+		_, err = session.Commit(bg, func(tx *Tx) error {
+			conversation, found, err := tx.Conversation(1)
+			if err != nil || !found || !reflect.DeepEqual(conversation, Conversation{ID: 1}) {
+				t.Fatal(conversation, found, err)
+			}
+			conversations, err := tx.ScanConversations(ConversationQuery{}, 1, nil)
+			if err != nil || !reflect.DeepEqual(conversations.Items, []Conversation{{ID: 1}}) || conversations.Next != nil {
+				t.Fatal(conversations, err)
+			}
+			tasks, err := tx.ScanTasks(TaskQuery{Conversation: 1}, 10, nil)
+			if err != nil || len(tasks.Items) != 0 || tasks.Next != nil {
+				t.Fatal(tasks, err)
+			}
+			entries, err := tx.ScanEntries(EntryQuery{Conversation: 1}, 10, nil)
+			if err != nil || len(entries.Items) != 0 || entries.Next != nil {
+				t.Fatal(entries, err)
+			}
+			id, err := tx.MintID()
+			if err != nil {
+				return err
+			}
+			if err = tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note"}); err != nil {
+				return err
+			}
+			for _, read := range []func() error{
+				func() error { _, _, err := tx.Conversation(1); return err },
+				func() error { _, _, err := tx.Entry(1); return err },
+				func() error { _, err := tx.ScanConversations(ConversationQuery{}, 10, nil); return err },
+				func() error { _, err := tx.ScanEntries(EntryQuery{Conversation: 1}, 10, nil); return err },
+			} {
+				var fenced *ReadAfterWrite
+				if err := read(); !errors.As(err, &fenced) {
+					t.Fatal("source ReadAfterWrite type", err)
+				}
+			}
+			if _, _, err := tx.Task(1); err == nil || err.Error() != "Tx.task() cannot read tables after the first table write" {
+				t.Fatal(err)
+			}
+			doc, err := tx.AcquireDocument(notes, 1, nil, nil)
+			if err != nil {
+				return err
+			}
+			return doc.Set(JSON{"text": "after write"})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, found, err := session.SnapshotDefinition(bg, notes, 1, nil)
+		if err != nil || !found || !equalJSONValue(value.Copy(), JSON{"text": "after write"}) {
+			t.Fatal(value, found, err)
+		}
+	})
+	// Additional committed Task and scan/fence controls retained below.
 	store := taskConformanceStoreV150(t)
 	task := conformanceTaskV150(mint(t, store))
 	storageTasksCommitV150(t, store, task)
@@ -18,6 +81,13 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 	}
 	defer session.Close(bg)
 	_, err = session.Commit(bg, func(tx *Tx) error {
+		conversation, found, err := tx.Conversation(1)
+		if err != nil || !found || conversation.ID != 1 {
+			t.Fatal(conversation, found, err)
+		}
+		if _, found, err := tx.Entry(1); err != nil || found {
+			t.Fatal(found, err)
+		}
 		before, found, err := tx.Task(task.ID)
 		if err != nil || !found {
 			t.Fatalf("task before write found=%v err=%v", found, err)
@@ -43,6 +113,8 @@ func TestTxV150TaskAndTableReadsBeforeFirstTableWrite(t *testing.T) {
 			name string
 			read func() error
 		}{
+			{"conversation", func() error { _, _, err := tx.Conversation(1); return err }},
+			{"entry", func() error { _, _, err := tx.Entry(id); return err }},
 			{"task", func() error { _, _, err := tx.Task(task.ID); return err }},
 			{"scanTasks", func() error { _, err := tx.ScanTasks(TaskQuery{}, 10, nil); return err }},
 			{"scanConversations", func() error { _, err := tx.ScanConversations(ConversationQuery{}, 10, nil); return err }},
@@ -324,4 +396,51 @@ func TestTaskTablesPinnedTypedSameBatchOwnerAndLaterPublication(t *testing.T) {
 			t.Fatal("committed-owner scope/value", state, err)
 		}
 	})
+}
+
+// Pinned transaction.ts:297-305 narrows by kind only, using a global committed
+// entry lookup. Conversation visibility belongs to Storage.entry's other overload.
+func TestTxTypedEntryReadsGlobalCommittedRecordAndNarrowsKind(t *testing.T) {
+	s := taskConformanceStoreV150(t)
+	other, id := mint(t, s), mint(t, s)
+	result, err := s.Commit(bg, [][]StorageWrite{{{Type: "conversation", Value: Conversation{ID: other}}, {Type: "entry", Value: Entry{ID: id, Conversation: other, Kind: "foreign.note", HasData: true, Data: JSON{"value": "owned"}}}}}, nil)
+	if err != nil || result.Refused != nil {
+		t.Fatal(result, err)
+	}
+	session, err := OpenSession(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close(bg)
+	token := entryToken(t, "foreign.note")
+	wrong := entryToken(t, "other.kind")
+	_, err = session.Commit(bg, func(tx *Tx) error {
+		record, found, err := tx.TypedEntry(token, id)
+		if err != nil || !found || record.Conversation != other {
+			t.Fatal(record, found, err)
+		}
+		record.Data.(map[string]any)["value"] = "mutated"
+		if _, found, err := tx.TypedEntry(wrong, id); err != nil || found {
+			t.Fatal(found, err)
+		}
+		record, found, err = tx.TypedEntry(token, id)
+		if err != nil || !found || record.Data.(map[string]any)["value"] != "owned" {
+			t.Fatal(record, found, err)
+		}
+		fresh, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		if err = tx.AppendEntry(Entry{ID: fresh, Conversation: 1, Kind: "note", Value: JSON{}}); err != nil {
+			return err
+		}
+		_, _, err = tx.TypedEntry(token, id)
+		if err == nil || err.Error() != "Tx.entry() cannot read tables after the first table write" {
+			t.Fatal("typed read bypassed table-write fence", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }

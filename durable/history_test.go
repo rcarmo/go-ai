@@ -88,28 +88,28 @@ func TestHistoryForkAncestryPagesHeadAndReopen(t *testing.T) {
 				id, owner ID
 				seq       uint64
 			}{{first, 1, rootSeq}, {childCut, child, rootSeq + 2}, {tail, grandchild, grandSeq}} {
-				v, ok, err := h.VisibleEntry(bg, grandchild, check.id)
-				if err != nil || !ok || v.Conversation != check.owner || v.Seq != check.seq {
+				v, ok, err := h.Entry(bg, grandchild, check.id)
+				if err != nil || !ok || v.Entry.Conversation != check.owner || v.CommitSeq != check.seq {
 					t.Fatal(v, ok, err)
 				}
 			}
 			for _, id := range []ID{excluded, rootLater, childExcluded, childLater, ID(MaxID)} {
-				if _, ok, err := h.VisibleEntry(bg, grandchild, id); err != nil || ok {
+				if _, ok, err := h.Entry(bg, grandchild, id); err != nil || ok {
 					t.Fatal("cut entry became visible", id, ok, err)
 				}
 			}
-			if _, ok, err := h.VisibleEntry(bg, 1, head); err != nil || ok {
+			if _, ok, err := h.Entry(bg, 1, head); err != nil || ok {
 				t.Fatal("child visible from parent", ok, err)
 			}
-			v, _, _ := h.VisibleEntry(bg, grandchild, first)
-			v.Value["nested"].(map[string]any)["value"] = "mutated"
+			v, _, _ := h.Entry(bg, grandchild, first)
+			v.Entry.Value["nested"].(map[string]any)["value"] = "mutated"
 			page = requireHistory(t, h, EntryQuery{Conversation: grandchild, MaxEntryID: first}, 1, nil, first)
 			if page.Items[0].Value["nested"].(map[string]any)["value"] != "original" {
 				t.Fatal("visible lookup aliases storage")
 			}
 			page.Items[0].Value["nested"].(map[string]any)["value"] = "again"
-			v, _, _ = h.VisibleEntry(bg, grandchild, first)
-			if v.Value["nested"].(map[string]any)["value"] != "original" {
+			v, _, _ = h.Entry(bg, grandchild, first)
+			if v.Entry.Value["nested"].(map[string]any)["value"] != "original" {
 				t.Fatal("scan aliases storage")
 			}
 		}
@@ -142,18 +142,20 @@ func TestHistoryCursorStableNewCommitAndValidation(t *testing.T) {
 			func() error { _, e := h.ScanEntries(bg, q, 1, Cursor{"after": strings.Repeat("x", 3)}); return e },
 			func() error { _, e := h.ScanEntries(bg, q, 1, Cursor{"order": "descending"}); return e },
 			func() error { _, e := h.ScanEntries(bg, EntryQuery{Conversation: ID(MaxID)}, 1, nil); return e },
-			func() error { _, _, e := h.VisibleEntry(bg, ID(MaxID), one); return e },
-			func() error { _, _, e := h.VisibleEntry(bg, 1, 0); return e },
+			func() error { _, _, e := h.Entry(bg, ID(MaxID), one); return e },
 			func() error { _, _, e := h.FindLatestHeadMarker(bg, 1, ID(MaxID+1)); return e },
 		} {
 			rejected(t, run())
+		}
+		if _, found, err := h.Entry(bg, 1, 0); err != nil || found {
+			t.Fatal("missing zero entry", found, err)
 		}
 		if err := s.Close(bg); err != nil {
 			t.Fatal(err)
 		}
 		for _, run := range []func() error{
 			func() error { _, e := h.ScanEntries(bg, q, 1, nil); return e },
-			func() error { _, _, e := h.VisibleEntry(bg, 1, one); return e },
+			func() error { _, _, e := h.Entry(bg, 1, one); return e },
 			func() error { _, _, e := h.FindLatestHeadMarker(bg, 1, 0); return e },
 		} {
 			if !errors.Is(run(), ErrClosed) {
@@ -227,7 +229,7 @@ func TestHistoryAncestryFailureAtomicAndTxForwardReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok, err := history(t, s).VisibleEntry(bg, child, forward); err != nil || !ok {
+		if _, ok, err := history(t, s).Entry(bg, child, forward); err != nil || !ok {
 			t.Fatal(ok, err)
 		}
 	})

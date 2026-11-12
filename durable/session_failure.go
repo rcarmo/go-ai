@@ -258,22 +258,15 @@ func (g *sessionStorage) ScanSubmissions(ctx context.Context, q SubmissionQuery,
 	e = g.s.backendResult(ctx, e, false)
 	return v, e
 }
-func (g *sessionStorage) Conversations(ctx context.Context, q Query) ([]Conversation, error) {
-	v, e := g.Storage.Conversations(ctx, q)
+func (g *sessionStorage) Conversation(ctx context.Context, id ID) (Conversation, bool, error) {
+	v, found, e := g.Storage.Conversation(ctx, id)
 	e = g.s.backendResult(ctx, e, false)
-	return v, e
+	return v, found, e
 }
-func (g *sessionStorage) Entries(ctx context.Context, id ID, c EntryCursor, n int) ([]Entry, error) {
-	if g.s.hasNativeReadImage() {
-		image, err := g.Snapshot(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return legacyEntries(image, id, c, n, g.s.core.limits)
-	}
-	v, e := g.Storage.Entries(ctx, id, c, n)
+func (g *sessionStorage) Entry(ctx context.Context, ids ...ID) (StoredEntry, bool, error) {
+	v, found, e := g.Storage.Entry(ctx, ids...)
 	e = g.s.backendResult(ctx, e, false)
-	return v, e
+	return v, found, e
 }
 func (g *sessionStorage) Task(ctx context.Context, id ID) (TaskRecord, bool, error) {
 	v, ok, e := g.Storage.Task(ctx, id)

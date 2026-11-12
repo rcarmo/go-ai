@@ -47,7 +47,7 @@ func TestTaskLifecyclePinnedCancelledCloseKeepsSharedShutdownAndStorageOwnership
 			"submission":   func() error { _, err := h.Submission(bg, ID(MaxID)); return err },
 			"context":      func() error { _, err := root.Context(bg); return err },
 			"context-view": func() error { _, err := root.ContextView(bg, 0); return err },
-			"entries":      func() error { _, err := root.Entries(bg, EntryCursor{}, 1); return err },
+			"entries":      func() error { _, err := root.Entries(bg, EntryQuery{Order: Ascending}, 1, nil); return err },
 		}
 		for name, check := range checks {
 			if err := check(); !errors.Is(err, ErrClosed) {

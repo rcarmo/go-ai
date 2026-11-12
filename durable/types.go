@@ -130,6 +130,14 @@ type Conversation struct {
 	// storage on every adoption and never persisted in the native envelope.
 	OwnerConversation ID `json:"-"`
 }
+
+// StoredEntry is the original Storage.entry result. CommitSeq is the original
+// durable sequence, including when Entry is read through a descendant's ancestry.
+type StoredEntry struct {
+	Entry     Entry  `json:"entry"`
+	CommitSeq uint64 `json:"commitSeq"`
+}
+
 type Entry struct {
 	ID           ID     `json:"id"`
 	Conversation ID     `json:"conversation"`
@@ -428,14 +436,6 @@ type Query struct {
 	Limit        int
 }
 
-// EntryCursor is a stable (commit sequence, in-batch position) cursor. IDs need
-// not be committed in mint order. A cursor is only valid for its conversation.
-type EntryCursor struct {
-	Conversation ID
-	Seq          uint64
-	Position     uint64
-}
-
 // Storage acknowledgements follow append/sync settlement and state adoption.
 // Implementations may reject canceled admission; cancellation after admission
 // cannot end settlement. Reads reject after poison or close.
@@ -466,8 +466,8 @@ type Storage interface {
 	ScanEntries(context.Context, EntryQuery, int, Cursor) (Page[Entry], error)
 	ScanTasks(context.Context, TaskQuery, int, Cursor) (Page[TaskRecord], error)
 	ScanSubmissions(context.Context, SubmissionQuery, int, Cursor) (Page[Submission], error)
-	Conversations(context.Context, Query) ([]Conversation, error)
-	Entries(context.Context, ID, EntryCursor, int) ([]Entry, error)
+	Conversation(context.Context, ID) (Conversation, bool, error)
+	Entry(context.Context, ...ID) (StoredEntry, bool, error)
 	Task(context.Context, ID) (TaskRecord, bool, error)
 	Submissions(context.Context, Query) ([]Submission, error)
 	Documents(context.Context, Query) ([]Document, error)

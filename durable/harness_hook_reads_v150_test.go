@@ -9,30 +9,12 @@ import (
 	goai "github.com/rcarmo/go-ai"
 )
 
-// Native stored message kinds carry the role in Value; this maps that data-only
-// envelope to the source entry kind for assertion comparison, not filtering.
+// Kinds are asserted exactly as stored; no native role-to-kind normalisation.
 func v150HistoryKinds(t *testing.T, entries []Entry) []string {
 	t.Helper()
 	out := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		kind := entry.Kind
-		if kind == "message" {
-			var message MessageReceipt
-			if err := decodeEntryMessage(entry, DefaultLimits(), &message); err != nil {
-				t.Fatal(err)
-			}
-			switch message.Role {
-			case goai.RoleUser:
-				kind = "pi.user"
-			case goai.RoleAssistant:
-				kind = "pi.assistant"
-			case goai.RoleToolResult:
-				kind = "pi.tool-result"
-			case goai.RoleSystem:
-				kind = "pi.system"
-			}
-		}
-		out = append(out, kind)
+		out = append(out, entry.Kind)
 	}
 	return out
 }
@@ -70,8 +52,8 @@ func TestV150HookReadsCommittedRawHistory(t *testing.T) {
 		if err != nil || !found || !reflect.DeepEqual(v150HistoryKinds(t, []Entry{entry}), []string{"pi.user"}) {
 			t.Errorf("user read found=%v err=%v", found, err)
 		}
-		if _, found, err := api.TypedEntry(ctx, wrongToken, page.Items[0].ID); err != nil || found {
-			t.Errorf("wrong token found=%v err=%v", found, err)
+		if wrong, found, err := api.TypedEntry(ctx, wrongToken, page.Items[0].ID); err != nil || found || wrong.ID != 0 {
+			t.Errorf("wrong token returned=%+v found=%v err=%v", wrong, found, err)
 		}
 		return nil, nil
 	}}}); err != nil {
@@ -183,7 +165,7 @@ func TestV150TaskPagesBoundedRawHistory(t *testing.T) {
 	if result := waitPublicTask(t, h, id); result.State.Outcome.Status != "completed" {
 		t.Fatal(result)
 	}
-	all, err := conversation.ScanEntries(bg, EntryQuery{Order: Ascending}, 10, nil)
+	all, err := conversation.Entries(bg, EntryQuery{Order: Ascending}, 10, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

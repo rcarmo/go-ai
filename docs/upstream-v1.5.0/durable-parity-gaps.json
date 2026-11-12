@@ -316,9 +316,14 @@
         "durable/transaction_tables_test.go",
         "durable/session_public_image_main_test.go",
         "notes/oracles/storage-tasks.upstream.test.ts",
-        "docs/upstream-v1.5.0/task-table-assertions.tsv"
+        "docs/upstream-v1.5.0/task-table-assertions.tsv",
+        "durable/storage_public_test.go",
+        "durable/entry_definition.go",
+        "durable/harness_documents.go",
+        "durable/task_runtime.go",
+        "notes/primary-record-reads.md"
       ],
-      "evidence": "Primary Storage.Task lookup and Storage/Session/Tx ScanTasks now expose canonical TaskRecords; the obsolete Tasks(Query) reader is removed. Three original task-storage conformance cases pass through those public methods. Raw canonical Storage permits complete task replacement and owner waits; native runtime identity/mark/outcome restrictions stay at Session admission. Exposed Tx table readers now implement source ReadAfterWrite and committed-read semantics; document access remains available. Source-derived publication-image and failed-write controls pass. Storage still requires native Apply/Snapshot/Limits; entry/submission/document read unions and singular Tx conversation/entry APIs remain unported. Canonical builtin execution/migration and complete raw graph/optional-field/conformance acceptance remain open. See task-table-assertions.tsv and notes/builtin-task-storage.md.",
+      "evidence": "Primary Storage.Task lookup and Storage/Session/Tx ScanTasks now expose canonical TaskRecords; the obsolete Tasks(Query) reader is removed. Three original task-storage conformance cases pass through those public methods. Raw canonical Storage permits complete task replacement and owner waits; native runtime identity/mark/outcome restrictions stay at Session admission. Exposed Tx table readers now implement source ReadAfterWrite and committed-read semantics; document access remains available. Source-derived publication-image and failed-write controls pass. Primary Conversation/Entry reads now exist across Storage/Session/Tx. StoredEntry retains original commitSeq through fork caps; Tx typed entry lookup is global and kind-only. Legacy Conversations/Entries/EntryCursor/VisibleEntry surfaces are removed; Harness entry reads are global and bound Entries defaults descending. Literal deep-fork, conversation cursor and complete named Session table-fence packets pass. Exact read keys, published images, ownership, wrapper/error/cancellation and wrong-kind absence controls pass. Storage still requires native Apply/Snapshot/Limits; submission/document read unions and remaining record DTO/API contracts remain open. Canonical builtin execution/migration and complete raw graph/optional-field/conformance acceptance remain open. See task-table-assertions.tsv and notes/builtin-task-storage.md and notes/primary-record-reads.md.",
       "fix": "Inventory every original Storage method and public union, with an explicit Go spelling map but identical data/absence/order semantics. Add missing single-record/head/document methods and public DTO boundaries; keep private envelopes private.",
       "acceptance": [
         "Run pinned storage conformance through only the declared public interface; exact method result fixtures for tasks/submissions/documents/entries, scopes/points/retirement/forks, query fields and absence."
@@ -341,7 +346,7 @@
         "durable/transaction.go",
         "durable/session_deferred.go"
       ],
-      "evidence": "Original Session.commit returns callback result and accepts persistence options; Go Commit accepts func(*Tx) error and returns sequence. Separate CommitDeferred and caller-side result capture are alternate caller semantics. Complete exported symbol/type conformance has not been enumerated. Canonical task lookup/scans and the exposed transaction table read/write fence now follow the pinned source. This does not close callback result/options or the remaining symbol inventory.",
+      "evidence": "Original Session.commit returns callback result and accepts persistence options; Go Commit accepts func(*Tx) error and returns sequence. Separate CommitDeferred and caller-side result capture are alternate caller semantics. Complete exported symbol/type conformance has not been enumerated. Task/conversation/entry lookups, global typed narrowing, bound entry pagination defaults and the exposed transaction table read/write fence now follow the pinned source for the mapped assertions. This does not close callback result/options or the remaining symbol inventory.",
       "fix": "Create a source-export-to-Go mapping for all functions, interfaces, tokens and unions. Preserve result/options semantics in the accepted primary API; account for Go generic-method limitations without requiring application semantic workarounds.",
       "acceptance": [
         "Source callback-value tests, empty/error/async-equivalent results, deferred options on same entry point, tokens, typed lookup and original defaults; compile an external consumer using only the accepted mapped API."
@@ -535,7 +540,7 @@
         "durable/task_runtime.go",
         "docs/upstream-v1.5.0/durable-semantic-port.md"
       ],
-      "evidence": "Selected history/close/cancellation/wait fixes pass and earlier afterRun/close-drain failures were fixture translation errors. The complete per-assertion lifecycle/restart/turn-limit/tool-hook review is unfinished; source 149 held submission read vs close has no faithful current proof.",
+      "evidence": "Selected history/close/cancellation/wait fixes pass and earlier afterRun/close-drain failures were fixture translation errors. The complete per-assertion lifecycle/restart/turn-limit/tool-hook review is unfinished; source 149 held submission read vs close has no faithful current proof. The entry-read full run once returned context.Canceled in TestTaskRecoveryCloseSealRejectsFreshMemoAndToolPrefix/tool-output where the native assertion requires closed/sealed;20 focused repeats and the subsequent full run passed without changing that assertion. Queued progress/close error ordering remains a verification caveat, not a repaired contract.",
       "fix": "Reconcile old diagnoses against current code; port unchanged complete source scenarios, especially real read-hold/close, restart charging, hook ordering and mixed continue/input boundaries. Do not resurrect disproved diagnoses as runtime gaps.",
       "acceptance": [
         "Every assertion in the named files mapped and executed or independently blocked; real crash/reopen, stale-attempt fencing, first cause, queue preservation and callback counts."

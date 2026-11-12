@@ -27,14 +27,14 @@ func TestMainSessionLegacyReadsExcludeUnpublishedGroup(t *testing.T) {
 		}
 		def := mustDefinition(t, DefinitionOptions{Kind: "legacy.image", Scope: "session", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
 		t.Run("entries", func(t *testing.T) {
-			entries, err := conversation.Entries(bg, EntryCursor{}, 10)
-			if err != nil || len(entries) != 0 {
-				t.Fatalf("unpublished entries=%d err=%v", len(entries), err)
+			entries, err := conversation.Entries(bg, EntryQuery{}, 10, nil)
+			if err != nil || len(entries.Items) != 0 {
+				t.Fatalf("unpublished entries=%d err=%v", len(entries.Items), err)
 			}
 		})
 		t.Run("typed-entry", func(t *testing.T) {
-			_, ok, err := s.TypedEntry(bg, entry, 1, ids[0])
-			if err != nil || ok {
+			record, ok, err := s.Entry(bg, ids[0])
+			if err != nil || ok || entry.Is(record.Entry) {
 				t.Fatalf("unpublished typed entry=%v err=%v", ok, err)
 			}
 		})
@@ -103,26 +103,33 @@ func TestMainLegacyEntriesPagingAdmissionAndAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		first, err := c.Entries(bg, EntryCursor{}, 1)
-		if err != nil || len(first) != 1 || first[0].Seq != 2 {
+		first, err := c.Entries(bg, EntryQuery{Order: Ascending}, 1, nil)
+		if err != nil || len(first.Items) != 1 || first.Next == nil {
 			t.Fatal(first, err)
 		}
-		cursor := EntryCursor{Conversation: 1, Seq: first[0].Seq, Position: first[0].Position}
-		first[0].Value["text"] = "mutated"
-		second, err := c.Entries(bg, cursor, 1)
-		if err != nil || len(second) != 1 || second[0].Seq != 3 || second[0].Value["text"] == "mutated" {
+		stored, found, err := h.session.Entry(bg, first.Items[0].ID)
+		if err != nil || !found || stored.CommitSeq != 2 {
+			t.Fatal(stored, found, err)
+		}
+		first.Items[0].Value["text"] = "mutated"
+		second, err := c.Entries(bg, EntryQuery{Order: Ascending}, 1, first.Next)
+		if err != nil || len(second.Items) != 1 || second.Items[0].Value["text"] == "mutated" {
 			t.Fatal(second, err)
 		}
-		again, err := c.Entries(bg, EntryCursor{}, 1)
-		if err != nil || again[0].Value["text"] == "mutated" {
+		stored, found, err = h.session.Entry(bg, second.Items[0].ID)
+		if err != nil || !found || stored.CommitSeq != 3 {
+			t.Fatal(stored, found, err)
+		}
+		again, err := c.Entries(bg, EntryQuery{Order: Ascending}, 1, nil)
+		if err != nil || again.Items[0].Value["text"] == "mutated" {
 			t.Fatal(again, err)
 		}
 		for _, limit := range []int{0, h.session.limits.MaxPage + 1} {
-			if _, err := c.Entries(bg, EntryCursor{}, limit); err == nil {
+			if _, err := c.Entries(bg, EntryQuery{}, limit, nil); err == nil {
 				t.Fatal("invalid limit accepted")
 			}
 		}
-		if _, err := c.Entries(bg, EntryCursor{Conversation: 2}, 1); err == nil {
+		if _, err := c.Entries(bg, EntryQuery{}, 1, Cursor{"order": "up", "after": 1}); err == nil {
 			t.Fatal("invalid cursor accepted")
 		}
 		// Hold the Session line to establish that cancellation, rather than a raw
@@ -132,19 +139,19 @@ func TestMainLegacyEntriesPagingAdmissionAndAdapter(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(bg)
 		cancel()
-		_, err = c.Entries(ctx, EntryCursor{}, 1)
+		_, err = c.Entries(ctx, EntryQuery{}, 1, nil)
 		h.session.leave()
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal("admission did not cancel", err)
 		}
 		adapter := &mainLegacyEntriesAdapter{Storage: b.store, session: h.session}
 		h.session.taskBookkeeping(func() { h.session.store = adapter })
-		values, err := c.Entries(bg, EntryCursor{}, 1)
-		if err != nil || len(values) != 1 || values[0].Value["text"] != "adapter" || adapter.calls != 1 || !adapter.lineOwned {
+		values, err := c.Entries(bg, EntryQuery{}, 1, nil)
+		if err != nil || len(values.Items) != 1 || values.Items[0].Value["text"] != "adapter" || adapter.calls != 1 || !adapter.lineOwned {
 			t.Fatal(values, err, adapter.calls)
 		}
 		adapter.err = storageRequest("adapter request")
-		if _, err = c.Entries(bg, EntryCursor{}, 1); err != adapter.err {
+		if _, err = c.Entries(bg, EntryQuery{}, 1, nil); err != adapter.err {
 			t.Fatal("adapter error lost", err)
 		}
 		if _, err = h.session.Snapshot(bg); err != nil {
@@ -161,15 +168,15 @@ type mainLegacyEntriesAdapter struct {
 	err       error
 }
 
-func (a *mainLegacyEntriesAdapter) Entries(ctx context.Context, id ID, c EntryCursor, n int) ([]Entry, error) {
+func (a *mainLegacyEntriesAdapter) ScanEntries(ctx context.Context, query EntryQuery, n int, cursor Cursor) (Page[Entry], error) {
 	a.calls++
 	a.lineOwned = a.session.line.held()
 	if a.err != nil {
-		return nil, a.err
+		return Page[Entry]{}, a.err
 	}
-	entries, err := a.Storage.Entries(ctx, id, c, n)
-	if err == nil && len(entries) > 0 {
-		entries[0].Value["text"] = "adapter"
+	entries, err := a.Storage.ScanEntries(ctx, query, n, cursor)
+	if err == nil && len(entries.Items) > 0 {
+		entries.Items[0].Value["text"] = "adapter"
 	}
 	return entries, err
 }

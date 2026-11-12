@@ -12,8 +12,7 @@ import (
 )
 
 // Complete f9a26365 harness-after-run.test.ts:694 history assertion. Native
-// stored message/role envelopes map to the source entry kinds without filtering
-// any non-system contribution. The old pending fixture omitted source waitForIdle
+// stored entry kinds are compared literally, without role-to-kind normalisation. The old pending fixture omitted source waitForIdle
 // and falsely diagnosed a missing callback; after restoring that wait, unchanged
 // generation runtime passes. Entries now supplies the original bounded scan.
 func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing.T) {

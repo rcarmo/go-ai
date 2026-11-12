@@ -123,7 +123,7 @@ func TestV150AfterRunCloseInDrainResumesInterruptedAttempt(t *testing.T) {
 			t.Error("interrupted drain attempt was not re-executed once", executions.Load(), commits.Load())
 		}
 		// The source also requires exactly one stored test entry across reopen.
-		page, err := c2.ScanEntries(ctx, EntryQuery{Order: Ascending}, 100, nil)
+		page, err := c2.Entries(ctx, EntryQuery{Order: Ascending}, 100, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

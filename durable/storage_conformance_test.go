@@ -207,27 +207,28 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		}
 	})
 	t.Run("05_06_entry_order_and_stable_cursor", func(t *testing.T) {
-		r, e := s.Entries(bg, 1, EntryCursor{}, 1)
-		if e != nil || len(r) != 1 || r[0].ID != e2 {
-			t.Fatalf("%v %v", r, e)
+		page, e := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 1, nil)
+		if e != nil || len(page.Items) != 1 || page.Items[0].ID != e2 || page.Next == nil {
+			t.Fatal(page, e)
 		}
-		cursor := EntryCursor{1, r[0].Seq, r[0].Position}
 		apply(t, s, entry(mint(t, s), JSON{}))
-		r, e = s.Entries(bg, 1, cursor, 10)
-		if e != nil || len(r) != 2 || r[0].ID != e1 {
-			t.Fatal("entry cursor changed")
+		continued, e := s.ScanEntries(bg, EntryQuery{Conversation: 1}, 10, page.Next)
+		if e != nil || len(continued.Items) != 1 || continued.Items[0].ID != e1 {
+			t.Fatal("ID continuation changed", continued, e)
 		}
-		_, e = s.Entries(bg, conv, cursor, 1)
-		rejected(t, e)
+		// Source cursors carry only order/after; a changed conversation filter is legal.
+		if page, e := s.ScanEntries(bg, EntryQuery{Conversation: conv}, 1, page.Next); e != nil || len(page.Items) != 0 {
+			t.Fatal(page, e)
+		}
 	})
 	t.Run("07_08_partial_owner_conjunctive", func(t *testing.T) {
-		r, e := s.Conversations(bg, Query{Owner: task, Conversation: conv, Limit: 1})
-		if e != nil || len(r) != 1 || r[0].ID != conv {
-			t.Fatal(r, e)
+		page, e := s.ScanConversations(bg, ConversationQuery{OwnerTask: task, OwnerConversation: conv}, 1, nil)
+		if e != nil || len(page.Items) != 1 || page.Items[0].ID != conv {
+			t.Fatal(page, e)
 		}
-		r, e = s.Conversations(bg, Query{After: 1, Limit: 1})
-		if e != nil || len(r) != 1 || r[0].ID != conv {
-			t.Fatal(r, e)
+		page, e = s.ScanConversations(bg, ConversationQuery{}, 1, Cursor{"after": float64(1), "order": "ascending"})
+		if e != nil || len(page.Items) != 1 || page.Items[0].ID != conv {
+			t.Fatal(page, e)
 		}
 	})
 	t.Run("10_11_full_replacement_status_raw_no_scheduler", func(t *testing.T) {
@@ -312,7 +313,7 @@ func runStorageConformance(t *testing.T, b sqliteFixture) {
 		if e := s.Close(bg); e != nil {
 			t.Fatal(e)
 		}
-		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, e := s.Conversations(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Entries(bg, 1, EntryCursor{}, 1); return e }, func() error { _, _, e := s.Task(bg, 1); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
+		checks := []func() error{func() error { _, e := s.MintID(bg); return e }, func() error { _, e := s.Apply(bg, Batch{}); return e }, func() error { _, e := s.Snapshot(bg); return e }, func() error { _, e := s.Limits(); return e }, func() error { _, _, e := s.Conversation(bg, 1); return e }, func() error { _, _, e := s.Entry(bg, 1); return e }, func() error { _, _, e := s.Task(bg, 1); return e }, func() error { _, e := s.Submissions(bg, Query{Limit: 1}); return e }, func() error { _, e := s.Documents(bg, Query{Limit: 1}); return e }, func() error { _, _, e := s.Request(bg, 1, "id"); return e }}
 		for _, f := range checks {
 			if e := f(); !errors.Is(e, ErrClosed) {
 				t.Fatal(e)
@@ -460,7 +461,7 @@ func TestLimitsPreAdmissionSQLite(t *testing.T) {
 					case "MaxWrites":
 						ws = append(ws, entry(mint(t, s), JSON{}))
 					case "MaxPage":
-						_, e = s.Entries(bg, 1, EntryCursor{}, 2)
+						_, e = s.ScanEntries(bg, EntryQuery{Conversation: 1}, 2, nil)
 						rejected(t, e)
 						return
 					case "MaxRetainedBytes":
@@ -665,11 +666,11 @@ func TestPrivateCandidateCOWPreservesPublicDetachAndRollback(t *testing.T) {
 		latest.Tasks[task].Checkpoint["nested"].(map[string]any)["v"] = "read mutate"
 		latest.Submissions[sub].Value["nested"].(map[string]any)["v"] = "read mutate"
 		latest.Documents[doc].Value["items"].([]any)[0].(map[string]any)["v"] = "read mutate"
-		es, e := s.Entries(bg, 1, EntryCursor{}, 1)
-		if e != nil {
+		es, found, e := s.Entry(bg, ent)
+		if e != nil || !found {
 			t.Fatal(e)
 		}
-		es[0].Value["nested"].(map[string]any)["v"] = "query mutate"
+		es.Entry.Value["nested"].(map[string]any)["v"] = "query mutate"
 		ts, e := s.Snapshot(bg)
 		if e != nil {
 			t.Fatal(e)

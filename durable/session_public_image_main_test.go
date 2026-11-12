@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 )
 
 func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
@@ -31,6 +33,13 @@ func TestMainSessionPublicReadsExcludeUnpublishedGroup(t *testing.T) {
 			again, err := s.Snapshot(bg)
 			if err != nil || len(again.Conversations) != 1 {
 				t.Fatalf("snapshot alias: %#v %v", again, err)
+			}
+		})
+		t.Run("global-and-visible-entry", func(t *testing.T) {
+			for _, lookup := range [][]ID{{ids[0]}, {1, ids[0]}} {
+				if record, found, err := s.Entry(bg, lookup...); err != nil || found || record.CommitSeq != 0 {
+					t.Fatalf("unpublished lookup %v: %+v %v %v", lookup, record, found, err)
+				}
 			}
 		})
 		t.Run("entries", func(t *testing.T) {
@@ -71,6 +80,10 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 			conversations, err := s.ScanConversations(bg, ConversationQuery{}, 10, nil)
 			if err != nil || len(conversations.Items) != 1+want {
 				t.Fatalf("conversations: %+v %v", conversations, err)
+			}
+			conversation, found, err := s.Conversation(bg, ids[0])
+			if err != nil || found != published || (found && conversation.ID != ids[0]) {
+				t.Fatalf("conversation lookup=%+v found=%v published=%v err=%v", conversation, found, published, err)
 			}
 			tasks, err := s.ScanTasks(bg, TaskQuery{Conversation: ids[0]}, 10, nil)
 			if err != nil || len(tasks.Items) != want {
@@ -113,8 +126,13 @@ func TestMainSessionPublicRecordScansUsePublishedImage(t *testing.T) {
 // not establish wrapper publication projection: overlap stays disabled.
 type mainPublicImageAdapter struct {
 	Storage
-	snapshots int
-	entries   int
+	snapshots           int
+	entries             int
+	recordEntries       int
+	recordConversations int
+	recordError         error
+	session             *Session
+	lineOwned           bool
 }
 
 func (a *mainPublicImageAdapter) Snapshot(ctx context.Context) (Snapshot, error) {
@@ -129,6 +147,30 @@ func (a *mainPublicImageAdapter) ScanEntries(ctx context.Context, q EntryQuery, 
 	a.entries++
 	return a.Storage.ScanEntries(ctx, q, n, c)
 }
+func (a *mainPublicImageAdapter) Conversation(ctx context.Context, id ID) (Conversation, bool, error) {
+	a.recordConversations++
+	a.lineOwned = a.session.line.held()
+	if a.recordError != nil {
+		return Conversation{}, false, a.recordError
+	}
+	record, found, err := a.Storage.Conversation(ctx, id)
+	if found {
+		record.ID = 77
+	}
+	return record, found, err
+}
+func (a *mainPublicImageAdapter) Entry(ctx context.Context, ids ...ID) (StoredEntry, bool, error) {
+	a.recordEntries++
+	a.lineOwned = a.session.line.held()
+	if a.recordError != nil {
+		return StoredEntry{}, false, a.recordError
+	}
+	record, found, err := a.Storage.Entry(ctx, ids...)
+	if found {
+		record.CommitSeq = 99
+	}
+	return record, found, err
+}
 func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		batches, _ := groupEntryBatches(t, b.store, 2)
@@ -138,7 +180,7 @@ func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer s.Close(bg)
-		adapter := &mainPublicImageAdapter{Storage: b.store}
+		adapter := &mainPublicImageAdapter{Storage: b.store, session: s}
 		s.taskBookkeeping(func() { s.store = adapter })
 		result, err := s.core.commitBatches(bg, batches, nil, true)
 		if err != nil || result.stored != 2 {
@@ -152,5 +194,138 @@ func TestMainSessionPublicImagePreservesInstalledAdapter(t *testing.T) {
 		if err != nil || len(page.Items) != 2 || adapter.entries != 1 {
 			t.Fatal(page, err, adapter.entries)
 		}
+		conversation, found, err := s.Conversation(bg, 1)
+		if err != nil || !found || conversation.ID != 77 || adapter.recordConversations != 1 || !adapter.lineOwned {
+			t.Fatal(conversation, found, err)
+		}
+		for _, ids := range [][]ID{{page.Items[0].ID}, {1, page.Items[0].ID}} {
+			record, found, err := s.Entry(bg, ids...)
+			if err != nil || !found || record.CommitSeq != 99 || !adapter.lineOwned {
+				t.Fatal(record, found, err)
+			}
+		}
+		if adapter.recordEntries != 2 {
+			t.Fatal(adapter.recordEntries)
+		}
+		adapter.recordError = storageRequest("adapter record request")
+		if _, _, err := s.Conversation(bg, 1); err != adapter.recordError {
+			t.Fatal("conversation request identity", err)
+		}
+		if _, _, err := s.Entry(bg, page.Items[0].ID); err != adapter.recordError {
+			t.Fatal("entry request identity", err)
+		}
+		canceled, cancel := context.WithCancel(bg)
+		cancel()
+		before := adapter.recordEntries + adapter.recordConversations
+		if _, _, err := s.Entry(canceled, page.Items[0].ID); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		if _, _, err := s.Conversation(canceled, 1); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		if adapter.recordEntries+adapter.recordConversations != before {
+			t.Fatal("canceled read reached adapter")
+		}
+		adapter.recordError = errors.New("adapter record failure")
+		if _, _, err := s.Entry(bg, page.Items[0].ID); err != adapter.recordError {
+			t.Fatal("original backend failure", err)
+		}
+		before = adapter.recordConversations
+		_, _, err = s.Conversation(canceled, 1)
+		var failed *SessionFailed
+		if !errors.As(err, &failed) || !errors.Is(err, adapter.recordError) || adapter.recordConversations != before {
+			t.Fatal("first failure precedence", err)
+		}
 	})
+}
+
+// Source keys.ts:156-185: global entries touch only their record; visible
+// entries additionally touch the conversation, but never its append key.
+func TestSessionPrimaryRecordReadsUseExactKeys(t *testing.T) {
+	for _, tc := range []struct {
+		name, key string
+		wait      bool
+	}{
+		{"conversation", conversationKey(1), true},
+		{"global", entryKey(2), true},
+		{"visible-conversation", conversationKey(1), true},
+		{"visible-entry", entryKey(2), true},
+		{"global-disjoint-conversation", conversationKey(1), false},
+		{"conversation-disjoint-entry", entryKey(2), false},
+		{"visible-disjoint-append", appendKey(1), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := gatedSession(t)
+			if _, err := s.Commit(bg, func(tx *Tx) error {
+				id, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if id != 2 {
+					return errors.New("unexpected test entry ID")
+				}
+				return tx.AppendEntry(Entry{ID: id, Conversation: 1, Kind: "note", HasData: true, Data: JSON{"value": "owned"}})
+			}); err != nil {
+				t.Fatal(err)
+			}
+			release := holdingQueue(t, s, tc.key)
+			writer := s.writer
+			released := false
+			defer func() {
+				if !released {
+					close(release)
+				}
+				if drained := writer.drained(); drained != nil {
+					<-drained
+				}
+			}()
+			parent, cancel := context.WithTimeout(bg, 5*time.Second)
+			defer cancel()
+			queued := make(chan struct{})
+			ctx := &documentGateContext{Context: parent, queued: queued}
+			result := make(chan error, 1)
+			go func() {
+				if tc.name == "conversation" || tc.name == "conversation-disjoint-entry" {
+					record, found, err := s.Conversation(ctx, 1)
+					if err == nil && (!found || record.ID != 1) {
+						err = errors.New("conversation missing")
+					}
+					result <- err
+					return
+				}
+				ids := []ID{1, 2}
+				if tc.name == "global" || tc.name == "global-disjoint-conversation" {
+					ids = []ID{2}
+				}
+				stored, found, err := s.Entry(ctx, ids...)
+				if err == nil && (!found || stored.Entry.ID != 2 || stored.CommitSeq != 2) {
+					err = errors.New("entry missing or original commit sequence lost")
+				}
+				result <- err
+			}()
+			if tc.wait {
+				awaitTaskSignal(t, queued)
+				// Confirm an actual hit and a released memory line; a backend admission's
+				// Done consultation alone cannot prove that a read waited at its key.
+				if err := s.line.acquire(parent); err != nil {
+					t.Fatal("read did not release memory across gate", err)
+				}
+				hit := s.currentJobHit
+				s.line.release()
+				if !hit {
+					t.Error("record read did not hit its dependency gate")
+				}
+				select {
+				case err := <-result:
+					t.Fatalf("read escaped unpublished dependency: %v", err)
+				default:
+				}
+				close(release)
+				released = true
+			}
+			if err := <-result; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -10,8 +11,8 @@ import (
 type EntryDefinition struct{ kind string }
 
 func DefineEntry(kind string) (*EntryDefinition, error) {
-	if !validKind(kind) {
-		return nil, reject("invalid entry kind")
+	if kind == "" {
+		return nil, errors.New("Entry kind must be a non-empty string")
 	}
 	return &EntryDefinition{kind}, nil
 }
@@ -41,6 +42,7 @@ func (t *Tx) AppendTypedEntry(def *EntryDefinition, conversation ID, c EntryCont
 		return Entry{}, e
 	}
 	defer t.leave()
+	t.hasTableWrite = true
 	if def == nil {
 		return Entry{}, reject("nil entry definition")
 	}
@@ -78,60 +80,20 @@ func (t *Tx) AppendTypedEntry(def *EntryDefinition, conversation ID, c EntryCont
 	return copyEntry(owned, t.limits)
 }
 
-// TypedEntry reads the latest transaction overlay through an entry token.
-func (t *Tx) TypedEntry(def *EntryDefinition, conversation, id ID) (Entry, bool, error) {
-	if err := t.enterKeys(conversationKey(conversation), entryKey(id)); err != nil {
-		return Entry{}, false, err
-	}
-	defer t.leave()
-	if def == nil {
-		return Entry{}, false, reject("nil entry definition")
-	}
-	state, err := t.current()
+// TypedEntry is the Go spelling of Tx.entry(token, id): global committed
+// lookup, narrowed by kind only, with the same table read/write fence as Entry.
+func (t *Tx) TypedEntry(def *EntryDefinition, id ID) (Entry, bool, error) {
+	entry, found, err := t.Entry(id)
 	if err != nil {
 		return Entry{}, false, err
 	}
-	entry, found := state.Entries[id]
-	if !found || !entryVisible(state, conversation, id) || !def.Is(entry) {
-		return Entry{}, false, nil
-	}
-	owned, err := copyEntry(entry, t.limits)
-	return owned, err == nil, err
-}
-func (s *Session) TypedEntry(ctx context.Context, def *EntryDefinition, conversation, id ID) (entry Entry, found bool, err error) {
-	if e := s.enter(ctx); e != nil {
-		return Entry{}, false, e
-	}
-	outcome := s.jobOutcome
-	defer func() {
-		s.leave()
-		err = s.deliveredError(outcome, err)
-		if err != nil {
-			entry = Entry{}
-			found = false
-		}
-	}()
-	// Upstream gates every read: a job must not observe state an admitted
-	// write has not published.
-	if e := s.touchAll(ctx); e != nil {
-		return Entry{}, false, e
-	}
 	if def == nil {
 		return Entry{}, false, reject("nil entry definition")
 	}
-	state, e := s.guardedStorage().Snapshot(ctx)
-	if e != nil {
-		return Entry{}, false, e
-	}
-	if !entryVisible(state, conversation, id) {
+	if !found || !def.Is(entry) {
 		return Entry{}, false, nil
 	}
-	v := state.Entries[id]
-	if !def.Is(v) {
-		return Entry{}, false, nil
-	}
-	owned, e := copyEntry(v, s.limits)
-	return owned, e == nil, e
+	return entry, true, nil
 }
 func contributionReceipts(messages []goai.Message, l Limits) ([]MessageReceipt, error) {
 	if messages == nil {
