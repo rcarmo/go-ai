@@ -1,6 +1,6 @@
 # Biggest deviations and path to zero
 
-The largest remaining gaps affect record interoperability, caller-visible ordering and public API semantics. Full upstream alignment is unverified. The latest submission-transaction source port follows `c818ce1`; target upstream is `f9a26365568127461c47a07a37dcb42c140a3ac5` (v1.5.0).
+The largest remaining gaps affect record interoperability, caller-visible ordering and public API semantics. Full upstream alignment is unverified. The latest atomic-admission source port follows `ce03209`; target upstream is `f9a26365568127461c47a07a37dcb42c140a3ac5` (v1.5.0).
 
 ## Ranked remaining work
 
@@ -22,7 +22,7 @@ The former RED real-Harness packet now passes as `TestMainBuiltinCanonicalPublic
 
 The added progression packet compares exact version/input/state unions for two parallel and sequential tools, with request attempt/cutoff and terminal model results. Adjacent identical states are collapsed; commit granularity and cross-record ordering remain open. A public UTF-16 regression checks task lookup/encoding and immutable stored observation without private carrier leakage. Retained source SQLite close/reopen evidence requires resend of the same request at attempt1.
 
-Reference:166 unchanged source cases +46 independent probes pass. [The slice receipt](../../notes/builtin-task-publications.md) records baseline failures, runtime changes, test scope and remaining contracts. Run the ordinary native controls with:
+Reference:166 unchanged source cases +48 independent probes pass. [The slice receipt](../../notes/builtin-task-publications.md) records baseline failures, runtime changes, test scope and remaining contracts. Run the ordinary native controls with:
 
 ```sh
 source scripts/project-env.sh
@@ -37,13 +37,15 @@ The [task/table assertion mapping](task-table-assertions.tsv) covers eight liter
 
 [Submission transaction receipts](../../notes/submission-transactions.md) record complete creation results, dedicated argument unions, deferred placement/settlement and error/predicate order. Remaining callback/admission, canonical builtin and database contracts stay open.
 
+[Atomic-admission receipts](../../notes/submission-admission.md) record the one-commit lookup/write port, deterministic interleaving regression and transaction wrapper authority. Remaining source admission overloads and scheduling/edge acceptance stay open.
+
 ## Work already installed
 
 The independent writer/admission queue, document read keys, first-failure/outcome fencing and256-job bound are installed. Shared immutable conversation/document snapshots, watches and observers retain adopted identity. Public stored observers dispatch after completed storage scopes. Cold builtin hydration and LiveDoc v3 are installed; compaction now uses `pi.compaction`; application `pi.*` records execute and round-trip through SQLite. Original message kinds/model fields are produced: the former pending normal-entry shape test passes live and after reopen.
 
 Fresh count3/shuffle42 verification also passes normal entry shape/reopen, opaque checkpoint migration, unknown-phase faulting, canonical compaction publication and raw pi-namespace storage/reopen. Those passes correct obsolete register diagnoses; complete message/receipt and lifecycle coverage is still open.
 
-Latest full submission-transaction verification: durable406.961s/tools17.201s; repository-wide vet/Staticcheck/logging pass;10 shuffled focused repetitions9.995s and seven independent semantic fault controls pass. The previous slice retained a close/progress error-order caveat. This slice exposed and fixed internal trace selection that still expected creations in the old write list. This is development verification; release profiling and full acceptance remain open. The retained reference snapshot has no .git: pinned hashes and full test/support trees are checked, but commit identity is not independently reverified.
+Latest full atomic-admission verification: durable410.503s/tools18.203s; repository-wide vet/Staticcheck/logging pass;10 shuffled focused repetitions14.037s and two independent semantic fault controls pass. The previous slice retained a close/progress error-order caveat. The prior transaction slice fixed internal trace selection against its staged creation map. The follow-up removes the reproduced split lookup/write admission and transaction wrapper bypass. This is development verification; release profiling and full acceptance remain open. The retained reference snapshot has no .git: pinned hashes and full test/support trees are checked, but commit identity is not independently reverified.
 
 ## Sequence to zero
 

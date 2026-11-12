@@ -345,6 +345,9 @@ func (t *Tx) Submission(id ID) (SubmissionRecord, bool, error) {
 		return SubmissionRecord{}, false, err
 	}
 	defer t.leave()
+	if t.session != nil && !t.session.hasNativeReadImage() {
+		return t.session.guardedStorage().Submission(t.ctx, id)
+	}
 	return lookupSubmission(t.state, t.limits, id)
 }
 func (t *Tx) SubmissionByRequest(conversation ID, request string) (SubmissionRecord, bool, error) {
@@ -352,5 +355,8 @@ func (t *Tx) SubmissionByRequest(conversation ID, request string) (SubmissionRec
 		return SubmissionRecord{}, false, err
 	}
 	defer t.leave()
+	if t.session != nil && !t.session.hasNativeReadImage() {
+		return t.session.guardedStorage().SubmissionByRequest(t.ctx, conversation, request)
+	}
 	return lookupSubmissionByRequest(t.state, t.limits, conversation, request)
 }

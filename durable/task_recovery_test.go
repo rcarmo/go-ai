@@ -3363,12 +3363,12 @@ func TestTaskRecoveryFreshSubmitAfterReadCloseAdmissionRejects(t *testing.T) {
 						}); err != nil {
 							return err
 						}
-						// The trusted fresh helper is queued while this deciding no-op
+						// The unified admission helper is queued while this deciding no-op
 						// owns the Session line. Close seals before it can enter Commit.
 						_, err := h.session.taskCommit(bg, func(*Tx) error {
 							go func() {
 								close(queued)
-								_, err := conv.submitNewAdmission(bg, Input{Type: mode, Content: "postread queued"}, binding)
+								_, err := conv.submitOnLine(bg, Input{Type: mode, Content: "postread queued"}, binding)
 								result <- err
 							}()
 							<-queued

@@ -985,3 +985,23 @@ func TestTxSubmissionAssemblyFailurePrecedesDocumentPredicates(t *testing.T) {
 		t.Fatal("assembly failure changed committed state", err)
 	}
 }
+
+func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
+	s := gatedSession(t)
+	adapter := &submissionReadFaultStorage{Storage: s.store, session: s}
+	s.taskBookkeeping(func() { s.store = adapter })
+	_, err := s.Commit(bg, func(tx *Tx) error {
+		record, found, err := tx.SubmissionByRequest(1, "")
+		if err != nil || !found || record.ID != 44 {
+			t.Fatal("transaction request read bypassed wrapper", record, found, err)
+		}
+		record, found, err = tx.Submission(2)
+		if err != nil || !found || record.ID != 44 {
+			t.Fatal("transaction record read bypassed wrapper", record, found, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

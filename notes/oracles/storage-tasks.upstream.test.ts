@@ -142,3 +142,15 @@ it("assembles queued placement and settlement against later creation before docu
  await expect(session.commit(async tx=>{(await tx.doc(Doc,conversation.id)).text="must roll back";tx.settleSubmission(999999 as any,{status:"unanswered",reason:"x"});finished=true},context)).rejects.toThrow("does not exist");expect(finished).toBe(true);expect(predicates).toBe(0);expect(await session.snapshot(Doc,conversation.id,context)).toEqual({text:""});
  }finally{await session.close(context)}
 });
+
+it("keeps request lookup and fresh admission in the same transaction ahead of a queued raw creator",async()=>{
+ const {ControlledStorage}=await import("@pinned/support"),{chatSetup,openChat}=await import("@pinned/chat");const storage=new ControlledStorage();const {harness,root}=await openChat(storage,chatSetup());
+ try{const lookup=storage.submissionByRequest.bind(storage);let raw:Promise<any>|undefined;storage.submissionByRequest=async(...args:Parameters<typeof lookup>)=>{const existing=await lookup(...args);if(args[1]==="atomic"&&raw===undefined){raw=root.commit(tx=>tx.createSubmission({conversationId:root.id,type:"write",status:"unanswered",reason:"manual",requestId:"atomic"}),context)}return existing};
+ const submitted=await root.submit({type:"write",entry:{kind:"note",data:{text:"first"}},requestId:"atomic"},context);expect(raw).toBeDefined();const created=await raw;expect(submitted.id).toBeLessThan(created.id);
+ }finally{await harness.close(context)}
+});
+
+it("keeps transaction submission readers authoritative through installed storage wrappers",async()=>{
+ const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const storage=new ControlledStorage();const record={id:44,conversationId:1,type:"write",status:"queued"};storage.submission=async()=>record as any;storage.submissionByRequest=async()=>record as any;const session=new SessionImpl(storage,Date.now,()=>600000);
+ try{await session.commit(async tx=>{expect(await tx.submission(2 as any)).toEqual(record);expect(await tx.submissionByRequest(1 as any,"")).toEqual(record)},context)}finally{await session.close(context)}
+});

@@ -360,13 +360,10 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 
 // observe runs on the admission line; no backend callbacks, content, or retained
 // record pointers escape. Multiple writes can include older settled submissions.
-func (trace *submitTrace) observe(sub Submission) {
-	result := "done"
-	if sub.Status == "pending" || sub.Status == "running" {
-		result = "queued"
-		if sub.Type == "continue" || submissionEntryID(sub.Value["placedEntry"]) != 0 {
-			result = "placed"
-		}
+func (trace *submitTrace) observe(sub SubmissionRecord) {
+	result := sub.Status
+	if result == "unanswered" {
+		result = "done"
 	}
 	if trace.results == nil {
 		trace.results = make(map[ID]string)

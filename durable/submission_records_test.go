@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	goai "github.com/rcarmo/go-ai"
@@ -603,5 +604,65 @@ func TestV150SubmissionNativeMarshalDeterministic(t *testing.T) {
 		if got := marshalOrFail(t, sub); string(got) != string(want) {
 			t.Fatalf("nondeterministic native marshal:\n%s\n%s", want, got)
 		}
+	}
+}
+
+// Source Submissions.submit admits inside one commit. Queue a raw creation from
+// the storage-read witness: it must run after the admission that owns that read,
+// not slip between its request lookup and fresh write.
+type submissionAdmissionInterleaveStorage struct {
+	Storage
+	session      *Session
+	once         sync.Once
+	queuedResult chan struct {
+		record SubmissionRecord
+		err    error
+	}
+}
+
+func (a *submissionAdmissionInterleaveStorage) Snapshot(ctx context.Context) (Snapshot, error) {
+	state, err := a.Storage.Snapshot(ctx)
+	if err != nil {
+		return state, err
+	}
+	a.once.Do(func() {
+		go func() {
+			var record SubmissionRecord
+			_, err := a.session.Commit(bg, func(tx *Tx) error {
+				var err error
+				record, err = tx.CreateSubmission(SubmissionCreate{Conversation: 1, Type: "write", Status: "unanswered", Reason: "manual", RequestID: "atomic"})
+				return err
+			})
+			a.queuedResult <- struct {
+				record SubmissionRecord
+				err    error
+			}{record, err}
+		}()
+		a.session.jobs.waitPending(1)
+	})
+	return state, nil
+}
+func TestHarnessSubmissionLookupAndWriteUseOneAdmission(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	h := taskTestHarness(t, store)
+	conversation, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := &submissionAdmissionInterleaveStorage{Storage: store, session: h.session, queuedResult: make(chan struct {
+		record SubmissionRecord
+		err    error
+	}, 1)}
+	h.session.taskBookkeeping(func() { h.session.store = adapter })
+	submitted, err := conversation.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "note", HasData: true, Data: JSON{"text": "first"}}, RequestID: "atomic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := <-adapter.queuedResult
+	if raw.err != nil {
+		t.Fatal(raw.err)
+	}
+	if submitted.ID() >= raw.record.ID {
+		t.Fatalf("raw creation overtook the submission owning its read: submitted=%d raw=%d", submitted.ID(), raw.record.ID)
 	}
 }

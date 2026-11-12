@@ -214,7 +214,7 @@ func (s *Session) publishSessionPublication(p *preparedSessionPublication, recei
 	if trace := submitTraceFromContext(p.ctx); trace != nil {
 		for _, write := range p.tx.writes {
 			if write.Submission != nil {
-				trace.observe(*write.Submission)
+				trace.observe(publicSubmission(*write.Submission))
 			}
 		}
 	}

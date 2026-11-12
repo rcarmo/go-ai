@@ -16,6 +16,8 @@ The [durable deviation register](durable-deviations.md) tracks current evidence 
 
 [Submission transactions](../../notes/submission-transactions.md) now follow the original creation-map/deferred-change flow and return complete records. Reference coverage is166 unchanged source cases +46 probes; full parity and release acceptance remain open.
 
+[Atomic submission admission](../../notes/submission-admission.md) removes the native split lookup/write jobs and preserves Tx wrapper authority. Reference coverage is166 unchanged source cases +48 probes; full parity and release acceptance remain open.
+
 ## Historical parity backlog and contract decisions
 
 The semantic-equivalence request supersedes the earlier direction-before-runtime pauses below. Some earlier diagnoses were fixture-translation errors; the current deviation register and semantic-port receipts reconcile them.

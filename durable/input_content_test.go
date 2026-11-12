@@ -46,7 +46,7 @@ func TestRichInputBlocksOwnedQueuedAndPersistedThroughReopen(t *testing.T) {
 		// caller's mutation after Submit can be checked before provider dispatch.
 		blocks := []goai.ContentBlock{{Type: "image", Data: "BAUG", MimeType: "image/png"}}
 		second.mu.Lock()
-		handle, err := conversation.submitNewAdmission(bg, Input{Type: "steer", Content: "active image", Blocks: blocks, RequestID: "rich"}, nil)
+		handle, err := conversation.submitOnLine(bg, Input{Type: "steer", Content: "active image", Blocks: blocks, RequestID: "rich"}, nil)
 		second.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

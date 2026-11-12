@@ -142,77 +142,15 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	if len(input.RequestID) > h.session.limits.MaxRequestIDBytes {
 		return nil, reject("request ID limit")
 	}
-	var state Snapshot
-	var dedupID ID
-	e := h.session.readTasks(ctx, func(current Snapshot) error {
-		if h.closing.Load() {
-			return ErrClosed
-		}
-		if binding != nil {
-			if err := binding.check(); err != nil {
-				return err
-			}
-			if taskAborted(current.Tasks[binding.taskID]) && !binding.abortMode {
-				return reject("bound submit after abort")
-			}
-		}
-		state = current
-		if _, ok := current.Conversations[c.id]; !ok {
-			return reject("unknown conversation")
-		}
-		if input.RequestID != "" || input.RequestIDPresent {
-			var sub SubmissionRecord
-			var found bool
-			var err error
-			if h.session.hasNativeReadImage() {
-				sub, found, err = lookupSubmissionByRequest(current, h.session.limits, c.id, input.RequestID)
-			} else {
-				sub, found, err = h.session.guardedStorage().SubmissionByRequest(ctx, c.id, input.RequestID)
-			}
-			if err != nil {
-				return err
-			}
-			if found {
-				kind := input.Type
-				if kind != "write" && kind != "continue" {
-					kind = "input"
-				}
-				if sub.Type != kind {
-					return reject("request ID cross-type conflict")
-				}
-				dedupID = sub.ID
-				if sub.Status != "done" && sub.Status != "unanswered" {
-					h.scheduler.enable()
-				}
-			}
-		}
-		return nil
-	})
-	if e != nil {
-		return nil, e
-	}
-	if _, ok := state.Conversations[c.id]; !ok {
-		return nil, reject("unknown conversation")
-	}
-	if dedupID != 0 {
-		if trace := submitTraceFromContext(ctx); trace != nil {
-			trace.observe(state.Submissions[dedupID])
-		}
-		// Lookup, bound lifetime/mark check and any pending wake all belonged
-		// to the same line admission. Only diagnostic occupancy changes here.
-		if !terminalStatus(state.Submissions[dedupID].Status) {
-			h.workers[c.id] = true
-		}
-		return &SubmissionHandle{h, dedupID}, nil
-	}
-	return c.submitNewAdmission(ctx, input, binding)
+	return c.submitOnLine(ctx, input, binding)
 }
 
-// submitNewAdmission is the fresh-write admission AFTER the initial committed
-// lookup. The caller owns h.mu; lifetime/Close is rechecked inside the write.
-func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
+// submitOnLine owns one Session commit from request lookup through admission.
+// The caller owns h.mu; lifetime and binding are checked inside that commit.
+func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, binding *TaskRuntime) (*SubmissionHandle, error) {
 	h := c.h
 	var subID ID
+	var dedup *SubmissionRecord
 	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
@@ -230,6 +168,30 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 			}
 			tx.byTask = binding.taskID
 			tx.taskConversation = c.id
+		}
+		if _, found := tx.state.Conversations[c.id]; !found {
+			return reject("unknown conversation")
+		}
+		if input.RequestID != "" || input.RequestIDPresent {
+			existing, found, err := tx.SubmissionByRequest(c.id, input.RequestID)
+			if err != nil {
+				return err
+			}
+			if found {
+				kind := input.Type
+				if kind != "write" && kind != "continue" {
+					kind = "input"
+				}
+				if existing.Type != kind {
+					return reject("request ID cross-type conflict")
+				}
+				subID = existing.ID
+				dedup = &existing
+				if trace := submitTraceFromContext(ctx); trace != nil {
+					trace.observe(existing)
+				}
+				return nil
+			}
 		}
 		// A continue never queues. Reject before any IDs, documents or entries
 		// are written; the committed request-ID lookup has already returned.
@@ -429,6 +391,13 @@ func (c *ConversationHandle) submitNewAdmission(ctx context.Context, input Input
 	})
 	if e != nil {
 		return nil, e
+	}
+	if dedup != nil {
+		if dedup.Status != "done" && dedup.Status != "unanswered" {
+			h.scheduler.enable()
+			h.workers[c.id] = true
+		}
+		return &SubmissionHandle{h, subID}, nil
 	}
 	if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
 		h.scheduleLocked(c.id)

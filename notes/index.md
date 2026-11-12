@@ -50,6 +50,9 @@ Compact index. Read a linked note only when it is relevant to the current task.
 - [Submission transactions](submission-transactions.md) — complete creation results, deferred changes,
   first terminal result, assembly/predicate order and removal of public native payloads.
 
+- [Atomic submission admission](submission-admission.md) — one-transaction lookup/write ordering,
+  queued raw-creator witness, authoritative Tx wrapper reads and remaining admission forms.
+
 ## Related
 
 - Deviation register: `docs/upstream-v1.5.0/` (`durable-deviations.md`, `durable-parity-gaps.json`,
