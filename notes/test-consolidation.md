@@ -75,3 +75,24 @@ register or imply that all remaining test files should become one large suite.
 The task-table runtime port is `bb1d20f71bd2ca29c4209b51269938ab3c80e695`; the mechanical test merge and path updates are `8b3936e6dc2edf2c93900c545740c756c7ed466f`. Before committing, the pre-merge staged tree and final tree were independently compared: all2,190 normalized declarations match, including the later stronger Session getter assertion. Final declaration SHA-256: `442f3a95feab2a89a071c22f4ee7d5ea8468410231bb19854740247c78c1741f`.
 
 The staged pre-merge tree also compiled and passed the focused source-task/table, invariant, cursor and published-image selection in2.884s. Its temporary archive and parser files were deleted. Final-tree full-suite/static/fault receipts are recorded above.
+
+## Primary-read history consolidation
+
+After runtime commit `394109a`, hook-reader and after-run history suites merge
+into `durable/task_history_test.go` (two files→one). Source pins, all three test
+functions and the literal kind helper remain unchanged. The full durable test
+inventory, including unchanged build-constrained files, is checked on both sides
+of this mechanical boundary; neither input has build constraints.
+
+- Files: **597→596**; targets: **1,473**; non-import declarations: **2,198**.
+- Sorted target SHA-256: `65ac16eb7425f0c25c9afb31c1a4df24c2984c6c98275b76f10c1e5f1057c5a7`.
+- Sorted normalised-declaration SHA-256: `affdab7f0bc1c3506a06d5bd1ccff0210aaa40a20405a70b5da796218dfe3e48`.
+- Both trees match exactly. The pre-merge inputs are read from committed
+  `394109a`; all other tests are unchanged. Eight build-constrained files are
+  included in the inventory and unchanged; pure-Go verification does not imply
+  their excluded configurations ran.
+- Five shuffled focused repetitions after the move: **4.545s**. Full runtime
+  verification before the move is recorded in [primary reads](primary-record-reads.md).
+  Register/source-hash checks and diff hygiene pass. No production code changes.
+
+Temporary parser, inventories and merge scripts are deleted after comparison.
