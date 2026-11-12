@@ -620,6 +620,11 @@ func (r *TaskRuntime) Conversation(ctx context.Context, id ID) (*InvocationConve
 }
 func (c *InvocationConversation) ID() ID { return c.handle.id }
 
+// SubmitIn admits in a caller commit while retaining this invocation's binding.
+func (c *InvocationConversation) SubmitIn(tx *Tx, input Input) (ID, error) {
+	return c.handle.submitIn(tx, input, c.runtime)
+}
+
 func (c *InvocationConversation) Submit(ctx context.Context, input Input) (*InvocationSubmission, error) {
 	if err := c.runtime.check(); err != nil {
 		return nil, err

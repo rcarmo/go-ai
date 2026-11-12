@@ -11,6 +11,7 @@ import (
 type Tx struct {
 	store             *storeCore
 	session           *Session
+	identity          *Tx // Session-owned object identity; copying/wrapping does not confer ownership
 	submissions       map[ID]SubmissionRecord
 	submissionOrder   []ID
 	submissionChanges []transactionSubmissionChange

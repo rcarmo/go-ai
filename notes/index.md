@@ -51,7 +51,7 @@ Compact index. Read a linked note only when it is relevant to the current task.
   first terminal result, assembly/predicate order and removal of public native payloads.
 
 - [Atomic submission admission](submission-admission.md) — one-transaction lookup/write ordering,
-  queued raw-creator witness, authoritative Tx wrapper reads and remaining admission forms.
+  queued raw-creator witness, authoritative Tx wrapper reads and caller-owned SubmitIn admission.
 
 ## Related
 

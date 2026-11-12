@@ -351,8 +351,8 @@ func (c *ConversationHandle) beginSubmitTrace(ctx context.Context, input Input) 
 	}
 	trace := &submitTrace{span: span}
 	if span.Context != nil {
-		// Snapshot the backend's immutable carrier outside Harness/Session
-		// locks. No host callback is invoked from the admission line.
+		// Snapshot the backend's immutable carrier as data, without invoking
+		// carrier injection/extraction callbacks.
 		trace.carrier = copyTelemetryCarrier(&span.Context)
 	}
 	return trace
@@ -371,8 +371,9 @@ func (trace *submitTrace) observe(sub SubmissionRecord) {
 	trace.results[sub.ID] = result
 }
 
-// finish runs after admission releases Harness/Session locks, including when
-// validation, binding, or storage rejects the call. Error text may carry input.
+// finish ends the admission span. Standalone Submit calls it after releasing
+// admission locks; SubmitIn ends it inside the caller callback, as upstream does.
+// Error text may carry input.
 func (trace *submitTrace) finish(handle *SubmissionHandle, err error) {
 	trace.events.deliver()
 	if err != nil {

@@ -84,3 +84,5 @@ bun scripts/inventory-upstream-main.ts <mirror> \
 ```
 
 The optional release argument must resolve to the exact target before the generator writes anything. A mismatched v1.4.0 tag is rejected. The existing four-argument main mode keeps its original output contract. Raw fetched objects, npm archives, package copies, logs and completed build cache are disposed after analysis; only concise provenance/inventories/results are retained. No full-suite, profiling, native 1.5.0 release or complete alignment result.
+
+Caller-owned [submission admission](../../notes/submission-admission.md#caller-owned-transaction-admission) now has the `SubmitIn(*Tx,Input)` spelling with ownership/fence/rollback controls. Reference coverage is189 unchanged source cases +48 probes; the complete native submit-in-commit assertion set remains open.

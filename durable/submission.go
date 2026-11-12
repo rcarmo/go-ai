@@ -89,6 +89,59 @@ type generationCheckpoint struct {
 func (c *ConversationHandle) Submit(ctx context.Context, input Input) (*SubmissionHandle, error) {
 	return c.submitBound(ctx, input, nil)
 }
+
+// SubmitIn admits a draft in the caller's commit and returns its ID. Admission
+// is stored or lost with that commit, and must precede its first table write.
+func (c *ConversationHandle) SubmitIn(tx *Tx, input Input) (id ID, err error) {
+	return c.submitIn(tx, input, nil)
+}
+func (c *ConversationHandle) submitIn(tx *Tx, input Input, binding *TaskRuntime) (id ID, err error) {
+	if binding != nil {
+		if err = binding.check(); err != nil {
+			return 0, err
+		}
+	}
+	if tx == nil || tx.session != c.h.session || tx.identity != tx {
+		//lint:ignore ST1005 Exact pinned transaction-ownership diagnostic.
+		return 0, fmt.Errorf("The transaction belongs to another Session")
+	}
+	if tx.hasTableWrite {
+		return 0, &ReadAfterWrite{Method: "submit(tx, draft)"}
+	}
+	if err = tx.enter(); err != nil {
+		return 0, err
+	}
+	tx.leave()
+	c.h.scheduler.enable()
+	ctx := tx.ctx
+	trace := c.beginSubmitTrace(ctx, input)
+	if trace != nil {
+		ctx = context.WithValue(ctx, submitTelemetryContextKey{}, trace)
+		defer func() {
+			var handle *SubmissionHandle
+			if err == nil {
+				handle = &SubmissionHandle{c.h, id}
+			}
+			trace.finish(handle, err)
+		}()
+	}
+	input, err = c.prepareSubmissionInput(input)
+	if err != nil {
+		return 0, err
+	}
+	id, _, err = c.admitSubmission(ctx, tx, input, binding)
+	if err == nil && trace != nil {
+		state, e := tx.current()
+		if e != nil {
+			return 0, e
+		}
+		if sub, ok := state.Submissions[id]; ok {
+			trace.observe(publicSubmission(sub))
+		}
+	}
+	return id, err
+}
+
 func (c *ConversationHandle) submitBound(ctx context.Context, input Input, binding *TaskRuntime) (handle *SubmissionHandle, err error) {
 	trace := c.beginSubmitTrace(ctx, input)
 	if trace != nil {
@@ -113,34 +166,9 @@ func (c *ConversationHandle) submitAdmission(ctx context.Context, input Input, b
 	if h.closing.Load() {
 		return nil, ErrClosed
 	}
-	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" && input.WhenBusy != "followUp" {
-		return nil, reject("invalid busy mode")
-	}
-	if input.WhenIdle != "" && input.WhenIdle != "reject" {
-		return nil, reject("invalid idle mode")
-	}
-	if input.WhenIdle != "" && input.Type != "" && input.Type != "input" && input.Type != "follow-up" && input.Type != "steer" {
-		return nil, reject("idle mode requires input")
-	}
-	if input.Type == "" || input.Type == "input" {
-		input.Type = "follow-up"
-		if input.WhenBusy == "steer" {
-			input.Type = "steer"
-		}
-	}
-	if input.Entry != nil && input.Type != "write" && input.Type != "continue" {
-		if err := validateInputMetadata(input.Entry); err != nil {
-			return nil, err
-		}
-	}
-	if input.Type == "write" && input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
-		return nil, reject("passive entry and content conflict")
-	}
-	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" && input.Type != "continue" {
-		return nil, ErrUnsupported
-	}
-	if len(input.RequestID) > h.session.limits.MaxRequestIDBytes {
-		return nil, reject("request ID limit")
+	input, err := c.prepareSubmissionInput(input)
+	if err != nil {
+		return nil, err
 	}
 	return c.submitOnLine(ctx, input, binding)
 }
@@ -151,8 +179,68 @@ func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, bind
 	h := c.h
 	var subID ID
 	var dedup *SubmissionRecord
-	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
 	_, e := h.session.Commit(ctx, func(tx *Tx) error {
+		var err error
+		subID, dedup, err = c.admitSubmission(ctx, tx, input, binding)
+		return err
+	})
+	if e != nil {
+		return nil, e
+	}
+	if dedup != nil {
+		if dedup.Status != "done" && dedup.Status != "unanswered" {
+			h.scheduler.enable()
+			h.workers[c.id] = true
+		}
+		return &SubmissionHandle{h, subID}, nil
+	}
+	if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
+		h.scheduleLocked(c.id)
+	}
+	return &SubmissionHandle{h, subID}, nil
+}
+func (c *ConversationHandle) prepareSubmissionInput(input Input) (Input, error) {
+	h := c.h
+	if input.WhenBusy != "" && input.WhenBusy != "reject" && input.WhenBusy != "steer" && input.WhenBusy != "follow-up" && input.WhenBusy != "followUp" {
+		return input, reject("invalid busy mode")
+	}
+	if input.WhenIdle != "" && input.WhenIdle != "reject" {
+		return input, reject("invalid idle mode")
+	}
+	if input.WhenIdle != "" && input.Type != "" && input.Type != "input" && input.Type != "follow-up" && input.Type != "steer" {
+		return input, reject("idle mode requires input")
+	}
+	if input.Type == "" || input.Type == "input" {
+		input.Type = "follow-up"
+		if input.WhenBusy == "steer" {
+			input.Type = "steer"
+		}
+	}
+	if input.Entry != nil && input.Type != "write" && input.Type != "continue" {
+		if err := validateInputMetadata(input.Entry); err != nil {
+			return input, err
+		}
+	}
+	if input.Type == "write" && input.Entry != nil && (input.Content != "" || len(input.Blocks) > 0) {
+		return input, reject("passive entry and content conflict")
+	}
+	if input.Type != "follow-up" && input.Type != "steer" && input.Type != "write" && input.Type != "continue" {
+		return input, ErrUnsupported
+	}
+	if len(input.RequestID) > h.session.limits.MaxRequestIDBytes {
+		return input, reject("request ID limit")
+	}
+	return input, nil
+}
+
+// admitSubmission is shared by standalone and caller-owned commits. It neither
+// opens a transaction nor acquires Harness.mu (the caller may own the Session line).
+func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input Input, binding *TaskRuntime) (ID, *SubmissionRecord, error) {
+	h := c.h
+	var subID ID
+	var dedup *SubmissionRecord
+	carrier := submissionTelemetryCarrier(submitTraceFromContext(ctx))
+	err := func() error {
 		if err := tx.touchKeys(ALL_KEYS); err != nil {
 			return err
 		}
@@ -388,22 +476,10 @@ func (c *ConversationHandle) submitOnLine(ctx context.Context, input Input, bind
 			return h.startQueuedRunBoundary(tx, c.id, 0, false)
 		}
 		return nil
-	})
-	if e != nil {
-		return nil, e
-	}
-	if dedup != nil {
-		if dedup.Status != "done" && dedup.Status != "unanswered" {
-			h.scheduler.enable()
-			h.workers[c.id] = true
-		}
-		return &SubmissionHandle{h, subID}, nil
-	}
-	if input.Type == "follow-up" || input.Type == "steer" || input.Type == "continue" {
-		h.scheduleLocked(c.id)
-	}
-	return &SubmissionHandle{h, subID}, nil
+	}()
+	return subID, dedup, err
 }
+
 func (h *Harness) Submission(ctx context.Context, id ID) (*SubmissionHandle, error) {
 	if h.closing.Load() {
 		return nil, ErrClosed

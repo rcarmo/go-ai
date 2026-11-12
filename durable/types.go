@@ -40,6 +40,9 @@ var (
 type ReadAfterWrite struct{ Method string }
 
 func (e *ReadAfterWrite) Error() string {
+	if e.Method == "submit(tx, draft)" {
+		return e.Method + " cannot read tables after the first table write"
+	}
 	return "Tx." + e.Method + "() cannot read tables after the first table write"
 }
 

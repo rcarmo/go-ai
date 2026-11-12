@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1003,5 +1004,282 @@ func TestTxSubmissionReadersUseInstalledWrapperAuthority(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Source harness-submit-in-commit.test.ts:232-248 callback rollback.
+func TestSubmitInRollsBackWithCallerCommit(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	h := taskTestHarness(t, store)
+	c, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submit := c
+	// openChat materialises its root builtin documents before the assertion baseline.
+	if _, err = h.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		t.Fatal(err)
+	}
+	before, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("host check failed")
+	var id ID
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		var err error
+		id, err = submit.SubmitIn(tx, Input{Type: "input", Content: "hi", RequestID: "r1"})
+		if err != nil {
+			return err
+		}
+		return failure
+	})
+	if !errors.Is(err, failure) || id == 0 {
+		t.Fatal(id, err)
+	}
+	after, err := h.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq || len(after.Submissions) != len(before.Submissions) || len(after.Entries) != len(before.Entries) || len(after.Tasks) != len(before.Tasks) {
+		t.Fatal("caller rollback leaked admission", before.Seq, after.Seq, err)
+	}
+	if live := mainContinueBoundaryDocument(t, after, 1, "pi.live"); len(generationObject(live["run"])) != 0 {
+		t.Fatal("rollback started a run", live)
+	}
+	if _, found, err := h.session.SubmissionByRequest(bg, 1, "r1"); err != nil || found {
+		t.Fatal(found, err)
+	}
+}
+
+// Source harness-submit-in-commit.test.ts:403-419 ownership; a Go wrapper
+// retaining the private owner is not the Session-created transaction object.
+func TestSubmitInRejectsForeignAndCopiedTransactions(t *testing.T) {
+	h := taskTestHarness(t, taskConformanceStoreV150(t))
+	other := taskTestHarness(t, taskConformanceStoreV150(t))
+	c, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submit := c
+	for _, foreign := range []bool{false, true} {
+		owner := h
+		if foreign {
+			owner = other
+		}
+		_, err := owner.Commit(bg, func(tx *Tx) error {
+			candidate := tx
+			if !foreign {
+				candidate = &Tx{session: tx.session, identity: tx.identity}
+			}
+			_, err := submit.SubmitIn(candidate, Input{Type: "write", Entry: &Entry{Kind: "app.note"}})
+			return err
+		})
+		if err == nil || !strings.Contains(err.Error(), "The transaction belongs to another Session") {
+			t.Fatal("unowned transaction admitted", foreign, err)
+		}
+	}
+}
+
+// Source-derived from harness-submit-in-commit.test.ts:341-365: rejects every
+// path after a table write, including dedup and a
+// second admission. A host document write may precede admission.
+func TestSubmitInReadAfterWriteFenceAndOneCommit(t *testing.T) {
+	store := taskConformanceStoreV150(t)
+	h := taskTestHarness(t, store)
+	c, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submit := c
+	notes := mustDefinition(t, DefinitionOptions{Kind: "source.submit.sent", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"id": 0}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	var id ID
+	before, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		doc, err := tx.AcquireDocument(notes, 1, nil, nil)
+		if err != nil {
+			return err
+		}
+		id, err = submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "committed"}}, RequestID: "r1"})
+		if err != nil {
+			return err
+		}
+		if err = doc.Set(JSON{"id": int(id)}); err != nil {
+			return err
+		}
+		entry, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		return tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := h.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq+1 || len(after.Submissions) != 1 || len(after.Entries) != 2 {
+		t.Fatal("admission was not one commit", before.Seq, after.Seq, err)
+	}
+	value, found, err := h.SnapshotDefinition(bg, notes, 1, nil)
+	if err != nil || !found || !equalJSONValue(value.Copy(), JSON{"id": int(id)}) {
+		t.Fatalf("value=%#v id=%d found=%v err=%v", value.Copy(), id, found, err)
+	}
+	for _, second := range []bool{false, true} {
+		_, err = h.Commit(bg, func(tx *Tx) error {
+			if second {
+				if _, err := submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note"}}); err != nil {
+					return err
+				}
+			} else {
+				entry, err := tx.MintID()
+				if err != nil {
+					return err
+				}
+				if err = tx.AppendEntry(Entry{ID: entry, Conversation: 1, Kind: "app.note"}); err != nil {
+					return err
+				}
+			}
+			_, err := submit.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "app.note"}, RequestID: "r1"})
+			return err
+		})
+		var fenced *ReadAfterWrite
+		if !errors.As(err, &fenced) || err.Error() != "submit(tx, draft) cannot read tables after the first table write" {
+			t.Fatal(second, err)
+		}
+	}
+}
+
+// Source harness-submit-in-commit.test.ts:322-340, unchanged admission/rejection
+// assertions. A caught idle refusal must not consume a durable commit.
+func TestSubmitInCaughtIdleRefusalHasNoWrites(t *testing.T) {
+	h := taskTestHarness(t, taskConformanceStoreV150(t))
+	c, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// openChat materialises its root builtin documents before the assertion baseline.
+	if _, err = h.Commit(bg, func(tx *Tx) error { return initializeBuiltins(tx, 1) }); err != nil {
+		t.Fatal(err)
+	}
+	before, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome := ""
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		_, err := c.SubmitIn(tx, Input{Type: "input", Content: "hi", WhenBusy: "steer", WhenIdle: "reject"})
+		if err == nil {
+			outcome = "admitted"
+		} else if errors.Is(err, ErrConversationIdle) {
+			outcome = "idle"
+		} else {
+			outcome = "other"
+		}
+		return nil
+	})
+	if err != nil || outcome != "idle" {
+		t.Fatal(outcome, err)
+	}
+	after, err := h.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal(before.Seq, after.Seq, err)
+	}
+	if live := mainContinueBoundaryDocument(t, after, 1, "pi.live"); len(generationObject(live["run"])) != 0 {
+		t.Fatal("idle refusal started a run", live)
+	}
+}
+
+func TestSubmitInCaughtTableFailureStillFencesAndEscapedTxRejects(t *testing.T) {
+	h := taskTestHarness(t, taskConformanceStoreV150(t))
+	c, err := h.Conversation(bg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var escaped *Tx
+	_, err = h.Commit(bg, func(tx *Tx) error { escaped = tx; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.SubmitIn(escaped, Input{Type: "input", Content: "late"}); !errors.Is(err, ErrSealed) {
+		t.Fatal(err)
+	}
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		if _, err := tx.CreateSubmission(SubmissionCreate{Conversation: 999, Type: "input"}); err == nil {
+			t.Fatal("missing conversation accepted")
+		}
+		_, err := c.SubmitIn(tx, Input{Type: "input", Content: "late"})
+		return err
+	})
+	var fenced *ReadAfterWrite
+	if !errors.As(err, &fenced) {
+		t.Fatal(err)
+	}
+}
+
+// Source harness-submit-in-commit.test.ts:309-320 and385-401: transaction
+// dedup consumes no commit; a busy continue rejects, while whenIdle steers.
+func TestSubmitInBusyContinueSteerAndDedup(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		select {
+		case <-entered:
+		default:
+			close(entered)
+		}
+		go func() {
+			select {
+			case <-release:
+				ch <- terminal("done")
+			case <-ctx.Done():
+			}
+			close(ch)
+		}()
+		return ch
+	})
+	h := openHarness(t, store, options)
+	t.Cleanup(unblock)
+	c := root(t, h, ref)
+	if _, err = c.Submit(bg, Input{Type: "input", Content: "work"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("model did not start")
+	}
+	_, err = h.Commit(bg, func(tx *Tx) error { _, err := c.SubmitIn(tx, Input{Type: "continue"}); return err })
+	if !errors.Is(err, ErrConversationBusy) {
+		t.Fatal(err)
+	}
+	var steer ID
+	draft := Input{Type: "input", Content: "steer", WhenBusy: "steer", WhenIdle: "reject", RequestID: "r1"}
+	_, err = h.Commit(bg, func(tx *Tx) error { var err error; steer, err = c.SubmitIn(tx, draft); return err })
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox := mainContinueBoundaryDocument(t, before, c.ID(), "pi.inbox")
+	items, ok := inbox["items"].([]any)
+	if !ok || len(items) != 1 || submissionEntryID(generationObject(items[0])["id"]) != steer {
+		t.Fatal("steer inbox IDs", inbox)
+	}
+	var again ID
+	_, err = h.Commit(bg, func(tx *Tx) error { var err error; again, err = c.SubmitIn(tx, draft); return err })
+	if err != nil || again != steer {
+		t.Fatal(steer, again, err)
+	}
+	after, err := h.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq {
+		t.Fatal("dedup consumed a commit", before.Seq, after.Seq, err)
 	}
 }

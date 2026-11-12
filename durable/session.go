@@ -450,6 +450,7 @@ func (s *Session) commitJob(ctx context.Context, callback func(*Tx) error, exter
 		return 0, e
 	}
 	tx = &Tx{store: s.core, ctx: ctx, limits: s.limits, state: state, session: s, externalTaskCommit: external, progressTask: taskID, keyedReads: keyedReads}
+	tx.identity = tx
 	defer tx.seal()
 	if err = callback(tx); err != nil {
 		return 0, err

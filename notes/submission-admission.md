@@ -33,3 +33,24 @@ This closes the reproduced lookup/write job gap. It does not accept every source
 - Reference: **166 unchanged source cases +48 independent probes**:158 tests from eight original files, eight unchanged Storage conformance cases,35 admission probes and13 Storage/transaction/admission probes. Source hashes/tree checks retain their existing provenance limit: the retained snapshot has no `.git`, so commit identity is not independently reverified.
 
 Tests remain in the existing version-neutral submission/transaction suites. These are development receipts, without race or pre-release CPU/allocation acceptance. The earlier queued progress/close error-order caveat remains open under D20; the full parity/release checklist remains incomplete.
+
+## Caller-owned transaction admission
+
+`ConversationHandle.SubmitIn(tx, input)` now maps the original `submit(tx, draft)` form. It returns the submission ID, not a handle. `InvocationConversation.SubmitIn` retains the invocation binding. The implementation shares the actual admission body with standalone Submit: it does not open a nested commit or acquire Harness.mu while the caller owns the Session line.
+
+The Session-created Tx has a private self-identity witness. A foreign Session or a wrapper retaining the owner pointer does not acquire transaction authority. This implements original WeakSet object membership without retaining every completed transaction. The unconditional first-table-write fence precedes all request/dedup paths and retains the exact original diagnostic. Escaped sealed transactions reject. Scheduler progress is requested before admission; writes remain provisional until the caller commits. The transaction context supplies the admission trace; the caller-owned span ends inside the callback, as in the source.
+
+Test-first API controls failed before implementation. Tests remain in `transaction_tables_test.go`:
+
+- Source callback rollback: input/request creation, entries and tasks disappear; no run or sequence advance.
+- Source ownership refusal: foreign Session and a wrapper carrying private ownership data reject with the original diagnostic. The Go wrapper check is not JavaScript Proxy coverage.
+- Source caught idle rejection: no sequence advance or started run. The fixture materialises builtin documents before the baseline, matching openChat.
+- Source busy-continue/whenIdle and dedup packets: continue rejects, steer is the only queued ID, repeated request returns the same ID without a commit.
+- Source-derived atomic host-document/admission/host-entry control, using a passive write rather than the original busy-steer packet. It checks one commit and retained host data; it does not claim the source packet's exact Inbox/Live shapes.
+- Source-derived first/second-admission and caught failed-write fences, plus sealed-transaction rejection.
+
+The original runner now includes all23 unchanged `harness-submit-in-commit.test.ts` cases. Reference totals are **189 unchanged source cases +48 probes**:181 cases across nine original files, eight unchanged Storage conformance cases,35 admission probes and13 other probes. These original executions do not mean all23 assertions have native counterparts.
+
+Verification: full durable **421.225s**, tools **15.752s**; ten focused shuffled repetitions (seed42) **9.547s**; repository vet, Staticcheck v0.8.2 and logging pass. Two independent compiler overlays removing exact object identity or the unconditional fence fail the corresponding semantic tests. Disposable overlays are deleted. An earlier full run failed only the new host-document assertion's incorrectly typed expected number; its corrected assertion and the subsequent full suite pass.
+
+Still open: the literal busy-steer atomic packet's complete canonical Inbox/Live assertions, Storage failure/reopen, model-visible passive writes, failed-run continuation, trace carriers/running-trace links, task-bound lifetime/close and exhaustive resume ordering. The private builtin scheduler/envelopes remain historical. Complete callback/result/options semantics, D04, D20's prior close caveat and pre-release profiling remain unaccepted. No parity/release claim follows from this slice.
