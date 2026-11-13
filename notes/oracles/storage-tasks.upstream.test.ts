@@ -164,3 +164,20 @@ it("stores canonical queued block content, picked input metadata and passive ent
  expect(await harness.snapshot(InboxDoc,root.id,context)).toEqual({items:[{id:input,mode:"steer",content:[{type:"text",text:"hi"}],entry:{kind:"app.ask",data:null}},{id:write,mode:"write",entry}]});
  }finally{await harness.close(context)}
 });
+
+it("uses canonical Inbox entry drafts without submission payloads, including a terminal record",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{ControlledStorage}=await import("@pinned/support"),{InboxDoc}=await import("@earendil-works/pi-durable");
+ for(const terminal of [false,true]){const {harness,root}=await openChat(new ControlledStorage(),chatSetup());try{
+ const write=await harness.commit(async tx=>{const record=await tx.createSubmission({conversationId:root.id,type:"write",status:terminal?"done":"queued",...(terminal?{entry:999999 as any}:{})} as any);(await tx.doc(InboxDoc,root.id)).items.push({id:record.id,mode:"write",entry:{kind:"app.note",data:null,model:[{role:"user",content:[{type:"text",text:"canonical note"}],timestamp:1}]}});return record},context);
+ await root.submit({type:"input",content:"hi"},context);
+ const entries=await root.entries({},10,undefined,context);const placed=entries.items.find(e=>e.kind==="app.note");expect(placed).toMatchObject({kind:"app.note",data:null,model:[{role:"user",content:[{type:"text",text:"canonical note"}],timestamp:1}]});
+ expect(await (await harness.submission(write.id,context))!.status(context)).toMatchObject({status:"done",entry:terminal?999999:placed!.id});
+ }finally{await harness.close(context)}}
+});
+
+it("defers a missing Inbox write's target error until after the admission callback",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{ControlledStorage}=await import("@pinned/support"),{InboxDoc}=await import("@earendil-works/pi-durable");const {harness,root}=await openChat(new ControlledStorage(),chatSetup());try{
+ await harness.commit(async tx=>{(await tx.doc(InboxDoc,root.id)).items.push({id:999999 as any,mode:"write",entry:{kind:"app.note"}})},context);
+ let finished=false;await expect(harness.commit(async tx=>{await root.submit(tx,{type:"input",content:"hi"});finished=true},context)).rejects.toThrow("Submission 999999 does not exist");expect(finished).toBe(true);
+ }finally{await harness.close(context)}
+});

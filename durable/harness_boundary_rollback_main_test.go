@@ -8,7 +8,8 @@ import (
 // Native source-derived rollback control, not a full upstream test-body port:
 // official v1.5.0 f9a26365568127461c47a07a37dcb42c140a3ac5 inbox.ts
 // applyBoundary. A rejected candidate must not mutate the adopted submission
-// through readtx.current's shared Value, whether appending or classifying stale.
+// through adopted records, whether appending or classifying stale. Placement and
+// settlement stay queued until assembly, as in the original transaction.
 // Session admission controls keep scheduling disabled; all IDs are really minted
 // and all queued passive writes are admitted by the public Submit path.
 func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
@@ -63,7 +64,7 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 				if anchor == 0 || placed.Entries[anchor].ID != anchor || h.scheduler.enabled.Load() {
 					t.Fatal("fixture must own a real placed input with scheduling disabled")
 				}
-				draft := Entry{Kind: "app.note", Value: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}
+				draft := Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}
 				if stale {
 					draft.Head = anchor
 				}
@@ -129,14 +130,27 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 						return err
 					}
 					sub := candidate.Submissions[write.ID()]
-					candidateEntry = publicSubmission(sub).Entry
-					if stale {
-						if sub.Status != "failed" || sub.Value["errorCode"] != "stale" || candidateEntry != 0 || len(candidate.Entries) != len(before.Entries) {
-							t.Fatal("rejection must follow actual stale classification, without appending W", sub)
-						}
-					} else if sub.Status != "done" || candidateEntry == 0 || candidate.Entries[candidateEntry].Kind != "app.note" || candidate.Entries[candidateEntry].Value["text"] != "W" || len(candidate.Entries) != len(before.Entries)+1 {
-						t.Fatal("rejection must follow actual W append and settlement", sub)
+					if publicSubmission(sub).Status != "queued" {
+						t.Fatal("placement must stay deferred until assembly", sub)
 					}
+					var change *transactionSubmissionChange
+					for i := range tx.submissionChanges {
+						if tx.submissionChanges[i].id == write.ID() {
+							change = &tx.submissionChanges[i]
+						}
+					}
+					if change == nil {
+						t.Fatal("boundary did not queue a submission change")
+					}
+					candidateEntry = change.entry
+					if stale {
+						if change.placement || change.settlement.Status != "unanswered" || change.settlement.Reason != "stale" || candidateEntry != 0 || len(candidate.Entries) != len(before.Entries) {
+							t.Fatal("rejection must follow actual stale classification", change)
+						}
+					} else if !change.placement || candidateEntry == 0 || candidate.Entries[candidateEntry].Kind != "app.note" || generationObject(candidate.Entries[candidateEntry].Data)["text"] != "W" || len(candidate.Entries) != len(before.Entries)+1 {
+						t.Fatal("rejection must follow append and queued placement", change)
+					}
+
 					requireInbox(candidate, 0)
 					classified = true
 					return refusal
@@ -191,7 +205,7 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 					if settled.Status != "failed" || settled.Value["errorCode"] != "stale" || entry != 0 || len(after.Entries) != len(before.Entries) {
 						t.Error("positive stale control", settled)
 					}
-				} else if settled.Status != "done" || entry == 0 || entry == candidateEntry || after.Entries[entry].Kind != "app.note" || after.Entries[entry].Value["text"] != "W" || len(after.Entries) != len(before.Entries)+1 {
+				} else if settled.Status != "done" || entry == 0 || entry == candidateEntry || after.Entries[entry].Kind != "app.note" || generationObject(after.Entries[entry].Data)["text"] != "W" || len(after.Entries) != len(before.Entries)+1 {
 					t.Error("positive append control", settled)
 				}
 				requireInbox(after, 0)

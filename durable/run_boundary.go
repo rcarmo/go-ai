@@ -121,6 +121,10 @@ func removeRunInputs(tx *Tx, conversation ID, cp generationCheckpoint) error {
 // Reset entries and passive writes share one ordered boundary lane. A stale
 // write appends nothing and cannot supply first; no historical scan is used.
 func (h *Harness) placeFinalBoundaryWrites(tx *Tx, conversation ID) (ID, error) {
+	return h.placeBoundaryWrites(tx, conversation, true)
+}
+
+func (h *Harness) placeBoundaryWrites(tx *Tx, conversation ID, final bool) (ID, error) {
 	inbox, err := builtin(tx, conversation, "pi.inbox")
 	if err != nil {
 		return 0, err
@@ -141,6 +145,10 @@ func (h *Harness) placeFinalBoundaryWrites(tx *Tx, conversation ID) (ID, error) 
 			return 0, reject("inbox item")
 		}
 		if item["mode"] == "reset" {
+			if !final {
+				keep = append(keep, raw)
+				continue
+			}
 			text, _ := item["content"].(string)
 			id, err := appendResetEntry(tx, conversation, text)
 			if err != nil {
@@ -155,38 +163,38 @@ func (h *Harness) placeFinalBoundaryWrites(tx *Tx, conversation ID) (ID, error) 
 			keep = append(keep, raw)
 			continue
 		}
+		// applyBoundary uses the Inbox draft and queues a placement/settlement.
+		// It does not consult a submission payload or suppress an append just
+		// because the current submission is terminal. Assembly resolves it.
+		draft, ok := item["entry"].(map[string]any)
+		if !ok {
+			return 0, reject("inbox write entry absent")
+		}
 		state, err := tx.current()
 		if err != nil {
 			return 0, err
 		}
-		sub, ok := state.Submissions[submissionEntryID(item["id"])]
-		if !ok || sub.Type != "write" {
-			return 0, reject("write submission missing")
-		}
-		if terminalStatus(sub.Status) {
-			continue
-		}
-		sub.Value, err = copyObject(sub.Value, tx.limits)
+		view, err := deriveContextView(state, conversation, 0, tx.limits)
 		if err != nil {
 			return 0, err
 		}
-		stale, err := passiveHeadStale(state, conversation, sub.Value, tx.limits)
-		if err != nil {
-			return 0, err
-		}
-		if stale {
-			sub.Status, sub.Value["errorCode"] = "failed", "stale"
-		} else {
-			if err := appendPassiveWrite(tx, conversation, sub.Value); err != nil {
+		head := submissionEntryID(draft["head"])
+		submission := submissionEntryID(item["id"])
+		if head != 0 && view.Head != nil && head < view.Head.Head {
+			if err := tx.SettleSubmission(submission, SubmissionSettlement{Status: "unanswered", Reason: "stale"}); err != nil {
 				return 0, err
 			}
-			sub.Status = "done"
-			if first == 0 {
-				first, _ = sub.Value["placedEntry"].(ID)
-			}
+			continue
 		}
-		if err := tx.PutSubmission(sub); err != nil {
+		entry, err := appendInboxEntry(tx, conversation, JSON(draft))
+		if err != nil {
 			return 0, err
+		}
+		if err = tx.PlaceSubmission(submission, entry); err != nil {
+			return 0, err
+		}
+		if first == 0 {
+			first = entry
 		}
 	}
 	if err := inbox.Update(func(value JSON) error { value["items"] = keep; return nil }); err != nil {

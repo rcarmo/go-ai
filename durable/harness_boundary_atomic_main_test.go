@@ -133,7 +133,7 @@ func TestMainBoundaryAtomicSuccessorPublication(t *testing.T) {
 					}
 					queued = append(queued, sub)
 				}
-				w, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", Value: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
+				w, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
 				if err != nil {
 					t.Fatal(err)
 				}

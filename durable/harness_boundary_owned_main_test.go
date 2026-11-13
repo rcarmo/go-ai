@@ -208,7 +208,7 @@ func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 					next, err = c.Submit(bg, input)
 				case "passive-write":
 					// Model contribution deliberately prevents the busy-write fast path.
-					next, err = c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.boundary.note", Value: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
+					next, err = c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.boundary.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
 				case "reset":
 					err = c.Reset(bg, "fresh")
 				}
@@ -239,7 +239,7 @@ func TestMainBoundaryOwnedAfterResponseHeldAdmission(t *testing.T) {
 					if mode == "passive-write" {
 						status := publicSubmission(placed.Submissions[next.ID()])
 						entry := placed.Entries[status.Entry]
-						if status.Status != "done" || entry.ID == 0 || entry.Kind != "app.boundary.note" || entry.Conversation != c.ID() || entry.ByTask != 0 || entry.Value["text"] != "W" || len(entry.Model) != 1 || entry.Model[0].Role != goai.RoleUser || entry.Model[0].Content[0].Text != "W" {
+						if status.Status != "done" || entry.ID == 0 || entry.Kind != "app.boundary.note" || entry.Conversation != c.ID() || entry.ByTask != 0 || generationObject(entry.Data)["text"] != "W" || len(entry.Model) != 1 || entry.Model[0].Role != goai.RoleUser || entry.Model[0].Content[0].Text != "W" {
 							t.Fatal("model-contributing passive write stranded behind held A", status, entry)
 						}
 					} else {

@@ -88,3 +88,5 @@ The optional release argument must resolve to the exact target before the genera
 Caller-owned [submission admission](../../notes/submission-admission.md#caller-owned-transaction-admission) now has the `SubmitIn(*Tx,Input)` spelling with ownership/fence/rollback controls. Reference coverage is189 unchanged source cases +48 probes; the complete native submit-in-commit assertion set remains open.
 
 The [current completion report](../../notes/upstream-conformance-report.md) records canonical queued Inbox drafts, the full atomic busy-steer assertion packet and remaining blockers. Latest reference coverage:189 unchanged source cases +49 probes. The full migration is not complete.
+
+Canonical queued write consumption now follows Inbox drafts and defers target transitions to assembly; see the [updated report](../../notes/upstream-conformance-report.md). The [expanded original oracle](../../notes/upstream-oracle.md) reaches all99 Node test files but retains four original fixture/resource failures; it is not a full-oracle pass or native parity claim.

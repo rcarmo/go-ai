@@ -179,7 +179,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		write, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", Value: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
+		write, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +244,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		}
 		wEntry, wExists := state.Entries[wStatus.Entry]
 		bEntry, bExists := state.Entries[bStatus.Entry]
-		if !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || legacyEntryValue(wEntry)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Type != "text" || wEntry.Model[0].Content[0].Text != "W" {
+		if !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || generationObject(wEntry.Data)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Type != "text" || wEntry.Model[0].Content[0].Text != "W" {
 			t.Fatal("W must retain its real model contribution and application entry", wEntry)
 		}
 		if !bExists || bEntry.Conversation != c.ID() || !isMessageEntry(bEntry) || bEntry.ID == wEntry.ID || bEntry.ID == aStatus.Entry || wEntry.ID == aStatus.Entry {

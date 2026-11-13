@@ -152,7 +152,7 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				write, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", Value: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
+				write, err := c.Submit(bg, Input{Type: "write", Entry: &Entry{Kind: "app.note", HasData: true, Data: JSON{"text": "W"}, Model: []MessageReceipt{userReceipt("W")}}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -199,7 +199,7 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				bStatus := publicSubmission(state.Submissions[bSub.ID()])
 				wEntry, wExists := state.Entries[wStatus.Entry]
 				bEntry, bExists := state.Entries[bStatus.Entry]
-				if wStatus.Status != "done" || wStatus.Entry == 0 || wStatus.Answer != 0 || !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || legacyEntryValue(wEntry)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Text != "W" {
+				if wStatus.Status != "done" || wStatus.Entry == 0 || wStatus.Answer != 0 || !wExists || wEntry.Conversation != c.ID() || wEntry.Kind != "app.note" || generationObject(wEntry.Data)["text"] != "W" || len(wEntry.Model) != 1 || wEntry.Model[0].Role != goai.RoleUser || len(wEntry.Model[0].Content) != 1 || wEntry.Model[0].Content[0].Text != "W" {
 					t.Fatal("W must settle done at its own persisted model-contributing entry", wStatus, wEntry)
 				}
 				if bStatus.Status != "placed" || bStatus.Entry == 0 || bStatus.Entry == wStatus.Entry || bStatus.Entry == aStatus.Entry || bStatus.Answer != 0 || !bExists || bEntry.Conversation != c.ID() || !isMessageEntry(bEntry) {

@@ -2,7 +2,6 @@ package durable
 
 import (
 	"fmt"
-	"strconv"
 )
 
 func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
@@ -36,75 +35,8 @@ func appendPassiveWrite(tx *Tx, conversation ID, value JSON) error {
 	return nil
 }
 func (h *Harness) placeQueuedWrites(tx *Tx, conversation ID) error {
-	inbox, err := builtin(tx, conversation, "pi.inbox")
-	if err != nil {
-		return err
-	}
-	value, err := inbox.Get()
-	if err != nil {
-		return err
-	}
-	items, ok := value["items"].([]any)
-	if !ok {
-		return reject("inbox shape")
-	}
-	keep := []any{}
-	changed := false
-	for _, item := range items {
-		object, ok := item.(map[string]any)
-		if !ok {
-			return reject("inbox item")
-		}
-		if object["mode"] != "write" {
-			keep = append(keep, item)
-			continue
-		}
-		number, err := strconv.ParseUint(fmt.Sprint(object["id"]), 10, 64)
-		if err != nil {
-			return err
-		}
-		sub, ok := tx.state.Submissions[ID(number)]
-		if !ok || sub.Type != "write" {
-			return reject("queued write missing")
-		}
-		if !terminalStatus(sub.Status) {
-			state, err := tx.current()
-			if err != nil {
-				return err
-			}
-			stale, err := passiveHeadStale(state, conversation, sub.Value, tx.limits)
-			if err != nil {
-				return err
-			}
-			if stale {
-				sub.Status = "failed"
-				value, err := copyObject(sub.Value, tx.limits)
-				if err != nil {
-					return err
-				}
-				value["errorCode"] = "stale"
-				sub.Value = value
-			} else {
-				sub.Value, err = copyObject(sub.Value, tx.limits)
-				if err != nil {
-					return err
-				}
-				if err := appendPassiveWrite(tx, conversation, sub.Value); err != nil {
-					return err
-				}
-				sub.Status = "done"
-			}
-			if err := tx.PutSubmission(sub); err != nil {
-				return err
-			}
-		}
-		changed = true
-	}
-	if changed {
-		value["items"] = keep
-		return inbox.Set(value)
-	}
-	return nil
+	_, err := h.placeBoundaryWrites(tx, conversation, false)
+	return err
 }
 
 func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error) {
@@ -215,4 +147,34 @@ func inboxEntryDraft(entry Entry, limits Limits) (JSON, error) {
 		delete(draft, key)
 	}
 	return draft, nil
+}
+
+// appendInboxEntry is the EntryDraft append in pinned inbox.ts applyBoundary.
+// The draft is canonical JSON. Resolve head:"self" only after assigning its ID,
+// then use the public Entry codec rather than the native stored-entry envelope.
+func appendInboxEntry(tx *Tx, conversation ID, draft JSON) (ID, error) {
+	record, err := copyObject(draft, tx.limits)
+	if err != nil {
+		return 0, err
+	}
+	id, err := tx.MintID()
+	if err != nil {
+		return 0, err
+	}
+	record["id"], record["conversationId"] = id, conversation
+	if record["head"] == "self" {
+		record["head"] = id
+	}
+	wire, err := encodeBounded(record, tx.limits, tx.limits.MaxRecordBytes)
+	if err != nil {
+		return 0, err
+	}
+	var entry Entry
+	if err = entry.UnmarshalJSON(wire); err != nil {
+		return 0, err
+	}
+	if err = tx.AppendEntry(entry); err != nil {
+		return 0, err
+	}
+	return id, nil
 }

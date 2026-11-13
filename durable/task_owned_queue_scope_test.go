@@ -41,7 +41,7 @@ func seedOwnedQueue(t *testing.T, h *Harness, conversation ID, label string) (ID
 			return err
 		}
 		return inbox.Update(func(value JSON) error {
-			value["items"] = append(value["items"].([]any), JSON{"id": input, "mode": "followUp", "input": JSON{"content": label}}, JSON{"id": write, "mode": "write"})
+			value["items"] = append(value["items"].([]any), JSON{"id": input, "mode": "followUp", "content": label}, JSON{"id": write, "mode": "write", "entry": JSON{"kind": "pi.user", "model": []any{JSON{"role": "user", "content": []any{JSON{"type": "text", "text": "kept write"}}}}}})
 			return nil
 		})
 	})
