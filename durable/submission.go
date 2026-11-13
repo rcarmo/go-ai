@@ -315,7 +315,7 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 			return err
 		}
 		value := JSON{"content": input.Content}
-		if len(input.Blocks) > 0 {
+		if input.Blocks != nil {
 			wire, err := dtoObject(receipt, tx.limits)
 			if err != nil {
 				return err
@@ -476,7 +476,7 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 				mode = "steer"
 			}
 			item := JSON{"id": subID, "mode": mode, "content": input.Content}
-			if len(input.Blocks) > 0 {
+			if input.Blocks != nil {
 				item["content"] = value["inputMessage"].(map[string]any)["content"]
 			}
 			if input.Entry != nil {
@@ -760,7 +760,7 @@ func (h *Harness) conversationGenerationBusy(state Snapshot, id ID) bool {
 }
 
 func inputReceipt(text string, blocks []goai.ContentBlock, limits Limits) (MessageReceipt, error) {
-	if len(blocks) == 0 {
+	if blocks == nil {
 		return MessageReceipt{Role: goai.RoleUser, ContentText: &text}, nil
 	}
 	content := []goai.ContentBlock{}

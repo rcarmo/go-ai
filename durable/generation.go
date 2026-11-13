@@ -744,13 +744,7 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 	// a host lost after this commit is an interrupted attempt, not a free resend.
 	cp.Attempt++
 	cp.Messages = messages
-	input, err := inputReceipt(cp.Input, cp.InputBlocks, h.session.limits)
-	if err != nil {
-		return err
-	}
-	if !continuation && cp.InputEntry == 0 && !entryless {
-		cp.Messages = append(cp.Messages, input)
-	}
+
 	value, e := dtoObject(cp, h.session.limits)
 	if e != nil {
 		return e
@@ -796,16 +790,9 @@ func (h *Harness) prepareRequest(runtime *TaskRuntime, task *Task, cp *generatio
 			}
 		}
 		if !continuation && cp.InputEntry == 0 && !entryless {
-			id, e := tx.MintID()
-			if e != nil {
-				return e
-			}
-			user, e := dtoObject(input, h.session.limits)
-			if e != nil {
-				return e
-			}
-			if e = tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, id, task.Conversation, user, input, 0)); e != nil {
-				return e
+			id, err := appendQueuedInput(tx, task.Conversation, cp.Submission, h.session.now(), 0)
+			if err != nil {
+				return err
 			}
 			cp.InputEntry = id
 			if err := markSubmissionEntry(tx, cp.Submission, id); err != nil {

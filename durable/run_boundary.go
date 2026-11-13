@@ -37,21 +37,9 @@ func (h *Harness) startQueuedRunBoundary(tx *Tx, conversation, ending ID, keepFa
 		if !ok || cp.Phase != "queued" || terminalStatus(sub.Status) || cp.InputEntry != 0 {
 			continue
 		}
-		entryID, err := tx.MintID()
-		if err != nil {
-			return err
-		}
-		input, err := inputReceipt(cp.Input, cp.InputBlocks, tx.limits)
-		if err != nil {
-			return err
-		}
 		now := h.session.now()
-		input.Timestamp = now
-		wire, err := dtoObject(input, tx.limits)
+		entryID, err := appendQueuedInput(tx, conversation, cp.Submission, now, tx.byTask)
 		if err != nil {
-			return err
-		}
-		if err := tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, entryID, conversation, wire, input, tx.byTask)); err != nil {
 			return err
 		}
 		cp.InputEntry = entryID

@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	"errors"
+	"slices"
 
 	goai "github.com/rcarmo/go-ai"
 )
@@ -136,7 +137,7 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 			return nil, e
 		}
 		checked := m
-		checked.Content = append([]goai.ContentBlock(nil), m.Content...)
+		checked.Content = slices.Clone(m.Content)
 		if e := restoreReceiptArguments(&checked, l); e != nil {
 			return nil, e
 		}
@@ -148,7 +149,7 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 		// keeps every role, shape and field check while leaving the persisted
 		// payload, which the bound above already encoded and re-decoded, untouched.
 		contribution := checked
-		contribution.Content = append([]goai.ContentBlock(nil), checked.Content...)
+		contribution.Content = slices.Clone(checked.Content)
 		for i, block := range contribution.Content {
 			if !block.HasToolArgumentDiagnostic() && !block.HasToolArgumentTranscript() {
 				continue
@@ -165,7 +166,7 @@ func copyMessages(messages []MessageReceipt, l Limits) ([]MessageReceipt, error)
 		// envelopes without invoking caller marshal authority in nested JSON.
 		// A legacy caller may supply explicit empty arguments without the new
 		// witness. Validate first, then record presence before DTO encoding.
-		message.Content = append([]goai.ContentBlock(nil), message.Content...)
+		message.Content = slices.Clone(message.Content)
 		if e := restoreReceiptArguments(&message, l); e != nil {
 			return nil, e
 		}

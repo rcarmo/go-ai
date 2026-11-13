@@ -35,19 +35,8 @@ func (h *Harness) finishGenerationWithoutRequest(task Task, cp generationCheckpo
 			return ErrSealed
 		}
 		if cp.Phase == "queued" && cp.InputEntry == 0 && tx.state.Submissions[cp.Submission].Type != "continue" {
-			input, err := inputReceipt(cp.Input, cp.InputBlocks, tx.limits)
+			id, err := appendQueuedInput(tx, current.Conversation, cp.Submission, h.session.now(), current.ID)
 			if err != nil {
-				return err
-			}
-			value, err := dtoObject(input, tx.limits)
-			if err != nil {
-				return err
-			}
-			id, err := tx.MintID()
-			if err != nil {
-				return err
-			}
-			if err := tx.AppendEntry(inputMetadataEntry(cp.InputMetadata, id, current.Conversation, value, input, current.ID)); err != nil {
 				return err
 			}
 			cp.InputEntry = id

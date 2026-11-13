@@ -1817,7 +1817,7 @@ func TestTaskSchedulerCascadeQueuedWithdrawalBudgetAtomicity(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					_, err = tx.CreateDocument(Document{ID: inboxID, Scope: "conversation", Owner: foreign, Kind: "pi.inbox", Version: 1, Value: JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "input": JSON{"content": "queued"}}}}})
+					_, err = tx.CreateDocument(Document{ID: inboxID, Scope: "conversation", Owner: foreign, Kind: "pi.inbox", Version: 1, Value: JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "content": "queued"}}}})
 					return err
 				})
 				if err != nil {
@@ -2261,7 +2261,7 @@ func TestTaskSchedulerQueuedWithdrawalTaskDocumentsAtomicRetirement(t *testing.T
 						if err != nil {
 							return err
 						}
-						return inbox.Set(JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "input": JSON{}}}})
+						return inbox.Set(JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "content": ""}}})
 					})
 					if err != nil {
 						t.Fatal(err)

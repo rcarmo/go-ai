@@ -80,6 +80,18 @@ func mainFailureOwnershipSeed(t *testing.T, b sqliteFixture, handoff, placed boo
 			if err := tx.PutSubmission(Submission{ID: sub, Conversation: c.ID(), Type: "follow-up", Status: "pending", Value: value}); err != nil {
 				return err
 			}
+			if cp.InputEntry == 0 {
+				inbox, err := builtin(tx, c.ID(), "pi.inbox")
+				if err != nil {
+					return err
+				}
+				if err := inbox.Update(func(value JSON) error {
+					value["items"] = append(value["items"].([]any), JSON{"id": sub, "mode": "followUp", "content": cp.Input})
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
 			wire, err := dtoObject(cp, tx.limits)
 			if err != nil {
 				return err

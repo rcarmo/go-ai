@@ -3,6 +3,7 @@ package durable
 import (
 	"context"
 	goai "github.com/rcarmo/go-ai"
+	"slices"
 )
 
 // HookAPI carries the invocation runtime, as in the pinned hook contract.
@@ -115,7 +116,7 @@ func detachReceipts(messages []MessageReceipt, limits Limits) ([]MessageReceipt,
 	var images []imageSlot
 	total := 0
 	for i := range stripped {
-		stripped[i].Content = append([]goai.ContentBlock(nil), messages[i].Content...)
+		stripped[i].Content = slices.Clone(messages[i].Content)
 		for j, block := range stripped[i].Content {
 			if block.Type != "image" || len(block.Data) <= limits.MaxStringBytes/2 {
 				continue

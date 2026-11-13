@@ -194,3 +194,117 @@ func TestSourceIdleInputEntryPreservesStringContentAndPlacementClock(t *testing.
 		t.Fatal("historical context changed placed model", string(wire), err)
 	}
 }
+
+// Source appendInput in harness/inbox.ts:128-138 copies the content union as-is.
+// Paired original probe covers the same three literal arms, without normalization.
+func TestSourceInputPreservesEmptyContentArms(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		input   Input
+		content string
+	}{
+		{"empty-string", Input{Type: "input", Content: ""}, `""`},
+		{"empty-blocks", Input{Type: "input", Blocks: []goai.ContentBlock{}}, `[]`},
+		{"empty-text-block", Input{Type: "input", Blocks: []goai.ContentBlock{{Type: "text", Text: ""}}}, `[{"type":"text","text":""}]`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+				ch := make(chan goai.Event, 1)
+				ch <- terminal("done")
+				close(ch)
+				return ch
+			})
+			options.Now = func() int64 { return 42 }
+			h := openHarness(t, store, options)
+			c := root(t, h, ref)
+			sub, err := c.Submit(bg, test.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			settled := waitSubmission(t, sub)
+			entry, ok, err := h.Entry(bg, settled.Record.Entry)
+			if err != nil || !ok {
+				t.Fatal(entry, ok, err)
+			}
+			encoded, err := json.Marshal(entry.Model)
+			want := `[{"role":"user","content":` + test.content + `,"timestamp":42}]`
+			if err != nil || !reflect.DeepEqual(dropinJSON(t, encoded), dropinJSON(t, []byte(want))) {
+				t.Fatalf("placed model %s; expected %s; err=%v", encoded, want, err)
+			}
+		})
+	}
+}
+
+func TestCanonicalInboxInputIsPlacementAuthority(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		go func() {
+			select {
+			case <-entered:
+			default:
+				close(entered)
+			}
+			select {
+			case <-release:
+				ch <- terminal("done")
+			case <-ctx.Done():
+			}
+			close(ch)
+		}()
+		return ch
+	})
+	options.Now = func() int64 { return 42 }
+	h := openHarness(t, store, options)
+	t.Cleanup(unblock)
+	c := root(t, h, ref)
+	first, err := c.Submit(bg, Input{Content: "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTaskSignal(t, entered)
+	queued, err := c.Submit(bg, Input{Content: "private checkpoint", Entry: &Entry{Kind: "app.private"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.session.Commit(bg, func(tx *Tx) error {
+		inbox, err := builtin(tx, c.ID(), "pi.inbox")
+		if err != nil {
+			return err
+		}
+		return inbox.Update(func(value JSON) error {
+			for _, raw := range value["items"].([]any) {
+				item := raw.(map[string]any)
+				if submissionEntryID(item["id"]) == queued.ID() {
+					item["content"] = []any{}
+					item["entry"] = JSON{"kind": "app.canonical", "data": nil}
+					return nil
+				}
+			}
+			return reject("expected queued input")
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	unblock()
+	waitSubmission(t, first)
+	settled := waitSubmission(t, queued)
+	entry, ok, err := h.Entry(bg, settled.Record.Entry)
+	if err != nil || !ok {
+		t.Fatal(entry, ok, err)
+	}
+	model, err := json.Marshal(entry.Model)
+	if err != nil || entry.Kind != "app.canonical" || !entry.HasData || entry.Data != nil || !reflect.DeepEqual(dropinJSON(t, model), dropinJSON(t, []byte(`[{"role":"user","content":[],"timestamp":42}]`))) {
+		t.Fatal("private checkpoint replaced Inbox authority", entry, string(model), err)
+	}
+}

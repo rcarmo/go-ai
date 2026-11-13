@@ -518,3 +518,33 @@ it("stores builtin task records definition-free with opaque inputs/checkpoints a
  }
  try{sqlite=await openNodeSqliteStorage(path);for(const record of records)expect(await sqlite.task(record.id,context)).toEqual(record)}finally{if(sqlite)await sqlite.close(context);rmSync(dir,{recursive:true,force:true})}
 });
+
+it("preserves empty string and empty/nonempty block input arms at placement", async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support");
+ for(const content of ["",[],[{type:"text",text:""}]] as const){
+  const setup=chatSetup();setup.now=()=>42;setup.faux.setResponses([assistant("done")]);
+  const {harness,root}=await openChat(new ControlledStorage(),setup);
+  try{
+   const settled=await (await root.submit({type:"input",content},context)).wait(context);
+   expect(settled.status).toBe("done");
+   const {allEntries}=await import("@pinned/chat");
+   const entry=(await allEntries(root)).find(entry=>entry.id===settled.entry)!;
+   expect(entry.model).toEqual([{role:"user",content,timestamp:42}]);
+  }finally{await harness.close(context)}
+ }
+});
+
+it("places content and metadata from the canonical Inbox item, not a submission payload",async()=>{
+ const {chatSetup,openChat,allEntries}=await import("@pinned/chat"),{assistant}=await import("@pinned/harness-support"),{InboxDoc}=await import("@earendil-works/pi-durable");
+ const {deferred}=await import("@pinned/tasks"),reached=deferred(),release=deferred(),setup=chatSetup();setup.now=()=>42;
+ setup.faux.setResponses([async()=>{reached.resolve();await release.promise;return assistant("done")},assistant("done")]);
+ const {harness,root}=await openChat(new ControlledStorage(),setup);
+ try{
+  const first=await root.submit({type:"input",content:"first"},context);await reached.promise;
+  const queued=await root.submit({type:"input",content:"private checkpoint",entry:{kind:"app.private"}},context);
+  await root.commit(async tx=>{const inbox=await tx.doc(InboxDoc,root.id);const item=inbox.items.find(item=>item.id===queued.id)!;Object.assign(item,{content:[],entry:{kind:"app.canonical",data:null}})},context);
+  release.resolve();await first.wait(context);const settled=await queued.wait(context);
+  const entry=(await allEntries(root)).find(entry=>entry.id===settled.entry)!;
+  expect(entry.kind).toBe("app.canonical");expect(entry.data).toBe(null);expect(entry.model).toEqual([{role:"user",content:[],timestamp:42}]);
+ }finally{release.resolve();await harness.close(context)}
+});

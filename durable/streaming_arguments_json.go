@@ -90,6 +90,9 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	if v.Type() == nativeContentBlockType && v.FieldByName("Type").String() == "text" && name == "text" {
+		return true
+	}
 	if v.Type() == nativeReceiptType && name == "timestamp" {
 		return true // every original Message arm requires its timestamp, including zero
 	}

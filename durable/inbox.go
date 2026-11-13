@@ -79,20 +79,8 @@ func (h *Harness) applyQueuedInputsAt(tx *Tx, parent Task, cp *generationCheckpo
 		if h.scheduler.invocations[id] != nil || len(h.scheduler.ownedLive(state, id)) > 0 {
 			continue
 		}
-		entryID, err := tx.MintID()
+		entryID, err := appendQueuedInput(tx, parent.Conversation, queued.Submission, now, tx.byTask)
 		if err != nil {
-			return err
-		}
-		input, err := inputReceipt(queued.Input, queued.InputBlocks, tx.limits)
-		if err != nil {
-			return err
-		}
-		input.Timestamp = now
-		value, err := dtoObject(input, tx.limits)
-		if err != nil {
-			return err
-		}
-		if err = tx.AppendEntry(inputMetadataEntry(queued.InputMetadata, entryID, parent.Conversation, value, input, tx.byTask)); err != nil {
 			return err
 		}
 		queued.Phase = "terminal"

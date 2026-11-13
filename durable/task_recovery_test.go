@@ -3197,7 +3197,7 @@ func TestTaskRecoveryQueuedWithdrawalOwnedChildDefersSettlement(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return inbox.Set(JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "input": JSON{"content": "queued child scope"}}}})
+			return inbox.Set(JSON{"items": []any{JSON{"id": subID, "mode": "followUp", "content": "queued child scope"}}})
 		})
 		if err != nil {
 			t.Fatal(err)

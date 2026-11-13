@@ -6,6 +6,7 @@ import (
 	goai "github.com/rcarmo/go-ai"
 	"github.com/rcarmo/go-ai/images"
 	"reflect"
+	"slices"
 )
 
 // ModelRef selects a process-local provider. Intent also persists a sanitized
@@ -415,7 +416,7 @@ type ContributionTool struct {
 type messageReceipt = MessageReceipt
 
 func receiptMessage(r messageReceipt) goai.Message {
-	content := append([]goai.ContentBlock(nil), r.Content...)
+	content := slices.Clone(r.Content)
 	if r.ContentText != nil {
 		content = []goai.ContentBlock{{Type: "text", Text: *r.ContentText}}
 	}

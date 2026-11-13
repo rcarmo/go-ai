@@ -50,7 +50,7 @@ func TestMainBoundaryPassiveWriteRollback(t *testing.T) {
 						return err
 					}
 					if err := inbox.Update(func(value JSON) error {
-						value["items"] = []any{JSON{"id": input, "mode": "followUp", "input": JSON{"content": "A"}}}
+						value["items"] = []any{JSON{"id": input, "mode": "followUp", "content": "A"}}
 						return nil
 					}); err != nil {
 						return err

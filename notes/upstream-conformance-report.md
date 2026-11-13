@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `0752f49` (canonical queued write consumption).
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `f6b0915` (canonical string content and placement clock).
 
-Latest continuation: canonical string-content records, required zero timestamps and actual input placement clock now pass the mapped assertions; compaction retains string input. See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +51 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
+Latest continuation: input append boundaries consume canonical Inbox content and picked metadata, including empty arrays and required empty text. Private generation checkpoint payloads no longer own those appends. See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +53 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,13 @@ Latest continuation: canonical string-content records, required zero timestamps 
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest string-content verification
+## Latest input-authority verification
+
+Full uncached sequential durable842.589s/tools26.862s; ten focused shuffled repetitions35.080s; four semantic compiler faults; vet, Staticcheck, logging and register pass. The two new source-derived tests have independent original probes. All253 selected reference cases pass (200 unchanged +53 probes). Five legacy Inbox fixture sites and unplaced ownership fixtures were corrected without weakening their assertions.
+
+Compaction admission still consults historical checkpoint input for unplaced work. Complete canonical queue selection, generation/tool execution and migrations remain open.
+
+## Previous string-content verification
 
 - Full uncached sequential durable **830.400s**, tools **26.898s**.
 - Ten focused shuffled repetitions, seed42: **15.726s**.

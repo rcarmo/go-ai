@@ -14,7 +14,7 @@ bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi 
 bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi --file test/tools-images.test.ts --case 'gives the same result as the calling thread'
 ```
 
-The selected mode now passes **200 unchanged cases +51 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and51 probes. It reports zero skipped/todo cases. The runner reports251 total cases:192 original-file cases plus59 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
+The selected mode now passes **200 unchanged cases +53 independent probes**:192 tests in ten original files (including all11 input-entry cases), eight unchanged Storage conformance cases and53 probes. It reports zero skipped/todo cases. The runner reports253 total cases:192 original-file cases plus61 supplemental cases; the supplemental total includes those eight unchanged conformance cases.
 
 `--all` discovers all 99 files under `packages/durable/test`. It starts a fresh Vitest process per file, one worker at a time, with a384 MiB V8 heap cap (768 MiB for the image file). A single process for the whole corpus previously stopped this 2 GiB workspace with an OOM; the sharded attempts completed without a workspace OOM. Subprocess failures remain failures, not skips. The full command continues to collect failures and exits nonzero if any group failed. JSON reports and transform caches are temporary and deleted on exit.
 
