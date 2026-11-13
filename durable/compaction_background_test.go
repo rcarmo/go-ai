@@ -15,7 +15,7 @@ func TestBackgroundThresholdCompactionDoesNotBlockAnswerOrOrdinaryIdle(t *testin
 		var summaries, requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
-			if strings.Contains(input.SystemPrompt, "Summarise") {
+			if strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") {
 				summaries.Add(1)
 				go func() { close(entered); <-release; ch <- terminal("background summary"); close(ch) }()
 			} else {

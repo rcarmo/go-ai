@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	goai "github.com/rcarmo/go-ai"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,17 +21,43 @@ func TestCompactionSerializationOmitsSystemImagesAndBoundsToolText(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"[User]: question", "[Assistant thinking]: reasoning", "[Assistant]: answer", "read(count=2, path=\"/tmp/x\")", strings.Repeat("x", 2000), "[... 500 more characters truncated]"} {
+	for _, want := range []string{"[User]: question", "[Assistant]: answer", "read(count=2, path=\"/tmp/x\")", strings.Repeat("x", 2000), "[... 500 more characters truncated]"} {
 		if !strings.Contains(text, want) {
 			t.Error("serialization missing", want)
 		}
 	}
-	if strings.Contains(text, "system private") || strings.Contains(text, "IMAGE_PAYLOAD") || strings.Contains(text, strings.Repeat("x", 2001)) {
+	if strings.Contains(text, "reasoning") || strings.Contains(text, "[Assistant thinking]") || strings.Contains(text, "system private") || strings.Contains(text, "IMAGE_PAYLOAD") || strings.Contains(text, strings.Repeat("x", 2001)) {
 		t.Fatal("serialization leaked unbounded/control content")
 	}
 	unicode := truncateCompactionText(strings.Repeat("🙂", 1001), 2000)
 	if !strings.HasPrefix(unicode, strings.Repeat("🙂", 1000)) || !strings.Contains(unicode, "2 more characters truncated") {
 		t.Fatal("unicode truncation", unicode)
+	}
+}
+
+func TestSourceCompactionSerializationOmitsThinking(t *testing.T) {
+	// Literal harness-compaction.test.ts:351-370 at f9a2636; every original
+	// positive and negative assertion is retained.
+	empty, hidden, hello := "", "hidden", "hello"
+	messages := []MessageReceipt{
+		{Role: goai.RoleSystem, ContentText: &empty, Sections: map[string]*string{"s": &hidden}},
+		{Role: goai.RoleUser, ContentText: &hello},
+		{Role: goai.RoleAssistant, Content: []goai.ContentBlock{{Type: "thinking", Thinking: "hmm"}, {Type: "text", Text: "sure"}, {Type: "toolCall", ID: "c", Name: "read", Arguments: JSON{"path": "a.ts"}}}},
+		{Role: goai.RoleToolResult, ToolCallID: "c", Content: []goai.ContentBlock{{Type: "text", Text: strings.Repeat("y", 2500)}}},
+	}
+	text, err := SerializeConversation(messages, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, absent := range []string{"hidden", "hmm", "[Assistant thinking]"} {
+		if strings.Contains(text, absent) {
+			t.Errorf("source transcript retained %q", absent)
+		}
+	}
+	for _, present := range []string{"[User]: hello", "[Assistant]: sure", `[Assistant tool calls]: read(path="a.ts")`, "[Tool result]: " + strings.Repeat("y", 2000) + "\n\n[... 500 more characters truncated]"} {
+		if !strings.Contains(text, present) {
+			t.Errorf("source transcript omitted %q", present)
+		}
 	}
 }
 
@@ -43,6 +71,32 @@ func TestCompactionSerializationPreservesSourceStringContent(t *testing.T) {
 	}, DefaultLimits())
 	if err != nil || text != "[User]: question" {
 		t.Fatalf("source string transcript = %q, err=%v", text, err)
+	}
+}
+
+func TestCompactionPromptsMatchPinnedSourceLiterals(t *testing.T) {
+	data, err := os.ReadFile("testdata/pi-durable-v150/compaction-prompts.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct{ Target, System, User string }
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Target != "f9a26365568127461c47a07a37dcb42c140a3ac5" {
+		t.Fatal("wrong source target")
+	}
+	if compactionSystemPrompt != fixture.System {
+		t.Error("summarization system prompt differs from source")
+	}
+	for _, instructions := range []string{"", "preserve paths"} {
+		want := "<conversation>\n[User]: hello\n</conversation>\n\n" + fixture.User
+		if instructions != "" {
+			want += "\n\nAdditional focus: " + instructions
+		}
+		if got := compactionRequestText("[User]: hello", instructions); got != want {
+			t.Errorf("source summary request differs: %q", got)
+		}
 	}
 }
 

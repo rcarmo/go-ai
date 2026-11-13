@@ -5,7 +5,8 @@ Compact index of repository notes; history/evidence, not new instructions.
 - [Rui's upstream-port preferences](upstream-alignment.md): no users/backwards-compatibility constraint;
   upstream semantics are authoritative; proactively continue the authorised task across slices.
   Canonical policy is also in AGENTS.md.
-- Latest verified string-content continuation: original records retain string/block content, zero timestamps and nested edits; actual input placement uses the Session clock; compaction retains strings. Full durable830.400s/tools26.898s, four semantic faults and static gates pass. Reference200 unchanged cases +51 probes. Image and live-provider/full alignment acceptance remain open. See [completion report](../upstream-conformance-report.md).
+- Latest compaction continuation: exact source summarization prompts and full original serialization packet (thinking omitted). Full durable829.093s/tools24.860s, three semantic faults/static gates pass. Canonical Inbox input consumption preceding it passed full842.589s/tools26.862s. Source compaction110 cases pass; full alignment remains open. See [compaction evidence](../canonical-compaction-kind.md).
+- Historical string-content continuation: original records retain string/block content, zero timestamps and nested edits; actual input placement uses the Session clock; compaction retains strings. Full durable830.400s/tools26.898s, four semantic faults and static gates pass. Reference200 unchanged cases +51 probes. Image and live-provider/full alignment acceptance remain open. See [completion report](../upstream-conformance-report.md).
 - Target: official v1.5.0, f9a26365568127461c47a07a37dcb42c140a3ac5.
   Deviation register/assertion obligations: docs/upstream-v1.5.0/.
 - Writer IS installed (d755fb9). Later shared readonly views, observers, snapshots and watches landed;

@@ -14,7 +14,7 @@ func TestAutomaticOwnedCompactionRetriesThenGenerationUsesSummary(t *testing.T) 
 		var summaryCalls, answerCalls atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
-			if strings.Contains(input.SystemPrompt, "Summarise") {
+			if strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") {
 				if summaryCalls.Add(1) == 1 {
 					ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: &goai.Message{Role: goai.RoleAssistant, Content: []goai.ContentBlock{}, StopReason: goai.StopReasonError, ErrorMessage: "overloaded_error", Usage: &goai.Usage{TotalTokens: 1}}}
 				} else {
@@ -95,7 +95,7 @@ func TestOverflowCompactionOneRecoveryAndNoOrdinaryRetry(t *testing.T) {
 				var summaries, answers atomic.Int64
 				ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 					ch := make(chan goai.Event, 1)
-					if strings.Contains(input.SystemPrompt, "Summarise") {
+					if strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") {
 						summaries.Add(1)
 						ch <- terminal("overflow summary")
 					} else {

@@ -13,7 +13,7 @@ func TestManualCompactionPinsCutUsageAndReopensWithoutReplay(t *testing.T) {
 		var calls atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, opts *goai.StreamOptions) <-chan goai.Event {
 			calls.Add(1)
-			if !strings.Contains(input.SystemPrompt, "Summarise") {
+			if !strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") {
 				t.Error("not summary request", input.SystemPrompt)
 			}
 			if len(input.Messages) != 1 || !strings.Contains(input.Messages[0].Content[0].Text, "old question") || strings.Contains(input.Messages[0].Content[0].Text, "recent question") {
@@ -84,7 +84,7 @@ func TestManualCompactionBusyQueuesSummaryUntilBoundary(t *testing.T) {
 		var summaries, requests atomic.Int64
 		ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
 			ch := make(chan goai.Event, 1)
-			if strings.Contains(input.SystemPrompt, "Summarise") {
+			if strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") {
 				summaries.Add(1)
 				ch <- terminal("summary while busy")
 				close(ch)

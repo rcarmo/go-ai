@@ -26,7 +26,7 @@ func TestMainHarnessSummarisationCrashResumesCheckpoint(t *testing.T) {
 				close(ch)
 				return ch
 			}
-			if !strings.Contains(input.SystemPrompt, "Summarise") || len(input.Messages) != 1 || len(input.Messages[0].Content) != 1 {
+			if !strings.HasPrefix(input.SystemPrompt, "You are a context summarization assistant") || len(input.Messages) != 1 || len(input.Messages[0].Content) != 1 {
 				t.Error("not a summary request", input)
 			} else {
 				requests <- input.Messages[0].Content[0].Text

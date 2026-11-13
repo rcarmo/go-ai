@@ -100,7 +100,7 @@ func TestToolSearch120LoadsPersistsAndDoesNotExecuteDiscoveredTool(t *testing.T)
 			if e := json.NewDecoder(req.Body).Decode(&body); e != nil {
 				failure <- e.Error()
 			}
-			if text, _ := json.Marshal(body.Messages); strings.Contains(string(text), "Summarise") {
+			if text, _ := json.Marshal(body.Messages); strings.Contains(string(text), "You are a context summarization assistant") {
 				summaries.Add(1)
 				w.Header().Set("Content-Type", "text/event-stream")
 				_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"search summary\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"))

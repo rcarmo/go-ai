@@ -8,11 +8,44 @@ import (
 	"unicode/utf8"
 )
 
-const compactionSystemPrompt = "Summarise this conversation as a context summarization assistant. Create a structured checkpoint for another assistant to continue this conversation. Do not answer questions from the conversation or continue it. Fold any earlier summary into the checkpoint."
-const compactionPrompt = "Create a concise checkpoint with these sections: Goals and intent; Constraints and preferences; Progress (done, in progress, blocked); Decisions; Next steps; Critical context. Preserve exact file paths, function names and error messages."
+const compactionSystemPrompt = `You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.
+
+Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`
+const compactionPrompt = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work. If the conversation starts with an earlier summary, preserve its information and fold the newer messages into it.
+
+Use this EXACT format:
+
+## Goal
+[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned by user]
+- [Or "(none)" if none were mentioned]
+
+## Progress
+### Done
+- [x] [Completed tasks/changes]
+
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress, if any]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale]
+
+## Next Steps
+1. [Ordered list of what should happen next]
+
+## Critical Context
+- [Any data, examples, or references needed to continue]
+- [Or "(none)" if not applicable]
+
+Keep each section concise. Preserve exact file paths, function names, and error messages.`
 
 // SerializeConversation presents model context as an inert text transcript.
-// System contributions and image payloads are omitted. Tool results retain at
+// System contributions, thinking and image payloads are omitted. Tool results retain at
 // most 2000 UTF-16 units, cutting only at a complete Unicode scalar in Go.
 // Isolated units from explicitly typed arguments/diagnostics use WTF-8 in the
 // returned string; compaction persists them through its scoped source state.
@@ -30,7 +63,6 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 			}
 			text = append(text, *message.ContentText)
 		}
-		thinking := []string{}
 		calls := []string{}
 		for _, block := range message.Content {
 			switch block.Type {
@@ -42,11 +74,6 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 					nativeText = true
 				}
 				text = append(text, block.Text)
-			case "thinking":
-				if !utf8.ValidString(block.Thinking) {
-					return "", reject("invalid compaction thinking")
-				}
-				thinking = append(thinking, block.Thinking)
 			case "toolCall":
 				if !utf8.ValidString(block.Name) {
 					return "", reject("invalid compaction tool name")
@@ -81,9 +108,6 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 				parts = append(parts, "[User]: "+joined)
 			}
 		case goai.RoleAssistant:
-			if len(thinking) > 0 {
-				parts = append(parts, "[Assistant thinking]: "+strings.Join(thinking, "\n"))
-			}
 			if len(text) > 0 {
 				parts = append(parts, "[Assistant]: "+joined)
 			}
