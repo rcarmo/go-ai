@@ -54,3 +54,23 @@ The original runner now includes all23 unchanged `harness-submit-in-commit.test.
 Verification: full durable **421.225s**, tools **15.752s**; ten focused shuffled repetitions (seed42) **9.547s**; repository vet, Staticcheck v0.8.2 and logging pass. Two independent compiler overlays removing exact object identity or the unconditional fence fail the corresponding semantic tests. Disposable overlays are deleted. An earlier full run failed only the new host-document assertion's incorrectly typed expected number; its corrected assertion and the subsequent full suite pass.
 
 Still open: the literal busy-steer atomic packet's complete canonical Inbox/Live assertions, Storage failure/reopen, model-visible passive writes, failed-run continuation, trace carriers/running-trace links, task-bound lifetime/close and exhaustive resume ordering. The private builtin scheduler/envelopes remain historical. Complete callback/result/options semantics, D04, D20's prior close caveat and pre-release profiling remain unaccepted. No parity/release claim follows from this slice.
+
+## Canonical queued drafts and extended transaction assertions
+
+The literal source209-230 busy-steer packet now passes, including the host check/document write, one commit containing admission and host entry, exact Sent IDs, exact `[{id,mode:"steer",content:"steer"}]` Inbox and unchanged running input IDs. Its initial failure exposed a private `input` envelope in the document, not an assertion or fixture mismatch.
+
+Input Inbox producers now store canonical string/block `content` and optional picked `entry` metadata, retaining explicit null data. Public queued writes and compaction writes store a canonical EntryDraft under `entry`; placement IDs/task attribution/private Value are not included. The native generation checkpoint and private submission payload still drive execution: this aligns queued document production, not canonical builtin execution or imported-queue interoperability.
+
+Additional assertions in the same consolidated suite cover:
+
+- Block input/metadata exact document shape, with an independent original-source probe.
+- Idle input progresses without Resume or Submission.Wait; actual publication signals replace source polling.
+- Failed-run continue precedes the host table write and settles without a fresh progress request.
+- Definite pre-append SQLite failure preserves failure identity and leaves no request/task/entry/run after a file-backed reopen. This is source-derived: the injected value is StorageRejected, not coverage of every arbitrary/uncertain Storage failure. The first test run incorrectly tried to close storage already owned/closed by Session; correcting that fixture required no runtime change.
+- A model-visible queued write has an exact canonical entry draft and is eventually placed/completed. The fixture holds a provider rather than the source's tool, so it is source-derived, not acceptance of that entire source case.
+
+Baseline failures were the exact input and passive-write Inbox shapes. The write codec is shared with compaction admission; Staticcheck caught and prompted correction of an error-variable shadow in that producer before acceptance.
+
+Latest full durable **418.205s**, tools **19.360s**; earlier full run **396.479s/16.846s**. Ten focused shuffled repetitions, seed42: **16.943s**. Repository vet, Staticcheck v0.8.2 and logging pass. Three independent compiler overlays introducing a noncanonical input field, replacing `entry` with a noncanonical field, or omitting SubmitIn's progress request fail semantic tests; all scratch is deleted. Reference now **189 unchanged source cases +49 probes**, including the new canonical queued-draft probe (181 original-file cases +eight unchanged Storage cases +35 admission probes +14 other probes).
+
+The full busy-steer shape packet, idle progress and failed-run continuation gaps listed in the preceding checkpoint are now covered. The source tool-bound placement variant, complete arbitrary/uncertain Storage failures, trace/link/span propagation, task-bound lifetime/close and exhaustive resume/scheduling order remain open. See [the completion report](upstream-conformance-report.md) for the broader unfinished migration; no release or full-parity acceptance is claimed.

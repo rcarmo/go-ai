@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1281,5 +1283,414 @@ func TestSubmitInBusyContinueSteerAndDedup(t *testing.T) {
 	after, err := h.Snapshot(bg)
 	if err != nil || after.Seq != before.Seq {
 		t.Fatal("dedup consumed a commit", before.Seq, after.Seq, err)
+	}
+}
+
+// The source openBusy fixture: a real provider is held after the first input
+// starts. Completion/cancellation signals, not elapsed time, establish busy.
+func busySubmitInFixture(t *testing.T) (*Harness, *ConversationHandle, *SubmissionHandle, func()) {
+	t.Helper()
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	ref, options := setupFakeAPI(t, func(ctx context.Context, _ *goai.Model, _ *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		select {
+		case <-entered:
+		default:
+			close(entered)
+		}
+		go func() {
+			select {
+			case <-release:
+				ch <- terminal("answer")
+			case <-ctx.Done():
+			}
+			close(ch)
+		}()
+		return ch
+	})
+	h := openHarness(t, store, options)
+	t.Cleanup(unblock)
+	c := root(t, h, ref)
+	first, err := c.Submit(bg, Input{Type: "input", Content: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("provider did not start")
+	}
+	return h, c, first, unblock
+}
+
+// Literal harness-submit-in-commit.test.ts:209-230 assertion packet: the host's
+// own document write, admission and later table write are one stored commit.
+func TestSubmitInBusyHostCheckAndWritesAreOneCommit(t *testing.T) {
+	h, c, first, _ := busySubmitInFixture(t)
+	sent := mustDefinition(t, DefinitionOptions{Kind: "test.sent", Scope: "conversation", Version: 1, Initial: func(JSON) (JSON, error) { return JSON{"ids": []any{}}, nil }, CheckpointWhen: func(JSON, []Operation, CheckpointInfo) (bool, error) { return false, nil }})
+	before, observer, err := h.SubscribeCommits(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Stop()
+	frames := make(chan PublicationFrame, 1)
+	if err = observer.Start(func(_ context.Context, frame PublicationFrame) error {
+		for _, w := range frame.Publication.Tables {
+			if w.Entry != nil && w.Entry.Kind == "app.sent" {
+				frames <- frame
+				break
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		live, err := builtin(tx, c.ID(), "pi.live")
+		if err != nil {
+			return err
+		}
+		value, err := live.Get()
+		if err != nil {
+			return err
+		}
+		if value["run"] == nil {
+			return errors.New("not working")
+		}
+		doc, err := tx.AcquireDocument(sent, c.ID(), nil, nil)
+		if err != nil {
+			return err
+		}
+		id, err = c.SubmitIn(tx, Input{Type: "input", Content: "steer", WhenBusy: "steer"})
+		if err != nil {
+			return err
+		}
+		if err = doc.Update(func(value JSON) error { value["ids"] = append(value["ids"].([]any), id); return nil }); err != nil {
+			return err
+		}
+		entry, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		return tx.AppendEntry(Entry{ID: entry, Conversation: c.ID(), Kind: "app.sent", HasData: true, Data: JSON{"submission": id}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := h.Snapshot(bg)
+	if err != nil || after.Seq != before.Seq+1 {
+		t.Fatal("not one commit", before.Seq, after.Seq, err)
+	}
+	select {
+	case frame := <-frames:
+		foundSubmission, foundEntry := false, false
+		for _, w := range frame.Publication.Tables {
+			foundSubmission = foundSubmission || w.Submission != nil && w.Submission.ID == id
+			foundEntry = foundEntry || w.Entry != nil && w.Entry.Kind == "app.sent"
+		}
+		if !foundSubmission || !foundEntry {
+			t.Fatal("not stored together", frame.Publication)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("stored frame missing")
+	}
+	value, found, err := h.SnapshotDefinition(bg, sent, c.ID(), nil)
+	if err != nil || !found || !equalJSONValue(value.Copy(), JSON{"ids": []any{int(id)}}) {
+		t.Fatal("host sent IDs", value, found, err)
+	}
+	inbox := mainContinueBoundaryDocument(t, after, c.ID(), "pi.inbox")
+	if !equalJSONValue(inbox["items"], []any{JSON{"id": int(id), "mode": "steer", "content": "steer"}}) {
+		t.Fatal("canonical inbox", inbox)
+	}
+	live := mainContinueBoundaryDocument(t, after, c.ID(), "pi.live")
+	if !equalJSONValue(generationObject(live["run"])["inputs"], []any{int(first.ID())}) {
+		t.Fatal("running inputs changed", live)
+	}
+}
+
+// Source-derived from InboxItem and pickInputEntry (harness/inbox.ts:8-18,136).
+// Assert the entire document value; no native-envelope acceptance transform.
+func TestSubmitInInboxBlockContentAndEntryMetadata(t *testing.T) {
+	h, c, _, _ := busySubmitInFixture(t)
+	var id ID
+	_, err := h.Commit(bg, func(tx *Tx) error {
+		var err error
+		id, err = c.SubmitIn(tx, Input{Type: "input", WhenBusy: "steer", Blocks: []goai.ContentBlock{{Type: "text", Text: "hi"}}, Entry: &Entry{Kind: "app.ask", HasData: true, Data: nil}})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox := mainContinueBoundaryDocument(t, state, c.ID(), "pi.inbox")
+	want := JSON{"items": []any{JSON{"id": int(id), "mode": "steer", "content": []any{JSON{"type": "text", "text": "hi"}}, "entry": JSON{"kind": "app.ask", "data": nil}}}}
+	if !equalJSONValue(inbox, want) {
+		t.Fatal("canonical input inbox", inbox)
+	}
+}
+
+// Source harness-submit-in-commit.test.ts:278-288: no Resume or Submission.Wait
+// may supply the progress the admission itself must request. Use publication
+// signals in place of the source's status polling.
+func TestSubmitInIdleInputRequestsItsOwnProgress(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		ch <- terminal("answer")
+		close(ch)
+		return ch
+	})
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	_, observer, err := h.SubscribeCommits(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Stop()
+	settled := make(chan SubmissionRecord, 1)
+	if err = observer.Start(func(_ context.Context, frame PublicationFrame) error {
+		for _, w := range frame.Publication.Tables {
+			if w.Submission != nil && w.Submission.Type == "follow-up" && w.Submission.Status == "done" {
+				settled <- publicSubmission(*w.Submission)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var id ID
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		var err error
+		id, err = c.SubmitIn(tx, Input{Type: "input", Content: "hi"})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case record := <-settled:
+		if record.ID != id || record.Type != "input" || record.Status != "done" {
+			t.Fatal(record, id)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("admission did not request progress")
+	}
+}
+
+// Source-derived from harness-submit-in-commit.test.ts:250-275. The SQLite
+// seam reports a definite pre-append rollback; unknown I/O errors have separate
+// poisoning contracts. No failure or reopened value is normalised by this test.
+func TestSubmitInStorageFailureHasNoAdmissionAfterReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "submission.sqlite")
+	store, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close(bg)
+	h := openHarness(t, store, Options{})
+	c := root(t, h, ModelRef{})
+	failure := reject("disk full")
+	appendFrame := store.appendFrame
+	store.appendFrame = func(kind byte, ordinal, high uint64, payload []byte) error {
+		if kind == 2 {
+			return failure
+		}
+		return appendFrame(kind, ordinal, high, payload)
+	}
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		if _, err := c.SubmitIn(tx, Input{Type: "input", Content: "hi", RequestID: "r1"}); err != nil {
+			return err
+		}
+		id, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.sent"})
+	})
+	if err != failure {
+		t.Fatal("failure identity", err, failure)
+	}
+	deadline, cancel := context.WithTimeout(bg, 3*time.Second)
+	defer cancel()
+	if end, err := h.session.Closed(deadline); err != nil || end.Reason != "failed" {
+		t.Fatal(end, err)
+	}
+	// Session.closed has already closed its owned SQLite connection.
+	reopened, err := OpenSQLite(path, SQLiteOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close(bg)
+	next := openHarness(t, reopened, Options{})
+	conversation := root(t, next, ModelRef{})
+	if conversation.ID() != c.ID() {
+		t.Fatal("root changed")
+	}
+	_, err = next.Commit(bg, func(tx *Tx) error {
+		record, found, err := tx.SubmissionByRequest(conversation.ID(), "r1")
+		if err != nil || found {
+			t.Fatal(record, found, err)
+		}
+		tasks, err := tx.ScanTasks(TaskQuery{Conversation: conversation.ID()}, 10, nil)
+		if err != nil || len(tasks.Items) != 0 {
+			t.Fatal(tasks, err)
+		}
+		entries, err := tx.ScanEntries(EntryQuery{Conversation: conversation.ID()}, 10, nil)
+		if err != nil || len(entries.Items) != 0 {
+			t.Fatal(entries, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, found, err := next.SnapshotDefinition(bg, mountedDocumentDefinitions[1], conversation.ID(), nil)
+	if err != nil || !found || value.Copy().(map[string]any)["run"] != nil {
+		t.Fatal("reopened run", value, found, err)
+	}
+}
+
+// Source-derived from harness-submit-in-commit.test.ts:290-307: the provider
+// rather than the source's tool is held at a boundary. Assert the canonical
+// queued write draft as well as eventual placement and completion.
+func TestSubmitInModelVisibleWriteQueueAndPlacement(t *testing.T) {
+	h, c, first, release := busySubmitInFixture(t)
+	note := userReceipt("a note the model sees")
+	note.Timestamp = 1
+	var id ID
+	_, err := h.Commit(bg, func(tx *Tx) error {
+		var err error
+		id, err = c.SubmitIn(tx, Input{Type: "write", Entry: &Entry{Kind: "test.note", Model: []MessageReceipt{note}}})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := h.Snapshot(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox := mainContinueBoundaryDocument(t, state, c.ID(), "pi.inbox")
+	want := JSON{"items": []any{JSON{"id": int(id), "mode": "write", "entry": JSON{"kind": "test.note", "model": []any{JSON{"role": "user", "content": []any{JSON{"type": "text", "text": "a note the model sees"}}, "timestamp": 1}}}}}}
+	if !equalJSONValue(inbox, want) {
+		t.Fatal("canonical queued write", inbox)
+	}
+	release()
+	if result := waitSubmission(t, first); result.Record.Status != "done" {
+		t.Fatal(result)
+	}
+	sub, err := h.Submission(bg, id)
+	if err != nil || sub == nil {
+		t.Fatal(sub, err)
+	}
+	record, err := sub.Status(bg)
+	if err != nil || record.Type != "write" || record.Status != "done" || record.Entry == 0 {
+		t.Fatal(record, err)
+	}
+	entry, found, err := h.Entry(bg, record.Entry)
+	if err != nil || !found || entry.Kind != "test.note" || len(entry.Model) != 1 {
+		t.Fatal(entry, found, err)
+	}
+}
+
+// Literal harness-submit-in-commit.test.ts:367-384: a failed run can continue
+// inside the caller transaction, but never after that transaction's table write.
+func TestSubmitInContinuesFailedRunBeforeHostTableWrite(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int64
+	ref, options := setupFakeAPI(t, func(context.Context, *goai.Model, *goai.Context, *goai.StreamOptions) <-chan goai.Event {
+		ch := make(chan goai.Event, 1)
+		if calls.Add(1) == 1 {
+			message := terminal("").Message
+			message.Content = nil
+			message.StopReason = goai.StopReasonError
+			message.ErrorMessage = "Invalid request"
+			ch <- &goai.ErrorEvent{Reason: goai.StopReasonError, Error: message}
+		} else {
+			ch <- terminal("recovered")
+		}
+		close(ch)
+		return ch
+	})
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	first, err := c.Submit(bg, Input{Type: "input", Content: "Analyze this"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := waitSubmission(t, first)
+	if failed.Record.Status != "unanswered" || failed.Record.Reason != "model_error" {
+		t.Fatal(failed)
+	}
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		id, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		if err = tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"}); err != nil {
+			return err
+		}
+		_, err = c.SubmitIn(tx, Input{Type: "continue"})
+		return err
+	})
+	var fence *ReadAfterWrite
+	if !errors.As(err, &fence) {
+		t.Fatal(err)
+	}
+	_, observer, err := h.SubscribeCommits(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Stop()
+	done := make(chan SubmissionRecord, 1)
+	if err = observer.Start(func(_ context.Context, frame PublicationFrame) error {
+		for _, w := range frame.Publication.Tables {
+			if w.Submission != nil && w.Submission.Type == "continue" && w.Submission.Status == "done" {
+				done <- publicSubmission(*w.Submission)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var continued ID
+	_, err = h.Commit(bg, func(tx *Tx) error {
+		var err error
+		continued, err = c.SubmitIn(tx, Input{Type: "continue"})
+		if err != nil {
+			return err
+		}
+		id, err := tx.MintID()
+		if err != nil {
+			return err
+		}
+		return tx.AppendEntry(Entry{ID: id, Conversation: c.ID(), Kind: "app.note"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case record := <-done:
+		if record.ID != continued || record.Type != "continue" || record.Status != "done" {
+			t.Fatal(record)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("continue did not progress")
 	}
 }

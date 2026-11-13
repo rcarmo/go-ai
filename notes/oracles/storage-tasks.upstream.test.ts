@@ -154,3 +154,13 @@ it("keeps transaction submission readers authoritative through installed storage
  const {SessionImpl}=await import("@pinned/session"),{ControlledStorage}=await import("@pinned/support");const storage=new ControlledStorage();const record={id:44,conversationId:1,type:"write",status:"queued"};storage.submission=async()=>record as any;storage.submissionByRequest=async()=>record as any;const session=new SessionImpl(storage,Date.now,()=>600000);
  try{await session.commit(async tx=>{expect(await tx.submission(2 as any)).toEqual(record);expect(await tx.submissionByRequest(1 as any,"")).toEqual(record)},context)}finally{await session.close(context)}
 });
+
+it("stores canonical queued block content, picked input metadata and passive entry drafts",async()=>{
+ const {chatSetup,openChat,unanswered}=await import("@pinned/chat"),{InboxDoc}=await import("@earendil-works/pi-durable");const setup=chatSetup(),busy=unanswered();setup.faux.setResponses([busy.step]);const {harness,root}=await openChat(new (await import("@pinned/support")).ControlledStorage(),setup);
+ try{await root.submit({type:"input",content:"work"},context);await busy.reached;
+ const input=await harness.commit(tx=>root.submit(tx,{type:"input",content:[{type:"text",text:"hi"}],whenBusy:"steer",entry:{kind:"app.ask",data:null}}),context);
+ const entry={kind:"test.note",model:[{role:"user",content:[{type:"text",text:"a note the model sees"}],timestamp:1}]} as const;
+ const write=await harness.commit(tx=>root.submit(tx,{type:"write",entry}),context);
+ expect(await harness.snapshot(InboxDoc,root.id,context)).toEqual({items:[{id:input,mode:"steer",content:[{type:"text",text:"hi"}],entry:{kind:"app.ask",data:null}},{id:write,mode:"write",entry}]});
+ }finally{await harness.close(context)}
+});

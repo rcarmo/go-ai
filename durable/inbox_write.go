@@ -139,6 +139,10 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 		return 0, err
 	}
 	if busy {
+		entry, draftErr := inboxEntryDraft(draft, tx.limits)
+		if draftErr != nil {
+			return 0, draftErr
+		}
 		inbox, inboxErr := builtin(tx, conversation, "pi.inbox")
 		if inboxErr != nil {
 			return 0, inboxErr
@@ -148,7 +152,7 @@ func admitCompactionWrite(tx *Tx, conversation, task ID, draft Entry) (ID, error
 			if !ok {
 				return reject("inbox shape")
 			}
-			value["items"] = append(items, JSON{"id": id, "mode": "write"})
+			value["items"] = append(items, JSON{"id": id, "mode": "write", "entry": entry})
 			return nil
 		})
 	} else {
@@ -193,4 +197,22 @@ func passiveHeadStale(state Snapshot, conversation ID, value JSON, limits Limits
 		return false, err
 	}
 	return view.Head != nil && draft.Head < view.Head.Head, nil
+}
+
+// inboxEntryDraft stores the canonical EntryDraft, not the private submission
+// envelope. The public record codec supplies model/data/head/edits JSON; placement
+// identity and task attribution are assigned only when the draft is appended.
+func inboxEntryDraft(entry Entry, limits Limits) (JSON, error) {
+	wire, err := entry.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var draft JSON
+	if err = decodeStrict(wire, limits, limits.MaxRecordBytes, &draft); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"id", "conversationId", "byTaskId", "value"} {
+		delete(draft, key)
+	}
+	return draft, nil
 }

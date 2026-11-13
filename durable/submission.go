@@ -374,6 +374,14 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 		}
 		if input.Type == "write" {
 			if busy {
+				draft := Entry{Kind: userEntryKind, Model: []MessageReceipt{receipt}}
+				if input.Entry != nil {
+					draft = *input.Entry
+				}
+				entry, err := inboxEntryDraft(draft, tx.limits)
+				if err != nil {
+					return err
+				}
 				inbox, err := builtin(tx, c.id, "pi.inbox")
 				if err != nil {
 					return err
@@ -383,7 +391,7 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 					if !ok {
 						return reject("inbox shape")
 					}
-					v["items"] = append(items, JSON{"id": subID, "mode": "write"})
+					v["items"] = append(items, JSON{"id": subID, "mode": "write", "entry": entry})
 					return nil
 				})
 			}
@@ -467,7 +475,18 @@ func (c *ConversationHandle) admitSubmission(ctx context.Context, tx *Tx, input 
 			if input.Type == "steer" {
 				mode = "steer"
 			}
-			v["items"] = append(items, JSON{"id": subID, "mode": mode, "input": value})
+			item := JSON{"id": subID, "mode": mode, "content": input.Content}
+			if len(input.Blocks) > 0 {
+				item["content"] = value["inputMessage"].(map[string]any)["content"]
+			}
+			if input.Entry != nil {
+				entry := JSON{"kind": input.Entry.Kind}
+				if input.Entry.HasData {
+					entry["data"] = input.Entry.Data
+				}
+				item["entry"] = entry
+			}
+			v["items"] = append(items, item)
 			return nil
 		}); err != nil {
 			return err
