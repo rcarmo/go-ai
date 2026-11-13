@@ -118,7 +118,7 @@ func TestForegroundSubagentOwnedConversationAndAnswer(t *testing.T) {
 				messages = append(messages, message)
 			}
 		}
-		if len(messages) != 2 || messages[0].Role != goai.RoleUser || messages[0].Content[0].Text != "child question" || messages[1].Role != goai.RoleAssistant || messages[1].Content[0].Text != "child answer" || len(ReplayToolDeclarations(view.Messages)) != 1 || calls.Load() != 3 {
+		if len(messages) != 2 || messages[0].Role != goai.RoleUser || messages[0].ContentText == nil || *messages[0].ContentText != "child question" || messages[1].Role != goai.RoleAssistant || messages[1].Content[0].Text != "child answer" || len(ReplayToolDeclarations(view.Messages)) != 1 || calls.Load() != 3 {
 			t.Fatal("child persistence with positional loadout", view, calls.Load())
 		}
 	})

@@ -242,7 +242,7 @@ func TestV150AfterRunHookHistoryKeepsRunStartHiddenByMidRunCompaction(t *testing
 				}
 				hook.firstRead = true
 				var user MessageReceipt
-				if err := decodeEntryMessage(first, h.session.limits, &user); err != nil || user.Role != goai.RoleUser || goai.ContentText(user.Content) != "go" {
+				if err := decodeEntryMessage(first, h.session.limits, &user); err != nil || user.Role != goai.RoleUser || user.ContentText == nil || *user.ContentText != "go" || user.Content != nil {
 					t.Errorf("committed run start must remain the user input: kind=%q receipt=%+v err=%v", first.Kind, user, err)
 				}
 				view, err := api.ContextView(ctx, api.ConversationID(), run.Last)

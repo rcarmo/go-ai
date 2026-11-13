@@ -761,7 +761,7 @@ func (h *Harness) conversationGenerationBusy(state Snapshot, id ID) bool {
 
 func inputReceipt(text string, blocks []goai.ContentBlock, limits Limits) (MessageReceipt, error) {
 	if len(blocks) == 0 {
-		return userReceipt(text), nil
+		return MessageReceipt{Role: goai.RoleUser, ContentText: &text}, nil
 	}
 	content := []goai.ContentBlock{}
 	if text != "" {

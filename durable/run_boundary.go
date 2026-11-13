@@ -45,6 +45,8 @@ func (h *Harness) startQueuedRunBoundary(tx *Tx, conversation, ending ID, keepFa
 		if err != nil {
 			return err
 		}
+		now := h.session.now()
+		input.Timestamp = now
 		wire, err := dtoObject(input, tx.limits)
 		if err != nil {
 			return err
@@ -59,7 +61,7 @@ func (h *Harness) startQueuedRunBoundary(tx *Tx, conversation, ending ID, keepFa
 		if err := markSubmissionEntry(tx, cp.Submission, entryID); err != nil {
 			return err
 		}
-		if err := h.applyQueuedInputs(tx, task, &cp, true, decisions...); err != nil {
+		if err := h.applyQueuedInputsAt(tx, task, &cp, true, now, decisions...); err != nil {
 			return err
 		}
 		if err := tx.bindGenerationTrace(&task, cp, false); err != nil {

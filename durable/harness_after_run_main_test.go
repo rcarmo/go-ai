@@ -899,6 +899,9 @@ func TestMainAfterRunQueuedBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 				text := ""
+				if m.ContentText != nil {
+					text = *m.ContentText
+				}
 				for _, block := range m.Content {
 					if block.Type == "text" {
 						text += block.Text

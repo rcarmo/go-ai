@@ -3,10 +3,10 @@
 Compact index. Read a linked note only when it is relevant to the current task.
 
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
-  submission slice, exact evidence and remaining migration/release blockers.
+  string-content/placement slice, exact evidence and remaining migration/release blockers.
 
 - [Pinned upstream oracle](upstream-oracle.md) — memory-bounded original-test execution,
-  exact reference coverage and unresolved full-corpus fixture/resource failures.
+  exact reference assets/coverage and unresolved image/live-provider acceptance.
 
 - [Upstream-port preferences](memory/upstream-alignment.md) — no native backwards-compatibility
   constraint; proactively drive the authorised port through full upstream acceptance.

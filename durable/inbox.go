@@ -25,6 +25,10 @@ func (h *Harness) applySteeringBoundary(tx *Tx, parent Task, cp *generationCheck
 }
 
 func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoint, initial bool, decisions ...Task) error {
+	return h.applyQueuedInputsAt(tx, parent, cp, initial, h.session.now(), decisions...)
+}
+
+func (h *Harness) applyQueuedInputsAt(tx *Tx, parent Task, cp *generationCheckpoint, initial bool, now int64, decisions ...Task) error {
 	if err := h.placeQueuedWrites(tx, parent.Conversation); err != nil {
 		return err
 	}
@@ -83,6 +87,7 @@ func (h *Harness) applyQueuedInputs(tx *Tx, parent Task, cp *generationCheckpoin
 		if err != nil {
 			return err
 		}
+		input.Timestamp = now
 		value, err := dtoObject(input, tx.limits)
 		if err != nil {
 			return err

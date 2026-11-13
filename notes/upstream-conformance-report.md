@@ -2,9 +2,9 @@
 
 **Overall migration: incomplete. Full parity and release acceptance are not established.** This report closes a verified development slice, not the complete upstream port.
 
-Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `fd4dc1c` (canonical queue production).
+Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed checkpoint is `0752f49` (canonical queued write consumption).
 
-Latest continuation: canonical queued write consumption and deferred placement are now ported; see [submission admission](submission-admission.md#canonical-queued-write-consumption). Selected reference coverage is 189 unchanged cases +51 probes. The expanded99-file oracle remains **nonzero**, with 95 original files completing and four original fixture/resource groups unaccepted; see [oracle limits](upstream-oracle.md).
+Latest continuation: canonical string-content records, required zero timestamps and actual input placement clock now pass the mapped assertions; compaction retains string input. See [submission admission](submission-admission.md#canonical-string-content-and-placement-clock). Selected reference coverage is200 unchanged cases +51 probes. Exact reference assets repair the original Cloudflare suite (36 pass); two provider suites now reach original credential skips, not live acceptance. Image execution still exceeds its768 MiB worker cap. The full99-file oracle is not green; see [oracle limits](upstream-oracle.md).
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,18 @@ Latest continuation: canonical queued write consumption and deferred placement a
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest verification
+## Latest string-content verification
+
+- Full uncached sequential durable **830.400s**, tools **26.898s**.
+- Ten focused shuffled repetitions, seed42: **15.726s**.
+- Four semantic compiler faults rejected: changed string content, omitted timestamp zero, wrong placement clock, dropped compaction string.
+- Repository vet, Staticcheck v0.8.2, logging, register and diff whitespace checks pass.
+- Original selected execution:192 cases in ten original files plus59 supplemental cases (eight unchanged conformance cases and51 independent probes), all251 pass; no skipped cases.
+- Literal captured source records: three conversations/nine entries, including string/array content, empty string, zero timestamp and nested replacement messages; exact public JSON and SQLite reopen assertions pass.
+
+The previous complete run finished in874.059s rather than hanging, and failed one block-only native history assertion. That assertion now requires the canonical string arm. Shorter timeout/interrupted diagnostic runs are not passing receipts. Broader compaction serializer parity, every message/input variant and canonical builtin execution remain open.
+
+## Previous queued-write verification
 
 | Check | Result |
 |---|---|
@@ -37,7 +48,7 @@ The retained source snapshot has no `.git`: retained hashes and the complete tes
 
 | Area | Remaining work |
 |---|---|
-| Canonical builtin execution — D07/D09 | Normal execution still uses historical private generation/tool checkpoints and submission payloads. Canonical write draft consumption is ported for verified block-content cases; input/generation/tool execution, full message unions, migrations and recovery interoperability remain open. |
+| Canonical builtin execution — D07/D09 | Normal execution still uses historical private generation/tool checkpoints and submission payloads. Canonical write draft consumption and verified string-content input placement are ported; full input/generation/tool execution, complete message variants, migrations and recovery interoperability remain open. |
 | Storage interfaces and persistence — D10–D12 | Complete wrapper/public-interface authority, original SQLite schema/record interoperability, and remaining result/query DTO assertions. |
 | Commit/public API — D13 | Original callback-result/options semantics and full exported-symbol mapping. Go Commit still returns a sequence and uses caller-side result capture. |
 | Publication/admission — D01–D06 | Exhaustive dependencies, bounded outcomes, caller-continuation turns, deferred persistence and close/error ordering. D04 is not accepted. |

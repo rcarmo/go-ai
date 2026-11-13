@@ -209,7 +209,7 @@ func TestMainBoundaryFirstIncludesPassiveWrite(t *testing.T) {
 				if err := decodeEntryMessage(bEntry, h.session.limits, &bMessage); err != nil {
 					t.Fatal(err)
 				}
-				if bMessage.Role != goai.RoleUser || len(bMessage.Content) != 1 || bMessage.Content[0].Text != "B" {
+				if bMessage.Role != goai.RoleUser || bMessage.ContentText == nil || *bMessage.ContentText != "B" {
 					t.Fatal("B entry must contain B's actual user contribution", bMessage)
 				}
 				if wEntry.Seq == 0 || bEntry.Seq == 0 || !(wEntry.Seq < bEntry.Seq || wEntry.Seq == bEntry.Seq && wEntry.Position < bEntry.Position) {

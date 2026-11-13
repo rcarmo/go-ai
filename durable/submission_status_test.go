@@ -112,6 +112,9 @@ func TestSubmissionReferenceStatusAndAbortDispositionScopeQueuedWrites(t *testin
 				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
 					t.Fatal(err)
 				}
+				if message.ContentText != nil && (*message.ContentText == "never placed" || *message.ContentText == "queued") {
+					t.Fatal("withdrawn submission placed", entry)
+				}
 				for _, block := range message.Content {
 					if block.Text == "never placed" || block.Text == "queued" {
 						t.Fatal("withdrawn submission placed", entry)

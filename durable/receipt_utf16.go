@@ -88,6 +88,9 @@ func copyToolArguments(block goai.ContentBlock, l Limits) (JSON, error) {
 }
 
 func makeReceiptWire(r MessageReceipt, l Limits, max int) (*receiptWireView, error) {
+	if err := r.validateContent(); err != nil {
+		return nil, err
+	}
 	if max > l.MaxDocumentBytes {
 		max = l.MaxDocumentBytes
 	}
@@ -144,6 +147,9 @@ func (b *limitedJSON) receiptJSONField(v reflect.Value, field jsonStructField) (
 		return reflect.ValueOf(view.diagnostics), nil
 	}
 	if field.name == "content" {
+		if v.Interface().(MessageReceipt).ContentText != nil {
+			return nativeJSONField(v, field)
+		}
 		return reflect.ValueOf(view.content), nil
 	}
 	return reflect.ValueOf(view.arguments), nil

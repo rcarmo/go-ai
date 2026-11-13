@@ -21,6 +21,15 @@ func SerializeConversation(messages []MessageReceipt, limits Limits) (string, er
 	nativeText := false
 	for _, message := range messages {
 		text := []string{}
+		if message.ContentText != nil {
+			if err := message.validateContent(); err != nil {
+				return "", err
+			}
+			if !utf8.ValidString(*message.ContentText) {
+				return "", reject("invalid compaction text")
+			}
+			text = append(text, *message.ContentText)
+		}
 		thinking := []string{}
 		calls := []string{}
 		for _, block := range message.Content {

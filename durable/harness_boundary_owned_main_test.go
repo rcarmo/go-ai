@@ -78,7 +78,7 @@ func TestMainBoundaryOwnedInvocationIdleChildAdmission(t *testing.T) {
 			t.Fatal("bound idle admission must commit its real input attributed to the caller", status, entry, state.Conversations[childID])
 		}
 		var input MessageReceipt
-		if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil || input.Role != goai.RoleUser || len(input.Content) != 1 || input.Content[0].Text != "child input" {
+		if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil || input.Role != goai.RoleUser || input.ContentText == nil || *input.ContentText != "child input" {
 			t.Fatal("bound input payload", input, err)
 		}
 		wantRun, err := dtoObject(JSON{"task": generationID, "inputs": []any{subID}, "first": entry.ID}, h.session.limits)

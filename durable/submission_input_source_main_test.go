@@ -2,7 +2,9 @@ package durable
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -105,5 +107,90 @@ func TestMainSubmissionSourceInputAdmissionAndBusyModes(t *testing.T) {
 	unblock()
 	if got := waitSubmission(t, first); got.Submission.Status != "done" {
 		t.Fatalf("settlement %+v", got)
+	}
+}
+
+// Literal harness-input-entries.test.ts:100-121: preserve the input content
+// arm and placement clock, application data/kind, settlement and fork context.
+func TestSourceIdleInputEntryPreservesStringContentAndPlacementClock(t *testing.T) {
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := make(chan []goai.Message, 1)
+	ref, options := setupFakeAPI(t, func(_ context.Context, _ *goai.Model, input *goai.Context, _ *goai.StreamOptions) <-chan goai.Event {
+		requests <- input.Messages
+		ch := make(chan goai.Event, 1)
+		ch <- terminal("hi ann")
+		close(ch)
+		return ch
+	})
+	options.Now = func() int64 { return 42 }
+	h := openHarness(t, store, options)
+	c := root(t, h, ref)
+	sub, err := c.Submit(bg, Input{Type: "input", Content: "ann: hi", Entry: &Entry{Kind: "chat.mention", HasData: true, Data: JSON{"author": "ann", "text": "hi"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settled := waitSubmission(t, sub)
+	page, err := c.Entries(bg, EntryQuery{Order: "ascending"}, 10, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var placed, answer Entry
+	for _, entry := range page.Items {
+		if entry.Kind == "chat.mention" {
+			placed = entry
+		}
+		if entry.Kind == "pi.assistant" {
+			answer = entry
+		}
+	}
+	if placed.ID == 0 || answer.ID == 0 || !placed.HasData || !equalJSONValue(placed.Data, JSON{"author": "ann", "text": "hi"}) {
+		t.Fatal(page.Items)
+	}
+	var transcript []string
+	for _, entry := range page.Items {
+		if entry.Kind != "pi.system" {
+			transcript = append(transcript, entry.Kind)
+		}
+	}
+	if !reflect.DeepEqual(transcript, []string{"chat.mention", "pi.assistant"}) || len(answer.Model) != 1 || len(answer.Model[0].Content) != 1 || answer.Model[0].Content[0].Text != "hi ann" {
+		t.Fatal("unexpected complete transcript", page.Items)
+	}
+	encoded, err := json.Marshal(placed.Model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"user","content":"ann: hi","timestamp":42}]`
+	if !reflect.DeepEqual(dropinJSON(t, encoded), dropinJSON(t, []byte(want))) {
+		t.Fatalf("model %s; expected %s", encoded, want)
+	}
+	if settled.Record.Status != "done" || settled.Record.Entry != placed.ID || settled.Record.Answer != answer.ID {
+		t.Fatal(settled)
+	}
+	request := <-requests
+	var users []goai.Message
+	for _, message := range request {
+		if message.Role == goai.RoleUser {
+			users = append(users, message)
+		}
+	}
+	if len(users) != 1 || len(users[0].Content) != 1 || users[0].Content[0].Text != "ann: hi" {
+		t.Fatal(request)
+	}
+	view, err := c.ContextView(bg, placed.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var userModel []MessageReceipt
+	for _, message := range view.Messages {
+		if message.Role != goai.RoleSystem {
+			userModel = append(userModel, message)
+		}
+	}
+	wire, err := json.Marshal(userModel)
+	if err != nil || !reflect.DeepEqual(dropinJSON(t, wire), dropinJSON(t, encoded)) {
+		t.Fatal("historical context changed placed model", string(wire), err)
 	}
 }

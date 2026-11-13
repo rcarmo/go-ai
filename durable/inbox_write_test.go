@@ -69,6 +69,9 @@ func TestBusyPassiveWriteQueuesUntilAnswerBoundaryBeforeFollowUp(t *testing.T) {
 				if err := decodeEntryMessage(entry, h.session.limits, &receipt); err != nil {
 					t.Fatal(err)
 				}
+				if receipt.ContentText != nil && *receipt.ContentText == "follow" {
+					followEntry = entry
+				}
 				for _, block := range receipt.Content {
 					if block.Text == "first answer" {
 						answerEntry = entry

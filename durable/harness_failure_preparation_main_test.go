@@ -254,11 +254,15 @@ func mainRequirePreparationInputSettlement(t *testing.T, h *Harness, c *Conversa
 	if err != nil {
 		t.Fatal(err)
 	}
+	entry, exists := state.Entries[r.Entry]
+	if !exists || len(entry.Model) != 1 {
+		t.Fatal("placed input is missing", entry)
+	}
+	input.Timestamp = entry.Model[0].Timestamp
 	wire, err := dtoObject(input, h.session.limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry, exists := state.Entries[r.Entry]
 	if !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) {
 		t.Fatal("settlement must name its exact persisted user input", entry, wire)
 	}
@@ -318,11 +322,16 @@ func mainRequirePreparationStart(t *testing.T, h *Harness, c *ConversationHandle
 		if err != nil {
 			t.Fatal(err)
 		}
+		entry, exists := state.Entries[status.Entry]
+		if !exists || len(entry.Model) != 1 {
+			t.Fatal("placed input is missing", entry)
+		}
+		input.Timestamp = entry.Model[0].Timestamp
 		wire, err := dtoObject(input, h.session.limits)
 		if err != nil {
 			t.Fatal(err)
 		}
-		entry, exists := state.Entries[status.Entry]
+
 		if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
 			t.Fatal("successor must already own its distinct placed input before resolution", status, entry, next)
 		}
@@ -660,11 +669,16 @@ func TestMainRunFailureNoModelAttachedSteersAndRemainingSuccessor(t *testing.T) 
 						if err != nil {
 							t.Fatal(err)
 						}
+						entry, exists := state.Entries[status.Entry]
+						if !exists || len(entry.Model) != 1 {
+							t.Fatal("placed input is missing", entry)
+						}
+						input.Timestamp = entry.Model[0].Timestamp
 						wire, err := dtoObject(input, h.session.limits)
 						if err != nil {
 							t.Fatal(err)
 						}
-						entry, exists := state.Entries[status.Entry]
+
 						if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entries[sub.ID()] != 0 && entries[sub.ID()] != status.Entry || entries[sub.ID()] == 0 && seen[status.Entry] || !exists || entry.Conversation != c.ID() || !isMessageEntry(entry) || !equalJSONValue(messageEntryValue(entry), wire) || i == 0 && next.InputEntry != status.Entry || i > 0 && next.Steered[i-1] != sub.ID() {
 							t.Fatal("successor input must retain its exact distinct boundary placement", status, entry, next)
 						}

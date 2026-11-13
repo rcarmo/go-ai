@@ -48,7 +48,7 @@ func mainContinueOwnedUser(t *testing.T, state Snapshot, child, owner, first ID)
 		if err := decodeEntryMessage(entry, DefaultLimits(), &message); err != nil {
 			t.Fatal("decode child user receipt", err)
 		}
-		if entry.ID != first || entry.ByTask != owner || message.Role != goai.RoleUser || len(message.Content) != 1 || message.Content[0].Type != "text" || message.Content[0].Text != "work" {
+		if entry.ID != first || entry.ByTask != owner || message.Role != goai.RoleUser || message.ContentText == nil || *message.ContentText != "work" {
 			t.Fatalf("original child input lost its payload/caller attribution: %+v", entry)
 		}
 	}

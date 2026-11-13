@@ -331,9 +331,12 @@ func cloneSettings(s RequestSettings, l Limits) (RequestSettings, error) {
 // Safe protocol receipt fields omit raw provider errors, opaque deferred handles,
 // HTTP headers and metadata. Text/thinking are retained only at terminal commit.
 type MessageReceipt struct {
-	UTF16Arguments        []ReceiptUTF16Arguments           `json:"utf16Arguments,omitempty"`
-	Role                  goai.Role                         `json:"role"`
+	UTF16Arguments []ReceiptUTF16Arguments `json:"utf16Arguments,omitempty"`
+	Role           goai.Role               `json:"role"`
+	// Content and ContentText are the block/string arms of the source content
+	// union. ContentText is allowed only for user/system; set at most one arm.
 	Content               []goai.ContentBlock               `json:"content"`
+	ContentText           *string                           `json:"-"`
 	Api                   goai.Api                          `json:"api,omitempty"`
 	Provider              goai.Provider                     `json:"provider,omitempty"`
 	Model                 string                            `json:"model,omitempty"`
@@ -413,6 +416,9 @@ type messageReceipt = MessageReceipt
 
 func receiptMessage(r messageReceipt) goai.Message {
 	content := append([]goai.ContentBlock(nil), r.Content...)
+	if r.ContentText != nil {
+		content = []goai.ContentBlock{{Type: "text", Text: *r.ContentText}}
+	}
 	for _, presence := range r.ContentPresence {
 		if presence.Index < 0 || presence.Index >= len(content) {
 			continue

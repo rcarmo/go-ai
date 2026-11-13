@@ -254,7 +254,7 @@ func mainContinueBoundaryCase(t *testing.T, legacyFirstAbsent bool) {
 		if err := decodeEntryMessage(bEntry, h.session.limits, &bMessage); err != nil {
 			t.Fatal(err)
 		}
-		if bMessage.Role != goai.RoleUser || len(bMessage.Content) != 1 || bMessage.Content[0].Type != "text" || bMessage.Content[0].Text != "second" {
+		if bMessage.Role != goai.RoleUser || bMessage.ContentText == nil || *bMessage.ContentText != "second" {
 			t.Fatal("B entry must retain the actual queued input", bMessage)
 		}
 		if wEntry.Seq != publication.Seq || bEntry.Seq != publication.Seq || wEntry.Position >= bEntry.Position {

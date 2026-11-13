@@ -32,6 +32,20 @@ func TestCompactionSerializationOmitsSystemImagesAndBoundsToolText(t *testing.T)
 		t.Fatal("unicode truncation", unicode)
 	}
 }
+
+// Literal source string arm from f9a2636 src/harness/compaction.ts:385-417.
+func TestCompactionSerializationPreservesSourceStringContent(t *testing.T) {
+	question, empty, system := "question", "", "private"
+	text, err := SerializeConversation([]MessageReceipt{
+		{Role: goai.RoleSystem, ContentText: &system},
+		{Role: goai.RoleUser, ContentText: &question},
+		{Role: goai.RoleUser, ContentText: &empty},
+	}, DefaultLimits())
+	if err != nil || text != "[User]: question" {
+		t.Fatalf("source string transcript = %q, err=%v", text, err)
+	}
+}
+
 func TestCompactionReopenPinsBehaviorButRehydratesTransport(t *testing.T) {
 	sqliteStore(t, func(t *testing.T, b sqliteFixture) {
 		entered := make(chan struct{})

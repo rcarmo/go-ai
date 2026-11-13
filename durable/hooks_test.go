@@ -142,6 +142,9 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 		}
 		for _, entry := range state.Entries {
 			for _, message := range entry.Model {
+				if message.ContentText != nil && *message.ContentText == "request only" {
+					t.Fatal("hook replacement persisted")
+				}
 				for _, block := range message.Content {
 					if block.Text == "request only" {
 						t.Fatal("hook replacement persisted")
@@ -152,6 +155,9 @@ func TestAgentSelectionAndHooksAreDetachedRequestLocalAndOrdered(t *testing.T) {
 				var message MessageReceipt
 				if err := decodeEntryMessage(entry, h.session.limits, &message); err != nil {
 					t.Fatal(err)
+				}
+				if message.ContentText != nil && (*message.ContentText == "request only" || *message.ContentText == "mutated response" || *message.ContentText == "mutated result") {
+					t.Fatal("hook mutation persisted", message)
 				}
 				for _, block := range message.Content {
 					if block.Text == "request only" || block.Text == "mutated response" || block.Text == "mutated result" {
@@ -551,7 +557,7 @@ func TestBeforeRequestRecoveryRunsAgainWithoutPersistingRewrite(t *testing.T) {
 				if err := fromObject(task.Checkpoint, &cp, first.session.limits); err != nil {
 					t.Fatal(err)
 				}
-				if cp.Messages[len(cp.Messages)-1].Content[0].Text != "original" {
+				if cp.Messages[len(cp.Messages)-1].ContentText == nil || *cp.Messages[len(cp.Messages)-1].ContentText != "original" {
 					t.Fatal("transient rewrite became request intent", cp)
 				}
 			}

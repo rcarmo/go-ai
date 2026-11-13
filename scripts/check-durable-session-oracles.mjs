@@ -10,8 +10,10 @@ import { spawnSync } from "node:child_process";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const all = args.length === 3 && args[2] === "--all";
-if ((args.length !== 2 && !all) || args[0] !== "--upstream") {
-  console.error("Usage: bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi [--all]");
+const testCase = args.length === 6 && args[4] === "--case" ? args[5] : undefined;
+const only = (args.length === 4 || testCase) && args[2] === "--file" ? args[3] : undefined;
+if ((args.length !== 2 && !all && !only) || args[0] !== "--upstream") {
+  console.error("Usage: bun run scripts/check-durable-session-oracles.mjs --upstream /path/to/pinned/pi [--all | --file test/name.test.ts [--case pattern]]");
   process.exit(2);
 }
 const upstream = resolve(args[1]);
@@ -21,8 +23,8 @@ for (const file of [join(durable, "src/session/session.ts"), join(vitest, "vites
   if (!existsSync(file)) throw new Error(`Required pinned source or test runner missing: ${file}`);
 }
 let childImport;
-function run(command, args, collectFailure = false) {
-  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=384 ${childImport ? `--import=${childImport}` : ""}`.trim() } });
+function run(command, args, collectFailure = false, heapMiB = 384) {
+  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=${heapMiB} ${childImport ? `--import=${childImport}` : ""}`.trim() } });
   if (result.error) throw result.error;
   if (result.status !== 0 && !collectFailure) throw new Error(`Verification failed (${result.status}): ${command}`);
   return result.status;
@@ -59,8 +61,9 @@ try {
     .sort()
     .map(file => `test/${file}`);
   const pinnedSetup = [join(durable, "test/setup-document-retention.ts")];
-  const groups = all ? originalFiles.map((file, index) => [`pinned-${index + 1}`, durable, [file], pinnedSetup]) : [
-    ["pinned", durable, ["test/session-group-commit.test.ts", "test/session-checkpoints-migrations.test.ts", "test/session-tables.test.ts", "test/harness-view.test.ts", "test/harness-hook-reads.test.ts", "test/harness-submissions.test.ts", "test/harness-submit-in-commit.test.ts", "test/session-observers.test.ts", "test/session-watches.test.ts"], pinnedSetup],
+  if (only && !originalFiles.includes(only)) throw new Error(`Not an original pinned test file: ${only}`);
+  const groups = all ? originalFiles.map((file, index) => [`pinned-${index + 1}`, durable, [file], pinnedSetup]) : only ? [["pinned-file", durable, [only], pinnedSetup]] : [
+    ["pinned", durable, ["test/session-group-commit.test.ts", "test/session-checkpoints-migrations.test.ts", "test/session-tables.test.ts", "test/harness-view.test.ts", "test/harness-hook-reads.test.ts", "test/harness-input-entries.test.ts", "test/harness-submissions.test.ts", "test/harness-submit-in-commit.test.ts", "test/session-observers.test.ts", "test/session-watches.test.ts"], pinnedSetup],
   ];
   groups.push(["probes", root, ["notes/oracles/session-admission.upstream.test.ts", "notes/oracles/storage-tasks.upstream.test.ts"], []]);
   let cases = 0;
@@ -71,7 +74,10 @@ try {
     const config = join(scratch, `${name}.mjs`);
     writeFileSync(config, `import { defineConfig } from ${JSON.stringify(pathToFileURL(join(vitest, "dist/config.js")).href)};\nexport default defineConfig(${JSON.stringify({ root: cwd, cacheDir: join(scratch, "cache", name), resolve: { alias: aliases }, test: { include, setupFiles, maxWorkers: 1, fileParallelism: false, testTimeout: 30000 } })});\n`);
     const report = join(scratch, `${name}.json`);
-    const status = run("node", [join(vitest, "vitest.mjs"), "run", "--config", config, all ? "--reporter=dot" : "--reporter=default", "--reporter=json", `--outputFile.json=${report}`], all);
+    // Large image equality assertions need more than 384 MiB. This is still
+    // one fresh process; the original child test's own 128 MB CLI cap is intact.
+    const heapMiB = include.includes("test/tools-images.test.ts") ? 768 : 384;
+    const status = run("node", [join(vitest, "vitest.mjs"), "run", "--config", config, all ? "--reporter=dot" : "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...(testCase && name === "pinned-file" ? ["--testNamePattern", testCase] : [])], all, heapMiB);
     if (!existsSync(report)) {
       failed.push(`${name}: ${include.join(", ")} (no report; status ${status})`);
       if (!all) throw new Error(failed.at(-1));
@@ -82,10 +88,11 @@ try {
       failed.push(`${name}: ${include.join(", ")} (${result.numFailedTests} failed tests; status ${status})`);
       if (!all) throw new Error(failed.at(-1));
     }
+    if (testCase && name === "pinned-file" && result.numPassedTests === 0) throw new Error("Case selector executed no assertions");
     cases += result.numPassedTests;
     skipped += (result.numPendingTests ?? 0) + (result.numTodoTests ?? 0);
   }
-  console.log(`${failed.length ? "FAIL" : "PASS"}: ${all ? originalFiles.length : 9} unchanged source files plus probes; ${cases} passed test cases; ${skipped} source-declared skipped/todo cases. Original execution is not native parity; skipped cases remain unverified.`);
+  console.log(`${failed.length ? "FAIL" : "PASS"}: ${all ? originalFiles.length : only ? 1 : 10} unchanged source files plus probes; ${cases} passed test cases; ${skipped} skipped/todo/filtered cases. Original execution is not native parity; skipped/filtered cases remain unverified.`);
   if (failed.length) throw new Error(`Oracle failures (${failed.length} groups):\n${failed.join("\n")}`);
 } finally {
   rmSync(scratch, { recursive: true, force: true });

@@ -88,6 +88,65 @@
       "conversationId": 8,
       "kind": "note",
       "data": 0
+    },
+    {
+      "id": 10,
+      "conversationId": 1,
+      "kind": "message",
+      "model": [
+        {
+          "role": "user",
+          "content": "string user",
+          "timestamp": 0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "conversationId": 1,
+      "kind": "message",
+      "model": [
+        {
+          "role": "system",
+          "content": "",
+          "timestamp": 0
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "conversationId": 1,
+      "kind": "message",
+      "model": [
+        {
+          "role": "system",
+          "content": [
+            {
+              "type": "text",
+              "text": "blocks"
+            }
+          ],
+          "timestamp": 0
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "conversationId": 1,
+      "kind": "edit",
+      "edits": [
+        {
+          "target": 2,
+          "action": "replace",
+          "messages": [
+            {
+              "role": "user",
+              "content": "replacement",
+              "timestamp": 0
+            }
+          ]
+        }
+      ]
     }
   ]
 }

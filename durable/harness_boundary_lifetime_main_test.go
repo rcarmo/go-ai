@@ -83,7 +83,7 @@ func TestMainBoundaryLifetimeBeforeModelResolution(t *testing.T) {
 				if err := decodeEntryMessage(entry, h.session.limits, &input); err != nil {
 					t.Fatal(err)
 				}
-				if input.Role != goai.RoleUser || len(input.Content) != 1 || input.Content[0].Text != "admitted before model resolution" {
+				if input.Role != goai.RoleUser || input.ContentText == nil || *input.ContentText != "admitted before model resolution" {
 					t.Fatal("admission lost its actual user contribution", input)
 				}
 				decode := func(task Task) generationCheckpoint {
@@ -444,7 +444,7 @@ func TestMainBoundaryLegacyRecoveryBusyControl(t *testing.T) {
 			t.Fatal(err)
 		}
 		inputs, ok := run["inputs"].([]any)
-		if submissionEntryID(run["task"]) != owner || !ok || len(inputs) != 1 || submissionEntryID(inputs[0]) != input || preparedCP.Phase != "intent" || preparedCP.InputEntry != first || preparedCP.Model == nil || preparedCP.Attempt != 1 || receipt.Role != goai.RoleUser || len(receipt.Content) != 1 || receipt.Content[0].Text != "A" || publicSubmission(prepared.Submissions[input]).Entry != first || publicSubmission(prepared.Submissions[queued.ID()]).Status != "queued" || publicSubmission(prepared.Submissions[queued.ID()]).Entry != 0 {
+		if submissionEntryID(run["task"]) != owner || !ok || len(inputs) != 1 || submissionEntryID(inputs[0]) != input || preparedCP.Phase != "intent" || preparedCP.InputEntry != first || preparedCP.Model == nil || preparedCP.Attempt != 1 || receipt.Role != goai.RoleUser || receipt.ContentText == nil || *receipt.ContentText != "A" || publicSubmission(prepared.Submissions[input]).Entry != first || publicSubmission(prepared.Submissions[queued.ID()]).Status != "queued" || publicSubmission(prepared.Submissions[queued.ID()]).Entry != 0 {
 			t.Fatal("A must prepare under its own run; B must remain unplaced", run, preparedCP)
 		}
 		requireInbox(prepared, queued.ID())

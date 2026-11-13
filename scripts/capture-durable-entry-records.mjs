@@ -24,8 +24,21 @@ await commit([
   { type: 'conversation', value: { id: owned, owner: { conversationId: 1, taskId: task } } },
 ]);
 await commit([{ type: 'entry', value: { id: e5, conversationId: fork, kind: 'note', data: 0 } }]);
+// Preserve both arms of the original SystemMessage/UserMessage content union,
+// including empty strings, zero timestamps and nested replacement messages.
+const extra = [];
+for (const model of [
+  [{ role: 'user', content: 'string user', timestamp: 0 }],
+  [{ role: 'system', content: '', timestamp: 0 }],
+  [{ role: 'system', content: [{ type: 'text', text: 'blocks' }], timestamp: 0 }],
+]) {
+  const id = await s.mintId(); extra.push(id);
+  await commit([{ type: 'entry', value: { id, conversationId: 1, kind: 'message', model } }]);
+}
+const edit = await s.mintId(); extra.push(edit);
+await commit([{ type: 'entry', value: { id: edit, conversationId: 1, kind: 'edit', edits: [{ target: e1, action: 'replace', messages: [{ role: 'user', content: 'replacement', timestamp: 0 }] }] } }]);
 const conversations = []; for (const id of [1, fork, owned]) conversations.push(await s.conversation(id, context));
-const entries = []; for (const id of [e1, e2, e3, e4, e5]) entries.push((await s.entry(id, context)).entry);
+const entries = []; for (const id of [e1, e2, e3, e4, e5, ...extra]) entries.push((await s.entry(id, context)).entry);
 await s.close(context);
 await writeFile(process.argv[3], JSON.stringify({ target: 'f9a26365568127461c47a07a37dcb42c140a3ac5', package: manifest.name, version: manifest.version, producer: 'original MemoryStorage.conversation/entry', conversations, entries }, null, 2) + '\n');
 console.log('captured', conversations.length, entries.length);

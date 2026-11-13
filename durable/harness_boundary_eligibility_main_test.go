@@ -236,7 +236,7 @@ func TestMainBoundaryEligibilityInheritedCancellationBeforePlacement(t *testing.
 							if err := decodeEntryMessage(entry, tx.limits, &message); err != nil {
 								return err
 							}
-							if placed.Status != "placed" || placed.Entry == 0 || placed.Answer != 0 || len(candidate.Entries) != len(before.Entries)+1 || entry.Conversation != c.ID() || !isMessageEntry(entry) || message.Role != "user" || len(message.Content) != 1 || message.Content[0].Text != "B" || !equalJSONValue(afterInbox["items"], []any{}) {
+							if placed.Status != "placed" || placed.Entry == 0 || placed.Answer != 0 || len(candidate.Entries) != len(before.Entries)+1 || entry.Conversation != c.ID() || !isMessageEntry(entry) || message.Role != "user" || message.ContentText == nil || *message.ContentText != "B" || !equalJSONValue(afterInbox["items"], []any{}) {
 								t.Error("unmarked positive control must really place and consume only B", placed, entry, afterInbox)
 							}
 							_, selected := mainEligibilityTask(t, candidate, queued.ID(), tx.limits)
@@ -323,7 +323,7 @@ func TestMainBoundaryEligibilityAbsentAgentHostAllModes(t *testing.T) {
 					return err
 				}
 				wantText := []string{"B", "C", "S", "T"}[i]
-				if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entry.Conversation != c.ID() || !isMessageEntry(entry) || entry.Seq != before.Seq+1 || int(entry.Position) <= lastPosition || message.Role != "user" || len(message.Content) != 1 || message.Content[0].Text != wantText {
+				if status.Status != "placed" || status.Entry == 0 || status.Answer != 0 || entry.Conversation != c.ID() || !isMessageEntry(entry) || entry.Seq != before.Seq+1 || int(entry.Position) <= lastPosition || message.Role != "user" || message.ContentText == nil || *message.ContentText != wantText {
 					t.Error("host all/all must place every real input in ID order", status, entry)
 				}
 				lastPosition = int(entry.Position)
@@ -591,6 +591,9 @@ func TestMainBoundaryEligibilityLocallyDecidedFailFast(t *testing.T) {
 									t.Fatal(err)
 								}
 								if message.Role == "user" {
+									if message.ContentText != nil {
+										userTexts = append(userTexts, *message.ContentText)
+									}
 									for _, block := range message.Content {
 										userTexts = append(userTexts, block.Text)
 									}
