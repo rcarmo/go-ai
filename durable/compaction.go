@@ -190,14 +190,10 @@ func newCompactionDefinition() (*TaskDefinition, error) {
 			h := r.harness
 			cp := taskCheckpointMap(task.State.Checkpoint)
 			modelObject := JSON(cp["model"].(map[string]any))
-			var sourceRef struct {
-				Provider goai.Provider `json:"provider"`
-				ModelID  string        `json:"modelId"`
-			}
-			if err := fromObject(modelObject, &sourceRef, h.session.limits); err != nil {
+			var ref ModelRef
+			if err := fromObject(modelObject, &ref, h.session.limits); err != nil {
 				return err
 			}
-			ref := ModelRef{Provider: sourceRef.Provider, ID: sourceRef.ModelID}
 			local, err := callModelResolver(h.options.Models, ref)
 			if err != nil {
 				return err

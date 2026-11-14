@@ -634,3 +634,11 @@ it("uses Number multiplication before flooring the summary reserve budget",async
   }finally{await harness.close(context)}
  }
 });
+
+it("stores and reads provider/modelId when replacing an agent model",async()=>{
+ const {chatSetup,openChat}=await import("@pinned/chat"),{AgentDoc}=await import("@earendil-works/pi-durable");
+ const {harness,root}=await openChat(new ControlledStorage(),chatSetup());
+ try{const model={provider:"faux",modelId:"replacement"};await root.configure({model},context);
+  expect((await harness.snapshot(AgentDoc,root.id,context))!.model).toEqual(model);
+ }finally{await harness.close(context)}
+});

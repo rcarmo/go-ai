@@ -39,7 +39,7 @@ func TestTaskAgentCancelledOnlyCallerFailureCachedUntilNextPhase(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					return nil, handle.Set(JSON{"model": map[string]any{"provider": "openai", "id": "model"}, "name": "restored", "systemPrompt": "", "settings": map[string]any{}})
+					return nil, handle.Set(JSON{"model": map[string]any{"provider": "openai", "modelId": "model"}, "name": "restored", "systemPrompt": "", "settings": map[string]any{}})
 				}); err != nil {
 					return err
 				}
@@ -56,7 +56,7 @@ func TestTaskAgentCancelledOnlyCallerFailureCachedUntilNextPhase(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if agent.Configuration.Name != "restored" {
+				if agent.Configuration.Name != "restored" || agent.Configuration.Model != (ModelRef{Provider: "openai", ID: "model"}) {
 					t.Error(agent)
 				}
 				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone("done"), nil })

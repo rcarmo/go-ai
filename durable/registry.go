@@ -9,12 +9,11 @@ import (
 	"slices"
 )
 
-// ModelRef selects a process-local provider. Intent also persists a sanitized
-// model behavior DTO; endpoints, headers, credentials and executable hooks stay
-// process-local and are never included in the journal.
+// ModelRef uses the source provider/modelId wire fields. ID is the Go spelling
+// of modelId. Endpoints, headers, credentials and executable hooks stay local.
 type ModelRef struct {
 	Provider goai.Provider `json:"provider"`
-	ID       string        `json:"id"`
+	ID       string        `json:"modelId"`
 }
 type RequestSettings struct {
 	// Identity is pinned plain JSON; request-time callbacks cannot replace it.
