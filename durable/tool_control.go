@@ -18,7 +18,7 @@ func validateToolControl(control *ToolControl, l Limits) error {
 		return reject("tool control names limit")
 	}
 	for _, name := range control.AddTools {
-		if !validKind(name) {
+		if !validToolName(name) {
 			return reject("invalid tool control name")
 		}
 	}

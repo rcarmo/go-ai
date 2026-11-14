@@ -20,6 +20,10 @@ The selected mode now passes **200 unchanged cases +64 independent probes**:192 
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
 
+## Internal model-tool metadata
+
+The original createModelTools metadata fixture pins models.ts SHA256 ca43ea7e9bd656766c995b9ff342d3b6d73d3c736beb3c05ed629effefcd02c8, independently matched with the remote target and recaptured byte-identically. The existing original-source probe compares full metadata and done/error output text for both tool types, including absent/empty/nonempty errors. Selected264 and original codemode7 plus72 supplements pass, zero skipped. These remain source execution receipts, separate from native production-path controls in typed-model-results.md.
+
 ## Executable original compaction records
 
 scripts/capture-durable-compaction-request.mjs runs the original published1.5.0 Harness/CompactionTask with MemoryStorage to capture deterministic request/retry selected-record fixtures. Both recapture byte-for-byte. Native tests import untouched conversation/entry/task records through public SQLite.Commit and verify exact task JSON before execution/reopen. Builtin documents are omitted and explicitly initialised with Root; full store/database interchange remains unverified. The paired pinned-source SQLite probe requires exact checkpoint equality with the captured request fixture. Latest selected258 and separate original compaction176 cases pass, zero skipped.

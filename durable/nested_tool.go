@@ -144,7 +144,7 @@ func (r *TaskRuntime) startToolScoped(ctx context.Context, key, name string, arg
 		return nil, reject("nil nested call context")
 	}
 	l := r.harness.session.limits
-	if (!sequential && !validNestedKey(key) || sequential && !validSequentialKey(key)) || len(key) > l.MaxRequestIDBytes || !validKind(name) {
+	if (!sequential && !validNestedKey(key) || sequential && !validSequentialKey(key)) || len(key) > l.MaxRequestIDBytes || !validToolName(name) {
 		return nil, reject("invalid nested call key/name")
 	}
 	owned, err := copyScopedToolArguments(arguments, native, l)

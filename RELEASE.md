@@ -2,6 +2,10 @@
 
 The sole acceptance target is official upstream **v1.5.0**, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Alignment is unverified. Older entries below are historical receipts, not compatibility requirements or v1.5.0 acceptance. Retained tests and active identity/schema/catalogue/regeneration pins must be reconciled with this release; obsolete behaviour must change.
 
+## Development continuation: canonical internal model tools
+
+Source metadata/canonical model-context calls and exact done/error text replace the native flat envelope and image-tool spelling. Unknown {} schema support and retained empty output-schema presence repair demonstrated real-call failures; bounded JSON authority remains enforced. [Evidence and limits](notes/typed-model-results.md#canonical-internal-model-tool-contract): Full repository ./... passes26 packages: root0.604s, durable418.648s/tools20.143s and public consumers12.467s. Seven semantic faults, ten shuffled focused repetitions11.816s, vet/Staticcheck/logging/register pass. Selected original264 and separate codemode79 pass, zero skipped. Analysed temporary logs/overlays/recaptures are removed. Complete ToolTask runtime/migrations, arbitrary name/error/schema, worker/API/Storage and pre-release acceptance remain open. No dependencies, credentials, published refs/assets, hosted CI or release publication changed.
+
 ## Development continuation: typed model-result presence
 
 Image/classifier JSON now preserves optional empty errors. Actual QuickJS paid classifier output omits absent errorMessage/usage; typed paid calls retain provided errors through task replay without repeating effects. [Source-derived controls and limits](notes/typed-model-results.md): full ./...26packages pass (durable433.467s/tools20.365s), six semantic faults and static gates pass. Complete model-tool input/output/name, API/runtime/worker/schema and pre-release acceptance remain open. No dependency/generated/tag/publication changes.

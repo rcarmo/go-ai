@@ -1,0 +1,46 @@
+{
+  "target": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+  "source": "packages/durable/src/codemode/models.ts",
+  "sha256": "ca43ea7e9bd656766c995b9ff342d3b6d73d3c736beb3c05ed629effefcd02c8",
+  "producer": "original createModelTools registrations",
+  "tools": [
+    {
+      "name": "pi.codemode.models.classify",
+      "description": "models.classify() of code mode scripts.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "model": {},
+          "context": {}
+        },
+        "required": [
+          "model",
+          "context"
+        ]
+      },
+      "structuredOutputSchema": {},
+      "callers": [
+        "tools"
+      ]
+    },
+    {
+      "name": "pi.codemode.models.generateImages",
+      "description": "models.generateImages() of code mode scripts.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "model": {},
+          "context": {}
+        },
+        "required": [
+          "model",
+          "context"
+        ]
+      },
+      "structuredOutputSchema": {},
+      "callers": [
+        "tools"
+      ]
+    }
+  ]
+}

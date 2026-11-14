@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: image/classifier JSON retains optional empty errors; actual QuickJS classifier result omits absent errorMessage/usage, and typed paid calls preserve errors through replay. Public SDK and actual QuickJS baselines failed before fixes. See [evidence](typed-model-results.md). Complete model-tool input/name/output, engine/worker/API/schema/runtime and release acceptance remain open.
+Latest continuation: canonical internal model-tool metadata, model/context forwarding and exact success/error text now follow pinned source. Actual r.CallTool paths required unknown {} schemas and persisted empty output-schema presence. See [evidence](typed-model-results.md#canonical-internal-model-tool-contract). Complete ToolTask runtime/migrations, name/error/schema breadth, engine/worker/API and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: image/classifier JSON retains optional empty errors; actual
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest typed-result verification
+## Latest internal model-tool verification
+
+Full repository ./... passes26 packages: root0.604s, durable418.648s/tools20.143s and public consumers12.467s. Seven semantic faults, ten shuffled focused repetitions11.816s, vet/Staticcheck/logging/register pass. Selected original264 and separate codemode79 pass, zero skipped. Analysed temporary logs/overlays/recaptures are removed. Complete ToolTask runtime/migrations, arbitrary name/error/schema, worker/API/Storage and pre-release acceptance remain open.
+
+## Previous typed-result verification
 
 Full repository ./... passes26 packages, including root0.742s, durable433.467s/tools20.365s and public consumers13.536s. Ten shuffled repetitions pass public SDK0.381s/durable10.498s; six semantic faults, vet, Staticcheck, logging and register pass. Selected reference264 (200 unchanged +64 probes), original codemode-models7 plus72 supplements (79 total) and original compaction110 plus72 supplements (182 total) pass, zero skipped. Analysed logs/overlays are removed. D09/D13 current evidence is condensed to remove superseded contradictions; linked history remains and no disposition closes.
 

@@ -49,3 +49,28 @@ func TestCodemode120QuickJSClassifierGlobalOptInAndReplay(t *testing.T) {
 		}
 	})
 }
+
+// Source codemode.ts:1007-1013 forwards two values, coalescing absent args to
+// null. Model/context validation belongs to the actual internal tool call.
+func TestSourceCodemodeModelCallEnvelope(t *testing.T) {
+	model := map[string]any{"provider": "p", "id": "m", "headers": map[string]any{"x": "caller"}}
+	for _, name := range []string{"models.classify", "models.generateImages"} {
+		tool := "pi.codemode.models.classify"
+		if name == "models.generateImages" {
+			tool = "pi.codemode.models.generateImages"
+		}
+		for _, test := range []struct {
+			args           any
+			model, context any
+		}{
+			{[]any{model, JSON{"input": "data"}}, model, JSON{"input": "data"}},
+			{[]any{nil, nil}, nil, nil}, {[]any{}, nil, nil}, {"not-array", nil, nil},
+			{[]any{model}, model, nil}, {[]any{model, JSON{}, "ignored"}, model, JSON{}},
+		} {
+			gotName, got, err := codemodePaidArguments(CodemodeCall{Name: name, Arguments: JSON{"args": test.args}})
+			if err != nil || gotName != tool || !equalJSONValue(got, JSON{"model": test.model, "context": test.context}) {
+				t.Error("source model-call envelope changed", gotName, got, err)
+			}
+		}
+	}
+}

@@ -72,7 +72,7 @@ func (r *Registry) Install(extension *Extension) error {
 		return reject("extension wrapper limit")
 	}
 	for _, wrap := range prepared.wraps {
-		tool := wrap.Tool != "" && wrap.Section == "" && wrap.WrapTool != nil && wrap.WrapSection == nil && validKind(wrap.Tool)
+		tool := wrap.Tool != "" && wrap.Section == "" && wrap.WrapTool != nil && wrap.WrapSection == nil && validToolName(wrap.Tool)
 		section := wrap.Section != "" && wrap.Tool == "" && wrap.WrapSection != nil && wrap.WrapTool == nil && sectionKey.MatchString(wrap.Section)
 		if !tool && !section {
 			return reject("invalid extension wrapper")

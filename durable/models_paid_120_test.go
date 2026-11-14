@@ -3,6 +3,8 @@ package durable
 import (
 	"context"
 	"encoding/json"
+	"math"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -31,10 +33,40 @@ func TestModels120PaidValidationAndReservedAuthority(t *testing.T) {
 	if e := installPaidModelTools(registry); e != nil {
 		t.Fatal("reopen registration", e)
 	}
+	data, err := os.ReadFile("testdata/pi-durable-v150/model-tools.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original struct {
+		Tools []JSON `json:"tools"`
+	}
+	if err := json.Unmarshal(data, &original); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range original.Tools {
+		name := want["name"].(string)
+		tool, found := registry.current(name)
+		if !found {
+			t.Error("original model-tool name missing", name)
+			continue
+		}
+		got, err := dtoObject(JSON{"name": tool.offer.Name, "description": tool.offer.Description, "parameters": tool.offer.Schema, "structuredOutputSchema": tool.offer.StructuredOutputSchema, "callers": tool.offer.Callers}, DefaultLimits())
+		if err != nil || !equalJSONValue(got, want) {
+			t.Error("model-tool registration differs from original", got, err)
+		}
+	}
 	for _, name := range []string{classifierToolName, imagesToolName} {
 		tool, ok := registry.current(name)
 		if !ok || tool.offer.ReplaySafe || toolCallerAllowed(tool.offer, "model") || !toolCallerAllowed(tool.offer, "tools") {
 			t.Fatal(name, tool.offer)
+		}
+		if _, err := validateArguments(bg, tool, JSON{"model": nil, "context": nil}, DefaultLimits()); err != nil {
+			t.Error("source unknown schema must admit null before tool validation", err)
+		}
+		for _, invalid := range []any{math.Inf(1), func() {}} {
+			if _, err := validateArguments(bg, tool, JSON{"model": invalid, "context": nil}, DefaultLimits()); err == nil {
+				t.Error("unknown schema widened bounded JSON authority")
+			}
 		}
 	}
 }
@@ -222,6 +254,72 @@ func TestPaidModelResultOptionalErrorReplay(t *testing.T) {
 			record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
 			if record.State.Outcome.Status != "completed" || classCalls.Load() != 1 || imageCalls.Load() != 1 {
 				t.Fatal("paid optional replay failed", record.State.Outcome, classCalls.Load(), imageCalls.Load())
+			}
+		})
+	}
+}
+
+// Actual canonical internal-tool calls, with source argument envelopes and
+// exact modelResult text. No direct Execute/helper substitutes the task path.
+func TestSourceModelToolCallAndResultText(t *testing.T) {
+	for _, test := range []struct{ name, stop, field, suffix string }{
+		{"stop", "stop", "", "done"}, {"absent-error", "error", "", "error: "},
+		{"empty-error", "error", `,"errorMessage":""`, "error: "}, {"nonempty-error", "error", `,"errorMessage":"failed"`, "error: failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var classified goai.ClassifierResult
+			if err := json.Unmarshal([]byte(`{"api":"source-tool-classifier","provider":"presence","model":"judge","answers":{},"stopReason":"`+test.stop+`","timestamp":0`+test.field+`}`), &classified); err != nil {
+				t.Fatal(err)
+			}
+			var generated images.AssistantImages
+			if err := json.Unmarshal([]byte(`{"api":"source-tool-images","provider":"presence","model":"painter","output":[],"stopReason":"`+test.stop+`","timestamp":0`+test.field+`}`), &generated); err != nil {
+				t.Fatal(err)
+			}
+			var classCalls, imageCalls atomic.Int64
+			goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "source-tool-classifier", Classify: func(*goai.ClassifierModel, goai.ClassifierContext, *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+				classCalls.Add(1)
+				return &classified, nil
+			}})
+			images.RegisterImagesApiProvider(&images.ImagesApiProvider{Api: "source-tool-images", GenerateImages: func(*images.ImagesModel, images.ImagesContext, *images.ImagesOptions) (*images.AssistantImages, error) {
+				imageCalls.Add(1)
+				return &generated, nil
+			}})
+			t.Cleanup(func() { images.UnregisterImagesApiProvider("source-tool-images") })
+			registry := NewRegistry()
+			definition := taskDefinition(t, "source-model-tools", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+				for _, call := range []struct {
+					name, id, key, verb string
+					input               JSON
+				}{
+					{"pi.codemode.models.classify", "judge", "judge", "classify", JSON{"state": JSON{}, "questions": JSON{"q": JSON{"type": "bool", "instructions": "yes?", "criteria": JSON{"true": "yes", "false": "no"}}}}},
+					{"pi.codemode.models.generateImages", "painter", "painter", "generateImages", JSON{"input": []any{JSON{"type": "text", "text": "draw"}}}},
+				} {
+					for i := 0; i < 2; i++ {
+						result, err := r.CallTool(ctx, call.key, call.name, JSON{"model": JSON{"provider": "presence", "id": call.id}, "context": call.input})
+						if err != nil {
+							return err
+						}
+						want := call.verb + " presence/" + call.id + " " + test.suffix
+						if result.Content != want || result.IsError != (test.stop != "stop") || !result.HasStructuredOutput {
+							t.Error("source model-tool result changed", result.Content, result.IsError, result.HasStructuredOutput, "want", want)
+						}
+					}
+				}
+				return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+			})
+			if _, err := registry.RegisterTask(definition); err != nil {
+				t.Fatal(err)
+			}
+			catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), classifier: &goai.ClassifierModel{Provider: "presence", ID: "judge", Api: "source-tool-classifier"}, image: &goai.ImageModel{Provider: "presence", ID: "painter", Api: "source-tool-images"}}
+			store, err := newTestSQLite(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := openHarness(t, store, Options{Registry: registry, Catalog: catalog, PaidModels: true})
+			root(t, h, ModelRef{Provider: "presence", ID: "chat"})
+			record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+			if record.State.Outcome.Status != "completed" || classCalls.Load() != 1 || imageCalls.Load() != 1 {
+				t.Error("source model-tool execution changed", record.State.Outcome, classCalls.Load(), imageCalls.Load())
 			}
 		})
 	}

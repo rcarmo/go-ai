@@ -10,12 +10,17 @@ import (
 )
 
 const classifierToolName = "pi.codemode.models.classify"
-const imagesToolName = "pi.codemode.models.generate-images"
+const imagesToolName = "pi.codemode.models.generateImages"
 
 func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
-	return ToolRegistration{paidModel: true, Definition: goai.Tool{Name: name, Description: "Internal durable typed model call", Parameters: json.RawMessage(`{"type":"object","properties":{"provider":{"type":"string"},"id":{"type":"string"},"context":{"type":"object"}},"required":["provider","id","context"],"additionalProperties":false}`)}, Implementation: name, Version: 1, Callers: []string{"tools"}, ReplaySafe: false, StructuredOutputSchema: JSON{"type": "object", "additionalProperties": true}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
-		provider, _ := args["provider"].(string)
-		id, _ := args["id"].(string)
+	global := "models.classify"
+	if kind == goai.ModelTypeImage {
+		global = "models.generateImages"
+	}
+	return ToolRegistration{paidModel: true, Definition: goai.Tool{Name: name, Description: global + "() of code mode scripts.", Parameters: json.RawMessage(`{"type":"object","properties":{"model":{},"context":{}},"required":["model","context"]}`)}, Implementation: name, Version: 1, Callers: []string{"tools"}, ReplaySafe: false, StructuredOutputSchema: JSON{}, Execute: func(ctx context.Context, args JSON, api *ToolAPI) (ToolResult, error) {
+		model, _ := args["model"].(map[string]any)
+		provider, _ := model["provider"].(string)
+		id, _ := model["id"].(string)
 		ref := goai.TypedModelRef{Type: kind, Provider: provider, ID: id}
 		access, err := api.Models()
 		if err != nil {
@@ -190,7 +195,18 @@ func paidModelRegistration(name string, kind goai.ModelType) ToolRegistration {
 		if err != nil {
 			return ToolResult{}, err
 		}
-		return ToolResult{Content: fmt.Sprintf("%s result", kind), StructuredOutput: object, HasStructuredOutput: true, Usage: usage, IsError: stop != "stop"}, nil
+		verb := "classify"
+		if kind == goai.ModelTypeImage {
+			verb = "generateImages"
+		}
+		text := fmt.Sprintf("%s %s/%s", verb, ref.Provider, ref.ID)
+		if stop == "stop" {
+			text += " done"
+		} else {
+			message, _ := object["errorMessage"].(string)
+			text += " " + stop + ": " + message
+		}
+		return ToolResult{Content: text, StructuredOutput: object, HasStructuredOutput: true, Usage: usage, IsError: stop != "stop"}, nil
 	}}
 }
 func installPaidModelTools(registry *Registry) error {
@@ -234,7 +250,7 @@ func (a *ModelAccess) Classify(ctx context.Context, key string, ref goai.TypedMo
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.runtime.CallTool(ctx, key, classifierToolName, JSON{"provider": ref.Provider, "id": ref.ID, "context": object})
+	result, err := a.runtime.CallTool(ctx, key, classifierToolName, JSON{"model": JSON{"provider": ref.Provider, "id": ref.ID}, "context": object})
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +281,7 @@ func (a *ModelAccess) GenerateImages(ctx context.Context, key string, ref goai.T
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.runtime.CallTool(ctx, key, imagesToolName, JSON{"provider": ref.Provider, "id": ref.ID, "context": object})
+	result, err := a.runtime.CallTool(ctx, key, imagesToolName, JSON{"model": JSON{"provider": ref.Provider, "id": ref.ID}, "context": object})
 	if err != nil {
 		return nil, err
 	}

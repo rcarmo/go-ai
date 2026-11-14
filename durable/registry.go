@@ -561,7 +561,7 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 		}
 	}
 	for _, tool := range m.ToolsAdded {
-		if !validKind(tool.Name) {
+		if !validToolName(tool.Name) {
 			return messageReceipt{}, reject("unsupported tool contribution control")
 		}
 		var parameters JSON
@@ -576,7 +576,7 @@ func contributionReceipt(m goai.Message, l Limits) (messageReceipt, error) {
 	}
 	r.ToolsRemoved = append([]goai.ToolReference(nil), m.ToolsRemoved...)
 	for _, tool := range r.ToolsRemoved {
-		if !validKind(tool.Name) {
+		if !validToolName(tool.Name) {
 			return messageReceipt{}, reject("invalid removed tool contribution")
 		}
 	}

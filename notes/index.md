@@ -3,9 +3,9 @@
 Compact index. Read a linked note only when it is relevant to the current task.
 
 - [Upstream conformance completion report](upstream-conformance-report.md) — latest verified
-  canonical compaction checkpoint slice, exact evidence and remaining migration/release blockers.
+  model-tool and compaction slices, exact evidence and remaining migration/release blockers.
 
-- [Typed model results](typed-model-results.md) — optional result JSON and actual paid QuickJS/task replay, original evidence and remaining tool/API gaps.
+- [Typed model results](typed-model-results.md) — original internal metadata/envelopes/text, optional result JSON and actual paid QuickJS/task replay, original evidence and remaining tool/API gaps.
 
 - [Pinned upstream oracle](upstream-oracle.md) — memory-bounded original-test execution,
   exact reference assets/coverage and unresolved image/live-provider acceptance.

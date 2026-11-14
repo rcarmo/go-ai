@@ -81,6 +81,22 @@ type Registry struct {
 	extensions           []installedExtension
 }
 
+// Tool identifiers are case-sensitive. Source builtin names include
+// generateImages; the document-kind lowercase rule is not a tool-name rule.
+func validToolName(s string) bool {
+	if len(s) < 1 || len(s) > 128 || !((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z')) {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.' || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func NewRegistry() *Registry { return &Registry{tools: map[string]registeredTool{}} }
 func (r *Registry) Register(reg ToolRegistration) error {
 	if (reg.Definition.Name == classifierToolName || reg.Definition.Name == imagesToolName) && !reg.paidModel {
@@ -98,7 +114,7 @@ func (r *Registry) Register(reg ToolRegistration) error {
 	if reg.ExecutionMode != "" && reg.ExecutionMode != "parallel" && reg.ExecutionMode != "sequential" {
 		return reject("invalid tool execution mode")
 	}
-	if !validKind(reg.Definition.Name) || !validKind(reg.Implementation) || reg.Version < 1 || reg.Version > MaxID || reg.Execute == nil {
+	if !validToolName(reg.Definition.Name) || !validToolName(reg.Implementation) || reg.Version < 1 || reg.Version > MaxID || reg.Execute == nil {
 		return reject("invalid tool registration")
 	}
 	var schema JSON
@@ -217,6 +233,9 @@ func validateSchema(s JSON, depth int) error {
 	if depth > 16 {
 		return reject("schema depth limit")
 	}
+	if s != nil && len(s) == 0 {
+		return nil
+	} // source unknown() schema
 	typ, ok := s["type"].(string)
 	if !ok {
 		return reject("schema type required")
@@ -406,7 +425,13 @@ func schemaType(v any, typ string) bool {
 	return false
 }
 func checkSchema(s JSON, v any, depth int) error {
-	if depth > 16 || !schemaType(v, s["type"].(string)) {
+	if depth > 16 {
+		return reject("tool arguments schema type")
+	}
+	if s != nil && len(s) == 0 {
+		return nil
+	}
+	if !schemaType(v, s["type"].(string)) {
 		return reject("tool arguments schema type")
 	}
 	if enum, ok := s["enum"].([]any); ok {

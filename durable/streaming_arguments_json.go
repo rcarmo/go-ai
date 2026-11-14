@@ -91,6 +91,9 @@ func nativeJSONField(v reflect.Value, field jsonStructField) (reflect.Value, err
 	return value, nil
 }
 func nativeFieldPresent(v reflect.Value, name string) bool {
+	if v.Type() == reflect.TypeFor[toolOffer]() && name == "structuredOutputSchema" {
+		return !v.FieldByName("StructuredOutputSchema").IsNil()
+	}
 	if (v.Type() == nativeReceiptType || v.Type() == reflect.TypeFor[goai.Message]() || v.Type() == reflect.TypeFor[goai.ClassifierResult]() || v.Type() == reflect.TypeFor[images.AssistantImages]()) && name == "errorMessage" {
 		return v.FieldByName("ErrorMessagePresent").Bool()
 	}
