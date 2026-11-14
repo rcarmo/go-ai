@@ -4,7 +4,7 @@
 
 Target: official v1.5.0, `f9a26365568127461c47a07a37dcb42c140a3ac5`. Native implementation: `/work/go-ai/durable`, authorised SQLite-only, pure Go. The preceding pushed implementation checkpoint is `04726f3` (request-time model/retry authority); image-resource diagnosis is recorded at `1e0f3ad`.
 
-Latest continuation: source-valid empty classifier strings and single score levels now reach canonical tools and typed helpers with one effect across replay. The typed producer omits absent images. See [evidence](typed-model-results.md#classifier-context-strings-and-score-levels). Complete context/error/union, ToolTask/runtime/migration, worker/API/Storage and release acceptance remain open.
+Latest continuation: optional classifier image arrays preserve absence versus supplied empty/nonempty values through public SDK JSON and real paid/provider normalization. The internal tool checks image fields before typed decoding, rejecting malformed inputs without effects. See [evidence](typed-model-results.md#optional-classifier-image-arrays-and-validation). Complete context/error/union, ToolTask/runtime/migration, worker/API/Storage and release acceptance remain open.
 
 ## Earlier queue-production checkpoint
 
@@ -18,7 +18,11 @@ Latest continuation: source-valid empty classifier strings and single score leve
 
 The exact input/write shape tests failed before the fixes. Idle progress and continuation already passed and required no speculative runtime changes. A failure/reopen fixture initially tried to close storage already owned/closed by Session; correcting the fixture required no runtime fix. Tests remain in the existing version-neutral transaction suite.
 
-## Latest classifier-context verification
+## Latest classifier-image verification
+
+Full repository ./... passes26 packages: root0.750s, durable425.515s/tools20.279s and public consumers13.255s. Seven semantic faults, ten shuffled repetitions SDK0.180s/durable13.085s, vet/Staticcheck/logging/register pass. Selected original266 and separate codemode81 pass, zero skipped. Analysed temporary logs/overlays are removed. Complete image/context/criteria/error unions, canonical ToolTask/runtime/migrations, worker/API/Storage and pre-release acceptance remain open.
+
+## Previous classifier-context verification
 
 Full repository ./... passes26 packages: root0.714s, durable423.520s/tools17.580s and public consumers12.533s. Six semantic faults, ten exact-context shuffled repetitions4.771s and three related repetitions10.370s pass. Vet/Staticcheck/logging/register, selected original266 (200 unchanged +66 probes) and original codemode-models7+74 supplements81 pass, zero original skips. Analysed temporary logs/overlays/probes are removed. Complete context/image/criteria/error unions, ToolTask runtime/migrations, worker/API/Storage and pre-release acceptance remain open.
 

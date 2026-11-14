@@ -39,8 +39,16 @@ func (c ClassifierContext) MarshalJSON() ([]byte, error) {
 	if c.Questions == nil {
 		return nil, fmt.Errorf("classifier questions must be a JSON object")
 	}
+	// A nonnil empty images slice is a supplied optional array, not absence.
+	var images *[]ImageContent
+	if c.Images != nil {
+		images = &c.Images
+	}
 	// Marshal first to catch cycles before recursively checking the JSON domain.
-	data, err := json.Marshal(plain(c))
+	data, err := json.Marshal(struct {
+		plain
+		Images *[]ImageContent `json:"images,omitempty"`
+	}{plain: plain(c), Images: images})
 	if err != nil {
 		return nil, err
 	}

@@ -712,13 +712,17 @@ it("treats tool names as string map keys rather than section/document identifier
 
 it("accepts empty classifier strings and one score level in the original internal tool",async()=>{
  const {createModelTools}=await import("@pinned/model-tools"),{createModels,createProvider}=await import("@reference/pi-ai");
- const seen:any[]=[];const models=createModels();models.setProvider(createProvider({id:"empty",auth:{apiKey:{name:"Empty",resolve:async()=>({auth:{}})}},models:[{id:"judge",name:"Judge",api:"empty-classifier",provider:"empty",baseUrl:"https://example.invalid",input:["text"],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},type:"classifier",contextWindow:1000}],classifiers:{"empty-classifier":{classify:async(_model:any,input:any)=>{seen.push(input);return{answers:{},stopReason:"stop",timestamp:0}}}}}));
+ const seen:any[]=[];const models=createModels();models.setProvider(createProvider({id:"empty",auth:{apiKey:{name:"Empty",resolve:async()=>({auth:{}})}},models:[{id:"judge",name:"Judge",api:"empty-classifier",provider:"empty",baseUrl:"https://example.invalid",input:["text","image"],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},type:"classifier",contextWindow:1000}],classifiers:{"empty-classifier":{classify:async(_model:any,input:any)=>{seen.push(input);return{answers:{},stopReason:"stop",timestamp:0}}}}}));
  const tool=createModelTools().find(tool=>tool.name.endsWith("classify"))!;
  for(const question of[{type:"choice",instructions:"",criteria:{"":""}},{type:"score",instructions:"",criteria:[""]},{type:"bool",instructions:"",criteria:{true:"",false:""}}]){
   const input={state:{},questions:{"":question}};const result=await tool.execute({model:{provider:"empty",id:"judge"},context:input},{models} as any,context);
   expect(result.output[0]).toEqual({type:"text",text:"classify empty/judge done"});expect(seen.at(-1)).toEqual(input);expect(Object.hasOwn(seen.at(-1),"images")).toBe(false);
  }
  expect(seen).toHaveLength(3);
+ const base={state:{},questions:{q:{type:"bool",instructions:"",criteria:{true:"",false:""}}}};
+ for(const images of [[],[{type:"image",data:"",mimeType:""}]]){const input={...base,images};await tool.execute({model:{provider:"empty",id:"judge"},context:input},{models} as any,context);expect(seen.at(-1)).toEqual(input);expect(Object.hasOwn(seen.at(-1),"images")).toBe(true)}
+ expect(seen).toHaveLength(5);
+ for(const images of [null,"not-array",[null],[{type:"text",data:"",mimeType:""}],[{type:"image",data:""}],[{type:"image",data:null,mimeType:""}]])await expect(tool.execute({model:{provider:"empty",id:"judge"},context:{...base,images}},{models} as any,context)).rejects.toThrow();
  for(const question of[{type:"choice",instructions:"",criteria:{}},{type:"score",instructions:"",criteria:[]},{type:"bool",instructions:"",criteria:{true:""}},{type:"other",instructions:"",criteria:{}}])await expect(tool.execute({model:{provider:"empty",id:"judge"},context:{state:{},questions:{"":question}}},{models} as any,context)).rejects.toThrow();
- expect(seen).toHaveLength(3);
+ expect(seen).toHaveLength(5);
 });

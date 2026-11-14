@@ -750,3 +750,65 @@ func TestModels120PaidClassifierBilledErrorAndMalformedAnswer(t *testing.T) {
 		})
 	}
 }
+
+// Source codemode/models.ts checkClassifierContext: absent images differ from
+// an explicit array, while null/non-array/malformed image blocks reject.
+func TestSourceClassifierImagesPresenceAndValidation(t *testing.T) {
+	var effects atomic.Int64
+	var wantImages []goai.ImageContent
+	goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "source-paid-images-presence", Classify: func(_ *goai.ClassifierModel, input goai.ClassifierContext, _ *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+		effects.Add(1)
+		if (input.Images == nil) != (wantImages == nil) || len(input.Images) != len(wantImages) {
+			t.Error("paid classifier images presence changed", input.Images, wantImages)
+		}
+		for i, image := range input.Images {
+			if i < len(wantImages) && image != wantImages[i] {
+				t.Error("paid classifier image fields changed", image, wantImages[i])
+			}
+		}
+		return &goai.ClassifierResult{Answers: map[string]goai.ClassifierAnswer{}, StopReason: "stop"}, nil
+	}})
+	registry := NewRegistry()
+	definition := taskDefinition(t, "source.classifier-images", func(ctx context.Context, _ TaskRecord, r *TaskRuntime) error {
+		access, err := r.Models()
+		if err != nil {
+			return err
+		}
+		for i, images := range [][]goai.ImageContent{nil, {}, {{Type: "image", Data: "", MimeType: ""}}} {
+			wantImages = images
+			input := paidClassifierInput120()
+			input.Images = images
+			for repeat := 0; repeat < 2; repeat++ {
+				result, err := access.Classify(ctx, strings.Repeat("valid", i+1), goai.TypedModelRef{Provider: "presence", ID: "judge"}, input)
+				if err != nil || result == nil || result.StopReason != "stop" {
+					t.Error("valid classifier image array rejected", images, result, err)
+				}
+			}
+		}
+		before := effects.Load()
+		for i, invalid := range []any{nil, "not-array", []any{nil}, []any{JSON{"type": "text", "data": "", "mimeType": ""}}, []any{JSON{"type": "image", "data": ""}}, []any{JSON{"type": "image", "data": nil, "mimeType": ""}}} {
+			result, err := r.CallTool(ctx, strings.Repeat("invalid", i+1), classifierToolName, JSON{"model": JSON{"provider": "presence", "id": "judge"}, "context": JSON{"state": JSON{}, "questions": JSON{"q": JSON{"type": "bool", "instructions": "", "criteria": JSON{"true": "", "false": ""}}}, "images": invalid}})
+			if err != nil || !result.IsError {
+				t.Error("source invalid classifier images admitted", invalid, result, err)
+			}
+		}
+		if effects.Load() != before {
+			t.Error("invalid classifier images reached provider", before, effects.Load())
+		}
+		return r.Commit(ctx, func(*Tx, TaskRecord) (*TaskState, error) { return taskDone(nil), nil })
+	})
+	if _, err := registry.RegisterTask(definition); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newTestSQLite(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &typedCatalog120{ModelRuntime: goai.NewModelRuntime(nil), classifier: &goai.ClassifierModel{Provider: "presence", ID: "judge", Api: "source-paid-images-presence", Input: []string{"text", "image"}}}
+	h := openHarness(t, store, Options{Registry: registry, Catalog: catalog, PaidModels: true})
+	root(t, h, ModelRef{Provider: "presence", ID: "chat"})
+	record := waitPublicTask(t, h, createPublicTask(t, h, definition, nil, TaskOptions{Ownership: TaskOwnership{Kind: "conversation"}}))
+	if record.State.Outcome.Status != "completed" || effects.Load() != 3 {
+		t.Error("classifier image validation/effects changed", record.State.Outcome, effects.Load())
+	}
+}

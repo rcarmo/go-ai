@@ -414,3 +414,44 @@ func TestClassifierResultOptionalErrorJSON(t *testing.T) {
 		}
 	}
 }
+
+// Source ClassifierContext.images is optional; a supplied empty array remains
+// present through JSON and actual Models/provider calls.
+func TestClassifierImagesOptionalArrayPresence(t *testing.T) {
+	var want []goai.ImageContent
+	var calls int
+	goai.RegisterClassifierApiProvider(&goai.ClassifierApiProvider{Api: "source-optional-images", Classify: func(_ *goai.ClassifierModel, input goai.ClassifierContext, _ *goai.ClassifierOptions) (*goai.ClassifierResult, error) {
+		calls++
+		if !reflect.DeepEqual(input.Images, want) {
+			t.Error("classifier image array presence changed before provider", input.Images, want)
+		}
+		return &goai.ClassifierResult{Answers: map[string]goai.ClassifierAnswer{}, StopReason: "stop"}, nil
+	}})
+	for _, images := range [][]goai.ImageContent{nil, {}, {{Type: "image", Data: "", MimeType: ""}}} {
+		want = images
+		input := issue1Context()
+		input.Images = images
+		data, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value map[string]json.RawMessage
+		if err := json.Unmarshal(data, &value); err != nil {
+			t.Fatal(err)
+		}
+		if _, present := value["images"]; present != (images != nil) {
+			t.Error("optional classifier images JSON presence changed", string(data))
+		}
+		var decoded goai.ClassifierContext
+		if err := json.Unmarshal(data, &decoded); err != nil || !reflect.DeepEqual(decoded.Images, images) {
+			t.Error("optional classifier images JSON roundtrip changed", decoded.Images, images, err)
+		}
+		result, err := goai.Classify(&goai.ClassifierModel{Api: "source-optional-images", Input: []string{"text", "image"}}, input, nil)
+		if err != nil || result.StopReason != "stop" {
+			t.Error(result, err)
+		}
+	}
+	if calls != 3 {
+		t.Error("classifier provider effects", calls)
+	}
+}

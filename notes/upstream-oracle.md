@@ -20,6 +20,10 @@ The selected mode now passes **200 unchanged cases +66 independent probes**:192 
 
 Current probes also require exact empty, submissionId-only and entryId-only CompactionResult arms. The latest selected258 and separate original compaction176 cases pass, zero skipped.
 
+## Classifier images
+
+The classifier probe also passes supplied empty/nonempty image arrays unchanged, retains empty data/MIME strings and rejects null/non-array/null blocks/wrong type/missing MIME/null data before another effect. The fake original model declares image capability; its earlier text-only setup error is not runtime-failure evidence. Counts remain selected266/codemode81, zero skipped.
+
 ## Classifier context strings
 
 The original internal classifier executes empty question IDs, instructions and criterion strings for choice/bool plus a one-level score. The fake provider receives the unchanged context without invented images. Empty choice/score collections, malformed bool criteria and unknown types reject before another provider effect. Selected266 and original codemode-models7+74 supplements81 pass, zero skipped.
